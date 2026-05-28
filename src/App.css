@@ -1,0 +1,246 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --color-vr-50: #ecfbfb;
+  --color-vr-100: #d4f4f4;
+  --color-vr-200: #a8e9e9;
+  --color-vr-300: #7ddede;
+  --color-vr-400: #5fd4d4;
+  --color-vr-500: #73d9d9;
+  --color-vr-600: #5ac4c4;
+  --color-vr-700: #42a8a8;
+  --color-vr-800: #2d8282;
+  --color-vr-900: #1a5555;
+}
+
+/* Leaflet tiles + Tailwind preflight */
+.leaflet-container img.leaflet-tile {
+  max-width: none !important;
+}
+
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+  max-width: 50%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:root {
+  color-scheme: light;
+  font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  --primary: #73d9d9;
+  --primary-dark: #42a8a8;
+  --primary-light: #d4f4f4;
+  --border: #e5e7eb;
+  --bg: #f9fafb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #ffffff;
+  color: #1f2937;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent 90%);
+  opacity: 0.4;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-shell::after {
+  content: "";
+  position: fixed;
+  inset: auto -10% -20% auto;
+  width: 30rem;
+  height: 30rem;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    rgba(115, 217, 217, 0.22),
+    transparent 65%
+  );
+  filter: blur(24px);
+  pointer-events: none;
+}
+
+.glass-panel {
+  background: linear-gradient(
+    180deg,
+    rgba(14, 23, 39, 0.9),
+    rgba(8, 16, 30, 0.78)
+  );
+}
+
+.search-pill {
+  min-width: min(100%, 340px);
+}
+
+.switch-btn {
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(226, 232, 240, 0.76);
+  padding: 0.8rem 1.1rem;
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.switch-btn:hover {
+  transform: translateY(-1px);
+  color: white;
+}
+
+.switch-btn-active {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.action-btn {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 252, 0.92);
+  padding: 0.8rem 1rem;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.12);
+}
+
+.alert-card {
+  border-radius: 20px;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.alert-good {
+  box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.08);
+}
+
+.alert-warning {
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.08);
+}
+
+.alert-danger {
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.08);
+}
+
+.alert-info {
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.08);
+}
+
+.screen-chip {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.95rem 1rem;
+  color: rgba(248, 250, 252, 0.86);
+}
+
+.badge-chip {
+  background: linear-gradient(
+    135deg,
+    rgba(34, 211, 238, 0.16),
+    rgba(59, 130, 246, 0.12)
+  );
+  border: 1px solid rgba(125, 211, 252, 0.16);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .glass-panel,
+  .alert-card,
+  .screen-chip,
+  .action-btn,
+  .switch-btn,
+  .icon-btn {
+    animation: lift-in 540ms ease both;
+  }
+
+  .glass-panel:nth-of-type(2) {
+    animation-delay: 60ms;
+  }
+
+  .glass-panel:nth-of-type(3) {
+    animation-delay: 120ms;
+  }
+}
+
+@keyframes lift-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

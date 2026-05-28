@@ -1,0 +1,964 @@
+import { useState, useMemo } from "react";
+import {
+  FiPlus,
+  FiSearch,
+  FiDownload,
+  FiCheck,
+  FiClock,
+  FiTrendingUp,
+  FiPhone,
+  FiMapPin,
+  FiUser,
+  FiTruck,
+} from "react-icons/fi";
+import Modal from "../../../components/Modal";
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type RequestType = "Đón" | "Trả";
+type RequestStatus =
+  | "pending"
+  | "assigned"
+  | "picking"
+  | "completed"
+  | "cancelled";
+type VehicleStatus = "active" | "picking" | "idle";
+
+type ShuttleRequest = {
+  id: string;
+  customerName: string;
+  phone: string;
+  trip: string;
+  type: RequestType;
+  address: string;
+  note?: string;
+  time: string;
+  assignedDriver?: string;
+  assignedPlate?: string;
+  assignedCap?: string;
+  status: RequestStatus;
+};
+
+type ShuttleVehicle = {
+  plate: string;
+  vehicleModel: string;
+  capacity: number;
+  driver: string;
+  status: VehicleStatus;
+  currentPickups?: number;
+};
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+
+const INITIAL_REQUESTS: ShuttleRequest[] = [
+  {
+    id: "SH-9001",
+    customerName: "Nguyễn Thu Hà",
+    phone: "0901 234 567",
+    trip: "VR-2401",
+    type: "Đón",
+    address: "123 Nguyễn Trãi, Q.5, TP.HCM",
+    note: "Có 1 vali lớn",
+    time: "05:10",
+    status: "pending",
+  },
+  {
+    id: "SH-9002",
+    customerName: "Trần Đức Long",
+    phone: "0912 345 678",
+    trip: "VR-2401",
+    type: "Đón",
+    address: "45 Lê Lợi, Q.1, TP.HCM",
+    time: "05:25",
+    assignedDriver: "Phạm Văn Tài",
+    assignedPlate: "51A-77821",
+    assignedCap: "Limo 9 chỗ",
+    status: "assigned",
+  },
+  {
+    id: "SH-9003",
+    customerName: "Lê Mai Anh",
+    phone: "0987 654 321",
+    trip: "VR-2451",
+    type: "Trả",
+    address: "78 Pasteur, Q.3, TP.HCM",
+    time: "21:55",
+    status: "pending",
+  },
+  {
+    id: "SH-9004",
+    customerName: "Phạm Quang Huy",
+    phone: "0934 567 890",
+    trip: "VR-2402",
+    type: "Đón",
+    address: "210 CMT8, Q.10, TP.HCM",
+    note: "Gọi trước 10 phút",
+    time: "06:50",
+    assignedDriver: "Vũ Minh Hải",
+    assignedPlate: "51A-66110",
+    assignedCap: "Limo 7 chỗ",
+    status: "picking",
+  },
+  {
+    id: "SH-9005",
+    customerName: "Đặng Lan Phương",
+    phone: "0945 678 901",
+    trip: "VR-2405",
+    type: "Trả",
+    address: "Bến Ninh Kiều, Cần Thơ",
+    time: "12:35",
+    assignedDriver: "Trần Văn Phú",
+    assignedPlate: "65A-12039",
+    status: "completed",
+  },
+];
+
+const VEHICLES: ShuttleVehicle[] = [
+  {
+    plate: "51A-77821",
+    vehicleModel: "Ford Transit Limo 9",
+    capacity: 9,
+    driver: "Phạm Văn Tài",
+    status: "active",
+  },
+  {
+    plate: "51A-66110",
+    vehicleModel: "Toyota Hiace 7",
+    capacity: 7,
+    driver: "Vũ Minh Hải",
+    status: "picking",
+  },
+  {
+    plate: "51A-99230",
+    vehicleModel: "Mercedes Sprinter 11",
+    capacity: 11,
+    driver: "Đỗ Tuấn Anh",
+    status: "active",
+  },
+  {
+    plate: "65A-12039",
+    vehicleModel: "Toyota Innova",
+    capacity: 7,
+    driver: "Trần Văn Phú",
+    status: "idle",
+  },
+];
+
+// ── Badge helpers ─────────────────────────────────────────────────────────────
+
+const STATUS_LABEL: Record<RequestStatus, string> = {
+  pending: "Chờ điều phối",
+  assigned: "Đã gán xe",
+  picking: "Đang đón",
+  completed: "Hoàn thành",
+  cancelled: "Đã hủy",
+};
+const STATUS_CLASS: Record<RequestStatus, string> = {
+  pending: "bg-gray-100 text-gray-600",
+  assigned: "bg-blue-50 text-blue-600",
+  picking: "bg-teal-50 text-teal-700",
+  completed: "bg-green-50 text-green-700",
+  cancelled: "bg-red-50 text-red-600",
+};
+
+const V_STATUS_LABEL: Record<VehicleStatus, string> = {
+  active: "Đang trực",
+  picking: "Đang đón khách",
+  idle: "Nghỉ",
+};
+const V_STATUS_CLASS: Record<VehicleStatus, string> = {
+  active: "text-teal-600",
+  picking: "text-blue-500",
+  idle: "text-gray-400",
+};
+const V_DOT_CLASS: Record<VehicleStatus, string> = {
+  active: "bg-teal-500",
+  picking: "bg-blue-500",
+  idle: "bg-gray-300",
+};
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function DispatchPanel() {
+  const [requests, setRequests] = useState<ShuttleRequest[]>(INITIAL_REQUESTS);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">(
+    "all",
+  );
+
+  // Modals
+  const [openCreateRequest, setOpenCreateRequest] = useState(false);
+  const [openAssignVehicle, setOpenAssignVehicle] = useState(false);
+  const [openRequestDetail, setOpenRequestDetail] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<ShuttleRequest | null>(
+    null,
+  );
+
+  // Form states
+  const [newRequestForm, setNewRequestForm] = useState({
+    customerName: "",
+    phone: "",
+    trip: "",
+    type: "Đón" as RequestType,
+    address: "",
+    note: "",
+    time: "",
+  });
+
+  const [assignForm, setAssignForm] = useState({
+    vehicleId: "",
+    notes: "",
+  });
+
+  // Filter and search
+  const filtered = useMemo(() => {
+    return requests.filter((r) => {
+      const q = query.toLowerCase();
+      const statusMatch = statusFilter === "all" || r.status === statusFilter;
+      const queryMatch =
+        !q ||
+        r.id.toLowerCase().includes(q) ||
+        r.customerName.toLowerCase().includes(q) ||
+        r.trip.toLowerCase().includes(q);
+      return statusMatch && queryMatch;
+    });
+  }, [requests, query, statusFilter]);
+
+  // Stats
+  const stats = useMemo(
+    () => ({
+      pending: requests.filter((r) => r.status === "pending").length,
+      assigned: requests.filter(
+        (r) => r.status === "assigned" || r.status === "picking",
+      ).length,
+      completed: requests.filter((r) => r.status === "completed").length,
+      ready: VEHICLES.filter((v) => v.status === "active").length,
+    }),
+    [requests],
+  );
+
+  // Handlers
+  const handleCreateRequest = () => {
+    if (
+      !newRequestForm.customerName ||
+      !newRequestForm.phone ||
+      !newRequestForm.trip
+    ) {
+      alert("Vui lòng nhập đầy đủ thông tin");
+      return;
+    }
+    const newReq: ShuttleRequest = {
+      id: `SH-${Date.now()}`,
+      ...newRequestForm,
+      status: "pending",
+    };
+    setRequests([newReq, ...requests]);
+    setNewRequestForm({
+      customerName: "",
+      phone: "",
+      trip: "",
+      type: "Đón",
+      address: "",
+      note: "",
+      time: "",
+    });
+    setOpenCreateRequest(false);
+    alert("Tạo yêu cầu thành công!");
+  };
+
+  const handleAssignVehicle = () => {
+    if (!selectedRequest || !assignForm.vehicleId) return;
+    const vehicle = VEHICLES.find((v) => v.plate === assignForm.vehicleId);
+    if (!vehicle) return;
+
+    setRequests(
+      requests.map((r) =>
+        r.id === selectedRequest.id
+          ? {
+              ...r,
+              status: "assigned" as RequestStatus,
+              assignedDriver: vehicle.driver,
+              assignedPlate: vehicle.plate,
+              assignedCap: vehicle.vehicleModel,
+            }
+          : r,
+      ),
+    );
+    setOpenAssignVehicle(false);
+    setAssignForm({ vehicleId: "", notes: "" });
+    alert("Đã gán xe thành công!");
+  };
+
+  const openDetail = (request: ShuttleRequest) => {
+    setSelectedRequest(request);
+    setOpenRequestDetail(true);
+  };
+
+  const handleCancelRequest = (requestId: string) => {
+    if (confirm("Bạn chắc chắn muốn hủy yêu cầu này?")) {
+      setRequests(
+        requests.map((r) =>
+          r.id === requestId ? { ...r, status: "cancelled" } : r,
+        ),
+      );
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Điều phối xe trung chuyển
+          </h1>
+          <p className="text-gray-600 mt-1 text-sm">
+            Phân công đội xe Limo/Hiace đón – trả khách tận nhà theo từng chuyến
+            chính.
+          </p>
+        </div>
+        <button
+          onClick={() => setOpenCreateRequest(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+        >
+          <FiPlus size={18} /> Tạo yêu cầu trung chuyển
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            label: "Chờ điều phối",
+            value: stats.pending,
+            icon: FiClock,
+            color: "text-amber-600",
+          },
+          {
+            label: "Đang xử lý",
+            value: stats.assigned,
+            icon: FiTrendingUp,
+            color: "text-blue-600",
+          },
+          {
+            label: "Hoàn thành",
+            value: stats.completed,
+            icon: FiCheck,
+            color: "text-green-600",
+          },
+          {
+            label: "Xe sẵn sàng",
+            value: `${stats.ready}/${VEHICLES.length}`,
+            icon: FiTruck,
+            color: "text-vr-600",
+          },
+        ].map((stat, idx) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={idx}
+              className="bg-white border border-gray-200 rounded-lg p-4"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-gray-600 font-medium">
+                  {stat.label}
+                </p>
+                <Icon className={`${stat.color}`} size={18} />
+              </div>
+              <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Request List */}
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4">
+          {/* Toolbar */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="flex-1 relative">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Tìm theo mã, khách, chuyến..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as RequestStatus | "all")
+              }
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
+            >
+              <option value="all">Tất cả</option>
+              <option value="pending">Chờ</option>
+              <option value="assigned">Đã gán</option>
+              <option value="picking">Đang đón</option>
+              <option value="completed">Hoàn thành</option>
+              <option value="cancelled">Hủy</option>
+            </select>
+            <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+              <FiDownload size={16} /> CSV
+            </button>
+          </div>
+
+          {/* Request Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                    Mã
+                  </th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                    Khách
+                  </th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                    Chuyến
+                  </th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                    Loại
+                  </th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                    Xe/Tài xế
+                  </th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                    Trạng thái
+                  </th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-700">
+                    Thao tác
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="border-b border-gray-100 hover:bg-gray-50"
+                  >
+                    <td className="px-3 py-3 text-xs font-mono text-gray-500">
+                      {r.id}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="font-semibold text-gray-900">
+                        {r.customerName}
+                      </div>
+                      <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                        <FiPhone size={12} /> {r.phone}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-gray-700">{r.trip}</td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-semibold text-white ${r.type === "Đón" ? "bg-blue-600" : "bg-teal-600"}`}
+                      >
+                        {r.type}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      {r.assignedDriver ? (
+                        <div className="text-xs">
+                          <div className="font-medium text-gray-900">
+                            {r.assignedDriver}
+                          </div>
+                          <div className="text-gray-500">{r.assignedPlate}</div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_CLASS[r.status]}`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+                        {STATUS_LABEL[r.status]}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex gap-1">
+                        {r.status === "pending" && (
+                          <button
+                            onClick={() => {
+                              setSelectedRequest(r);
+                              setOpenAssignVehicle(true);
+                            }}
+                            className="px-2 py-1 bg-vr-500 hover:bg-vr-600 text-white text-xs font-medium rounded transition"
+                          >
+                            Gán xe
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openDetail(r)}
+                          className="px-2 py-1 border border-gray-200 text-gray-700 text-xs font-medium rounded hover:bg-gray-50"
+                        >
+                          Chi tiết
+                        </button>
+                        {r.status === "pending" && (
+                          <button
+                            onClick={() => handleCancelRequest(r.id)}
+                            className="px-2 py-1 border border-red-200 text-red-600 text-xs font-medium rounded hover:bg-red-50"
+                          >
+                            Hủy
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
+            <div>
+              Hiển thị {filtered.length} / {requests.length} yêu cầu
+            </div>
+            <div className="flex gap-1">
+              <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
+                Trước
+              </button>
+              <button className="px-3 py-1.5 bg-vr-500 text-white rounded-lg font-semibold">
+                1
+              </button>
+              <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
+                Sau
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Vehicle Fleet Sidebar */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Đội xe trung chuyển
+          </h3>
+          <div className="space-y-3">
+            {VEHICLES.map((v) => (
+              <div
+                key={v.plate}
+                className="p-3 border border-gray-200 rounded-lg"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {v.plate}
+                    </p>
+                    <p className="text-xs text-gray-600">{v.vehicleModel}</p>
+                    <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                      <FiUser size={12} /> {v.driver}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Sức chứa: {v.capacity} chỗ
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <span
+                      className={`flex items-center gap-1 text-xs font-medium ${V_STATUS_CLASS[v.status]}`}
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full ${V_DOT_CLASS[v.status]}`}
+                      />
+                      {V_STATUS_LABEL[v.status]}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Create Request Modal */}
+      <Modal
+        open={openCreateRequest}
+        onClose={() => setOpenCreateRequest(false)}
+        title="Tạo yêu cầu trung chuyển"
+        wide
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tên khách
+              </label>
+              <input
+                type="text"
+                value={newRequestForm.customerName}
+                onChange={(e) =>
+                  setNewRequestForm({
+                    ...newRequestForm,
+                    customerName: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Số điện thoại
+              </label>
+              <input
+                type="tel"
+                value={newRequestForm.phone}
+                onChange={(e) =>
+                  setNewRequestForm({
+                    ...newRequestForm,
+                    phone: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mã chuyến
+              </label>
+              <input
+                type="text"
+                value={newRequestForm.trip}
+                onChange={(e) =>
+                  setNewRequestForm({ ...newRequestForm, trip: e.target.value })
+                }
+                placeholder="VR-2401"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Loại
+              </label>
+              <select
+                value={newRequestForm.type}
+                onChange={(e) =>
+                  setNewRequestForm({
+                    ...newRequestForm,
+                    type: e.target.value as RequestType,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              >
+                <option value="Đón">Đón</option>
+                <option value="Trả">Trả</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Giờ
+              </label>
+              <input
+                type="time"
+                value={newRequestForm.time}
+                onChange={(e) =>
+                  setNewRequestForm({ ...newRequestForm, time: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Địa chỉ đón/trả
+            </label>
+            <input
+              type="text"
+              value={newRequestForm.address}
+              onChange={(e) =>
+                setNewRequestForm({
+                  ...newRequestForm,
+                  address: e.target.value,
+                })
+              }
+              placeholder="123 Nguyễn Trãi, Q.5, TP.HCM"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ghi chú
+            </label>
+            <textarea
+              value={newRequestForm.note}
+              onChange={(e) =>
+                setNewRequestForm({ ...newRequestForm, note: e.target.value })
+              }
+              placeholder="Có 1 vali lớn, gọi trước 10 phút..."
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setOpenCreateRequest(false)}
+              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleCreateRequest}
+              className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+            >
+              Tạo yêu cầu
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Assign Vehicle Modal */}
+      <Modal
+        open={openAssignVehicle}
+        onClose={() => setOpenAssignVehicle(false)}
+        title="Gán xe cho yêu cầu"
+        wide
+      >
+        {selectedRequest && (
+          <div className="space-y-4">
+            <div className="bg-vr-50 border border-vr-200 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-900">Thông tin yêu cầu</h4>
+              <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                <div>
+                  <span className="text-gray-600">Mã:</span>{" "}
+                  {selectedRequest.id}
+                </div>
+                <div>
+                  <span className="text-gray-600">Khách:</span>{" "}
+                  {selectedRequest.customerName}
+                </div>
+                <div>
+                  <span className="text-gray-600">Chuyến:</span>{" "}
+                  {selectedRequest.trip}
+                </div>
+                <div>
+                  <span className="text-gray-600">Loại:</span>{" "}
+                  {selectedRequest.type}
+                </div>
+                <div>
+                  <span className="text-gray-600">Địa chỉ:</span>{" "}
+                  {selectedRequest.address}
+                </div>
+                <div>
+                  <span className="text-gray-600">Giờ:</span>{" "}
+                  {selectedRequest.time}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Chọn xe
+              </label>
+              <select
+                value={assignForm.vehicleId}
+                onChange={(e) =>
+                  setAssignForm({ ...assignForm, vehicleId: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              >
+                <option value="">-- Chọn xe --</option>
+                {VEHICLES.filter((v) => v.status !== "idle").map((v) => (
+                  <option key={v.plate} value={v.plate}>
+                    {v.plate} — {v.vehicleModel} ({v.capacity} chỗ) — {v.driver}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ghi chú
+              </label>
+              <textarea
+                value={assignForm.notes}
+                onChange={(e) =>
+                  setAssignForm({ ...assignForm, notes: e.target.value })
+                }
+                placeholder="Hướng dẫn thêm cho tài xế..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOpenAssignVehicle(false)}
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleAssignVehicle}
+                className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+              >
+                Gán xe
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Request Detail Modal */}
+      <Modal
+        open={openRequestDetail}
+        onClose={() => setOpenRequestDetail(false)}
+        title="Chi tiết yêu cầu"
+        wide
+      >
+        {selectedRequest && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-600">Mã yêu cầu</p>
+                <p className="font-mono font-semibold text-gray-900">
+                  {selectedRequest.id}
+                </p>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-600">Trạng thái</p>
+                <span
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_CLASS[selectedRequest.status]}`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+                  {STATUS_LABEL[selectedRequest.status]}
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-900 mb-3">
+                Thông tin khách hàng
+              </h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">Tên khách</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedRequest.customerName}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Số điện thoại</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedRequest.phone}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-900 mb-3">
+                Thông tin chuyến
+              </h4>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">Mã chuyến</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedRequest.trip}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Loại</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedRequest.type}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Giờ</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedRequest.time}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-900 mb-3">
+                Địa chỉ & ghi chú
+              </h4>
+              <div className="bg-gray-50 p-3 rounded-lg text-sm">
+                <p className="text-gray-600">Địa chỉ</p>
+                <p className="font-medium text-gray-900 flex items-start gap-2 mt-1">
+                  <FiMapPin className="mt-0.5 shrink-0" />{" "}
+                  {selectedRequest.address}
+                </p>
+              </div>
+              {selectedRequest.note && (
+                <div className="bg-blue-50 p-3 rounded-lg text-sm mt-2">
+                  <p className="text-blue-700">{selectedRequest.note}</p>
+                </div>
+              )}
+            </div>
+
+            {selectedRequest.assignedDriver && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-gray-900 mb-3">
+                  Xe được gán
+                </h4>
+                <div className="bg-green-50 border border-green-200 p-3 rounded-lg text-sm">
+                  <p>
+                    <span className="text-gray-600">Tài xế:</span>{" "}
+                    <span className="font-medium text-gray-900">
+                      {selectedRequest.assignedDriver}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-gray-600">Biển số:</span>{" "}
+                    <span className="font-medium text-gray-900">
+                      {selectedRequest.assignedPlate}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-gray-600">Phương tiện:</span>{" "}
+                    <span className="font-medium text-gray-900">
+                      {selectedRequest.assignedCap}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 border-t pt-4">
+              <button
+                onClick={() => setOpenRequestDetail(false)}
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
+              >
+                Đóng
+              </button>
+              {selectedRequest.status === "pending" && (
+                <>
+                  <button
+                    onClick={() => {
+                      setOpenRequestDetail(false);
+                      setOpenAssignVehicle(true);
+                    }}
+                    className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+                  >
+                    Gán xe
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleCancelRequest(selectedRequest.id);
+                      setOpenRequestDetail(false);
+                    }}
+                    className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition"
+                  >
+                    Hủy
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
