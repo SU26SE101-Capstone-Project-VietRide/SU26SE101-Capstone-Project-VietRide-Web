@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiDownload,
   FiFilter,
@@ -14,29 +15,9 @@ const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
-function roleLabel(r: StaffMember["role"]) {
-  if (r === "driver") return "Tài xế";
-  if (r === "dispatcher") return "Điều hành";
-  return "Bán vé";
-}
-
-function statusBadge(s: StaffMember["status"]) {
-  if (s === "on_duty")
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-        Đang trực
-      </span>
-    );
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
-      <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-      Nghỉ phép
-    </span>
-  );
-}
-
 export default function StaffPage() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [search, setSearch] = useState("");
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
@@ -52,15 +33,39 @@ export default function StaffPage() {
     [search],
   );
 
+  const totalStaff = 86;
+
+  function roleLabel(r: StaffMember["role"]) {
+    if (r === "driver") return t("staff.driver");
+    if (r === "dispatcher") return t("staff.dispatcher");
+    return t("staff.seller");
+  }
+
+  function statusBadge(s: StaffMember["status"]) {
+    if (s === "on_duty")
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          {t("staff.onDuty")}
+        </span>
+      );
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
+        <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+        {t("staff.onLeave")}
+      </span>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            Quản lý nhân sự
+            {t("staff.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            Tài xế, điều hành và nhân viên bán vé của nhà xe.
+            {t("staff.subtitle")}
           </p>
         </div>
         <button
@@ -69,7 +74,7 @@ export default function StaffPage() {
           className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
         >
           <FiPlus size={18} />
-          Thêm nhân sự
+          {t("staff.add")}
         </button>
       </div>
 
@@ -77,8 +82,8 @@ export default function StaffPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">Tổng nhân sự</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">86</p>
+              <p className="text-sm text-gray-500">{t("staff.total")}</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{totalStaff}</p>
               <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
                 ↗ 2.4%
               </span>
@@ -91,7 +96,7 @@ export default function StaffPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">Đang trực</p>
+              <p className="text-sm text-gray-500">{t("staff.onDuty")}</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">54</p>
               <p className="mt-2 text-xs text-gray-500">62.8%</p>
             </div>
@@ -103,9 +108,11 @@ export default function StaffPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">Tài xế</p>
+              <p className="text-sm text-gray-500">{t("staff.drivers")}</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">42</p>
-              <p className="mt-2 text-xs text-gray-500">từ 86 nhân sự</p>
+              <p className="mt-2 text-xs text-gray-500">
+                {t("staff.fromTotal", { total: totalStaff })}
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
               <FiUser size={20} />
@@ -115,9 +122,11 @@ export default function StaffPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">Cần xử lý</p>
+              <p className="text-sm text-gray-500">{t("staff.needsAction")}</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">3</p>
-              <p className="mt-2 text-xs text-gray-500">hợp đồng sắp hết hạn</p>
+              <p className="mt-2 text-xs text-gray-500">
+                {t("staff.expiringContracts")}
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
               <FiUser size={20} />
@@ -132,7 +141,7 @@ export default function StaffPage() {
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               className={inputClass + " pl-10"}
-              placeholder="Tìm theo tên, SĐT..."
+              placeholder={t("staff.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -143,21 +152,21 @@ export default function StaffPage() {
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <FiFilter size={16} />
-              Bộ lọc
+              {tc("filter")}
             </button>
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <FiList size={16} />
-              Cột hiển thị
+              {tc("columns")}
             </button>
             <button
               type="button"
               className="ml-auto inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:ml-0"
             >
               <FiDownload size={16} />
-              Xuất CSV
+              {tc("exportCsv")}
             </button>
           </div>
         </div>
@@ -168,14 +177,14 @@ export default function StaffPage() {
           <table className="w-full min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3">Họ tên</th>
-                <th className="px-5 py-3">Vai trò</th>
-                <th className="px-5 py-3">SĐT</th>
-                <th className="px-5 py-3">Bằng lái</th>
-                <th className="px-5 py-3">Chuyến đã chạy</th>
-                <th className="px-5 py-3">Đánh giá</th>
-                <th className="px-5 py-3">Trạng thái</th>
-                <th className="px-5 py-3">Thao tác</th>
+                <th className="px-5 py-3">{t("staff.fullName")}</th>
+                <th className="px-5 py-3">{t("staff.role")}</th>
+                <th className="px-5 py-3">{t("staff.phoneShort")}</th>
+                <th className="px-5 py-3">{t("staff.license")}</th>
+                <th className="px-5 py-3">{t("staff.tripsRun")}</th>
+                <th className="px-5 py-3">{t("staff.rating")}</th>
+                <th className="px-5 py-3">{tc("status")}</th>
+                <th className="px-5 py-3">{tc("actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -217,29 +226,29 @@ export default function StaffPage() {
                       }}
                       className="text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      Sửa
+                      {tc("edit")}
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        if (confirm("Tạm dừng nhân sự này?")) {
-                          alert("Nhân sự đã tạm dừng");
+                        if (confirm(t("staff.confirmSuspend"))) {
+                          alert(t("staff.suspendSuccess"));
                         }
                       }}
                       className="text-amber-600 hover:text-amber-700 font-medium"
                     >
-                      Tạm dừng
+                      {t("staff.suspend")}
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        if (confirm("Xoá nhân sự này khỏi hệ thống?")) {
-                          alert("Nhân sự đã xoá");
+                        if (confirm(t("staff.confirmDeleteStaff"))) {
+                          alert(t("staff.deleteSuccess"));
                         }
                       }}
                       className="text-red-600 hover:text-red-700 font-medium"
                     >
-                      Xoá
+                      {tc("delete")}
                     </button>
                   </td>
                 </tr>
@@ -249,14 +258,14 @@ export default function StaffPage() {
         </div>
         <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-500">
-            Hiển thị {filtered.length} / 86 bản ghi
+            {tc("showingItems", { count: filtered.length, total: totalStaff })}
           </p>
           <div className="flex gap-1">
             <button
               type="button"
               className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
-              Trước
+              {tc("previous")}
             </button>
             <button
               type="button"
@@ -280,7 +289,7 @@ export default function StaffPage() {
               type="button"
               className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
-              Sau
+              {tc("next")}
             </button>
           </div>
         </div>
@@ -291,8 +300,8 @@ export default function StaffPage() {
         onClose={() => setOpenAdd(false)}
         wide
         icon={<FiUser size={20} />}
-        title="Thêm nhân sự"
-        subtitle="Đăng ký tài xế, điều hành hoặc nhân viên bán vé."
+        title={t("staff.addTitle")}
+        subtitle={t("staff.addSubtitle")}
         footer={
           <>
             <button
@@ -300,14 +309,14 @@ export default function StaffPage() {
               onClick={() => setOpenAdd(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               onClick={() => setOpenAdd(false)}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
             >
-              Tạo hồ sơ
+              {t("staff.createProfile")}
             </button>
           </>
         }
@@ -315,68 +324,72 @@ export default function StaffPage() {
         <div className="space-y-6">
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Thông tin cá nhân
+              {t("staff.personalInfo")}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
-                  Họ và tên <span className="text-red-500">*</span>
+                  {t("staff.fullNameLabel")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} placeholder="Nguyễn Văn A" />
               </div>
               <div>
-                <label className={labelClass}>Ngày sinh</label>
+                <label className={labelClass}>{t("staff.birthDate")}</label>
                 <input className={inputClass} type="date" />
               </div>
               <div>
                 <label className={labelClass}>
-                  Số CCCD <span className="text-red-500">*</span>
+                  {t("staff.idNumber")} <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} placeholder="079..." />
               </div>
               <div>
-                <label className={labelClass}>Giới tính</label>
+                <label className={labelClass}>{t("staff.gender")}</label>
                 <select className={inputClass} defaultValue="male">
-                  <option value="male">Nam</option>
-                  <option value="female">Nữ</option>
+                  <option value="male">{t("staff.male")}</option>
+                  <option value="female">{t("staff.female")}</option>
                 </select>
               </div>
               <div>
                 <label className={labelClass}>
-                  Số điện thoại <span className="text-red-500">*</span>
+                  {tc("phone")} <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} placeholder="0901 234 567" />
               </div>
               <div>
-                <label className={labelClass}>Email</label>
+                <label className={labelClass}>{tc("email")}</label>
                 <input className={inputClass} type="email" />
               </div>
             </div>
           </section>
           <div className="border-t border-gray-100" />
           <section>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">Phân công</h3>
+            <h3 className="mb-3 text-sm font-bold text-gray-900">
+              {t("staff.assignment")}
+            </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
-                  Vai trò <span className="text-red-500">*</span>
+                  {t("staff.role")} <span className="text-red-500">*</span>
                 </label>
                 <select className={inputClass} defaultValue="driver">
-                  <option value="driver">Tài xế</option>
-                  <option value="dispatcher">Điều hành</option>
-                  <option value="seller">Bán vé</option>
+                  <option value="driver">{t("staff.driver")}</option>
+                  <option value="dispatcher">{t("staff.dispatcher")}</option>
+                  <option value="seller">{t("staff.seller")}</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Ca làm</label>
+                <label className={labelClass}>{t("staff.shift")}</label>
                 <select className={inputClass} defaultValue="morning">
-                  <option value="morning">Ca sáng</option>
-                  <option value="evening">Ca tối</option>
+                  <option value="morning">{t("staff.morningShift")}</option>
+                  <option value="evening">{t("staff.eveningShift")}</option>
                 </select>
               </div>
               <div>
                 <label className={labelClass}>
-                  Hạng bằng lái <span className="text-red-500">*</span>
+                  {t("staff.licenseClass")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <select className={inputClass} defaultValue="E">
                   <option>E</option>
@@ -386,16 +399,17 @@ export default function StaffPage() {
               </div>
               <div>
                 <label className={labelClass}>
-                  Hạn bằng lái <span className="text-red-500">*</span>
+                  {t("staff.licenseExpiry")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} type="date" />
               </div>
               <div>
-                <label className={labelClass}>Mức lương cơ bản (đ)</label>
+                <label className={labelClass}>{t("staff.baseSalary")}</label>
                 <input className={inputClass} placeholder="12000000" />
               </div>
               <div>
-                <label className={labelClass}>Ngày bắt đầu</label>
+                <label className={labelClass}>{t("staff.startDate")}</label>
                 <input className={inputClass} type="date" />
               </div>
             </div>
@@ -403,13 +417,12 @@ export default function StaffPage() {
         </div>
       </Modal>
 
-      {/* Edit Modal */}
       <Modal
         open={openEdit}
         onClose={() => setOpenEdit(false)}
         wide
         icon={<FiUser size={20} />}
-        title="Chỉnh sửa nhân sự"
+        title={t("staff.editTitle")}
         footer={
           <>
             <button
@@ -417,17 +430,17 @@ export default function StaffPage() {
               onClick={() => setOpenEdit(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               onClick={() => {
                 setOpenEdit(false);
-                alert("Thông tin nhân sự đã cập nhật");
+                alert(t("staff.updateSuccess"));
               }}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600"
             >
-              Lưu thay đổi
+              {t("staff.saveChanges")}
             </button>
           </>
         }
@@ -436,59 +449,65 @@ export default function StaffPage() {
           <div className="space-y-6">
             <section>
               <h3 className="mb-3 text-sm font-bold text-gray-900">
-                Thông tin cá nhân
+                {t("staff.personalInfo")}
               </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className={labelClass}>Họ và tên</label>
+                  <label className={labelClass}>{t("staff.fullNameLabel")}</label>
                   <input className={inputClass} defaultValue={selectedStaff.name} />
                 </div>
                 <div>
-                  <label className={labelClass}>Số CCCD</label>
+                  <label className={labelClass}>{t("staff.idNumber")}</label>
                   <input className={inputClass} defaultValue={selectedStaff.id} disabled />
                 </div>
                 <div>
-                  <label className={labelClass}>Số điện thoại</label>
+                  <label className={labelClass}>{tc("phone")}</label>
                   <input className={inputClass} defaultValue={selectedStaff.phone} />
                 </div>
                 <div>
-                  <label className={labelClass}>Email</label>
+                  <label className={labelClass}>{tc("email")}</label>
                   <input className={inputClass} placeholder="email@example.com" />
                 </div>
               </div>
             </section>
             <div className="border-t border-gray-100" />
             <section>
-              <h3 className="mb-3 text-sm font-bold text-gray-900">Phân công</h3>
+              <h3 className="mb-3 text-sm font-bold text-gray-900">
+                {t("staff.assignment")}
+              </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className={labelClass}>Vai trò</label>
+                  <label className={labelClass}>{t("staff.role")}</label>
                   <select className={inputClass} defaultValue={selectedStaff.role}>
-                    <option value="driver">Tài xế</option>
-                    <option value="dispatcher">Điều hành</option>
-                    <option value="seller">Bán vé</option>
+                    <option value="driver">{t("staff.driver")}</option>
+                    <option value="dispatcher">{t("staff.dispatcher")}</option>
+                    <option value="seller">{t("staff.seller")}</option>
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Trạng thái</label>
+                  <label className={labelClass}>{tc("status")}</label>
                   <select className={inputClass} defaultValue={selectedStaff.status}>
-                    <option value="on_duty">Đang trực</option>
-                    <option value="on_leave">Nghỉ phép</option>
+                    <option value="on_duty">{t("staff.onDuty")}</option>
+                    <option value="on_leave">{t("staff.onLeave")}</option>
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Bằng lái</label>
+                  <label className={labelClass}>{t("staff.license")}</label>
                   <input className={inputClass} defaultValue={selectedStaff.license || ""} />
                 </div>
                 <div>
-                  <label className={labelClass}>Hạn bằng lái</label>
+                  <label className={labelClass}>{t("staff.licenseExpiry")}</label>
                   <input className={inputClass} type="date" />
                 </div>
               </div>
             </section>
             <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
               <p className="text-sm text-blue-800">
-                <span className="font-semibold">Thống kê:</span> {selectedStaff.trips} chuyến | Đánh giá ★ {selectedStaff.rating}
+                <span className="font-semibold">{t("staff.statsLabel")}</span>{" "}
+                {t("staff.statsSummary", {
+                  trips: selectedStaff.trips,
+                  rating: selectedStaff.rating,
+                })}
               </p>
             </div>
           </div>

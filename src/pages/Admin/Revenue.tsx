@@ -1,4 +1,4 @@
-import { FiDollarSign, FiTrendingUp } from "react-icons/fi";
+import { useTranslation } from "react-i18next";
 import {
   ResponsiveContainer,
   BarChart,
@@ -10,7 +10,15 @@ import {
   Legend,
 } from "recharts";
 
-const KPI = ({ title, value, change }: { title: string; value: string; change?: string }) => (
+const KPI = ({
+  title,
+  value,
+  change,
+}: {
+  title: string;
+  value: string;
+  change?: string;
+}) => (
   <div className="bg-white border border-gray-200 rounded-lg p-4">
     <div className="flex items-center justify-between">
       <div>
@@ -46,32 +54,59 @@ const topOperators = [
 ];
 
 export default function Revenue() {
+  const { t } = useTranslation("admin");
+  const { t: tc } = useTranslation("common");
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Doanh thu nền tảng <span className="ml-3 inline-block rounded-full bg-gray-100 text-xs px-2 py-1 text-gray-600">Admin</span></h1>
-        <p className="text-gray-600 mt-1">Tổng quan doanh thu, hoa hồng và phân chia cho các nhà vận hành.</p>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {t("revenue.title")}{" "}
+          <span className="ml-3 inline-block rounded-full bg-gray-100 text-xs px-2 py-1 text-gray-600">
+            {tc("adminBadge")}
+          </span>
+        </h1>
+        <p className="text-gray-600 mt-1">{t("revenue.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <KPI title="GMV tháng này" value="354 tỷ" change="+13.4%" />
-        <KPI title="Hoa hồng nền tảng" value="28.3 tỷ" change="+11.8%" />
-        <KPI title="Trả cho nhà xe" value="325.6 tỷ" change="+13.7%" />
-        <KPI title="Tăng trưởng YoY" value="+47%" change="+8.2pt" />
+        <KPI title={t("revenue.gmvMonth")} value="354 tỷ" change="+13.4%" />
+        <KPI
+          title={t("revenue.commission")}
+          value="28.3 tỷ"
+          change="+11.8%"
+        />
+        <KPI
+          title={t("revenue.paidToOperators")}
+          value="325.6 tỷ"
+          change="+13.7%"
+        />
+        <KPI title={t("revenue.yoyGrowth")} value="+47%" change="+8.2pt" />
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="font-semibold mb-4">Doanh thu & hoa hồng theo tháng</h3>
+        <h3 className="font-semibold mb-4">{t("revenue.monthlyChart")}</h3>
         <div style={{ width: "100%", height: 320 }}>
           <ResponsiveContainer>
-            <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+            <BarChart
+              data={data}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="month" tick={{ fill: "#6b7280" }} />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="pay" fill="#2563eb" name="Trả nhà xe (tỷ)" />
-              <Bar dataKey="commission" fill="#10b981" name="Hoa hồng (tỷ)" />
+              <Bar
+                dataKey="pay"
+                fill="#2563eb"
+                name={t("revenue.paidLegend")}
+              />
+              <Bar
+                dataKey="commission"
+                fill="#10b981"
+                name={t("revenue.commissionLegend")}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -79,19 +114,29 @@ export default function Revenue() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h4 className="font-semibold mb-3">Top nhà vận hành theo doanh thu</h4>
+          <h4 className="font-semibold mb-3">{t("revenue.topOperators")}</h4>
           <div className="space-y-3">
             {topOperators.map((op, idx) => (
-              <div key={op.name} className="flex items-center justify-between gap-4">
+              <div
+                key={op.name}
+                className="flex items-center justify-between gap-4"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-vr-50 text-vr-600 flex items-center justify-center font-semibold">{idx + 1}</div>
+                  <div className="w-8 h-8 rounded-full bg-vr-50 text-vr-600 flex items-center justify-center font-semibold">
+                    {idx + 1}
+                  </div>
                   <div>
                     <div className="font-semibold">{op.name}</div>
-                    <div className="text-xs text-gray-500">{Math.round(op.value * 35)} xe</div>
+                    <div className="text-xs text-gray-500">
+                      {Math.round(op.value * 35)}
+                      {t("revenue.vehicles")}
+                    </div>
                   </div>
                 </div>
                 <div className="w-2/5 text-right">
-                  <div className="text-sm font-semibold">{op.value} tỷ</div>
+                  <div className="text-sm font-semibold">
+                    {op.value} {t("revenue.billionSuffix")}
+                  </div>
                 </div>
               </div>
             ))}
@@ -99,8 +144,10 @@ export default function Revenue() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h4 className="font-semibold mb-3">Chi tiết doanh thu</h4>
-          <p className="text-sm text-gray-600">Báo cáo chi tiết theo tuyến và nhà vận hành sẽ hiển thị ở đây.</p>
+          <h4 className="font-semibold mb-3">{t("revenue.detailTitle")}</h4>
+          <p className="text-sm text-gray-600">
+            {t("revenue.detailDescription")}
+          </p>
         </div>
       </div>
     </div>

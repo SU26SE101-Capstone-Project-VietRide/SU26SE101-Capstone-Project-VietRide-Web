@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -24,30 +25,36 @@ const SAMPLE = [
 ];
 
 export default function AdminReports() {
+  const { t } = useTranslation("admin");
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Báo cáo hệ thống</h1>
-        <p className="text-gray-600 mt-1">Xuất báo cáo, lọc theo ngày và nhà xe.</p>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {t("reports.title")}
+        </h1>
+        <p className="text-gray-600 mt-1">{t("reports.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600">Tổng chuyến kiểm soát</p>
+          <p className="text-sm text-gray-600">{t("reports.totalTrips")}</p>
           <p className="text-2xl font-bold text-gray-900">1,566</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600">GMV (tháng)</p>
+          <p className="text-sm text-gray-600">{t("reports.gmvMonth")}</p>
           <p className="text-2xl font-bold text-gray-900">354 tỷ</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600">Hoa hồng nền tảng</p>
+          <p className="text-sm text-gray-600">
+            {t("reports.platformCommission")}
+          </p>
           <p className="text-2xl font-bold text-gray-900">651.7 tỷ</p>
         </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="font-semibold mb-4">Doanh thu theo tháng</h3>
+        <h3 className="font-semibold mb-4">{t("reports.monthlyRevenue")}</h3>
         <div style={{ width: "100%", height: 260 }}>
           <ResponsiveContainer>
             <AreaChart data={SAMPLE}>
@@ -61,7 +68,12 @@ export default function AdminReports() {
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip />
-              <Area type="monotone" dataKey="a" stroke="#6366f1" fill="url(#g1)" />
+              <Area
+                type="monotone"
+                dataKey="a"
+                stroke="#6366f1"
+                fill="url(#g1)"
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>

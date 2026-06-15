@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 
 export default function ManagerLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { t } = useTranslation("nav");
 
   return (
     <div className="flex h-screen bg-white">
@@ -17,7 +19,7 @@ export default function ManagerLayout() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Topbar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          userName="Dashboard Quản lý"
+          userName={t("layout.managerDashboard")}
           unreadNotifications={5}
         />
 

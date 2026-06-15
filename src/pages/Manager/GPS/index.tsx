@@ -10,6 +10,7 @@ import {
   FiTruck,
 } from "react-icons/fi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { LatLngExpression } from "leaflet";
 import Modal from "../../../components/Modal";
 import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
@@ -89,10 +90,13 @@ const fleetSeed: FleetVehicleMapPoint[] = [
   },
 ];
 
-function statusLabel(s: FleetVehicleMapPoint["status"]) {
-  if (s === "moving") return "Đang chạy";
-  if (s === "idle") return "Dừng đỗ";
-  return "Mất tín hiệu";
+function statusLabel(
+  s: FleetVehicleMapPoint["status"],
+  t: (key: string) => string,
+) {
+  if (s === "moving") return t("gps.moving");
+  if (s === "idle") return t("gps.stopped");
+  return t("gps.signalLostStatus");
 }
 
 function statusDotClass(s: FleetVehicleMapPoint["status"]) {
@@ -112,6 +116,9 @@ function statusRowBadge(s: FleetVehicleMapPoint["status"]) {
 }
 
 export default function GPSTracking() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
+
   const firstVehicle = fleetSeed[0];
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<
@@ -125,6 +132,15 @@ export default function GPSTracking() {
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
   const [openIncident, setOpenIncident] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const severityLevels = useMemo(
+    () => [
+      t("gps.severityLow"),
+      t("gps.severityMedium"),
+      t("gps.severityHigh"),
+    ],
+    [t],
+  );
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setMapReady(true));
@@ -171,17 +187,15 @@ export default function GPSTracking() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            Theo dõi GPS
+            {t("gps.title")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-base">
-            Bản đồ thời gian thực theo dõi vị trí đội xe, tốc độ và trạng thái
-            vận hành. Dữ liệu minh họa — kết nối thiết bị GPS thật qua API nền
-            tảng.
+            {t("gps.subtitle")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-gray-500">
-            Cập nhật:{" "}
+            {t("gps.updated")}{" "}
             {lastRefresh.toLocaleTimeString("vi-VN", {
               hour: "2-digit",
               minute: "2-digit",
@@ -194,7 +208,7 @@ export default function GPSTracking() {
             className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
           >
             <FiRefreshCw size={16} />
-            Làm mới
+            {tc("refresh")}
           </button>
         </div>
       </div>
@@ -204,12 +218,12 @@ export default function GPSTracking() {
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-xs font-medium text-gray-500">
-                Tổng trên bản đồ
+                {t("gps.totalOnMap")}
               </p>
               <p className="mt-1 text-2xl font-bold text-gray-900">
                 {metrics.total}
               </p>
-              <p className="mt-1 text-xs text-gray-500">xe đang theo dõi</p>
+              <p className="mt-1 text-xs text-gray-500">{t("gps.tracking")}</p>
             </div>
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
               <FiTruck size={20} />
@@ -219,11 +233,15 @@ export default function GPSTracking() {
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-medium text-gray-500">Đang chạy</p>
+              <p className="text-xs font-medium text-gray-500">
+                {t("gps.moving")}
+              </p>
               <p className="mt-1 text-2xl font-bold text-emerald-700">
                 {metrics.moving}
               </p>
-              <p className="mt-1 text-xs text-gray-500">có chuyển động</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {t("gps.hasMovement")}
+              </p>
             </div>
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
               <FiNavigation size={20} />
@@ -233,11 +251,13 @@ export default function GPSTracking() {
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-medium text-gray-500">Dừng đỗ</p>
+              <p className="text-xs font-medium text-gray-500">
+                {t("gps.stopped")}
+              </p>
               <p className="mt-1 text-2xl font-bold text-amber-700">
                 {metrics.idle}
               </p>
-              <p className="mt-1 text-xs text-gray-500">tốc độ ~0 km/h</p>
+              <p className="mt-1 text-xs text-gray-500">{t("gps.zeroSpeed")}</p>
             </div>
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
               <FiPauseCircle size={20} />
@@ -247,11 +267,15 @@ export default function GPSTracking() {
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-medium text-gray-500">Cảnh báo</p>
+              <p className="text-xs font-medium text-gray-500">
+                {t("gps.alerts")}
+              </p>
               <p className="mt-1 text-2xl font-bold text-red-600">
                 {metrics.offline}
               </p>
-              <p className="mt-1 text-xs text-gray-500">mất tín hiệu / trễ</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {t("gps.signalLost")}
+              </p>
             </div>
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-600">
               <FiAlertTriangle size={20} />
@@ -266,7 +290,7 @@ export default function GPSTracking() {
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Tìm theo biển số, tài xế, tuyến..."
+              placeholder={t("gps.searchPlaceholder")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full rounded-lg border border-gray-200 bg-gray-50/50 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-vr-500/35"
@@ -282,10 +306,10 @@ export default function GPSTracking() {
                 }
                 className="appearance-none rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-8 text-sm font-medium text-gray-800 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
               >
-                <option value="all">Tất cả trạng thái</option>
-                <option value="moving">Đang chạy</option>
-                <option value="idle">Dừng đỗ</option>
-                <option value="offline">Mất tín hiệu</option>
+                <option value="all">{t("gps.allStatus")}</option>
+                <option value="moving">{t("gps.moving")}</option>
+                <option value="idle">{t("gps.stopped")}</option>
+                <option value="offline">{t("gps.signalLostStatus")}</option>
               </select>
             </div>
             <button
@@ -293,7 +317,7 @@ export default function GPSTracking() {
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <FiActivity size={16} />
-              Lịch sử 24h
+              {t("gps.history24h")}
             </button>
           </div>
         </div>
@@ -303,7 +327,7 @@ export default function GPSTracking() {
         <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-inner xl:min-h-[min(72vh,640px)]">
           {!mapReady ? (
             <div className="flex h-full min-h-[420px] items-center justify-center text-sm text-gray-500">
-              Đang tải bản đồ…
+              {t("gps.loadingMap")}
             </div>
           ) : (
             <FleetMap
@@ -315,19 +339,19 @@ export default function GPSTracking() {
           )}
           <div className="pointer-events-none absolute bottom-3 left-3 z-[400] flex flex-wrap gap-2">
             <div className="pointer-events-auto rounded-lg border border-gray-200/90 bg-white/95 px-3 py-2 text-xs shadow-md backdrop-blur-sm">
-              <p className="font-semibold text-gray-800">Chú giải</p>
+              <p className="font-semibold text-gray-800">{t("gps.legend")}</p>
               <div className="mt-1.5 flex flex-col gap-1 text-gray-600">
                 <span className="inline-flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  Đang chạy
+                  {t("gps.moving")}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                  Dừng đỗ
+                  {t("gps.stopped")}
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-gray-400" />
-                  Mất tín hiệu
+                  {t("gps.signalLostStatus")}
                 </span>
               </div>
             </div>
@@ -337,19 +361,21 @@ export default function GPSTracking() {
         <aside className="flex max-h-[min(72vh,640px)] min-h-[320px] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-gray-900">Danh sách xe</h2>
+              <h2 className="text-sm font-bold text-gray-900">
+                {t("gps.vehicleList")}
+              </h2>
               <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
                 {filtered.length}
               </span>
             </div>
             <p className="mt-0.5 text-xs text-gray-500">
-              Chọn xe để căn giữa bản đồ
+              {t("gps.selectVehicle")}
             </p>
           </div>
           <div ref={listRef} className="flex-1 overflow-y-auto p-2">
             {filtered.length === 0 ? (
               <p className="px-2 py-8 text-center text-sm text-gray-500">
-                Không có xe phù hợp bộ lọc.
+                {t("gps.noMatch")}
               </p>
             ) : (
               <ul className="space-y-1.5">
@@ -382,7 +408,7 @@ export default function GPSTracking() {
                             </div>
                           </div>
                           <span className={statusRowBadge(v.status)}>
-                            {statusLabel(v.status)}
+                            {statusLabel(v.status, t)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
@@ -408,18 +434,13 @@ export default function GPSTracking() {
                 if (!v) return null;
                 return (
                   <div className="space-y-2">
-                    <p>
-                      <span className="font-semibold text-gray-800">
-                        {v.plate}
-                      </span>{" "}
-                      · ping mẫu 30s · OSM
-                    </p>
+                    <p>{t("gps.pingInfo", { plate: v.plate })}</p>
                     <button
                       type="button"
                       onClick={() => setOpenIncident(true)}
                       className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 hover:bg-red-100 transition"
                     >
-                      Báo cáo sự cố
+                      {t("gps.reportIncident")}
                     </button>
                   </div>
                 );
@@ -429,12 +450,11 @@ export default function GPSTracking() {
         </aside>
       </div>
 
-      {/* Incident Report Modal */}
       <Modal
         open={openIncident}
         onClose={() => setOpenIncident(false)}
         icon={<FiAlertTriangle size={20} />}
-        title="Báo cáo sự cố"
+        title={t("gps.incidentTitle")}
         footer={
           <>
             <button
@@ -442,17 +462,17 @@ export default function GPSTracking() {
               onClick={() => setOpenIncident(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               onClick={() => {
                 setOpenIncident(false);
-                alert("Báo cáo sự cố đã được gửi cho đội hỗ trợ");
+                alert(t("gps.incidentSubmitted"));
               }}
               className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
             >
-              Gửi báo cáo
+              {t("gps.submitReport")}
             </button>
           </>
         }
@@ -464,32 +484,47 @@ export default function GPSTracking() {
             <div className="space-y-4">
               <div className="rounded-lg bg-red-50 border border-red-200 p-4">
                 <p className="text-sm font-semibold text-red-900">
-                  Xe: <span className="font-mono">{v.plate}</span>
+                  {t("gps.vehicleLabel")}{" "}
+                  <span className="font-mono">{v.plate}</span>
                 </p>
-                <p className="text-sm text-red-800 mt-1">Tài xế: {v.driver}</p>
-                <p className="text-sm text-red-800">Tuyến: {v.route}</p>
+                <p className="text-sm text-red-800 mt-1">
+                  {t("gps.driverLabel")} {v.driver}
+                </p>
+                <p className="text-sm text-red-800">
+                  {t("gps.routeLabel")} {v.route}
+                </p>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">
-                  Loại sự cố <span className="text-red-500">*</span>
+                  {t("gps.incidentType")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
-                <select className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35" defaultValue="breakdown">
-                  <option value="breakdown">Xe hỏng</option>
-                  <option value="accident">Tai nạn giao thông</option>
-                  <option value="delay">Chậm trễ / tắc đường</option>
-                  <option value="deviation">Đi chệch lộ trình</option>
-                  <option value="safety">Vấn đề an toàn / hành vi</option>
-                  <option value="gps">Lỗi GPS / không có tín hiệu</option>
+                <select
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+                  defaultValue="breakdown"
+                >
+                  <option value="breakdown">
+                    {t("gps.incidentBreakdown")}
+                  </option>
+                  <option value="accident">
+                    {t("gps.incidentAccident")}
+                  </option>
+                  <option value="delay">{t("gps.incidentDelay")}</option>
+                  <option value="deviation">
+                    {t("gps.incidentDeviation")}
+                  </option>
+                  <option value="safety">{t("gps.incidentSafety")}</option>
+                  <option value="gps">{t("gps.incidentGps")}</option>
                 </select>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">
-                  Mức độ nghiêm trọng
+                  {t("gps.severity")}
                 </label>
                 <div className="flex gap-3">
-                  {["Thấp", "Trung bình", "Cao"].map((level, idx) => (
+                  {severityLevels.map((level, idx) => (
                     <label key={idx} className="flex items-center gap-2">
                       <input
                         type="radio"
@@ -505,36 +540,44 @@ export default function GPSTracking() {
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">
-                  Mô tả chi tiết <span className="text-red-500">*</span>
+                  {t("gps.incidentDescription")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35 min-h-[100px]"
-                  placeholder="Mô tả chi tiết về sự cố, vị trí, thời gian xảy ra..."
+                  placeholder={t("gps.incidentDescriptionPlaceholder")}
                   rows={4}
                 />
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">
-                  Hành động đã thực hiện
+                  {t("gps.actionsTaken")}
                 </label>
                 <textarea
                   className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35 min-h-[80px]"
-                  placeholder="Những bước xử lý / liên hệ đã thực hiện..."
+                  placeholder={t("gps.actionsTakenPlaceholder")}
                   rows={3}
                 />
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">
-                  Liên hệ xử lý (SĐT)
+                  {t("gps.handlerContact")}
                 </label>
-                <input type="tel" className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35" placeholder="Số điện thoại người báo cáo" />
+                <input
+                  type="tel"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+                  placeholder={t("gps.reporterPhonePlaceholder")}
+                />
               </div>
 
               <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
                 <p className="text-xs text-blue-800">
-                  <span className="font-semibold">Lưu ý:</span> Báo cáo sẽ được gửi tới đội hỗ trợ kỹ thuật và quản lý vận hành để xử lý kịp thời.
+                  <span className="font-semibold">
+                    {t("gps.incidentNoticeLabel")}
+                  </span>{" "}
+                  {t("gps.incidentNotice")}
                 </p>
               </div>
             </div>

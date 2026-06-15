@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi";
 import Modal from "../../components/Modal";
-import { policies as mockPolicies } from "../../data/mockData";
+import { policies as mockPolicies, type Policy } from "../../data/mockData";
 
-type Policy = any;
 type PolicyTab = "for_operator" | "for_user";
 
 function formatDate(date: string) {
@@ -15,6 +15,9 @@ const inputClass =
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
 export default function AdminPolicies() {
+  const { t } = useTranslation("admin");
+  const { t: tc } = useTranslation("common");
+  const [policies, setPolicies] = useState<Policy[]>(mockPolicies);
   const [activeTab, setActiveTab] = useState<PolicyTab>("for_operator");
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -26,14 +29,22 @@ export default function AdminPolicies() {
     category: "",
   });
 
-  // Filter policies by type
-  const operatorPolicies = mockPolicies.filter(
-    (p) => p.policyType === "for_operator",
+  const operatorPolicies = useMemo(
+    () => policies.filter((p) => p.policyType === "for_operator"),
+    [policies],
   );
-  const userPolicies = mockPolicies.filter((p) => p.policyType === "for_user");
+  const userPolicies = useMemo(
+    () => policies.filter((p) => p.policyType === "for_user"),
+    [policies],
+  );
 
   const currentPolicies =
     activeTab === "for_operator" ? operatorPolicies : userPolicies;
+
+  const resetForm = () => {
+    setFormData({ title: "", description: "", content: "", category: "" });
+    setSelectedPolicy(null);
+  };
 
   const handleEdit = (policy: Policy) => {
     setSelectedPolicy(policy);
@@ -47,59 +58,85 @@ export default function AdminPolicies() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Bạn có chắc chắn muốn xóa policy này?")) {
-      alert(`Xóa policy ${id} thành công!`);
+    if (confirm(t("policies.confirmDelete"))) {
+      setPolicies((prev) => prev.filter((p) => p.id !== id));
     }
   };
 
   const handleToggleActive = (id: string) => {
-    alert(`Cập nhật trạng thái policy ${id} thành công!`);
+    setPolicies((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              active: !p.active,
+              updatedAt: new Date().toISOString().split("T")[0],
+            }
+          : p,
+      ),
+    );
   };
 
   const handleSave = () => {
+    const now = new Date().toISOString().split("T")[0];
+
     if (selectedPolicy) {
-      alert(`Cập nhật policy "${formData.title}" thành công!`);
+      setPolicies((prev) =>
+        prev.map((p) =>
+          p.id === selectedPolicy.id
+            ? {
+                ...p,
+                ...formData,
+                version: p.version + 1,
+                updatedAt: now,
+              }
+            : p,
+        ),
+      );
     } else {
-      alert(`Tạo policy "${formData.title}" thành công!`);
+      const newPolicy: Policy = {
+        id: `pol${Date.now()}`,
+        ...formData,
+        policyType: activeTab,
+        version: 1,
+        active: true,
+        createdBy: "admin",
+        createdAt: now,
+        updatedAt: now,
+      };
+      setPolicies((prev) => [...prev, newPolicy]);
     }
+
     setEditOpen(false);
     setCreateOpen(false);
-    setSelectedPolicy(null);
-    setFormData({ title: "", description: "", content: "", category: "" });
+    resetForm();
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Quản lý Policy</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Quản lý các chính sách và điều khoản dịch vụ cho nhà xe và người
-            dùng.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {t("policies.title")}
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">{t("policies.subtitle")}</p>
         </div>
         <button
+          type="button"
           onClick={() => {
-            setSelectedPolicy(null);
-            setFormData({
-              title: "",
-              description: "",
-              content: "",
-              category: "",
-            });
+            resetForm();
             setCreateOpen(true);
           }}
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
         >
           <FiPlus className="text-lg" />
-          Tạo policy mới
+          {t("policies.create")}
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
+          type="button"
           onClick={() => setActiveTab("for_operator")}
           className={`px-4 py-3 font-medium border-b-2 transition-colors ${
             activeTab === "for_operator"
@@ -107,12 +144,13 @@ export default function AdminPolicies() {
               : "border-transparent text-gray-600 hover:text-gray-900"
           }`}
         >
-          Policy cho nhà xe
+          {t("policies.tabOperator")}
           <span className="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
             {operatorPolicies.length}
           </span>
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab("for_user")}
           className={`px-4 py-3 font-medium border-b-2 transition-colors ${
             activeTab === "for_user"
@@ -120,44 +158,42 @@ export default function AdminPolicies() {
               : "border-transparent text-gray-600 hover:text-gray-900"
           }`}
         >
-          Policy cho người dùng
+          {t("policies.tabUser")}
           <span className="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
             {userPolicies.length}
           </span>
         </button>
       </div>
 
-      {/* Content description */}
       <div className="rounded-lg bg-blue-50 p-4 border border-blue-200">
         <p className="text-sm text-blue-900">
           {activeTab === "for_operator"
-            ? "Các chính sách này áp dụng cho các nhà xe (operators) trên nền tảng. Bao gồm điều khoản dịch vụ, chính sách hủy, v.v."
-            : "Các chính sách này áp dụng cho người dùng (users) trên nền tảng. Bao gồm chính sách bảo mật, hướng dẫn an toàn, v.v."}
+            ? t("policies.operatorInfo")
+            : t("policies.userInfo")}
         </p>
       </div>
 
-      {/* Policies Table */}
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                Tiêu đề
+                {tc("title")}
               </th>
               <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                Loại
+                {t("policies.type")}
               </th>
               <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                Phiên bản
+                {t("policies.version")}
               </th>
               <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                Ngày cập nhật
+                {t("policies.updatedAt")}
               </th>
               <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                Trạng thái
+                {tc("status")}
               </th>
               <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                Hành động
+                {tc("actions")}
               </th>
             </tr>
           </thead>
@@ -192,12 +228,12 @@ export default function AdminPolicies() {
                     {policy.active ? (
                       <>
                         <FiCheck className="text-lg" />
-                        Hoạt động
+                        {tc("active")}
                       </>
                     ) : (
                       <>
                         <FiX className="text-lg" />
-                        Tắt
+                        {tc("inactive")}
                       </>
                     )}
                   </span>
@@ -205,8 +241,13 @@ export default function AdminPolicies() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => handleToggleActive(policy.id)}
-                      title={policy.active ? "Tắt" : "Bật"}
+                      title={
+                        policy.active
+                          ? t("policies.turnOff")
+                          : t("policies.turnOn")
+                      }
                       className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                     >
                       {policy.active ? (
@@ -216,15 +257,17 @@ export default function AdminPolicies() {
                       )}
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleEdit(policy)}
-                      title="Chỉnh sửa"
+                      title={tc("edit")}
                       className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                     >
                       <FiEdit2 className="text-lg" />
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleDelete(policy.id)}
-                      title="Xóa"
+                      title={tc("delete")}
                       className="p-2 text-gray-600 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors"
                     >
                       <FiTrash2 className="text-lg" />
@@ -237,26 +280,27 @@ export default function AdminPolicies() {
         </table>
       </div>
 
-      {/* Create/Edit Modal */}
       <Modal
-        isOpen={createOpen || editOpen}
+        open={createOpen || editOpen}
         onClose={() => {
           setCreateOpen(false);
           setEditOpen(false);
-          setSelectedPolicy(null);
+          resetForm();
         }}
         title={
           selectedPolicy
-            ? `Chỉnh sửa Policy: ${selectedPolicy.title}`
-            : "Tạo Policy mới"
+            ? t("policies.editTitle", { title: selectedPolicy.title })
+            : t("policies.createTitle")
         }
       >
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>Tiêu đề Policy *</label>
+            <label className={labelClass}>
+              {t("policies.policyTitle")} *
+            </label>
             <input
               type="text"
-              placeholder="VD: Terms of Service"
+              placeholder={t("policies.titlePlaceholder")}
               className={inputClass}
               value={formData.title}
               onChange={(e) =>
@@ -266,10 +310,12 @@ export default function AdminPolicies() {
           </div>
 
           <div>
-            <label className={labelClass}>Mô tả ngắn *</label>
+            <label className={labelClass}>
+              {t("policies.shortDescription")} *
+            </label>
             <input
               type="text"
-              placeholder="VD: General terms and conditions"
+              placeholder={t("policies.descriptionPlaceholder")}
               className={inputClass}
               value={formData.description}
               onChange={(e) =>
@@ -279,18 +325,18 @@ export default function AdminPolicies() {
           </div>
 
           <div>
-            <label className={labelClass}>Loại *</label>
+            <label className={labelClass}>{t("policies.type")} *</label>
             <select className={inputClass} value={activeTab} disabled>
-              <option value="for_operator">Cho nhà xe</option>
-              <option value="for_user">Cho người dùng</option>
+              <option value="for_operator">{t("policies.forOperator")}</option>
+              <option value="for_user">{t("policies.forUser")}</option>
             </select>
           </div>
 
           <div>
-            <label className={labelClass}>Danh mục *</label>
+            <label className={labelClass}>{tc("category")} *</label>
             <input
               type="text"
-              placeholder="VD: Terms, Cancellation, Privacy, Safety"
+              placeholder={t("policies.categoryPlaceholder")}
               className={inputClass}
               value={formData.category}
               onChange={(e) =>
@@ -300,9 +346,9 @@ export default function AdminPolicies() {
           </div>
 
           <div>
-            <label className={labelClass}>Nội dung Policy *</label>
+            <label className={labelClass}>{t("policies.policyContent")} *</label>
             <textarea
-              placeholder="Nhập nội dung policy..."
+              placeholder={t("policies.contentPlaceholder")}
               className={`${inputClass} resize-none font-mono text-xs`}
               rows={8}
               value={formData.content}
@@ -311,27 +357,28 @@ export default function AdminPolicies() {
               }
             />
             <p className="mt-1 text-xs text-gray-500">
-              Bạn có thể sử dụng dòng mới để tách các điểm (1. Point 1\n2. Point
-              2)
+              {t("policies.contentHint")}
             </p>
           </div>
 
           <div className="flex gap-3 pt-4">
             <button
+              type="button"
               onClick={() => {
                 setCreateOpen(false);
                 setEditOpen(false);
-                setSelectedPolicy(null);
+                resetForm();
               }}
               className="flex-1 rounded-lg border border-gray-200 bg-white py-2 font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
+              type="button"
               onClick={handleSave}
               className="flex-1 rounded-lg bg-blue-600 py-2 font-medium text-white hover:bg-blue-700 transition-colors"
             >
-              {selectedPolicy ? "Cập nhật" : "Tạo mới"}
+              {selectedPolicy ? tc("update") : tc("create")}
             </button>
           </div>
         </div>

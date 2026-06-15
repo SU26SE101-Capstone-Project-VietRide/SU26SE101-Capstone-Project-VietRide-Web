@@ -1,8 +1,10 @@
 import { FiEdit2, FiHome, FiChevronRight } from "react-icons/fi";
 import { FaFacebook, FaTwitter, FaLinkedin, FaInstagram } from "react-icons/fa";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export default function Profile() {
+  const { t } = useTranslation("common");
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
     firstName: "Nguyễn",
@@ -51,20 +53,20 @@ export default function Profile() {
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
         <button className="text-gray-600 hover:text-gray-900 flex items-center gap-1">
-          <FiHome size={16} /> Home
+          <FiHome size={16} /> {t("profilePage.home")}
         </button>
         <FiChevronRight size={16} className="text-gray-400" />
-        <span className="text-gray-900 font-medium">User Profile</span>
+        <span className="text-gray-900 font-medium">{t("profilePage.userProfile")}</span>
       </div>
 
       {/* Page Title */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">User Profile</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t("profilePage.userProfile")}</h1>
       </div>
 
       {/* My Profile Section */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">My Profile</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-6">{t("profilePage.myProfile")}</h2>
 
         {/* Profile Header */}
         <div className="flex items-start gap-6 pb-6 border-b border-gray-200 mb-6">
@@ -100,7 +102,7 @@ export default function Profile() {
               onClick={handleEdit}
               className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 flex items-center gap-2 transition"
             >
-              <FiEdit2 size={16} /> Edit
+              <FiEdit2 size={16} /> {t("edit")}
             </button>
           )}
         </div>
@@ -111,7 +113,7 @@ export default function Profile() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  First Name
+                  {t("profilePage.firstName")}
                 </label>
                 <input
                   type="text"
@@ -123,7 +125,7 @@ export default function Profile() {
               </div>
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  Last Name
+                  {t("profilePage.lastName")}
                 </label>
                 <input
                   type="text"
@@ -138,7 +140,7 @@ export default function Profile() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  Email address
+                  {t("profilePage.emailAddress")}
                 </label>
                 <input
                   type="email"
@@ -150,7 +152,7 @@ export default function Profile() {
               </div>
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  Phone
+                  {t("profilePage.phone")}
                 </label>
                 <input
                   type="tel"
@@ -163,7 +165,7 @@ export default function Profile() {
             </div>
 
             <div>
-              <label className="text-xs text-gray-600 font-semibold">Bio</label>
+              <label className="text-xs text-gray-600 font-semibold">{t("profilePage.bio")}</label>
               <textarea
                 name="bio"
                 value={formData.bio}
@@ -178,13 +180,13 @@ export default function Profile() {
                 onClick={handleSave}
                 className="px-6 py-2 bg-vr-500 text-slate-900 rounded-lg font-semibold hover:bg-vr-600 transition"
               >
-                Save
+                {t("save")}
               </button>
               <button
                 onClick={handleCancel}
                 className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
               >
-                Cancel
+                {t("cancel")}
               </button>
             </div>
           </div>
@@ -192,7 +194,7 @@ export default function Profile() {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                First Name
+                {t("profilePage.firstName")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">
                 {profile.firstName}
@@ -200,7 +202,7 @@ export default function Profile() {
             </div>
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                Last Name
+                {t("profilePage.lastName")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">
                 {profile.lastName}
@@ -208,19 +210,19 @@ export default function Profile() {
             </div>
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                Email address
+                {t("profilePage.emailAddress")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">{profile.email}</p>
             </div>
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                Phone
+                {t("profilePage.phone")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">{profile.phone}</p>
             </div>
             <div className="col-span-2">
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                Bio
+                {t("profilePage.bio")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">{profile.bio}</p>
             </div>
@@ -231,13 +233,13 @@ export default function Profile() {
       {/* Address Section */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Address</h2>
+          <h2 className="text-xl font-bold text-gray-900">{t("profilePage.address")}</h2>
           {!isEditing && (
             <button
               onClick={handleEdit}
               className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 flex items-center gap-2 transition"
             >
-              <FiEdit2 size={16} /> Edit
+              <FiEdit2 size={16} /> {t("edit")}
             </button>
           )}
         </div>
@@ -247,7 +249,7 @@ export default function Profile() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  Country
+                  {t("profilePage.country")}
                 </label>
                 <input
                   type="text"
@@ -259,7 +261,7 @@ export default function Profile() {
               </div>
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  City/State
+                  {t("profilePage.cityState")}
                 </label>
                 <input
                   type="text"
@@ -274,7 +276,7 @@ export default function Profile() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  Postal Code
+                  {t("profilePage.postalCode")}
                 </label>
                 <input
                   type="text"
@@ -286,7 +288,7 @@ export default function Profile() {
               </div>
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  TAX ID
+                  {t("profilePage.taxId")}
                 </label>
                 <input
                   type="text"
@@ -303,13 +305,13 @@ export default function Profile() {
                 onClick={handleSave}
                 className="px-6 py-2 bg-vr-500 text-slate-900 rounded-lg font-semibold hover:bg-vr-600 transition"
               >
-                Save
+                {t("save")}
               </button>
               <button
                 onClick={handleCancel}
                 className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
               >
-                Cancel
+                {t("cancel")}
               </button>
             </div>
           </div>
@@ -317,7 +319,7 @@ export default function Profile() {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                Country
+                {t("profilePage.country")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">
                 {profile.country}
@@ -325,13 +327,13 @@ export default function Profile() {
             </div>
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                City/State
+                {t("profilePage.cityState")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">{profile.city}</p>
             </div>
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                Postal Code
+                {t("profilePage.postalCode")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">
                 {profile.postalCode}
@@ -339,7 +341,7 @@ export default function Profile() {
             </div>
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                TAX ID
+                {t("profilePage.taxId")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">{profile.taxId}</p>
             </div>

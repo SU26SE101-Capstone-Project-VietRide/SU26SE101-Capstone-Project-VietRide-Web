@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiTruck,
   FiBarChart2,
@@ -26,44 +27,12 @@ import {
 } from "recharts";
 
 type KPICard = {
-  label: string;
+  labelKey: string;
   value: string;
   change: string;
   trend: "up" | "down" | "neutral";
   icon: React.ReactNode;
 };
-
-
-const kpis: KPICard[] = [
-  {
-    label: "Doanh thu khi hành",
-    value: "2284.5M",
-    change: "+15.2%",
-    trend: "up",
-    icon: <FiBarChart2 className="w-6 h-6" />,
-  },
-  {
-    label: "Kỳ đơn bận",
-    value: "1,284",
-    change: "+8.5%",
-    trend: "up",
-    icon: <FiPackage className="w-6 h-6" />,
-  },
-  {
-    label: "Bền bảng hôm",
-    value: "342",
-    change: "+2.3%",
-    trend: "up",
-    icon: <FiTruck className="w-6 h-6" />,
-  },
-  {
-    label: "Chuyên chở động hôm",
-    value: "48",
-    change: "+5.8%",
-    trend: "up",
-    icon: <FiTrendingUp className="w-6 h-6" />,
-  },
-];
 
 const revenueChartData = [
   { month: "T1", revenue: 180, orders: 320 },
@@ -160,7 +129,43 @@ const recentShipments: Shipment[] = [
 ];
 
 export default function ManagerDashboard() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [isLoading, setIsLoading] = useState(false);
+
+  const kpis: KPICard[] = useMemo(
+    () => [
+      {
+        labelKey: "dashboard.revenue",
+        value: "2284.5M",
+        change: "+15.2%",
+        trend: "up",
+        icon: <FiBarChart2 className="w-6 h-6" />,
+      },
+      {
+        labelKey: "dashboard.bookings",
+        value: "1,284",
+        change: "+8.5%",
+        trend: "up",
+        icon: <FiPackage className="w-6 h-6" />,
+      },
+      {
+        labelKey: "dashboard.fleet",
+        value: "342",
+        change: "+2.3%",
+        trend: "up",
+        icon: <FiTruck className="w-6 h-6" />,
+      },
+      {
+        labelKey: "dashboard.activeTrips",
+        value: "48",
+        change: "+5.8%",
+        trend: "up",
+        icon: <FiTrendingUp className="w-6 h-6" />,
+      },
+    ],
+    [],
+  );
 
   const handleRefresh = () => {
     setIsLoading(true);
@@ -169,22 +174,41 @@ export default function ManagerDashboard() {
 
   const getStatusBadge = (status: Shipment["status"]) => {
     const statusMap = {
-      completed: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Hoàn tất" },
-      in_transit: { bg: "bg-sky-50", text: "text-sky-700", label: "Đang vận chuyển" },
-      pending: { bg: "bg-amber-50", text: "text-amber-700", label: "Chờ xử lý" },
-      cancelled: { bg: "bg-red-50", text: "text-red-700", label: "Đã hủy" },
+      completed: {
+        bg: "bg-emerald-50",
+        text: "text-emerald-700",
+        label: t("dashboard.completed"),
+      },
+      in_transit: {
+        bg: "bg-sky-50",
+        text: "text-sky-700",
+        label: t("dashboard.inTransit"),
+      },
+      pending: {
+        bg: "bg-amber-50",
+        text: "text-amber-700",
+        label: t("dashboard.waiting"),
+      },
+      cancelled: {
+        bg: "bg-red-50",
+        text: "text-red-700",
+        label: t("dashboard.cancelled"),
+      },
     };
     const s = statusMap[status];
-    return <span className={`px-3 py-1 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>{s.label}</span>;
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
+        {s.label}
+      </span>
+    );
   };
 
   return (
     <div className="space-y-6 pb-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tổng quan vận hành</h1>
-          <p className="text-gray-600 mt-1">Ngày 24 Tháng 5 2026</p>
+          <h1 className="text-3xl font-bold text-gray-900">{t("dashboard.title")}</h1>
+          <p className="text-gray-600 mt-1">{t("dashboard.date")}</p>
         </div>
         <button
           onClick={handleRefresh}
@@ -192,15 +216,14 @@ export default function ManagerDashboard() {
           className="flex items-center cursor-pointer gap-2 px-4 py-2 bg-vr-500 hover:bg-vr-600 rounded-lg text-white transition"
         >
           <FiRefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
-          Làm mới
+          {tc("refresh")}
         </button>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
           <div
-            key={kpi.label}
+            key={kpi.labelKey}
             className="p-4 bg-white border border-gray-200 rounded-xl hover:shadow-md transition"
           >
             <div className="flex items-start justify-between mb-3">
@@ -217,20 +240,20 @@ export default function ManagerDashboard() {
                 {kpi.change}
               </span>
             </div>
-            <p className="text-gray-600 text-xs mb-1">{kpi.label}</p>
+            <p className="text-gray-600 text-xs mb-1">{t(kpi.labelKey)}</p>
             <p className="text-2xl font-bold text-gray-900">{kpi.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue & Orders Chart */}
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Doanh thu & kỳ đơn tất cả</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("dashboard.revenueChart")}
+            </h2>
             <button className="text-vr-600 hover:text-vr-700 text-sm font-medium">
-              Xem tất cả
+              {tc("viewAll")}
             </button>
           </div>
           <ResponsiveContainer width="100%" height={280}>
@@ -238,7 +261,13 @@ export default function ManagerDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="month" stroke="#9ca3af" />
               <YAxis stroke="#9ca3af" />
-              <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
+                }}
+              />
               <Legend />
               <Line
                 type="monotone"
@@ -247,7 +276,7 @@ export default function ManagerDashboard() {
                 strokeWidth={2}
                 dot={{ fill: "#3b82f6", r: 4 }}
                 activeDot={{ r: 6 }}
-                name="Doanh thu"
+                name={t("dashboard.chartRevenue")}
               />
               <Line
                 type="monotone"
@@ -256,16 +285,17 @@ export default function ManagerDashboard() {
                 strokeWidth={2}
                 dot={{ fill: "#8b5cf6", r: 4 }}
                 activeDot={{ r: 6 }}
-                name="Kỳ đơn"
+                name={t("dashboard.chartBookings")}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Distribution Chart */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Trạng thái hàng hóa</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("dashboard.parcelStatus")}
+            </h2>
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
@@ -289,7 +319,10 @@ export default function ManagerDashboard() {
           <div className="mt-4 space-y-2 text-sm">
             {distributionData.map((item) => (
               <div key={item.name} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
                 <span className="text-gray-700">{item.name}</span>
               </div>
             ))}
@@ -297,14 +330,14 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      {/* Bottom Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Cargo Status Bar Chart */}
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Trạng thái hàng hóa chi tiết</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("dashboard.parcelDetail")}
+            </h2>
             <button className="text-vr-600 hover:text-vr-700 text-sm font-medium">
-              Xem tất cả
+              {tc("viewAll")}
             </button>
           </div>
           <ResponsiveContainer width="100%" height={280}>
@@ -316,32 +349,48 @@ export default function ManagerDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis type="number" stroke="#9ca3af" />
               <YAxis dataKey="name" type="category" stroke="#9ca3af" width={95} />
-              <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
+                }}
+              />
               <Bar dataKey="value" fill="#3b82f6" radius={[0, 8, 8, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Vehicle Operation */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Xe trong vận hành</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("dashboard.fleetStatus")}
+            </h2>
           </div>
           <div className="space-y-3">
             {vehicleOperationData.map((vehicle) => (
-              <div key={vehicle.name} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition">
+              <div
+                key={vehicle.name}
+                className="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition"
+              >
                 <div className="flex items-center gap-2">
                   <FiTruck size={16} className="text-vr-600" />
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{vehicle.name}</p>
-                    <p className="text-xs text-gray-500">{vehicle.status === "active" ? "Hoạt động" : "Bảo trì"}</p>
+                    <p className="text-xs text-gray-500">
+                      {vehicle.status === "active"
+                        ? tc("active")
+                        : t("dashboard.maintenance")}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                     <div className="h-full w-[56%] bg-vr-500"></div>
                   </div>
-                  <span className="text-xs font-semibold text-gray-700 min-w-7">{vehicle.trips}</span>
+                  <span className="text-xs font-semibold text-gray-700 min-w-7">
+                    {vehicle.trips}
+                  </span>
                 </div>
               </div>
             ))}
@@ -349,43 +398,68 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      {/* Recent Shipments Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Chuyên chở gần nhất</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            {t("dashboard.recentShipments")}
+          </h2>
           <button className="flex items-center gap-2 text-vr-600 hover:text-vr-700 text-sm font-medium">
             <FiDownload size={16} />
-            Xuất CSV
+            {tc("exportCsv")}
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Mã chuyến</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Tuyến</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Địa chỉ giao</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Tài xế</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Giá</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Trạng thái</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">Hành động</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">
+                  {t("dashboard.tripCode")}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">
+                  {t("dashboard.route")}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">
+                  {t("dashboard.deliveryAddress")}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">
+                  {t("dashboard.driver")}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">
+                  {tc("price")}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">
+                  {tc("status")}
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">
+                  {tc("actions")}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {recentShipments.map((shipment) => (
                 <tr key={shipment.id} className="hover:bg-gray-50 transition">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{shipment.code}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {shipment.code}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-700">{shipment.route}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{shipment.address}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{shipment.driver}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{shipment.cost}k</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {shipment.cost}k
+                  </td>
                   <td className="px-4 py-3">{getStatusBadge(shipment.status)}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <button className="p-1 text-vr-600 hover:bg-vr-50 rounded" title="Chi tiết">
+                      <button
+                        className="p-1 text-vr-600 hover:bg-vr-50 rounded"
+                        title={tc("details")}
+                      >
                         <FiEye size={16} />
                       </button>
-                      <button className="p-1 text-amber-600 hover:bg-amber-50 rounded" title="Sửa">
+                      <button
+                        className="p-1 text-amber-600 hover:bg-amber-50 rounded"
+                        title={tc("edit")}
+                      >
                         <FiEdit2 size={16} />
                       </button>
                     </div>

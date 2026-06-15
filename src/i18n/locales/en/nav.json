@@ -1,0 +1,44 @@
+{
+  "sections": {
+    "menu": "MENU",
+    "support": "SUPPORT"
+  },
+  "roles": {
+    "manager": "Operator management",
+    "admin": "System administration"
+  },
+  "closeMenu": "Close menu",
+  "manager": {
+    "dashboard": "Dashboard",
+    "trips": "Trips",
+    "routeEta": "Route change & ETA",
+    "routes": "Routes & stops",
+    "vehicles": "Vehicles",
+    "staff": "Staff",
+    "bookings": "Bookings",
+    "parcels": "Parcels",
+    "gps": "GPS Tracking",
+    "dispatch": "Dispatch",
+    "vouchers": "Vouchers",
+    "packages": "Service packages",
+    "policies": "Policies",
+    "reports": "Revenue",
+    "wallet": "Wallet",
+    "settings": "Settings"
+  },
+  "admin": {
+    "dashboard": "Dashboard",
+    "operators": "Operators",
+    "users": "Users",
+    "vouchers": "Vouchers",
+    "packages": "Service packages",
+    "policies": "Policies",
+    "payouts": "Payout approval",
+    "revenue": "Revenue",
+    "reports": "Reports"
+  },
+  "layout": {
+    "adminDashboard": "Admin dashboard",
+    "managerDashboard": "Manager dashboard"
+  }
+}

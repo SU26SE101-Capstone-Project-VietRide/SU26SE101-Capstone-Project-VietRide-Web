@@ -1,5 +1,6 @@
 import { FiSearch, FiFilter } from "react-icons/fi";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import Modal from "../../components/Modal";
 import { users as mockUsers } from "../../data/mockData";
 
@@ -8,6 +9,8 @@ function formatUserId(idx: number) {
 }
 
 export default function Users() {
+  const { t } = useTranslation("admin");
+  const { t: tc } = useTranslation("common");
   const [searchTerm, setSearchTerm] = useState("");
   const [users, setUsers] = useState(mockUsers);
   const [selected, setSelected] = useState<number | null>(null);
@@ -32,16 +35,24 @@ export default function Users() {
     );
   }
 
+  const roleLabel = (role: string) => {
+    const map: Record<string, string> = {
+      customer: t("users.customer"),
+      manager: t("users.manager"),
+      operator: t("users.operator"),
+      admin: t("users.admin"),
+    };
+    return map[role] ?? role;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Quản lý người dùng
+            {t("users.title")}
           </h1>
-          <p className="text-gray-600 mt-1">
-            Tài khoản khách hàng, manager và phân quyền.
-          </p>
+          <p className="text-gray-600 mt-1">{t("users.subtitle")}</p>
         </div>
       </div>
 
@@ -51,7 +62,7 @@ export default function Users() {
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Tìm theo email, tên..."
+              placeholder={t("users.searchPlaceholder")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-gray-100 rounded-lg focus:outline-none text-sm bg-gray-50"
@@ -59,16 +70,16 @@ export default function Users() {
           </div>
 
           <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 flex items-center gap-2">
-            <FiFilter /> Bộ lọc
+            <FiFilter /> {tc("filter")}
           </button>
 
           <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700">
-            Cột hiển thị
+            {tc("columns")}
           </button>
 
           <div className="ml-auto">
             <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700">
-              Xuất CSV
+              {tc("exportCsv")}
             </button>
           </div>
         </div>
@@ -78,25 +89,25 @@ export default function Users() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  User ID
+                  {t("users.userId")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Họ tên
+                  {t("users.fullName")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Email
+                  {tc("email")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Vai trò
+                  {t("users.role")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Tham gia
+                  {t("users.joined")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Chuyến
+                  {t("users.trips")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Trạng thái
+                  {tc("status")}
                 </th>
               </tr>
             </thead>
@@ -118,7 +129,7 @@ export default function Users() {
                       {u.email}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">
-                      {u.role}
+                      {roleLabel(u.role)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {u.createdAt ?? "--"}
@@ -129,11 +140,11 @@ export default function Users() {
                     <td className="px-6 py-4 text-sm">
                       {u.active ? (
                         <span className="px-3 py-1 bg-vr-100 text-vr-900 rounded-full text-xs">
-                          Active
+                          {tc("active")}
                         </span>
                       ) : (
                         <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs">
-                          Khóa
+                          {t("users.locked")}
                         </span>
                       )}
                       <div className="mt-2">
@@ -141,7 +152,7 @@ export default function Users() {
                           onClick={() => openDetails(idx)}
                           className="text-sm text-vr-600 hover:underline"
                         >
-                          Chi tiết
+                          {tc("details")}
                         </button>
                       </div>
                     </td>
@@ -153,12 +164,12 @@ export default function Users() {
         </div>
 
         <div className="mt-4 text-sm text-gray-500">
-          Hiển thị {filtered.length} / 1240000 bản ghi
+          {tc("showingItems", { count: filtered.length, total: 1240000 })}
         </div>
 
         <div className="mt-4 flex justify-end gap-2">
           <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg">
-            Trước
+            {tc("previous")}
           </button>
           <button className="px-3 py-2 bg-vr-500 text-slate-900 rounded-lg font-semibold hover:bg-vr-600">
             1
@@ -170,63 +181,63 @@ export default function Users() {
             3
           </button>
           <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg">
-            Sau
+            {tc("next")}
           </button>
         </div>
       </div>
       <Modal
         open={selected !== null}
         onClose={closeDetails}
-        title={selected !== null ? users[selected].name : "Chi tiết"}
+        title={selected !== null ? users[selected].name : tc("details")}
         subtitle={selected !== null ? users[selected].email : undefined}
       >
         {selected !== null && (
           <div className="space-y-4">
             <div>
               <label className="block text-xs text-gray-600 mb-1">
-                Vai trò
+                {t("users.role")}
               </label>
               <select
                 value={users[selected].role}
                 onChange={(e) =>
-                  saveUser(selected, { role: e.target.value as any })
+                  saveUser(selected, { role: e.target.value as never })
                 }
                 className="w-full px-3 py-2 border rounded"
               >
-                <option value="customer">Khách hàng</option>
-                <option value="manager">Manager</option>
-                <option value="operator">Operator</option>
-                <option value="admin">Admin</option>
+                <option value="customer">{t("users.customer")}</option>
+                <option value="manager">{t("users.manager")}</option>
+                <option value="operator">{t("users.operator")}</option>
+                <option value="admin">{t("users.admin")}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs text-gray-600 mb-1">
-                Trạng thái
+                {tc("status")}
               </label>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => saveUser(selected, { active: true })}
                   className={`px-3 py-2 rounded ${users[selected].active ? "bg-vr-500 text-white" : "bg-white border"}`}
                 >
-                  Kích hoạt
+                  {tc("enable")}
                 </button>
                 <button
                   onClick={() => saveUser(selected, { active: false })}
                   className={`px-3 py-2 rounded ${!users[selected].active ? "bg-red-50 text-red-700" : "bg-white border"}`}
                 >
-                  Khóa
+                  {t("users.lock")}
                 </button>
               </div>
             </div>
 
             <div>
               <label className="block text-xs text-gray-600 mb-1">
-                Ghi chú
+                {tc("note")}
               </label>
               <textarea
                 className="w-full px-3 py-2 border rounded min-h-20"
-                placeholder="Ghi chú nội bộ"
+                placeholder={t("users.internalNote")}
               />
             </div>
           </div>

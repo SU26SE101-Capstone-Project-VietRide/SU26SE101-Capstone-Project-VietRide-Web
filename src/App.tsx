@@ -22,6 +22,8 @@ import ManagerWallet from "./pages/Manager/Wallet/index";
 import RouteETA from "./pages/Manager/RouteETA/index";
 import ManagerVouchers from "./pages/Manager/Vouchers/index";
 import ManagerPackages from "./pages/Manager/Packages/index";
+import ManagerPolicies from "./pages/Manager/Policies/index";
+import ManagerSettings from "./pages/Manager/Settings/index";
 import { VehicleBuilderPage } from "./modules/vehicle-builder";
 
 // Admin Pages
@@ -32,8 +34,8 @@ import Vouchers from "./pages/Admin/Vouchers";
 import Packages from "./pages/Admin/Packages";
 import Revenue from "./pages/Admin/Revenue";
 import AdminReports from "./pages/Admin/Reports";
-import AdminSettings from "./pages/Admin/Settings";
 import Payouts from "./pages/Admin/Payouts";
+import AdminPolicies from "./pages/Admin/Policies";
 import Login from "./pages/Login";
 import ManagerDashboard from "./pages/Manager/Dashboard";
 import AdminDashboard from "./pages/Admin/Dashboard";
@@ -58,10 +60,12 @@ export default function App() {
           <Route path="parcels" element={<ParcelsList />} />
           <Route path="vouchers" element={<ManagerVouchers />} />
           <Route path="packages" element={<ManagerPackages />} />
+          <Route path="policies" element={<ManagerPolicies />} />
           <Route path="gps" element={<GPSTracking />} />
           <Route path="reports" element={<Reports />} />
           <Route path="dispatch" element={<DispatchPanel />} />
           <Route path="wallet" element={<ManagerWallet />} />
+          <Route path="settings" element={<ManagerSettings />} />
           <Route path="profile" element={<Profile />} />
         </Route>
 
@@ -74,8 +78,8 @@ export default function App() {
           <Route path="packages" element={<Packages />} />
           <Route path="revenue" element={<Revenue />} />
           <Route path="reports" element={<AdminReports />} />
-          <Route path="settings" element={<AdminSettings />} />
           <Route path="payouts" element={<Payouts />} />
+          <Route path="policies" element={<AdminPolicies />} />
           <Route path="profile" element={<Profile />} />
         </Route>
 

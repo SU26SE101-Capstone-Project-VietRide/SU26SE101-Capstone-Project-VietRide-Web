@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiDownload,
   FiHome,
@@ -23,6 +24,8 @@ const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 type OperatorStatus = "PENDING" | "APPROVED" | "SUSPENDED" | "REJECTED";
 
 export default function Operators() {
+  const { t } = useTranslation("admin");
+  const { t: tc } = useTranslation("common");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<OperatorStatus | "ALL">(
     "ALL",
@@ -36,7 +39,6 @@ export default function Operators() {
   >(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  // Mock data with statuses
   const operatorsWithStatus = mockOperators.map((op) => ({
     ...op,
     status: (Math.random() > 0.7
@@ -60,17 +62,22 @@ export default function Operators() {
 
   const handleApprove = () => {
     setOpenApprove(false);
-    alert(`Đã phê duyệt nhà xe: ${selectedOperator?.name}`);
+    alert(t("operators.approvedAlert", { name: selectedOperator?.name }));
     setSelectedOperator(null);
   };
 
   const handleReject = () => {
     if (!rejectReason.trim()) {
-      alert("Vui lòng nhập lý do từ chối");
+      alert(t("operators.rejectEmptyReason"));
       return;
     }
     setOpenReject(false);
-    alert(`Đã từ chối: ${selectedOperator?.name}\nLý do: ${rejectReason}`);
+    alert(
+      t("operators.rejectedAlert", {
+        name: selectedOperator?.name,
+        reason: rejectReason,
+      }),
+    );
     setRejectReason("");
     setSelectedOperator(null);
   };
@@ -80,22 +87,22 @@ export default function Operators() {
       PENDING: {
         bg: "bg-amber-50",
         text: "text-amber-700",
-        label: "Chờ duyệt",
+        label: tc("pending"),
       },
       APPROVED: {
         bg: "bg-emerald-50",
         text: "text-emerald-700",
-        label: "Hoạt động",
+        label: tc("active"),
       },
       SUSPENDED: {
         bg: "bg-red-50",
         text: "text-red-700",
-        label: "Tạm khóa",
+        label: tc("suspended"),
       },
       REJECTED: {
         bg: "bg-gray-50",
         text: "text-gray-700",
-        label: "Bị từ chối",
+        label: tc("rejected"),
       },
     };
     const c = config[status];
@@ -110,24 +117,22 @@ export default function Operators() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Nhà vận hành</h1>
-          <p className="text-gray-600 mt-1">
-            Quản lý, duyệt và phân quyền các nhà xe trên nền tảng.
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("operators.title")}
+          </h1>
+          <p className="text-gray-600 mt-1">{t("operators.subtitle")}</p>
         </div>
         <button
           type="button"
           onClick={() => setOpenOnboard(true)}
           className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-white font-bold rounded-lg transition flex items-center gap-2"
         >
-          <FiPlus size={16} /> Thêm nhà xe
+          <FiPlus size={16} /> {t("operators.addOperator")}
         </button>
       </div>
 
-      {/* Pending Alert */}
       {pendingCount > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-center justify-between">
@@ -136,9 +141,9 @@ export default function Operators() {
                 <FiFilter size={20} />
               </div>
               <div>
-                <p className="font-semibold text-amber-900">Chờ duyệt</p>
+                <p className="font-semibold text-amber-900">{tc("pending")}</p>
                 <p className="text-sm text-amber-700">
-                  {pendingCount} đơn đăng ký nhà xe chờ xác thực
+                  {t("operators.pendingBanner", { count: pendingCount })}
                 </p>
               </div>
             </div>
@@ -146,20 +151,19 @@ export default function Operators() {
               onClick={() => setFilterStatus("PENDING")}
               className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-medium rounded-lg transition"
             >
-              Xem ngay
+              {t("operators.viewNow")}
             </button>
           </div>
         </div>
       )}
 
-      {/* Filters & Search */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex-1 relative min-w-50">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Tìm theo tên, MST..."
+              placeholder={t("operators.searchPlaceholder")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none text-sm bg-gray-50 focus:bg-white focus:border-vr-500"
@@ -173,44 +177,43 @@ export default function Operators() {
             }
             className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium focus:outline-none focus:border-vr-500"
           >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="PENDING">Chờ duyệt</option>
-            <option value="APPROVED">Hoạt động</option>
-            <option value="SUSPENDED">Tạm khóa</option>
-            <option value="REJECTED">Bị từ chối</option>
+            <option value="ALL">{t("operators.allStatus")}</option>
+            <option value="PENDING">{tc("pending")}</option>
+            <option value="APPROVED">{tc("active")}</option>
+            <option value="SUSPENDED">{tc("suspended")}</option>
+            <option value="REJECTED">{tc("rejected")}</option>
           </select>
 
           <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50">
             <FiDownload className="inline mr-2" size={16} />
-            Xuất CSV
+            {tc("exportCsv")}
           </button>
         </div>
 
-        {/* Table */}
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Mã
+                  {t("operators.code")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Tên nhà xe
+                  {t("operators.operatorName")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Email
+                  {tc("email")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Tuyến
+                  {t("operators.routes")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Doanh thu
+                  {t("operators.revenue")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Trạng thái
+                  {tc("status")}
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
-                  Hành động
+                  {tc("actions")}
                 </th>
               </tr>
             </thead>
@@ -230,7 +233,8 @@ export default function Operators() {
                     {op.name.split(" ")[0].toLowerCase()}@company.vn
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700">
-                    {Math.floor(50 + idx * 5)} tuyến
+                    {Math.floor(50 + idx * 5)}
+                    {t("operators.routesSuffix")}
                   </td>
                   <td className="px-6 py-4 text-sm font-semibold text-vr-600">
                     {formatCurrency(op.revenue)}
@@ -246,7 +250,7 @@ export default function Operators() {
                           setOpenDetail(true);
                         }}
                         className="p-1.5 text-vr-600 hover:bg-vr-50 rounded-lg transition"
-                        title="Chi tiết"
+                        title={tc("details")}
                       >
                         <FiEye size={16} />
                       </button>
@@ -258,7 +262,7 @@ export default function Operators() {
                               setOpenApprove(true);
                             }}
                             className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                            title="Phê duyệt"
+                            title={t("operators.approve")}
                           >
                             <FiCheck size={16} />
                           </button>
@@ -268,7 +272,7 @@ export default function Operators() {
                               setOpenReject(true);
                             }}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="Từ chối"
+                            title={t("operators.reject")}
                           >
                             <FiX size={16} />
                           </button>
@@ -284,11 +288,14 @@ export default function Operators() {
 
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-gray-500">
-            Hiển thị {filtered.length} / {operatorsWithStatus.length} nhà xe
+            {t("operators.showingPagination", {
+              count: filtered.length,
+              total: operatorsWithStatus.length,
+            })}
           </p>
           <div className="flex gap-2">
             <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm hover:bg-gray-50">
-              Trước
+              {tc("previous")}
             </button>
             <button className="px-3 py-2 bg-vr-500 text-white rounded-lg text-sm">
               1
@@ -297,25 +304,24 @@ export default function Operators() {
               2
             </button>
             <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm hover:bg-gray-50">
-              Sau
+              {tc("next")}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Detail Modal */}
       <Modal
         open={openDetail}
         onClose={() => setOpenDetail(false)}
         icon={<FiEye size={20} />}
-        title="Chi tiết nhà xe"
+        title={t("operators.detailTitle")}
         footer={
           <>
             <button
               onClick={() => setOpenDetail(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Đóng
+              {tc("close")}
             </button>
           </>
         }
@@ -323,26 +329,34 @@ export default function Operators() {
         {selectedOperator && (
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-medium text-gray-600">Tên nhà xe</p>
+              <p className="text-xs font-medium text-gray-600">
+                {t("operators.operatorName")}
+              </p>
               <p className="text-sm font-semibold text-gray-900">
                 {selectedOperator.name}
               </p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-600">Email liên hệ</p>
+              <p className="text-xs font-medium text-gray-600">
+                {t("operators.contactEmail")}
+              </p>
               <p className="text-sm text-gray-900">
                 {selectedOperator.name.toLowerCase().replace(" ", "")}
                 @company.vn
               </p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-600">Trạng thái</p>
+              <p className="text-xs font-medium text-gray-600">
+                {tc("status")}
+              </p>
               <div className="mt-1">
                 {getStatusBadge(selectedOperator.status)}
               </div>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-600">Doanh thu</p>
+              <p className="text-xs font-medium text-gray-600">
+                {t("operators.revenue")}
+              </p>
               <p className="text-sm font-semibold text-vr-600">
                 {formatCurrency(selectedOperator.revenue)}
               </p>
@@ -351,25 +365,24 @@ export default function Operators() {
         )}
       </Modal>
 
-      {/* Approve Modal */}
       <Modal
         open={openApprove}
         onClose={() => setOpenApprove(false)}
         icon={<FiCheck size={20} />}
-        title="Phê duyệt nhà xe"
+        title={t("operators.approveTitle")}
         footer={
           <>
             <button
               onClick={() => setOpenApprove(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               onClick={handleApprove}
               className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
             >
-              Phê duyệt
+              {t("operators.approve")}
             </button>
           </>
         }
@@ -378,15 +391,15 @@ export default function Operators() {
           <div className="space-y-4">
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
               <p className="text-sm text-emerald-900">
-                Bạn chắc chắn muốn phê duyệt nhà xe{" "}
-                <strong>{selectedOperator.name}</strong>? Họ sẽ được quyền truy
-                cập vào dashboard sau khi phê duyệt.
+                {t("operators.approveConfirm", {
+                  name: selectedOperator.name,
+                })}
               </p>
             </div>
             <div>
-              <label className={labelClass}>Ghi chú (tuỳ chọn)</label>
+              <label className={labelClass}>{t("operators.approveNote")}</label>
               <textarea
-                placeholder="Ghi chú khi duyệt..."
+                placeholder={t("operators.approveNotePlaceholder")}
                 className={inputClass + " min-h-20"}
               />
             </div>
@@ -394,25 +407,24 @@ export default function Operators() {
         )}
       </Modal>
 
-      {/* Reject Modal */}
       <Modal
         open={openReject}
         onClose={() => setOpenReject(false)}
         icon={<FiX size={20} />}
-        title="Từ chối đơn đăng ký"
+        title={t("operators.rejectTitle")}
         footer={
           <>
             <button
               onClick={() => setOpenReject(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               onClick={handleReject}
               className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
             >
-              Xác nhận từ chối
+              {t("operators.rejectConfirm")}
             </button>
           </>
         }
@@ -421,18 +433,20 @@ export default function Operators() {
           <div className="space-y-4">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <p className="text-sm text-red-900">
-                Bạn chắc chắn muốn từ chối đơn đăng ký của{" "}
-                <strong>{selectedOperator.name}</strong>?
+                {t("operators.rejectConfirmMsg", {
+                  name: selectedOperator.name,
+                })}
               </p>
             </div>
             <div>
               <label className={labelClass}>
-                Lý do từ chối <span className="text-red-500">*</span>
+                {t("operators.rejectReason")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Vui lòng nhập lý do từ chối..."
+                placeholder={t("operators.rejectReasonPlaceholder")}
                 className={inputClass + " min-h-25"}
               />
             </div>
@@ -440,28 +454,26 @@ export default function Operators() {
         )}
       </Modal>
 
-      {/* Create Operator Modal */}
-
       <Modal
         open={openOnboard}
         onClose={() => setOpenOnboard(false)}
         wide
         icon={<FiHome size={20} />}
-        title="Onboard nhà vận hành mới"
-        subtitle="Thêm doanh nghiệp vận tải vào nền tảng VietRide."
+        title={t("operators.onboardTitle")}
+        subtitle={t("operators.onboardSubtitle")}
         footer={
           <>
             <div
               onClick={() => setOpenOnboard(false)}
               className="rounded-lg border cursor-pointer border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
-              Hủy
+              {tc("cancel")}
             </div>
             <div
               onClick={() => setOpenOnboard(false)}
               className="rounded-lg bg-vr-500 cursor-pointer px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 hover:text-white"
             >
-              Tạo nhà vận hành
+              {t("operators.createOperator")}
             </div>
           </>
         }
@@ -469,32 +481,41 @@ export default function Operators() {
         <div className="space-y-6">
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Thông tin doanh nghiệp
+              {t("operators.businessInfo")}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label className={labelClass}>
-                  Tên thương hiệu <span className="text-red-500">*</span>
+                  {t("operators.brandName")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
-                <input className={inputClass} placeholder="VD: Phương Trang" />
+                <input
+                  className={inputClass}
+                  placeholder={t("operators.brandPlaceholder")}
+                />
               </div>
               <div>
                 <label className={labelClass}>
-                  Mã số thuế <span className="text-red-500">*</span>
+                  {t("operators.taxId")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} placeholder="0301234567" />
               </div>
               <div>
-                <label className={labelClass}>Loại hình</label>
+                <label className={labelClass}>
+                  {t("operators.businessType")}
+                </label>
                 <select className={inputClass} defaultValue="bus">
-                  <option value="bus">Xe khách liên tỉnh</option>
+                  <option value="bus">{t("operators.intercityBus")}</option>
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className={labelClass}>Địa chỉ trụ sở</label>
+                <label className={labelClass}>
+                  {t("operators.headquartersAddress")}
+                </label>
                 <textarea
                   className={inputClass + " min-h-20"}
-                  placeholder="Số nhà, đường, quận/huyện, tỉnh/thành"
+                  placeholder={t("operators.addressPlaceholder")}
                   rows={2}
                 />
               </div>
@@ -503,28 +524,35 @@ export default function Operators() {
           <div className="border-t border-gray-100" />
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Liên hệ chính
+              {t("operators.mainContact")}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
-                  Người đại diện <span className="text-red-500">*</span>
+                  {t("operators.representative")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
-                <input className={inputClass} placeholder="Nguyễn Văn A" />
+                <input
+                  className={inputClass}
+                  placeholder={t("operators.representativePlaceholder")}
+                />
               </div>
               <div>
-                <label className={labelClass}>Chức vụ</label>
-                <input className={inputClass} placeholder="Giám đốc vận hành" />
+                <label className={labelClass}>{t("operators.position")}</label>
+                <input
+                  className={inputClass}
+                  placeholder={t("operators.positionPlaceholder")}
+                />
               </div>
               <div>
                 <label className={labelClass}>
-                  Email <span className="text-red-500">*</span>
+                  {tc("email")} <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} placeholder="ops@congty.vn" />
               </div>
               <div>
                 <label className={labelClass}>
-                  Số điện thoại <span className="text-red-500">*</span>
+                  {tc("phone")} <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} placeholder="0901 234 567" />
               </div>
@@ -533,20 +561,22 @@ export default function Operators() {
           <div className="border-t border-gray-100" />
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Cấu hình hoạt động
+              {t("operators.operationConfig")}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelClass}>Quy mô đội xe ban đầu</label>
+                <label className={labelClass}>{t("operators.fleetSize")}</label>
                 <input className={inputClass} placeholder="50" />
               </div>
               <div>
-                <label className={labelClass}>% Hoa hồng nền tảng</label>
+                <label className={labelClass}>
+                  {t("operators.commissionPercent")}
+                </label>
                 <input className={inputClass} placeholder="8" />
               </div>
             </div>
             <div className="mt-4">
-              <p className={labelClass}>Kích hoạt ngay</p>
+              <p className={labelClass}>{t("operators.activateNow")}</p>
               <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
                 <button
                   type="button"
@@ -558,10 +588,10 @@ export default function Operators() {
                 </button>
                 <div>
                   <p className="text-sm font-bold text-gray-900">
-                    Cho phép bán vé ngay
+                    {t("operators.allowTicketSales")}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Sau khi xác thực tài liệu, nhà xe có thể nhận booking.
+                    {t("operators.activateHint")}
                   </p>
                 </div>
               </div>

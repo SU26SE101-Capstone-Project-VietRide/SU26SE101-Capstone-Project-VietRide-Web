@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiTruck,
   FiChevronLeft,
@@ -31,30 +32,33 @@ function formatDepart(iso: string) {
   return `${t} ${day}/${month}`;
 }
 
-function tripStatusBadge(s: ManagerTripStatus) {
+function tripStatusBadge(
+  s: ManagerTripStatus,
+  t: (key: string) => string,
+) {
   const styles: Record<
     ManagerTripStatus,
-    { className: string; label: string }
+    { className: string; labelKey: string }
   > = {
     running: {
       className: "bg-sky-50 text-sky-800",
-      label: "Đang chạy",
+      labelKey: "trips.running",
     },
     departed: {
       className: "bg-vr-50 text-vr-900",
-      label: "Đã khởi hành",
+      labelKey: "trips.departed",
     },
     upcoming: {
       className: "bg-amber-50 text-amber-800",
-      label: "Sắp khởi hành",
+      labelKey: "trips.upcoming",
     },
     cancelled: {
       className: "bg-red-50 text-red-800",
-      label: "Đã hủy",
+      labelKey: "trips.cancelled",
     },
     completed: {
       className: "bg-emerald-50 text-emerald-800",
-      label: "Hoàn thành",
+      labelKey: "trips.completed",
     },
   };
   const x = styles[s];
@@ -63,12 +67,14 @@ function tripStatusBadge(s: ManagerTripStatus) {
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${x.className}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {x.label}
+      {t(x.labelKey)}
     </span>
   );
 }
 
 export default function TripsPage() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<TripTab>("all");
   const [openCreate, setOpenCreate] = useState(false);
@@ -81,11 +87,11 @@ export default function TripsPage() {
       completed: 0,
       cancelled: 0,
     };
-    for (const t of managerTrips) {
-      if (t.status === "running" || t.status === "departed") c.running++;
-      if (t.status === "upcoming") c.upcoming++;
-      if (t.status === "completed") c.completed++;
-      if (t.status === "cancelled") c.cancelled++;
+    for (const trip of managerTrips) {
+      if (trip.status === "running" || trip.status === "departed") c.running++;
+      if (trip.status === "upcoming") c.upcoming++;
+      if (trip.status === "completed") c.completed++;
+      if (trip.status === "cancelled") c.cancelled++;
     }
     return c;
   }, []);
@@ -106,15 +112,23 @@ export default function TripsPage() {
     });
   }, [search, tab]);
 
+  const tabs: { key: TripTab; labelKey: string }[] = [
+    { key: "all", labelKey: "trips.tabAll" },
+    { key: "running", labelKey: "trips.tabRunning" },
+    { key: "upcoming", labelKey: "trips.tabUpcoming" },
+    { key: "completed", labelKey: "trips.tabCompleted" },
+    { key: "cancelled", labelKey: "trips.tabCancelled" },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            Quản lý chuyến xe
+            {t("trips.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            Lập lịch, theo dõi và điều phối toàn bộ chuyến xe của nhà xe.
+            {t("trips.subtitle")}
           </p>
         </div>
         <button
@@ -123,20 +137,12 @@ export default function TripsPage() {
           className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
         >
           <FiPlus size={18} />
-          Tạo chuyến mới
+          {t("trips.create")}
         </button>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["all", `Tất cả · ${counts.all}`],
-            ["running", `Đang chạy · ${counts.running}`],
-            ["upcoming", `Sắp khởi hành · ${counts.upcoming}`],
-            ["completed", `Hoàn thành · ${counts.completed}`],
-            ["cancelled", `Đã hủy · ${counts.cancelled}`],
-          ] as const
-        ).map(([key, label]) => (
+        {tabs.map(({ key, labelKey }) => (
           <button
             key={key}
             type="button"
@@ -147,7 +153,10 @@ export default function TripsPage() {
                 : "border-transparent bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
-            {label}
+            {t("trips.tabWithCount", {
+              label: t(labelKey),
+              count: counts[key],
+            })}
           </button>
         ))}
       </div>
@@ -158,7 +167,7 @@ export default function TripsPage() {
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               className={inputClass + " pl-10"}
-              placeholder="Tìm theo mã chuyến, tuyến, biển số..."
+              placeholder={t("trips.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -169,21 +178,21 @@ export default function TripsPage() {
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <FiFilter size={16} />
-              Bộ lọc
+              {tc("filter")}
             </button>
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <FiList size={16} />
-              Cột hiển thị
+              {tc("columns")}
             </button>
             <button
               type="button"
               className="ml-auto inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:ml-0"
             >
               <FiDownload size={16} />
-              Xuất CSV
+              {tc("exportCsv")}
             </button>
           </div>
         </div>
@@ -195,13 +204,13 @@ export default function TripsPage() {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="w-10 px-3 py-3" />
-                <th className="px-4 py-3">Mã chuyến</th>
-                <th className="px-4 py-3">Tuyến</th>
-                <th className="px-4 py-3">Khởi hành</th>
-                <th className="px-4 py-3">Tài xế</th>
-                <th className="px-4 py-3">Phương tiện</th>
-                <th className="px-4 py-3">Ghế</th>
-                <th className="px-4 py-3">Trạng thái</th>
+                <th className="px-4 py-3">{t("trips.tripCode")}</th>
+                <th className="px-4 py-3">{t("trips.route")}</th>
+                <th className="px-4 py-3">{t("trips.departure")}</th>
+                <th className="px-4 py-3">{t("trips.driver")}</th>
+                <th className="px-4 py-3">{t("trips.vehicle")}</th>
+                <th className="px-4 py-3">{t("trips.seats")}</th>
+                <th className="px-4 py-3">{tc("status")}</th>
                 <th className="px-4 py-3 text-center"> </th>
               </tr>
             </thead>
@@ -242,7 +251,9 @@ export default function TripsPage() {
                       ? `${trip.seatsSold}/${trip.seatsTotal}`
                       : "—"}
                   </td>
-                  <td className="px-4 py-4">{tripStatusBadge(trip.status)}</td>
+                  <td className="px-4 py-4">
+                    {tripStatusBadge(trip.status, t)}
+                  </td>
                   <td className="px-4 py-4 text-center text-gray-400">
                     <button type="button" className="p-1 hover:text-gray-700">
                       <FiMoreVertical size={18} />
@@ -255,14 +266,17 @@ export default function TripsPage() {
         </div>
         <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-500">
-            Hiển thị {filtered.length} / {managerTrips.length} bản ghi
+            {tc("showingItems", {
+              count: filtered.length,
+              total: managerTrips.length,
+            })}
           </p>
           <div className="flex gap-1">
             <button
               type="button"
               className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
-              <FiChevronLeft className="inline" /> Trước
+              <FiChevronLeft className="inline" /> {tc("previous")}
             </button>
             <button
               type="button"
@@ -284,9 +298,9 @@ export default function TripsPage() {
             </button>
             <button
               type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
             >
-              Sau <FiChevronRight className="inline" />
+              {tc("next")} <FiChevronRight className="inline" />
             </button>
           </div>
         </div>
@@ -297,8 +311,8 @@ export default function TripsPage() {
         onClose={() => setOpenCreate(false)}
         wide
         icon={<FiTruck size={20} />}
-        title="Tạo chuyến xe mới"
-        subtitle="Lập lịch chuyến xe, gán tài xế và phương tiện."
+        title={t("trips.createTitle")}
+        subtitle={t("trips.createSubtitle")}
         footer={
           <>
             <button
@@ -306,20 +320,20 @@ export default function TripsPage() {
               onClick={() => setOpenCreate(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Lưu nháp
+              {t("trips.saveDraft")}
             </button>
             <button
               type="button"
               onClick={() => setOpenCreate(false)}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
             >
-              Mở bán chuyến
+              {t("trips.openForSale")}
             </button>
           </>
         }
@@ -327,14 +341,15 @@ export default function TripsPage() {
         <div className="space-y-6">
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Tuyến &amp; lịch trình
+              {t("trips.sectionRouteSchedule")}
             </h3>
             <div className="mb-4">
               <label className={labelClass}>
-                Tuyến đường <span className="text-red-500">*</span>
+                {t("trips.route")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <select className={inputClass} defaultValue="">
-                <option value="">Chọn tuyến...</option>
+                <option value="">{t("trips.selectRoute")}</option>
                 <option>HCM → Đà Lạt</option>
                 <option>HCM → Nha Trang</option>
               </select>
@@ -342,24 +357,26 @@ export default function TripsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
-                  Ngày khởi hành <span className="text-red-500">*</span>
+                  {t("trips.departureDate")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} type="date" />
               </div>
               <div>
                 <label className={labelClass}>
-                  Giờ khởi hành <span className="text-red-500">*</span>
+                  {t("trips.departureTime")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} type="time" />
               </div>
               <div>
-                <label className={labelClass}>Điểm đón</label>
+                <label className={labelClass}>{t("trips.pickupPoint")}</label>
                 <select className={inputClass} defaultValue="west">
                   <option value="west">Bến xe Miền Tây</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Điểm trả</label>
+                <label className={labelClass}>{t("trips.dropoffPoint")}</label>
                 <select className={inputClass} defaultValue="dl">
                   <option value="dl">Bến xe Đà Lạt</option>
                 </select>
@@ -369,59 +386,69 @@ export default function TripsPage() {
           <div className="border-t border-gray-100" />
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Phương tiện &amp; nhân sự
+              {t("trips.sectionVehicleStaff")}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
-                  Phương tiện <span className="text-red-500">*</span>
+                  {t("trips.vehicle")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <select className={inputClass} defaultValue="">
-                  <option value="">Chọn xe...</option>
+                  <option value="">{t("trips.selectVehicle")}</option>
                 </select>
               </div>
               <div>
                 <label className={labelClass}>
-                  Tài xế chính <span className="text-red-500">*</span>
+                  {t("trips.mainDriver")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <select className={inputClass} defaultValue="">
-                  <option value="">Chọn tài xế...</option>
+                  <option value="">{t("trips.selectDriver")}</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Tài xế phụ</label>
+                <label className={labelClass}>{t("trips.coDriver")}</label>
                 <select className={inputClass} defaultValue="">
-                  <option value="">(tùy chọn)</option>
+                  <option value="">{t("trips.optionalInParens")}</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Phụ xe / tiếp viên</label>
-                <input className={inputClass} placeholder="Họ tên" />
+                <label className={labelClass}>{t("trips.attendant")}</label>
+                <input
+                  className={inputClass}
+                  placeholder={t("trips.fullNamePlaceholder")}
+                />
               </div>
             </div>
           </section>
           <div className="border-t border-gray-100" />
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Giá &amp; tải trọng
+              {t("trips.sectionPricing")}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
-                  Giá vé (đ) <span className="text-red-500">*</span>
+                  {t("trips.ticketPrice")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} defaultValue="320000" />
               </div>
               <div>
-                <label className={labelClass}>Số ghế mở bán</label>
+                <label className={labelClass}>{t("trips.seatsForSale")}</label>
                 <input className={inputClass} defaultValue="40" />
               </div>
               <div>
-                <label className={labelClass}>Sức chứa hàng (kg)</label>
+                <label className={labelClass}>
+                  {t("trips.cargoCapacityKg")}
+                </label>
                 <input className={inputClass} defaultValue="500" />
               </div>
               <div>
-                <label className={labelClass}>Cước hàng / kg (đ)</label>
+                <label className={labelClass}>
+                  {t("trips.cargoRatePerKg")}
+                </label>
                 <input className={inputClass} defaultValue="8000" />
               </div>
             </div>

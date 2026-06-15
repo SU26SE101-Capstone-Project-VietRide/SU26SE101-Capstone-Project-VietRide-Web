@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiPlus, FiTag, FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import { vouchers as mockVouchers } from "../../../data/mockData";
@@ -6,23 +7,23 @@ import { vouchers as mockVouchers } from "../../../data/mockData";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Voucher = any;
 
-function formatNumber(n: number) {
-  return n.toLocaleString();
+function formatNumber(n: number, locale: string) {
+  return n.toLocaleString(locale === "vi" ? "vi-VN" : "en-US");
 }
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
-// Mocked operator ID - trong thực tế sẽ lấy từ auth context
 const CURRENT_OPERATOR_ID = "op1";
 
 export default function ManagerVouchers() {
+  const { t, i18n } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
 
-  // Filter vouchers: chỉ hiển thị vouchers của nhà xe này
   const operatorVouchers = mockVouchers.filter(
     (v) => v.voucherType === "operator" && v.operatorId === CURRENT_OPERATOR_ID,
   );
@@ -33,25 +34,21 @@ export default function ManagerVouchers() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Bạn có chắc chắn muốn xóa voucher này?")) {
-      // API call to delete voucher
-      alert(`Xóa voucher ${id} thành công!`);
+    if (confirm(t("vouchers.confirmDelete"))) {
+      alert(t("vouchers.deleteSuccess", { id }));
     }
   };
 
   const handleToggleActive = (id: string) => {
-    // API call to toggle active status
-    alert(`Cập nhật trạng thái voucher ${id} thành công!`);
+    alert(t("vouchers.toggleSuccess", { id }));
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Quản lý Voucher</h1>
-          <p className="text-gray-600 mt-1">
-            Tạo và quản lý mã giảm giá cho khách hàng của nhà xe bạn.
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">{t("vouchers.title")}</h1>
+          <p className="text-gray-600 mt-1">{t("vouchers.subtitle")}</p>
         </div>
         <div
           onClick={() => {
@@ -60,48 +57,45 @@ export default function ManagerVouchers() {
           }}
           className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-white rounded-lg font-medium transition flex items-center gap-2"
         >
-          <FiPlus size={16} /> Tạo voucher mới
+          <FiPlus size={16} /> {t("vouchers.create")}
         </div>
       </div>
 
       {operatorVouchers.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
           <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
-          <p className="text-gray-600">Bạn chưa tạo voucher nào</p>
-          <p className="text-sm text-gray-500 mt-1">
-            Bắt đầu bằng cách tạo voucher để khuyến mãi cho khách hàng
-          </p>
+          <p className="text-gray-600">{t("vouchers.empty")}</p>
+          <p className="text-sm text-gray-500 mt-1">{t("vouchers.emptyHint")}</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Table view */}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Mã Voucher
+                    {t("vouchers.voucherCode")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Tên
+                    {tc("name")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Giảm giá
+                    {t("vouchers.discount")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Được phát
+                    {t("vouchers.issued")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Đã dùng
+                    {t("vouchers.used")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    HSD
+                    {t("vouchers.expiryShort")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Trạng thái
+                    {tc("status")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Hành động
+                    {tc("actions")}
                   </th>
                 </tr>
               </thead>
@@ -110,9 +104,9 @@ export default function ManagerVouchers() {
                   const usageRate = Math.round(
                     (voucher.usedCount / voucher.quantity) * 100,
                   );
-                  const expiryDate = new Date(
-                    voucher.expiryDate,
-                  ).toLocaleDateString("vi-VN");
+                  const expiryDate = new Date(voucher.expiryDate).toLocaleDateString(
+                    i18n.language === "vi" ? "vi-VN" : "en-US",
+                  );
 
                   return (
                     <tr key={voucher.id} className="border-t border-gray-200">
@@ -135,15 +129,15 @@ export default function ManagerVouchers() {
                         <span className="text-lg font-bold text-gray-900">
                           {voucher.discountType === "percent"
                             ? `${voucher.discount}%`
-                            : `${formatNumber(voucher.discount)}₫`}
+                            : `${formatNumber(voucher.discount, i18n.language)}₫`}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {formatNumber(voucher.quantity)}
+                        {formatNumber(voucher.quantity, i18n.language)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <p>{formatNumber(voucher.usedCount)}</p>
+                          <p>{formatNumber(voucher.usedCount, i18n.language)}</p>
                           <p className="text-xs text-gray-500">
                             ({usageRate}%)
                           </p>
@@ -160,7 +154,7 @@ export default function ManagerVouchers() {
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {voucher.active ? "Đang chạy" : "Đã kết thúc"}
+                          {voucher.active ? t("vouchers.running") : t("vouchers.ended")}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -168,7 +162,7 @@ export default function ManagerVouchers() {
                           <button
                             onClick={() => handleToggleActive(voucher.id)}
                             className="p-2 text-gray-400 hover:text-gray-600"
-                            title={voucher.active ? "Vô hiệu hóa" : "Kích hoạt"}
+                            title={voucher.active ? tc("disable") : tc("enable")}
                           >
                             {voucher.active ? (
                               <FiCheck size={16} />
@@ -179,14 +173,14 @@ export default function ManagerVouchers() {
                           <button
                             onClick={() => handleEdit(voucher)}
                             className="p-2 text-gray-400 hover:text-vr-500"
-                            title="Chỉnh sửa"
+                            title={tc("edit")}
                           >
                             <FiEdit2 size={16} />
                           </button>
                           <button
                             onClick={() => handleDelete(voucher.id)}
                             className="p-2 text-gray-400 hover:text-red-500"
-                            title="Xóa"
+                            title={tc("delete")}
                           >
                             <FiTrash2 size={16} />
                           </button>
@@ -201,7 +195,6 @@ export default function ManagerVouchers() {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
       <Modal
         open={createOpen || editOpen}
         onClose={() => {
@@ -211,11 +204,9 @@ export default function ManagerVouchers() {
         }}
         wide
         icon={<FiTag size={20} />}
-        title={selectedVoucher ? "Chỉnh sửa voucher" : "Tạo voucher mới"}
+        title={selectedVoucher ? t("vouchers.editTitle") : t("vouchers.createTitle")}
         subtitle={
-          selectedVoucher
-            ? "Cập nhật thông tin mã giảm giá"
-            : "Tạo mã giảm giá mới cho khách hàng"
+          selectedVoucher ? t("vouchers.editSubtitle") : t("vouchers.createSubtitle")
         }
         footer={
           <>
@@ -227,12 +218,14 @@ export default function ManagerVouchers() {
               }}
               className="rounded-lg border border-gray-200 cursor-pointer bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
-              Hủy
+              {tc("cancel")}
             </div>
             <div
               onClick={() => {
                 alert(
-                  `${selectedVoucher ? "Cập nhật" : "Tạo"} voucher thành công!`,
+                  t("vouchers.saveSuccess", {
+                    action: selectedVoucher ? tc("update") : tc("create"),
+                  }),
                 );
                 setCreateOpen(false);
                 setEditOpen(false);
@@ -240,7 +233,9 @@ export default function ManagerVouchers() {
               }}
               className="rounded-lg bg-vr-500 cursor-pointer px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
             >
-              {selectedVoucher ? "Cập nhật" : "Tạo"} voucher
+              {t("vouchers.saveButton", {
+                action: selectedVoucher ? tc("update") : tc("create"),
+              })}
             </div>
           </>
         }
@@ -249,63 +244,63 @@ export default function ManagerVouchers() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>
-                Mã voucher <span className="text-red-500">*</span>
+                {t("vouchers.codeLabel")} <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
                 defaultValue={selectedVoucher?.code || "OP-"}
-                placeholder="VD: OP-LOYAL10"
+                placeholder={t("vouchers.codePlaceholder")}
               />
             </div>
             <div>
               <label className={labelClass}>
-                Tên voucher <span className="text-red-500">*</span>
+                {t("vouchers.nameLabel")} <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
-                defaultValue={selectedVoucher?.name || "Khách hàng thân thiết"}
-                placeholder="VD: Khách hàng thân thiết"
+                defaultValue={selectedVoucher?.name || t("vouchers.defaultName")}
+                placeholder={t("vouchers.namePlaceholder")}
               />
             </div>
           </div>
 
           <div>
-            <label className={labelClass}>Mô tả</label>
+            <label className={labelClass}>{tc("description")}</label>
             <textarea
               className={inputClass + " min-h-[80px]"}
               defaultValue={selectedVoucher?.description || ""}
-              placeholder="Mô tả chi tiết về voucher..."
+              placeholder={t("vouchers.descriptionPlaceholder")}
               rows={3}
             />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Loại giảm giá</label>
+              <label className={labelClass}>{t("vouchers.discountType")}</label>
               <select
                 className={inputClass}
                 defaultValue={selectedVoucher?.discountType || "percent"}
               >
-                <option value="percent">Theo phần trăm (%)</option>
-                <option value="fixed">Số tiền cố định (₫)</option>
+                <option value="percent">{t("vouchers.discountTypePercent")}</option>
+                <option value="fixed">{t("vouchers.discountTypeFixed")}</option>
               </select>
             </div>
             <div>
               <label className={labelClass}>
-                Giá trị giảm <span className="text-red-500">*</span>
+                {t("vouchers.discountValue")} <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
                 type="number"
                 defaultValue={selectedVoucher?.discount || ""}
-                placeholder="VD: 10 hoặc 50000"
+                placeholder={t("vouchers.discountValuePlaceholder")}
               />
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Đơn tối thiểu (₫)</label>
+              <label className={labelClass}>{t("vouchers.minOrder")}</label>
               <input
                 className={inputClass}
                 type="number"
@@ -315,32 +310,32 @@ export default function ManagerVouchers() {
             </div>
             <div>
               <label className={labelClass}>
-                Số lượng phát hành <span className="text-red-500">*</span>
+                {t("vouchers.quantityLabel")} <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
                 type="number"
                 defaultValue={selectedVoucher?.quantity || ""}
-                placeholder="VD: 500"
+                placeholder={t("vouchers.quantityPlaceholder")}
               />
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Áp dụng cho</label>
+              <label className={labelClass}>{t("vouchers.applicableTo")}</label>
               <select
                 className={inputClass}
                 defaultValue={selectedVoucher?.applicableTo || "rides"}
               >
-                <option value="all">Tất cả dịch vụ</option>
-                <option value="rides">Chỉ chuyến xe</option>
-                <option value="parcels">Chỉ bưu phẩm</option>
+                <option value="all">{t("vouchers.applicableAll")}</option>
+                <option value="rides">{t("vouchers.applicableRides")}</option>
+                <option value="parcels">{t("vouchers.applicableParcels")}</option>
               </select>
             </div>
             <div>
               <label className={labelClass}>
-                Hạn sử dụng <span className="text-red-500">*</span>
+                {t("vouchers.expiryDate")} <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
@@ -351,19 +346,17 @@ export default function ManagerVouchers() {
           </div>
 
           <div>
-            <label className={labelClass}>
-              Số lần dùng tối đa trên mỗi tài khoản
-            </label>
+            <label className={labelClass}>{t("vouchers.maxUsagePerUser")}</label>
             <input
               className={inputClass}
               type="number"
               defaultValue={selectedVoucher?.maxUsagePerUser || "1"}
-              placeholder="VD: 1"
+              placeholder={t("vouchers.maxUsagePlaceholder")}
             />
           </div>
 
           <div>
-            <p className={labelClass}>Kích hoạt ngay</p>
+            <p className={labelClass}>{t("vouchers.activateNow")}</p>
             <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 flex items-start gap-3">
               <button
                 type="button"
@@ -375,10 +368,10 @@ export default function ManagerVouchers() {
               </button>
               <div>
                 <p className="text-sm font-bold text-gray-900">
-                  Bật voucher sau khi tạo
+                  {t("vouchers.activateAfterCreate")}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Voucher sẽ có hiệu lực và khách hàng có thể sử dụng ngay.
+                  {t("vouchers.activateHint")}
                 </p>
               </div>
             </div>

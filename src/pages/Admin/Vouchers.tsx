@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiPlus, FiTag, FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi";
 import Modal from "../../components/Modal";
 import { vouchers as mockVouchers } from "../../data/mockData";
@@ -17,12 +18,13 @@ const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 type VoucherTab = "event" | "package";
 
 export default function Vouchers() {
+  const { t } = useTranslation("admin");
+  const { t: tc } = useTranslation("common");
   const [activeTab, setActiveTab] = useState<VoucherTab>("event");
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
 
-  // Filter vouchers by type
   const eventVouchers = mockVouchers.filter((v) => v.voucherType === "event");
   const packageVouchers = mockVouchers.filter(
     (v) => v.voucherType === "package",
@@ -37,13 +39,23 @@ export default function Vouchers() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Bạn có chắc chắn muốn xóa voucher này?")) {
-      alert(`Xóa voucher ${id} thành công!`);
+    if (confirm(t("vouchers.deleteConfirm"))) {
+      alert(t("vouchers.deleteSuccess", { id }));
     }
   };
 
   const handleToggleActive = (id: string) => {
-    alert(`Cập nhật trạng thái voucher ${id} thành công!`);
+    alert(t("vouchers.toggleSuccess", { id }));
+  };
+
+  const getApplicableLabel = (applicableTo: string) => {
+    const map: Record<string, string> = {
+      all: t("vouchers.allServices"),
+      rides: t("vouchers.tripsOnly"),
+      parcels: t("vouchers.parcelsOnly"),
+      packages: t("vouchers.packagesOnly"),
+    };
+    return map[applicableTo] ?? applicableTo;
   };
 
   return (
@@ -51,11 +63,9 @@ export default function Vouchers() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Quản lý Voucher &amp; Khuyến mãi
+            {t("vouchers.title")}
           </h1>
-          <p className="text-gray-600 mt-1">
-            Quản lý mã giảm giá cho người dùng và nhà xe trên hệ thống.
-          </p>
+          <p className="text-gray-600 mt-1">{t("vouchers.subtitleLong")}</p>
         </div>
         <div
           onClick={() => {
@@ -64,11 +74,10 @@ export default function Vouchers() {
           }}
           className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-white rounded-lg font-medium transition flex items-center gap-2"
         >
-          <FiPlus size={16} /> Tạo voucher
+          <FiPlus size={16} /> {t("vouchers.create")}
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-0 border-b border-gray-200">
         <button
           onClick={() => setActiveTab("event")}
@@ -78,7 +87,7 @@ export default function Vouchers() {
               : "border-transparent text-gray-600 hover:text-gray-900"
           }`}
         >
-          Voucher Sự kiện & Người dùng
+          {t("vouchers.tabEvent")}
           <span className="ml-2 text-xs bg-vr-100 text-vr-700 px-2 py-1 rounded-full">
             {eventVouchers.length}
           </span>
@@ -91,35 +100,31 @@ export default function Vouchers() {
               : "border-transparent text-gray-600 hover:text-gray-900"
           }`}
         >
-          Voucher Gói Dịch vụ
+          {t("vouchers.tabPackage")}
           <span className="ml-2 text-xs bg-vr-100 text-vr-700 px-2 py-1 rounded-full">
             {packageVouchers.length}
           </span>
         </button>
       </div>
 
-      {/* Tab Content */}
       <div className="space-y-4">
         {activeTab === "event" && (
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Voucher cho sự kiện và người dùng mới
+              {t("vouchers.eventSectionTitle")}
             </h2>
             <p className="text-sm text-gray-600 mb-6">
-              Những voucher này được tạo bởi admin để khuyến mãi cho người dùng
-              cuối trong các dịp sự kiện hoặc khi họ lần đầu tiên tham gia hệ
-              thống.
+              {t("vouchers.eventSectionDesc")}
             </p>
           </div>
         )}
         {activeTab === "package" && (
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Voucher cho gói dịch vụ
+              {t("vouchers.packageSectionTitle")}
             </h2>
             <p className="text-sm text-gray-600 mb-6">
-              Những voucher này được tặng kèm khi nhà xe mua gói dịch vụ từ hệ
-              thống. Bạn có thể quản lý các gói dịch vụ ở trang cài đặt gói.
+              {t("vouchers.packageSectionDesc")}
             </p>
           </div>
         )}
@@ -128,10 +133,15 @@ export default function Vouchers() {
           <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
             <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
             <p className="text-gray-600">
-              Chưa có voucher {activeTab === "event" ? "sự kiện" : "gói"}
+              {t("vouchers.emptyType", {
+                type:
+                  activeTab === "event"
+                    ? t("vouchers.emptyTypeEvent")
+                    : t("vouchers.emptyTypePackage"),
+              })}
             </p>
             <p className="text-sm text-gray-500 mt-1">
-              Tạo voucher mới bằng nút phía trên
+              {t("vouchers.emptyHint")}
             </p>
           </div>
         ) : (
@@ -140,31 +150,31 @@ export default function Vouchers() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Mã
+                    {t("vouchers.code")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Tên
+                    {t("vouchers.name")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Giảm giá
+                    {t("vouchers.discount")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Áp dụng cho
+                    {t("vouchers.applicable")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Phát hành
+                    {t("vouchers.issued")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Đã dùng
+                    {t("vouchers.used")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    HSD
+                    {t("vouchers.expiry")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Trạng thái
+                    {tc("status")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Hành động
+                    {tc("actions")}
                   </th>
                 </tr>
               </thead>
@@ -203,13 +213,7 @@ export default function Vouchers() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-gray-600">
-                          {voucher.applicableTo === "all"
-                            ? "Tất cả"
-                            : voucher.applicableTo === "rides"
-                              ? "Chỉ xe"
-                              : voucher.applicableTo === "parcels"
-                                ? "Chỉ bưu phẩm"
-                                : "Gói"}
+                          {getApplicableLabel(voucher.applicableTo)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -239,7 +243,7 @@ export default function Vouchers() {
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {voucher.active ? "Hoạt động" : "Tắt"}
+                          {voucher.active ? tc("active") : tc("inactive")}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -277,7 +281,6 @@ export default function Vouchers() {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
       <Modal
         open={createOpen || editOpen}
         onClose={() => {
@@ -287,13 +290,15 @@ export default function Vouchers() {
         }}
         wide
         icon={<FiTag size={20} />}
-        title={selectedVoucher ? "Chỉnh sửa voucher" : "Tạo voucher mới"}
+        title={
+          selectedVoucher ? t("vouchers.editTitle") : t("vouchers.createTitle")
+        }
         subtitle={
           selectedVoucher
-            ? "Cập nhật thông tin mã giảm giá"
+            ? t("vouchers.updateSubtitle")
             : activeTab === "event"
-              ? "Tạo voucher cho sự kiện hoặc người dùng mới"
-              : "Tạo voucher khuyến mãi cho gói dịch vụ"
+              ? t("vouchers.createEventSubtitle")
+              : t("vouchers.createPackageSubtitle")
         }
         footer={
           <>
@@ -305,12 +310,16 @@ export default function Vouchers() {
               }}
               className="rounded-lg border border-gray-200 cursor-pointer bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
-              Hủy
+              {tc("cancel")}
             </div>
             <div
               onClick={() => {
                 alert(
-                  `${selectedVoucher ? "Cập nhật" : "Tạo"} voucher thành công!`,
+                  t("vouchers.saveSuccess", {
+                    action: selectedVoucher
+                      ? t("vouchers.saveActionUpdate")
+                      : t("vouchers.saveActionCreate"),
+                  }),
                 );
                 setCreateOpen(false);
                 setEditOpen(false);
@@ -318,7 +327,11 @@ export default function Vouchers() {
               }}
               className="rounded-lg bg-vr-500 cursor-pointer px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
             >
-              {selectedVoucher ? "Cập nhật" : "Tạo"} voucher
+              {t("vouchers.saveButton", {
+                action: selectedVoucher
+                  ? t("vouchers.saveActionUpdate")
+                  : t("vouchers.saveActionCreate"),
+              })}
             </div>
           </>
         }
@@ -327,17 +340,19 @@ export default function Vouchers() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>
-                Mã voucher <span className="text-red-500">*</span>
+                {t("vouchers.voucherCode")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass + " border-vr-500 ring-1 ring-vr-500/50"}
                 defaultValue={selectedVoucher?.code || "VIETRIDE"}
-                placeholder="VD: VIETRIDE10"
+                placeholder={t("vouchers.codePlaceholder")}
               />
             </div>
             <div>
               <label className={labelClass}>
-                Tên hiển thị <span className="text-red-500">*</span>
+                {t("vouchers.displayName")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
@@ -351,32 +366,33 @@ export default function Vouchers() {
             </div>
           </div>
           <div>
-            <label className={labelClass}>Mô tả</label>
+            <label className={labelClass}>{tc("description")}</label>
             <textarea
               className={inputClass + " min-h-[88px]"}
               defaultValue={selectedVoucher?.description || ""}
               placeholder={
                 activeTab === "event"
-                  ? "Áp dụng cho khách hàng mới hoặc sự kiện..."
-                  : "Khuyến mãi khi nhà xe mua gói..."
+                  ? t("vouchers.eventDescPlaceholder")
+                  : t("vouchers.packageDescPlaceholder")
               }
               rows={3}
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Loại giảm giá</label>
+              <label className={labelClass}>{t("vouchers.discountType")}</label>
               <select
                 className={inputClass}
                 defaultValue={selectedVoucher?.discountType || "percent"}
               >
-                <option value="percent">Theo phần trăm (%)</option>
-                <option value="fixed">Số tiền cố định (₫)</option>
+                <option value="percent">{t("vouchers.percentDiscount")}</option>
+                <option value="fixed">{t("vouchers.fixedDiscount")}</option>
               </select>
             </div>
             <div>
               <label className={labelClass}>
-                Giá trị giảm <span className="text-red-500">*</span>
+                {t("vouchers.discountValue")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
@@ -388,18 +404,18 @@ export default function Vouchers() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Áp dụng cho</label>
+              <label className={labelClass}>{t("vouchers.applicable")}</label>
               <select
                 className={inputClass}
                 defaultValue={selectedVoucher?.applicableTo || "all"}
               >
-                <option value="all">Tất cả dịch vụ</option>
-                <option value="rides">Chỉ chuyến xe</option>
-                <option value="parcels">Chỉ bưu phẩm</option>
+                <option value="all">{t("vouchers.allServicesFull")}</option>
+                <option value="rides">{t("vouchers.ridesOnlyFull")}</option>
+                <option value="parcels">{t("vouchers.parcelsOnly")}</option>
               </select>
             </div>
             <div>
-              <label className={labelClass}>Đơn tối thiểu (₫)</label>
+              <label className={labelClass}>{t("vouchers.minOrder")}</label>
               <input
                 className={inputClass}
                 type="number"
@@ -411,7 +427,8 @@ export default function Vouchers() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>
-                Số lượng phát hành <span className="text-red-500">*</span>
+                {t("vouchers.quantity")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
@@ -421,7 +438,8 @@ export default function Vouchers() {
             </div>
             <div>
               <label className={labelClass}>
-                Hạn sử dụng <span className="text-red-500">*</span>
+                {t("vouchers.expiryDate")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
@@ -432,7 +450,9 @@ export default function Vouchers() {
           </div>
 
           <div>
-            <label className={labelClass}>Số lần dùng tối đa / tài khoản</label>
+            <label className={labelClass}>
+              {t("vouchers.maxUsagePerUser")}
+            </label>
             <input
               className={inputClass}
               type="number"
@@ -441,7 +461,7 @@ export default function Vouchers() {
           </div>
 
           <div>
-            <p className={labelClass}>Kích hoạt</p>
+            <p className={labelClass}>{t("vouchers.activateOnCreate")}</p>
             <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 flex items-start gap-3">
               <button
                 type="button"
@@ -453,10 +473,10 @@ export default function Vouchers() {
               </button>
               <div>
                 <p className="text-sm font-bold text-gray-900">
-                  Bật ngay sau khi tạo
+                  {t("vouchers.activateOnCreateTitle")}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Voucher sẽ có hiệu lực và có thể được sử dụng.
+                  {t("vouchers.activateOnCreateHint")}
                 </p>
               </div>
             </div>

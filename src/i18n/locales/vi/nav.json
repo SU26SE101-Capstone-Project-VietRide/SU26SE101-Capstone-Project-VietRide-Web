@@ -1,0 +1,44 @@
+{
+  "sections": {
+    "menu": "MENU",
+    "support": "SUPPORT"
+  },
+  "roles": {
+    "manager": "Quản lý nhà xe",
+    "admin": "Quản trị hệ thống"
+  },
+  "closeMenu": "Đóng menu",
+  "manager": {
+    "dashboard": "Dashboard",
+    "trips": "Chuyến",
+    "routeEta": "Đổi lộ trình & cập nhật ETA",
+    "routes": "Tuyến & điểm dừng",
+    "vehicles": "Phương tiện",
+    "staff": "Nhân sự",
+    "bookings": "Đặt vé",
+    "parcels": "Hàng hóa",
+    "gps": "GPS Tracking",
+    "dispatch": "Điều phối (Dispatch)",
+    "vouchers": "Voucher",
+    "packages": "Gói dịch vụ",
+    "policies": "Policy",
+    "reports": "Doanh thu",
+    "wallet": "Ví quản lý",
+    "settings": "Cấu hình"
+  },
+  "admin": {
+    "dashboard": "Dashboard",
+    "operators": "Nhà xe",
+    "users": "Người dùng",
+    "vouchers": "Voucher",
+    "packages": "Gói dịch vụ",
+    "policies": "Policy",
+    "payouts": "Phê duyệt Payout",
+    "revenue": "Doanh thu",
+    "reports": "Báo cáo"
+  },
+  "layout": {
+    "adminDashboard": "Dashboard Quản trị",
+    "managerDashboard": "Dashboard Quản lý"
+  }
+}

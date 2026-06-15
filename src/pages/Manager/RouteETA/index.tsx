@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiAlertCircle,
   FiCheckCircle,
@@ -59,6 +60,8 @@ const mockRequests: RouteETARequest[] = [
 ];
 
 export default function RouteETAPage() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [search, setSearch] = useState("");
   const [selectedRequest, setSelectedRequest] =
     useState<RouteETARequest | null>(null);
@@ -104,35 +107,40 @@ export default function RouteETAPage() {
     }
   };
 
+  const statusLabel = (status: RouteETARequest["status"]) => {
+    if (status === "pending") return tc("pending");
+    if (status === "approved") return tc("approved");
+    return t("routeEta.rejected");
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          Đổi lộ trình & cập nhật ETA
+          {t("routeEta.title")}
         </h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Yêu cầu thay đổi lộ trình xe và điều hành — duyệt để cập nhật cho
-          khách hàng.
-        </p>
+        <p className="text-sm text-gray-600 mt-1">{t("routeEta.subtitle")}</p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs text-gray-500 font-medium">Chờ duyệt</p>
+          <p className="text-xs text-gray-500 font-medium">{tc("pending")}</p>
           <p className="text-3xl font-bold text-gray-900 mt-2">{pending}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs text-gray-500 font-medium">Đã duyệt hôm nay</p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t("routeEta.approvedToday")}
+          </p>
           <p className="text-3xl font-bold text-green-600 mt-2">{approved}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <p className="text-xs text-gray-500 font-medium">
-            Trung bình ETA delay
+            {t("routeEta.avgDelay")}
           </p>
           <p className="text-3xl font-bold text-orange-600 mt-2">
-            +{avgDelay} phút
+            {t("routeEta.minutes", { n: avgDelay })}
           </p>
         </div>
       </div>
@@ -144,14 +152,14 @@ export default function RouteETAPage() {
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Tìm theo mã chuyến, tuyến, vị trí..."
+              placeholder={t("routeEta.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
             />
           </div>
           <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-            <FiFilter size={16} /> Bộ lọc
+            <FiFilter size={16} /> {tc("filter")}
           </button>
         </div>
       </div>
@@ -160,7 +168,7 @@ export default function RouteETAPage() {
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-            <p className="text-gray-500">Không có yêu cầu nào.</p>
+            <p className="text-gray-500">{t("routeEta.empty")}</p>
           </div>
         ) : (
           filtered.map((request) => (
@@ -198,11 +206,7 @@ export default function RouteETAPage() {
                             : "bg-red-100 text-red-700"
                       }`}
                     >
-                      {request.status === "pending"
-                        ? "Chờ duyệt"
-                        : request.status === "approved"
-                          ? "Đã duyệt"
-                          : "Từ chối"}
+                      {statusLabel(request.status)}
                     </span>
                   </div>
 
@@ -212,19 +216,27 @@ export default function RouteETAPage() {
 
                   <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-600">
                     <div>
-                      <span className="text-gray-500">ETA điều chỉnh:</span>{" "}
+                      <span className="text-gray-500">
+                        {t("routeEta.adjustedEta")}
+                      </span>{" "}
                       <span className="font-semibold text-orange-600">
-                        +{request.etaDelay} phút
+                        {t("routeEta.minutes", { n: request.etaDelay })}
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Ảnh hưởng:</span>{" "}
+                      <span className="text-gray-500">
+                        {t("routeEta.impact")}
+                      </span>{" "}
                       <span className="font-semibold">
-                        {request.seatsAffected} khách
+                        {t("routeEta.passengers", {
+                          n: request.seatsAffected,
+                        })}
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Yêu cầu bổ sung:</span>{" "}
+                      <span className="text-gray-500">
+                        {t("routeEta.extraRequest")}
+                      </span>{" "}
                       <span className="font-semibold">{request.location}</span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -240,7 +252,7 @@ export default function RouteETAPage() {
                       onClick={() => setSelectedRequest(request)}
                       className="px-3 py-2 bg-vr-500 hover:bg-vr-600 text-white text-sm font-medium rounded-lg transition"
                     >
-                      Duyệt & thông báo
+                      {t("routeEta.approveNotify")}
                     </button>
                     <button
                       onClick={() => setSelectedRequest(request)}
@@ -261,8 +273,8 @@ export default function RouteETAPage() {
                       }`}
                     >
                       {request.status === "approved"
-                        ? "✓ Đã duyệt"
-                        : "✗ Từ chối"}
+                        ? t("routeEta.approvedMark")
+                        : t("routeEta.rejectedMark")}
                     </span>
                   </div>
                 )}
@@ -284,7 +296,7 @@ export default function RouteETAPage() {
             <div className="bg-gray-50 rounded-lg p-4 space-y-3">
               <div>
                 <p className="text-xs text-gray-500 font-medium">
-                  Lý do yêu cầu
+                  {t("routeEta.reasonLabel")}
                 </p>
                 <p className="text-sm text-gray-900 mt-1">
                   {selectedRequest.reason}
@@ -292,23 +304,25 @@ export default function RouteETAPage() {
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-medium">
-                  ETA điều chỉnh
+                  {t("routeEta.adjustedEtaLabel")}
                 </p>
                 <p className="text-sm text-gray-900 mt-1">
-                  +{selectedRequest.etaDelay} phút
+                  {t("routeEta.minutes", { n: selectedRequest.etaDelay })}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-medium">
-                  Khách hàng ảnh hưởng
+                  {t("routeEta.affectedPassengers")}
                 </p>
                 <p className="text-sm text-gray-900 mt-1">
-                  {selectedRequest.seatsAffected} khách
+                  {t("routeEta.passengers", {
+                    n: selectedRequest.seatsAffected,
+                  })}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-medium">
-                  Yêu cầu bổ sung
+                  {t("routeEta.extraRequestLabel")}
                 </p>
                 <p className="text-sm text-gray-900 mt-1">
                   {selectedRequest.location}
@@ -321,13 +335,13 @@ export default function RouteETAPage() {
                 onClick={handleApprove}
                 className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
               >
-                ✓ Duyệt & gửi thông báo
+                {t("routeEta.approveAndSend")}
               </button>
               <button
                 onClick={handleReject}
                 className="flex-1 px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition"
               >
-                ✗ Từ chối
+                {t("routeEta.rejectedMark")}
               </button>
             </div>
           </div>

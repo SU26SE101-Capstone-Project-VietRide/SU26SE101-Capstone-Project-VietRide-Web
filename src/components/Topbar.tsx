@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { FiMenu, FiBell, FiUser, FiLogOut, FiSearch } from "react-icons/fi";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 type TopbarProps = {
   onMenuToggle: () => void;
@@ -10,50 +12,52 @@ type TopbarProps = {
 
 export default function Topbar({
   onMenuToggle,
-  userName = "Quản lý nhà xe",
+  userName,
   unreadNotifications = 0,
 }: TopbarProps) {
   const location = useLocation();
+  const { t } = useTranslation("common");
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
   const isAdmin = location.pathname.startsWith("/admin");
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
   const logoutPath = "/login";
+  const displayName = userName ?? t("topbar.defaultUserName");
 
   return (
     <header className="sticky top-0 bg-white border-b border-gray-200 z-30">
       <div className="flex items-center justify-between h-16 px-6">
-        {/* Left */}
         <div className="flex items-center gap-4">
           <button
+            type="button"
             onClick={onMenuToggle}
             className="lg:hidden text-gray-600 hover:text-gray-900 transition"
           >
             <FiMenu size={20} />
           </button>
           <h2 className="text-lg font-semibold text-gray-900 hidden sm:block">
-            {userName}
+            {displayName}
           </h2>
         </div>
 
-        {/* Center - Search (hidden on mobile) */}
         <div className="hidden md:flex flex-1 max-w-md mx-4">
           <div className="relative w-full">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Tìm chuyến, booking, parcel..."
+              placeholder={t("topbar.searchPlaceholder")}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100 transition"
             />
           </div>
         </div>
 
-        {/* Right */}
-        <div className="flex items-center gap-4">
-          {/* Notifications */}
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher compact />
+
           <div className="relative">
             <button
+              type="button"
               onClick={() => setShowNotifications(!showNotifications)}
               className="relative text-gray-600 hover:text-gray-900 transition p-2 hover:bg-gray-100 rounded-lg"
             >
@@ -63,43 +67,44 @@ export default function Topbar({
               )}
             </button>
 
-            {/* Notification Dropdown */}
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-4 space-y-3">
-                <h3 className="font-semibold text-gray-900">Thông báo</h3>
+                <h3 className="font-semibold text-gray-900">{t("notifications")}</h3>
                 <div className="space-y-2 max-h-72 overflow-y-auto">
                   <div className="p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
-                    2 chuyến đang trễ ETA
+                    {t("topbar.notifLateTrips")}
                   </div>
                   <div className="p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
-                    Xe ABC-001 mất GPS tín hiệu
+                    {t("topbar.notifGpsLost")}
                   </div>
                   <div className="p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
-                    5 parcel chưa giao
+                    {t("topbar.notifUndelivered")}
                   </div>
                 </div>
-                <button className="w-full text-center text-sm text-vr-600 hover:text-vr-700 py-2">
-                  Xem tất cả
+                <button
+                  type="button"
+                  className="w-full text-center text-sm text-vr-600 hover:text-vr-700 py-2"
+                >
+                  {t("viewAll")}
                 </button>
               </div>
             )}
           </div>
 
-          {/* Profile Menu */}
           <div className="relative">
             <button
+              type="button"
               onClick={() => setShowProfile(!showProfile)}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition p-2 hover:bg-gray-100 rounded-lg"
             >
               <FiUser size={20} />
-              <span className="hidden sm:block text-sm">Tôi</span>
+              <span className="hidden sm:block text-sm">{t("me")}</span>
             </button>
 
-            {/* Profile Dropdown */}
             {showProfile && (
               <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
                 <div className="p-4 border-b border-gray-200">
-                  <p className="font-semibold text-gray-900">Tài khoản</p>
+                  <p className="font-semibold text-gray-900">{t("account")}</p>
                   <p className="text-xs text-gray-500">manager@vietride.vn</p>
                 </div>
                 <div className="space-y-1 p-2">
@@ -108,17 +113,20 @@ export default function Topbar({
                     onClick={() => setShowProfile(false)}
                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition block"
                   >
-                    Hồ sơ
+                    {t("profile")}
                   </Link>
-                  <button className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition">
-                    Cài đặt
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition"
+                  >
+                    {t("settings")}
                   </button>
                   <Link
                     to={logoutPath}
                     onClick={() => setShowProfile(false)}
                     className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100 rounded transition flex items-center gap-2 block"
                   >
-                    <FiLogOut size={16} /> Đăng xuất
+                    <FiLogOut size={16} /> {t("logout")}
                   </Link>
                 </div>
               </div>

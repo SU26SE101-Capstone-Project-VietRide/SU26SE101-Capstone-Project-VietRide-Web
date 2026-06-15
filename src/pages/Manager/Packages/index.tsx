@@ -1,10 +1,9 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiBox,
   FiShoppingCart,
   FiCheck,
-  FiX,
-  FiClock,
   FiTrendingUp,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
@@ -15,8 +14,6 @@ import {
 } from "../../../data/mockData";
 
 type Package = any;
-type OperatorSubscription = any;
-type PackagePurchase = any;
 
 function formatNumber(n: number) {
   return n.toLocaleString();
@@ -26,10 +23,11 @@ const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
-// Mocked operator ID - in real app, get from auth context
 const CURRENT_OPERATOR_ID = "op1";
 
 export default function ManagerPackages() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
   const [formData, setFormData] = useState({
@@ -38,7 +36,6 @@ export default function ManagerPackages() {
     paymentMethod: "wallet" as "wallet" | "qr_code",
   });
 
-  // Get operator's current subscription
   const subscription = operatorSubscriptions.find(
     (s) => s.operatorId === CURRENT_OPERATOR_ID,
   );
@@ -46,7 +43,6 @@ export default function ManagerPackages() {
     ? mockPackages.find((p) => p.id === subscription.currentPackageId)
     : null;
 
-  // Get operator's purchase history
   const purchaseHistory = packagePurchases.filter(
     (p) => p.operatorId === CURRENT_OPERATOR_ID,
   );
@@ -64,7 +60,6 @@ export default function ManagerPackages() {
     const totalPrice = (basePrice * formData.months) / selectedPackage.duration;
     let discount = 0;
 
-    // Simple discount logic based on voucher code
     if (formData.voucherCode === "PKG100K") {
       discount = 100000;
     } else if (formData.voucherCode === "SUMMER20") {
@@ -72,21 +67,32 @@ export default function ManagerPackages() {
     }
 
     const finalPrice = totalPrice - discount;
+    const method =
+      formData.paymentMethod === "wallet"
+        ? t("packages.wallet")
+        : t("packages.qrCode");
 
     alert(
-      `Mua ${selectedPackage.name} trong ${formData.months} tháng\n` +
-        `Giá gốc: ${formatNumber(totalPrice)} VND\n` +
-        `Giảm giá: ${formatNumber(discount)} VND\n` +
-        `Tổng: ${formatNumber(finalPrice)} VND\n` +
-        `Phương thức thanh toán: ${formData.paymentMethod === "wallet" ? "Ví" : "Quét mã QR"}\n\n` +
-        `Mua thành công!`,
+      t("packages.purchaseAlert", {
+        name: selectedPackage.name,
+        months: formData.months,
+        base: formatNumber(totalPrice),
+        discount: formatNumber(discount),
+        total: formatNumber(finalPrice),
+        method,
+      }),
     );
     setPurchaseOpen(false);
   };
 
+  const purchaseStatusLabel = (status: string) => {
+    if (status === "completed") return t("packages.success");
+    if (status === "pending") return t("packages.processing");
+    return t("packages.cancelled");
+  };
+
   return (
     <div className="space-y-6">
-      {/* Current Subscription Status */}
       {subscription && subscription.status === "active" && currentPackage && (
         <div className="rounded-lg bg-gradient-to-r from-blue-50 to-blue-100 p-6 border border-blue-200">
           <div className="flex items-start justify-between">
@@ -96,30 +102,34 @@ export default function ManagerPackages() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
-                  Gói đang sử dụng: {currentPackage.name}
+                  {t("packages.currentPackage", { name: currentPackage.name })}
                 </h3>
                 <p className="mt-1 text-sm text-gray-600">
-                  Hết hạn: {subscription.expiryDate} (
-                  {subscription.remainingDays} ngày còn lại)
+                  {t("packages.expiresWithDays", {
+                    date: subscription.expiryDate,
+                    n: subscription.remainingDays,
+                  })}
                 </p>
                 <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
                   <div>
-                    <p className="text-gray-600">Xe đang dùng</p>
+                    <p className="text-gray-600">{t("packages.vehiclesUsed")}</p>
                     <p className="font-semibold text-gray-900">
                       {subscription.totalVehiclesUsed}/
                       {currentPackage.maxVehicles}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-600">Tuyến đường</p>
+                    <p className="text-gray-600">{t("packages.routesUsed")}</p>
                     <p className="font-semibold text-gray-900">
                       {subscription.totalRoutesUsed}/{currentPackage.maxRoutes}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-600">Thời hạn</p>
+                    <p className="text-gray-600">{t("packages.duration")}</p>
                     <p className="font-semibold text-gray-900">
-                      {subscription.remainingDays} ngày
+                      {t("packages.daysCount", {
+                        n: subscription.remainingDays,
+                      })}
                     </p>
                   </div>
                 </div>
@@ -133,16 +143,14 @@ export default function ManagerPackages() {
       {subscription && subscription.status === "none" && (
         <div className="rounded-lg bg-yellow-50 p-6 border border-yellow-200">
           <p className="text-yellow-900 font-semibold">
-            Bạn chưa mua bất kỳ gói dịch vụ nào. Hãy mua một gói bên dưới để bắt
-            đầu.
+            {t("packages.noSubscription")}
           </p>
         </div>
       )}
 
-      {/* Available Packages */}
       <div>
         <h2 className="mb-4 text-xl font-bold text-gray-900">
-          Các gói dịch vụ có sẵn
+          {t("packages.available")}
         </h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {mockPackages.map((pkg) => (
@@ -166,7 +174,7 @@ export default function ManagerPackages() {
                   {formatNumber(pkg.price)} VND
                 </p>
                 <p className="text-xs text-gray-600 mt-1">
-                  / {pkg.duration} tháng
+                  {t("packages.perDuration", { n: pkg.duration })}
                 </p>
               </div>
 
@@ -174,13 +182,13 @@ export default function ManagerPackages() {
                 <div className="flex items-center gap-2">
                   <FiBox className="text-sm text-gray-400" />
                   <span className="text-sm text-gray-700">
-                    Tối đa {pkg.maxVehicles} xe
+                    {t("packages.maxVehicles", { n: pkg.maxVehicles })}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <FiTrendingUp className="text-sm text-gray-400" />
                   <span className="text-sm text-gray-700">
-                    Tối đa {pkg.maxRoutes} tuyến đường
+                    {t("packages.maxRoutes", { n: pkg.maxRoutes })}
                   </span>
                 </div>
                 {pkg.features && (
@@ -200,49 +208,48 @@ export default function ManagerPackages() {
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
               >
                 <FiShoppingCart className="text-lg" />
-                Mua gói này
+                {t("packages.buyPackage")}
               </button>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Purchase History */}
       {purchaseHistory.length > 0 && (
         <div>
           <h2 className="mb-4 text-xl font-bold text-gray-900">
-            Lịch sử mua gói
+            {t("packages.purchaseHistory")}
           </h2>
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                    Gói
+                    {t("packages.packageColumn")}
                   </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                    Thời hạn
+                    {t("packages.duration")}
                   </th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-900">
-                    Giá
+                    {tc("price")}
                   </th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-900">
-                    Giảm giá
+                    {t("packages.discount")}
                   </th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-900">
-                    Tổng tiền
+                    {t("packages.paidAmount")}
                   </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                    Thanh toán
+                    {t("packages.payment")}
                   </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                    Mã voucher
+                    {t("packages.voucherCode")}
                   </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                    Trạng thái
+                    {tc("status")}
                   </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">
-                    Ngày mua
+                    {t("packages.purchaseDate")}
                   </th>
                 </tr>
               </thead>
@@ -257,7 +264,7 @@ export default function ManagerPackages() {
                         {pkg?.name}
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        {purchase.months} tháng
+                        {t("packages.monthsCount", { n: purchase.months })}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-600">
                         {formatNumber(
@@ -276,8 +283,8 @@ export default function ManagerPackages() {
                       <td className="px-4 py-3">
                         <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">
                           {purchase.paymentMethod === "wallet"
-                            ? "Ví"
-                            : "Quét mã QR"}
+                            ? t("packages.wallet")
+                            : t("packages.qrCode")}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
@@ -293,11 +300,7 @@ export default function ManagerPackages() {
                                 : "bg-red-100 text-red-800"
                           }`}
                         >
-                          {purchase.status === "completed"
-                            ? "Thành công"
-                            : purchase.status === "pending"
-                              ? "Đang xử lý"
-                              : "Hủy"}
+                          {purchaseStatusLabel(purchase.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
@@ -312,27 +315,30 @@ export default function ManagerPackages() {
         </div>
       )}
 
-      {/* Purchase Modal */}
       <Modal
         isOpen={purchaseOpen}
         onClose={() => setPurchaseOpen(false)}
-        title={`Mua gói: ${selectedPackage?.name || ""}`}
+        title={t("packages.purchaseTitle", {
+          name: selectedPackage?.name || "",
+        })}
       >
         <div className="space-y-5">
           <div className="rounded-lg bg-blue-50 p-4 border border-blue-200">
             <p className="text-sm text-blue-900">
-              <span className="font-semibold">Thông tin gói:</span>{" "}
+              <span className="font-semibold">{t("packages.packageInfo")}</span>{" "}
               {selectedPackage?.description}
             </p>
             <p className="mt-2 text-sm text-blue-900">
-              <span className="font-semibold">Giá gốc:</span>{" "}
+              <span className="font-semibold">{t("packages.basePrice")}</span>{" "}
               {formatNumber(selectedPackage?.price || 0)} VND /{" "}
-              {selectedPackage?.duration} tháng
+              {selectedPackage?.duration} {t("packages.monthsUnit")}
             </p>
           </div>
 
           <div>
-            <label className={labelClass}>Thời hạn gói (tháng)</label>
+            <label className={labelClass}>
+              {t("packages.packageDurationLabel")}
+            </label>
             <div className="flex gap-2">
               {[3, 6, 12].map((month) => (
                 <button
@@ -344,13 +350,13 @@ export default function ManagerPackages() {
                       : "border border-gray-200 bg-white text-gray-900 hover:border-blue-300"
                   }`}
                 >
-                  {month} tháng
+                  {t("packages.monthsCount", { n: month })}
                 </button>
               ))}
             </div>
             {selectedPackage && (
               <p className="mt-2 text-sm text-gray-600">
-                Tổng giá:{" "}
+                {t("packages.totalPriceLabel")}{" "}
                 {formatNumber(
                   (selectedPackage.price * formData.months) /
                     selectedPackage.duration,
@@ -361,10 +367,12 @@ export default function ManagerPackages() {
           </div>
 
           <div>
-            <label className={labelClass}>Mã giảm giá (nếu có)</label>
+            <label className={labelClass}>
+              {t("packages.voucherCodeOptional")}
+            </label>
             <input
               type="text"
-              placeholder="VD: PKG100K, SUMMER20"
+              placeholder={t("packages.voucherPlaceholder")}
               className={inputClass}
               value={formData.voucherCode}
               onChange={(e) =>
@@ -372,12 +380,12 @@ export default function ManagerPackages() {
               }
             />
             <p className="mt-2 text-xs text-gray-500">
-              Mã có sẵn: PKG100K (100K), SUMMER20 (20%)
+              {t("packages.availableVouchers")}
             </p>
           </div>
 
           <div>
-            <label className={labelClass}>Phương thức thanh toán</label>
+            <label className={labelClass}>{t("packages.paymentMethod")}</label>
             <div className="space-y-2">
               <label
                 className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer hover:bg-gray-50"
@@ -401,10 +409,10 @@ export default function ManagerPackages() {
                 />
                 <div>
                   <p className="font-medium text-gray-900">
-                    Thanh toán bằng ví
+                    {t("packages.payWithWallet")}
                   </p>
                   <p className="text-xs text-gray-600">
-                    Sử dụng số dư ví của bạn
+                    {t("packages.useWalletBalance")}
                   </p>
                 </div>
               </label>
@@ -430,9 +438,11 @@ export default function ManagerPackages() {
                   className="w-4 h-4"
                 />
                 <div>
-                  <p className="font-medium text-gray-900">Quét mã QR</p>
+                  <p className="font-medium text-gray-900">
+                    {t("packages.qrCode")}
+                  </p>
                   <p className="text-xs text-gray-600">
-                    Quét mã QR để thanh toán
+                    {t("packages.scanQrToPay")}
                   </p>
                 </div>
               </label>
@@ -444,14 +454,14 @@ export default function ManagerPackages() {
               onClick={() => setPurchaseOpen(false)}
               className="flex-1 rounded-lg border border-gray-200 bg-white py-2 font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               onClick={handlePurchase}
               className="flex-1 rounded-lg bg-blue-600 py-2 font-medium text-white hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
             >
               <FiShoppingCart />
-              Xác nhận mua
+              {t("packages.confirmPurchase")}
             </button>
           </div>
         </div>

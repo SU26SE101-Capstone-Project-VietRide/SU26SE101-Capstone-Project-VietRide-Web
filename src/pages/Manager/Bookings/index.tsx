@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiClock,
   FiDollarSign,
@@ -24,27 +25,9 @@ function formatMoney(n: number) {
   return `${n.toLocaleString("vi-VN")}₫`;
 }
 
-function bookingStatusBadge(s: Booking["status"]) {
-  if (s === "paid")
-    return (
-      <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-        Đã thanh toán
-      </span>
-    );
-  if (s === "pending")
-    return (
-      <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-        Chờ thanh toán
-      </span>
-    );
-  return (
-    <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-800">
-      Đã hủy
-    </span>
-  );
-}
-
 export default function BookingsList() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [searchTerm, setSearchTerm] = useState("");
   const [counterOpen, setCounterOpen] = useState(false);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
@@ -52,6 +35,8 @@ export default function BookingsList() {
   const [openEdit, setOpenEdit] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editSeats, setEditSeats] = useState<string[]>([]);
+
+  const totalRecords = 1284;
 
   const filtered = useMemo(
     () =>
@@ -73,15 +58,53 @@ export default function BookingsList() {
 
   const seatTotal = selectedSeats.length * 320000;
 
+  function bookingStatusBadge(s: Booking["status"]) {
+    if (s === "paid")
+      return (
+        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+          {t("bookings.paid")}
+        </span>
+      );
+    if (s === "pending")
+      return (
+        <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+          {t("bookings.pendingPayment")}
+        </span>
+      );
+    return (
+      <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+        {t("bookings.cancelled")}
+      </span>
+    );
+  }
+
+  function seatLegend() {
+    return (
+      <div className="flex flex-wrap gap-3 text-xs text-gray-600">
+        <span className="inline-flex items-center gap-1">
+          <span className="h-4 w-6 rounded border border-gray-200 bg-white" />{" "}
+          {t("bookings.available")}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-vr-500" /> {t("bookings.selected")}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-4 w-6 rounded border border-red-200 bg-red-50" />{" "}
+          {t("bookings.sold")}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            Quản lý đặt vé
+            {t("bookings.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            Tổng hợp toàn bộ vé khách hàng đặt qua app, web và tại quầy.
+            {t("bookings.subtitle")}
           </p>
         </div>
         <button
@@ -93,7 +116,7 @@ export default function BookingsList() {
           className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
         >
           <FiPlus size={18} />
-          Tạo vé tại quầy
+          {t("bookings.counterSale")}
         </button>
       </div>
 
@@ -101,7 +124,7 @@ export default function BookingsList() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">Vé hôm nay</p>
+              <p className="text-sm text-gray-500">{t("bookings.todayTickets")}</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">1.284</p>
               <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
                 ↗ 8.1%
@@ -115,7 +138,7 @@ export default function BookingsList() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">Doanh thu vé</p>
+              <p className="text-sm text-gray-500">{t("bookings.ticketRevenue")}</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">₫184.2M</p>
               <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
                 ↗ 11.2%
@@ -129,10 +152,10 @@ export default function BookingsList() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">Chờ thanh toán</p>
+              <p className="text-sm text-gray-500">{t("bookings.awaitingPayment")}</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">42</p>
               <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">
-                ↘ 3 vé
+                {t("bookings.pendingBadge")}
               </span>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
@@ -143,10 +166,10 @@ export default function BookingsList() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">Đã hủy</p>
+              <p className="text-sm text-gray-500">{t("bookings.cancelled")}</p>
               <p className="mt-1 text-3xl font-bold text-gray-900">18</p>
               <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">
-                ↘ 1.4%
+                {t("bookings.cancelledBadge")}
               </span>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
@@ -163,7 +186,7 @@ export default function BookingsList() {
               <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Tìm theo mã vé, tên khách, SĐT..."
+                placeholder={t("bookings.searchPlaceholder")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className={inputClass + " pl-10"}
@@ -175,21 +198,21 @@ export default function BookingsList() {
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <FiFilter size={16} />
-                Bộ lọc
+                {tc("filter")}
               </button>
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <FiList size={16} />
-                Cột hiển thị
+                {tc("columns")}
               </button>
               <button
                 type="button"
                 className="ml-auto inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:ml-0"
               >
                 <FiDownload size={16} />
-                Xuất CSV
+                {tc("exportCsv")}
               </button>
             </div>
           </div>
@@ -198,14 +221,14 @@ export default function BookingsList() {
           <table className="w-full min-w-[880px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3">Mã vé</th>
-                <th className="px-5 py-3">Khách hàng</th>
-                <th className="px-5 py-3">SĐT</th>
-                <th className="px-5 py-3">Chuyến</th>
-                <th className="px-5 py-3">Ghế</th>
-                <th className="px-5 py-3">Thành tiền</th>
-                <th className="px-5 py-3">Trạng thái</th>
-                <th className="px-5 py-3">Thao tác</th>
+                <th className="px-5 py-3">{t("bookings.ticketCode")}</th>
+                <th className="px-5 py-3">{t("bookings.customer")}</th>
+                <th className="px-5 py-3">{t("bookings.phoneShort")}</th>
+                <th className="px-5 py-3">{t("bookings.trip")}</th>
+                <th className="px-5 py-3">{t("bookings.seat")}</th>
+                <th className="px-5 py-3">{t("bookings.amount")}</th>
+                <th className="px-5 py-3">{tc("status")}</th>
+                <th className="px-5 py-3">{tc("actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -240,7 +263,7 @@ export default function BookingsList() {
                       }}
                       className="text-vr-600 hover:text-vr-700 font-medium"
                     >
-                      Chi tiết
+                      {tc("details")}
                     </button>
                     {b.status === "pending" && (
                       <>
@@ -253,18 +276,18 @@ export default function BookingsList() {
                           }}
                           className="text-blue-600 hover:text-blue-700 font-medium"
                         >
-                          Sửa
+                          {tc("edit")}
                         </button>
                         <button
                           type="button"
                           onClick={() => {
-                            if (confirm("Hủy vé này?")) {
-                              alert("Vé đã hủy");
+                            if (confirm(t("bookings.confirmCancel"))) {
+                              alert(t("bookings.cancelSuccess"));
                             }
                           }}
                           className="text-red-600 hover:text-red-700 font-medium"
                         >
-                          Hủy
+                          {t("bookings.cancelTicket")}
                         </button>
                       </>
                     )}
@@ -276,14 +299,14 @@ export default function BookingsList() {
         </div>
         <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-500">
-            Hiển thị {filtered.length} / 1284 bản ghi
+            {tc("showingItems", { count: filtered.length, total: totalRecords })}
           </p>
           <div className="flex gap-1">
             <button
               type="button"
               className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
-              Trước
+              {tc("previous")}
             </button>
             <button
               type="button"
@@ -307,7 +330,7 @@ export default function BookingsList() {
               type="button"
               className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
-              Sau
+              {tc("next")}
             </button>
           </div>
         </div>
@@ -318,8 +341,8 @@ export default function BookingsList() {
         onClose={() => setCounterOpen(false)}
         wide
         icon={<FiTag size={20} />}
-        title="Bán vé tại quầy"
-        subtitle="Tạo nhanh vé cho khách hàng đặt tại bến / phòng vé."
+        title={t("bookings.counterTitle")}
+        subtitle={t("bookings.counterSubtitle")}
         footer={
           <>
             <button
@@ -327,14 +350,14 @@ export default function BookingsList() {
               onClick={() => setCounterOpen(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               onClick={() => setCounterOpen(false)}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
             >
-              Xác nhận &amp; In vé
+              {t("bookings.confirmPrint")}
             </button>
           </>
         }
@@ -342,7 +365,7 @@ export default function BookingsList() {
         <div className="space-y-6">
           <div>
             <label className={labelClass}>
-              Chọn chuyến <span className="text-red-500">*</span>
+              {t("bookings.selectTrip")} <span className="text-red-500">*</span>
             </label>
             <select className={inputClass} defaultValue="vr2401">
               <option value="vr2401">
@@ -353,20 +376,10 @@ export default function BookingsList() {
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-gray-900">Sơ đồ ghế</h3>
-              <div className="flex flex-wrap gap-3 text-xs text-gray-600">
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-4 w-6 rounded border border-gray-200 bg-white" />{" "}
-                  Trống
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-vr-500" /> Chọn
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-4 w-6 rounded border border-red-200 bg-red-50" />{" "}
-                  Đã bán
-                </span>
-              </div>
+              <h3 className="text-sm font-bold text-gray-900">
+                {t("bookings.seatMap")}
+              </h3>
+              {seatLegend()}
             </div>
             <div className="grid grid-cols-4 gap-2 sm:max-w-md">
               {Array.from({ length: 10 }, (_, row) =>
@@ -399,39 +412,43 @@ export default function BookingsList() {
 
           <div>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Thông tin khách hàng
+              {t("bookings.customerInfo")}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
-                  Họ tên <span className="text-red-500">*</span>
+                  {t("bookings.fullNameLabel")}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} placeholder="Nguyễn Văn A" />
               </div>
               <div>
                 <label className={labelClass}>
-                  Số điện thoại <span className="text-red-500">*</span>
+                  {tc("phone")} <span className="text-red-500">*</span>
                 </label>
                 <input className={inputClass} placeholder="0901 234 567" />
               </div>
               <div>
-                <label className={labelClass}>CMND/CCCD</label>
+                <label className={labelClass}>{t("bookings.idDoc")}</label>
                 <input className={inputClass} placeholder="079..." />
               </div>
               <div>
-                <label className={labelClass}>Email</label>
-                <input className={inputClass} placeholder="(tùy chọn)" />
+                <label className={labelClass}>{tc("email")}</label>
+                <input
+                  className={inputClass}
+                  placeholder={t("bookings.optionalPlaceholder")}
+                />
               </div>
               <div>
-                <label className={labelClass}>Điểm đón</label>
+                <label className={labelClass}>{t("bookings.pickupPoint")}</label>
                 <select className={inputClass} defaultValue="west">
                   <option value="west">Bến xe Miền Tây</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Phương thức thanh toán</label>
+                <label className={labelClass}>{t("bookings.paymentMethod")}</label>
                 <select className={inputClass} defaultValue="cash">
-                  <option value="cash">Tiền mặt</option>
+                  <option value="cash">{t("bookings.cash")}</option>
                 </select>
               </div>
             </div>
@@ -440,7 +457,7 @@ export default function BookingsList() {
           <div className="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <FiUser className="text-gray-400" />
-              {selectedSeats.length} ghế đã chọn
+              {t("bookings.seatsSelected", { n: selectedSeats.length })}
             </div>
             <span className="text-lg font-bold text-vr-700">
               {formatMoney(seatTotal)}
@@ -449,12 +466,11 @@ export default function BookingsList() {
         </div>
       </Modal>
 
-      {/* Detail Modal */}
       <Modal
         open={openDetail}
         onClose={() => setOpenDetail(false)}
         icon={<FiTag size={20} />}
-        title="Chi tiết vé"
+        title={t("bookings.detailTitle")}
         footer={
           <>
             <button
@@ -462,7 +478,7 @@ export default function BookingsList() {
               onClick={() => setOpenDetail(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Đóng
+              {tc("close")}
             </button>
             {selectedBooking?.status === "pending" && (
               <button
@@ -474,7 +490,7 @@ export default function BookingsList() {
                 }}
                 className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600"
               >
-                Sửa vé
+                {t("bookings.editTicket")}
               </button>
             )}
           </>
@@ -484,56 +500,61 @@ export default function BookingsList() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs font-medium text-gray-500">Mã vé</p>
+                <p className="text-xs font-medium text-gray-500">
+                  {t("bookings.ticketCode")}
+                </p>
                 <p className="text-lg font-bold text-gray-900">{selectedBooking.code}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500">Trạng thái</p>
+                <p className="text-xs font-medium text-gray-500">{tc("status")}</p>
                 <div className="mt-1">{bookingStatusBadge(selectedBooking.status)}</div>
               </div>
             </div>
             <div className="border-t pt-4">
-              <h4 className="font-bold text-gray-900 mb-3">Thông tin khách</h4>
+              <h4 className="font-bold text-gray-900 mb-3">
+                {t("bookings.passengerInfo")}
+              </h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-xs text-gray-500">Tên khách</p>
+                  <p className="text-xs text-gray-500">{t("bookings.passengerName")}</p>
                   <p className="font-semibold text-gray-900">{selectedBooking.passenger}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Điện thoại</p>
+                  <p className="text-xs text-gray-500">{tc("phone")}</p>
                   <p className="font-semibold text-gray-900">{selectedBooking.phone}</p>
                 </div>
               </div>
             </div>
             <div className="border-t pt-4">
-              <h4 className="font-bold text-gray-900 mb-3">Thông tin chuyến</h4>
+              <h4 className="font-bold text-gray-900 mb-3">{t("bookings.tripInfo")}</h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-xs text-gray-500">Mã chuyến</p>
+                  <p className="text-xs text-gray-500">{t("bookings.tripCode")}</p>
                   <p className="font-semibold text-gray-900">{selectedBooking.tripCode}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Ghế</p>
+                  <p className="text-xs text-gray-500">{t("bookings.seat")}</p>
                   <p className="font-semibold text-gray-900">{selectedBooking.seat}</p>
                 </div>
               </div>
             </div>
             <div className="border-t pt-4 bg-gray-50 -mx-6 px-6 py-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-700">Thành tiền:</span>
-                <span className="text-2xl font-bold text-vr-600">{formatMoney(selectedBooking.price)}</span>
+                <span className="text-gray-700">{t("bookings.amountLabel")}</span>
+                <span className="text-2xl font-bold text-vr-600">
+                  {formatMoney(selectedBooking.price)}
+                </span>
               </div>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* Edit Modal */}
       <Modal
         open={openEdit}
         onClose={() => setOpenEdit(false)}
         icon={<FiTag size={20} />}
-        title="Sửa vé"
+        title={t("bookings.editTitle")}
         wide
         footer={
           <>
@@ -542,17 +563,17 @@ export default function BookingsList() {
               onClick={() => setOpenEdit(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               onClick={() => {
                 setOpenEdit(false);
-                alert("Vé đã cập nhật");
+                alert(t("bookings.updateSuccess"));
               }}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600"
             >
-              Lưu thay đổi
+              {t("bookings.saveChanges")}
             </button>
           </>
         }
@@ -560,28 +581,20 @@ export default function BookingsList() {
         {selectedBooking && (
           <div className="space-y-4">
             <div>
-              <label className={labelClass}>Chuyến hiện tại</label>
-              <input 
-                type="text" 
-                className={inputClass} 
-                value={selectedBooking.tripCode} 
-                disabled 
+              <label className={labelClass}>{t("bookings.currentTrip")}</label>
+              <input
+                type="text"
+                className={inputClass}
+                value={selectedBooking.tripCode}
+                disabled
               />
             </div>
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-900">Chọn ghế mới</h3>
-                <div className="flex flex-wrap gap-3 text-xs text-gray-600">
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-4 w-6 rounded border border-gray-200 bg-white" /> Trống
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-vr-500" /> Chọn
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-4 w-6 rounded border border-red-200 bg-red-50" /> Đã bán
-                  </span>
-                </div>
+                <h3 className="text-sm font-bold text-gray-900">
+                  {t("bookings.selectNewSeat")}
+                </h3>
+                {seatLegend()}
               </div>
               <div className="grid grid-cols-4 gap-2 sm:max-w-md">
                 {Array.from({ length: 10 }, (_, row) =>
@@ -612,8 +625,11 @@ export default function BookingsList() {
               </div>
             </div>
             <div>
-              <label className={labelClass}>Ghi chú</label>
-              <input className={inputClass} placeholder="Ghi chú về thay đổi vé..." />
+              <label className={labelClass}>{tc("note")}</label>
+              <input
+                className={inputClass}
+                placeholder={t("bookings.notePlaceholder")}
+              />
             </div>
           </div>
         )}

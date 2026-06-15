@@ -1,0 +1,30 @@
+{
+  "title": "Sign in",
+  "subtitle": "Welcome back! Enter your credentials to access the operations dashboard.",
+  "email": "Email",
+  "password": "Password",
+  "emailPlaceholder": "hello@vietride.vn",
+  "passwordPlaceholder": "Enter password",
+  "forgotPassword": "Forgot password?",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+  "capsLockOn": "Caps Lock is on",
+  "rememberMe": "Remember me",
+  "submit": "Sign in",
+  "submitting": "Processing…",
+  "noAccount": "Don't have an account?",
+  "register": "Register",
+  "errors": {
+    "required": "Please fill in all required fields",
+    "invalidEmail": "Invalid email address",
+    "passwordMin": "Password must be at least 6 characters",
+    "failed": "Sign in failed, please try again"
+  },
+  "hero": {
+    "bus": "Bus",
+    "station": "Bus station",
+    "highway": "Highway",
+    "urban": "Urban",
+    "tourism": "Tourism"
+  }
+}

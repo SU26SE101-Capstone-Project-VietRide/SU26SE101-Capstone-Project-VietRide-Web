@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { FiDownload, FiArrowUp, FiCalendar } from "react-icons/fi";
 import {
   BarChart,
@@ -19,13 +20,13 @@ import {
 
 type RevenueData = {
   month: string;
-  revenue: number; // Doanh thu
-  trips: number; // Lượt về
+  revenue: number;
+  trips: number;
 };
 
 type RouteEfficiency = {
   name: string;
-  efficiency: number; // Hiệu suất (0-100)
+  efficiency: number;
 };
 
 type RevenueCategory = {
@@ -65,8 +66,17 @@ const revenueDistribution: RevenueCategory[] = [
   { category: "Dịch vụ khác", amount: 145, percent: 4 },
 ];
 
+const CATEGORY_KEYS = [
+  "onlineTickets",
+  "counterTickets",
+  "parcels",
+  "otherServices",
+] as const;
+
 export default function ManagerReports() {
-  // Calculate KPIs
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
+
   const stats = useMemo(() => {
     const totalRevenue = monthlyData.reduce((sum, d) => sum + d.revenue, 0);
     const avgPerTrip = Math.round(
@@ -83,44 +93,42 @@ export default function ManagerReports() {
     const parcelRevenue = revenueDistribution[2].amount;
 
     return {
-      totalRevenue: (totalRevenue / 100).toFixed(1), // Convert to billions
+      totalRevenue: (totalRevenue / 100).toFixed(1),
       avgPerTrip,
       monthChangePercent,
-      onlineRevenue: (onlineRevenue / 100).toFixed(2), // Billions
+      onlineRevenue: (onlineRevenue / 100).toFixed(2),
       counterRevenue: (counterRevenue / 100).toFixed(2),
       parcelRevenue: (parcelRevenue / 100).toFixed(2),
     };
   }, []);
 
-  // Format data for revenue distribution chart (horizontal)
-  const revenueChartData = revenueDistribution.map((item) => ({
-    name: item.category,
+  const revenueChartData = revenueDistribution.map((item, idx) => ({
+    name: t(`reports.${CATEGORY_KEYS[idx]}`),
     revenue: item.amount,
     percent: item.percent,
   }));
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Doanh thu & phân tích
+            {t("reports.title")}
           </h1>
           <p className="text-sm text-gray-600 mt-1">
-            Báo cáo tài chính chi tiết, hiệu suất tuyến và phân bố doanh thu.
+            {t("reports.subtitleDetail")}
           </p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition">
-          <FiDownload size={16} /> Xuất báo cáo
+          <FiDownload size={16} /> {tc("exportReport")}
         </button>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Doanh thu tháng */}
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">Doanh thu tháng</p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t("reports.monthRevenue")}
+          </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">
             d{stats.totalRevenue}B
           </p>
@@ -130,10 +138,9 @@ export default function ManagerReports() {
           </p>
         </div>
 
-        {/* Trung bình chuyến */}
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
           <p className="text-xs text-gray-500 font-medium">
-            Trung bình / chuyến
+            {t("reports.avgPerTrip")}
           </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">
             d{stats.avgPerTrip}M
@@ -141,18 +148,20 @@ export default function ManagerReports() {
           <p className="text-xs text-green-600 mt-2">4.2%</p>
         </div>
 
-        {/* Doanh thu vé */}
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">Doanh thu về</p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t("reports.ticketRevenueShort")}
+          </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">
             d{stats.onlineRevenue}B
           </p>
           <p className="text-xs text-green-600 mt-2">12.1%</p>
         </div>
 
-        {/* Doanh thu hàng */}
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">Doanh thu hàng</p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t("reports.parcelRevenue")}
+          </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">
             d{stats.parcelRevenue}M
           </p>
@@ -160,19 +169,18 @@ export default function ManagerReports() {
         </div>
       </div>
 
-      {/* Revenue & Trips Chart */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              Doanh thu & lượt về
+              {t("reports.revenueTrips")}
             </h2>
             <p className="text-xs text-gray-600 mt-1">
-              12 tháng doanh thu định kỳ và số lượt về
+              {t("reports.revenueChartSubtitle")}
             </p>
           </div>
           <button className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-            <FiCalendar size={14} /> Tháng
+            <FiCalendar size={14} /> {tc("month")}
           </button>
         </div>
 
@@ -194,24 +202,19 @@ export default function ManagerReports() {
                 border: "1px solid #e5e7eb",
                 borderRadius: "8px",
               }}
-              formatter={(value: any) => {
-                if (typeof value === "number" && value > 1000) {
-                  return value; // trips
-                }
-                return value;
-              }}
+              formatter={(value: number) => value}
             />
             <Legend />
             <Bar
               dataKey="revenue"
-              name="Doanh thu"
+              name={t("reports.chartRevenue")}
               fill="#3b82f6"
               radius={[6, 6, 0, 0]}
             />
             <Line
               type="monotone"
               dataKey="trips"
-              name="Lượt về"
+              name={t("reports.chartTrips")}
               stroke="#10b981"
               strokeWidth={2}
               dot={{ fill: "#10b981", r: 4 }}
@@ -227,15 +230,15 @@ export default function ManagerReports() {
         </ResponsiveContainer>
       </div>
 
-      {/* Bottom Grid: Route Efficiency & Revenue Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Route Efficiency Radar */}
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900">
-              Hiệu suất tuyến
+              {t("reports.routePerformance")}
             </h2>
-            <p className="text-xs text-gray-600 mt-1">Từng tuyến trong tháng</p>
+            <p className="text-xs text-gray-600 mt-1">
+              {t("reports.routePerformanceSubtitle")}
+            </p>
           </div>
 
           <ResponsiveContainer width="100%" height={300}>
@@ -253,7 +256,7 @@ export default function ManagerReports() {
                 style={{ fontSize: "11px" }}
               />
               <Radar
-                name="Hiệu suất %"
+                name={t("reports.efficiency")}
                 dataKey="efficiency"
                 stroke="#6366f1"
                 fill="#6366f1"
@@ -270,13 +273,14 @@ export default function ManagerReports() {
           </ResponsiveContainer>
         </div>
 
-        {/* Revenue Distribution Horizontal Bar */}
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900">
-              Phân bố doanh thu
+              {t("reports.revenueDistribution")}
             </h2>
-            <p className="text-xs text-gray-600 mt-1">Theo nguồn</p>
+            <p className="text-xs text-gray-600 mt-1">
+              {t("reports.bySource")}
+            </p>
           </div>
 
           <div className="space-y-6">
@@ -314,7 +318,7 @@ export default function ManagerReports() {
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">
-                Tổng doanh thu
+                {t("reports.totalRevenue")}
               </span>
               <span className="text-lg font-bold text-gray-900">
                 d{revenueChartData.reduce((sum, item) => sum + item.revenue, 0)}
@@ -325,10 +329,9 @@ export default function ManagerReports() {
         </div>
       </div>
 
-      {/* Summary Stats Table */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">
-          Thống kê chi tiết
+          {t("reports.detailStats")}
         </h2>
 
         <div className="overflow-x-auto">
@@ -336,23 +339,23 @@ export default function ManagerReports() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Chỉ tiêu
+                  {t("reports.metric")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Giá trị
+                  {t("reports.value")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  So với tháng trước
+                  {t("reports.vsLastMonth")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Trạng thái
+                  {tc("status")}
                 </th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-b border-gray-200 hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-700">
-                  Tổng doanh thu
+                  {t("reports.totalRevenue")}
                 </td>
                 <td className="px-4 py-3 text-gray-900">
                   d{stats.totalRevenue}B
@@ -362,13 +365,13 @@ export default function ManagerReports() {
                 </td>
                 <td className="px-4 py-3">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-                    ↑ Tăng
+                    {t("reports.increased")}
                   </span>
                 </td>
               </tr>
               <tr className="border-b border-gray-200 hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-700">
-                  Trung bình trên chuyến
+                  {t("reports.avgPerTripRow")}
                 </td>
                 <td className="px-4 py-3 text-gray-900">
                   d{stats.avgPerTrip}M
@@ -376,13 +379,13 @@ export default function ManagerReports() {
                 <td className="px-4 py-3 text-green-600 font-medium">+4.2%</td>
                 <td className="px-4 py-3">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-                    ↑ Tăng
+                    {t("reports.increased")}
                   </span>
                 </td>
               </tr>
               <tr className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-700">
-                  Doanh thu vé online
+                  {t("reports.onlineTicketRevenue")}
                 </td>
                 <td className="px-4 py-3 text-gray-900">
                   d{stats.onlineRevenue}B
@@ -390,7 +393,7 @@ export default function ManagerReports() {
                 <td className="px-4 py-3 text-green-600 font-medium">+12.1%</td>
                 <td className="px-4 py-3">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-                    ↑ Tăng
+                    {t("reports.increased")}
                   </span>
                 </td>
               </tr>

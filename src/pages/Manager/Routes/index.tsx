@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiClock,
   FiGitBranch,
@@ -10,7 +11,11 @@ import {
 import Modal from "../../../components/Modal";
 import { routeCards } from "../../../data/mockData";
 
+const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+
 export default function RoutesPage() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [openConfig, setOpenConfig] = useState(false);
   const [openSchedule, setOpenSchedule] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<any>(null);
@@ -20,10 +25,10 @@ export default function RoutesPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            Tuyến đường &amp; điểm dừng
+            {t("routes.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            Cấu hình tuyến, điểm đón / trả khách và thay đổi lộ trình.
+            {t("routes.subtitle")}
           </p>
         </div>
         <button
@@ -32,7 +37,7 @@ export default function RoutesPage() {
           className="inline-flex cursor-pointer shrink-0 items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-vr-600 hover:text-white"
         >
           <FiPlus size={18} />
-          Tạo tuyến mới
+          {t("routes.create")}
         </button>
       </div>
 
@@ -48,11 +53,11 @@ export default function RoutesPage() {
               </span>
               {r.status === "running" ? (
                 <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                  Đang chạy
+                  {t("routes.running")}
                 </span>
               ) : (
                 <span className="rounded-full bg-vr-50 px-2.5 py-0.5 text-xs font-semibold text-vr-900">
-                  Bản nháp
+                  {t("routes.draft")}
                 </span>
               )}
             </div>
@@ -61,21 +66,21 @@ export default function RoutesPage() {
               <div>
                 <FiMapPin className="mx-auto text-gray-400" />
                 <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                  Điểm dừng
+                  {t("routes.stops")}
                 </p>
                 <p className="text-sm font-bold text-gray-900">{r.stops}</p>
               </div>
               <div>
                 <FiClock className="mx-auto text-gray-400" />
                 <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                  Thời gian
+                  {t("routes.duration")}
                 </p>
                 <p className="text-sm font-bold text-gray-900">{r.duration}</p>
               </div>
               <div>
                 <FiGitBranch className="mx-auto text-gray-400" />
                 <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                  Chuyến/tuần
+                  {t("routes.tripsPerWeek")}
                 </p>
                 <p className="text-sm font-bold text-gray-900">
                   {r.tripsPerWeek}
@@ -93,7 +98,7 @@ export default function RoutesPage() {
                   }}
                   className="font-medium text-blue-600 hover:text-blue-700"
                 >
-                  Lịch
+                  {t("routes.schedule")}
                 </button>
                 <button
                   type="button"
@@ -103,7 +108,7 @@ export default function RoutesPage() {
                   }}
                   className="font-medium text-vr-700 hover:text-vr-800"
                 >
-                  Sửa →
+                  {t("routes.editRoute")}
                 </button>
               </div>
             </div>
@@ -116,8 +121,8 @@ export default function RoutesPage() {
         onClose={() => setOpenConfig(false)}
         wide
         icon={<FiNavigation size={20} />}
-        title="Cấu hình tuyến đường"
-        subtitle="Định nghĩa tuyến, điểm dừng và thời gian dự kiến."
+        title={t("routes.configTitle")}
+        subtitle={t("routes.configSubtitle")}
         footer={
           <>
             <button
@@ -125,20 +130,20 @@ export default function RoutesPage() {
               onClick={() => setOpenConfig(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Lưu nháp
+              {t("routes.saveDraft")}
             </button>
             <button
               type="button"
               onClick={() => setOpenConfig(false)}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
             >
-              Phát hành tuyến
+              {t("routes.publishRoute")}
             </button>
           </>
         }
@@ -151,8 +156,8 @@ export default function RoutesPage() {
         open={openSchedule}
         onClose={() => setOpenSchedule(false)}
         icon={<FiClock size={20} />}
-        title="Lên lịch chuyến"
-        subtitle="Tạo lịch chạy định kỳ cho tuyến này"
+        title={t("routes.scheduleTitle")}
+        subtitle={t("routes.scheduleSubtitle")}
         footer={
           <>
             <button
@@ -160,17 +165,17 @@ export default function RoutesPage() {
               onClick={() => setOpenSchedule(false)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               onClick={() => {
                 setOpenSchedule(false);
-                alert("Lịch chuyến đã được tạo");
+                alert(t("routes.scheduleCreated"));
               }}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600"
             >
-              Tạo lịch
+              {t("routes.createSchedule")}
             </button>
           </>
         }
@@ -178,53 +183,64 @@ export default function RoutesPage() {
         {selectedRoute && (
           <div className="space-y-4">
             <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-              <p className="text-sm font-semibold text-blue-900">{selectedRoute.title}</p>
-              <p className="text-xs text-blue-700 mt-1">{selectedRoute.distanceKm} km · {selectedRoute.duration}</p>
+              <p className="text-sm font-semibold text-blue-900">
+                {selectedRoute.title}
+              </p>
+              <p className="text-xs text-blue-700 mt-1">
+                {selectedRoute.distanceKm} km · {selectedRoute.duration}
+              </p>
             </div>
 
             <div>
-              <label className={labelClass}>Ngày bắt đầu</label>
+              <label className={labelClass}>{t("routes.startDate")}</label>
               <input type="date" className={inputClass} />
             </div>
 
             <div>
-              <label className={labelClass}>Ngày kết thúc</label>
+              <label className={labelClass}>{t("routes.endDate")}</label>
               <input type="date" className={inputClass} />
             </div>
 
             <div>
-              <label className={labelClass}>Giờ xuất phát</label>
+              <label className={labelClass}>{t("routes.departureTime")}</label>
               <input type="time" className={inputClass} defaultValue="06:00" />
             </div>
 
             <div>
-              <label className={labelClass}>Các ngày chạy trong tuần</label>
+              <label className={labelClass}>{t("routes.weekdaysLabel")}</label>
               <div className="mt-2 flex flex-wrap gap-3">
-                {["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"].map((day, idx) => (
-                  <label key={idx} className="flex items-center gap-2">
+                {WEEKDAY_KEYS.map((key, idx) => (
+                  <label key={key} className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       defaultChecked={idx < 6}
                       className="rounded border-gray-300 text-vr-600"
                     />
-                    <span className="text-sm text-gray-700">{day}</span>
+                    <span className="text-sm text-gray-700">
+                      {t(`routes.weekdays.${key}`)}
+                    </span>
                   </label>
                 ))}
               </div>
             </div>
 
             <div>
-              <label className={labelClass}>Tần suất</label>
+              <label className={labelClass}>{t("routes.frequency")}</label>
               <select className={inputClass} defaultValue="daily">
-                <option value="daily">Hàng ngày</option>
-                <option value="weekly">Hàng tuần</option>
-                <option value="biweekly">2 tuần một lần</option>
+                <option value="daily">{t("routes.frequencyDaily")}</option>
+                <option value="weekly">{t("routes.frequencyWeekly")}</option>
+                <option value="biweekly">
+                  {t("routes.frequencyBiweekly")}
+                </option>
               </select>
             </div>
 
             <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
               <p className="text-xs text-amber-800">
-                <span className="font-semibold">Tóm tắt:</span> Lịch sẽ chạy từ ngày được chọn, xuất phát lúc 06:00, vào các ngày được chọn mỗi tuần.
+                <span className="font-semibold">
+                  {t("routes.scheduleSummary")}
+                </span>{" "}
+                {t("routes.scheduleSummaryText")}
               </p>
             </div>
           </div>
@@ -246,43 +262,51 @@ const defaultStops = [
 ];
 
 function RouteConfigForm() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
+
   return (
     <div className="space-y-6">
       <section>
         <h3 className="mb-3 text-sm font-bold text-gray-900">
-          Thông tin tuyến
+          {t("routes.routeInfo")}
         </h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelClass}>
-              Mã tuyến <span className="text-red-500">*</span>
+              {t("routes.routeCode")}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <input className={inputClass} defaultValue="R-DL01" />
           </div>
           <div>
             <label className={labelClass}>
-              Tên tuyến <span className="text-red-500">*</span>
+              {t("routes.routeName")}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <input className={inputClass} defaultValue="HCM → Đà Lạt" />
           </div>
           <div>
             <label className={labelClass}>
-              Điểm xuất phát <span className="text-red-500">*</span>
+              {t("routes.origin")} <span className="text-red-500">*</span>
             </label>
             <input className={inputClass} defaultValue="TP. Hồ Chí Minh" />
           </div>
           <div>
             <label className={labelClass}>
-              Điểm đến <span className="text-red-500">*</span>
+              {t("routes.destination")}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <input className={inputClass} defaultValue="Đà Lạt" />
           </div>
           <div>
-            <label className={labelClass}>Tổng quãng đường (km)</label>
+            <label className={labelClass}>{t("routes.totalDistance")}</label>
             <input className={inputClass} defaultValue="308" />
           </div>
           <div>
-            <label className={labelClass}>Thời gian dự kiến</label>
+            <label className={labelClass}>
+              {t("routes.estimatedDuration")}
+            </label>
             <input className={inputClass} defaultValue="7h 30m" />
           </div>
         </div>
@@ -292,16 +316,16 @@ function RouteConfigForm() {
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-bold text-gray-900">
-              Điểm dừng dọc đường
+              {t("routes.stopsAlongRoute")}
             </h3>
-            <p className="text-xs text-gray-500">Kéo để sắp xếp lại thứ tự.</p>
+            <p className="text-xs text-gray-500">{t("routes.dragToReorder")}</p>
           </div>
           <button
             type="button"
             className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <FiPlus size={16} />
-            Thêm điểm dừng
+            {t("routes.addStop")}
           </button>
         </div>
         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-2">
@@ -325,7 +349,7 @@ function RouteConfigForm() {
               <button
                 type="button"
                 className="shrink-0 p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                aria-label="Xóa"
+                aria-label={tc("delete")}
               >
                 <FiTrash2 size={16} />
               </button>

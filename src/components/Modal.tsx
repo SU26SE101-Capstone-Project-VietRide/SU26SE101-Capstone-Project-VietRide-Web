@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { FiX } from "react-icons/fi";
 
 type ModalProps = {
@@ -22,6 +23,7 @@ export default function Modal({
   footer,
   wide,
 }: ModalProps) {
+  const { t } = useTranslation("common");
   if (!open) return null;
 
   return (
@@ -33,7 +35,7 @@ export default function Modal({
       <button
         type="button"
         className="absolute inset-0 bg-black/40"
-        aria-label="Đóng"
+        aria-label={t("close")}
         onClick={onClose}
       />
       <div
@@ -59,7 +61,7 @@ export default function Modal({
             type="button"
             onClick={onClose}
             className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Đóng"
+            aria-label={t("close")}
           >
             <FiX size={20} />
           </button>

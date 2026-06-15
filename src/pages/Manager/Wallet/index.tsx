@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiArrowDown,
   FiArrowUp,
@@ -33,8 +34,8 @@ type WalletTransaction = {
   date: string;
   type: TransactionType;
   description: string;
-  amount: number; // in billions VND
-  balance: number; // balance after transaction
+  amount: number;
+  balance: number;
   status: TransactionStatus;
   reference?: string;
 };
@@ -108,29 +109,33 @@ const monthlyData = [
   { month: "Tháng 5", topup: 2800, payment: 2150, refund: 280 },
 ];
 
-const transactionTypeDistribution = [
-  { name: "Nạp tiền", value: 32, color: "#10b981" },
-  { name: "Chi phí", value: 56, color: "#ef4444" },
-  { name: "Hoàn tiền", value: 12, color: "#f59e0b" },
-];
-
 export default function ManagerWallet() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [search, setSearch] = useState("");
   const [transactions] = useState<WalletTransaction[]>(mockTransactions);
   const [openTopUp, setOpenTopUp] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("");
 
-  // Calculate KPI stats
+  const transactionTypeDistribution = useMemo(
+    () => [
+      { name: t("wallet.topupType"), value: 32, color: "#10b981" },
+      { name: t("wallet.expenseType"), value: 56, color: "#ef4444" },
+      { name: t("wallet.refundType"), value: 12, color: "#f59e0b" },
+    ],
+    [t],
+  );
+
   const stats = useMemo(() => {
     const totalTopUp = transactions
-      .filter((t) => t.type === "topup" && t.status === "completed")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((txn) => txn.type === "topup" && txn.status === "completed")
+      .reduce((sum, txn) => sum + txn.amount, 0);
     const totalPayment = transactions
-      .filter((t) => t.type === "payment" && t.status === "completed")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((txn) => txn.type === "payment" && txn.status === "completed")
+      .reduce((sum, txn) => sum + txn.amount, 0);
     const totalRefund = transactions
-      .filter((t) => t.type === "refund" && t.status === "completed")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((txn) => txn.type === "refund" && txn.status === "completed")
+      .reduce((sum, txn) => sum + txn.amount, 0);
     const currentBalance =
       transactions.length > 0 ? transactions[0].balance : 0;
 
@@ -139,26 +144,24 @@ export default function ManagerWallet() {
       totalTopUp,
       totalPayment,
       totalRefund,
-      netBalance: totalTopUp - totalPayment + totalRefund,
     };
   }, [transactions]);
 
-  // Filter transactions
   const filtered = useMemo(() => {
-    return transactions.filter((t) => {
+    return transactions.filter((txn) => {
       const q = search.toLowerCase();
       return (
         !q ||
-        t.id.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        t.reference?.toLowerCase().includes(q)
+        txn.id.toLowerCase().includes(q) ||
+        txn.description.toLowerCase().includes(q) ||
+        txn.reference?.toLowerCase().includes(q)
       );
     });
   }, [search, transactions]);
 
   const handleTopUp = () => {
     if (!topUpAmount || isNaN(Number(topUpAmount))) return;
-    alert(`Nạp tiền: ${topUpAmount}đ - Sẽ chuyển hướng tới VNPay`);
+    alert(t("wallet.topupAlert", { amount: topUpAmount }));
     setOpenTopUp(false);
     setTopUpAmount("");
   };
@@ -168,19 +171,19 @@ export default function ManagerWallet() {
       case "completed":
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-            <FiCheck size={14} /> Thành công
+            <FiCheck size={14} /> {t("wallet.success")}
           </span>
         );
       case "pending":
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">
-            <FiClock size={14} /> Chờ xử lý
+            <FiClock size={14} /> {t("wallet.pending")}
           </span>
         );
       case "failed":
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
-            <FiAlertCircle size={14} /> Thất bại
+            <FiAlertCircle size={14} /> {t("wallet.failed")}
           </span>
         );
     }
@@ -200,72 +203,74 @@ export default function ManagerWallet() {
   const getTransactionTypeLabel = (type: TransactionType) => {
     switch (type) {
       case "topup":
-        return "Nạp tiền";
+        return t("wallet.topupType");
       case "payment":
-        return "Chi phí";
+        return t("wallet.expenseType");
       case "refund":
-        return "Hoàn tiền";
+        return t("wallet.refundType");
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Ví quản lý nhà xe
+            {t("wallet.title")}
           </h1>
-          <p className="text-gray-600 mt-1">
-            Nạp tiền, theo dõi chi phí và lịch sử giao dịch
-          </p>
+          <p className="text-gray-600 mt-1">{t("wallet.subtitleShort")}</p>
         </div>
         <button
           onClick={() => setOpenTopUp(true)}
           className="flex items-center gap-2 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
         >
-          <FiPlus size={18} /> Nạp tiền
+          <FiPlus size={18} /> {t("wallet.topup")}
         </button>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">Số dư hiện tại</p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t("wallet.currentBalance")}
+          </p>
           <p className="text-3xl font-bold text-vr-600 mt-2">
             đ{stats.currentBalance.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-400 mt-2">Tỷ VND</p>
+          <p className="text-xs text-gray-400 mt-2">{t("wallet.billionVnd")}</p>
         </div>
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">Tổng nạp tiền</p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t("wallet.totalTopup")}
+          </p>
           <p className="text-3xl font-bold text-green-600 mt-2">
             đ{stats.totalTopUp.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-400 mt-2">Tỷ VND</p>
+          <p className="text-xs text-gray-400 mt-2">{t("wallet.billionVnd")}</p>
         </div>
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">Tổng chi phí</p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t("wallet.totalExpense")}
+          </p>
           <p className="text-3xl font-bold text-red-600 mt-2">
             đ{stats.totalPayment.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-400 mt-2">Tỷ VND</p>
+          <p className="text-xs text-gray-400 mt-2">{t("wallet.billionVnd")}</p>
         </div>
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">Hoàn tiền</p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t("wallet.refund")}
+          </p>
           <p className="text-3xl font-bold text-amber-600 mt-2">
             đ{stats.totalRefund.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-400 mt-2">Tỷ VND</p>
+          <p className="text-xs text-gray-400 mt-2">{t("wallet.billionVnd")}</p>
         </div>
       </div>
 
-      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Trend Chart */}
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Lịch sử giao dịch hàng tháng
+            {t("wallet.monthlyHistory")}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={monthlyData}>
@@ -282,19 +287,19 @@ export default function ManagerWallet() {
               <Legend />
               <Bar
                 dataKey="topup"
-                name="Nạp tiền"
+                name={t("wallet.topupType")}
                 fill="#10b981"
                 radius={[8, 8, 0, 0]}
               />
               <Bar
                 dataKey="payment"
-                name="Chi phí"
+                name={t("wallet.expenseType")}
                 fill="#ef4444"
                 radius={[8, 8, 0, 0]}
               />
               <Bar
                 dataKey="refund"
-                name="Hoàn tiền"
+                name={t("wallet.refundType")}
                 fill="#f59e0b"
                 radius={[8, 8, 0, 0]}
               />
@@ -302,10 +307,9 @@ export default function ManagerWallet() {
           </ResponsiveContainer>
         </div>
 
-        {/* Distribution Pie */}
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Phân bố giao dịch
+            {t("wallet.distribution")}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -328,24 +332,23 @@ export default function ManagerWallet() {
         </div>
       </div>
 
-      {/* Transaction List */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="flex flex-col sm:flex-row gap-3 items-end mb-4">
           <div className="flex-1 relative">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Tìm theo mã giao dịch, mô tả..."
+              placeholder={t("wallet.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
             />
           </div>
           <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-            <FiFilter size={16} /> Bộ lọc
+            <FiFilter size={16} /> {tc("filter")}
           </button>
           <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-            <FiDownload size={16} /> Xuất CSV
+            <FiDownload size={16} /> {tc("exportCsv")}
           </button>
         </div>
 
@@ -354,25 +357,25 @@ export default function ManagerWallet() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Ngày giờ
+                  {t("wallet.datetime")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Loại
+                  {t("wallet.type")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Mô tả
+                  {t("wallet.descriptionCol")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Số tiền
+                  {t("wallet.amount")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Số dư
+                  {t("wallet.balance")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Trạng thái
+                  {tc("status")}
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  Mã tham chiếu
+                  {t("wallet.reference")}
                 </th>
               </tr>
             </thead>
@@ -421,11 +424,14 @@ export default function ManagerWallet() {
 
         <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
           <div>
-            Hiển thị {filtered.length} / {transactions.length} giao dịch
+            {t("wallet.showingTransactions", {
+              count: filtered.length,
+            })}{" "}
+            / {transactions.length}
           </div>
           <div className="flex gap-1">
             <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
-              Trước
+              {tc("previous")}
             </button>
             <button className="px-3 py-1.5 bg-vr-500 text-white rounded-lg font-semibold">
               1
@@ -434,29 +440,31 @@ export default function ManagerWallet() {
               2
             </button>
             <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
-              Sau
+              {tc("next")}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Top-up Modal */}
       <Modal
         open={openTopUp}
         onClose={() => setOpenTopUp(false)}
-        title="Nạp tiền vào ví"
+        title={t("wallet.topupTitle")}
         wide
       >
         <div className="space-y-6">
           <div className="bg-vr-50 border border-vr-200 rounded-lg p-4">
             <p className="text-sm text-vr-900 font-medium">
-              Số dư hiện tại: đ{stats.currentBalance.toLocaleString()}
+              {t("wallet.currentBalanceLabel", {
+                amount: stats.currentBalance.toLocaleString(),
+              })}
             </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Số tiền nạp <span className="text-red-500">*</span>
+              {t("wallet.topupAmount")}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
@@ -466,20 +474,19 @@ export default function ManagerWallet() {
                 type="number"
                 value={topUpAmount}
                 onChange={(e) => setTopUpAmount(e.target.value)}
-                placeholder="Nhập số tiền"
+                placeholder={t("wallet.topupPlaceholder")}
                 className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Tối thiểu: 100,000đ | Tối đa: 10,000,000đ
+              {t("wallet.topupLimit")}
             </p>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs text-blue-900">
-              <strong>Lưu ý:</strong> Sau khi xác nhận, bạn sẽ được chuyển hướng
-              tới VNPay để thanh toán. Giao dịch sẽ được xử lý trong vòng 1–2
-              phút.
+              <strong>{t("wallet.topupNoteLabel")}</strong>{" "}
+              {t("wallet.topupNote")}
             </p>
           </div>
 
@@ -488,13 +495,13 @@ export default function ManagerWallet() {
               onClick={() => setOpenTopUp(false)}
               className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               onClick={handleTopUp}
               className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
             >
-              Nạp tiền & thanh toán VNPay
+              {t("wallet.topupPay")}
             </button>
           </div>
         </div>

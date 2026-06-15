@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight } from "react-icons/fi";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 import logo from "../assets/Login/logo.svg";
 import login_1 from "../assets/Login/login_1.png";
 import login_2 from "../assets/Login/login_2.png";
@@ -10,31 +12,20 @@ import login_5 from "../assets/Login/login_5.png";
 
 const SLIDE_INTERVAL_MS = 5000;
 
-const HERO_SLIDES = [
-  {
-    src: login_1,
-    alt: "Xe buýt",
-  },
-  {
-    src: login_2,
-    alt: "Bến xe",
-  },
-  {
-    src: login_3,
-    alt: "Cao tốc",
-  },
-  {
-    src: login_4,
-    alt: "Đô thị",
-  },
-  {
-    src: login_5,
-    alt: "Du lịch",
-  },
-];
+const HERO_SLIDE_KEYS = [
+  "hero.bus",
+  "hero.station",
+  "hero.highway",
+  "hero.urban",
+  "hero.tourism",
+] as const;
+
+const HERO_SLIDE_SRC = [login_1, login_2, login_3, login_4, login_5];
 
 export default function Login() {
   const navigate = useNavigate();
+  const { t } = useTranslation("login");
+  const { t: tc } = useTranslation("common");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -46,7 +37,7 @@ export default function Login() {
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      setSlideIndex((i) => (i + 1) % HERO_SLIDES.length);
+      setSlideIndex((i) => (i + 1) % HERO_SLIDE_KEYS.length);
     }, SLIDE_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, []);
@@ -62,19 +53,19 @@ export default function Login() {
 
     try {
       if (!email || !password) {
-        setError("Vui lòng điền đầy đủ thông tin");
+        setError(t("errors.required"));
         setLoading(false);
         return;
       }
 
       if (!email.includes("@")) {
-        setError("Email không hợp lệ");
+        setError(t("errors.invalidEmail"));
         setLoading(false);
         return;
       }
 
       if (password.length < 6) {
-        setError("Mật khẩu phải có ít nhất 6 ký tự");
+        setError(t("errors.passwordMin"));
         setLoading(false);
         return;
       }
@@ -97,7 +88,7 @@ export default function Login() {
         localStorage.setItem("rememberEmail", email);
       }
     } catch {
-      setError("Đăng nhập thất bại, vui lòng thử lại");
+      setError(t("errors.failed"));
     } finally {
       setLoading(false);
     }
@@ -105,6 +96,10 @@ export default function Login() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-vr-500 px-4 py-10 sm:px-6 sm:py-12">
+      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+        <LanguageSwitcher />
+      </div>
+
       <div className="relative">
         <div className="flex w-full flex-col overflow-hidden rounded-[1.75rem] bg-vr-500  md:flex-row">
           <div className="w-[40%] flex items-center justify-center ">
@@ -112,17 +107,16 @@ export default function Login() {
               <div className="mb-5 flex items-center justify-center gap-3">
                 <img
                   src={logo}
-                  alt="VietRide"
+                  alt={tc("brand")}
                   className="h-20 w-20 object-contain"
                 />
               </div>
 
               <h1 className="text-2xl text-center font-bold tracking-tight text-vr-800 sm:text-4xl">
-                Đăng nhập
+                {t("title")}
               </h1>
               <p className="mt-2 text-center text-[13px] leading-relaxed text-gray-500">
-                Chào mừng trở lại! Nhập thông tin để vào bảng điều khiển vận
-                hành.
+                {t("subtitle")}
               </p>
 
               {error && (
@@ -137,7 +131,7 @@ export default function Login() {
               <form onSubmit={handleLogin} className="space-y-4 mt-5">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">
-                    Email <span className="text-red-500">*</span>
+                    {t("email")} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <FiMail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -145,7 +139,7 @@ export default function Login() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="hello@vietride.vn"
+                      placeholder={t("emailPlaceholder")}
                       className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
                     />
                   </div>
@@ -154,13 +148,13 @@ export default function Login() {
                 <div>
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <label className="text-sm font-semibold text-slate-800">
-                      Mật khẩu <span className="text-red-500">*</span>
+                      {t("password")} <span className="text-red-500">*</span>
                     </label>
                     <a
                       href="#"
                       className="text-sm font-semibold text-vr-700 hover:text-vr-900"
                     >
-                      Quên mật khẩu?
+                      {t("forgotPassword")}
                     </a>
                   </div>
                   <div className="relative">
@@ -170,7 +164,7 @@ export default function Login() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Nhập mật khẩu"
+                      placeholder={t("passwordPlaceholder")}
                       className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-11 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
                     />
                     <button
@@ -178,7 +172,7 @@ export default function Login() {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                       aria-label={
-                        showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"
+                        showPassword ? t("hidePassword") : t("showPassword")
                       }
                     >
                       {showPassword ? (
@@ -190,7 +184,7 @@ export default function Login() {
                   </div>
                   {capsLock && (
                     <p className="mt-1.5 text-xs font-medium text-amber-600">
-                      Phím Caps Lock đang bật
+                      {t("capsLockOn")}
                     </p>
                   )}
                 </div>
@@ -202,7 +196,7 @@ export default function Login() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
                   />
-                  Ghi nhớ đăng nhập
+                  {t("rememberMe")}
                 </label>
 
                 <button
@@ -213,11 +207,11 @@ export default function Login() {
                   {loading ? (
                     <>
                       <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      Đang xử lý…
+                      {t("submitting")}
                     </>
                   ) : (
                     <>
-                      Đăng nhập
+                      {t("submit")}
                       <FiArrowRight className="h-5 w-5" />
                     </>
                   )}
@@ -225,12 +219,12 @@ export default function Login() {
               </form>
 
               <p className="mt-8 text-center text-sm text-gray-500">
-                Chưa có tài khoản?{" "}
+                {t("noAccount")}{" "}
                 <a
                   href="#"
                   className="font-semibold text-vr-700 underline-offset-2 hover:underline"
                 >
-                  Đăng ký
+                  {t("register")}
                 </a>
               </p>
             </div>
@@ -238,16 +232,16 @@ export default function Login() {
 
           <div className="relative order-1  shrink-0 md:order-2 md:min-h-0 md:flex-1">
             <div className="absolute inset-0 bg-vr-500">
-              {HERO_SLIDES.map((slide, i) => (
+              {HERO_SLIDE_SRC.map((src, i) => (
                 <div
-                  key={slide.src}
+                  key={src}
                   className="absolute inset-0 transition-opacity duration-[900ms] ease-in-out"
                   style={{ opacity: i === slideIndex ? 1 : 0 }}
                   aria-hidden={i !== slideIndex}
                 >
                   <img
-                    src={slide.src}
-                    alt={slide.alt}
+                    src={src}
+                    alt={t(HERO_SLIDE_KEYS[i])}
                     className="h-full w-full object-fill"
                     loading={i === 0 ? "eager" : "lazy"}
                   />
