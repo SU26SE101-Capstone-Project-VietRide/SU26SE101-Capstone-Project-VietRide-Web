@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FiPlus, FiTag, FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi";
-import Modal from "../../components/Modal";
-import { vouchers as mockVouchers } from "../../data/mockData";
+import Modal from "../../../components/Modal";
+import { vouchers as mockVouchers } from "../../../data/mockData";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Voucher = any;
@@ -14,22 +14,18 @@ const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
-type VoucherTab = "event" | "package";
+// Mocked operator ID - trong thực tế sẽ lấy từ auth context
+const CURRENT_OPERATOR_ID = "op1";
 
-export default function Vouchers() {
-  const [activeTab, setActiveTab] = useState<VoucherTab>("event");
+export default function ManagerVouchers() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
 
-  // Filter vouchers by type
-  const eventVouchers = mockVouchers.filter((v) => v.voucherType === "event");
-  const packageVouchers = mockVouchers.filter(
-    (v) => v.voucherType === "package",
+  // Filter vouchers: chỉ hiển thị vouchers của nhà xe này
+  const operatorVouchers = mockVouchers.filter(
+    (v) => v.voucherType === "operator" && v.operatorId === CURRENT_OPERATOR_ID,
   );
-
-  const currentVouchers =
-    activeTab === "event" ? eventVouchers : packageVouchers;
 
   const handleEdit = (voucher: Voucher) => {
     setSelectedVoucher(voucher);
@@ -38,11 +34,13 @@ export default function Vouchers() {
 
   const handleDelete = (id: string) => {
     if (confirm("Bạn có chắc chắn muốn xóa voucher này?")) {
+      // API call to delete voucher
       alert(`Xóa voucher ${id} thành công!`);
     }
   };
 
   const handleToggleActive = (id: string) => {
+    // API call to toggle active status
     alert(`Cập nhật trạng thái voucher ${id} thành công!`);
   };
 
@@ -50,11 +48,9 @@ export default function Vouchers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Quản lý Voucher &amp; Khuyến mãi
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900">Quản lý Voucher</h1>
           <p className="text-gray-600 mt-1">
-            Quản lý mã giảm giá cho người dùng và nhà xe trên hệ thống.
+            Tạo và quản lý mã giảm giá cho khách hàng của nhà xe bạn.
           </p>
         </div>
         <div
@@ -64,83 +60,27 @@ export default function Vouchers() {
           }}
           className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-white rounded-lg font-medium transition flex items-center gap-2"
         >
-          <FiPlus size={16} /> Tạo voucher
+          <FiPlus size={16} /> Tạo voucher mới
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-0 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab("event")}
-          className={`px-6 py-3 font-medium text-sm border-b-2 transition ${
-            activeTab === "event"
-              ? "border-vr-500 text-vr-600"
-              : "border-transparent text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Voucher Sự kiện & Người dùng
-          <span className="ml-2 text-xs bg-vr-100 text-vr-700 px-2 py-1 rounded-full">
-            {eventVouchers.length}
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab("package")}
-          className={`px-6 py-3 font-medium text-sm border-b-2 transition ${
-            activeTab === "package"
-              ? "border-vr-500 text-vr-600"
-              : "border-transparent text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Voucher Gói Dịch vụ
-          <span className="ml-2 text-xs bg-vr-100 text-vr-700 px-2 py-1 rounded-full">
-            {packageVouchers.length}
-          </span>
-        </button>
-      </div>
-
-      {/* Tab Content */}
-      <div className="space-y-4">
-        {activeTab === "event" && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Voucher cho sự kiện và người dùng mới
-            </h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Những voucher này được tạo bởi admin để khuyến mãi cho người dùng
-              cuối trong các dịp sự kiện hoặc khi họ lần đầu tiên tham gia hệ
-              thống.
-            </p>
-          </div>
-        )}
-        {activeTab === "package" && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Voucher cho gói dịch vụ
-            </h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Những voucher này được tặng kèm khi nhà xe mua gói dịch vụ từ hệ
-              thống. Bạn có thể quản lý các gói dịch vụ ở trang cài đặt gói.
-            </p>
-          </div>
-        )}
-
-        {currentVouchers.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
-            <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600">
-              Chưa có voucher {activeTab === "event" ? "sự kiện" : "gói"}
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              Tạo voucher mới bằng nút phía trên
-            </p>
-          </div>
-        ) : (
+      {operatorVouchers.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+          <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600">Bạn chưa tạo voucher nào</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Bắt đầu bằng cách tạo voucher để khuyến mãi cho khách hàng
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Table view */}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Mã
+                    Mã Voucher
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                     Tên
@@ -149,10 +89,7 @@ export default function Vouchers() {
                     Giảm giá
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Áp dụng cho
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Phát hành
+                    Được phát
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                     Đã dùng
@@ -168,8 +105,8 @@ export default function Vouchers() {
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {currentVouchers.map((voucher) => {
+              <tbody className="bg-white border-b border-gray-200">
+                {operatorVouchers.map((voucher) => {
                   const usageRate = Math.round(
                     (voucher.usedCount / voucher.quantity) * 100,
                   );
@@ -202,33 +139,17 @@ export default function Vouchers() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-600">
-                          {voucher.applicableTo === "all"
-                            ? "Tất cả"
-                            : voucher.applicableTo === "rides"
-                              ? "Chỉ xe"
-                              : voucher.applicableTo === "parcels"
-                                ? "Chỉ bưu phẩm"
-                                : "Gói"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
                         {formatNumber(voucher.quantity)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="w-20">
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-2 rounded-full bg-vr-500"
-                              style={{ width: `${Math.min(100, usageRate)}%` }}
-                            />
-                          </div>
-                          <p className="text-xs text-gray-600 mt-1">
-                            {formatNumber(voucher.usedCount)} ({usageRate}%)
+                        <div>
+                          <p>{formatNumber(voucher.usedCount)}</p>
+                          <p className="text-xs text-gray-500">
+                            ({usageRate}%)
                           </p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         {expiryDate}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -239,7 +160,7 @@ export default function Vouchers() {
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {voucher.active ? "Hoạt động" : "Tắt"}
+                          {voucher.active ? "Đang chạy" : "Đã kết thúc"}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -247,6 +168,7 @@ export default function Vouchers() {
                           <button
                             onClick={() => handleToggleActive(voucher.id)}
                             className="p-2 text-gray-400 hover:text-gray-600"
+                            title={voucher.active ? "Vô hiệu hóa" : "Kích hoạt"}
                           >
                             {voucher.active ? (
                               <FiCheck size={16} />
@@ -257,12 +179,14 @@ export default function Vouchers() {
                           <button
                             onClick={() => handleEdit(voucher)}
                             className="p-2 text-gray-400 hover:text-vr-500"
+                            title="Chỉnh sửa"
                           >
                             <FiEdit2 size={16} />
                           </button>
                           <button
                             onClick={() => handleDelete(voucher.id)}
                             className="p-2 text-gray-400 hover:text-red-500"
+                            title="Xóa"
                           >
                             <FiTrash2 size={16} />
                           </button>
@@ -274,8 +198,8 @@ export default function Vouchers() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Create/Edit Modal */}
       <Modal
@@ -291,9 +215,7 @@ export default function Vouchers() {
         subtitle={
           selectedVoucher
             ? "Cập nhật thông tin mã giảm giá"
-            : activeTab === "event"
-              ? "Tạo voucher cho sự kiện hoặc người dùng mới"
-              : "Tạo voucher khuyến mãi cho gói dịch vụ"
+            : "Tạo mã giảm giá mới cho khách hàng"
         }
         footer={
           <>
@@ -330,39 +252,33 @@ export default function Vouchers() {
                 Mã voucher <span className="text-red-500">*</span>
               </label>
               <input
-                className={inputClass + " border-vr-500 ring-1 ring-vr-500/50"}
-                defaultValue={selectedVoucher?.code || "VIETRIDE"}
-                placeholder="VD: VIETRIDE10"
+                className={inputClass}
+                defaultValue={selectedVoucher?.code || "OP-"}
+                placeholder="VD: OP-LOYAL10"
               />
             </div>
             <div>
               <label className={labelClass}>
-                Tên hiển thị <span className="text-red-500">*</span>
+                Tên voucher <span className="text-red-500">*</span>
               </label>
               <input
                 className={inputClass}
-                defaultValue={
-                  selectedVoucher?.name ||
-                  (activeTab === "event"
-                    ? "Giảm 20% chuyến đầu"
-                    : "Gói Premium - Giảm 100K")
-                }
+                defaultValue={selectedVoucher?.name || "Khách hàng thân thiết"}
+                placeholder="VD: Khách hàng thân thiết"
               />
             </div>
           </div>
+
           <div>
             <label className={labelClass}>Mô tả</label>
             <textarea
-              className={inputClass + " min-h-[88px]"}
+              className={inputClass + " min-h-[80px]"}
               defaultValue={selectedVoucher?.description || ""}
-              placeholder={
-                activeTab === "event"
-                  ? "Áp dụng cho khách hàng mới hoặc sự kiện..."
-                  : "Khuyến mãi khi nhà xe mua gói..."
-              }
+              placeholder="Mô tả chi tiết về voucher..."
               rows={3}
             />
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>Loại giảm giá</label>
@@ -382,6 +298,30 @@ export default function Vouchers() {
                 className={inputClass}
                 type="number"
                 defaultValue={selectedVoucher?.discount || ""}
+                placeholder="VD: 10 hoặc 50000"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>Đơn tối thiểu (₫)</label>
+              <input
+                className={inputClass}
+                type="number"
+                defaultValue={selectedVoucher?.minOrderValue || "100000"}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>
+                Số lượng phát hành <span className="text-red-500">*</span>
+              </label>
+              <input
+                className={inputClass}
+                type="number"
+                defaultValue={selectedVoucher?.quantity || ""}
+                placeholder="VD: 500"
               />
             </div>
           </div>
@@ -391,33 +331,12 @@ export default function Vouchers() {
               <label className={labelClass}>Áp dụng cho</label>
               <select
                 className={inputClass}
-                defaultValue={selectedVoucher?.applicableTo || "all"}
+                defaultValue={selectedVoucher?.applicableTo || "rides"}
               >
                 <option value="all">Tất cả dịch vụ</option>
                 <option value="rides">Chỉ chuyến xe</option>
                 <option value="parcels">Chỉ bưu phẩm</option>
               </select>
-            </div>
-            <div>
-              <label className={labelClass}>Đơn tối thiểu (₫)</label>
-              <input
-                className={inputClass}
-                type="number"
-                defaultValue={selectedVoucher?.minOrderValue || "200000"}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>
-                Số lượng phát hành <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                type="number"
-                defaultValue={selectedVoucher?.quantity || "5000"}
-              />
             </div>
             <div>
               <label className={labelClass}>
@@ -432,16 +351,19 @@ export default function Vouchers() {
           </div>
 
           <div>
-            <label className={labelClass}>Số lần dùng tối đa / tài khoản</label>
+            <label className={labelClass}>
+              Số lần dùng tối đa trên mỗi tài khoản
+            </label>
             <input
               className={inputClass}
               type="number"
               defaultValue={selectedVoucher?.maxUsagePerUser || "1"}
+              placeholder="VD: 1"
             />
           </div>
 
           <div>
-            <p className={labelClass}>Kích hoạt</p>
+            <p className={labelClass}>Kích hoạt ngay</p>
             <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 flex items-start gap-3">
               <button
                 type="button"
@@ -453,10 +375,10 @@ export default function Vouchers() {
               </button>
               <div>
                 <p className="text-sm font-bold text-gray-900">
-                  Bật ngay sau khi tạo
+                  Bật voucher sau khi tạo
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Voucher sẽ có hiệu lực và có thể được sử dụng.
+                  Voucher sẽ có hiệu lực và khách hàng có thể sử dụng ngay.
                 </p>
               </div>
             </div>

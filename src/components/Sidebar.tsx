@@ -51,6 +51,8 @@ const managerMenus: MenuSection[] = [
         path: "/manager/dispatch",
         icon: <FiNavigation />,
       },
+      { label: "Voucher", path: "/manager/vouchers", icon: <FiPackage /> },
+      { label: "Gói dịch vụ", path: "/manager/packages", icon: <FiPackage /> },
     ],
   },
   {
@@ -70,6 +72,7 @@ const adminMenus: MenuSection[] = [
       { label: "Nhà xe", path: "/admin/operators", icon: <FiTruck /> },
       { label: "Người dùng", path: "/admin/users", icon: <FiBookOpen /> },
       { label: "Voucher", path: "/admin/vouchers", icon: <FiPackage /> },
+      { label: "Gói dịch vụ", path: "/admin/packages", icon: <FiPackage /> },
       {
         label: "Phê duyệt Payout",
         path: "/admin/payouts",

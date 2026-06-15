@@ -20,12 +20,16 @@ import Reports from "./pages/Manager/Reports/index";
 import DispatchPanel from "./pages/Manager/Dispatch/index";
 import ManagerWallet from "./pages/Manager/Wallet/index";
 import RouteETA from "./pages/Manager/RouteETA/index";
+import ManagerVouchers from "./pages/Manager/Vouchers/index";
+import ManagerPackages from "./pages/Manager/Packages/index";
+import { VehicleBuilderPage } from "./modules/vehicle-builder";
 
 // Admin Pages
 
 import Operators from "./pages/Admin/Operators";
 import Users from "./pages/Admin/Users";
 import Vouchers from "./pages/Admin/Vouchers";
+import Packages from "./pages/Admin/Packages";
 import Revenue from "./pages/Admin/Revenue";
 import AdminReports from "./pages/Admin/Reports";
 import AdminSettings from "./pages/Admin/Settings";
@@ -48,10 +52,12 @@ export default function App() {
           <Route path="route-eta" element={<RouteETA />} />
           <Route path="routes" element={<RoutesList />} />
           <Route path="vehicles" element={<VehiclesList />} />
+          <Route path="vehicle-builder" element={<VehicleBuilderPage />} />
           <Route path="staff" element={<StaffList />} />
           <Route path="bookings" element={<BookingsList />} />
           <Route path="parcels" element={<ParcelsList />} />
-
+          <Route path="vouchers" element={<ManagerVouchers />} />
+          <Route path="packages" element={<ManagerPackages />} />
           <Route path="gps" element={<GPSTracking />} />
           <Route path="reports" element={<Reports />} />
           <Route path="dispatch" element={<DispatchPanel />} />
@@ -65,6 +71,7 @@ export default function App() {
           <Route path="operators" element={<Operators />} />
           <Route path="users" element={<Users />} />
           <Route path="vouchers" element={<Vouchers />} />
+          <Route path="packages" element={<Packages />} />
           <Route path="revenue" element={<Revenue />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="settings" element={<AdminSettings />} />

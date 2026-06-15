@@ -50,11 +50,91 @@ export type User = {
   active: boolean;
 };
 
+export type VoucherType = "package" | "event" | "operator";
+
 export type Voucher = {
   id: string;
   code: string;
+  name: string;
+  description?: string;
+  voucherType: VoucherType;
   discount: number;
+  discountType: "percent" | "fixed";
+  minOrderValue?: number;
+  maxUsagePerUser?: number;
+  quantity: number;
+  usedCount: number;
+  expiryDate: string;
+  applicableTo: "all" | "rides" | "parcels" | "packages";
   active: boolean;
+  operatorId?: string;
+  createdBy: "admin" | "operator";
+  createdAt: string;
+};
+
+export type Package = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  maxVehicles: number;
+  maxRoutes: number;
+  features: string[];
+  duration: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PackagePurchase = {
+  id: string;
+  packageId: string;
+  operatorId: string;
+  months: number;
+  totalPrice: number;
+  discountAmount: number;
+  voucherCode?: string;
+  paymentMethod: "wallet" | "qr_code";
+  status: "pending" | "completed" | "cancelled";
+  purchasedAt: string;
+  expiryAt: string;
+};
+
+export type OperatorSubscription = {
+  operatorId: string;
+  currentPackageId?: string;
+  expiryDate?: string;
+  remainingDays?: number;
+  totalVehiclesUsed: number;
+  totalRoutesUsed: number;
+  status: "active" | "expired" | "none";
+};
+
+export type Policy = {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  policyType: "for_operator" | "for_user";
+  category: string;
+  version: number;
+  active: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OperatorPolicy = {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  category: string;
+  operatorId: string;
+  version: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type StaffMember = {
@@ -533,10 +613,30 @@ export const routeCards: RouteCard[] = [
 ];
 
 export const tripCargoLoads: TripCargoLoad[] = [
-  { tripCode: "VR-2401", label: "VR-2401 · HCM -> Đà Lạt", currentKg: 380, maxKg: 500 },
-  { tripCode: "VR-2402", label: "VR-2402 · HCM -> Nha Trang", currentKg: 220, maxKg: 500 },
-  { tripCode: "VR-2403", label: "VR-2403 · HCM -> Vũng Tàu", currentKg: 470, maxKg: 500 },
-  { tripCode: "VR-2410", label: "VR-2410 · HN -> Sapa", currentKg: 120, maxKg: 400 },
+  {
+    tripCode: "VR-2401",
+    label: "VR-2401 · HCM -> Đà Lạt",
+    currentKg: 380,
+    maxKg: 500,
+  },
+  {
+    tripCode: "VR-2402",
+    label: "VR-2402 · HCM -> Nha Trang",
+    currentKg: 220,
+    maxKg: 500,
+  },
+  {
+    tripCode: "VR-2403",
+    label: "VR-2403 · HCM -> Vũng Tàu",
+    currentKg: 470,
+    maxKg: 500,
+  },
+  {
+    tripCode: "VR-2410",
+    label: "VR-2410 · HN -> Sapa",
+    currentKg: 120,
+    maxKg: 400,
+  },
 ];
 
 export const operators: Operator[] = [
@@ -575,9 +675,286 @@ export const users: User[] = [
 ];
 
 export const vouchers: Voucher[] = [
-  { id: "v1", code: "SUMMER20", discount: 20, active: true },
-  { id: "v2", code: "STUDENT15", discount: 15, active: true },
-  { id: "v3", code: "CORP25", discount: 25, active: false },
+  {
+    id: "v1",
+    code: "SUMMER20",
+    name: "Summer - 20%",
+    description: "Summer promotion campaign",
+    voucherType: "event",
+    discount: 20,
+    discountType: "percent",
+    minOrderValue: 200000,
+    maxUsagePerUser: 1,
+    quantity: 5000,
+    usedCount: 1200,
+    expiryDate: "2026-08-31",
+    applicableTo: "all",
+    active: true,
+    createdBy: "admin",
+    createdAt: "2026-06-01",
+  },
+  {
+    id: "v2",
+    code: "STUDENT15",
+    name: "Student - 15%",
+    description: "Student discount voucher",
+    voucherType: "event",
+    discount: 15,
+    discountType: "percent",
+    minOrderValue: 100000,
+    maxUsagePerUser: 2,
+    quantity: 3000,
+    usedCount: 800,
+    expiryDate: "2026-12-31",
+    applicableTo: "all",
+    active: true,
+    createdBy: "admin",
+    createdAt: "2026-05-15",
+  },
+  {
+    id: "v3",
+    code: "FIRST50K",
+    name: "New Account - 50K",
+    description: "Welcome bonus for new accounts",
+    voucherType: "event",
+    discount: 50000,
+    discountType: "fixed",
+    minOrderValue: 200000,
+    maxUsagePerUser: 1,
+    quantity: 10000,
+    usedCount: 5600,
+    expiryDate: "2026-12-31",
+    applicableTo: "all",
+    active: true,
+    createdBy: "admin",
+    createdAt: "2026-01-01",
+  },
+  {
+    id: "v4",
+    code: "PKG100K",
+    name: "Package Premium - 100K",
+    description: "Promotion for Premium package purchase",
+    voucherType: "package",
+    discount: 100000,
+    discountType: "fixed",
+    minOrderValue: 0,
+    maxUsagePerUser: 5,
+    quantity: 100,
+    usedCount: 35,
+    expiryDate: "2026-12-31",
+    applicableTo: "all",
+    active: true,
+    createdBy: "admin",
+    createdAt: "2026-06-01",
+  },
+  {
+    id: "v5",
+    code: "OP-LOYAL10",
+    name: "Loyal Customer - 10%",
+    description: "Voucher for loyal customers",
+    voucherType: "operator",
+    discount: 10,
+    discountType: "percent",
+    minOrderValue: 150000,
+    maxUsagePerUser: 3,
+    quantity: 500,
+    usedCount: 120,
+    expiryDate: "2026-09-30",
+    applicableTo: "rides",
+    active: true,
+    operatorId: "op1",
+    createdBy: "operator",
+    createdAt: "2026-06-10",
+  },
+];
+
+export const packages: Package[] = [
+  {
+    id: "pkg1",
+    name: "Basic Package",
+    description: "Ideal for new operators",
+    price: 1000000,
+    maxVehicles: 5,
+    maxRoutes: 3,
+    features: [
+      "Max 5 vehicles",
+      "Max 3 routes",
+      "Basic support",
+      "100K promotion voucher",
+    ],
+    duration: 3,
+    active: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-06-01",
+  },
+  {
+    id: "pkg2",
+    name: "Professional Package",
+    description: "For growing operators",
+    price: 3000000,
+    maxVehicles: 20,
+    maxRoutes: 10,
+    features: [
+      "Max 20 vehicles",
+      "Max 10 routes",
+      "Priority support",
+      "300K promotion voucher",
+      "Advanced analytics",
+    ],
+    duration: 3,
+    active: true,
+    createdAt: "2026-01-15",
+    updatedAt: "2026-06-01",
+  },
+  {
+    id: "pkg3",
+    name: "Enterprise Package",
+    description: "For large-scale operators",
+    price: 8000000,
+    maxVehicles: 100,
+    maxRoutes: 50,
+    features: [
+      "Max 100 vehicles",
+      "Max 50 routes",
+      "24/7 dedicated support",
+      "1M promotion voucher",
+      "API access",
+      "Custom integration",
+    ],
+    duration: 3,
+    active: true,
+    createdAt: "2026-02-01",
+    updatedAt: "2026-06-01",
+  },
+];
+
+export const packagePurchases: PackagePurchase[] = [
+  {
+    id: "pur1",
+    packageId: "pkg1",
+    operatorId: "op1",
+    months: 3,
+    totalPrice: 3000000,
+    discountAmount: 200000,
+    voucherCode: "PKG100K",
+    paymentMethod: "wallet",
+    status: "completed",
+    purchasedAt: "2026-04-01",
+    expiryAt: "2026-07-01",
+  },
+  {
+    id: "pur2",
+    packageId: "pkg2",
+    operatorId: "op1",
+    months: 6,
+    totalPrice: 18000000,
+    discountAmount: 500000,
+    voucherCode: "SUMMER20",
+    paymentMethod: "qr_code",
+    status: "completed",
+    purchasedAt: "2026-05-15",
+    expiryAt: "2026-11-15",
+  },
+];
+
+export const operatorSubscriptions: OperatorSubscription[] = [
+  {
+    operatorId: "op1",
+    currentPackageId: "pkg2",
+    expiryDate: "2026-11-15",
+    remainingDays: 153,
+    totalVehiclesUsed: 18,
+    totalRoutesUsed: 8,
+    status: "active",
+  },
+];
+
+export const policies: Policy[] = [
+  {
+    id: "pol1",
+    title: "Terms of Service for Operators",
+    description: "General terms and conditions for operator partners",
+    content:
+      "1. Operators must comply with all local regulations.\n2. Service level agreements and performance standards apply.\n3. Revenue sharing model is 85% for operators, 15% for platform.",
+    policyType: "for_operator",
+    category: "Terms",
+    version: 2,
+    active: true,
+    createdBy: "admin",
+    createdAt: "2026-01-01",
+    updatedAt: "2026-06-01",
+  },
+  {
+    id: "pol2",
+    title: "Cancellation Policy for Operators",
+    description: "Cancellation and refund policy for operator cancellations",
+    content:
+      "1. Free cancellation up to 2 hours before trip.\n2. 50% refund if cancelled 1-2 hours before.\n3. No refund if cancelled less than 1 hour before.",
+    policyType: "for_operator",
+    category: "Cancellation",
+    version: 1,
+    active: true,
+    createdBy: "admin",
+    createdAt: "2026-02-15",
+    updatedAt: "2026-06-01",
+  },
+  {
+    id: "pol3",
+    title: "Privacy Policy",
+    description: "How we collect and use user data",
+    content:
+      "We collect user data for service improvement and personalization. Your data is protected by industry-standard encryption. We do not share your data with third parties without consent.",
+    policyType: "for_user",
+    category: "Privacy",
+    version: 3,
+    active: true,
+    createdBy: "admin",
+    createdAt: "2026-01-01",
+    updatedAt: "2026-05-20",
+  },
+  {
+    id: "pol4",
+    title: "Safety Guidelines",
+    description: "User safety and security guidelines",
+    content:
+      "1. Share trip details with trusted contacts.\n2. Meet drivers in public, well-lit areas.\n3. Report unsafe behavior immediately.\n4. Always wear seatbelt and follow traffic rules.",
+    policyType: "for_user",
+    category: "Safety",
+    version: 2,
+    active: true,
+    createdBy: "admin",
+    createdAt: "2026-03-01",
+    updatedAt: "2026-06-01",
+  },
+];
+
+export const operatorPolicies: OperatorPolicy[] = [
+  {
+    id: "oppol1",
+    title: "Driver Code of Conduct",
+    description: "Standard guidelines for our drivers",
+    content:
+      "1. Professional behavior at all times.\n2. Vehicle must be clean and well-maintained.\n3. Arrive 5 minutes early for pickups.\n4. Treat passengers with respect and courtesy.",
+    category: "Conduct",
+    operatorId: "op1",
+    version: 1,
+    active: true,
+    createdAt: "2026-04-01",
+    updatedAt: "2026-06-01",
+  },
+  {
+    id: "oppol2",
+    title: "Vehicle Maintenance Schedule",
+    description: "Required maintenance for fleet vehicles",
+    content:
+      "1. Weekly inspections for all vehicles.\n2. Monthly oil changes.\n3. Quarterly brake and tire checks.\n4. Annual comprehensive inspection required.",
+    category: "Maintenance",
+    operatorId: "op1",
+    version: 1,
+    active: true,
+    createdAt: "2026-05-01",
+    updatedAt: "2026-06-01",
+  },
 ];
 
 export const monthlyRevenue = [
