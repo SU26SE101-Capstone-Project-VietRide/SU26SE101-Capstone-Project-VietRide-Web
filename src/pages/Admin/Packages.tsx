@@ -2,9 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiPlus, FiBox, FiEdit2, FiTrash2 } from "react-icons/fi";
 import Modal from "../../components/Modal";
-import { packages as mockPackages } from "../../data/mockData";
-
-type Package = any;
+import { packages as mockPackages, type Package } from "../../data/mockData";
 
 function formatNumber(n: number) {
   return n.toLocaleString();

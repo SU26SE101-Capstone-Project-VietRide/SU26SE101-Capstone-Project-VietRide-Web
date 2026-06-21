@@ -11,9 +11,8 @@ import {
   packages as mockPackages,
   operatorSubscriptions,
   packagePurchases,
+  type Package,
 } from "../../../data/mockData";
-
-type Package = any;
 
 function formatNumber(n: number) {
   return n.toLocaleString();
@@ -316,7 +315,7 @@ export default function ManagerPackages() {
       )}
 
       <Modal
-        isOpen={purchaseOpen}
+        open={purchaseOpen}
         onClose={() => setPurchaseOpen(false)}
         title={t("packages.purchaseTitle", {
           name: selectedPackage?.name || "",

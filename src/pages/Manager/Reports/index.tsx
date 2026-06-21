@@ -202,7 +202,9 @@ export default function ManagerReports() {
                 border: "1px solid #e5e7eb",
                 borderRadius: "8px",
               }}
-              formatter={(value: number) => value}
+              formatter={(value) =>
+                typeof value === "number" ? value : (value ?? "")
+              }
             />
             <Legend />
             <Bar

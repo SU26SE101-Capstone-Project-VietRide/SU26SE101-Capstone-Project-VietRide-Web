@@ -28,6 +28,7 @@ export type Parcel = {
   sender: string;
   senderContact: string;
   recipient: string;
+  recipientContact?: string;
   route: string;
   weightKg: number;
   fee: number;
@@ -48,6 +49,7 @@ export type User = {
   email: string;
   role: "admin" | "manager" | "operator" | "customer";
   active: boolean;
+  createdAt: string;
 };
 
 export type VoucherType = "package" | "event" | "operator";
@@ -414,6 +416,7 @@ export const parcels: Parcel[] = [
     sender: "Cty Minh Phát",
     senderContact: "Anh Tuấn",
     recipient: "Lê Văn Hùng",
+    recipientContact: "0987 654 321",
     route: "HCM → Đà Lạt",
     weightKg: 12,
     fee: 120000,
@@ -425,6 +428,7 @@ export const parcels: Parcel[] = [
     sender: "Shop Lan Chi",
     senderContact: "Chị Lan",
     recipient: "Nguyễn Văn Em",
+    recipientContact: "0912 345 678",
     route: "HCM → Nha Trang",
     weightKg: 5,
     fee: 50000,
@@ -437,6 +441,7 @@ export const parcels: Parcel[] = [
     sender: "Kho Tổng HCM",
     senderContact: "Mr. Hùng",
     recipient: "CTy ABC",
+    recipientContact: "0909 888 777",
     route: "HCM → Cần Thơ",
     weightKg: 45,
     fee: 180000,
@@ -448,6 +453,7 @@ export const parcels: Parcel[] = [
     sender: "Điện máy Xanh",
     senderContact: "Hotline",
     recipient: "Trần Thị B",
+    recipientContact: "0933 222 111",
     route: "HCM → Vũng Tàu",
     weightKg: 8,
     fee: 80000,
@@ -459,6 +465,7 @@ export const parcels: Parcel[] = [
     sender: "Fashion House",
     senderContact: "Ms. Mai",
     recipient: "Boutique Sapa",
+    recipientContact: "0977 555 444",
     route: "HN → Sapa",
     weightKg: 3,
     fee: 60000,
@@ -684,6 +691,7 @@ export const users: User[] = [
     email: "admin@vietride.com",
     role: "admin",
     active: true,
+    createdAt: "2026-01-01",
   },
   {
     id: "u2",
@@ -691,6 +699,7 @@ export const users: User[] = [
     email: "manager@vietride.com",
     role: "manager",
     active: true,
+    createdAt: "2026-02-15",
   },
   {
     id: "u3",
@@ -698,6 +707,7 @@ export const users: User[] = [
     email: "op1@vietride.com",
     role: "operator",
     active: true,
+    createdAt: "2026-03-10",
   },
 ];
 

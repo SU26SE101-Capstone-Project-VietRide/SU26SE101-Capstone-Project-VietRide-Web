@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { Vehicle, Seat, VehicleType, DragState } from "../types";
+import type {
+  Vehicle,
+  Seat,
+  VehicleType,
+  DragState,
+  VehicleLayout,
+} from "../types";
 
 interface VehicleStoreState {
   currentVehicle: Vehicle | null;
@@ -159,7 +165,6 @@ export const useVehicleStore = create<VehicleStoreState>((set, get) => ({
     const startX = 50;
     const startY = 50;
 
-    let seatCounter = 1;
     const labels = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
     for (let r = 0; r < rows; r++) {
@@ -177,7 +182,6 @@ export const useVehicleStore = create<VehicleStoreState>((set, get) => ({
           height: seatHeight,
         };
         newSeats.push(seat);
-        seatCounter++;
       }
     }
 
@@ -227,12 +231,12 @@ export const useVehicleStore = create<VehicleStoreState>((set, get) => ({
 
   loadLayout: (json) => {
     try {
-      const layout = JSON.parse(json);
+      const layout = JSON.parse(json) as VehicleLayout;
       const { currentVehicle } = get();
       if (!currentVehicle) return;
 
-      const seats: Seat[] = layout.seats.map((s: any) => ({
-        ...s,
+      const seats: Seat[] = layout.seats.map((seat) => ({
+        ...seat,
         width: 60,
         height: 60,
         enabled: true,

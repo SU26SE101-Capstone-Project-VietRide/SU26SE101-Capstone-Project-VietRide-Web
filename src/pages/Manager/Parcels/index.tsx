@@ -563,13 +563,13 @@ export default function ParcelsList() {
                 <div>
                   <p className="text-xs text-gray-500">{tc("name")}</p>
                   <p className="font-semibold text-gray-900">
-                    {selectedParcel.recipientName}
+                    {selectedParcel.recipient}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">{t("parcels.contact")}</p>
                   <p className="font-semibold text-gray-900">
-                    {selectedParcel.recipientContact}
+                    {selectedParcel.recipientContact ?? "--"}
                   </p>
                 </div>
               </div>
@@ -646,7 +646,7 @@ export default function ParcelsList() {
               <p className="text-sm text-blue-700 mt-1">
                 {t("parcels.recipientLabel")}{" "}
                 <span className="font-semibold">
-                  {selectedParcel.recipientName}
+                  {selectedParcel.recipient}
                 </span>
               </p>
             </div>

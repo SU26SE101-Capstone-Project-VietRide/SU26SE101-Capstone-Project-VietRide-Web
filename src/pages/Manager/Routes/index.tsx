@@ -9,7 +9,7 @@ import {
   FiTrash2,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
-import { routeCards } from "../../../data/mockData";
+import { routeCards, type RouteCard } from "../../../data/mockData";
 
 const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 
@@ -18,7 +18,7 @@ export default function RoutesPage() {
   const { t: tc } = useTranslation("common");
   const [openConfig, setOpenConfig] = useState(false);
   const [openSchedule, setOpenSchedule] = useState(false);
-  const [selectedRoute, setSelectedRoute] = useState<any>(null);
+  const [selectedRoute, setSelectedRoute] = useState<RouteCard | null>(null);
 
   return (
     <div className="space-y-6">

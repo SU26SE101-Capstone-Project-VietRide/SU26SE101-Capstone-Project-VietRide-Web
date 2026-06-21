@@ -23,6 +23,13 @@ const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
 type OperatorStatus = "PENDING" | "APPROVED" | "SUSPENDED" | "REJECTED";
 
+const OPERATOR_STATUSES: OperatorStatus[] = [
+  "APPROVED",
+  "PENDING",
+  "SUSPENDED",
+  "REJECTED",
+];
+
 export default function Operators() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
@@ -39,15 +46,9 @@ export default function Operators() {
   >(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  const operatorsWithStatus = mockOperators.map((op) => ({
+  const operatorsWithStatus = mockOperators.map((op, idx) => ({
     ...op,
-    status: (Math.random() > 0.7
-      ? "PENDING"
-      : Math.random() > 0.8
-        ? "REJECTED"
-        : Math.random() > 0.9
-          ? "SUSPENDED"
-          : "APPROVED") as OperatorStatus,
+    status: OPERATOR_STATUSES[idx % OPERATOR_STATUSES.length],
   }));
 
   const filtered = operatorsWithStatus.filter((o) => {

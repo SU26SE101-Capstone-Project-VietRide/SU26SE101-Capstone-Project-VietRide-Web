@@ -102,7 +102,7 @@ export const Canvas2D: React.FC = () => {
 
     // Find clicked seat
     let clickedSeat: Seat | null = null;
-    for (let seat of currentVehicle.seats) {
+    for (const seat of currentVehicle.seats) {
       if (
         x >= seat.x &&
         x <= seat.x + (seat.width || SEAT_SIZE) &&
