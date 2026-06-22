@@ -14,6 +14,8 @@ Last updated: 2026-06-21
 - Initialized CodeGraph for this workspace.
 - Indexed current source code.
 - Added `npm run typecheck`.
+- Added Vitest + React Testing Library test setup.
+- Added smoke tests for shared `Modal` and `vehicleStore`.
 - Brought baseline validation to green.
 
 ## CodeGraph Status
@@ -21,9 +23,9 @@ Last updated: 2026-06-21
 Current status:
 
 ```txt
-Files: 49
-Nodes: 803
-Edges: 1,381
+Files: 53
+Nodes: 821
+Edges: 1,480
 DB Size: 1.90 MB
 Backend: node:sqlite - built-in (full WAL)
 Status: Index is up to date
@@ -72,11 +74,10 @@ React + Vite project's local conventions.
 
 ## Recommended Next Setup Phase
 
-1. Add Vitest + React Testing Library when ready for unit/component tests.
-2. Add Storybook when shared components under `src/components/` become stable.
-3. Add Playwright smoke tests for login, dashboard navigation, and
+1. Add Storybook when shared components under `src/components/` become stable.
+2. Add Playwright smoke tests for login, dashboard navigation, and
    vehicle-builder flows.
-4. Add MSW only when real API integration begins.
+3. Add MSW only when real API integration begins.
 
 ## Baseline Validation
 
@@ -85,6 +86,7 @@ Last verified:
 ```bash
 npm run typecheck
 npm run lint
+npm run test
 npm run build
 ```
 

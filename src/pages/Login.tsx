@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import { getHomePathForRole, login } from "../auth";
 import logo from "../assets/Login/logo.svg";
 import login_1 from "../assets/Login/login_1.png";
 import login_2 from "../assets/Login/login_2.png";
@@ -24,6 +25,7 @@ const HERO_SLIDE_SRC = [login_1, login_2, login_3, login_4, login_5];
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation("login");
   const { t: tc } = useTranslation("common");
   const [email, setEmail] = useState("");
@@ -34,6 +36,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
+  const registered = isRecord(location.state) && location.state.registered === true;
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -70,25 +73,14 @@ export default function Login() {
         return;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      const goAdmin = email.toLowerCase().includes("admin");
-      if (goAdmin) {
-        localStorage.setItem("user", JSON.stringify({ email, role: "admin" }));
-        navigate("/admin/dashboard");
-      } else {
-        localStorage.setItem(
-          "user",
-          JSON.stringify({ email, role: "manager" }),
-        );
-        navigate("/manager/dashboard");
-      }
+      const session = await login({ email, password });
+      navigate(getHomePathForRole(session.user.role), { replace: true });
 
       if (rememberMe) {
         localStorage.setItem("rememberEmail", email);
       }
-    } catch {
-      setError(t("errors.failed"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("errors.failed"));
     } finally {
       setLoading(false);
     }
@@ -125,6 +117,14 @@ export default function Login() {
                   role="alert"
                 >
                   {error}
+                </div>
+              )}
+              {registered && !error && (
+                <div
+                  className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+                  role="status"
+                >
+                  {t("registerSuccess")}
                 </div>
               )}
 
@@ -220,12 +220,12 @@ export default function Login() {
 
               <p className="mt-8 text-center text-sm text-gray-500">
                 {t("noAccount")}{" "}
-                <a
-                  href="#"
+                <Link
+                  to="/register"
                   className="font-semibold text-vr-700 underline-offset-2 hover:underline"
                 >
                   {t("register")}
-                </a>
+                </Link>
               </p>
             </div>
           </div>
@@ -259,4 +259,8 @@ export default function Login() {
       </div>
     </div>
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

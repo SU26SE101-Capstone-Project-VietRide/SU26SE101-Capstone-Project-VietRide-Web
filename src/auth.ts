@@ -1,0 +1,219 @@
+export type AuthRole = "admin" | "manager";
+
+export type AuthUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  phone: string;
+  role: AuthRole;
+  operatorId?: string;
+  status?: string;
+};
+
+type LoginRequest = {
+  email: string;
+  password: string;
+};
+
+export type RegisterRequest = LoginRequest & {
+  displayName: string;
+  phone: string;
+};
+
+type LoginData = {
+  accessToken: string;
+  refreshToken: string;
+  expiresInSeconds: number;
+  user: AuthUser;
+};
+
+type ApiEnvelope<T> = {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: T;
+};
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const AUTH_STORAGE_KEY = "auth";
+const LEGACY_USER_KEY = "user";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function normalizeRole(value: unknown): AuthRole | null {
+  if (value === "admin" || value === "manager") {
+    return value;
+  }
+
+  return null;
+}
+
+function parseUser(value: unknown): AuthUser | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const role = normalizeRole(value.role);
+  if (!role) {
+    return null;
+  }
+
+  return {
+    id: asString(value.id),
+    email: asString(value.email),
+    displayName: asString(value.displayName),
+    phone: asString(value.phone),
+    role,
+    operatorId: asString(value.operatorId) || undefined,
+    status: asString(value.status) || undefined,
+  };
+}
+
+function parseLoginData(value: unknown): LoginData | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const user = parseUser(value.user);
+  if (!user) {
+    return null;
+  }
+
+  return {
+    accessToken: asString(value.accessToken),
+    refreshToken: asString(value.refreshToken),
+    expiresInSeconds:
+      typeof value.expiresInSeconds === "number" ? value.expiresInSeconds : 0,
+    user,
+  };
+}
+
+async function parseJsonResponse(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+async function postJson<TResponse>(
+  path: string,
+  body: unknown,
+  parseData: (value: unknown) => TResponse | null,
+  token?: string,
+): Promise<ApiEnvelope<TResponse>> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const payload = await parseJsonResponse(response);
+  if (!isRecord(payload)) {
+    throw new Error("Invalid server response");
+  }
+
+  const data = parseData(payload.data);
+  const message = asString(payload.message);
+
+  if (!response.ok || !data) {
+    throw new Error(message || "Request failed");
+  }
+
+  return {
+    success: payload.success === true,
+    statusCode:
+      typeof payload.statusCode === "number"
+        ? payload.statusCode
+        : response.status,
+    message,
+    data,
+  };
+}
+
+export function getAuthSession(): LoginData | null {
+  const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return parseLoginData(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export function getAuthUser(): AuthUser | null {
+  return getAuthSession()?.user ?? null;
+}
+
+export function getHomePathForRole(role: AuthRole): string {
+  return role === "admin" ? "/admin/dashboard" : "/manager/dashboard";
+}
+
+export function saveAuthSession(session: LoginData): void {
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  localStorage.setItem(LEGACY_USER_KEY, JSON.stringify(session.user));
+}
+
+export function clearAuthSession(): void {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  localStorage.removeItem(LEGACY_USER_KEY);
+}
+
+export async function login(request: LoginRequest): Promise<LoginData> {
+  const response = await postJson("/v1/auth/login", request, parseLoginData);
+  saveAuthSession(response.data);
+  return response.data;
+}
+
+export async function register(request: RegisterRequest): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/v1/auth/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  const payload = await parseJsonResponse(response);
+  const message = isRecord(payload) ? asString(payload.message) : "";
+
+  if (!response.ok) {
+    throw new Error(message || "Register failed");
+  }
+}
+
+export async function logout(): Promise<void> {
+  const session = getAuthSession();
+
+  try {
+    if (session?.refreshToken) {
+      await fetch(`${API_BASE_URL}/v1/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      });
+    }
+  } finally {
+    clearAuthSession();
+  }
+}

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FiMenu, FiBell, FiUser, FiLogOut, FiSearch } from "react-icons/fi";
 import LanguageSwitcher from "./LanguageSwitcher";
+import { getAuthUser, logout } from "../auth";
 
 type TopbarProps = {
   onMenuToggle: () => void;
@@ -16,14 +17,21 @@ export default function Topbar({
   unreadNotifications = 0,
 }: TopbarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useTranslation("common");
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
   const isAdmin = location.pathname.startsWith("/admin");
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
-  const logoutPath = "/login";
-  const displayName = userName ?? t("topbar.defaultUserName");
+  const authUser = getAuthUser();
+  const displayName = authUser?.displayName || userName || t("topbar.defaultUserName");
+
+  const handleLogout = async () => {
+    await logout();
+    setShowProfile(false);
+    navigate("/login", { replace: true });
+  };
 
   return (
     <header className="sticky top-0 bg-white border-b border-gray-200 z-30">
@@ -105,7 +113,9 @@ export default function Topbar({
               <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
                 <div className="p-4 border-b border-gray-200">
                   <p className="font-semibold text-gray-900">{t("account")}</p>
-                  <p className="text-xs text-gray-500">manager@vietride.vn</p>
+                  <p className="text-xs text-gray-500">
+                    {authUser?.email || "manager@vietride.vn"}
+                  </p>
                 </div>
                 <div className="space-y-1 p-2">
                   <Link
@@ -121,13 +131,13 @@ export default function Topbar({
                   >
                     {t("settings")}
                   </button>
-                  <Link
-                    to={logoutPath}
-                    onClick={() => setShowProfile(false)}
+                  <button
+                    type="button"
+                    onClick={handleLogout}
                     className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100 rounded transition flex items-center gap-2 block"
                   >
                     <FiLogOut size={16} /> {t("logout")}
-                  </Link>
+                  </button>
                 </div>
               </div>
             )}

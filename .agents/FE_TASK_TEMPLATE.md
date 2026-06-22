@@ -25,7 +25,9 @@ Files, modules, flows, or refactors that are explicitly out of scope.
 Default:
 
 ```bash
+npm run typecheck
 npm run lint
+npm run test
 npm run build
 ```
 

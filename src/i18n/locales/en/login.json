@@ -14,11 +14,24 @@
   "submitting": "Processing…",
   "noAccount": "Don't have an account?",
   "register": "Register",
+  "registerTitle": "Create account",
+  "registerSubtitle": "Register your VietRide account to start managing routes, bookings and operations.",
+  "registerHeroTitle": "Start your operations workspace in minutes.",
+  "registerHeroSubtitle": "Create a manager account, sign in, then VietRide will route you to the correct dashboard for your role.",
+  "registerSubmit": "Create account",
+  "registerSuccess": "Account created successfully. Please sign in.",
+  "displayName": "Display name",
+  "displayNamePlaceholder": "Nguyen Van A",
+  "phone": "Phone",
+  "phonePlaceholder": "0901234567",
+  "hasAccount": "Already have an account?",
+  "backToLogin": "Back to sign in",
   "errors": {
     "required": "Please fill in all required fields",
     "invalidEmail": "Invalid email address",
     "passwordMin": "Password must be at least 6 characters",
-    "failed": "Sign in failed, please try again"
+    "failed": "Sign in failed, please try again",
+    "registerFailed": "Registration failed, please try again"
   },
   "hero": {
     "bus": "Bus",

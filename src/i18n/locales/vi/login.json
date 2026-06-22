@@ -14,11 +14,24 @@
   "submitting": "Đang xử lý…",
   "noAccount": "Chưa có tài khoản?",
   "register": "Đăng ký",
+  "registerTitle": "Tạo tài khoản",
+  "registerSubtitle": "Đăng ký tài khoản VietRide để bắt đầu quản lý tuyến, booking và vận hành.",
+  "registerHeroTitle": "Khởi tạo không gian vận hành chỉ trong vài phút.",
+  "registerHeroSubtitle": "Tạo tài khoản quản lý, đăng nhập, sau đó VietRide sẽ đưa bạn đến đúng bảng điều khiển theo vai trò.",
+  "registerSubmit": "Tạo tài khoản",
+  "registerSuccess": "Tạo tài khoản thành công. Vui lòng đăng nhập.",
+  "displayName": "Tên hiển thị",
+  "displayNamePlaceholder": "Nguyễn Văn A",
+  "phone": "Số điện thoại",
+  "phonePlaceholder": "0901234567",
+  "hasAccount": "Đã có tài khoản?",
+  "backToLogin": "Quay lại đăng nhập",
   "errors": {
     "required": "Vui lòng điền đầy đủ thông tin",
     "invalidEmail": "Email không hợp lệ",
     "passwordMin": "Mật khẩu phải có ít nhất 6 ký tự",
-    "failed": "Đăng nhập thất bại, vui lòng thử lại"
+    "failed": "Đăng nhập thất bại, vui lòng thử lại",
+    "registerFailed": "Đăng ký thất bại, vui lòng thử lại"
   },
   "hero": {
     "bus": "Xe buýt",

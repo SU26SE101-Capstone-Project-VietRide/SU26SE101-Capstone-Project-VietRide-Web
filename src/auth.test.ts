@@ -1,0 +1,81 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  clearAuthSession,
+  getAuthUser,
+  getHomePathForRole,
+  login,
+  logout,
+} from "./auth";
+
+describe("auth", () => {
+  beforeEach(() => {
+    clearAuthSession();
+    vi.restoreAllMocks();
+  });
+
+  it("stores login session from the API response", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          statusCode: 0,
+          message: "OK",
+          data: {
+            accessToken: "access-token",
+            refreshToken: "refresh-token",
+            expiresInSeconds: 3600,
+            user: {
+              id: "user-1",
+              email: "manager@vietride.vn",
+              displayName: "Manager",
+              phone: "0901234567",
+              role: "manager",
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const session = await login({
+      email: "manager@vietride.vn",
+      password: "secret123",
+    });
+
+    expect(session.user.role).toBe("manager");
+    expect(getAuthUser()?.email).toBe("manager@vietride.vn");
+    expect(getHomePathForRole(session.user.role)).toBe("/manager/dashboard");
+  });
+
+  it("calls logout with refresh token and clears the session", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          phone: "0901234567",
+          role: "admin",
+        },
+      }),
+    );
+
+    await logout();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/v1/auth/logout",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ refreshToken: "refresh-token" }),
+      }),
+    );
+    expect(getAuthUser()).toBeNull();
+  });
+});

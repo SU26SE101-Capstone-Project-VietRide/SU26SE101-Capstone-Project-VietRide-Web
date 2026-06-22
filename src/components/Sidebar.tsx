@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   FiLayout,
@@ -17,6 +17,7 @@ import {
 } from "react-icons/fi";
 import logo from "../assets/login/logo.svg";
 import { AiOutlineLogout } from "react-icons/ai";
+import { logout } from "../auth";
 
 type MenuItem = {
   labelKey: string;
@@ -113,10 +114,17 @@ const iconWrapClass =
 
 export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useTranslation(["nav", "common"]);
   const menus = (role === "manager" ? managerMenuConfig : adminMenuConfig).filter(
     (s) => s.items.length > 0,
   );
+
+  const handleLogout = async () => {
+    await logout();
+    onClose();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <>
@@ -205,6 +213,7 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
         <div className="shrink-0 border-t border-gray-100 px-3 py-4">
           <button
             type="button"
+            onClick={handleLogout}
             className="w-full flex items-center rounded-lg cursor-pointer px-3 py-2.5 text-left text-[13px] font-medium text-rose-500 transition hover:bg-rose-50 hover:text-rose-600"
           >
             <AiOutlineLogout className="mr-2" /> {t("common:logout")}

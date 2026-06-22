@@ -37,8 +37,10 @@ import AdminReports from "./pages/Admin/Reports";
 import Payouts from "./pages/Admin/Payouts";
 import AdminPolicies from "./pages/Admin/Policies";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import ManagerDashboard from "./pages/Manager/Dashboard";
 import AdminDashboard from "./pages/Admin/Dashboard";
+import PrivateRoute from "./components/PrivateRoute";
 
 export default function App() {
   return (
@@ -46,41 +48,46 @@ export default function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
         {/* Manager routes */}
-        <Route path="/manager" element={<ManagerLayout />}>
-          <Route path="dashboard" element={<ManagerDashboard />} />
-          <Route path="trips" element={<TripsList />} />
-          <Route path="route-eta" element={<RouteETA />} />
-          <Route path="routes" element={<RoutesList />} />
-          <Route path="vehicles" element={<VehiclesList />} />
-          <Route path="vehicle-builder" element={<VehicleBuilderPage />} />
-          <Route path="staff" element={<StaffList />} />
-          <Route path="bookings" element={<BookingsList />} />
-          <Route path="parcels" element={<ParcelsList />} />
-          <Route path="vouchers" element={<ManagerVouchers />} />
-          <Route path="packages" element={<ManagerPackages />} />
-          <Route path="policies" element={<ManagerPolicies />} />
-          <Route path="gps" element={<GPSTracking />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="dispatch" element={<DispatchPanel />} />
-          <Route path="wallet" element={<ManagerWallet />} />
-          <Route path="settings" element={<ManagerSettings />} />
-          <Route path="profile" element={<Profile />} />
+        <Route element={<PrivateRoute allowedRoles={["manager"]} />}>
+          <Route path="/manager" element={<ManagerLayout />}>
+            <Route path="dashboard" element={<ManagerDashboard />} />
+            <Route path="trips" element={<TripsList />} />
+            <Route path="route-eta" element={<RouteETA />} />
+            <Route path="routes" element={<RoutesList />} />
+            <Route path="vehicles" element={<VehiclesList />} />
+            <Route path="vehicle-builder" element={<VehicleBuilderPage />} />
+            <Route path="staff" element={<StaffList />} />
+            <Route path="bookings" element={<BookingsList />} />
+            <Route path="parcels" element={<ParcelsList />} />
+            <Route path="vouchers" element={<ManagerVouchers />} />
+            <Route path="packages" element={<ManagerPackages />} />
+            <Route path="policies" element={<ManagerPolicies />} />
+            <Route path="gps" element={<GPSTracking />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="dispatch" element={<DispatchPanel />} />
+            <Route path="wallet" element={<ManagerWallet />} />
+            <Route path="settings" element={<ManagerSettings />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
         </Route>
 
         {/* Admin routes */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="operators" element={<Operators />} />
-          <Route path="users" element={<Users />} />
-          <Route path="vouchers" element={<Vouchers />} />
-          <Route path="packages" element={<Packages />} />
-          <Route path="revenue" element={<Revenue />} />
-          <Route path="reports" element={<AdminReports />} />
-          <Route path="payouts" element={<Payouts />} />
-          <Route path="policies" element={<AdminPolicies />} />
-          <Route path="profile" element={<Profile />} />
+        <Route element={<PrivateRoute allowedRoles={["admin"]} />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="operators" element={<Operators />} />
+            <Route path="users" element={<Users />} />
+            <Route path="vouchers" element={<Vouchers />} />
+            <Route path="packages" element={<Packages />} />
+            <Route path="revenue" element={<Revenue />} />
+            <Route path="reports" element={<AdminReports />} />
+            <Route path="payouts" element={<Payouts />} />
+            <Route path="policies" element={<AdminPolicies />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
         </Route>
 
         {/* Redirects */}
