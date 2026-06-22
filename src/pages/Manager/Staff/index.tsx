@@ -1,60 +1,122 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FiDownload,
-  FiFilter,
-  FiList,
-  FiPlus,
-  FiSearch,
-  FiUser,
-} from "react-icons/fi";
+import { FiDownload, FiFilter, FiList, FiPlus, FiSearch, FiUser } from "react-icons/fi";
 import Modal from "../../../components/Modal";
-import { staffMembers, type StaffMember } from "../../../data/mockData";
+import {
+  createOperatorUser,
+  getOperatorUsers,
+  resendInitialPassword,
+  type AdminUserRole,
+  type CreateOperatorUserRequest,
+  type OperatorUser,
+} from "../../../api/vietride";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
+
+const emptyUserForm: CreateOperatorUserRequest = {
+  email: "",
+  displayName: "",
+  role: "OPERATOR_STAFF",
+};
+
+function isActiveStatus(status: string) {
+  return ["ACTIVE", "APPROVED", "active"].includes(status);
+}
 
 export default function StaffPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [search, setSearch] = useState("");
   const [openAdd, setOpenAdd] = useState(false);
-  const [openEdit, setOpenEdit] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+  const [users, setUsers] = useState<OperatorUser[]>([]);
+  const [userForm, setUserForm] =
+    useState<CreateOperatorUserRequest>(emptyUserForm);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsers() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const result = await getOperatorUsers({
+          page: 1,
+          pageSize: 20,
+          search,
+        });
+
+        if (!cancelled) {
+          setUsers(result.items);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load staff");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [search]);
 
   const filtered = useMemo(
     () =>
-      staffMembers.filter(
-        (s) =>
-          s.name.toLowerCase().includes(search.toLowerCase()) ||
-          s.phone.replace(/\s/g, "").includes(search.replace(/\s/g, "")),
+      users.filter(
+        (user) =>
+          user.displayName.toLowerCase().includes(search.toLowerCase()) ||
+          user.email.toLowerCase().includes(search.toLowerCase()),
       ),
-    [search],
+    [search, users],
   );
 
-  const totalStaff = 86;
+  function roleLabel(role: AdminUserRole) {
+    const labels: Record<string, string> = {
+      DRIVER: t("staff.driver"),
+      ASSISTANT: t("staff.dispatcher"),
+      OPERATOR_STAFF: t("staff.seller"),
+      OPERATOR_ADMIN: t("staff.manager"),
+      manager: t("staff.manager"),
+      operator: t("staff.seller"),
+    };
 
-  function roleLabel(r: StaffMember["role"]) {
-    if (r === "driver") return t("staff.driver");
-    if (r === "dispatcher") return t("staff.dispatcher");
-    return t("staff.seller");
+    return labels[role] ?? role;
   }
 
-  function statusBadge(s: StaffMember["status"]) {
-    if (s === "on_duty")
-      return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          {t("staff.onDuty")}
-        </span>
-      );
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
-        <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-        {t("staff.onLeave")}
-      </span>
-    );
+  async function reloadUsers() {
+    const result = await getOperatorUsers({
+      page: 1,
+      pageSize: 20,
+      search,
+    });
+    setUsers(result.items);
+  }
+
+  async function handleCreateUser() {
+    await createOperatorUser(userForm);
+    await reloadUsers();
+    setUserForm(emptyUserForm);
+    setOpenAdd(false);
+  }
+
+  async function handleResendInitialPassword(userId: string) {
+    await resendInitialPassword(userId);
+    alert("Initial password email resent.");
+  }
+
+  function updateUserForm(key: keyof CreateOperatorUserRequest, value: string) {
+    setUserForm((prev) => ({ ...prev, [key]: value }));
   }
 
   return (
@@ -83,10 +145,9 @@ export default function StaffPage() {
           <div className="flex justify-between">
             <div>
               <p className="text-sm text-gray-500">{t("staff.total")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">{totalStaff}</p>
-              <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                ↗ 2.4%
-              </span>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {users.length}
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
               <FiUser size={20} />
@@ -94,44 +155,22 @@ export default function StaffPage() {
           </div>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500">{t("staff.onDuty")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">54</p>
-              <p className="mt-2 text-xs text-gray-500">62.8%</p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">{t("staff.onDuty")}</p>
+          <p className="mt-1 text-3xl font-bold text-gray-900">
+            {users.filter((user) => isActiveStatus(user.status)).length}
+          </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500">{t("staff.drivers")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">42</p>
-              <p className="mt-2 text-xs text-gray-500">
-                {t("staff.fromTotal", { total: totalStaff })}
-              </p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-              <FiUser size={20} />
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">{t("staff.drivers")}</p>
+          <p className="mt-1 text-3xl font-bold text-gray-900">
+            {users.filter((user) => user.role === "DRIVER").length}
+          </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500">{t("staff.needsAction")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">3</p>
-              <p className="mt-2 text-xs text-gray-500">
-                {t("staff.expiringContracts")}
-              </p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-              <FiUser size={20} />
-            </div>
-          </div>
+          <p className="text-sm text-gray-500">{t("staff.needsAction")}</p>
+          <p className="mt-1 text-3xl font-bold text-gray-900">
+            {users.filter((user) => !isActiveStatus(user.status)).length}
+          </p>
         </div>
       </div>
 
@@ -172,25 +211,28 @@ export default function StaffPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-5 py-3">{t("staff.fullName")}</th>
+                <th className="px-5 py-3">{tc("email")}</th>
                 <th className="px-5 py-3">{t("staff.role")}</th>
-                <th className="px-5 py-3">{t("staff.phoneShort")}</th>
-                <th className="px-5 py-3">{t("staff.license")}</th>
-                <th className="px-5 py-3">{t("staff.tripsRun")}</th>
-                <th className="px-5 py-3">{t("staff.rating")}</th>
                 <th className="px-5 py-3">{tc("status")}</th>
                 <th className="px-5 py-3">{tc("actions")}</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((s) => (
+              {filtered.map((user) => (
                 <tr
-                  key={s.id}
+                  key={user.userId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
                   <td className="px-5 py-4">
@@ -199,56 +241,34 @@ export default function StaffPage() {
                         <FiUser size={16} />
                       </div>
                       <span className="font-semibold text-gray-900">
-                        {s.name}
+                        {user.displayName}
                       </span>
                     </div>
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700">
-                    {roleLabel(s.role)}
+                    {user.email}
                   </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">{s.phone}</td>
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    {s.license ?? "—"}
+                  <td className="px-5 py-4 text-sm text-gray-700">
+                    {roleLabel(user.role)}
                   </td>
-                  <td className="px-5 py-4 text-sm font-medium text-gray-900">
-                    {s.trips}
+                  <td className="px-5 py-4">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                        isActiveStatus(user.status)
+                          ? "bg-emerald-50 text-emerald-800"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {user.status}
+                    </span>
                   </td>
-                  <td className="px-5 py-4 text-sm text-gray-800">
-                    <span className="text-amber-500">★</span> {s.rating}
-                  </td>
-                  <td className="px-5 py-4">{statusBadge(s.status)}</td>
-                  <td className="px-5 py-4 text-sm space-x-2">
+                  <td className="px-5 py-4 text-sm">
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedStaff(s);
-                        setOpenEdit(true);
-                      }}
+                      onClick={() => handleResendInitialPassword(user.userId)}
                       className="text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      {tc("edit")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm(t("staff.confirmSuspend"))) {
-                          alert(t("staff.suspendSuccess"));
-                        }
-                      }}
-                      className="text-amber-600 hover:text-amber-700 font-medium"
-                    >
-                      {t("staff.suspend")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm(t("staff.confirmDeleteStaff"))) {
-                          alert(t("staff.deleteSuccess"));
-                        }
-                      }}
-                      className="text-red-600 hover:text-red-700 font-medium"
-                    >
-                      {tc("delete")}
+                      Resend password
                     </button>
                   </td>
                 </tr>
@@ -256,42 +276,17 @@ export default function StaffPage() {
             </tbody>
           </table>
         </div>
+
+        {isLoading && (
+          <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
+            Loading staff...
+          </div>
+        )}
+
         <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-500">
-            {tc("showingItems", { count: filtered.length, total: totalStaff })}
+            {tc("showingItems", { count: filtered.length, total: users.length })}
           </p>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              {tc("previous")}
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-semibold text-slate-900"
-            >
-              1
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              2
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              3
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              {tc("next")}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -313,7 +308,7 @@ export default function StaffPage() {
             </button>
             <button
               type="button"
-              onClick={() => setOpenAdd(false)}
+              onClick={handleCreateUser}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
             >
               {t("staff.createProfile")}
@@ -332,186 +327,43 @@ export default function StaffPage() {
                   {t("staff.fullNameLabel")}{" "}
                   <span className="text-red-500">*</span>
                 </label>
-                <input className={inputClass} placeholder="Nguyễn Văn A" />
-              </div>
-              <div>
-                <label className={labelClass}>{t("staff.birthDate")}</label>
-                <input className={inputClass} type="date" />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("staff.idNumber")} <span className="text-red-500">*</span>
-                </label>
-                <input className={inputClass} placeholder="079..." />
-              </div>
-              <div>
-                <label className={labelClass}>{t("staff.gender")}</label>
-                <select className={inputClass} defaultValue="male">
-                  <option value="male">{t("staff.male")}</option>
-                  <option value="female">{t("staff.female")}</option>
-                </select>
+                <input
+                  className={inputClass}
+                  value={userForm.displayName}
+                  onChange={(e) => updateUserForm("displayName", e.target.value)}
+                  placeholder="Nguyen Van A"
+                />
               </div>
               <div>
                 <label className={labelClass}>
-                  {tc("phone")} <span className="text-red-500">*</span>
+                  {tc("email")} <span className="text-red-500">*</span>
                 </label>
-                <input className={inputClass} placeholder="0901 234 567" />
+                <input
+                  className={inputClass}
+                  type="email"
+                  value={userForm.email}
+                  onChange={(e) => updateUserForm("email", e.target.value)}
+                  placeholder="staff@operator.vn"
+                />
               </div>
-              <div>
-                <label className={labelClass}>{tc("email")}</label>
-                <input className={inputClass} type="email" />
-              </div>
-            </div>
-          </section>
-          <div className="border-t border-gray-100" />
-          <section>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">
-              {t("staff.assignment")}
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
                   {t("staff.role")} <span className="text-red-500">*</span>
                 </label>
-                <select className={inputClass} defaultValue="driver">
-                  <option value="driver">{t("staff.driver")}</option>
-                  <option value="dispatcher">{t("staff.dispatcher")}</option>
-                  <option value="seller">{t("staff.seller")}</option>
+                <select
+                  className={inputClass}
+                  value={userForm.role}
+                  onChange={(e) => updateUserForm("role", e.target.value)}
+                >
+                  <option value="OPERATOR_STAFF">{t("staff.seller")}</option>
+                  <option value="DRIVER">{t("staff.driver")}</option>
+                  <option value="ASSISTANT">{t("staff.dispatcher")}</option>
+                  <option value="OPERATOR_ADMIN">{t("staff.manager")}</option>
                 </select>
-              </div>
-              <div>
-                <label className={labelClass}>{t("staff.shift")}</label>
-                <select className={inputClass} defaultValue="morning">
-                  <option value="morning">{t("staff.morningShift")}</option>
-                  <option value="evening">{t("staff.eveningShift")}</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("staff.licenseClass")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <select className={inputClass} defaultValue="E">
-                  <option>E</option>
-                  <option>D</option>
-                  <option>B2</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("staff.licenseExpiry")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input className={inputClass} type="date" />
-              </div>
-              <div>
-                <label className={labelClass}>{t("staff.baseSalary")}</label>
-                <input className={inputClass} placeholder="12000000" />
-              </div>
-              <div>
-                <label className={labelClass}>{t("staff.startDate")}</label>
-                <input className={inputClass} type="date" />
               </div>
             </div>
           </section>
         </div>
-      </Modal>
-
-      <Modal
-        open={openEdit}
-        onClose={() => setOpenEdit(false)}
-        wide
-        icon={<FiUser size={20} />}
-        title={t("staff.editTitle")}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenEdit(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpenEdit(false);
-                alert(t("staff.updateSuccess"));
-              }}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600"
-            >
-              {t("staff.saveChanges")}
-            </button>
-          </>
-        }
-      >
-        {selectedStaff && (
-          <div className="space-y-6">
-            <section>
-              <h3 className="mb-3 text-sm font-bold text-gray-900">
-                {t("staff.personalInfo")}
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t("staff.fullNameLabel")}</label>
-                  <input className={inputClass} defaultValue={selectedStaff.name} />
-                </div>
-                <div>
-                  <label className={labelClass}>{t("staff.idNumber")}</label>
-                  <input className={inputClass} defaultValue={selectedStaff.id} disabled />
-                </div>
-                <div>
-                  <label className={labelClass}>{tc("phone")}</label>
-                  <input className={inputClass} defaultValue={selectedStaff.phone} />
-                </div>
-                <div>
-                  <label className={labelClass}>{tc("email")}</label>
-                  <input className={inputClass} placeholder="email@example.com" />
-                </div>
-              </div>
-            </section>
-            <div className="border-t border-gray-100" />
-            <section>
-              <h3 className="mb-3 text-sm font-bold text-gray-900">
-                {t("staff.assignment")}
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t("staff.role")}</label>
-                  <select className={inputClass} defaultValue={selectedStaff.role}>
-                    <option value="driver">{t("staff.driver")}</option>
-                    <option value="dispatcher">{t("staff.dispatcher")}</option>
-                    <option value="seller">{t("staff.seller")}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>{tc("status")}</label>
-                  <select className={inputClass} defaultValue={selectedStaff.status}>
-                    <option value="on_duty">{t("staff.onDuty")}</option>
-                    <option value="on_leave">{t("staff.onLeave")}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>{t("staff.license")}</label>
-                  <input className={inputClass} defaultValue={selectedStaff.license || ""} />
-                </div>
-                <div>
-                  <label className={labelClass}>{t("staff.licenseExpiry")}</label>
-                  <input className={inputClass} type="date" />
-                </div>
-              </div>
-            </section>
-            <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-              <p className="text-sm text-blue-800">
-                <span className="font-semibold">{t("staff.statsLabel")}</span>{" "}
-                {t("staff.statsSummary", {
-                  trips: selectedStaff.trips,
-                  rating: selectedStaff.rating,
-                })}
-              </p>
-            </div>
-          </div>
-        )}
       </Modal>
     </div>
   );

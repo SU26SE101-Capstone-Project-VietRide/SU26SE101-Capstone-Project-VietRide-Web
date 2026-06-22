@@ -70,7 +70,7 @@ describe("auth", () => {
     await logout();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/v1/auth/logout",
+      "https://api.vietride.online/v1/auth/logout",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ refreshToken: "refresh-token" }),

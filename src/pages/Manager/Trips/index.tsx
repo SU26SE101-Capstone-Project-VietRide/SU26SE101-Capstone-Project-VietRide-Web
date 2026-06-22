@@ -1,124 +1,180 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  FiTruck,
-  FiChevronLeft,
-  FiChevronRight,
   FiDownload,
   FiFilter,
   FiList,
-  FiMoreVertical,
-  FiPlus,
+  FiLock,
   FiSearch,
+  FiTruck,
+  FiUnlock,
 } from "react-icons/fi";
-import Modal from "../../../components/Modal";
-import { managerTrips, type ManagerTripStatus } from "../../../data/mockData";
+import {
+  bookInternalTripSeats,
+  getInternalTrip,
+  getPublicTrip,
+  getPublicTripSeatMap,
+  lockInternalRoundTripSeats,
+  lockInternalTripSeats,
+  releaseInternalTripSeats,
+  searchPublicTrips,
+  type PublicTrip,
+  type RoundTripSeatLockResult,
+  type SeatLockResult,
+} from "../../../api/vietride";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
-type TripTab = "all" | "running" | "upcoming" | "completed" | "cancelled";
-
-function formatDepart(iso: string) {
-  const d = new Date(iso);
-  const t = d.toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${t} ${day}/${month}`;
+function asJson(value: unknown) {
+  return JSON.stringify(value, null, 2);
 }
 
-function tripStatusBadge(
-  s: ManagerTripStatus,
-  t: (key: string) => string,
-) {
-  const styles: Record<
-    ManagerTripStatus,
-    { className: string; labelKey: string }
-  > = {
-    running: {
-      className: "bg-sky-50 text-sky-800",
-      labelKey: "trips.running",
-    },
-    departed: {
-      className: "bg-vr-50 text-vr-900",
-      labelKey: "trips.departed",
-    },
-    upcoming: {
-      className: "bg-amber-50 text-amber-800",
-      labelKey: "trips.upcoming",
-    },
-    cancelled: {
-      className: "bg-red-50 text-red-800",
-      labelKey: "trips.cancelled",
-    },
-    completed: {
-      className: "bg-emerald-50 text-emerald-800",
-      labelKey: "trips.completed",
-    },
-  };
-  const x = styles[s];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${x.className}`}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {t(x.labelKey)}
-    </span>
-  );
+function splitCsv(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export default function TripsPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<TripTab>("all");
-  const [openCreate, setOpenCreate] = useState(false);
+  const [originStationId, setOriginStationId] = useState("");
+  const [destinationStationId, setDestinationStationId] = useState("");
+  const [departureDate, setDepartureDate] = useState("");
+  const [passengerCount, setPassengerCount] = useState("1");
+  const [allowAlongRoutePickup, setAllowAlongRoutePickup] = useState(false);
+  const [trips, setTrips] = useState<PublicTrip[]>([]);
+  const [selectedTripId, setSelectedTripId] = useState("");
+  const [tripDetail, setTripDetail] = useState<PublicTrip | null>(null);
+  const [seatMapJson, setSeatMapJson] = useState("");
+  const [internalTripJson, setInternalTripJson] = useState("");
+  const [seatNumbers, setSeatNumbers] = useState("");
+  const [holdOwnerId, setHoldOwnerId] = useState("");
+  const [ttlSeconds, setTtlSeconds] = useState("300");
+  const [seatLockToken, setSeatLockToken] = useState("");
+  const [bookingId, setBookingId] = useState("");
+  const [passengerId, setPassengerId] = useState("");
+  const [returnTripId, setReturnTripId] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState("");
+  const [lockResult, setLockResult] = useState<SeatLockResult | null>(null);
+  const [roundTripLockResult, setRoundTripLockResult] =
+    useState<RoundTripSeatLockResult | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const counts = useMemo(() => {
-    const c = {
-      all: managerTrips.length,
-      running: 0,
-      upcoming: 0,
-      completed: 0,
-      cancelled: 0,
-    };
-    for (const trip of managerTrips) {
-      if (trip.status === "running" || trip.status === "departed") c.running++;
-      if (trip.status === "upcoming") c.upcoming++;
-      if (trip.status === "completed") c.completed++;
-      if (trip.status === "cancelled") c.cancelled++;
+  async function runSafely(action: () => Promise<void>) {
+    setError("");
+    setMessage("");
+
+    try {
+      await action();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
     }
-    return c;
-  }, []);
+  }
 
-  const filtered = useMemo(() => {
-    return managerTrips.filter((trip) => {
-      const q = search.toLowerCase();
-      const matchSearch =
-        !q ||
-        trip.code.toLowerCase().includes(q) ||
-        trip.route.toLowerCase().includes(q) ||
-        trip.vehiclePlate.toLowerCase().includes(q);
-      if (!matchSearch) return false;
-      if (tab === "all") return true;
-      if (tab === "running")
-        return trip.status === "running" || trip.status === "departed";
-      return trip.status === tab;
+  async function handleSearchTrips() {
+    await runSafely(async () => {
+      const result = await searchPublicTrips({
+        originStationId,
+        destinationStationId,
+        departureDate,
+        passengerCount: Number(passengerCount),
+        allowAlongRoutePickup,
+      });
+      setTrips(result);
+      setSelectedTripId(result[0]?.tripId || "");
+      setMessage("Trip search completed.");
     });
-  }, [search, tab]);
+  }
 
-  const tabs: { key: TripTab; labelKey: string }[] = [
-    { key: "all", labelKey: "trips.tabAll" },
-    { key: "running", labelKey: "trips.tabRunning" },
-    { key: "upcoming", labelKey: "trips.tabUpcoming" },
-    { key: "completed", labelKey: "trips.tabCompleted" },
-    { key: "cancelled", labelKey: "trips.tabCancelled" },
-  ];
+  async function handleGetTripDetail() {
+    await runSafely(async () => {
+      const detail = await getPublicTrip(selectedTripId);
+      setTripDetail(detail);
+      setMessage("Trip detail loaded.");
+    });
+  }
+
+  async function handleGetSeatMap() {
+    await runSafely(async () => {
+      const seatMap = await getPublicTripSeatMap(selectedTripId);
+      setSeatMapJson(asJson(seatMap));
+      setMessage("Seat map loaded.");
+    });
+  }
+
+  async function handleGetInternalTrip() {
+    await runSafely(async () => {
+      const trip = await getInternalTrip(selectedTripId);
+      setInternalTripJson(asJson(trip));
+      setMessage("Internal trip loaded.");
+    });
+  }
+
+  async function handleLockSeats() {
+    await runSafely(async () => {
+      const result = await lockInternalTripSeats(selectedTripId, {
+        seatNumbers: splitCsv(seatNumbers),
+        holdOwnerId,
+        ttlSeconds: Number(ttlSeconds),
+      });
+      setLockResult(result);
+      setSeatLockToken(result.seatLockToken);
+      setMessage("Seats locked.");
+    });
+  }
+
+  async function handleReleaseSeats() {
+    await runSafely(async () => {
+      await releaseInternalTripSeats(selectedTripId, {
+        seatLockToken,
+        seatNumbers: splitCsv(seatNumbers),
+      });
+      setMessage("Seats released.");
+    });
+  }
+
+  async function handleBookSeats() {
+    await runSafely(async () => {
+      const seatList = splitCsv(seatNumbers);
+      await bookInternalTripSeats(selectedTripId, {
+        seatLockToken,
+        bookingId,
+        passengers: seatList.map((seatNumber, index) => ({
+          passengerId: index === 0 ? passengerId : `${passengerId}-${index + 1}`,
+          seatNumber,
+        })),
+      });
+      setMessage("Seats booked.");
+    });
+  }
+
+  async function handleRoundTripLock() {
+    await runSafely(async () => {
+      const result = await lockInternalRoundTripSeats(
+        {
+          outbound: {
+            tripId: selectedTripId,
+            seatNumbers: splitCsv(seatNumbers),
+          },
+          return: {
+            tripId: returnTripId,
+            seatNumbers: splitCsv(seatNumbers),
+          },
+          holdOwnerId,
+          ttlSeconds: Number(ttlSeconds),
+        },
+        idempotencyKey || undefined,
+      );
+      setRoundTripLockResult(result);
+      setMessage("Round-trip seats locked.");
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -128,333 +184,248 @@ export default function TripsPage() {
             {t("trips.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            {t("trips.subtitle")}
+            Public trip search/detail/seat-map and internal seat operations are wired.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpenCreate(true)}
-          className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
-        >
-          <FiPlus size={18} />
-          {t("trips.create")}
-        </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map(({ key, labelKey }) => (
+      {message && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {message}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Public trip search</h2>
+          <FiSearch className="text-gray-400" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Input label="Origin station ID" value={originStationId} onChange={setOriginStationId} />
+          <Input label="Destination station ID" value={destinationStationId} onChange={setDestinationStationId} />
+          <Input label="Departure date" value={departureDate} onChange={setDepartureDate} type="date" />
+          <Input label="Passenger count" value={passengerCount} onChange={setPassengerCount} type="number" />
+          <label className="flex items-end gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={allowAlongRoutePickup}
+              onChange={(event) => setAllowAlongRoutePickup(event.target.checked)}
+            />
+            Allow along-route pickup
+          </label>
           <button
-            key={key}
             type="button"
-            onClick={() => setTab(key)}
-            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-              tab === key
-                ? "border-gray-300 bg-gray-100 text-gray-900"
-                : "border-transparent bg-white text-gray-600 hover:bg-gray-50"
-            }`}
+            onClick={handleSearchTrips}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
           >
-            {t("trips.tabWithCount", {
-              label: t(labelKey),
-              count: counts[key],
-            })}
+            <FiSearch size={16} />
+            Search trips
           </button>
-        ))}
-      </div>
+        </div>
+      </section>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              className={inputClass + " pl-10"}
-              placeholder={t("trips.searchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          <select
+            className={inputClass + " flex-1"}
+            value={selectedTripId}
+            onChange={(event) => setSelectedTripId(event.target.value)}
+          >
+            <option value="">Select trip</option>
+            {trips.map((trip) => (
+              <option key={trip.tripId} value={trip.tripId}>
+                {trip.tripId} - {trip.status} - {trip.baseFare.toLocaleString("vi-VN")} VND
+              </option>
+            ))}
+          </select>
           <div className="flex flex-wrap gap-2">
+            <ToolbarButton icon={<FiFilter size={16} />} label={tc("filter")} />
+            <ToolbarButton icon={<FiList size={16} />} label={tc("columns")} />
+            <ToolbarButton icon={<FiDownload size={16} />} label={tc("exportCsv")} />
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              onClick={handleGetTripDetail}
+              disabled={!selectedTripId}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-              <FiFilter size={16} />
-              {tc("filter")}
+              Detail
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              onClick={handleGetSeatMap}
+              disabled={!selectedTripId}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-              <FiList size={16} />
-              {tc("columns")}
+              Seat map
             </button>
             <button
               type="button"
-              className="ml-auto inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:ml-0"
+              onClick={handleGetInternalTrip}
+              disabled={!selectedTripId}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-              <FiDownload size={16} />
-              {tc("exportCsv")}
+              Internal trip
             </button>
           </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px]">
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <table className="w-full min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="w-10 px-3 py-3" />
-                <th className="px-4 py-3">{t("trips.tripCode")}</th>
-                <th className="px-4 py-3">{t("trips.route")}</th>
-                <th className="px-4 py-3">{t("trips.departure")}</th>
-                <th className="px-4 py-3">{t("trips.driver")}</th>
-                <th className="px-4 py-3">{t("trips.vehicle")}</th>
-                <th className="px-4 py-3">{t("trips.seats")}</th>
-                <th className="px-4 py-3">{tc("status")}</th>
-                <th className="px-4 py-3 text-center"> </th>
+                <th className="px-4 py-3">Trip</th>
+                <th className="px-4 py-3">Departure</th>
+                <th className="px-4 py-3">Arrival</th>
+                <th className="px-4 py-3">Fare</th>
+                <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((trip) => (
+              {trips.map((trip) => (
                 <tr
-                  key={trip.id}
+                  key={trip.tripId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
-                  <td className="px-3 py-4">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300"
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <button
-                      type="button"
-                      className="text-sm font-semibold text-vr-700 hover:underline"
-                    >
-                      {trip.code}
-                    </button>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-800">
-                    {trip.route}
+                  <td className="px-4 py-4 text-sm font-semibold text-vr-700">
+                    {trip.tripId}
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-700">
-                    {formatDepart(trip.departAt)}
+                    {trip.departureTime}
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-700">
-                    {trip.driver}
-                  </td>
-                  <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                    {trip.vehiclePlate}
+                    {trip.estimatedArrivalTime}
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-700">
-                    {trip.seatsTotal > 0
-                      ? `${trip.seatsSold}/${trip.seatsTotal}`
-                      : "—"}
+                    {trip.baseFare.toLocaleString("vi-VN")} VND
                   </td>
-                  <td className="px-4 py-4">
-                    {tripStatusBadge(trip.status, t)}
-                  </td>
-                  <td className="px-4 py-4 text-center text-gray-400">
-                    <button type="button" className="p-1 hover:text-gray-700">
-                      <FiMoreVertical size={18} />
-                    </button>
+                  <td className="px-4 py-4 text-sm text-gray-700">
+                    {trip.status}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-gray-500">
-            {tc("showingItems", {
-              count: filtered.length,
-              total: managerTrips.length,
-            })}
-          </p>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              <FiChevronLeft className="inline" /> {tc("previous")}
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-semibold text-slate-900"
-            >
-              1
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              2
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              3
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              {tc("next")} <FiChevronRight className="inline" />
-            </button>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900">Trip payloads</h2>
+          <div className="mt-3 max-h-[360px] overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
+            <pre>
+              {asJson({
+                tripDetail,
+                seatMap: seatMapJson ? JSON.parse(seatMapJson) : null,
+                internalTrip: internalTripJson ? JSON.parse(internalTripJson) : null,
+              })}
+            </pre>
           </div>
         </div>
-      </div>
+      </section>
 
-      <Modal
-        open={openCreate}
-        onClose={() => setOpenCreate(false)}
-        wide
-        icon={<FiTruck size={20} />}
-        title={t("trips.createTitle")}
-        subtitle={t("trips.createSubtitle")}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenCreate(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {t("trips.saveDraft")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpenCreate(false)}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
-            >
-              {t("trips.openForSale")}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-6">
-          <section>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">
-              {t("trips.sectionRouteSchedule")}
-            </h3>
-            <div className="mb-4">
-              <label className={labelClass}>
-                {t("trips.route")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <select className={inputClass} defaultValue="">
-                <option value="">{t("trips.selectRoute")}</option>
-                <option>HCM → Đà Lạt</option>
-                <option>HCM → Nha Trang</option>
-              </select>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass}>
-                  {t("trips.departureDate")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input className={inputClass} type="date" />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("trips.departureTime")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input className={inputClass} type="time" />
-              </div>
-              <div>
-                <label className={labelClass}>{t("trips.pickupPoint")}</label>
-                <select className={inputClass} defaultValue="west">
-                  <option value="west">Bến xe Miền Tây</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>{t("trips.dropoffPoint")}</label>
-                <select className={inputClass} defaultValue="dl">
-                  <option value="dl">Bến xe Đà Lạt</option>
-                </select>
-              </div>
-            </div>
-          </section>
-          <div className="border-t border-gray-100" />
-          <section>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">
-              {t("trips.sectionVehicleStaff")}
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass}>
-                  {t("trips.vehicle")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <select className={inputClass} defaultValue="">
-                  <option value="">{t("trips.selectVehicle")}</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("trips.mainDriver")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <select className={inputClass} defaultValue="">
-                  <option value="">{t("trips.selectDriver")}</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>{t("trips.coDriver")}</label>
-                <select className={inputClass} defaultValue="">
-                  <option value="">{t("trips.optionalInParens")}</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>{t("trips.attendant")}</label>
-                <input
-                  className={inputClass}
-                  placeholder={t("trips.fullNamePlaceholder")}
-                />
-              </div>
-            </div>
-          </section>
-          <div className="border-t border-gray-100" />
-          <section>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">
-              {t("trips.sectionPricing")}
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass}>
-                  {t("trips.ticketPrice")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input className={inputClass} defaultValue="320000" />
-              </div>
-              <div>
-                <label className={labelClass}>{t("trips.seatsForSale")}</label>
-                <input className={inputClass} defaultValue="40" />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("trips.cargoCapacityKg")}
-                </label>
-                <input className={inputClass} defaultValue="500" />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("trips.cargoRatePerKg")}
-                </label>
-                <input className={inputClass} defaultValue="8000" />
-              </div>
-            </div>
-          </section>
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <FiTruck className="text-vr-600" />
+          <h2 className="text-lg font-bold text-gray-900">
+            Internal seat operations
+          </h2>
         </div>
-      </Modal>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Input label="Seat numbers CSV" value={seatNumbers} onChange={setSeatNumbers} placeholder="A1,A2" />
+          <Input label="Hold owner ID" value={holdOwnerId} onChange={setHoldOwnerId} />
+          <Input label="TTL seconds" value={ttlSeconds} onChange={setTtlSeconds} type="number" />
+          <Input label="Seat lock token" value={seatLockToken} onChange={setSeatLockToken} />
+          <Input label="Booking ID" value={bookingId} onChange={setBookingId} />
+          <Input label="Passenger ID" value={passengerId} onChange={setPassengerId} />
+          <Input label="Return trip ID" value={returnTripId} onChange={setReturnTripId} />
+          <Input label="Idempotency-Key" value={idempotencyKey} onChange={setIdempotencyKey} />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleLockSeats}
+            disabled={!selectedTripId}
+            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50"
+          >
+            <FiLock size={16} />
+            Lock seats
+          </button>
+          <button
+            type="button"
+            onClick={handleReleaseSeats}
+            disabled={!selectedTripId || !seatLockToken}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <FiUnlock size={16} />
+            Release seats
+          </button>
+          <button
+            type="button"
+            onClick={handleBookSeats}
+            disabled={!selectedTripId || !seatLockToken || !bookingId}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Book seats
+          </button>
+          <button
+            type="button"
+            onClick={handleRoundTripLock}
+            disabled={!selectedTripId || !returnTripId}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Lock round trip
+          </button>
+        </div>
+        {(lockResult || roundTripLockResult) && (
+          <pre className="mt-4 max-h-64 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
+            {asJson({ lockResult, roundTripLockResult })}
+          </pre>
+        )}
+      </section>
     </div>
+  );
+}
+
+function Input({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className={labelClass}>{label}</label>
+      <input
+        className={inputClass}
+        value={value}
+        type={type}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
+function ToolbarButton({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

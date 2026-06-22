@@ -1,362 +1,641 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FiPlus, FiRefreshCw, FiSearch, FiTrash2 } from "react-icons/fi";
 import {
-  FiClock,
-  FiGitBranch,
-  FiMapPin,
-  FiNavigation,
-  FiPlus,
-  FiTrash2,
-} from "react-icons/fi";
-import Modal from "../../../components/Modal";
-import { routeCards, type RouteCard } from "../../../data/mockData";
-
-const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-
-export default function RoutesPage() {
-  const { t } = useTranslation("manager");
-  const { t: tc } = useTranslation("common");
-  const [openConfig, setOpenConfig] = useState(false);
-  const [openSchedule, setOpenSchedule] = useState(false);
-  const [selectedRoute, setSelectedRoute] = useState<RouteCard | null>(null);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            {t("routes.title")}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            {t("routes.subtitle")}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpenConfig(true)}
-          className="inline-flex cursor-pointer shrink-0 items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-vr-600 hover:text-white"
-        >
-          <FiPlus size={18} />
-          {t("routes.create")}
-        </button>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {routeCards.map((r) => (
-          <article
-            key={r.id}
-            className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-vr-200 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <span className="text-xs font-medium text-gray-400">
-                {r.code}
-              </span>
-              {r.status === "running" ? (
-                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                  {t("routes.running")}
-                </span>
-              ) : (
-                <span className="rounded-full bg-vr-50 px-2.5 py-0.5 text-xs font-semibold text-vr-900">
-                  {t("routes.draft")}
-                </span>
-              )}
-            </div>
-            <h2 className="mt-3 text-lg font-bold text-gray-900">{r.title}</h2>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-              <div>
-                <FiMapPin className="mx-auto text-gray-400" />
-                <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                  {t("routes.stops")}
-                </p>
-                <p className="text-sm font-bold text-gray-900">{r.stops}</p>
-              </div>
-              <div>
-                <FiClock className="mx-auto text-gray-400" />
-                <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                  {t("routes.duration")}
-                </p>
-                <p className="text-sm font-bold text-gray-900">{r.duration}</p>
-              </div>
-              <div>
-                <FiGitBranch className="mx-auto text-gray-400" />
-                <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                  {t("routes.tripsPerWeek")}
-                </p>
-                <p className="text-sm font-bold text-gray-900">
-                  {r.tripsPerWeek}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 border-t border-gray-100 pt-4 flex items-center justify-between text-sm">
-              <span className="text-gray-500">{r.distanceKm} km</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRoute(r);
-                    setOpenSchedule(true);
-                  }}
-                  className="font-medium text-blue-600 hover:text-blue-700"
-                >
-                  {t("routes.schedule")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRoute(r);
-                    setOpenConfig(true);
-                  }}
-                  className="font-medium text-vr-700 hover:text-vr-800"
-                >
-                  {t("routes.editRoute")}
-                </button>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      <Modal
-        open={openConfig}
-        onClose={() => setOpenConfig(false)}
-        wide
-        icon={<FiNavigation size={20} />}
-        title={t("routes.configTitle")}
-        subtitle={t("routes.configSubtitle")}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenConfig(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {t("routes.saveDraft")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpenConfig(false)}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
-            >
-              {t("routes.publishRoute")}
-            </button>
-          </>
-        }
-      >
-        <RouteConfigForm />
-      </Modal>
-
-      {/* Schedule Modal */}
-      <Modal
-        open={openSchedule}
-        onClose={() => setOpenSchedule(false)}
-        icon={<FiClock size={20} />}
-        title={t("routes.scheduleTitle")}
-        subtitle={t("routes.scheduleSubtitle")}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenSchedule(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpenSchedule(false);
-                alert(t("routes.scheduleCreated"));
-              }}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600"
-            >
-              {t("routes.createSchedule")}
-            </button>
-          </>
-        }
-      >
-        {selectedRoute && (
-          <div className="space-y-4">
-            <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-              <p className="text-sm font-semibold text-blue-900">
-                {selectedRoute.title}
-              </p>
-              <p className="text-xs text-blue-700 mt-1">
-                {selectedRoute.distanceKm} km · {selectedRoute.duration}
-              </p>
-            </div>
-
-            <div>
-              <label className={labelClass}>{t("routes.startDate")}</label>
-              <input type="date" className={inputClass} />
-            </div>
-
-            <div>
-              <label className={labelClass}>{t("routes.endDate")}</label>
-              <input type="date" className={inputClass} />
-            </div>
-
-            <div>
-              <label className={labelClass}>{t("routes.departureTime")}</label>
-              <input type="time" className={inputClass} defaultValue="06:00" />
-            </div>
-
-            <div>
-              <label className={labelClass}>{t("routes.weekdaysLabel")}</label>
-              <div className="mt-2 flex flex-wrap gap-3">
-                {WEEKDAY_KEYS.map((key, idx) => (
-                  <label key={key} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      defaultChecked={idx < 6}
-                      className="rounded border-gray-300 text-vr-600"
-                    />
-                    <span className="text-sm text-gray-700">
-                      {t(`routes.weekdays.${key}`)}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className={labelClass}>{t("routes.frequency")}</label>
-              <select className={inputClass} defaultValue="daily">
-                <option value="daily">{t("routes.frequencyDaily")}</option>
-                <option value="weekly">{t("routes.frequencyWeekly")}</option>
-                <option value="biweekly">
-                  {t("routes.frequencyBiweekly")}
-                </option>
-              </select>
-            </div>
-
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
-              <p className="text-xs text-amber-800">
-                <span className="font-semibold">
-                  {t("routes.scheduleSummary")}
-                </span>{" "}
-                {t("routes.scheduleSummaryText")}
-              </p>
-            </div>
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
-}
+  addRouteStop,
+  createAlternativeRoute,
+  createOperatorRoute,
+  createOperatorStation,
+  createOperatorStop,
+  createRouteFareTemplate,
+  deleteAlternativeRoute,
+  getAlternativeRoutes,
+  getOperatorRoutes,
+  getOperatorStops,
+  getRouteFareTemplates,
+  removeRouteStop,
+  searchStations,
+  updateAlternativeRoute,
+  updateOperatorRoute,
+  updateOperatorStop,
+  type AlternativeRoute,
+  type AlternativeRouteRequest,
+  type FareTemplate,
+  type OperatorRoute,
+  type OperatorRouteRequest,
+  type OperatorStop,
+  type OperatorStopRequest,
+  type Station,
+} from "../../../api/vietride";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
-const defaultStops = [
-  { id: "1", name: "Bến xe Miền Tây, HCM", meta: "0 km · 00:00" },
-  { id: "2", name: "Trạm Long Khánh", meta: "75 km · 01:15" },
-  { id: "3", name: "TP Bảo Lộc", meta: "190 km · 04:30" },
-  { id: "4", name: "Bến xe Đà Lạt", meta: "308 km · 07:30" },
-];
+const emptyStopForm: OperatorStopRequest = {
+  name: "",
+  latitude: 0,
+  longitude: 0,
+  description: "",
+  address: "",
+  googlePlaceId: "",
+};
 
-function RouteConfigForm() {
+const emptyRouteForm: OperatorRouteRequest = {
+  name: "",
+  originStationId: "",
+  destinationStationId: "",
+  returnRouteId: "",
+  baseFare: 0,
+  totalDistanceKm: 0,
+  estimatedDurationMinutes: 0,
+  isActive: true,
+};
+
+const emptyAlternativeForm: AlternativeRouteRequest = {
+  name: "",
+  description: "",
+  destinationStationId: "",
+  totalDistanceKm: 0,
+  estimatedDurationMinutes: 0,
+  isActive: true,
+  stops: [],
+};
+
+function toNumber(value: string) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : 0;
+}
+
+export default function RoutesPage() {
   const { t } = useTranslation("manager");
-  const { t: tc } = useTranslation("common");
+  const [routes, setRoutes] = useState<OperatorRoute[]>([]);
+  const [stops, setStops] = useState<OperatorStop[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [fareTemplates, setFareTemplates] = useState<FareTemplate[]>([]);
+  const [alternatives, setAlternatives] = useState<AlternativeRoute[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState("");
+  const [selectedStopId, setSelectedStopId] = useState("");
+  const [selectedAlternativeId, setSelectedAlternativeId] = useState("");
+  const [stationSearch, setStationSearch] = useState("");
+  const [stationCity, setStationCity] = useState("");
+  const [stationProvince, setStationProvince] = useState("");
+  const [operatorStationId, setOperatorStationId] = useState("");
+  const [stopForm, setStopForm] = useState<OperatorStopRequest>(emptyStopForm);
+  const [routeForm, setRouteForm] =
+    useState<OperatorRouteRequest>(emptyRouteForm);
+  const [fareStopId, setFareStopId] = useState("");
+  const [fareAmount, setFareAmount] = useState("0");
+  const [fareFrom, setFareFrom] = useState("");
+  const [fareUntil, setFareUntil] = useState("");
+  const [routeStopOrder, setRouteStopOrder] = useState("0");
+  const [routeStopDuration, setRouteStopDuration] = useState("0");
+  const [routeStopDistance, setRouteStopDistance] = useState("0");
+  const [allowPickup, setAllowPickup] = useState(true);
+  const [allowDropoff, setAllowDropoff] = useState(true);
+  const [alternativeForm, setAlternativeForm] =
+    useState<AlternativeRouteRequest>(emptyAlternativeForm);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  const selectedRoute = useMemo(
+    () => routes.find((route) => route.id === selectedRouteId) ?? null,
+    [routes, selectedRouteId],
+  );
+
+  async function loadRoutesAndStops() {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const [routeResult, stopResult] = await Promise.all([
+        getOperatorRoutes({ page: 1, pageSize: 50 }),
+        getOperatorStops({ page: 1, pageSize: 50 }),
+      ]);
+      setRoutes(routeResult.items);
+      setStops(stopResult.items);
+
+      const nextRouteId = selectedRouteId || routeResult.items[0]?.id || "";
+      setSelectedRouteId(nextRouteId);
+      setSelectedStopId(stopResult.items[0]?.id || "");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load routes");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function loadRouteChildren(routeId: string) {
+    if (!routeId) {
+      setFareTemplates([]);
+      setAlternatives([]);
+      return;
+    }
+
+    const [fareResult, alternativeResult] = await Promise.all([
+      getRouteFareTemplates(routeId, { page: 1, pageSize: 50 }),
+      getAlternativeRoutes(routeId, { page: 1, pageSize: 50 }),
+    ]);
+
+    setFareTemplates(fareResult.items);
+    setAlternatives(alternativeResult.items);
+    setSelectedAlternativeId(alternativeResult.items[0]?.id || "");
+  }
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadInitialData() {
+      try {
+        const [routeResult, stopResult] = await Promise.all([
+          getOperatorRoutes({ page: 1, pageSize: 50 }),
+          getOperatorStops({ page: 1, pageSize: 50 }),
+        ]);
+
+        if (ignore) {
+          return;
+        }
+
+        setRoutes(routeResult.items);
+        setStops(stopResult.items);
+        setSelectedRouteId(routeResult.items[0]?.id || "");
+        setSelectedStopId(stopResult.items[0]?.id || "");
+      } catch (err) {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : "Failed to load routes");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadInitialData();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadChildren() {
+      if (!selectedRouteId) {
+        setFareTemplates([]);
+        setAlternatives([]);
+        return;
+      }
+
+      try {
+        const [fareResult, alternativeResult] = await Promise.all([
+          getRouteFareTemplates(selectedRouteId, { page: 1, pageSize: 50 }),
+          getAlternativeRoutes(selectedRouteId, { page: 1, pageSize: 50 }),
+        ]);
+
+        if (ignore) {
+          return;
+        }
+
+        setFareTemplates(fareResult.items);
+        setAlternatives(alternativeResult.items);
+        setSelectedAlternativeId(alternativeResult.items[0]?.id || "");
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load route data",
+          );
+        }
+      }
+    }
+
+    void loadChildren();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedRouteId]);
+
+  function updateStop<K extends keyof OperatorStopRequest>(
+    key: K,
+    value: OperatorStopRequest[K],
+  ) {
+    setStopForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateRoute<K extends keyof OperatorRouteRequest>(
+    key: K,
+    value: OperatorRouteRequest[K],
+  ) {
+    setRouteForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateAlternative<K extends keyof AlternativeRouteRequest>(
+    key: K,
+    value: AlternativeRouteRequest[K],
+  ) {
+    setAlternativeForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSearchStations() {
+    const result = await searchStations({
+      q: stationSearch,
+      city: stationCity,
+      province: stationProvince,
+    });
+    setStations(result);
+    setOperatorStationId(result[0]?.id || "");
+  }
+
+  async function handleCreateOperatorStation() {
+    await createOperatorStation({
+      stationId: operatorStationId,
+      displayNameOverride:
+        stations.find((station) => station.id === operatorStationId)?.name || "",
+    });
+    setMessage("Operator station created.");
+  }
+
+  async function handleCreateStop() {
+    const created = await createOperatorStop(stopForm);
+    setMessage("Stop created.");
+    setSelectedStopId(created.id);
+    setStopForm(emptyStopForm);
+    await loadRoutesAndStops();
+  }
+
+  async function handleUpdateStop() {
+    await updateOperatorStop(selectedStopId, stopForm);
+    setMessage("Stop updated.");
+    await loadRoutesAndStops();
+  }
+
+  async function handleCreateRoute() {
+    const created = await createOperatorRoute({
+      ...routeForm,
+      returnRouteId: routeForm.returnRouteId || undefined,
+    });
+    setMessage("Route created.");
+    setSelectedRouteId(created.id);
+    setRouteForm(emptyRouteForm);
+    await loadRoutesAndStops();
+  }
+
+  async function handleUpdateRoute() {
+    await updateOperatorRoute(selectedRouteId, {
+      ...routeForm,
+      returnRouteId: routeForm.returnRouteId || undefined,
+    });
+    setMessage("Route updated.");
+    await loadRoutesAndStops();
+  }
+
+  async function handleAddRouteStop() {
+    await addRouteStop(selectedRouteId, {
+      stopId: selectedStopId,
+      orderIndex: toNumber(routeStopOrder),
+      estimatedDurationFromOriginMinutes: toNumber(routeStopDuration),
+      distanceFromOriginKm: toNumber(routeStopDistance),
+      allowPickup,
+      allowDropoff,
+    });
+    setMessage("Stop added to route.");
+  }
+
+  async function handleRemoveRouteStop() {
+    await removeRouteStop(selectedRouteId, selectedStopId);
+    setMessage("Stop removed from route.");
+  }
+
+  async function handleCreateFareTemplate() {
+    await createRouteFareTemplate(selectedRouteId, {
+      stopId: fareStopId,
+      fareFromThisStop: toNumber(fareAmount),
+      effectiveFrom: fareFrom,
+      effectiveUntil: fareUntil,
+    });
+    setMessage("Fare template created.");
+    await loadRouteChildren(selectedRouteId);
+  }
+
+  async function handleCreateAlternative() {
+    const created = await createAlternativeRoute(selectedRouteId, {
+      ...alternativeForm,
+      stops: selectedStopId
+        ? [
+            {
+              stopId: selectedStopId,
+              orderIndex: toNumber(routeStopOrder),
+              estimatedDurationFromOriginMinutes: toNumber(routeStopDuration),
+              distanceFromOriginKm: toNumber(routeStopDistance),
+            },
+          ]
+        : [],
+    });
+    setMessage("Alternative route created.");
+    setSelectedAlternativeId(created.id);
+    setAlternativeForm(emptyAlternativeForm);
+    await loadRouteChildren(selectedRouteId);
+  }
+
+  async function handleUpdateAlternative() {
+    await updateAlternativeRoute(selectedAlternativeId, {
+      ...alternativeForm,
+      stops: selectedStopId
+        ? [
+            {
+              stopId: selectedStopId,
+              orderIndex: toNumber(routeStopOrder),
+              estimatedDurationFromOriginMinutes: toNumber(routeStopDuration),
+              distanceFromOriginKm: toNumber(routeStopDistance),
+            },
+          ]
+        : [],
+    });
+    setMessage("Alternative route updated.");
+    await loadRouteChildren(selectedRouteId);
+  }
+
+  async function handleDeleteAlternative() {
+    await deleteAlternativeRoute(selectedAlternativeId);
+    setMessage("Alternative route deleted.");
+    await loadRouteChildren(selectedRouteId);
+  }
 
   return (
     <div className="space-y-6">
-      <section>
-        <h3 className="mb-3 text-sm font-bold text-gray-900">
-          {t("routes.routeInfo")}
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>
-              {t("routes.routeCode")}{" "}
-              <span className="text-red-500">*</span>
-            </label>
-            <input className={inputClass} defaultValue="R-DL01" />
-          </div>
-          <div>
-            <label className={labelClass}>
-              {t("routes.routeName")}{" "}
-              <span className="text-red-500">*</span>
-            </label>
-            <input className={inputClass} defaultValue="HCM → Đà Lạt" />
-          </div>
-          <div>
-            <label className={labelClass}>
-              {t("routes.origin")} <span className="text-red-500">*</span>
-            </label>
-            <input className={inputClass} defaultValue="TP. Hồ Chí Minh" />
-          </div>
-          <div>
-            <label className={labelClass}>
-              {t("routes.destination")}{" "}
-              <span className="text-red-500">*</span>
-            </label>
-            <input className={inputClass} defaultValue="Đà Lạt" />
-          </div>
-          <div>
-            <label className={labelClass}>{t("routes.totalDistance")}</label>
-            <input className={inputClass} defaultValue="308" />
-          </div>
-          <div>
-            <label className={labelClass}>
-              {t("routes.estimatedDuration")}
-            </label>
-            <input className={inputClass} defaultValue="7h 30m" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+            {t("routes.title")}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Routes, stops, stations, fares and alternative routes now call the API.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={loadRoutesAndStops}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+        >
+          <FiRefreshCw size={16} />
+          Refresh
+        </button>
+      </div>
+
+      {message && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {message}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Stations</h2>
+          <FiSearch className="text-gray-400" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-4">
+          <Input label="Query" value={stationSearch} onChange={setStationSearch} />
+          <Input label="City" value={stationCity} onChange={setStationCity} />
+          <Input
+            label="Province"
+            value={stationProvince}
+            onChange={setStationProvince}
+          />
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={handleSearchStations}
+              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateOperatorStation}
+              disabled={!operatorStationId}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Attach
+            </button>
           </div>
         </div>
+        <select
+          className={inputClass + " mt-3"}
+          value={operatorStationId}
+          onChange={(event) => setOperatorStationId(event.target.value)}
+        >
+          <option value="">Select station</option>
+          {stations.map((station) => (
+            <option key={station.id} value={station.id}>
+              {station.name} - {station.city}, {station.province}
+            </option>
+          ))}
+        </select>
       </section>
-      <div className="border-t border-gray-100" />
-      <section>
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">
-              {t("routes.stopsAlongRoute")}
-            </h3>
-            <p className="text-xs text-gray-500">{t("routes.dragToReorder")}</p>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900">Operator Stops</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input label="Name" value={stopForm.name} onChange={(v) => updateStop("name", v)} />
+            <Input label="Google Place ID" value={stopForm.googlePlaceId} onChange={(v) => updateStop("googlePlaceId", v)} />
+            <NumberInput label="Latitude" value={stopForm.latitude} onChange={(v) => updateStop("latitude", v)} />
+            <NumberInput label="Longitude" value={stopForm.longitude} onChange={(v) => updateStop("longitude", v)} />
+            <Input label="Address" value={stopForm.address} onChange={(v) => updateStop("address", v)} />
+            <Input label="Description" value={stopForm.description} onChange={(v) => updateStop("description", v)} />
           </div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <FiPlus size={16} />
-            {t("routes.addStop")}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={handleCreateStop} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600">
+              Create stop
+            </button>
+            <button type="button" onClick={handleUpdateStop} disabled={!selectedStopId} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              Update selected stop
+            </button>
+          </div>
+          <select className={inputClass + " mt-4"} value={selectedStopId} onChange={(event) => setSelectedStopId(event.target.value)}>
+            <option value="">Select stop</option>
+            {stops.map((stop) => (
+              <option key={stop.id} value={stop.id}>
+                {stop.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900">Routes</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input label="Name" value={routeForm.name} onChange={(v) => updateRoute("name", v)} />
+            <Input label="Origin Station ID" value={routeForm.originStationId} onChange={(v) => updateRoute("originStationId", v)} />
+            <Input label="Destination Station ID" value={routeForm.destinationStationId} onChange={(v) => updateRoute("destinationStationId", v)} />
+            <Input label="Return Route ID" value={routeForm.returnRouteId ?? ""} onChange={(v) => updateRoute("returnRouteId", v)} />
+            <NumberInput label="Base fare" value={routeForm.baseFare} onChange={(v) => updateRoute("baseFare", v)} />
+            <NumberInput label="Distance km" value={routeForm.totalDistanceKm} onChange={(v) => updateRoute("totalDistanceKm", v)} />
+            <NumberInput label="Duration minutes" value={routeForm.estimatedDurationMinutes} onChange={(v) => updateRoute("estimatedDurationMinutes", v)} />
+            <label className="flex items-end gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={routeForm.isActive} onChange={(event) => updateRoute("isActive", event.target.checked)} />
+              Active
+            </label>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={handleCreateRoute} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600">
+              Create route
+            </button>
+            <button type="button" onClick={handleUpdateRoute} disabled={!selectedRouteId} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              Update selected route
+            </button>
+          </div>
+          <select className={inputClass + " mt-4"} value={selectedRouteId} onChange={(event) => setSelectedRouteId(event.target.value)}>
+            <option value="">Select route</option>
+            {routes.map((route) => (
+              <option key={route.id} value={route.id}>
+                {route.name} - {route.totalDistanceKm} km
+              </option>
+            ))}
+          </select>
+          {isLoading && <p className="mt-3 text-sm text-gray-500">Loading routes...</p>}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <h2 className="text-lg font-bold text-gray-900">Selected Route Operations</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          {selectedRoute ? selectedRoute.name : "Select a route first"}
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-5">
+          <Input label="Order" value={routeStopOrder} onChange={setRouteStopOrder} />
+          <Input label="Duration from origin" value={routeStopDuration} onChange={setRouteStopDuration} />
+          <Input label="Distance from origin" value={routeStopDistance} onChange={setRouteStopDistance} />
+          <label className="flex items-end gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={allowPickup} onChange={(event) => setAllowPickup(event.target.checked)} />
+            Pickup
+          </label>
+          <label className="flex items-end gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={allowDropoff} onChange={(event) => setAllowDropoff(event.target.checked)} />
+            Dropoff
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" onClick={handleAddRouteStop} disabled={!selectedRouteId || !selectedStopId} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50">
+            Add stop to route
+          </button>
+          <button type="button" onClick={handleRemoveRouteStop} disabled={!selectedRouteId || !selectedStopId} className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+            <FiTrash2 size={16} />
+            Remove stop
           </button>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-2">
-          {defaultStops.map((row, i) => (
-            <div
-              key={row.id}
-              className="mb-2 flex items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 last:mb-0"
-            >
-              <span className="cursor-grab px-1 text-gray-400">⋮⋮</span>
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-vr-100 text-xs font-bold text-vr-800">
-                {i + 1}
-              </span>
-              <input
-                className={inputClass + " flex-1"}
-                defaultValue={row.name}
-              />
-              <input
-                className={inputClass + " w-36 shrink-0"}
-                defaultValue={row.meta}
-              />
-              <button
-                type="button"
-                className="shrink-0 p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                aria-label={tc("delete")}
-              >
-                <FiTrash2 size={16} />
-              </button>
-            </div>
-          ))}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900">Fare Templates</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input label="Stop ID" value={fareStopId} onChange={setFareStopId} />
+            <Input label="Fare from this stop" value={fareAmount} onChange={setFareAmount} />
+            <Input label="Effective from" value={fareFrom} onChange={setFareFrom} type="datetime-local" />
+            <Input label="Effective until" value={fareUntil} onChange={setFareUntil} type="datetime-local" />
+          </div>
+          <button type="button" onClick={handleCreateFareTemplate} disabled={!selectedRouteId || !fareStopId} className="mt-4 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50">
+            Create fare template
+          </button>
+          <ul className="mt-4 space-y-2 text-sm text-gray-600">
+            {fareTemplates.map((fare) => (
+              <li key={fare.id} className="rounded-lg bg-gray-50 px-3 py-2">
+                {fare.stopId}: {fare.fareFromThisStop.toLocaleString("vi-VN")} VND
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900">Alternative Routes</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input label="Name" value={alternativeForm.name} onChange={(v) => updateAlternative("name", v)} />
+            <Input label="Destination station ID" value={alternativeForm.destinationStationId} onChange={(v) => updateAlternative("destinationStationId", v)} />
+            <Input label="Description" value={alternativeForm.description} onChange={(v) => updateAlternative("description", v)} />
+            <NumberInput label="Distance km" value={alternativeForm.totalDistanceKm} onChange={(v) => updateAlternative("totalDistanceKm", v)} />
+            <NumberInput label="Duration minutes" value={alternativeForm.estimatedDurationMinutes} onChange={(v) => updateAlternative("estimatedDurationMinutes", v)} />
+            <label className="flex items-end gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={alternativeForm.isActive} onChange={(event) => updateAlternative("isActive", event.target.checked)} />
+              Active
+            </label>
+          </div>
+          <select className={inputClass + " mt-4"} value={selectedAlternativeId} onChange={(event) => setSelectedAlternativeId(event.target.value)}>
+            <option value="">Select alternative route</option>
+            {alternatives.map((alternative) => (
+              <option key={alternative.id} value={alternative.id}>
+                {alternative.name}
+              </option>
+            ))}
+          </select>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={handleCreateAlternative} disabled={!selectedRouteId} className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50">
+              <FiPlus size={16} />
+              Create
+            </button>
+            <button type="button" onClick={handleUpdateAlternative} disabled={!selectedAlternativeId} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              Update
+            </button>
+            <button type="button" onClick={handleDeleteAlternative} disabled={!selectedAlternativeId} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+              Delete
+            </button>
+          </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function Input({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label className={labelClass}>{label}</label>
+      <input
+        className={inputClass}
+        value={value}
+        type={type}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
+function NumberInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div>
+      <label className={labelClass}>{label}</label>
+      <input
+        className={inputClass}
+        value={value}
+        type="number"
+        onChange={(event) => onChange(toNumber(event.target.value))}
+      />
     </div>
   );
 }

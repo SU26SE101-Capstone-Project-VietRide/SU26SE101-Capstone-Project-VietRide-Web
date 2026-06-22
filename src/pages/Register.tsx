@@ -12,34 +12,68 @@ import {
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import logo from "../assets/Login/logo.svg";
 import login_3 from "../assets/Login/login_3.png";
-import { register } from "../auth";
+import { registerOperator, type RegisterOperatorRequest } from "../api/vietride";
+
+const emptyOperatorForm: RegisterOperatorRequest = {
+  name: "",
+  contactEmail: "",
+  contactPhone: "",
+  businessRegistrationNumber: "",
+  taxCode: "",
+  addressStreet: "",
+  addressWard: "",
+  addressDistrict: "",
+  addressProvince: "",
+  representativeName: "",
+  representativePosition: "",
+  representativePhone: "",
+  representativeEmail: "",
+  password: "",
+};
 
 export default function Register() {
   const navigate = useNavigate();
   const { t } = useTranslation("login");
   const { t: tc } = useTranslation("common");
-  const [displayName, setDisplayName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [form, setForm] = useState<RegisterOperatorRequest>(emptyOperatorForm);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const updateForm = (key: keyof RegisterOperatorRequest, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!displayName || !phone || !email || !password) {
+    const requiredValues = [
+      form.name,
+      form.contactEmail,
+      form.contactPhone,
+      form.businessRegistrationNumber,
+      form.taxCode,
+      form.addressStreet,
+      form.addressWard,
+      form.addressDistrict,
+      form.addressProvince,
+      form.representativeName,
+      form.representativePhone,
+      form.representativeEmail,
+      form.password,
+    ];
+
+    if (requiredValues.some((value) => !value.trim())) {
       setError(t("errors.required"));
       return;
     }
 
-    if (!email.includes("@")) {
+    if (!form.contactEmail.includes("@") || !form.representativeEmail.includes("@")) {
       setError(t("errors.invalidEmail"));
       return;
     }
 
-    if (password.length < 6) {
+    if (form.password.length < 6) {
       setError(t("errors.passwordMin"));
       return;
     }
@@ -47,7 +81,7 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await register({ displayName, phone, email, password });
+      await registerOperator(form);
       navigate("/login", { replace: true, state: { registered: true } });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.registerFailed"));
@@ -112,37 +146,121 @@ export default function Register() {
               )}
 
               <form onSubmit={handleRegister} className="mt-6 space-y-4">
-                <Field
-                  icon={<FiUser />}
-                  label={t("displayName")}
-                  value={displayName}
-                  onChange={setDisplayName}
-                  placeholder={t("displayNamePlaceholder")}
-                />
-                <Field
-                  icon={<FiPhone />}
-                  label={t("phone")}
-                  value={phone}
-                  onChange={setPhone}
-                  placeholder={t("phonePlaceholder")}
-                  type="tel"
-                />
-                <Field
-                  icon={<FiMail />}
-                  label={t("email")}
-                  value={email}
-                  onChange={setEmail}
-                  placeholder={t("emailPlaceholder")}
-                  type="email"
-                />
-                <Field
-                  icon={<FiLock />}
-                  label={t("password")}
-                  value={password}
-                  onChange={setPassword}
-                  placeholder={t("passwordPlaceholder")}
-                  type="password"
-                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <Field
+                      icon={<FiUser />}
+                      label="Operator name"
+                      value={form.name}
+                      onChange={(value) => updateForm("name", value)}
+                      placeholder="VietRide Express"
+                    />
+                  </div>
+                  <Field
+                    icon={<FiMail />}
+                    label="Contact email"
+                    value={form.contactEmail}
+                    onChange={(value) => updateForm("contactEmail", value)}
+                    placeholder="ops@operator.vn"
+                    type="email"
+                  />
+                  <Field
+                    icon={<FiPhone />}
+                    label="Contact phone"
+                    value={form.contactPhone}
+                    onChange={(value) => updateForm("contactPhone", value)}
+                    placeholder={t("phonePlaceholder")}
+                    type="tel"
+                  />
+                  <Field
+                    icon={<FiUser />}
+                    label="Business registration number"
+                    value={form.businessRegistrationNumber}
+                    onChange={(value) =>
+                      updateForm("businessRegistrationNumber", value)
+                    }
+                    placeholder="0312345678"
+                  />
+                  <Field
+                    icon={<FiUser />}
+                    label="Tax code"
+                    value={form.taxCode}
+                    onChange={(value) => updateForm("taxCode", value)}
+                    placeholder="0301234567"
+                  />
+                  <div className="sm:col-span-2">
+                    <Field
+                      icon={<FiUser />}
+                      label="Street address"
+                      value={form.addressStreet}
+                      onChange={(value) => updateForm("addressStreet", value)}
+                      placeholder="123 Nguyen Van Linh"
+                    />
+                  </div>
+                  <Field
+                    icon={<FiUser />}
+                    label="Ward"
+                    value={form.addressWard}
+                    onChange={(value) => updateForm("addressWard", value)}
+                    placeholder="Ward 1"
+                  />
+                  <Field
+                    icon={<FiUser />}
+                    label="District"
+                    value={form.addressDistrict}
+                    onChange={(value) => updateForm("addressDistrict", value)}
+                    placeholder="District 1"
+                  />
+                  <Field
+                    icon={<FiUser />}
+                    label="Province"
+                    value={form.addressProvince}
+                    onChange={(value) => updateForm("addressProvince", value)}
+                    placeholder="Ho Chi Minh City"
+                  />
+                  <Field
+                    icon={<FiUser />}
+                    label="Representative name"
+                    value={form.representativeName}
+                    onChange={(value) => updateForm("representativeName", value)}
+                    placeholder={t("displayNamePlaceholder")}
+                  />
+                  <Field
+                    icon={<FiUser />}
+                    label="Representative position"
+                    value={form.representativePosition}
+                    onChange={(value) =>
+                      updateForm("representativePosition", value)
+                    }
+                    placeholder="Operations manager"
+                  />
+                  <Field
+                    icon={<FiPhone />}
+                    label="Representative phone"
+                    value={form.representativePhone}
+                    onChange={(value) => updateForm("representativePhone", value)}
+                    placeholder={t("phonePlaceholder")}
+                    type="tel"
+                  />
+                  <Field
+                    icon={<FiMail />}
+                    label="Representative email"
+                    value={form.representativeEmail}
+                    onChange={(value) => updateForm("representativeEmail", value)}
+                    placeholder="owner@operator.vn"
+                    type="email"
+                  />
+                  <div className="sm:col-span-2">
+                    <Field
+                      icon={<FiLock />}
+                      label={t("password")}
+                      value={form.password}
+                      onChange={(value) => updateForm("password", value)}
+                      placeholder={t("passwordPlaceholder")}
+                      type="password"
+                    />
+                  </div>
+                </div>
 
                 <button
                   type="submit"

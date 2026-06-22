@@ -1,12 +1,60 @@
 import { FiEdit2, FiHome, FiChevronRight } from "react-icons/fi";
 import { FaFacebook, FaTwitter, FaLinkedin, FaInstagram } from "react-icons/fa";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { getAuthUser } from "../auth";
+import {
+  getOperatorProfile,
+  updateOperatorProfile,
+  type OperatorProfile,
+} from "../api/vietride";
+
+type ProfileState = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  bio: string;
+  role: string;
+  country: string;
+  city: string;
+  postalCode: string;
+  taxId: string;
+};
+
+function splitName(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function toProfileState(operator: OperatorProfile): ProfileState {
+  const name = splitName(operator.name);
+
+  return {
+    firstName: name.firstName,
+    lastName: name.lastName,
+    email: operator.contactEmail,
+    phone: operator.contactPhone,
+    bio: operator.registrationStatus,
+    role: "Manager",
+    country: "Vietnam",
+    city: operator.address.province,
+    postalCode: operator.businessRegistrationNumber,
+    taxId: operator.taxCode,
+  };
+}
 
 export default function Profile() {
   const { t } = useTranslation("common");
   const [isEditing, setIsEditing] = useState(false);
-  const [profile, setProfile] = useState({
+  const [serverOperator, setServerOperator] = useState<OperatorProfile | null>(
+    null,
+  );
+  const [error, setError] = useState("");
+  const [profile, setProfile] = useState<ProfileState>({
     firstName: "Nguyễn",
     lastName: "Văn A",
     email: "nguyenvana@vietride.com",
@@ -21,13 +69,73 @@ export default function Profile() {
 
   const [formData, setFormData] = useState(profile);
 
+  useEffect(() => {
+    const user = getAuthUser();
+    if (user?.role !== "manager") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadProfile() {
+      setError("");
+
+      try {
+        const operator = await getOperatorProfile();
+        if (cancelled) {
+          return;
+        }
+
+        const nextProfile = toProfileState(operator);
+        setServerOperator(operator);
+        setProfile(nextProfile);
+        setFormData(nextProfile);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load profile");
+        }
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleEdit = () => {
     setIsEditing(true);
     setFormData(profile);
   };
 
-  const handleSave = () => {
-    setProfile(formData);
+  const handleSave = async () => {
+    const user = getAuthUser();
+
+    if (user?.role === "manager" && serverOperator) {
+      const updated = await updateOperatorProfile({
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        contactPhone: formData.phone,
+        logoUrl: serverOperator.logoUrl ?? undefined,
+        addressStreet: serverOperator.address.street,
+        addressWard: serverOperator.address.ward,
+        addressDistrict: serverOperator.address.district,
+        addressProvince: formData.city,
+        representativeName: serverOperator.representativeName,
+        representativePhone: serverOperator.representativePhone,
+        cancellationPolicy: serverOperator.cancellationPolicy ?? "",
+        parcelNoShowPolicy: serverOperator.parcelNoShowPolicy ?? "",
+        luggagePolicy: serverOperator.luggagePolicy ?? "",
+      });
+
+      const nextProfile = toProfileState(updated);
+      setServerOperator(updated);
+      setProfile(nextProfile);
+      setFormData(nextProfile);
+    } else {
+      setProfile(formData);
+    }
+
     setIsEditing(false);
   };
 
@@ -63,6 +171,12 @@ export default function Profile() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">{t("profilePage.userProfile")}</h1>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* My Profile Section */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">

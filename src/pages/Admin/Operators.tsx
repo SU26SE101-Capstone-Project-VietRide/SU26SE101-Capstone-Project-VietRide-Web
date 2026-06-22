@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiDownload,
@@ -11,11 +11,15 @@ import {
   FiFilter,
 } from "react-icons/fi";
 import Modal from "../../components/Modal";
-import { operators as mockOperators } from "../../data/mockData";
-
-function formatCurrency(v: number) {
-  return `${(v / 1000000).toFixed(0)}M`;
-}
+import {
+  approveAdminOperator,
+  createAdminOperator,
+  getAdminOperators,
+  rejectAdminOperator,
+  suspendAdminOperator,
+  type AdminOperator,
+  type CreateAdminOperatorRequest,
+} from "../../api/vietride";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -30,6 +34,30 @@ const OPERATOR_STATUSES: OperatorStatus[] = [
   "REJECTED",
 ];
 
+const emptyOperatorForm: CreateAdminOperatorRequest = {
+  name: "",
+  contactEmail: "",
+  contactPhone: "",
+  businessRegistrationNumber: "",
+  taxCode: "",
+  addressStreet: "",
+  addressWard: "",
+  addressDistrict: "",
+  addressProvince: "",
+  representativeName: "",
+  representativePosition: "",
+  representativePhone: "",
+  representativeEmail: "",
+};
+
+function toKnownStatus(status: string): OperatorStatus {
+  if (OPERATOR_STATUSES.includes(status as OperatorStatus)) {
+    return status as OperatorStatus;
+  }
+
+  return "PENDING";
+}
+
 export default function Operators() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
@@ -37,53 +65,133 @@ export default function Operators() {
   const [filterStatus, setFilterStatus] = useState<OperatorStatus | "ALL">(
     "ALL",
   );
+  const [operators, setOperators] = useState<AdminOperator[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [openOnboard, setOpenOnboard] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
   const [openApprove, setOpenApprove] = useState(false);
   const [openReject, setOpenReject] = useState(false);
-  const [selectedOperator, setSelectedOperator] = useState<
-    ((typeof mockOperators)[0] & { status: OperatorStatus }) | null
-  >(null);
+  const [selectedOperator, setSelectedOperator] = useState<AdminOperator | null>(
+    null,
+  );
+  const [operatorForm, setOperatorForm] =
+    useState<CreateAdminOperatorRequest>(emptyOperatorForm);
   const [rejectReason, setRejectReason] = useState("");
 
-  const operatorsWithStatus = mockOperators.map((op, idx) => ({
-    ...op,
-    status: OPERATOR_STATUSES[idx % OPERATOR_STATUSES.length],
-  }));
+  useEffect(() => {
+    let cancelled = false;
 
-  const filtered = operatorsWithStatus.filter((o) => {
-    const matchSearch = o.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = filterStatus === "ALL" || o.status === filterStatus;
-    return matchSearch && matchStatus;
-  });
+    async function loadOperators() {
+      setIsLoading(true);
+      setError("");
 
-  const pendingCount = operatorsWithStatus.filter(
-    (o) => o.status === "PENDING",
+      try {
+        const result = await getAdminOperators({
+          page: 1,
+          pageSize: 20,
+          search: searchTerm,
+          status: filterStatus === "ALL" ? undefined : filterStatus,
+        });
+
+        if (!cancelled) {
+          setOperators(result.items);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load operators",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadOperators();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterStatus, searchTerm]);
+
+  const filtered = useMemo(
+    () =>
+      operators.filter((operator) =>
+        operator.name.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    [operators, searchTerm],
+  );
+
+  const pendingCount = operators.filter(
+    (operator) => toKnownStatus(operator.registrationStatus) === "PENDING",
   ).length;
 
-  const handleApprove = () => {
+  const reloadOperators = async () => {
+    const result = await getAdminOperators({
+      page: 1,
+      pageSize: 20,
+      search: searchTerm,
+      status: filterStatus === "ALL" ? undefined : filterStatus,
+    });
+    setOperators(result.items);
+  };
+
+  const handleApprove = async () => {
+    if (!selectedOperator) {
+      return;
+    }
+
+    await approveAdminOperator(selectedOperator.operatorId);
+    await reloadOperators();
     setOpenApprove(false);
-    alert(t("operators.approvedAlert", { name: selectedOperator?.name }));
     setSelectedOperator(null);
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
+    if (!selectedOperator) {
+      return;
+    }
+
     if (!rejectReason.trim()) {
       alert(t("operators.rejectEmptyReason"));
       return;
     }
+
+    await rejectAdminOperator(selectedOperator.operatorId, rejectReason.trim());
+    await reloadOperators();
     setOpenReject(false);
-    alert(
-      t("operators.rejectedAlert", {
-        name: selectedOperator?.name,
-        reason: rejectReason,
-      }),
-    );
     setRejectReason("");
     setSelectedOperator(null);
   };
 
-  const getStatusBadge = (status: OperatorStatus) => {
+  const handleSuspend = async (operator: AdminOperator) => {
+    const reason = prompt("Suspend reason");
+    if (!reason?.trim()) {
+      return;
+    }
+
+    await suspendAdminOperator(operator.operatorId, reason.trim());
+    await reloadOperators();
+  };
+
+  const handleCreateOperator = async () => {
+    await createAdminOperator(operatorForm);
+    await reloadOperators();
+    setOperatorForm(emptyOperatorForm);
+    setOpenOnboard(false);
+  };
+
+  const updateOperatorForm = (
+    key: keyof CreateAdminOperatorRequest,
+    value: string,
+  ) => {
+    setOperatorForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const getStatusBadge = (status: string) => {
     const config = {
       PENDING: {
         bg: "bg-amber-50",
@@ -106,7 +214,7 @@ export default function Operators() {
         label: tc("rejected"),
       },
     };
-    const c = config[status];
+    const c = config[toKnownStatus(status)];
     return (
       <span
         className={`px-3 py-1 rounded-full text-xs font-medium ${c.bg} ${c.text}`}
@@ -191,6 +299,12 @@ export default function Operators() {
           </button>
         </div>
 
+        {error && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -205,10 +319,10 @@ export default function Operators() {
                   {tc("email")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  {t("operators.routes")}
+                  Business No.
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  {t("operators.revenue")}
+                  Tax Code
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {tc("status")}
@@ -219,95 +333,96 @@ export default function Operators() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((op, idx) => (
-                <tr
-                  key={op.id}
-                  className="border-b border-gray-100 hover:bg-gray-50 transition"
-                >
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                    OP-{String(idx + 1).padStart(3, "0")}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                    {op.name}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {op.name.split(" ")[0].toLowerCase()}@company.vn
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {Math.floor(50 + idx * 5)}
-                    {t("operators.routesSuffix")}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-vr-600">
-                    {formatCurrency(op.revenue)}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    {getStatusBadge(op.status)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedOperator(op);
-                          setOpenDetail(true);
-                        }}
-                        className="p-1.5 text-vr-600 hover:bg-vr-50 rounded-lg transition"
-                        title={tc("details")}
-                      >
-                        <FiEye size={16} />
-                      </button>
-                      {op.status === "PENDING" && (
-                        <>
+              {filtered.map((operator, idx) => {
+                const status = toKnownStatus(operator.registrationStatus);
+                return (
+                  <tr
+                    key={operator.operatorId}
+                    className="border-b border-gray-100 hover:bg-gray-50 transition"
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      OP-{String(idx + 1).padStart(3, "0")}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                      {operator.name}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {operator.contactEmail}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {operator.businessRegistrationNumber}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {operator.taxCode}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      {getStatusBadge(status)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedOperator(operator);
+                            setOpenDetail(true);
+                          }}
+                          className="p-1.5 text-vr-600 hover:bg-vr-50 rounded-lg transition"
+                          title={tc("details")}
+                        >
+                          <FiEye size={16} />
+                        </button>
+                        {status === "PENDING" && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedOperator(operator);
+                                setOpenApprove(true);
+                              }}
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                              title={t("operators.approve")}
+                            >
+                              <FiCheck size={16} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedOperator(operator);
+                                setOpenReject(true);
+                              }}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition"
+                              title={t("operators.reject")}
+                            >
+                              <FiX size={16} />
+                            </button>
+                          </>
+                        )}
+                        {status === "APPROVED" && (
                           <button
-                            onClick={() => {
-                              setSelectedOperator(op);
-                              setOpenApprove(true);
-                            }}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                            title={t("operators.approve")}
-                          >
-                            <FiCheck size={16} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedOperator(op);
-                              setOpenReject(true);
-                            }}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title={t("operators.reject")}
+                            onClick={() => handleSuspend(operator)}
+                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                            title={tc("suspended")}
                           >
                             <FiX size={16} />
                           </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+
+        {isLoading && (
+          <div className="mt-4 text-sm text-gray-500">Loading operators...</div>
+        )}
 
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-gray-500">
             {t("operators.showingPagination", {
               count: filtered.length,
-              total: operatorsWithStatus.length,
+              total: operators.length,
             })}
           </p>
-          <div className="flex gap-2">
-            <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm hover:bg-gray-50">
-              {tc("previous")}
-            </button>
-            <button className="px-3 py-2 bg-vr-500 text-white rounded-lg text-sm">
-              1
-            </button>
-            <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm hover:bg-gray-50">
-              2
-            </button>
-            <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm hover:bg-gray-50">
-              {tc("next")}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -317,14 +432,12 @@ export default function Operators() {
         icon={<FiEye size={20} />}
         title={t("operators.detailTitle")}
         footer={
-          <>
-            <button
-              onClick={() => setOpenDetail(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("close")}
-            </button>
-          </>
+          <button
+            onClick={() => setOpenDetail(false)}
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {tc("close")}
+          </button>
         }
       >
         {selectedOperator && (
@@ -342,8 +455,7 @@ export default function Operators() {
                 {t("operators.contactEmail")}
               </p>
               <p className="text-sm text-gray-900">
-                {selectedOperator.name.toLowerCase().replace(" ", "")}
-                @company.vn
+                {selectedOperator.contactEmail}
               </p>
             </div>
             <div>
@@ -351,15 +463,13 @@ export default function Operators() {
                 {tc("status")}
               </p>
               <div className="mt-1">
-                {getStatusBadge(selectedOperator.status)}
+                {getStatusBadge(selectedOperator.registrationStatus)}
               </div>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-600">
-                {t("operators.revenue")}
-              </p>
+              <p className="text-xs font-medium text-gray-600">Tax Code</p>
               <p className="text-sm font-semibold text-vr-600">
-                {formatCurrency(selectedOperator.revenue)}
+                {selectedOperator.taxCode}
               </p>
             </div>
           </div>
@@ -389,21 +499,12 @@ export default function Operators() {
         }
       >
         {selectedOperator && (
-          <div className="space-y-4">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-              <p className="text-sm text-emerald-900">
-                {t("operators.approveConfirm", {
-                  name: selectedOperator.name,
-                })}
-              </p>
-            </div>
-            <div>
-              <label className={labelClass}>{t("operators.approveNote")}</label>
-              <textarea
-                placeholder={t("operators.approveNotePlaceholder")}
-                className={inputClass + " min-h-20"}
-              />
-            </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <p className="text-sm text-emerald-900">
+              {t("operators.approveConfirm", {
+                name: selectedOperator.name,
+              })}
+            </p>
           </div>
         )}
       </Modal>
@@ -464,18 +565,20 @@ export default function Operators() {
         subtitle={t("operators.onboardSubtitle")}
         footer={
           <>
-            <div
+            <button
+              type="button"
               onClick={() => setOpenOnboard(false)}
               className="rounded-lg border cursor-pointer border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
               {tc("cancel")}
-            </div>
-            <div
-              onClick={() => setOpenOnboard(false)}
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateOperator}
               className="rounded-lg bg-vr-500 cursor-pointer px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 hover:text-white"
             >
               {t("operators.createOperator")}
-            </div>
+            </button>
           </>
         }
       >
@@ -492,7 +595,25 @@ export default function Operators() {
                 </label>
                 <input
                   className={inputClass}
+                  value={operatorForm.name}
+                  onChange={(e) => updateOperatorForm("name", e.target.value)}
                   placeholder={t("operators.brandPlaceholder")}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>
+                  Business Registration No. <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className={inputClass}
+                  value={operatorForm.businessRegistrationNumber}
+                  onChange={(e) =>
+                    updateOperatorForm(
+                      "businessRegistrationNumber",
+                      e.target.value,
+                    )
+                  }
+                  placeholder="0312345678"
                 />
               </div>
               <div>
@@ -500,24 +621,64 @@ export default function Operators() {
                   {t("operators.taxId")}{" "}
                   <span className="text-red-500">*</span>
                 </label>
-                <input className={inputClass} placeholder="0301234567" />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("operators.businessType")}
-                </label>
-                <select className={inputClass} defaultValue="bus">
-                  <option value="bus">{t("operators.intercityBus")}</option>
-                </select>
+                <input
+                  className={inputClass}
+                  value={operatorForm.taxCode}
+                  onChange={(e) => updateOperatorForm("taxCode", e.target.value)}
+                  placeholder="0301234567"
+                />
               </div>
               <div className="sm:col-span-2">
                 <label className={labelClass}>
                   {t("operators.headquartersAddress")}
                 </label>
-                <textarea
-                  className={inputClass + " min-h-20"}
+                <input
+                  className={inputClass}
+                  value={operatorForm.addressStreet}
+                  onChange={(e) =>
+                    updateOperatorForm("addressStreet", e.target.value)
+                  }
                   placeholder={t("operators.addressPlaceholder")}
-                  rows={2}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Ward</label>
+                <input
+                  className={inputClass}
+                  value={operatorForm.addressWard}
+                  onChange={(e) =>
+                    updateOperatorForm("addressWard", e.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <label className={labelClass}>District</label>
+                <input
+                  className={inputClass}
+                  value={operatorForm.addressDistrict}
+                  onChange={(e) =>
+                    updateOperatorForm("addressDistrict", e.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Province</label>
+                <input
+                  className={inputClass}
+                  value={operatorForm.addressProvince}
+                  onChange={(e) =>
+                    updateOperatorForm("addressProvince", e.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <label className={labelClass}>{tc("phone")}</label>
+                <input
+                  className={inputClass}
+                  value={operatorForm.contactPhone}
+                  onChange={(e) =>
+                    updateOperatorForm("contactPhone", e.target.value)
+                  }
                 />
               </div>
             </div>
@@ -535,6 +696,10 @@ export default function Operators() {
                 </label>
                 <input
                   className={inputClass}
+                  value={operatorForm.representativeName}
+                  onChange={(e) =>
+                    updateOperatorForm("representativeName", e.target.value)
+                  }
                   placeholder={t("operators.representativePlaceholder")}
                 />
               </div>
@@ -542,6 +707,10 @@ export default function Operators() {
                 <label className={labelClass}>{t("operators.position")}</label>
                 <input
                   className={inputClass}
+                  value={operatorForm.representativePosition}
+                  onChange={(e) =>
+                    updateOperatorForm("representativePosition", e.target.value)
+                  }
                   placeholder={t("operators.positionPlaceholder")}
                 />
               </div>
@@ -549,52 +718,38 @@ export default function Operators() {
                 <label className={labelClass}>
                   {tc("email")} <span className="text-red-500">*</span>
                 </label>
-                <input className={inputClass} placeholder="ops@congty.vn" />
+                <input
+                  className={inputClass}
+                  value={operatorForm.contactEmail}
+                  onChange={(e) =>
+                    updateOperatorForm("contactEmail", e.target.value)
+                  }
+                  placeholder="ops@congty.vn"
+                />
               </div>
               <div>
                 <label className={labelClass}>
                   {tc("phone")} <span className="text-red-500">*</span>
                 </label>
-                <input className={inputClass} placeholder="0901 234 567" />
+                <input
+                  className={inputClass}
+                  value={operatorForm.representativePhone}
+                  onChange={(e) =>
+                    updateOperatorForm("representativePhone", e.target.value)
+                  }
+                  placeholder="0901 234 567"
+                />
               </div>
-            </div>
-          </section>
-          <div className="border-t border-gray-100" />
-          <section>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">
-              {t("operators.operationConfig")}
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass}>{t("operators.fleetSize")}</label>
-                <input className={inputClass} placeholder="50" />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {t("operators.commissionPercent")}
-                </label>
-                <input className={inputClass} placeholder="8" />
-              </div>
-            </div>
-            <div className="mt-4">
-              <p className={labelClass}>{t("operators.activateNow")}</p>
-              <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked="true"
-                  className="relative h-7 w-12 shrink-0 rounded-full bg-vr-500 transition"
-                >
-                  <span className="absolute right-1 top-1 h-5 w-5 rounded-full bg-white shadow" />
-                </button>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">
-                    {t("operators.allowTicketSales")}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {t("operators.activateHint")}
-                  </p>
-                </div>
+              <div className="sm:col-span-2">
+                <label className={labelClass}>Representative Email</label>
+                <input
+                  className={inputClass}
+                  value={operatorForm.representativeEmail}
+                  onChange={(e) =>
+                    updateOperatorForm("representativeEmail", e.target.value)
+                  }
+                  placeholder="representative@congty.vn"
+                />
               </div>
             </div>
           </section>

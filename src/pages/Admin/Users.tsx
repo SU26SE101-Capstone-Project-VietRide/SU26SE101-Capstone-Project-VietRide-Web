@@ -1,48 +1,118 @@
-import { FiSearch, FiFilter } from "react-icons/fi";
-import { useState } from "react";
+import { FiPlus, FiSearch, FiFilter } from "react-icons/fi";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Modal from "../../components/Modal";
-import { users as mockUsers } from "../../data/mockData";
+import {
+  getAdminOperatorUsers,
+  createAdminUser,
+  type AdminUser,
+  type AdminUserRole,
+  type CreateAdminUserRequest,
+} from "../../api/vietride";
 
-function formatUserId(idx: number) {
-  return `U-${10020 + idx}`;
+function formatUserId(userId: string, idx: number) {
+  return userId || `U-${10020 + idx}`;
 }
+
+function isActiveStatus(status: string) {
+  return ["ACTIVE", "APPROVED", "active"].includes(status);
+}
+
+const emptyUserForm: CreateAdminUserRequest = {
+  email: "",
+  displayName: "",
+  role: "OPERATOR_ADMIN",
+};
 
 export default function Users() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [searchTerm, setSearchTerm] = useState("");
-  const [users, setUsers] = useState(mockUsers);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [selected, setSelected] = useState<AdminUser | null>(null);
+  const [openCreate, setOpenCreate] = useState(false);
+  const [userForm, setUserForm] =
+    useState<CreateAdminUserRequest>(emptyUserForm);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const filtered = users.filter(
-    (u) =>
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()),
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsers() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const result = await getAdminOperatorUsers({
+          page: 1,
+          pageSize: 20,
+          search: searchTerm,
+        });
+
+        if (!cancelled) {
+          setUsers(result.items);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load users");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchTerm]);
+
+  const filtered = useMemo(
+    () =>
+      users.filter(
+        (u) =>
+          u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          u.email.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    [searchTerm, users],
   );
 
-  function openDetails(idx: number) {
-    setSelected(idx);
-  }
-
-  function closeDetails() {
-    setSelected(null);
-  }
-
-  function saveUser(idx: number, patch: Partial<(typeof users)[number]>) {
-    setUsers((prev) =>
-      prev.map((u, i) => (i === idx ? { ...u, ...patch } : u)),
-    );
-  }
-
-  const roleLabel = (role: string) => {
+  const roleLabel = (role: AdminUserRole) => {
     const map: Record<string, string> = {
+      PASSENGER: t("users.customer"),
+      OPERATOR_ADMIN: t("users.manager"),
+      OPERATOR_STAFF: t("users.operator"),
+      SYSTEM_ADMIN: t("users.admin"),
       customer: t("users.customer"),
       manager: t("users.manager"),
       operator: t("users.operator"),
       admin: t("users.admin"),
     };
     return map[role] ?? role;
+  };
+
+  const reloadUsers = async () => {
+    const result = await getAdminOperatorUsers({
+      page: 1,
+      pageSize: 20,
+      search: searchTerm,
+    });
+    setUsers(result.items);
+  };
+
+  const handleCreateUser = async () => {
+    await createAdminUser(userForm);
+    await reloadUsers();
+    setUserForm(emptyUserForm);
+    setOpenCreate(false);
+  };
+
+  const updateUserForm = (key: keyof CreateAdminUserRequest, value: string) => {
+    setUserForm((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -54,6 +124,14 @@ export default function Users() {
           </h1>
           <p className="text-gray-600 mt-1">{t("users.subtitle")}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setOpenCreate(true)}
+          className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-vr-600"
+        >
+          <FiPlus size={16} />
+          Create user
+        </button>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -84,6 +162,12 @@ export default function Users() {
           </div>
         </div>
 
+        {error && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -104,145 +188,152 @@ export default function Users() {
                   {t("users.joined")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  {t("users.trips")}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {tc("status")}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u) => {
-                const idx = users.findIndex((x) => x.id === u.id);
-                return (
-                  <tr
-                    key={u.id}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition"
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      {formatUserId(idx + 1)}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                      {u.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {u.email}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      {roleLabel(u.role)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {u.createdAt ?? "--"}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      {(idx + 1) * 5}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      {u.active ? (
-                        <span className="px-3 py-1 bg-vr-100 text-vr-900 rounded-full text-xs">
-                          {tc("active")}
-                        </span>
-                      ) : (
-                        <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs">
-                          {t("users.locked")}
-                        </span>
-                      )}
-                      <div className="mt-2">
-                        <button
-                          onClick={() => openDetails(idx)}
-                          className="text-sm text-vr-600 hover:underline"
-                        >
-                          {tc("details")}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filtered.map((u, idx) => (
+                <tr
+                  key={u.userId}
+                  className="border-b border-gray-100 hover:bg-gray-50 transition"
+                >
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {formatUserId(u.userId, idx + 1)}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                    {u.displayName}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {u.email}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {roleLabel(u.role)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {u.createdAt ?? "--"}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    {isActiveStatus(u.status) ? (
+                      <span className="px-3 py-1 bg-vr-100 text-vr-900 rounded-full text-xs">
+                        {tc("active")}
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs">
+                        {u.status || t("users.locked")}
+                      </span>
+                    )}
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setSelected(u)}
+                        className="text-sm text-vr-600 hover:underline"
+                      >
+                        {tc("details")}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
-        <div className="mt-4 text-sm text-gray-500">
-          {tc("showingItems", { count: filtered.length, total: 1240000 })}
-        </div>
+        {isLoading && (
+          <div className="mt-4 text-sm text-gray-500">Loading users...</div>
+        )}
 
-        <div className="mt-4 flex justify-end gap-2">
-          <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg">
-            {tc("previous")}
-          </button>
-          <button className="px-3 py-2 bg-vr-500 text-slate-900 rounded-lg font-semibold hover:bg-vr-600">
-            1
-          </button>
-          <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg">
-            2
-          </button>
-          <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg">
-            3
-          </button>
-          <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg">
-            {tc("next")}
-          </button>
+        <div className="mt-4 text-sm text-gray-500">
+          {tc("showingItems", { count: filtered.length, total: users.length })}
         </div>
       </div>
+
       <Modal
         open={selected !== null}
-        onClose={closeDetails}
-        title={selected !== null ? users[selected].name : tc("details")}
-        subtitle={selected !== null ? users[selected].email : undefined}
+        onClose={() => setSelected(null)}
+        title={selected?.displayName ?? tc("details")}
+        subtitle={selected?.email}
       >
-        {selected !== null && (
+        {selected && (
           <div className="space-y-4">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">
-                {t("users.role")}
-              </label>
-              <select
-                value={users[selected].role}
-                onChange={(e) =>
-                  saveUser(selected, { role: e.target.value as never })
-                }
-                className="w-full px-3 py-2 border rounded"
-              >
-                <option value="customer">{t("users.customer")}</option>
-                <option value="manager">{t("users.manager")}</option>
-                <option value="operator">{t("users.operator")}</option>
-                <option value="admin">{t("users.admin")}</option>
-              </select>
+              <p className="text-xs text-gray-600 mb-1">{t("users.role")}</p>
+              <p className="font-medium text-gray-900">
+                {roleLabel(selected.role)}
+              </p>
             </div>
-
             <div>
-              <label className="block text-xs text-gray-600 mb-1">
-                {tc("status")}
-              </label>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => saveUser(selected, { active: true })}
-                  className={`px-3 py-2 rounded ${users[selected].active ? "bg-vr-500 text-white" : "bg-white border"}`}
-                >
-                  {tc("enable")}
-                </button>
-                <button
-                  onClick={() => saveUser(selected, { active: false })}
-                  className={`px-3 py-2 rounded ${!users[selected].active ? "bg-red-50 text-red-700" : "bg-white border"}`}
-                >
-                  {t("users.lock")}
-                </button>
-              </div>
+              <p className="text-xs text-gray-600 mb-1">{tc("status")}</p>
+              <p className="font-medium text-gray-900">{selected.status}</p>
             </div>
-
             <div>
-              <label className="block text-xs text-gray-600 mb-1">
-                {tc("note")}
-              </label>
-              <textarea
-                className="w-full px-3 py-2 border rounded min-h-20"
-                placeholder={t("users.internalNote")}
-              />
+              <p className="text-xs text-gray-600 mb-1">Operator ID</p>
+              <p className="font-medium text-gray-900">
+                {selected.operatorId ?? "--"}
+              </p>
             </div>
           </div>
         )}
         <div />
+      </Modal>
+
+      <Modal
+        open={openCreate}
+        onClose={() => setOpenCreate(false)}
+        title="Create admin user"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setOpenCreate(false)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {tc("cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateUser}
+              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+            >
+              Create
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Name</label>
+            <input
+              value={userForm.displayName}
+              onChange={(e) => updateUserForm("displayName", e.target.value)}
+              className="w-full px-3 py-2 border rounded"
+              placeholder="Operator manager"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Email</label>
+            <input
+              value={userForm.email}
+              onChange={(e) => updateUserForm("email", e.target.value)}
+              className="w-full px-3 py-2 border rounded"
+              placeholder="manager@operator.vn"
+              type="email"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Role</label>
+            <select
+              value={userForm.role}
+              onChange={(e) => updateUserForm("role", e.target.value)}
+              className="w-full px-3 py-2 border rounded"
+            >
+              <option value="OPERATOR_ADMIN">Operator admin</option>
+              <option value="OPERATOR_STAFF">Operator staff</option>
+              <option value="DRIVER">Driver</option>
+              <option value="ASSISTANT">Assistant</option>
+              <option value="SYSTEM_ADMIN">System admin</option>
+            </select>
+          </div>
+        </div>
       </Modal>
     </div>
   );
