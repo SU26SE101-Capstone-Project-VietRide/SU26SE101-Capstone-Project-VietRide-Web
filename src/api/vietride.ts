@@ -84,6 +84,7 @@ export type AdminUser = {
   userId: string;
   email: string;
   displayName: string;
+  phone?: string;
   role: AdminUserRole;
   status: string;
   operatorId?: string | null;
@@ -144,9 +145,11 @@ export type RegisterOperatorRequest = CreateAdminOperatorRequest & {
 };
 
 export type OperatorUser = {
+  id?: string;
   userId: string;
   email: string;
   displayName: string;
+  phone?: string;
   role: AdminUserRole;
   status: string;
   operatorId: string;
@@ -156,6 +159,7 @@ export type OperatorUser = {
 export type CreateOperatorUserRequest = {
   email: string;
   displayName: string;
+  phone: string;
   role: AdminUserRole;
 };
 
@@ -322,6 +326,69 @@ export type FareTemplateRequest = {
   fareFromThisStop: number;
   effectiveFrom: string;
   effectiveUntil: string;
+};
+
+export type OperatorVoucher = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  value: number;
+  minOrderAmount: number;
+  maxDiscountAmount: number;
+  totalUsageLimit: number;
+  perUserLimit: number;
+  usedCount?: number;
+  validFrom: string;
+  validUntil: string;
+  applicableRouteIds: string[];
+  fundingType?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateOperatorVoucherRequest = {
+  code: string;
+  name: string;
+  type: string;
+  value: number;
+  minOrderAmount: number;
+  maxDiscountAmount: number;
+  totalUsageLimit: number;
+  perUserLimit: number;
+  validFrom: string;
+  validUntil: string;
+  applicableRouteIds: string[];
+  fundingType: string;
+};
+
+export type UpdateOperatorVoucherRequest = Omit<
+  CreateOperatorVoucherRequest,
+  "code" | "type" | "fundingType"
+>;
+
+export type OperatorVoucherActionResult = {
+  id: string;
+  isActive?: boolean;
+  deletedAt?: string;
+};
+
+export type OperatorVoucherConsent = {
+  id: string;
+  voucherId: string;
+  voucherCode: string;
+  voucherType: string;
+  voucherValue: number;
+  validFrom: string;
+  validUntil: string;
+  minOrderAmount: number;
+  maxDiscountAmount: number;
+  applicableRouteIds: string[];
+  status: string;
+  requestedAt?: string;
+  respondedAt?: string;
+  respondedByUserId?: string;
 };
 
 export type AlternativeRoute = {
@@ -751,6 +818,69 @@ export function createRouteFareTemplate(
   return apiRequest<FareTemplate>(
     `/v1/operator/routes/${routeId}/fare-templates`,
     { method: "POST", body: request },
+  );
+}
+
+export function getOperatorVouchers(params: PageParams = {}) {
+  return apiRequest<PagedResult<OperatorVoucher>>(
+    `/v1/operator/vouchers${buildQuery(params)}`,
+  );
+}
+
+export function createOperatorVoucher(request: CreateOperatorVoucherRequest) {
+  return apiRequest<OperatorVoucher>("/v1/operator/vouchers", {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function updateOperatorVoucher(
+  id: string,
+  request: UpdateOperatorVoucherRequest,
+) {
+  return apiRequest<OperatorVoucher>(`/v1/operator/vouchers/${id}`, {
+    method: "PATCH",
+    body: request,
+  });
+}
+
+export function deleteOperatorVoucher(id: string) {
+  return apiRequest<OperatorVoucherActionResult>(`/v1/operator/vouchers/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function activateOperatorVoucher(id: string) {
+  return apiRequest<OperatorVoucherActionResult>(
+    `/v1/operator/vouchers/${id}/activate`,
+    { method: "POST" },
+  );
+}
+
+export function deactivateOperatorVoucher(id: string) {
+  return apiRequest<OperatorVoucherActionResult>(
+    `/v1/operator/vouchers/${id}/deactivate`,
+    { method: "POST" },
+  );
+}
+
+export function getOperatorVoucherConsents(status?: string) {
+  return apiRequest<PagedResult<OperatorVoucherConsent>>(
+    `/v1/operator/voucher-consents${buildQuery({ status })}`,
+  );
+}
+
+export function acceptOperatorVoucherConsent(id: string) {
+  return apiRequest<{ id: string; status: string }>(
+    `/v1/operator/voucher-consents/${id}/accept`,
+    { method: "POST" },
+  );
+}
+
+export function rejectOperatorVoucherConsent(id: string, reason: string) {
+  return apiRequest<{ id: string; status: string }>(
+    `/v1/operator/voucher-consents/${id}/reject`,
+    { method: "POST", body: { reason } },
   );
 }
 
