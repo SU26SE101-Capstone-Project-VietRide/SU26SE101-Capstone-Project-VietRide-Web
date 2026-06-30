@@ -12,7 +12,11 @@ import {
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import logo from "../assets/Login/logo.svg";
 import login_3 from "../assets/Login/login_3.png";
-import { registerOperator, type RegisterOperatorRequest } from "../api/vietride";
+import {
+  registerOperator,
+  verifyEmail,
+  type RegisterOperatorRequest,
+} from "../api/vietride";
 
 const emptyOperatorForm: RegisterOperatorRequest = {
   name: "",
@@ -36,7 +40,10 @@ export default function Register() {
   const { t } = useTranslation("login");
   const { t: tc } = useTranslation("common");
   const [form, setForm] = useState<RegisterOperatorRequest>(emptyOperatorForm);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [registeredEmail, setRegisteredEmail] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const updateForm = (key: keyof RegisterOperatorRequest, value: string) => {
@@ -46,6 +53,7 @@ export default function Register() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setMessage("");
 
     const requiredValues = [
       form.name,
@@ -82,9 +90,36 @@ export default function Register() {
 
     try {
       await registerOperator(form);
-      navigate("/login", { replace: true, state: { registered: true } });
+      setRegisteredEmail(form.representativeEmail || form.contactEmail);
+      setMessage("Registration submitted. Please enter the email verification code.");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.registerFailed"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setMessage("");
+
+    if (!registeredEmail || !verificationCode.trim()) {
+      setError(t("errors.required"));
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await verifyEmail({
+        email: registeredEmail,
+        code: verificationCode.trim(),
+        purpose: "REGISTRATION",
+      });
+      navigate("/login", { replace: true, state: { registered: true } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Email verification failed");
     } finally {
       setLoading(false);
     }
@@ -144,7 +179,51 @@ export default function Register() {
                   {error}
                 </div>
               )}
+              {message && (
+                <div
+                  className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+                  role="status"
+                >
+                  {message}
+                </div>
+              )}
 
+              {registeredEmail ? (
+                <form onSubmit={handleVerifyEmail} className="mt-6 space-y-4">
+                  <Field
+                    icon={<FiMail />}
+                    label="Verification email"
+                    value={registeredEmail}
+                    onChange={setRegisteredEmail}
+                    placeholder="owner@operator.vn"
+                    type="email"
+                  />
+                  <Field
+                    icon={<FiLock />}
+                    label="Verification code"
+                    value={verificationCode}
+                    onChange={setVerificationCode}
+                    placeholder="123456"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
+                  >
+                    {loading ? (
+                      <>
+                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        {t("submitting")}
+                      </>
+                    ) : (
+                      <>
+                        Verify email
+                        <FiArrowRight className="h-5 w-5" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
               <form onSubmit={handleRegister} className="mt-6 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
@@ -280,6 +359,7 @@ export default function Register() {
                   )}
                 </button>
               </form>
+              )}
 
               <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
                 <Link

@@ -33,6 +33,14 @@ export type AdminOperator = {
   contactPhone: string;
   businessRegistrationNumber: string;
   taxCode: string;
+  addressStreet?: string;
+  addressWard?: string;
+  addressDistrict?: string;
+  addressProvince?: string;
+  representativeName?: string;
+  representativePosition?: string;
+  representativePhone?: string;
+  representativeEmail?: string;
   registrationStatus: OperatorStatus;
   createdAt?: string;
   approvedAt?: string | null;
@@ -359,8 +367,12 @@ export type VehicleSeat = {
   seatNumber: string;
   row: number;
   col: number;
+  deck?: number;
   type: string;
   isAvailable: boolean;
+  isWindow?: boolean;
+  isAisle?: boolean;
+  disabled?: boolean;
   metadata?: Record<string, unknown>;
 };
 
@@ -369,7 +381,21 @@ export type VehicleDeck = {
   seats: VehicleSeat[];
 };
 
+export type SeatLayoutJson = {
+  version: number;
+  vehicleTypeCode: string;
+  totalSeats: number;
+  rows: number;
+  cols: number;
+  decks: number;
+  aisles: Array<{
+    afterCol: number;
+  }>;
+  seats: VehicleSeat[];
+};
+
 export type OperatorVehicle = {
+  id?: string;
   vehicleId: string;
   operatorId: string;
   licensePlate: string;
@@ -378,8 +404,10 @@ export type OperatorVehicle = {
   vehicleTypeCode?: string;
   totalSeats: number;
   maxCargoWeightKg: number;
+  maxCargoVolumeM3?: number;
   status: string;
-  decks: VehicleDeck[];
+  decks?: VehicleDeck[];
+  seatLayoutJson?: SeatLayoutJson | string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -389,8 +417,8 @@ export type OperatorVehicleRequest = {
   licensePlate: string;
   totalSeats: number;
   maxCargoWeightKg: number;
-  status: string;
-  decks: VehicleDeck[];
+  maxCargoVolumeM3: number;
+  seatLayoutJson: SeatLayoutJson;
 };
 
 export type VehicleType = {
@@ -489,6 +517,43 @@ export type BookSeatsRequest = {
     seatNumber: string;
   }>;
 };
+
+export type VerifyEmailRequest = {
+  email: string;
+  code: string;
+  purpose: string;
+};
+
+export type VerifyEmailResult = {
+  userId: string;
+  status: string;
+};
+
+export type SetInitialPasswordRequest = {
+  token: string;
+  password: string;
+};
+
+export type SetInitialPasswordResult = {
+  userId: string;
+  status: string;
+};
+
+export function verifyEmail(request: VerifyEmailRequest) {
+  return apiRequest<VerifyEmailResult>("/v1/auth/verify-email", {
+    method: "POST",
+    body: request,
+    authenticated: false,
+  });
+}
+
+export function setInitialPassword(request: SetInitialPasswordRequest) {
+  return apiRequest<SetInitialPasswordResult>("/v1/auth/set-initial-password", {
+    method: "POST",
+    body: request,
+    authenticated: false,
+  });
+}
 
 export function getAdminOperators(params: PageParams = {}) {
   return apiRequest<PagedResult<AdminOperator>>(

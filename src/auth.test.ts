@@ -5,6 +5,7 @@ import {
   getHomePathForRole,
   login,
   logout,
+  refreshAuthSession,
 } from "./auth";
 
 describe("auth", () => {
@@ -29,7 +30,7 @@ describe("auth", () => {
               email: "manager@vietride.vn",
               displayName: "Manager",
               phone: "0901234567",
-              role: "manager",
+              role: "OPERATOR_ADMIN",
             },
           },
         }),
@@ -43,7 +44,7 @@ describe("auth", () => {
       password: "secret123",
     });
 
-    expect(session.user.role).toBe("manager");
+    expect(session.user.role).toBe("OPERATOR_ADMIN");
     expect(getAuthUser()?.email).toBe("manager@vietride.vn");
     expect(getHomePathForRole(session.user.role)).toBe("/manager/dashboard");
   });
@@ -62,7 +63,7 @@ describe("auth", () => {
           email: "admin@vietride.vn",
           displayName: "Admin",
           phone: "0901234567",
-          role: "admin",
+          role: "SYSTEM_ADMIN",
         },
       }),
     );
@@ -77,5 +78,78 @@ describe("auth", () => {
       }),
     );
     expect(getAuthUser()).toBeNull();
+  });
+
+  it("normalizes legacy roles from stored sessions", () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          phone: "0901234567",
+          role: "admin",
+        },
+      }),
+    );
+
+    expect(getAuthUser()?.role).toBe("SYSTEM_ADMIN");
+  });
+
+  it("refreshes and stores a new auth session", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "old-access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          phone: "0901234567",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          statusCode: 0,
+          message: "OK",
+          data: {
+            accessToken: "new-access-token",
+            refreshToken: "new-refresh-token",
+            expiresInSeconds: 3600,
+            user: {
+              id: "user-1",
+              email: "admin@vietride.vn",
+              displayName: "Admin",
+              phone: "0901234567",
+              role: "SYSTEM_ADMIN",
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const session = await refreshAuthSession();
+
+    expect(session?.accessToken).toBe("new-access-token");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/auth/refresh",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ refreshToken: "refresh-token" }),
+      }),
+    );
   });
 });

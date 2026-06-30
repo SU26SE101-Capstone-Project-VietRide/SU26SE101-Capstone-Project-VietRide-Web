@@ -34,7 +34,11 @@ const managerMenuConfig: MenuSection[] = [
   {
     titleKey: "sections.menu",
     items: [
-      { labelKey: "manager.dashboard", path: "/manager/dashboard", icon: <FiLayout /> },
+      {
+        labelKey: "manager.dashboard",
+        path: "/manager/dashboard",
+        icon: <FiLayout />,
+      },
       { labelKey: "manager.trips", path: "/manager/trips", icon: <FiTruck /> },
       {
         labelKey: "manager.routeEta",
@@ -46,27 +50,63 @@ const managerMenuConfig: MenuSection[] = [
         path: "/manager/routes",
         icon: <FiNavigation />,
       },
-      { labelKey: "manager.vehicles", path: "/manager/vehicles", icon: <FiTruck /> },
+      {
+        labelKey: "manager.vehicles",
+        path: "/manager/vehicles",
+        icon: <FiTruck />,
+      },
       { labelKey: "manager.staff", path: "/manager/staff", icon: <FiUsers /> },
-      { labelKey: "manager.bookings", path: "/manager/bookings", icon: <FiBookOpen /> },
-      { labelKey: "manager.parcels", path: "/manager/parcels", icon: <FiPackage /> },
+      {
+        labelKey: "manager.bookings",
+        path: "/manager/bookings",
+        icon: <FiBookOpen />,
+      },
+      {
+        labelKey: "manager.parcels",
+        path: "/manager/parcels",
+        icon: <FiPackage />,
+      },
       { labelKey: "manager.gps", path: "/manager/gps", icon: <FiMapPin /> },
       {
         labelKey: "manager.dispatch",
         path: "/manager/dispatch",
         icon: <FiNavigation />,
       },
-      { labelKey: "manager.vouchers", path: "/manager/vouchers", icon: <FiPackage /> },
-      { labelKey: "manager.packages", path: "/manager/packages", icon: <FiPackage /> },
-      { labelKey: "manager.policies", path: "/manager/policies", icon: <FiFileText /> },
+      {
+        labelKey: "manager.vouchers",
+        path: "/manager/vouchers",
+        icon: <FiPackage />,
+      },
+      {
+        labelKey: "manager.packages",
+        path: "/manager/packages",
+        icon: <FiPackage />,
+      },
+      {
+        labelKey: "manager.policies",
+        path: "/manager/policies",
+        icon: <FiFileText />,
+      },
     ],
   },
   {
     titleKey: "sections.support",
     items: [
-      { labelKey: "manager.reports", path: "/manager/reports", icon: <FiBarChart2 /> },
-      { labelKey: "manager.wallet", path: "/manager/wallet", icon: <FiDollarSign /> },
-      { labelKey: "manager.settings", path: "/manager/settings", icon: <FiSettings /> },
+      {
+        labelKey: "manager.reports",
+        path: "/manager/reports",
+        icon: <FiBarChart2 />,
+      },
+      {
+        labelKey: "manager.wallet",
+        path: "/manager/wallet",
+        icon: <FiDollarSign />,
+      },
+      {
+        labelKey: "manager.settings",
+        path: "/manager/settings",
+        icon: <FiSettings />,
+      },
     ],
   },
 ];
@@ -75,12 +115,32 @@ const adminMenuConfig: MenuSection[] = [
   {
     titleKey: "sections.menu",
     items: [
-      { labelKey: "admin.dashboard", path: "/admin/dashboard", icon: <FiLayout /> },
-      { labelKey: "admin.operators", path: "/admin/operators", icon: <FiTruck /> },
+      {
+        labelKey: "admin.dashboard",
+        path: "/admin/dashboard",
+        icon: <FiLayout />,
+      },
+      {
+        labelKey: "admin.operators",
+        path: "/admin/operators",
+        icon: <FiTruck />,
+      },
       { labelKey: "admin.users", path: "/admin/users", icon: <FiBookOpen /> },
-      { labelKey: "admin.vouchers", path: "/admin/vouchers", icon: <FiPackage /> },
-      { labelKey: "admin.packages", path: "/admin/packages", icon: <FiPackage /> },
-      { labelKey: "admin.policies", path: "/admin/policies", icon: <FiFileText /> },
+      {
+        labelKey: "admin.vouchers",
+        path: "/admin/vouchers",
+        icon: <FiPackage />,
+      },
+      {
+        labelKey: "admin.packages",
+        path: "/admin/packages",
+        icon: <FiPackage />,
+      },
+      {
+        labelKey: "admin.policies",
+        path: "/admin/policies",
+        icon: <FiFileText />,
+      },
       {
         labelKey: "admin.payouts",
         path: "/admin/payouts",
@@ -91,14 +151,22 @@ const adminMenuConfig: MenuSection[] = [
   {
     titleKey: "sections.support",
     items: [
-      { labelKey: "admin.revenue", path: "/admin/revenue", icon: <FiBarChart2 /> },
-      { labelKey: "admin.reports", path: "/admin/reports", icon: <FiBarChart2 /> },
+      {
+        labelKey: "admin.revenue",
+        path: "/admin/revenue",
+        icon: <FiBarChart2 />,
+      },
+      {
+        labelKey: "admin.reports",
+        path: "/admin/reports",
+        icon: <FiBarChart2 />,
+      },
     ],
   },
 ];
 
 type SidebarProps = {
-  role: "manager" | "admin";
+  role: "manager" | "SYSTEM_ADMIN";
   isOpen: boolean;
   onClose: () => void;
 };
@@ -116,9 +184,9 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation(["nav", "common"]);
-  const menus = (role === "manager" ? managerMenuConfig : adminMenuConfig).filter(
-    (s) => s.items.length > 0,
-  );
+  const menus = (
+    role === "manager" ? managerMenuConfig : adminMenuConfig
+  ).filter((s) => s.items.length > 0);
 
   const handleLogout = async () => {
     await logout();
@@ -172,7 +240,10 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           {menus.map((section, sectionIndex) => (
-            <div key={section.titleKey} className={sectionIndex > 0 ? "mt-6" : ""}>
+            <div
+              key={section.titleKey}
+              className={sectionIndex > 0 ? "mt-6" : ""}
+            >
               <p
                 className={`${sectionHeadingClass} ${sectionIndex === 0 ? "pt-0" : ""}`}
               >

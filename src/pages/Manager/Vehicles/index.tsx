@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiDownload,
+  FiEdit2,
+  FiEye,
   FiFilter,
   FiList,
   FiPlus,
@@ -12,15 +14,19 @@ import {
   FiTool,
   FiTruck,
 } from "react-icons/fi";
+import { FaChair } from "react-icons/fa";
 import Modal from "../../../components/Modal";
 import {
   createOperatorVehicle,
+  getOperatorVehicle,
   getOperatorVehicles,
   getVehicleTypes,
   updateOperatorVehicle,
   type OperatorVehicle,
   type OperatorVehicleRequest,
+  type SeatLayoutJson,
   type VehicleDeck,
+  type VehicleSeat,
   type VehicleType,
 } from "../../../api/vietride";
 
@@ -33,7 +39,13 @@ type VehicleForm = {
   licensePlate: string;
   totalSeats: string;
   maxCargoWeightKg: string;
+  maxCargoVolumeM3: string;
   status: string;
+  deckCount: string;
+  rowsPerDeck: string;
+  columnsPerRow: string;
+  aisleAfterCol: string;
+  seatPrefix: string;
 };
 
 const emptyVehicleForm: VehicleForm = {
@@ -41,7 +53,13 @@ const emptyVehicleForm: VehicleForm = {
   licensePlate: "",
   totalSeats: "40",
   maxCargoWeightKg: "500",
+  maxCargoVolumeM3: "5",
   status: "ACTIVE",
+  deckCount: "1",
+  rowsPerDeck: "10",
+  columnsPerRow: "4",
+  aisleAfterCol: "2",
+  seatPrefix: "A",
 };
 
 function toNumber(value: string) {
@@ -49,29 +67,164 @@ function toNumber(value: string) {
   return Number.isFinite(next) ? next : 0;
 }
 
-function createDecks(totalSeats: number): VehicleDeck[] {
-  const seats = Array.from({ length: totalSeats }, (_, index) => ({
-    seatNumber: `A${index + 1}`,
-    row: Math.floor(index / 4) + 1,
-    col: (index % 4) + 1,
-    type: "STANDARD",
-    isAvailable: true,
-  }));
-
-  return [{ deck: 1, seats }];
+function toPositiveInteger(value: string, fallback: number) {
+  const next = Math.floor(Number(value));
+  return Number.isFinite(next) && next > 0 ? next : fallback;
 }
 
-function toVehicleRequest(form: VehicleForm): OperatorVehicleRequest {
-  const totalSeats = toNumber(form.totalSeats);
+function toSeatLayoutOptions(form: VehicleForm) {
+  const seatPrefix = form.seatPrefix?.trim() || "A";
+  const columnsPerRow = toPositiveInteger(form.columnsPerRow, 4);
+  const aisleAfterCol = Math.min(
+    toPositiveInteger(form.aisleAfterCol, 2),
+    Math.max(columnsPerRow - 1, 1),
+  );
+
+  return {
+    deckCount: toPositiveInteger(form.deckCount, 1),
+    rowsPerDeck: toPositiveInteger(form.rowsPerDeck, 10),
+    columnsPerRow,
+    aisleAfterCol,
+    seatPrefix,
+  };
+}
+
+function createDecks(form: VehicleForm): VehicleDeck[] {
+  const options = toSeatLayoutOptions(form);
+
+  return Array.from({ length: options.deckCount }, (_, deckIndex) => {
+    const seats = Array.from(
+      { length: options.rowsPerDeck * options.columnsPerRow },
+      (_, seatIndex) => {
+        const row = Math.floor(seatIndex / options.columnsPerRow) + 1;
+        const col = (seatIndex % options.columnsPerRow) + 1;
+        const number = seatIndex + 1;
+
+        return {
+          seatNumber:
+            options.deckCount > 1
+              ? `${options.seatPrefix}${deckIndex + 1}-${number}`
+              : `${options.seatPrefix}${number}`,
+          row,
+          col,
+          deck: deckIndex + 1,
+          type: "STANDARD",
+          isAvailable: true,
+          isWindow: col === 1 || col === options.columnsPerRow,
+          isAisle: false,
+          disabled: false,
+        };
+      },
+    );
+
+    return { deck: deckIndex + 1, seats };
+  });
+}
+
+function countSeats(decks: VehicleDeck[]) {
+  return decks.reduce((total, deck) => total + deck.seats.length, 0);
+}
+
+function toSeatLayoutJson(
+  form: VehicleForm,
+  vehicleTypes: VehicleType[] = [],
+): SeatLayoutJson {
+  const decks = createDecks(form);
+  const options = toSeatLayoutOptions(form);
+  const seats = decks.flatMap((deck) => deck.seats);
+  const vehicleType = vehicleTypes.find((type) => type.id === form.vehicleTypeId);
+
+  return {
+    version: 1,
+    vehicleTypeCode: vehicleType?.code ?? "",
+    totalSeats: seats.length,
+    rows: options.rowsPerDeck,
+    cols: options.columnsPerRow,
+    decks: options.deckCount,
+    aisles: [{ afterCol: options.aisleAfterCol }],
+    seats,
+  };
+}
+
+function groupSeatsByDeck(seats: VehicleSeat[]): VehicleDeck[] {
+  const grouped = seats.reduce<Record<number, VehicleSeat[]>>((acc, seat) => {
+    const deck = seat.deck ?? 1;
+    acc[deck] = [...(acc[deck] ?? []), seat];
+    return acc;
+  }, {});
+
+  return Object.entries(grouped)
+    .map(([deck, deckSeats]) => ({
+      deck: Number(deck),
+      seats: deckSeats,
+    }))
+    .sort((left, right) => left.deck - right.deck);
+}
+
+function getLayoutShape(vehicle: OperatorVehicle) {
+  const decks = vehicle.decks ?? parseSeatLayoutDecks(vehicle.seatLayoutJson);
+  const firstDeck = decks[0];
+
+  if (!firstDeck) {
+    return {
+      deckCount: "1",
+      rowsPerDeck: String(Math.max(1, Math.ceil(vehicle.totalSeats / 4))),
+      columnsPerRow: "4",
+    };
+  }
+
+  const maxRow = Math.max(...firstDeck.seats.map((seat) => seat.row), 1);
+  const maxColumn = Math.max(...firstDeck.seats.map((seat) => seat.col), 1);
+
+  return {
+    deckCount: String(Math.max(decks.length, 1)),
+    rowsPerDeck: String(maxRow),
+    columnsPerRow: String(maxColumn),
+  };
+}
+
+function parseSeatLayoutDecks(layout: OperatorVehicle["seatLayoutJson"]) {
+  if (!layout) {
+    return [];
+  }
+
+  if (typeof layout !== "string") {
+    return groupSeatsByDeck(layout.seats);
+  }
+
+  try {
+    const parsed = JSON.parse(layout) as Partial<SeatLayoutJson> & {
+      decks?: VehicleDeck[] | number;
+    };
+
+    if (Array.isArray(parsed.seats)) {
+      return groupSeatsByDeck(parsed.seats);
+    }
+
+    return Array.isArray(parsed.decks) ? parsed.decks : [];
+  } catch {
+    return [];
+  }
+}
+
+function toVehicleRequest(
+  form: VehicleForm,
+  vehicleTypes: VehicleType[],
+): OperatorVehicleRequest {
+  const seatLayoutJson = toSeatLayoutJson(form, vehicleTypes);
 
   return {
     vehicleTypeId: form.vehicleTypeId,
     licensePlate: form.licensePlate,
-    totalSeats,
+    totalSeats: seatLayoutJson.totalSeats,
     maxCargoWeightKg: toNumber(form.maxCargoWeightKg),
-    status: form.status,
-    decks: createDecks(totalSeats),
+    maxCargoVolumeM3: toNumber(form.maxCargoVolumeM3),
+    seatLayoutJson,
   };
+}
+
+function getVehicleId(vehicle: OperatorVehicle) {
+  return vehicle.vehicleId || vehicle.id || "";
 }
 
 export default function VehiclesPage() {
@@ -80,16 +233,20 @@ export default function VehiclesPage() {
   const [search, setSearch] = useState("");
   const [openReg, setOpenReg] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
-  const [openMaint, setOpenMaint] = useState(false);
+  const [openDetail, setOpenDetail] = useState(false);
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<OperatorVehicle | null>(
+    null,
+  );
+  const [detailVehicle, setDetailVehicle] = useState<OperatorVehicle | null>(
     null,
   );
   const [vehicleForm, setVehicleForm] =
     useState<VehicleForm>(emptyVehicleForm);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function loadVehicles() {
@@ -106,10 +263,13 @@ export default function VehiclesPage() {
       setVehicleTypes(typeResult.items);
 
       if (!vehicleForm.vehicleTypeId && typeResult.items[0]) {
+        const defaultSeatCount = typeResult.items[0].defaultSeatCount || 40;
+
         setVehicleForm((prev) => ({
           ...prev,
           vehicleTypeId: typeResult.items[0].id,
-          totalSeats: String(typeResult.items[0].defaultSeatCount || 40),
+          totalSeats: String(defaultSeatCount),
+          rowsPerDeck: String(Math.max(1, Math.ceil(defaultSeatCount / 4))),
         }));
       }
     } catch (err) {
@@ -137,12 +297,15 @@ export default function VehiclesPage() {
         setVehicleTypes(typeResult.items);
 
         if (typeResult.items[0]) {
+          const defaultSeatCount = typeResult.items[0].defaultSeatCount || 40;
+
           setVehicleForm((prev) => ({
             ...prev,
             vehicleTypeId: prev.vehicleTypeId || typeResult.items[0].id,
-            totalSeats:
-              prev.totalSeats ||
-              String(typeResult.items[0].defaultSeatCount || 40),
+            totalSeats: prev.totalSeats || String(defaultSeatCount),
+            rowsPerDeck:
+              prev.rowsPerDeck ||
+              String(Math.max(1, Math.ceil(defaultSeatCount / 4))),
           }));
         }
       } catch (err) {
@@ -197,19 +360,50 @@ export default function VehiclesPage() {
   }
 
   function openEditModal(vehicle: OperatorVehicle) {
+    const layoutShape = getLayoutShape(vehicle);
+
     setSelectedVehicle(vehicle);
     setVehicleForm({
       vehicleTypeId: vehicle.vehicleTypeId,
       licensePlate: vehicle.licensePlate,
       totalSeats: String(vehicle.totalSeats),
       maxCargoWeightKg: String(vehicle.maxCargoWeightKg),
+      maxCargoVolumeM3: String(vehicle.maxCargoVolumeM3 ?? 5),
       status: vehicle.status,
+      deckCount: layoutShape.deckCount,
+      rowsPerDeck: layoutShape.rowsPerDeck,
+      columnsPerRow: layoutShape.columnsPerRow,
+      aisleAfterCol: "2",
+      seatPrefix: "A",
     });
     setOpenEdit(true);
   }
 
+  async function openDetailModal(vehicle: OperatorVehicle) {
+    const vehicleId = getVehicleId(vehicle);
+
+    if (!vehicleId) {
+      setError("Không tìm thấy mã xe để xem chi tiết. Vui lòng tải lại danh sách xe.");
+      return;
+    }
+
+    setOpenDetail(true);
+    setIsDetailLoading(true);
+    setError("");
+
+    try {
+      const detail = await getOperatorVehicle(vehicleId);
+      setDetailVehicle(detail);
+    } catch (err) {
+      setOpenDetail(false);
+      setError(err instanceof Error ? err.message : "Failed to load vehicle detail");
+    } finally {
+      setIsDetailLoading(false);
+    }
+  }
+
   async function handleCreateVehicle() {
-    await createOperatorVehicle(toVehicleRequest(vehicleForm));
+    await createOperatorVehicle(toVehicleRequest(vehicleForm, vehicleTypes));
     setMessage("Vehicle created.");
     setOpenReg(false);
     await loadVehicles();
@@ -220,9 +414,16 @@ export default function VehiclesPage() {
       return;
     }
 
+    const vehicleId = getVehicleId(selectedVehicle);
+
+    if (!vehicleId) {
+      setError("Không tìm thấy mã xe để cập nhật. Vui lòng tải lại danh sách xe.");
+      return;
+    }
+
     await updateOperatorVehicle(
-      selectedVehicle.vehicleId,
-      toVehicleRequest(vehicleForm),
+      vehicleId,
+      toVehicleRequest(vehicleForm, vehicleTypes),
     );
     setMessage("Vehicle updated.");
     setOpenEdit(false);
@@ -274,7 +475,7 @@ export default function VehiclesPage() {
             {t("vehicles.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            Vehicles now use create/update API with generated seat decks.
+            Vehicles now use create/update API with generated seatLayoutJson.
           </p>
         </div>
         <div className="flex gap-2">
@@ -349,7 +550,7 @@ export default function VehiclesPage() {
             <tbody>
               {filtered.map((vehicle) => (
                 <tr
-                  key={vehicle.vehicleId}
+                  key={getVehicleId(vehicle) || vehicle.licensePlate}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
                   <td className="px-5 py-4 text-sm font-semibold text-gray-900">
@@ -368,24 +569,27 @@ export default function VehiclesPage() {
                     {vehicle.maxCargoWeightKg}
                   </td>
                   <td className="px-5 py-4">{vehicleStatusBadge(vehicle.status)}</td>
-                  <td className="px-5 py-4 text-sm space-x-2">
+                  <td className="px-5 py-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openDetailModal(vehicle)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
+                        title="Xem chi tiết xe"
+                        aria-label="Xem chi tiết xe"
+                      >
+                        <FiEye size={16} />
+                      </button>
                     <button
                       type="button"
                       onClick={() => openEditModal(vehicle)}
-                      className="text-blue-600 hover:text-blue-700 font-medium"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                        title={tc("edit")}
+                        aria-label={tc("edit")}
                     >
-                      {tc("edit")}
+                        <FiEdit2 size={16} />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedVehicle(vehicle);
-                        setOpenMaint(true);
-                      }}
-                      className="text-amber-600 hover:text-amber-700 font-medium"
-                    >
-                      {t("vehicles.maintenanceBtn")}
-                    </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -421,45 +625,12 @@ export default function VehiclesPage() {
         submitLabel={t("vehicles.saveChanges")}
       />
 
-      <Modal
-        open={openMaint}
-        onClose={() => setOpenMaint(false)}
-        icon={<FiTool size={20} />}
-        title={t("vehicles.maintenanceTitle")}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenMaint(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpenMaint(false);
-                setMessage("Maintenance marked locally. No maintenance API in screenshots.");
-              }}
-              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
-            >
-              {t("vehicles.confirmMaintenance")}
-            </button>
-          </>
-        }
-      >
-        {selectedVehicle && (
-          <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
-            <p className="text-sm font-semibold text-amber-900">
-              {t("vehicles.vehicleLabel")}{" "}
-              <span className="font-mono">{selectedVehicle.licensePlate}</span>
-            </p>
-            <p className="text-sm text-amber-800 mt-1">
-              {selectedVehicle.vehicleTypeName ?? selectedVehicle.vehicleTypeId}
-            </p>
-          </div>
-        )}
-      </Modal>
+      <VehicleDetailModal
+        open={openDetail}
+        vehicle={detailVehicle}
+        isLoading={isDetailLoading}
+        onClose={() => setOpenDetail(false)}
+      />
     </div>
   );
 }
@@ -521,6 +692,10 @@ function VehicleModal({
 }) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const previewDecks = createDecks(form);
+  const generatedSeats = countSeats(previewDecks);
+  const layoutOptions = toSeatLayoutOptions(form);
+  const previewSeatLayout = toSeatLayoutJson(form);
 
   return (
     <Modal
@@ -578,9 +753,12 @@ function VehicleModal({
           <input
             className={inputClass}
             type="number"
-            value={form.totalSeats}
-            onChange={(event) => onChange("totalSeats", event.target.value)}
+            value={generatedSeats}
+            readOnly
           />
+          <p className="mt-1 text-xs text-gray-500">
+            Tự tính từ sơ đồ ghế bên dưới.
+          </p>
         </div>
         <div>
           <label className={labelClass}>{t("vehicles.cargoWeight")}</label>
@@ -589,6 +767,19 @@ function VehicleModal({
             type="number"
             value={form.maxCargoWeightKg}
             onChange={(event) => onChange("maxCargoWeightKg", event.target.value)}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Thể tích khoang hàng m3</label>
+          <input
+            className={inputClass}
+            min={0}
+            step="0.1"
+            type="number"
+            value={form.maxCargoVolumeM3}
+            onChange={(event) =>
+              onChange("maxCargoVolumeM3", event.target.value)
+            }
           />
         </div>
         <div>
@@ -604,6 +795,267 @@ function VehicleModal({
           </select>
         </div>
       </div>
+
+      <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Thiết kế sơ đồ ghế
+            </h3>
+            <p className="text-xs text-gray-500">
+              FE sẽ gửi `seatLayoutJson` dạng object cho API, không gửi chuỗi JSON.
+            </p>
+          </div>
+          <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">
+            {generatedSeats} ghế
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-5">
+          <div>
+            <label className={labelClass}>Số tầng</label>
+            <input
+              className={inputClass}
+              min={1}
+              type="number"
+              value={form.deckCount}
+              onChange={(event) => onChange("deckCount", event.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Số hàng mỗi tầng</label>
+            <input
+              className={inputClass}
+              min={1}
+              type="number"
+              value={form.rowsPerDeck}
+              onChange={(event) => onChange("rowsPerDeck", event.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Số cột mỗi hàng</label>
+            <input
+              className={inputClass}
+              min={1}
+              type="number"
+              value={form.columnsPerRow}
+              onChange={(event) => onChange("columnsPerRow", event.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Lối đi sau cột</label>
+            <input
+              className={inputClass}
+              min={1}
+              type="number"
+              value={form.aisleAfterCol}
+              onChange={(event) => onChange("aisleAfterCol", event.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Tiền tố ghế</label>
+            <input
+              className={inputClass}
+              value={form.seatPrefix}
+              onChange={(event) => onChange("seatPrefix", event.target.value)}
+              placeholder="A"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {previewDecks.map((deck) => (
+            <div
+              key={deck.deck}
+              className="rounded-lg border border-gray-200 bg-white p-3"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Tầng {deck.deck}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {deck.seats.length} ghế
+                </p>
+              </div>
+              <div
+                className="grid gap-2"
+                style={{
+                  gridTemplateColumns: `repeat(${layoutOptions.columnsPerRow}, minmax(2.5rem, 1fr))`,
+                }}
+              >
+                {deck.seats.map((seat) => (
+                  <div
+                    key={`${deck.deck}-${seat.seatNumber}`}
+                    className="flex flex-col items-center gap-1 rounded-md border border-vr-200 bg-vr-50 px-2 py-2 text-center text-xs font-semibold text-vr-700"
+                    title={`row ${seat.row}, col ${seat.col}`}
+                  >
+                    <FaChair size={16} />
+                    <span>{seat.seatNumber}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <details className="mt-4 rounded-lg border border-gray-200 bg-white">
+          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-600">
+            Xem JSON gửi lên API
+          </summary>
+          <pre className="max-h-56 overflow-auto border-t border-gray-100 p-3 text-xs text-gray-700">
+            {JSON.stringify(previewSeatLayout, null, 2)}
+          </pre>
+        </details>
+      </div>
     </Modal>
+  );
+}
+
+function VehicleDetailModal({
+  open,
+  vehicle,
+  isLoading,
+  onClose,
+}: {
+  open: boolean;
+  vehicle: OperatorVehicle | null;
+  isLoading: boolean;
+  onClose: () => void;
+}) {
+  const { t: tc } = useTranslation("common");
+  const decks = vehicle ? parseSeatLayoutDecks(vehicle.seatLayoutJson) : [];
+  const layout =
+    vehicle?.seatLayoutJson && typeof vehicle.seatLayoutJson !== "string"
+      ? vehicle.seatLayoutJson
+      : null;
+  const columnCount =
+    layout?.cols ??
+    Math.max(...decks.flatMap((deck) => deck.seats.map((seat) => seat.col)), 1);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      wide
+      icon={<FiEye size={20} />}
+      title="Chi tiết xe"
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {tc("close")}
+        </button>
+      }
+    >
+      {isLoading && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500">
+          Đang tải chi tiết xe...
+        </div>
+      )}
+
+      {!isLoading && vehicle && (
+        <div className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <DetailItem label="Mã xe" value={getVehicleId(vehicle)} />
+            <DetailItem label="Biển số" value={vehicle.licensePlate} />
+            <DetailItem
+              label="Loại xe"
+              value={
+                vehicle.vehicleTypeName ??
+                vehicle.vehicleTypeCode ??
+                vehicle.vehicleTypeId
+              }
+            />
+            <DetailItem label="Số ghế" value={String(vehicle.totalSeats)} />
+            <DetailItem
+              label="Khối lượng hàng"
+              value={`${vehicle.maxCargoWeightKg} kg`}
+            />
+            <DetailItem
+              label="Thể tích hàng"
+              value={`${vehicle.maxCargoVolumeM3 ?? 0} m3`}
+            />
+            <DetailItem label="Số tầng" value={String(layout?.decks ?? decks.length)} />
+            <DetailItem label="Trạng thái" value={vehicle.status} />
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Sơ đồ ghế
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Ghế bị vô hiệu hóa sẽ hiển thị mờ hơn.
+                </p>
+              </div>
+              {layout?.aisles?.[0] && (
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
+                  Lối đi sau cột {layout.aisles[0].afterCol}
+                </span>
+              )}
+            </div>
+
+            {decks.length === 0 ? (
+              <p className="mt-4 rounded-lg border border-gray-200 bg-white px-3 py-4 text-sm text-gray-500">
+                Xe này chưa có sơ đồ ghế.
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {decks.map((deck) => (
+                  <div
+                    key={deck.deck}
+                    className="rounded-lg border border-gray-200 bg-white p-3"
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Tầng {deck.deck}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {deck.seats.length} ghế
+                      </p>
+                    </div>
+                    <div
+                      className="grid gap-2"
+                      style={{
+                        gridTemplateColumns: `repeat(${columnCount}, minmax(2.5rem, 1fr))`,
+                      }}
+                    >
+                      {deck.seats.map((seat) => (
+                        <div
+                          key={`${deck.deck}-${seat.seatNumber}`}
+                          className={`flex flex-col items-center gap-1 rounded-md border px-2 py-2 text-center text-xs font-semibold ${
+                            seat.disabled
+                              ? "border-gray-200 bg-gray-100 text-gray-400"
+                              : "border-vr-200 bg-vr-50 text-vr-700"
+                          }`}
+                          title={`row ${seat.row}, col ${seat.col}, type ${seat.type}`}
+                        >
+                          <FaChair size={16} />
+                          <span>{seat.seatNumber}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="text-xs font-medium text-gray-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-gray-900">
+        {value || "-"}
+      </p>
+    </div>
   );
 }

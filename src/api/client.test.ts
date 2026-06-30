@@ -31,7 +31,7 @@ describe("api client", () => {
           email: "admin@vietride.vn",
           displayName: "Admin",
           phone: "0901234567",
-          role: "admin",
+          role: "SYSTEM_ADMIN",
         },
       }),
     );
@@ -84,6 +84,87 @@ describe("api client", () => {
         body: JSON.stringify({ name: "VietRide" }),
         headers: expect.objectContaining({
           "Content-Type": "application/json",
+        }),
+      }),
+    );
+  });
+
+  it("refreshes an expired token and retries the request once", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "expired-access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          phone: "0901234567",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            statusCode: 401,
+            error: {
+              code: "AUTH_TOKEN_INVALID",
+              message:
+                "Authorization header is required or access token is invalid.",
+            },
+          }),
+          { status: 401 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              accessToken: "new-access-token",
+              refreshToken: "new-refresh-token",
+              expiresInSeconds: 3600,
+              user: {
+                id: "user-1",
+                email: "admin@vietride.vn",
+                displayName: "Admin",
+                phone: "0901234567",
+                role: "SYSTEM_ADMIN",
+              },
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { operatorId: "op-1" } }), {
+          status: 200,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const data = await apiRequest<{ operatorId: string }>("/v1/admin/operators");
+
+    expect(data.operatorId).toBe("op-1");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/auth/refresh",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ refreshToken: "refresh-token" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/admin/operators",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer new-access-token",
         }),
       }),
     );

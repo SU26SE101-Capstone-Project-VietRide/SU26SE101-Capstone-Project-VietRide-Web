@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiPlus, FiRefreshCw, FiSearch, FiTrash2 } from "react-icons/fi";
 import {
+  MapContainer,
+  CircleMarker,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
+import type { LatLngExpression } from "leaflet";
+import "leaflet/dist/leaflet.css";
+import {
   addRouteStop,
   createAlternativeRoute,
   createOperatorRoute,
@@ -62,13 +71,97 @@ const emptyAlternativeForm: AlternativeRouteRequest = {
   stops: [],
 };
 
+const SETUP_STEPS = [
+  {
+    id: "stations",
+    title: "1. Bến hoạt động",
+    description: "Tìm bến có sẵn hoặc gắn bến vào nhà xe.",
+  },
+  {
+    id: "pickupStops",
+    title: "2. Điểm đón",
+    description: "Tạo các điểm chỉ cho phép đón khách.",
+  },
+  {
+    id: "dropoffStops",
+    title: "3. Điểm trả",
+    description: "Tạo các điểm chỉ cho phép trả khách.",
+  },
+  {
+    id: "routes",
+    title: "4. Tuyến đường",
+    description: "Tạo tuyến chính từ bến đi đến bến đến.",
+  },
+  {
+    id: "routeStops",
+    title: "5. Gắn điểm vào tuyến",
+    description: "Thêm điểm đón/trả vào tuyến theo đúng thứ tự.",
+  },
+  {
+    id: "fares",
+    title: "6. Giá vé",
+    description: "Cấu hình giá cơ bản và giá theo điểm đón.",
+  },
+] as const;
+
+type SetupStepId = (typeof SETUP_STEPS)[number]["id"];
+
+type LocationSelection = {
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  googlePlaceId: string;
+  city?: string;
+  province?: string;
+};
+
+type NominatimPlace = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  name?: string;
+  address?: {
+    city?: string;
+    town?: string;
+    village?: string;
+    county?: string;
+    state?: string;
+  };
+};
+
 function toNumber(value: string) {
   const next = Number(value);
   return Number.isFinite(next) ? next : 0;
 }
 
+function placeToSelection(place: NominatimPlace): LocationSelection {
+  const address = place.address ?? {};
+  return {
+    name: place.name || place.display_name.split(",")[0] || "Selected place",
+    address: place.display_name,
+    latitude: toNumber(place.lat),
+    longitude: toNumber(place.lon),
+    googlePlaceId: `osm:${place.place_id}`,
+    city: address.city || address.town || address.village || address.county,
+    province: address.state,
+  };
+}
+
+function createStopForm(mode: "pickup" | "dropoff"): OperatorStopRequest {
+  return {
+    ...emptyStopForm,
+    description:
+      mode === "pickup"
+        ? "Pickup point - allowPickup only"
+        : "Dropoff point - allowDropoff only",
+  };
+}
+
 export default function RoutesPage() {
   const { t } = useTranslation("manager");
+  const [activeStep, setActiveStep] = useState<SetupStepId>("stations");
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [stops, setStops] = useState<OperatorStop[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
@@ -81,7 +174,14 @@ export default function RoutesPage() {
   const [stationCity, setStationCity] = useState("");
   const [stationProvince, setStationProvince] = useState("");
   const [operatorStationId, setOperatorStationId] = useState("");
-  const [stopForm, setStopForm] = useState<OperatorStopRequest>(emptyStopForm);
+  const [pickupStopForm, setPickupStopForm] = useState<OperatorStopRequest>(
+    createStopForm("pickup"),
+  );
+  const [dropoffStopForm, setDropoffStopForm] = useState<OperatorStopRequest>(
+    createStopForm("dropoff"),
+  );
+  const [pickupStopId, setPickupStopId] = useState("");
+  const [dropoffStopId, setDropoffStopId] = useState("");
   const [routeForm, setRouteForm] =
     useState<OperatorRouteRequest>(emptyRouteForm);
   const [fareStopId, setFareStopId] = useState("");
@@ -91,8 +191,6 @@ export default function RoutesPage() {
   const [routeStopOrder, setRouteStopOrder] = useState("0");
   const [routeStopDuration, setRouteStopDuration] = useState("0");
   const [routeStopDistance, setRouteStopDistance] = useState("0");
-  const [allowPickup, setAllowPickup] = useState(true);
-  const [allowDropoff, setAllowDropoff] = useState(true);
   const [alternativeForm, setAlternativeForm] =
     useState<AlternativeRouteRequest>(emptyAlternativeForm);
   const [message, setMessage] = useState("");
@@ -103,6 +201,9 @@ export default function RoutesPage() {
     () => routes.find((route) => route.id === selectedRouteId) ?? null,
     [routes, selectedRouteId],
   );
+
+  const activeStepIndex = SETUP_STEPS.findIndex((step) => step.id === activeStep);
+  const activeStepInfo = SETUP_STEPS[activeStepIndex] ?? SETUP_STEPS[0];
 
   async function loadRoutesAndStops() {
     setIsLoading(true);
@@ -218,11 +319,18 @@ export default function RoutesPage() {
     };
   }, [selectedRouteId]);
 
-  function updateStop<K extends keyof OperatorStopRequest>(
+  function updatePickupStop<K extends keyof OperatorStopRequest>(
     key: K,
     value: OperatorStopRequest[K],
   ) {
-    setStopForm((prev) => ({ ...prev, [key]: value }));
+    setPickupStopForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateDropoffStop<K extends keyof OperatorStopRequest>(
+    key: K,
+    value: OperatorStopRequest[K],
+  ) {
+    setDropoffStopForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function updateRoute<K extends keyof OperatorRouteRequest>(
@@ -240,35 +348,73 @@ export default function RoutesPage() {
   }
 
   async function handleSearchStations() {
-    const result = await searchStations({
+    await runStationSearch({
       q: stationSearch,
       city: stationCity,
       province: stationProvince,
     });
+  }
+
+  async function runStationSearch(params: {
+    q?: string;
+    city?: string;
+    province?: string;
+  }) {
+    setError("");
+    const result = await searchStations(params);
     setStations(result);
     setOperatorStationId(result[0]?.id || "");
+
+    if (result.length === 0) {
+      setMessage(
+        "No station found. Attach requires an existing stationId from /v1/stations/search.",
+      );
+    } else {
+      setMessage(`Found ${result.length} station(s). Select one and click Attach.`);
+    }
   }
 
   async function handleCreateOperatorStation() {
+    if (!operatorStationId.trim()) {
+      setError("Attach station requires a stationId. Search and select a station first.");
+      return;
+    }
+
     await createOperatorStation({
-      stationId: operatorStationId,
+      stationId: operatorStationId.trim(),
       displayNameOverride:
         stations.find((station) => station.id === operatorStationId)?.name || "",
     });
     setMessage("Operator station created.");
   }
 
-  async function handleCreateStop() {
-    const created = await createOperatorStop(stopForm);
-    setMessage("Stop created.");
+  async function handleCreatePickupStop() {
+    const created = await createOperatorStop(pickupStopForm);
+    setMessage("Pickup stop created.");
     setSelectedStopId(created.id);
-    setStopForm(emptyStopForm);
+    setPickupStopId(created.id);
+    setPickupStopForm(createStopForm("pickup"));
     await loadRoutesAndStops();
   }
 
-  async function handleUpdateStop() {
-    await updateOperatorStop(selectedStopId, stopForm);
-    setMessage("Stop updated.");
+  async function handleCreateDropoffStop() {
+    const created = await createOperatorStop(dropoffStopForm);
+    setMessage("Dropoff stop created.");
+    setSelectedStopId(created.id);
+    setDropoffStopId(created.id);
+    setDropoffStopForm(createStopForm("dropoff"));
+    await loadRoutesAndStops();
+  }
+
+  async function handleUpdatePickupStop() {
+    await updateOperatorStop(pickupStopId || selectedStopId, pickupStopForm);
+    setMessage("Pickup stop updated.");
+    await loadRoutesAndStops();
+  }
+
+  async function handleUpdateDropoffStop() {
+    await updateOperatorStop(dropoffStopId || selectedStopId, dropoffStopForm);
+    setMessage("Dropoff stop updated.");
     await loadRoutesAndStops();
   }
 
@@ -292,16 +438,28 @@ export default function RoutesPage() {
     await loadRoutesAndStops();
   }
 
-  async function handleAddRouteStop() {
+  async function handleAddPickupRouteStop() {
     await addRouteStop(selectedRouteId, {
-      stopId: selectedStopId,
+      stopId: pickupStopId || selectedStopId,
       orderIndex: toNumber(routeStopOrder),
       estimatedDurationFromOriginMinutes: toNumber(routeStopDuration),
       distanceFromOriginKm: toNumber(routeStopDistance),
-      allowPickup,
-      allowDropoff,
+      allowPickup: true,
+      allowDropoff: false,
     });
-    setMessage("Stop added to route.");
+    setMessage("Pickup point added to route.");
+  }
+
+  async function handleAddDropoffRouteStop() {
+    await addRouteStop(selectedRouteId, {
+      stopId: dropoffStopId || selectedStopId,
+      orderIndex: toNumber(routeStopOrder),
+      estimatedDurationFromOriginMinutes: toNumber(routeStopDuration),
+      distanceFromOriginKm: toNumber(routeStopDistance),
+      allowPickup: false,
+      allowDropoff: true,
+    });
+    setMessage("Dropoff point added to route.");
   }
 
   async function handleRemoveRouteStop() {
@@ -396,7 +554,69 @@ export default function RoutesPage() {
         </div>
       )}
 
-      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Operator setup flow
+          </p>
+          <h2 className="mt-1 text-lg font-bold text-gray-900">
+            Làm theo từng bước
+          </h2>
+          <div className="mt-4 space-y-2">
+            {SETUP_STEPS.map((step, index) => (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => setActiveStep(step.id)}
+                className={`w-full rounded-lg border px-3 py-3 text-left transition ${
+                  activeStep === step.id
+                    ? "border-vr-400 bg-vr-50 text-vr-900"
+                    : "border-gray-100 bg-white text-gray-700 hover:border-vr-200 hover:bg-vr-50/60"
+                }`}
+              >
+                <span className="text-sm font-semibold">{step.title}</span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  {step.description}
+                </span>
+                {index < activeStepIndex && (
+                  <span className="mt-2 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    Đã qua
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <main className="min-w-0 space-y-4">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-vr-700">
+              Bước {activeStepIndex + 1} / {SETUP_STEPS.length}
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-gray-900">
+              {activeStepInfo.title}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {activeStepInfo.description}
+            </p>
+          </div>
+
+      {activeStep === "stations" && (
+      <section className="space-y-4">
+      <LocationPicker
+        title="Tìm bến trên bản đồ"
+        onSelect={(location) => {
+          setStationSearch(location.name);
+          setStationCity(location.city || "");
+          setStationProvince(location.province || "");
+          void runStationSearch({
+            q: location.name,
+            city: location.city || "",
+            province: location.province || "",
+          });
+        }}
+      />
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Stations</h2>
           <FiSearch className="text-gray-400" />
@@ -408,6 +628,11 @@ export default function RoutesPage() {
             label="Province"
             value={stationProvince}
             onChange={setStationProvince}
+          />
+          <Input
+            label="Station ID"
+            value={operatorStationId}
+            onChange={setOperatorStationId}
           />
           <div className="flex items-end gap-2">
             <button
@@ -439,29 +664,42 @@ export default function RoutesPage() {
             </option>
           ))}
         </select>
+        <p className="mt-2 text-xs text-gray-500">
+          Lưu ý: Attach cần stationId thật từ backend. Map chỉ giúp tìm địa chỉ;
+          sau đó phải chọn station trong kết quả search hoặc nhập UUID station.
+        </p>
+      </div>
       </section>
+      )}
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      {activeStep === "pickupStops" && (
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900">Operator Stops</h2>
+          <h2 className="text-lg font-bold text-gray-900">Điểm đón</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Điểm này sẽ được gắn vào tuyến với allowPickup=true và allowDropoff=false.
+          </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Input label="Name" value={stopForm.name} onChange={(v) => updateStop("name", v)} />
-            <Input label="Google Place ID" value={stopForm.googlePlaceId} onChange={(v) => updateStop("googlePlaceId", v)} />
-            <NumberInput label="Latitude" value={stopForm.latitude} onChange={(v) => updateStop("latitude", v)} />
-            <NumberInput label="Longitude" value={stopForm.longitude} onChange={(v) => updateStop("longitude", v)} />
-            <Input label="Address" value={stopForm.address} onChange={(v) => updateStop("address", v)} />
-            <Input label="Description" value={stopForm.description} onChange={(v) => updateStop("description", v)} />
+            <Input label="Name" value={pickupStopForm.name} onChange={(v) => updatePickupStop("name", v)} />
+            <Input label="Place ID" value={pickupStopForm.googlePlaceId} onChange={(v) => updatePickupStop("googlePlaceId", v)} />
+            <NumberInput label="Latitude" value={pickupStopForm.latitude} onChange={(v) => updatePickupStop("latitude", v)} />
+            <NumberInput label="Longitude" value={pickupStopForm.longitude} onChange={(v) => updatePickupStop("longitude", v)} />
+            <Input label="Address" value={pickupStopForm.address} onChange={(v) => updatePickupStop("address", v)} />
+            <Input label="Description" value={pickupStopForm.description} onChange={(v) => updatePickupStop("description", v)} />
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={handleCreateStop} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600">
-              Create stop
+            <button type="button" onClick={handleCreatePickupStop} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600">
+              Create pickup point
             </button>
-            <button type="button" onClick={handleUpdateStop} disabled={!selectedStopId} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              Update selected stop
+            <button type="button" onClick={handleUpdatePickupStop} disabled={!pickupStopId && !selectedStopId} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              Update pickup point
             </button>
           </div>
-          <select className={inputClass + " mt-4"} value={selectedStopId} onChange={(event) => setSelectedStopId(event.target.value)}>
-            <option value="">Select stop</option>
+          <select className={inputClass + " mt-4"} value={pickupStopId} onChange={(event) => {
+            setPickupStopId(event.target.value);
+            setSelectedStopId(event.target.value);
+          }}>
+            <option value="">Select pickup point</option>
             {stops.map((stop) => (
               <option key={stop.id} value={stop.id}>
                 {stop.name}
@@ -469,7 +707,75 @@ export default function RoutesPage() {
             ))}
           </select>
         </div>
+        <LocationPicker
+          title="Chọn điểm đón trên map"
+          onSelect={(location) => {
+            setPickupStopForm((prev) => ({
+              ...prev,
+              name: location.name,
+              address: location.address,
+              latitude: location.latitude,
+              longitude: location.longitude,
+              googlePlaceId: location.googlePlaceId,
+            }));
+          }}
+        />
+      </section>
+      )}
 
+      {activeStep === "dropoffStops" && (
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900">Điểm trả</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Điểm này sẽ được gắn vào tuyến với allowPickup=false và allowDropoff=true.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input label="Name" value={dropoffStopForm.name} onChange={(v) => updateDropoffStop("name", v)} />
+            <Input label="Place ID" value={dropoffStopForm.googlePlaceId} onChange={(v) => updateDropoffStop("googlePlaceId", v)} />
+            <NumberInput label="Latitude" value={dropoffStopForm.latitude} onChange={(v) => updateDropoffStop("latitude", v)} />
+            <NumberInput label="Longitude" value={dropoffStopForm.longitude} onChange={(v) => updateDropoffStop("longitude", v)} />
+            <Input label="Address" value={dropoffStopForm.address} onChange={(v) => updateDropoffStop("address", v)} />
+            <Input label="Description" value={dropoffStopForm.description} onChange={(v) => updateDropoffStop("description", v)} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={handleCreateDropoffStop} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600">
+              Create dropoff point
+            </button>
+            <button type="button" onClick={handleUpdateDropoffStop} disabled={!dropoffStopId && !selectedStopId} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              Update dropoff point
+            </button>
+          </div>
+          <select className={inputClass + " mt-4"} value={dropoffStopId} onChange={(event) => {
+            setDropoffStopId(event.target.value);
+            setSelectedStopId(event.target.value);
+          }}>
+            <option value="">Select dropoff point</option>
+            {stops.map((stop) => (
+              <option key={stop.id} value={stop.id}>
+                {stop.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <LocationPicker
+          title="Chọn điểm trả trên map"
+          onSelect={(location) => {
+            setDropoffStopForm((prev) => ({
+              ...prev,
+              name: location.name,
+              address: location.address,
+              latitude: location.latitude,
+              longitude: location.longitude,
+              googlePlaceId: location.googlePlaceId,
+            }));
+          }}
+        />
+      </section>
+      )}
+
+      {activeStep === "routes" && (
+      <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-bold text-gray-900">Routes</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -504,36 +810,67 @@ export default function RoutesPage() {
           {isLoading && <p className="mt-3 text-sm text-gray-500">Loading routes...</p>}
         </div>
       </section>
+      )}
 
+      {activeStep === "routeStops" && (
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-bold text-gray-900">Selected Route Operations</h2>
+        <h2 className="text-lg font-bold text-gray-900">Gắn điểm vào tuyến</h2>
         <p className="mt-1 text-sm text-gray-500">
-          {selectedRoute ? selectedRoute.name : "Select a route first"}
+          {selectedRoute
+            ? `${selectedRoute.name} - chọn điểm đón hoặc điểm trả đã tạo`
+            : "Select a route first"}
         </p>
-        <div className="mt-4 grid gap-3 md:grid-cols-5">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <Input label="Order" value={routeStopOrder} onChange={setRouteStopOrder} />
           <Input label="Duration from origin" value={routeStopDuration} onChange={setRouteStopDuration} />
           <Input label="Distance from origin" value={routeStopDistance} onChange={setRouteStopDistance} />
-          <label className="flex items-end gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={allowPickup} onChange={(event) => setAllowPickup(event.target.checked)} />
-            Pickup
-          </label>
-          <label className="flex items-end gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={allowDropoff} onChange={(event) => setAllowDropoff(event.target.checked)} />
-            Dropoff
-          </label>
+          <div>
+            <label className={labelClass}>Pickup point</label>
+            <select
+              className={inputClass}
+              value={pickupStopId}
+              onChange={(event) => setPickupStopId(event.target.value)}
+            >
+              <option value="">Select pickup point</option>
+              {stops.map((stop) => (
+                <option key={stop.id} value={stop.id}>
+                  {stop.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Dropoff point</label>
+            <select
+              className={inputClass}
+              value={dropoffStopId}
+              onChange={(event) => setDropoffStopId(event.target.value)}
+            >
+              <option value="">Select dropoff point</option>
+              {stops.map((stop) => (
+                <option key={stop.id} value={stop.id}>
+                  {stop.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" onClick={handleAddRouteStop} disabled={!selectedRouteId || !selectedStopId} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50">
-            Add stop to route
+          <button type="button" onClick={handleAddPickupRouteStop} disabled={!selectedRouteId || !pickupStopId} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50">
+            Add pickup to route
+          </button>
+          <button type="button" onClick={handleAddDropoffRouteStop} disabled={!selectedRouteId || !dropoffStopId} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50">
+            Add dropoff to route
           </button>
           <button type="button" onClick={handleRemoveRouteStop} disabled={!selectedRouteId || !selectedStopId} className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
             <FiTrash2 size={16} />
-            Remove stop
+            Remove selected stop
           </button>
         </div>
       </section>
+      )}
 
+      {activeStep === "fares" && (
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-bold text-gray-900">Fare Templates</h2>
@@ -590,6 +927,10 @@ export default function RoutesPage() {
           </div>
         </div>
       </section>
+      )}
+
+        </main>
+      </div>
     </div>
   );
 }
@@ -638,4 +979,183 @@ function NumberInput({
       />
     </div>
   );
+}
+
+function LocationPicker({
+  title,
+  onSelect,
+}: {
+  title: string;
+  onSelect: (selection: LocationSelection) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<NominatimPlace[]>([]);
+  const [center, setCenter] = useState<LatLngExpression>([10.7769, 106.7009]);
+  const [position, setPosition] = useState<LatLngExpression | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [mapError, setMapError] = useState("");
+
+  async function searchAddress() {
+    if (!query.trim()) {
+      return;
+    }
+
+    setIsSearching(true);
+    setMapError("");
+
+    try {
+      const params = new URLSearchParams({
+        format: "json",
+        addressdetails: "1",
+        limit: "5",
+        q: query.trim(),
+      });
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+      );
+      const payload = (await response.json()) as NominatimPlace[];
+      setResults(payload);
+
+      if (payload[0]) {
+        selectPlace(payload[0]);
+      }
+    } catch (err) {
+      setMapError(err instanceof Error ? err.message : "Map search failed");
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  async function reverseSelect(latitude: number, longitude: number) {
+    setMapError("");
+
+    try {
+      const params = new URLSearchParams({
+        format: "json",
+        addressdetails: "1",
+        lat: String(latitude),
+        lon: String(longitude),
+      });
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?${params.toString()}`,
+      );
+      const place = (await response.json()) as NominatimPlace;
+      selectPlace(place);
+    } catch (err) {
+      setMapError(err instanceof Error ? err.message : "Reverse geocode failed");
+      const fallback: LocationSelection = {
+        name: "Selected map point",
+        address: `${latitude}, ${longitude}`,
+        latitude,
+        longitude,
+        googlePlaceId: `coords:${latitude},${longitude}`,
+      };
+      onSelect(fallback);
+    }
+  }
+
+  function selectPlace(place: NominatimPlace) {
+    const selection = placeToSelection(place);
+    const nextCenter: LatLngExpression = [
+      selection.latitude,
+      selection.longitude,
+    ];
+    setCenter(nextCenter);
+    setPosition(nextCenter);
+    onSelect(selection);
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          className={inputClass}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Nhập địa chỉ, tên bến, điểm đón..."
+        />
+        <button
+          type="button"
+          onClick={searchAddress}
+          disabled={isSearching}
+          className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50"
+        >
+          {isSearching ? "Đang tìm..." : "Tìm trên map"}
+        </button>
+      </div>
+
+      {mapError && <p className="mt-2 text-sm text-red-600">{mapError}</p>}
+
+      {results.length > 0 && (
+        <div className="mt-3 max-h-36 overflow-auto rounded-lg border border-gray-100">
+          {results.map((place) => (
+            <button
+              key={place.place_id}
+              type="button"
+              onClick={() => selectPlace(place)}
+              className="block w-full border-b border-gray-100 px-3 py-2 text-left text-sm text-gray-700 last:border-0 hover:bg-vr-50"
+            >
+              {place.display_name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 h-[300px] overflow-hidden rounded-xl border border-gray-200">
+        <MapContainer
+          center={center}
+          zoom={13}
+          className="z-0 h-full w-full"
+          scrollWheelZoom
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <MapFocus center={center} />
+          <MapClickSelect onSelect={reverseSelect} />
+          {position && (
+            <CircleMarker
+              center={position}
+              radius={9}
+              pathOptions={{
+                color: "#ffffff",
+                weight: 2,
+                fillColor: "#16a34a",
+                fillOpacity: 0.95,
+              }}
+            />
+          )}
+        </MapContainer>
+      </div>
+      <p className="mt-2 text-xs text-gray-500">
+        Có thể tìm địa chỉ hoặc click trực tiếp trên map để tự lấy tọa độ.
+      </p>
+    </div>
+  );
+}
+
+function MapFocus({ center }: { center: LatLngExpression }) {
+  const map = useMap();
+
+  useEffect(() => {
+    map.flyTo(center, 14, { duration: 0.35 });
+  }, [center, map]);
+
+  return null;
+}
+
+function MapClickSelect({
+  onSelect,
+}: {
+  onSelect: (latitude: number, longitude: number) => void;
+}) {
+  useMapEvents({
+    click(event) {
+      onSelect(event.latlng.lat, event.latlng.lng);
+    },
+  });
+
+  return null;
 }

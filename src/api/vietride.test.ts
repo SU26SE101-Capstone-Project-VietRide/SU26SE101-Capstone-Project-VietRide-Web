@@ -23,7 +23,7 @@ describe("vietride API", () => {
           email: "admin@vietride.vn",
           displayName: "Admin",
           phone: "0901234567",
-          role: "admin",
+          role: "SYSTEM_ADMIN",
         },
       }),
     );

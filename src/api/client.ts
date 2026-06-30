@@ -1,4 +1,4 @@
-import { getAuthSession } from "../auth";
+import { getAuthSession, refreshAuthSession } from "../auth";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -90,27 +90,44 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const method = options.method ?? "GET";
   const session = getAuthSession();
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-  };
-
-  if (options.body !== undefined) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  if (options.authenticated !== false && session?.accessToken) {
-    headers.Authorization = `Bearer ${session.accessToken}`;
-  }
-
-  Object.assign(headers, options.headers);
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const shouldAuthenticate = options.authenticated !== false;
+  const response = await sendRequest(
+    path,
     method,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+    options,
+    shouldAuthenticate ? session?.accessToken : undefined,
+  );
 
   const payload = await parseResponse(response);
+
+  if (response.status === 401 && shouldAuthenticate && session?.refreshToken) {
+    const refreshedSession = await refreshAuthSession();
+
+    if (refreshedSession?.accessToken) {
+      const retryResponse = await sendRequest(
+        path,
+        method,
+        options,
+        refreshedSession.accessToken,
+      );
+      const retryPayload = await parseResponse(retryResponse);
+
+      if (!retryResponse.ok) {
+        throw new Error(
+          parseErrorMessage(
+            retryPayload,
+            `Request failed: ${retryResponse.status}`,
+          ),
+        );
+      }
+
+      if (isRecord(retryPayload) && "data" in retryPayload) {
+        return (retryPayload as ApiEnvelope<T>).data as T;
+      }
+
+      return retryPayload as T;
+    }
+  }
 
   if (!response.ok) {
     throw new Error(parseErrorMessage(payload, `Request failed: ${response.status}`));
@@ -121,4 +138,34 @@ export async function apiRequest<T>(
   }
 
   return payload as T;
+}
+
+function buildHeaders(options: RequestOptions, accessToken?: string) {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  Object.assign(headers, options.headers);
+  return headers;
+}
+
+function sendRequest(
+  path: string,
+  method: RequestOptions["method"],
+  options: RequestOptions,
+  accessToken?: string,
+) {
+  return fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: buildHeaders(options, accessToken),
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
 }

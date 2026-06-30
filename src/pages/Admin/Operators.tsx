@@ -68,6 +68,7 @@ export default function Operators() {
   const [operators, setOperators] = useState<AdminOperator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [openOnboard, setOpenOnboard] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
   const [openApprove, setOpenApprove] = useState(false);
@@ -147,6 +148,9 @@ export default function Operators() {
     await approveAdminOperator(selectedOperator.operatorId);
     await reloadOperators();
     setOpenApprove(false);
+    setMessage(
+      `${selectedOperator.name} approved. The operator admin should receive an invite email and set their first password at /set-initial-password?token=... before login.`,
+    );
     setSelectedOperator(null);
   };
 
@@ -180,6 +184,9 @@ export default function Operators() {
   const handleCreateOperator = async () => {
     await createAdminOperator(operatorForm);
     await reloadOperators();
+    setMessage(
+      `${operatorForm.name} profile created without a password. Approve the operator next; backend will send the set-initial-password invite token to the representative email.`,
+    );
     setOperatorForm(emptyOperatorForm);
     setOpenOnboard(false);
   };
@@ -263,6 +270,12 @@ export default function Operators() {
               {t("operators.viewNow")}
             </button>
           </div>
+        </div>
+      )}
+
+      {message && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {message}
         </div>
       )}
 
@@ -441,37 +454,108 @@ export default function Operators() {
         }
       >
         {selectedOperator && (
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs font-medium text-gray-600">
-                {t("operators.operatorName")}
-              </p>
-              <p className="text-sm font-semibold text-gray-900">
-                {selectedOperator.name}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-600">
-                {t("operators.contactEmail")}
-              </p>
-              <p className="text-sm text-gray-900">
-                {selectedOperator.contactEmail}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-600">
-                {tc("status")}
-              </p>
-              <div className="mt-1">
-                {getStatusBadge(selectedOperator.registrationStatus)}
+          <div className="space-y-6">
+            <section>
+              <h3 className="mb-3 text-sm font-bold text-gray-900">
+                Operator profile
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailItem
+                  label="Operator ID"
+                  value={selectedOperator.operatorId}
+                />
+                <DetailItem
+                  label={t("operators.operatorName")}
+                  value={selectedOperator.name}
+                  strong
+                />
+                <DetailItem
+                  label="Business Registration No."
+                  value={selectedOperator.businessRegistrationNumber}
+                />
+                <DetailItem label="Tax Code" value={selectedOperator.taxCode} />
+                <DetailItem
+                  label={t("operators.contactEmail")}
+                  value={selectedOperator.contactEmail}
+                />
+                <DetailItem
+                  label={tc("phone")}
+                  value={selectedOperator.contactPhone}
+                />
+                <div>
+                  <p className="text-xs font-medium text-gray-600">
+                    {tc("status")}
+                  </p>
+                  <div className="mt-1">
+                    {getStatusBadge(selectedOperator.registrationStatus)}
+                  </div>
+                </div>
+                <DetailItem
+                  label="Created At"
+                  value={selectedOperator.createdAt}
+                />
+                <DetailItem
+                  label="Approved At"
+                  value={selectedOperator.approvedAt}
+                />
               </div>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-600">Tax Code</p>
-              <p className="text-sm font-semibold text-vr-600">
-                {selectedOperator.taxCode}
-              </p>
-            </div>
+            </section>
+
+            <section>
+              <h3 className="mb-3 text-sm font-bold text-gray-900">
+                Address
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailItem
+                  label="Street"
+                  value={selectedOperator.addressStreet}
+                />
+                <DetailItem label="Ward" value={selectedOperator.addressWard} />
+                <DetailItem
+                  label="District"
+                  value={selectedOperator.addressDistrict}
+                />
+                <DetailItem
+                  label="Province"
+                  value={selectedOperator.addressProvince}
+                />
+              </div>
+            </section>
+
+            <section>
+              <h3 className="mb-3 text-sm font-bold text-gray-900">
+                Representative and first-login flow
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailItem
+                  label={t("operators.representative")}
+                  value={selectedOperator.representativeName}
+                />
+                <DetailItem
+                  label={t("operators.position")}
+                  value={selectedOperator.representativePosition}
+                />
+                <DetailItem
+                  label="Representative Phone"
+                  value={selectedOperator.representativePhone}
+                />
+                <DetailItem
+                  label="Representative Email"
+                  value={selectedOperator.representativeEmail}
+                />
+              </div>
+              <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                Admin-created operators do not receive a password in this form.
+                After approval, the backend should send an invite token to the
+                representative email. The operator opens{" "}
+                <span className="font-mono">/set-initial-password?token=...</span>{" "}
+                and FE calls{" "}
+                <span className="font-mono">
+                  POST /v1/auth/set-initial-password
+                </span>
+                .
+              </div>
+            </section>
           </div>
         )}
       </Modal>
@@ -583,6 +667,11 @@ export default function Operators() {
         }
       >
         <div className="space-y-6">
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            This creates the operator profile only. No password is collected
+            here. After approval, the representative uses the email invite link
+            to set the first password.
+          </div>
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
               {t("operators.businessInfo")}
@@ -755,6 +844,29 @@ export default function Operators() {
           </section>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function DetailItem({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value?: string | null;
+  strong?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-600">{label}</p>
+      <p
+        className={`break-words text-sm ${
+          strong ? "font-semibold text-gray-900" : "text-gray-900"
+        }`}
+      >
+        {value || "Not provided"}
+      </p>
     </div>
   );
 }

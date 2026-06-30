@@ -47,6 +47,10 @@ function toProfileState(operator: OperatorProfile): ProfileState {
   };
 }
 
+function isOperatorRole(role: string | undefined) {
+  return role === "OPERATOR_ADMIN" || role === "OPERATOR_STAFF";
+}
+
 export default function Profile() {
   const { t } = useTranslation("common");
   const [isEditing, setIsEditing] = useState(false);
@@ -71,7 +75,7 @@ export default function Profile() {
 
   useEffect(() => {
     const user = getAuthUser();
-    if (user?.role !== "manager") {
+    if (!isOperatorRole(user?.role)) {
       return;
     }
 
@@ -112,7 +116,7 @@ export default function Profile() {
   const handleSave = async () => {
     const user = getAuthUser();
 
-    if (user?.role === "manager" && serverOperator) {
+    if (isOperatorRole(user?.role) && serverOperator) {
       const updated = await updateOperatorProfile({
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         contactPhone: formData.phone,

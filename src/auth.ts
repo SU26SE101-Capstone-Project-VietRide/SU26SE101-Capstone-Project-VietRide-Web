@@ -1,4 +1,4 @@
-export type AuthRole = "admin" | "manager";
+export type AuthRole = "SYSTEM_ADMIN" | "OPERATOR_ADMIN" | "OPERATOR_STAFF";
 
 export type AuthUser = {
   id: string;
@@ -47,8 +47,17 @@ function asString(value: unknown): string {
 }
 
 function normalizeRole(value: unknown): AuthRole | null {
-  if (value === "admin" || value === "manager") {
-    return value;
+  const roleMap: Record<string, AuthRole> = {
+    SYSTEM_ADMIN: "SYSTEM_ADMIN",
+    OPERATOR_ADMIN: "OPERATOR_ADMIN",
+    OPERATOR_STAFF: "OPERATOR_STAFF",
+    admin: "SYSTEM_ADMIN",
+    manager: "OPERATOR_ADMIN",
+    operator: "OPERATOR_STAFF",
+  };
+
+  if (typeof value === "string") {
+    return roleMap[value] ?? null;
   }
 
   return null;
@@ -163,7 +172,7 @@ export function getAuthUser(): AuthUser | null {
 }
 
 export function getHomePathForRole(role: AuthRole): string {
-  return role === "admin" ? "/admin/dashboard" : "/manager/dashboard";
+  return role === "SYSTEM_ADMIN" ? "/admin/dashboard" : "/manager/dashboard";
 }
 
 export function saveAuthSession(session: LoginData): void {
@@ -180,6 +189,26 @@ export async function login(request: LoginRequest): Promise<LoginData> {
   const response = await postJson("/v1/auth/login", request, parseLoginData);
   saveAuthSession(response.data);
   return response.data;
+}
+
+export async function refreshAuthSession(): Promise<LoginData | null> {
+  const session = getAuthSession();
+  if (!session?.refreshToken) {
+    return null;
+  }
+
+  try {
+    const response = await postJson(
+      "/v1/auth/refresh",
+      { refreshToken: session.refreshToken },
+      parseLoginData,
+    );
+    saveAuthSession(response.data);
+    return response.data;
+  } catch {
+    clearAuthSession();
+    return null;
+  }
 }
 
 export async function register(request: RegisterRequest): Promise<void> {

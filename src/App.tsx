@@ -38,6 +38,7 @@ import Payouts from "./pages/Admin/Payouts";
 import AdminPolicies from "./pages/Admin/Policies";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import SetInitialPassword from "./pages/SetInitialPassword";
 import ManagerDashboard from "./pages/Manager/Dashboard";
 import AdminDashboard from "./pages/Admin/Dashboard";
 import PrivateRoute from "./components/PrivateRoute";
@@ -49,9 +50,14 @@ export default function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/set-initial-password" element={<SetInitialPassword />} />
 
         {/* Manager routes */}
-        <Route element={<PrivateRoute allowedRoles={["manager"]} />}>
+        <Route
+          element={
+            <PrivateRoute allowedRoles={["OPERATOR_ADMIN", "OPERATOR_STAFF"]} />
+          }
+        >
           <Route path="/manager" element={<ManagerLayout />}>
             <Route path="dashboard" element={<ManagerDashboard />} />
             <Route path="trips" element={<TripsList />} />
@@ -75,7 +81,7 @@ export default function App() {
         </Route>
 
         {/* Admin routes */}
-        <Route element={<PrivateRoute allowedRoles={["admin"]} />}>
+        <Route element={<PrivateRoute allowedRoles={["SYSTEM_ADMIN"]} />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="operators" element={<Operators />} />

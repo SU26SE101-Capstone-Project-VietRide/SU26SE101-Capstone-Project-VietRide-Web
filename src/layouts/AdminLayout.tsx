@@ -11,7 +11,7 @@ export default function AdminLayout() {
   return (
     <div className="flex h-screen bg-white">
       <Sidebar
-        role="admin"
+        role="SYSTEM_ADMIN"
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />

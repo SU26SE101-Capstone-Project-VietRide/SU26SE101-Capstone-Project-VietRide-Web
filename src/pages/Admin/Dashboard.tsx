@@ -204,7 +204,10 @@ export default function AdminDashboard() {
           </ResponsiveContainer>
           <div className="mt-3 space-y-1 text-xs">
             {userDistribution.map((item) => (
-              <div key={item.name} className="flex items-center justify-between">
+              <div
+                key={item.name}
+                className="flex items-center justify-between"
+              >
                 <span className="flex items-center gap-2">
                   <div
                     className="w-2 h-2 rounded-full"
@@ -258,7 +261,10 @@ export default function AdminDashboard() {
           </h2>
           <div className="space-y-3">
             {operatorStatus.map((item) => (
-              <div key={item.status} className="flex items-center justify-between">
+              <div
+                key={item.status}
+                className="flex items-center justify-between"
+              >
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium text-gray-700">
@@ -325,9 +331,7 @@ export default function AdminDashboard() {
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-700">
-                {t("dashboard.todayLabel")}
-              </span>
+              <span className="text-gray-700">{t("dashboard.todayLabel")}</span>
               <span className="font-bold text-emerald-600">12</span>
             </div>
             <button className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-lg text-sm transition">
