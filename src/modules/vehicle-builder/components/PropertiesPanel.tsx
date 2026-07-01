@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { SeatType } from "../types";
 import { FiTrash2 } from "react-icons/fi";
@@ -6,6 +7,7 @@ import { FiTrash2 } from "react-icons/fi";
 const SEAT_TYPES: SeatType[] = ["NORMAL", "VIP", "BED", "DRIVER"];
 
 export const PropertiesPanel: React.FC = () => {
+  const { t } = useTranslation("manager");
   const { currentVehicle, selectedSeatId, updateSeat, removeSeat } =
     useVehicleStore();
 
@@ -16,20 +18,26 @@ export const PropertiesPanel: React.FC = () => {
   if (!selectedSeat) {
     return (
       <div className="w-64 bg-white rounded-lg shadow p-4">
-        <h2 className="text-lg font-semibold mb-4">Thuộc tính</h2>
-        <div className="text-gray-500 text-sm">Chọn ghế để xem chi tiết</div>
+        <h2 className="text-lg font-semibold mb-4">
+          {t("vehicleBuilder.properties")}
+        </h2>
+        <div className="text-gray-500 text-sm">
+          {t("vehicleBuilder.selectSeatHint")}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="w-64 bg-white rounded-lg shadow p-4 space-y-4 overflow-y-auto max-h-[600px]">
-      <h2 className="text-lg font-semibold">Thuộc tính ghế</h2>
+      <h2 className="text-lg font-semibold">
+        {t("vehicleBuilder.seatProperties")}
+      </h2>
 
       {/* Seat ID */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Mã ghế
+          {t("vehicleBuilder.seatCode")}
         </label>
         <input
           type="text"
@@ -44,7 +52,7 @@ export const PropertiesPanel: React.FC = () => {
       {/* Seat Type */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Loại ghế
+          {t("vehicleBuilder.seatType")}
         </label>
         <select
           value={selectedSeat.type}
@@ -55,13 +63,7 @@ export const PropertiesPanel: React.FC = () => {
         >
           {SEAT_TYPES.map((type) => (
             <option key={type} value={type}>
-              {type === "NORMAL"
-                ? "Ghế thường"
-                : type === "VIP"
-                  ? "Ghế VIP"
-                  : type === "BED"
-                    ? "Giường nằm"
-                    : "Ghế lái"}
+              {t(`vehicleBuilder.seatTypes.${type}`)}
             </option>
           ))}
         </select>
@@ -70,7 +72,7 @@ export const PropertiesPanel: React.FC = () => {
       {/* Position X */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Vị trí X: {Math.round(selectedSeat.x)}
+          {t("vehicleBuilder.positionX", { value: Math.round(selectedSeat.x) })}
         </label>
         <input
           type="range"
@@ -87,7 +89,7 @@ export const PropertiesPanel: React.FC = () => {
       {/* Position Y */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Vị trí Y: {Math.round(selectedSeat.y)}
+          {t("vehicleBuilder.positionY", { value: Math.round(selectedSeat.y) })}
         </label>
         <input
           type="range"
@@ -104,7 +106,7 @@ export const PropertiesPanel: React.FC = () => {
       {/* Rotation */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Xoay: {selectedSeat.rotation}°
+          {t("vehicleBuilder.rotation", { value: selectedSeat.rotation })}
         </label>
         <div className="flex gap-2">
           {[0, 90, 180, 270].map((angle) => (
@@ -126,7 +128,7 @@ export const PropertiesPanel: React.FC = () => {
       {/* Color */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Màu
+          {t("vehicleBuilder.color")}
         </label>
         <div className="flex gap-2">
           {["#3b82f6", "#f59e0b", "#ec4899", "#10b981", "#ef4444"].map(
@@ -149,7 +151,7 @@ export const PropertiesPanel: React.FC = () => {
       {/* Status */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Trạng thái
+          {t("vehicleBuilder.status")}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -159,7 +161,7 @@ export const PropertiesPanel: React.FC = () => {
               updateSeat(selectedSeat.id, { enabled: e.target.checked })
             }
           />
-          Kích hoạt ghế
+          {t("vehicleBuilder.enableSeat")}
         </label>
       </div>
 
@@ -170,7 +172,7 @@ export const PropertiesPanel: React.FC = () => {
           className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
         >
           <FiTrash2 size={16} />
-          Xóa ghế
+          {t("vehicleBuilder.deleteSeat")}
         </button>
       </div>
     </div>

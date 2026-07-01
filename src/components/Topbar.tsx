@@ -13,7 +13,7 @@ type TopbarProps = {
 
 export default function Topbar({
   onMenuToggle,
-  userName,
+
   unreadNotifications = 0,
 }: TopbarProps) {
   const location = useLocation();
@@ -25,7 +25,6 @@ export default function Topbar({
   const isAdmin = location.pathname.startsWith("/admin");
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
   const authUser = getAuthUser();
-  const displayName = authUser?.displayName || userName || t("topbar.defaultUserName");
 
   const handleLogout = async () => {
     await logout();
@@ -44,9 +43,6 @@ export default function Topbar({
           >
             <FiMenu size={20} />
           </button>
-          <h2 className="text-lg font-semibold text-gray-900 hidden sm:block">
-            {displayName}
-          </h2>
         </div>
 
         <div className="hidden md:flex flex-1 max-w-md mx-4">
@@ -77,7 +73,9 @@ export default function Topbar({
 
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-4 space-y-3">
-                <h3 className="font-semibold text-gray-900">{t("notifications")}</h3>
+                <h3 className="font-semibold text-gray-900">
+                  {t("notifications")}
+                </h3>
                 <div className="space-y-2 max-h-72 overflow-y-auto">
                   <div className="p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
                     {t("topbar.notifLateTrips")}

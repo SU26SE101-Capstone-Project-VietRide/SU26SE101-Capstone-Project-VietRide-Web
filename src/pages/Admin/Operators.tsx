@@ -426,7 +426,9 @@ export default function Operators() {
         </div>
 
         {isLoading && (
-          <div className="mt-4 text-sm text-gray-500">Loading operators...</div>
+          <div className="mt-4 text-sm text-gray-500">
+            {t("operators.loading")}
+          </div>
         )}
 
         <div className="mt-4 flex items-center justify-between">
@@ -457,11 +459,11 @@ export default function Operators() {
           <div className="space-y-6">
             <section>
               <h3 className="mb-3 text-sm font-bold text-gray-900">
-                Operator profile
+                {t("operators.profile")}
               </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <DetailItem
-                  label="Operator ID"
+                  label={t("operators.operatorId")}
                   value={selectedOperator.operatorId}
                 />
                 <DetailItem
@@ -470,10 +472,10 @@ export default function Operators() {
                   strong
                 />
                 <DetailItem
-                  label="Business Registration No."
+                  label={t("operators.businessRegistrationNumber")}
                   value={selectedOperator.businessRegistrationNumber}
                 />
-                <DetailItem label="Tax Code" value={selectedOperator.taxCode} />
+                <DetailItem label={t("operators.taxCode")} value={selectedOperator.taxCode} />
                 <DetailItem
                   label={t("operators.contactEmail")}
                   value={selectedOperator.contactEmail}
@@ -491,11 +493,11 @@ export default function Operators() {
                   </div>
                 </div>
                 <DetailItem
-                  label="Created At"
+                  label={t("operators.createdAt")}
                   value={selectedOperator.createdAt}
                 />
                 <DetailItem
-                  label="Approved At"
+                  label={t("operators.approvedAt")}
                   value={selectedOperator.approvedAt}
                 />
               </div>
@@ -503,20 +505,20 @@ export default function Operators() {
 
             <section>
               <h3 className="mb-3 text-sm font-bold text-gray-900">
-                Address
+                {t("operators.address")}
               </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <DetailItem
-                  label="Street"
+                  label={t("operators.street")}
                   value={selectedOperator.addressStreet}
                 />
-                <DetailItem label="Ward" value={selectedOperator.addressWard} />
+                <DetailItem label={t("operators.ward")} value={selectedOperator.addressWard} />
                 <DetailItem
-                  label="District"
+                  label={t("operators.district")}
                   value={selectedOperator.addressDistrict}
                 />
                 <DetailItem
-                  label="Province"
+                  label={t("operators.province")}
                   value={selectedOperator.addressProvince}
                 />
               </div>
@@ -524,7 +526,7 @@ export default function Operators() {
 
             <section>
               <h3 className="mb-3 text-sm font-bold text-gray-900">
-                Representative and first-login flow
+                {t("operators.representativeFlow")}
               </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <DetailItem
@@ -536,24 +538,22 @@ export default function Operators() {
                   value={selectedOperator.representativePosition}
                 />
                 <DetailItem
-                  label="Representative Phone"
+                  label={t("operators.representativePhone")}
                   value={selectedOperator.representativePhone}
                 />
                 <DetailItem
-                  label="Representative Email"
+                  label={t("operators.representativeEmail")}
                   value={selectedOperator.representativeEmail}
                 />
               </div>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                Admin-created operators do not receive a password in this form.
-                After approval, the backend should send an invite token to the
-                representative email. The operator opens{" "}
+                {t("operators.firstLoginNoteBefore")}{" "}
                 <span className="font-mono">/set-initial-password?token=...</span>{" "}
-                and FE calls{" "}
+                {t("operators.firstLoginNoteMiddle")}{" "}
                 <span className="font-mono">
                   POST /v1/auth/set-initial-password
                 </span>
-                .
+                {t("operators.firstLoginNoteAfter")}
               </div>
             </section>
           </div>
@@ -731,7 +731,7 @@ export default function Operators() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Ward</label>
+                <label className={labelClass}>{t("operators.ward")}</label>
                 <input
                   className={inputClass}
                   value={operatorForm.addressWard}
@@ -741,7 +741,7 @@ export default function Operators() {
                 />
               </div>
               <div>
-                <label className={labelClass}>District</label>
+                <label className={labelClass}>{t("operators.district")}</label>
                 <input
                   className={inputClass}
                   value={operatorForm.addressDistrict}
@@ -751,7 +751,7 @@ export default function Operators() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Province</label>
+                <label className={labelClass}>{t("operators.province")}</label>
                 <input
                   className={inputClass}
                   value={operatorForm.addressProvince}
@@ -830,7 +830,9 @@ export default function Operators() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className={labelClass}>Representative Email</label>
+                <label className={labelClass}>
+                  {t("operators.representativeEmail")}
+                </label>
                 <input
                   className={inputClass}
                   value={operatorForm.representativeEmail}

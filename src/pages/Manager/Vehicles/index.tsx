@@ -383,7 +383,7 @@ export default function VehiclesPage() {
     const vehicleId = getVehicleId(vehicle);
 
     if (!vehicleId) {
-      setError("Không tìm thấy mã xe để xem chi tiết. Vui lòng tải lại danh sách xe.");
+      setError(t("vehicles.missingVehicleForDetail"));
       return;
     }
 
@@ -396,7 +396,7 @@ export default function VehiclesPage() {
       setDetailVehicle(detail);
     } catch (err) {
       setOpenDetail(false);
-      setError(err instanceof Error ? err.message : "Failed to load vehicle detail");
+      setError(err instanceof Error ? err.message : t("vehicles.loadDetailFailed"));
     } finally {
       setIsDetailLoading(false);
     }
@@ -404,7 +404,7 @@ export default function VehiclesPage() {
 
   async function handleCreateVehicle() {
     await createOperatorVehicle(toVehicleRequest(vehicleForm, vehicleTypes));
-    setMessage("Vehicle created.");
+    setMessage(t("vehicles.createSuccess"));
     setOpenReg(false);
     await loadVehicles();
   }
@@ -417,7 +417,7 @@ export default function VehiclesPage() {
     const vehicleId = getVehicleId(selectedVehicle);
 
     if (!vehicleId) {
-      setError("Không tìm thấy mã xe để cập nhật. Vui lòng tải lại danh sách xe.");
+      setError(t("vehicles.missingVehicleForUpdate"));
       return;
     }
 
@@ -425,7 +425,7 @@ export default function VehiclesPage() {
       vehicleId,
       toVehicleRequest(vehicleForm, vehicleTypes),
     );
-    setMessage("Vehicle updated.");
+    setMessage(t("vehicles.updateSuccess"));
     setOpenEdit(false);
     await loadVehicles();
   }
@@ -475,7 +475,7 @@ export default function VehiclesPage() {
             {t("vehicles.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            Vehicles now use create/update API with generated seatLayoutJson.
+            {t("vehicles.apiSubtitle")}
           </p>
         </div>
         <div className="flex gap-2">
@@ -485,7 +485,7 @@ export default function VehiclesPage() {
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
             <FiRefreshCw size={16} />
-            Refresh
+            {tc("refresh")}
           </button>
           <button
             type="button"
@@ -542,7 +542,7 @@ export default function VehiclesPage() {
                 <th className="px-5 py-3">{t("vehicles.plate")}</th>
                 <th className="px-5 py-3">{t("vehicles.model")}</th>
                 <th className="px-5 py-3">{t("vehicles.capacity")}</th>
-                <th className="px-5 py-3">Cargo kg</th>
+                <th className="px-5 py-3">{t("vehicles.cargoKg")}</th>
                 <th className="px-5 py-3">{tc("status")}</th>
                 <th className="px-5 py-3">{tc("actions")}</th>
               </tr>
@@ -575,8 +575,8 @@ export default function VehiclesPage() {
                         type="button"
                         onClick={() => openDetailModal(vehicle)}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
-                        title="Xem chi tiết xe"
-                        aria-label="Xem chi tiết xe"
+                        title={t("vehicles.viewDetail")}
+                        aria-label={t("vehicles.viewDetail")}
                       >
                         <FiEye size={16} />
                       </button>
@@ -598,7 +598,7 @@ export default function VehiclesPage() {
         </div>
         {isLoading && (
           <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
-            Loading vehicles...
+            {t("vehicles.loading")}
           </div>
         )}
       </div>
@@ -740,7 +740,7 @@ function VehicleModal({
             value={form.vehicleTypeId}
             onChange={(event) => onChange("vehicleTypeId", event.target.value)}
           >
-            <option value="">Select vehicle type</option>
+            <option value="">{t("vehicles.selectVehicleType")}</option>
             {vehicleTypes.map((type) => (
               <option key={type.id} value={type.id}>
                 {type.displayName}
@@ -757,7 +757,7 @@ function VehicleModal({
             readOnly
           />
           <p className="mt-1 text-xs text-gray-500">
-            Tự tính từ sơ đồ ghế bên dưới.
+            {t("vehicles.autoSeatCountHint")}
           </p>
         </div>
         <div>
@@ -770,7 +770,7 @@ function VehicleModal({
           />
         </div>
         <div>
-          <label className={labelClass}>Thể tích khoang hàng m3</label>
+          <label className={labelClass}>{t("vehicles.cargoVolumeM3")}</label>
           <input
             className={inputClass}
             min={0}
@@ -800,20 +800,20 @@ function VehicleModal({
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="text-sm font-semibold text-gray-900">
-              Thiết kế sơ đồ ghế
+              {t("vehicles.seatLayoutDesign")}
             </h3>
             <p className="text-xs text-gray-500">
-              FE sẽ gửi `seatLayoutJson` dạng object cho API, không gửi chuỗi JSON.
+              {t("vehicles.seatLayoutApiHint")}
             </p>
           </div>
           <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">
-            {generatedSeats} ghế
+            {t("vehicles.generatedSeats", { count: generatedSeats })}
           </span>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-5">
           <div>
-            <label className={labelClass}>Số tầng</label>
+            <label className={labelClass}>{t("vehicles.deckCount")}</label>
             <input
               className={inputClass}
               min={1}
@@ -823,7 +823,7 @@ function VehicleModal({
             />
           </div>
           <div>
-            <label className={labelClass}>Số hàng mỗi tầng</label>
+            <label className={labelClass}>{t("vehicles.rowsPerDeck")}</label>
             <input
               className={inputClass}
               min={1}
@@ -833,7 +833,7 @@ function VehicleModal({
             />
           </div>
           <div>
-            <label className={labelClass}>Số cột mỗi hàng</label>
+            <label className={labelClass}>{t("vehicles.columnsPerRow")}</label>
             <input
               className={inputClass}
               min={1}
@@ -843,7 +843,7 @@ function VehicleModal({
             />
           </div>
           <div>
-            <label className={labelClass}>Lối đi sau cột</label>
+            <label className={labelClass}>{t("vehicles.aisleAfterCol")}</label>
             <input
               className={inputClass}
               min={1}
@@ -853,7 +853,7 @@ function VehicleModal({
             />
           </div>
           <div>
-            <label className={labelClass}>Tiền tố ghế</label>
+            <label className={labelClass}>{t("vehicles.seatPrefix")}</label>
             <input
               className={inputClass}
               value={form.seatPrefix}
@@ -871,10 +871,10 @@ function VehicleModal({
             >
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Tầng {deck.deck}
+                  {t("vehicles.deckLabel", { deck: deck.deck })}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {deck.seats.length} ghế
+                  {t("vehicles.generatedSeats", { count: deck.seats.length })}
                 </p>
               </div>
               <div
@@ -900,7 +900,7 @@ function VehicleModal({
 
         <details className="mt-4 rounded-lg border border-gray-200 bg-white">
           <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-600">
-            Xem JSON gửi lên API
+            {t("vehicles.viewApiJson")}
           </summary>
           <pre className="max-h-56 overflow-auto border-t border-gray-100 p-3 text-xs text-gray-700">
             {JSON.stringify(previewSeatLayout, null, 2)}
@@ -923,6 +923,7 @@ function VehicleDetailModal({
   onClose: () => void;
 }) {
   const { t: tc } = useTranslation("common");
+  const { t } = useTranslation("manager");
   const decks = vehicle ? parseSeatLayoutDecks(vehicle.seatLayoutJson) : [];
   const layout =
     vehicle?.seatLayoutJson && typeof vehicle.seatLayoutJson !== "string"
@@ -938,7 +939,7 @@ function VehicleDetailModal({
       onClose={onClose}
       wide
       icon={<FiEye size={20} />}
-      title="Chi tiết xe"
+      title={t("vehicles.detailTitle")}
       footer={
         <button
           type="button"
@@ -951,56 +952,58 @@ function VehicleDetailModal({
     >
       {isLoading && (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500">
-          Đang tải chi tiết xe...
+          {t("vehicles.loadingDetail")}
         </div>
       )}
 
       {!isLoading && vehicle && (
         <div className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <DetailItem label="Mã xe" value={getVehicleId(vehicle)} />
-            <DetailItem label="Biển số" value={vehicle.licensePlate} />
+            <DetailItem label={t("vehicles.vehicleId")} value={getVehicleId(vehicle)} />
+            <DetailItem label={t("vehicles.plate")} value={vehicle.licensePlate} />
             <DetailItem
-              label="Loại xe"
+              label={t("vehicles.vehicleType")}
               value={
                 vehicle.vehicleTypeName ??
                 vehicle.vehicleTypeCode ??
                 vehicle.vehicleTypeId
               }
             />
-            <DetailItem label="Số ghế" value={String(vehicle.totalSeats)} />
+            <DetailItem label={t("vehicles.seatCount")} value={String(vehicle.totalSeats)} />
             <DetailItem
-              label="Khối lượng hàng"
+              label={t("vehicles.cargoWeight")}
               value={`${vehicle.maxCargoWeightKg} kg`}
             />
             <DetailItem
-              label="Thể tích hàng"
+              label={t("vehicles.cargoVolume")}
               value={`${vehicle.maxCargoVolumeM3 ?? 0} m3`}
             />
-            <DetailItem label="Số tầng" value={String(layout?.decks ?? decks.length)} />
-            <DetailItem label="Trạng thái" value={vehicle.status} />
+            <DetailItem label={t("vehicles.deckCount")} value={String(layout?.decks ?? decks.length)} />
+            <DetailItem label={tc("status")} value={vehicle.status} />
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">
-                  Sơ đồ ghế
+                  {t("vehicles.seatMap")}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Ghế bị vô hiệu hóa sẽ hiển thị mờ hơn.
+                  {t("vehicles.disabledSeatHint")}
                 </p>
               </div>
               {layout?.aisles?.[0] && (
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
-                  Lối đi sau cột {layout.aisles[0].afterCol}
+                  {t("vehicles.aisleAfterColumn", {
+                    column: layout.aisles[0].afterCol,
+                  })}
                 </span>
               )}
             </div>
 
             {decks.length === 0 ? (
               <p className="mt-4 rounded-lg border border-gray-200 bg-white px-3 py-4 text-sm text-gray-500">
-                Xe này chưa có sơ đồ ghế.
+                {t("vehicles.noSeatMap")}
               </p>
             ) : (
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -1011,10 +1014,12 @@ function VehicleDetailModal({
                   >
                     <div className="mb-3 flex items-center justify-between">
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Tầng {deck.deck}
+                        {t("vehicles.deckLabel", { deck: deck.deck })}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {deck.seats.length} ghế
+                        {t("vehicles.generatedSeats", {
+                          count: deck.seats.length,
+                        })}
                       </p>
                     </div>
                     <div

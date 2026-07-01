@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useVehicleStore } from "../stores/vehicleStore";
 import { Canvas2D } from "../canvas/Canvas2D";
 import { Toolbox } from "./Toolbox";
@@ -7,6 +8,7 @@ import { VehicleCreationModal } from "./VehicleCreationModal";
 import { FiPlus, FiDownload, FiUpload } from "react-icons/fi";
 
 export const VehicleBuilderPage: React.FC = () => {
+  const { t } = useTranslation("manager");
   const {
     currentVehicle,
     vehicles,
@@ -46,7 +48,7 @@ export const VehicleBuilderPage: React.FC = () => {
           loadLayout(data.layoutData);
         } catch (error) {
           console.error("Failed to load layout:", error);
-          alert("Lỗi khi tải layout");
+          alert(t("vehicleBuilder.loadLayoutError"));
         }
       };
       reader.readAsText(file);
@@ -66,10 +68,10 @@ export const VehicleBuilderPage: React.FC = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              🚌 Vehicle Layout Builder
+              {t("vehicleBuilder.title")}
             </h1>
             <p className="text-gray-600 mt-1">
-              Quản lý & tùy chỉnh layout ghế xe
+              {t("vehicleBuilder.subtitle")}
             </p>
           </div>
 
@@ -80,7 +82,7 @@ export const VehicleBuilderPage: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium"
             >
               <FiPlus size={18} />
-              Tạo xe mới
+              {t("vehicleBuilder.createVehicle")}
             </button>
 
             {currentVehicle && (
@@ -90,14 +92,14 @@ export const VehicleBuilderPage: React.FC = () => {
                   className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
                 >
                   <FiDownload size={18} />
-                  Tải layout
+                  {t("vehicleBuilder.downloadLayout")}
                 </button>
                 <button
                   onClick={handleLoadLayout}
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-medium"
                 >
                   <FiUpload size={18} />
-                  Tải lên
+                  {t("vehicleBuilder.uploadLayout")}
                 </button>
               </>
             )}
@@ -107,7 +109,9 @@ export const VehicleBuilderPage: React.FC = () => {
         {/* Vehicle Selector */}
         {vehicles.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <p className="text-sm text-gray-600 mb-2">Xe đang làm việc:</p>
+            <p className="text-sm text-gray-600 mb-2">
+              {t("vehicleBuilder.currentVehicle")}
+            </p>
             <div className="flex gap-2 flex-wrap">
               {vehicles.map((vehicle) => (
                 <button
@@ -146,15 +150,17 @@ export const VehicleBuilderPage: React.FC = () => {
           <div className="text-center">
             <div className="text-6xl mb-4">🚌</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Chào mừng!
+              {t("vehicleBuilder.welcome")}
             </h2>
-            <p className="text-gray-600 mb-6">Hãy tạo một xe mới để bắt đầu</p>
+            <p className="text-gray-600 mb-6">
+              {t("vehicleBuilder.emptyHint")}
+            </p>
             <button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium mx-auto"
             >
               <FiPlus size={18} />
-              Tạo xe mới
+              {t("vehicleBuilder.createVehicle")}
             </button>
           </div>
         </div>

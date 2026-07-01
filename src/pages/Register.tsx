@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -6,6 +6,7 @@ import {
   FiArrowRight,
   FiLock,
   FiMail,
+  FiMapPin,
   FiPhone,
   FiUser,
 } from "react-icons/fi";
@@ -35,6 +36,39 @@ const emptyOperatorForm: RegisterOperatorRequest = {
   password: "",
 };
 
+const registerSteps = [
+  {
+    titleKey: "registerSteps.business.title",
+    descriptionKey: "registerSteps.business.description",
+  },
+  {
+    titleKey: "registerSteps.address.title",
+    descriptionKey: "registerSteps.address.description",
+  },
+  {
+    titleKey: "registerSteps.account.title",
+    descriptionKey: "registerSteps.account.description",
+  },
+] as const;
+
+const stepRequiredFields: Array<Array<keyof RegisterOperatorRequest>> = [
+  [
+    "name",
+    "contactEmail",
+    "contactPhone",
+    "businessRegistrationNumber",
+    "taxCode",
+  ],
+  ["addressStreet", "addressWard", "addressDistrict", "addressProvince"],
+  [
+    "representativeName",
+    "representativePosition",
+    "representativePhone",
+    "representativeEmail",
+    "password",
+  ],
+];
+
 export default function Register() {
   const navigate = useNavigate();
   const { t } = useTranslation("login");
@@ -42,6 +76,7 @@ export default function Register() {
   const [form, setForm] = useState<RegisterOperatorRequest>(emptyOperatorForm);
   const [verificationCode, setVerificationCode] = useState("");
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -50,7 +85,51 @@ export default function Register() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const validateFields = (fields: Array<keyof RegisterOperatorRequest>) => {
+    if (fields.some((key) => !form[key].trim())) {
+      setError(t("errors.required"));
+      return false;
+    }
+
+    if (fields.includes("contactEmail") && !form.contactEmail.includes("@")) {
+      setError(t("errors.invalidEmail"));
+      return false;
+    }
+
+    if (
+      fields.includes("representativeEmail") &&
+      !form.representativeEmail.includes("@")
+    ) {
+      setError(t("errors.invalidEmail"));
+      return false;
+    }
+
+    if (fields.includes("password") && form.password.length < 6) {
+      setError(t("errors.passwordMin"));
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleNextStep = () => {
+    setError("");
+    setMessage("");
+
+    if (!validateFields(stepRequiredFields[currentStep])) {
+      return;
+    }
+
+    setCurrentStep((step) => Math.min(step + 1, registerSteps.length - 1));
+  };
+
+  const handlePreviousStep = () => {
+    setError("");
+    setMessage("");
+    setCurrentStep((step) => Math.max(step - 1, 0));
+  };
+
+  const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     setMessage("");
@@ -66,6 +145,7 @@ export default function Register() {
       form.addressDistrict,
       form.addressProvince,
       form.representativeName,
+      form.representativePosition,
       form.representativePhone,
       form.representativeEmail,
       form.password,
@@ -91,7 +171,8 @@ export default function Register() {
     try {
       await registerOperator(form);
       setRegisteredEmail(form.representativeEmail || form.contactEmail);
-      setMessage("Registration submitted. Please enter the email verification code.");
+      setCurrentStep(0);
+      setMessage(t("registerVerificationPrompt"));
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.registerFailed"));
     } finally {
@@ -99,7 +180,7 @@ export default function Register() {
     }
   };
 
-  const handleVerifyEmail = async (e: React.FormEvent) => {
+  const handleVerifyEmail = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     setMessage("");
@@ -192,7 +273,7 @@ export default function Register() {
                 <form onSubmit={handleVerifyEmail} className="mt-6 space-y-4">
                   <Field
                     icon={<FiMail />}
-                    label="Verification email"
+                    label={t("verificationEmail")}
                     value={registeredEmail}
                     onChange={setRegisteredEmail}
                     placeholder="owner@operator.vn"
@@ -200,7 +281,7 @@ export default function Register() {
                   />
                   <Field
                     icon={<FiLock />}
-                    label="Verification code"
+                    label={t("verificationCode")}
                     value={verificationCode}
                     onChange={setVerificationCode}
                     placeholder="123456"
@@ -217,148 +298,240 @@ export default function Register() {
                       </>
                     ) : (
                       <>
-                        Verify email
+                        {t("verifyEmail")}
                         <FiArrowRight className="h-5 w-5" />
                       </>
                     )}
                   </button>
                 </form>
               ) : (
-              <form onSubmit={handleRegister} className="mt-6 space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <Field
-                      icon={<FiUser />}
-                      label="Operator name"
-                      value={form.name}
-                      onChange={(value) => updateForm("name", value)}
-                      placeholder="VietRide Express"
-                    />
-                  </div>
-                  <Field
-                    icon={<FiMail />}
-                    label="Contact email"
-                    value={form.contactEmail}
-                    onChange={(value) => updateForm("contactEmail", value)}
-                    placeholder="ops@operator.vn"
-                    type="email"
-                  />
-                  <Field
-                    icon={<FiPhone />}
-                    label="Contact phone"
-                    value={form.contactPhone}
-                    onChange={(value) => updateForm("contactPhone", value)}
-                    placeholder={t("phonePlaceholder")}
-                    type="tel"
-                  />
-                  <Field
-                    icon={<FiUser />}
-                    label="Business registration number"
-                    value={form.businessRegistrationNumber}
-                    onChange={(value) =>
-                      updateForm("businessRegistrationNumber", value)
-                    }
-                    placeholder="0312345678"
-                  />
-                  <Field
-                    icon={<FiUser />}
-                    label="Tax code"
-                    value={form.taxCode}
-                    onChange={(value) => updateForm("taxCode", value)}
-                    placeholder="0301234567"
-                  />
-                  <div className="sm:col-span-2">
-                    <Field
-                      icon={<FiUser />}
-                      label="Street address"
-                      value={form.addressStreet}
-                      onChange={(value) => updateForm("addressStreet", value)}
-                      placeholder="123 Nguyen Van Linh"
-                    />
-                  </div>
-                  <Field
-                    icon={<FiUser />}
-                    label="Ward"
-                    value={form.addressWard}
-                    onChange={(value) => updateForm("addressWard", value)}
-                    placeholder="Ward 1"
-                  />
-                  <Field
-                    icon={<FiUser />}
-                    label="District"
-                    value={form.addressDistrict}
-                    onChange={(value) => updateForm("addressDistrict", value)}
-                    placeholder="District 1"
-                  />
-                  <Field
-                    icon={<FiUser />}
-                    label="Province"
-                    value={form.addressProvince}
-                    onChange={(value) => updateForm("addressProvince", value)}
-                    placeholder="Ho Chi Minh City"
-                  />
-                  <Field
-                    icon={<FiUser />}
-                    label="Representative name"
-                    value={form.representativeName}
-                    onChange={(value) => updateForm("representativeName", value)}
-                    placeholder={t("displayNamePlaceholder")}
-                  />
-                  <Field
-                    icon={<FiUser />}
-                    label="Representative position"
-                    value={form.representativePosition}
-                    onChange={(value) =>
-                      updateForm("representativePosition", value)
-                    }
-                    placeholder="Operations manager"
-                  />
-                  <Field
-                    icon={<FiPhone />}
-                    label="Representative phone"
-                    value={form.representativePhone}
-                    onChange={(value) => updateForm("representativePhone", value)}
-                    placeholder={t("phonePlaceholder")}
-                    type="tel"
-                  />
-                  <Field
-                    icon={<FiMail />}
-                    label="Representative email"
-                    value={form.representativeEmail}
-                    onChange={(value) => updateForm("representativeEmail", value)}
-                    placeholder="owner@operator.vn"
-                    type="email"
-                  />
-                  <div className="sm:col-span-2">
-                    <Field
-                      icon={<FiLock />}
-                      label={t("password")}
-                      value={form.password}
-                      onChange={(value) => updateForm("password", value)}
-                      placeholder={t("passwordPlaceholder")}
-                      type="password"
-                    />
-                  </div>
-                </div>
+                <form onSubmit={handleRegister} className="mt-6 space-y-5">
+                  <div
+                    className="grid grid-cols-3 gap-2"
+                    aria-label={t("registrationSteps")}
+                  >
+                    {registerSteps.map((step, index) => {
+                      const isActive = index === currentStep;
+                      const isComplete = index < currentStep;
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                >
-                  {loading ? (
-                    <>
-                      <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      {t("submitting")}
-                    </>
-                  ) : (
-                    <>
-                      {t("registerSubmit")}
-                      <FiArrowRight className="h-5 w-5" />
-                    </>
+                      return (
+                        <button
+                          key={step.titleKey}
+                          type="button"
+                          onClick={() => {
+                            if (index <= currentStep) {
+                              setCurrentStep(index);
+                              setError("");
+                              setMessage("");
+                            }
+                          }}
+                          aria-current={isActive ? "step" : undefined}
+                          className={`rounded-xl border px-3 py-2 text-left transition ${
+                            isActive
+                              ? "border-vr-500 bg-vr-50 text-vr-900"
+                              : isComplete
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                : "border-gray-200 bg-white text-gray-500"
+                          }`}
+                        >
+                          <span className="block text-xs font-bold uppercase">
+                            {t("stepLabel", { number: index + 1 })}
+                          </span>
+                          <span className="mt-0.5 block text-sm font-semibold">
+                            {t(step.titleKey)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-semibold text-vr-700">
+                      {t(registerSteps[currentStep].titleKey)}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {t(registerSteps[currentStep].descriptionKey)}
+                    </p>
+                  </div>
+
+                  {currentStep === 0 && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <Field
+                          icon={<FiUser />}
+                          label={t("operatorName")}
+                          value={form.name}
+                          onChange={(value) => updateForm("name", value)}
+                          placeholder="VietRide Express"
+                        />
+                      </div>
+                      <Field
+                        icon={<FiMail />}
+                        label={t("contactEmail")}
+                        value={form.contactEmail}
+                        onChange={(value) => updateForm("contactEmail", value)}
+                        placeholder="ops@operator.vn"
+                        type="email"
+                      />
+                      <Field
+                        icon={<FiPhone />}
+                        label={t("contactPhone")}
+                        value={form.contactPhone}
+                        onChange={(value) => updateForm("contactPhone", value)}
+                        placeholder={t("phonePlaceholder")}
+                        type="tel"
+                      />
+                      <Field
+                        icon={<FiUser />}
+                        label={t("businessRegistrationNumber")}
+                        value={form.businessRegistrationNumber}
+                        onChange={(value) =>
+                          updateForm("businessRegistrationNumber", value)
+                        }
+                        placeholder="0312345678"
+                      />
+                      <Field
+                        icon={<FiUser />}
+                        label={t("taxCode")}
+                        value={form.taxCode}
+                        onChange={(value) => updateForm("taxCode", value)}
+                        placeholder="0301234567"
+                      />
+                    </div>
                   )}
-                </button>
-              </form>
+
+                  {currentStep === 1 && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <Field
+                          icon={<FiMapPin />}
+                          label={t("streetAddress")}
+                          value={form.addressStreet}
+                          onChange={(value) => updateForm("addressStreet", value)}
+                          placeholder="123 Nguyen Van Linh"
+                        />
+                      </div>
+                      <Field
+                        icon={<FiMapPin />}
+                        label={t("ward")}
+                        value={form.addressWard}
+                        onChange={(value) => updateForm("addressWard", value)}
+                        placeholder="Ward 1"
+                      />
+                      <Field
+                        icon={<FiMapPin />}
+                        label={t("district")}
+                        value={form.addressDistrict}
+                        onChange={(value) => updateForm("addressDistrict", value)}
+                        placeholder="District 1"
+                      />
+                      <div className="sm:col-span-2">
+                        <Field
+                          icon={<FiMapPin />}
+                          label={t("province")}
+                          value={form.addressProvince}
+                          onChange={(value) => updateForm("addressProvince", value)}
+                          placeholder="Ho Chi Minh City"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {currentStep === 2 && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field
+                        icon={<FiUser />}
+                        label={t("representativeName")}
+                        value={form.representativeName}
+                        onChange={(value) =>
+                          updateForm("representativeName", value)
+                        }
+                        placeholder={t("displayNamePlaceholder")}
+                      />
+                      <Field
+                        icon={<FiUser />}
+                        label={t("representativePosition")}
+                        value={form.representativePosition}
+                        onChange={(value) =>
+                          updateForm("representativePosition", value)
+                        }
+                        placeholder="Operations manager"
+                      />
+                      <Field
+                        icon={<FiPhone />}
+                        label={t("representativePhone")}
+                        value={form.representativePhone}
+                        onChange={(value) =>
+                          updateForm("representativePhone", value)
+                        }
+                        placeholder={t("phonePlaceholder")}
+                        type="tel"
+                      />
+                      <Field
+                        icon={<FiMail />}
+                        label={t("representativeEmail")}
+                        value={form.representativeEmail}
+                        onChange={(value) =>
+                          updateForm("representativeEmail", value)
+                        }
+                        placeholder="owner@operator.vn"
+                        type="email"
+                      />
+                      <div className="sm:col-span-2">
+                        <Field
+                          icon={<FiLock />}
+                          label={t("password")}
+                          value={form.password}
+                          onChange={(value) => updateForm("password", value)}
+                          placeholder={t("passwordPlaceholder")}
+                          type="password"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col-reverse gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      disabled={currentStep === 0 || loading}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3.5 text-base font-bold text-slate-700 transition hover:border-vr-200 hover:bg-vr-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      <FiArrowLeft className="h-5 w-5" />
+                      {t("back")}
+                    </button>
+
+                    {currentStep < registerSteps.length - 1 ? (
+                      <button
+                        type="button"
+                        onClick={handleNextStep}
+                        disabled={loading}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
+                      >
+                        {t("continue")}
+                        <FiArrowRight className="h-5 w-5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
+                      >
+                        {loading ? (
+                          <>
+                            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                            {t("submitting")}
+                          </>
+                        ) : (
+                          <>
+                            {t("registerSubmit")}
+                            <FiArrowRight className="h-5 w-5" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </form>
               )}
 
               <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
@@ -387,7 +560,7 @@ export default function Register() {
 }
 
 type FieldProps = {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
   onChange: (value: string) => void;

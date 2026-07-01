@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { FiArrowLeft, FiArrowRight, FiLock } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { setInitialPassword } from "../api/vietride";
@@ -7,6 +8,8 @@ import logo from "../assets/Login/logo.svg";
 
 export default function SetInitialPassword() {
   const navigate = useNavigate();
+  const { t } = useTranslation("login");
+  const { t: tc } = useTranslation("common");
   const [searchParams] = useSearchParams();
   const initialToken = searchParams.get("token") ?? "";
   const [token, setToken] = useState(initialToken);
@@ -20,17 +23,17 @@ export default function SetInitialPassword() {
     setError("");
 
     if (!token.trim() || !password || !confirmPassword) {
-      setError("Please enter token and password.");
+      setError(t("initialPassword.errors.required"));
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(t("errors.passwordMin"));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Password confirmation does not match.");
+      setError(t("initialPassword.errors.mismatch"));
       return;
     }
 
@@ -46,7 +49,7 @@ export default function SetInitialPassword() {
         state: { registered: true },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Set password failed");
+      setError(err instanceof Error ? err.message : t("initialPassword.errors.failed"));
     } finally {
       setLoading(false);
     }
@@ -60,14 +63,14 @@ export default function SetInitialPassword() {
 
       <div className="w-full max-w-md rounded-[1.75rem] bg-white px-6 py-10 shadow-2xl shadow-vr-900/15 sm:px-10">
         <div className="mb-6 flex justify-center">
-          <img src={logo} alt="VietRide" className="h-20 w-20 object-contain" />
+          <img src={logo} alt={tc("brand")} className="h-20 w-20 object-contain" />
         </div>
 
         <h1 className="text-center text-3xl font-bold tracking-tight text-vr-900">
-          Set initial password
+          {t("initialPassword.title")}
         </h1>
         <p className="mt-2 text-center text-sm leading-6 text-gray-500">
-          Use the token from your invitation email to activate your account.
+          {t("initialPassword.subtitle")}
         </p>
 
         {error && (
@@ -81,23 +84,23 @@ export default function SetInitialPassword() {
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <Field
-            label="Token"
+            label={t("initialPassword.token")}
             value={token}
             onChange={setToken}
-            placeholder="Paste token from email"
+            placeholder={t("initialPassword.tokenPlaceholder")}
           />
           <Field
-            label="New password"
+            label={t("initialPassword.newPassword")}
             value={password}
             onChange={setPassword}
-            placeholder="Enter new password"
+            placeholder={t("initialPassword.newPasswordPlaceholder")}
             type="password"
           />
           <Field
-            label="Confirm password"
+            label={t("initialPassword.confirmPassword")}
             value={confirmPassword}
             onChange={setConfirmPassword}
-            placeholder="Re-enter new password"
+            placeholder={t("initialPassword.confirmPasswordPlaceholder")}
             type="password"
           />
 
@@ -109,11 +112,11 @@ export default function SetInitialPassword() {
             {loading ? (
               <>
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Submitting...
+                {t("submitting")}
               </>
             ) : (
               <>
-                Save password
+                {t("initialPassword.savePassword")}
                 <FiArrowRight className="h-5 w-5" />
               </>
             )}
@@ -124,7 +127,7 @@ export default function SetInitialPassword() {
           to="/login"
           className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-vr-700 hover:text-vr-900"
         >
-          <FiArrowLeft /> Back to login
+          <FiArrowLeft /> {t("backToLogin")}
         </Link>
       </div>
     </div>

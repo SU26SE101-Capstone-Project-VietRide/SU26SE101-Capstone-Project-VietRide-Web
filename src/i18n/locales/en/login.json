@@ -14,12 +14,63 @@
   "submitting": "Processing…",
   "noAccount": "Don't have an account?",
   "register": "Register",
+  "initialPassword": {
+    "title": "Set initial password",
+    "subtitle": "Use the token from your invitation email to activate your account.",
+    "token": "Token",
+    "tokenPlaceholder": "Paste token from email",
+    "newPassword": "New password",
+    "newPasswordPlaceholder": "Enter new password",
+    "confirmPassword": "Confirm password",
+    "confirmPasswordPlaceholder": "Re-enter new password",
+    "savePassword": "Save password",
+    "errors": {
+      "required": "Please enter token and password.",
+      "mismatch": "Password confirmation does not match.",
+      "failed": "Set password failed"
+    }
+  },
   "registerTitle": "Create account",
   "registerSubtitle": "Register your VietRide account to start managing routes, bookings and operations.",
   "registerHeroTitle": "Start your operations workspace in minutes.",
   "registerHeroSubtitle": "Create a manager account, sign in, then VietRide will route you to the correct dashboard for your role.",
   "registerSubmit": "Create account",
+  "registerVerificationPrompt": "Registration submitted. Please enter the email verification code.",
   "registerSuccess": "Account created successfully. Please sign in.",
+  "registrationSteps": "Registration steps",
+  "stepLabel": "Step {{number}}",
+  "registerSteps": {
+    "business": {
+      "title": "Business",
+      "description": "Operator profile and primary contact."
+    },
+    "address": {
+      "title": "Address",
+      "description": "Head office location for approval."
+    },
+    "account": {
+      "title": "Account",
+      "description": "Representative and login security."
+    }
+  },
+  "operatorName": "Operator name",
+  "contactEmail": "Contact email",
+  "contactPhone": "Contact phone",
+  "businessRegistrationNumber": "Business registration number",
+  "taxCode": "Tax code",
+  "streetAddress": "Street address",
+  "ward": "Ward",
+  "district": "District",
+  "province": "Province",
+  "representativeName": "Representative name",
+  "representativePosition": "Representative position",
+  "representativePhone": "Representative phone",
+  "representativeEmail": "Representative email",
+  "verificationEmail": "Verification email",
+  "verificationCode": "Verification code",
+  "verifyEmail": "Verify email",
+  "continue": "Continue",
+  "back": "Back",
   "displayName": "Display name",
   "displayNamePlaceholder": "Nguyen Van A",
   "phone": "Phone",

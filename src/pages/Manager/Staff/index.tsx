@@ -211,30 +211,28 @@ export default function StaffPage() {
     await reloadUsers();
     setUserForm(emptyUserForm);
     setOpenAdd(false);
-    setMessage(
-      "Đã tạo nhân sự. Hệ thống sẽ gửi email để nhân sự đặt mật khẩu lần đầu.",
-    );
+    setMessage(t("staff.createInitialPasswordSuccess"));
   }
 
   async function handleResendInitialPassword(user: OperatorUser) {
     const userId = getUserId(user);
 
     if (!userId) {
-      setError("Không tìm thấy mã nhân sự để gửi lại link đặt mật khẩu.");
+      setError(t("staff.missingUserForResend"));
       return;
     }
 
     setError("");
     setMessage("");
     await resendInitialPassword(userId);
-    setMessage(`Đã gửi lại link đặt mật khẩu cho ${user.email}.`);
+    setMessage(t("staff.resendInitialPasswordSuccess", { email: user.email }));
   }
 
   async function handleOpenDetail(user: OperatorUser) {
     const userId = getUserId(user);
 
     if (!userId) {
-      setError("Không tìm thấy mã nhân sự để xem chi tiết.");
+      setError(t("staff.missingUserForDetail"));
       return;
     }
 
@@ -248,7 +246,7 @@ export default function StaffPage() {
       setSelectedUser(detail);
     } catch (err) {
       setOpenDetail(false);
-      setError(err instanceof Error ? err.message : "Failed to load user detail");
+      setError(err instanceof Error ? err.message : t("staff.loadDetailFailed"));
     } finally {
       setIsDetailLoading(false);
     }
@@ -305,10 +303,12 @@ export default function StaffPage() {
           </div>
           <div>
             <p className="text-sm font-semibold text-blue-900">
-              Flow mật khẩu khởi tạo
+              {t("staff.initialPasswordFlow")}
             </p>
             <p className="mt-1 text-sm text-blue-800">
-              Quản lý chỉ tạo hồ sơ nhân sự. Hệ thống gửi email để nhân sự tự đặt mật khẩu tại trang <span className="font-mono">/set-initial-password?token=...</span>, sau đó nhân sự đăng nhập bằng email và mật khẩu mới.
+              {t("staff.initialPasswordFlowBefore")}{" "}
+              <span className="font-mono">/set-initial-password?token=...</span>
+              {t("staff.initialPasswordFlowAfter")}
             </p>
           </div>
         </div>
@@ -341,7 +341,9 @@ export default function StaffPage() {
           </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">Cần đặt mật khẩu</p>
+          <p className="text-sm text-gray-500">
+            {t("staff.needsInitialPassword")}
+          </p>
           <p className="mt-1 text-3xl font-bold text-gray-900">
             {users.filter((user) => !isActiveStatus(user.status)).length}
           </p>
@@ -365,7 +367,7 @@ export default function StaffPage() {
               value={roleFilter}
               onChange={(event) => setRoleFilter(event.target.value)}
             >
-              <option value="">Tất cả vai trò</option>
+              <option value="">{t("staff.allRoles")}</option>
               {roleOptions.map((role) => (
                 <option key={role.value} value={role.value}>
                   {role.label}
@@ -377,7 +379,7 @@ export default function StaffPage() {
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
             >
-              <option value="">Tất cả trạng thái</option>
+              <option value="">{t("staff.allStatuses")}</option>
               {[...new Set(users.map((user) => user.status).filter(Boolean))].map(
                 (status) => (
                   <option key={status} value={status}>
@@ -474,8 +476,8 @@ export default function StaffPage() {
                         type="button"
                         onClick={() => handleOpenDetail(user)}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
-                        title="Xem chi tiết"
-                        aria-label="Xem chi tiết"
+                        title={t("staff.viewDetail")}
+                        aria-label={t("staff.viewDetail")}
                       >
                         <FiEye size={16} />
                       </button>
@@ -483,8 +485,8 @@ export default function StaffPage() {
                         type="button"
                         onClick={() => handleResendInitialPassword(user)}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                        title="Gửi lại link đặt mật khẩu"
-                        aria-label="Gửi lại link đặt mật khẩu"
+                        title={t("staff.resendInitialPassword")}
+                        aria-label={t("staff.resendInitialPassword")}
                       >
                         <FiMail size={16} />
                       </button>
@@ -498,7 +500,7 @@ export default function StaffPage() {
 
         {isLoading && (
           <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
-            Loading staff...
+            {t("staff.loading")}
           </div>
         )}
 
@@ -515,7 +517,7 @@ export default function StaffPage() {
         wide
         icon={<FiUser size={20} />}
         title={t("staff.addTitle")}
-        subtitle="Nhập email, tên hiển thị và vai trò. Hệ thống sẽ gửi link đặt mật khẩu lần đầu cho nhân sự."
+        subtitle={t("staff.addInitialPasswordSubtitle")}
         footer={
           <>
             <button
@@ -657,6 +659,7 @@ function StaffDetailModal({
   onClose: () => void;
 }) {
   const { t: tc } = useTranslation("common");
+  const { t } = useTranslation("manager");
 
   return (
     <Modal
@@ -664,8 +667,8 @@ function StaffDetailModal({
       onClose={onClose}
       wide
       icon={<FiUser size={20} />}
-      title="Chi tiết nhân sự"
-      subtitle="Thông tin tài khoản nội bộ của nhà xe."
+      title={t("staff.detailModalTitle")}
+      subtitle={t("staff.detailModalSubtitle")}
       footer={
         <button
           type="button"
@@ -678,20 +681,20 @@ function StaffDetailModal({
     >
       {isLoading && (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500">
-          Đang tải chi tiết nhân sự...
+          {t("staff.loadingDetail")}
         </div>
       )}
 
       {!isLoading && user && (
         <div className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <DetailItem label="Mã nhân sự" value={user.userId} />
-            <DetailItem label="Tên hiển thị" value={user.displayName} />
-            <DetailItem label="Email" value={user.email} />
-            <DetailItem label="Số điện thoại" value={user.phone ?? "-"} />
-            <DetailItem label="Vai trò" value={roleLabel(user.role)} />
-            <DetailItem label="Trạng thái" value={user.status} />
-            <DetailItem label="Ngày tạo" value={user.createdAt ?? "-"} />
+            <DetailItem label={t("staff.staffId")} value={user.userId} />
+            <DetailItem label={t("staff.displayName")} value={user.displayName} />
+            <DetailItem label={tc("email")} value={user.email} />
+            <DetailItem label={tc("phone")} value={user.phone ?? "-"} />
+            <DetailItem label={t("staff.role")} value={roleLabel(user.role)} />
+            <DetailItem label={tc("status")} value={user.status} />
+            <DetailItem label={t("staff.createdAt")} value={user.createdAt ?? "-"} />
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -701,10 +704,10 @@ function StaffDetailModal({
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900">
-                  Mật khẩu khởi tạo
+                  {t("staff.initialPassword")}
                 </p>
                 <p className="mt-1 text-sm text-gray-600">
-                  Nếu nhân sự chưa nhận email hoặc link hết hạn, quay lại danh sách và bấm icon thư để gửi lại link đặt mật khẩu.
+                  {t("staff.initialPasswordDetailHint")}
                 </p>
               </div>
             </div>

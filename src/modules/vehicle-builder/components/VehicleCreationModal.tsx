@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { VehicleType } from "../types";
 
@@ -7,11 +8,7 @@ interface VehicleCreationModalProps {
   onClose: () => void;
 }
 
-const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
-  { value: "SEAT", label: "Xe ghế ngồi" },
-  { value: "SLEEPER", label: "Xe giường nằm" },
-  { value: "LIMO", label: "Xe Limousine" },
-];
+const VEHICLE_TYPES: VehicleType[] = ["SEAT", "SLEEPER", "LIMO"];
 
 const VEHICLE_MODELS = [
   "HYUNDAI_UNIVERSE",
@@ -24,6 +21,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation("manager");
   const { createNewVehicle, addVehicle } = useVehicleStore();
   const [vehicleType, setVehicleType] = useState<VehicleType>("SEAT");
   const [model, setModel] = useState("HYUNDAI_UNIVERSE");
@@ -32,7 +30,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
 
   const handleCreate = () => {
     if (!name || !plateNumber) {
-      alert("Vui lòng nhập tên xe và biển số");
+      alert(t("vehicleBuilder.createRequired"));
       return;
     }
 
@@ -67,37 +65,39 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg p-6 w-96 space-y-4">
-        <h2 className="text-2xl font-bold">Tạo xe mới</h2>
+        <h2 className="text-2xl font-bold">
+          {t("vehicleBuilder.createVehicle")}
+        </h2>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tên xe
+            {t("vehicleBuilder.vehicleName")}
           </label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="VD: Xe 40 chỗ"
+            placeholder={t("vehicleBuilder.vehicleNamePlaceholder")}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Biển số
+            {t("vehicleBuilder.plateNumber")}
           </label>
           <input
             type="text"
             value={plateNumber}
             onChange={(e) => setPlateNumber(e.target.value)}
-            placeholder="VD: 29A-12345"
+            placeholder={t("vehicleBuilder.plateNumberPlaceholder")}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Loại xe
+            {t("vehicleBuilder.vehicleType")}
           </label>
           <select
             value={vehicleType}
@@ -105,8 +105,8 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
           >
             {VEHICLE_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
+              <option key={type} value={type}>
+                {t(`vehicleBuilder.vehicleTypes.${type}`)}
               </option>
             ))}
           </select>
@@ -114,7 +114,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Model xe
+            {t("vehicleBuilder.vehicleModel")}
           </label>
           <select
             value={model}
@@ -134,13 +134,13 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
             onClick={handleCreate}
             className="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 font-medium"
           >
-            Tạo
+            {t("vehicleBuilder.create")}
           </button>
           <button
             onClick={onClose}
             className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 font-medium"
           >
-            Hủy
+            {t("vehicleBuilder.cancel")}
           </button>
         </div>
       </div>

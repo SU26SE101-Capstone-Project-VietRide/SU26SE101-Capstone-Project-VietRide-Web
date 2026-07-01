@@ -14,12 +14,63 @@
   "submitting": "Đang xử lý…",
   "noAccount": "Chưa có tài khoản?",
   "register": "Đăng ký",
+  "initialPassword": {
+    "title": "Đặt mật khẩu ban đầu",
+    "subtitle": "Dùng mã token trong email mời để kích hoạt tài khoản.",
+    "token": "Token",
+    "tokenPlaceholder": "Dán token từ email",
+    "newPassword": "Mật khẩu mới",
+    "newPasswordPlaceholder": "Nhập mật khẩu mới",
+    "confirmPassword": "Xác nhận mật khẩu",
+    "confirmPasswordPlaceholder": "Nhập lại mật khẩu mới",
+    "savePassword": "Lưu mật khẩu",
+    "errors": {
+      "required": "Vui lòng nhập token và mật khẩu.",
+      "mismatch": "Xác nhận mật khẩu không khớp.",
+      "failed": "Đặt mật khẩu thất bại"
+    }
+  },
   "registerTitle": "Tạo tài khoản",
   "registerSubtitle": "Đăng ký tài khoản VietRide để bắt đầu quản lý tuyến, booking và vận hành.",
   "registerHeroTitle": "Khởi tạo không gian vận hành chỉ trong vài phút.",
   "registerHeroSubtitle": "Tạo tài khoản quản lý, đăng nhập, sau đó VietRide sẽ đưa bạn đến đúng bảng điều khiển theo vai trò.",
   "registerSubmit": "Tạo tài khoản",
+  "registerVerificationPrompt": "Đăng ký đã được gửi. Vui lòng nhập mã xác minh email.",
   "registerSuccess": "Tạo tài khoản thành công. Vui lòng đăng nhập.",
+  "registrationSteps": "Các bước đăng ký",
+  "stepLabel": "Bước {{number}}",
+  "registerSteps": {
+    "business": {
+      "title": "Doanh nghiệp",
+      "description": "Thông tin nhà xe và liên hệ chính."
+    },
+    "address": {
+      "title": "Địa chỉ",
+      "description": "Địa chỉ trụ sở để xét duyệt hồ sơ."
+    },
+    "account": {
+      "title": "Tài khoản",
+      "description": "Người đại diện và bảo mật đăng nhập."
+    }
+  },
+  "operatorName": "Tên nhà xe",
+  "contactEmail": "Email liên hệ",
+  "contactPhone": "Số điện thoại liên hệ",
+  "businessRegistrationNumber": "Số đăng ký kinh doanh",
+  "taxCode": "Mã số thuế",
+  "streetAddress": "Địa chỉ đường",
+  "ward": "Phường/Xã",
+  "district": "Quận/Huyện",
+  "province": "Tỉnh/Thành phố",
+  "representativeName": "Tên người đại diện",
+  "representativePosition": "Chức vụ người đại diện",
+  "representativePhone": "Số điện thoại người đại diện",
+  "representativeEmail": "Email người đại diện",
+  "verificationEmail": "Email xác minh",
+  "verificationCode": "Mã xác minh",
+  "verifyEmail": "Xác minh email",
+  "continue": "Tiếp tục",
+  "back": "Quay lại",
   "displayName": "Tên hiển thị",
   "displayNamePlaceholder": "Nguyễn Văn A",
   "phone": "Số điện thoại",

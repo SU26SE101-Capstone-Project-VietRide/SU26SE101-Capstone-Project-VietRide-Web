@@ -130,7 +130,7 @@ export default function Users() {
           className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-vr-600"
         >
           <FiPlus size={16} />
-          Create user
+          {t("users.createUser")}
         </button>
       </div>
 
@@ -239,7 +239,9 @@ export default function Users() {
         </div>
 
         {isLoading && (
-          <div className="mt-4 text-sm text-gray-500">Loading users...</div>
+          <div className="mt-4 text-sm text-gray-500">
+            {t("users.loading")}
+          </div>
         )}
 
         <div className="mt-4 text-sm text-gray-500">
@@ -266,7 +268,9 @@ export default function Users() {
               <p className="font-medium text-gray-900">{selected.status}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600 mb-1">Operator ID</p>
+              <p className="text-xs text-gray-600 mb-1">
+                {t("users.operatorId")}
+              </p>
               <p className="font-medium text-gray-900">
                 {selected.operatorId ?? "--"}
               </p>
@@ -279,7 +283,7 @@ export default function Users() {
       <Modal
         open={openCreate}
         onClose={() => setOpenCreate(false)}
-        title="Create admin user"
+        title={t("users.createAdminUser")}
         footer={
           <>
             <button
@@ -294,14 +298,16 @@ export default function Users() {
               onClick={handleCreateUser}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
             >
-              Create
+              {tc("create")}
             </button>
           </>
         }
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Name</label>
+            <label className="block text-xs text-gray-600 mb-1">
+              {tc("name")}
+            </label>
             <input
               value={userForm.displayName}
               onChange={(e) => updateUserForm("displayName", e.target.value)}
@@ -310,7 +316,9 @@ export default function Users() {
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Email</label>
+            <label className="block text-xs text-gray-600 mb-1">
+              {tc("email")}
+            </label>
             <input
               value={userForm.email}
               onChange={(e) => updateUserForm("email", e.target.value)}
@@ -320,17 +328,19 @@ export default function Users() {
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Role</label>
+            <label className="block text-xs text-gray-600 mb-1">
+              {t("users.role")}
+            </label>
             <select
               value={userForm.role}
               onChange={(e) => updateUserForm("role", e.target.value)}
               className="w-full px-3 py-2 border rounded"
             >
-              <option value="OPERATOR_ADMIN">Operator admin</option>
-              <option value="OPERATOR_STAFF">Operator staff</option>
-              <option value="DRIVER">Driver</option>
-              <option value="ASSISTANT">Assistant</option>
-              <option value="SYSTEM_ADMIN">System admin</option>
+              <option value="OPERATOR_ADMIN">{t("users.operatorAdmin")}</option>
+              <option value="OPERATOR_STAFF">{t("users.operatorStaff")}</option>
+              <option value="DRIVER">{t("users.driver")}</option>
+              <option value="ASSISTANT">{t("users.assistant")}</option>
+              <option value="SYSTEM_ADMIN">{t("users.systemAdmin")}</option>
             </select>
           </div>
         </div>

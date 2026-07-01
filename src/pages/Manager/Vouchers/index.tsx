@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FiCheck,
   FiEdit2,
@@ -146,6 +147,8 @@ function toUpdateRequest(form: VoucherForm): UpdateOperatorVoucherRequest {
 }
 
 export default function ManagerVouchers() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [activeTab, setActiveTab] = useState<VoucherTab>("vouchers");
   const [vouchers, setVouchers] = useState<OperatorVoucher[]>([]);
   const [consents, setConsents] = useState<OperatorVoucherConsent[]>([]);
@@ -252,10 +255,10 @@ export default function ManagerVouchers() {
         getVoucherId(selectedVoucher),
         toUpdateRequest(form),
       );
-      setMessage("Đã cập nhật voucher.");
+      setMessage(t("vouchers.updateSuccess"));
     } else {
       await createOperatorVoucher(toCreateRequest(form));
-      setMessage("Đã tạo voucher.");
+      setMessage(t("vouchers.createSuccess"));
     }
 
     setIsModalOpen(false);
@@ -268,24 +271,24 @@ export default function ManagerVouchers() {
 
     if (voucher.isActive) {
       await deactivateOperatorVoucher(getVoucherId(voucher));
-      setMessage("Đã tắt voucher.");
+      setMessage(t("vouchers.deactivateSuccess"));
     } else {
       await activateOperatorVoucher(getVoucherId(voucher));
-      setMessage("Đã kích hoạt voucher.");
+      setMessage(t("vouchers.activateSuccess"));
     }
 
     await loadData();
   }
 
   async function handleDelete(voucher: OperatorVoucher) {
-    if (!confirm("Bạn có chắc muốn xóa voucher này?")) {
+    if (!confirm(t("vouchers.confirmDeleteOperatorVoucher"))) {
       return;
     }
 
     setError("");
     setMessage("");
     await deleteOperatorVoucher(getVoucherId(voucher));
-    setMessage("Đã xóa voucher.");
+    setMessage(t("vouchers.deleteOperatorSuccess"));
     await loadData();
   }
 
@@ -293,7 +296,7 @@ export default function ManagerVouchers() {
     setError("");
     setMessage("");
     await acceptOperatorVoucherConsent(consent.id);
-    setMessage(`Đã chấp nhận voucher ${consent.voucherCode}.`);
+    setMessage(t("vouchers.acceptConsentSuccess", { code: consent.voucherCode }));
     await loadData();
   }
 
@@ -305,7 +308,7 @@ export default function ManagerVouchers() {
     setError("");
     setMessage("");
     await rejectOperatorVoucherConsent(rejectingConsent.id, rejectReason);
-    setMessage(`Đã từ chối voucher ${rejectingConsent.voucherCode}.`);
+    setMessage(t("vouchers.rejectConsentSuccess", { code: rejectingConsent.voucherCode }));
     setRejectingConsent(null);
     setRejectReason("");
     await loadData();
@@ -315,9 +318,11 @@ export default function ManagerVouchers() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Voucher</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("vouchers.operatorTitle")}
+          </h1>
           <p className="mt-1 text-gray-600">
-            Tạo voucher nhà xe và phản hồi voucher platform cần nhà xe đồng ý.
+            {t("vouchers.operatorSubtitle")}
           </p>
         </div>
         <div className="flex gap-2">
@@ -327,7 +332,7 @@ export default function ManagerVouchers() {
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
             <FiRefreshCw size={16} />
-            Tải lại
+            {tc("refresh")}
           </button>
           <button
             type="button"
@@ -335,15 +340,15 @@ export default function ManagerVouchers() {
             className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
           >
             <FiPlus size={16} />
-            Tạo voucher
+            {t("vouchers.create")}
           </button>
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <MetricCard label="Tổng voucher" value={vouchers.length} />
-        <MetricCard label="Đang kích hoạt" value={activeCount} />
-        <MetricCard label="Consent chờ duyệt" value={pendingConsentCount} />
+        <MetricCard label={t("vouchers.totalVouchers")} value={vouchers.length} />
+        <MetricCard label={t("vouchers.activeVouchers")} value={activeCount} />
+        <MetricCard label={t("vouchers.pendingConsents")} value={pendingConsentCount} />
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
@@ -357,7 +362,7 @@ export default function ManagerVouchers() {
                 : "text-gray-600 hover:bg-gray-50"
             }`}
           >
-            Voucher nhà xe
+            {t("vouchers.operatorVouchers")}
           </button>
           <button
             type="button"
@@ -368,7 +373,7 @@ export default function ManagerVouchers() {
                 : "text-gray-600 hover:bg-gray-50"
             }`}
           >
-            Voucher cần duyệt
+            {t("vouchers.consentVouchers")}
           </button>
         </div>
       </div>
@@ -416,7 +421,7 @@ export default function ManagerVouchers() {
         open={Boolean(rejectingConsent)}
         onClose={() => setRejectingConsent(null)}
         icon={<FiX size={20} />}
-        title="Từ chối voucher platform"
+        title={t("vouchers.rejectPlatformTitle")}
         subtitle={rejectingConsent?.voucherCode}
         footer={
           <>
@@ -425,24 +430,24 @@ export default function ManagerVouchers() {
               onClick={() => setRejectingConsent(null)}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Hủy
+              {tc("cancel")}
             </button>
             <button
               type="button"
               onClick={handleRejectConsent}
               className="rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600"
             >
-              Từ chối
+              {t("vouchers.reject")}
             </button>
           </>
         }
       >
-        <label className={labelClass}>Lý do từ chối</label>
+        <label className={labelClass}>{t("vouchers.rejectReason")}</label>
         <textarea
           className={`${inputClass} min-h-[96px]`}
           value={rejectReason}
           onChange={(event) => setRejectReason(event.target.value)}
-          placeholder="Nhập lý do để hệ thống lưu lại phản hồi."
+          placeholder={t("vouchers.rejectReasonPlaceholder")}
         />
       </Modal>
     </div>
@@ -471,19 +476,22 @@ function VoucherTable({
   onToggle: (voucher: OperatorVoucher) => void;
   onDelete: (voucher: OperatorVoucher) => void;
 }) {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <th className="px-5 py-3">Mã</th>
-              <th className="px-5 py-3">Tên</th>
-              <th className="px-5 py-3">Giảm giá</th>
-              <th className="px-5 py-3">Giới hạn</th>
-              <th className="px-5 py-3">Hiệu lực</th>
-              <th className="px-5 py-3">Trạng thái</th>
-              <th className="px-5 py-3">Hành động</th>
+              <th className="px-5 py-3">{t("vouchers.code")}</th>
+              <th className="px-5 py-3">{t("vouchers.name")}</th>
+              <th className="px-5 py-3">{t("vouchers.discount")}</th>
+              <th className="px-5 py-3">{t("vouchers.limit")}</th>
+              <th className="px-5 py-3">{t("vouchers.validity")}</th>
+              <th className="px-5 py-3">{tc("status")}</th>
+              <th className="px-5 py-3">{tc("actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -507,15 +515,17 @@ function VoucherTable({
                     : `${formatMoney(voucher.value)} VND`}
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-700">
-                  <p>Tổng: {voucher.totalUsageLimit}</p>
+                  <p>{t("vouchers.totalLimit", { count: voucher.totalUsageLimit })}</p>
                   <p className="text-xs text-gray-500">
-                    Mỗi user: {voucher.perUserLimit}
+                    {t("vouchers.perUserLimit", { count: voucher.perUserLimit })}
                   </p>
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-700">
                   <p>{formatDate(voucher.validFrom)}</p>
                   <p className="text-xs text-gray-500">
-                    đến {formatDate(voucher.validUntil)}
+                    {t("vouchers.validUntil", {
+                      date: formatDate(voucher.validUntil),
+                    })}
                   </p>
                 </td>
                 <td className="px-5 py-4">
@@ -526,21 +536,27 @@ function VoucherTable({
                         : "bg-gray-100 text-gray-700"
                     }`}
                   >
-                    {voucher.isActive ? "Đang bật" : "Đang tắt"}
+                    {voucher.isActive
+                      ? t("vouchers.enabled")
+                      : t("vouchers.disabled")}
                   </span>
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
                     <IconButton
-                      label={voucher.isActive ? "Tắt voucher" : "Bật voucher"}
+                      label={
+                        voucher.isActive
+                          ? t("vouchers.disableVoucher")
+                          : t("vouchers.enableVoucher")
+                      }
                       onClick={() => onToggle(voucher)}
                     >
                       {voucher.isActive ? <FiX size={16} /> : <FiCheck size={16} />}
                     </IconButton>
-                    <IconButton label="Sửa" onClick={() => onEdit(voucher)}>
+                    <IconButton label={tc("edit")} onClick={() => onEdit(voucher)}>
                       <FiEdit2 size={16} />
                     </IconButton>
-                    <IconButton label="Xóa" onClick={() => onDelete(voucher)}>
+                    <IconButton label={tc("delete")} onClick={() => onDelete(voucher)}>
                       <FiTrash2 size={16} />
                     </IconButton>
                   </div>
@@ -553,12 +569,12 @@ function VoucherTable({
 
       {isLoading && (
         <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
-          Đang tải voucher...
+          {t("vouchers.loading")}
         </div>
       )}
       {!isLoading && vouchers.length === 0 && (
         <div className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-500">
-          Chưa có voucher nhà xe.
+          {t("vouchers.emptyOperatorVoucher")}
         </div>
       )}
     </div>
@@ -580,16 +596,18 @@ function ConsentTable({
   onAccept: (consent: OperatorVoucherConsent) => void;
   onReject: (consent: OperatorVoucherConsent) => void;
 }) {
+  const { t } = useTranslation("manager");
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <label className={labelClass}>Lọc trạng thái consent</label>
+        <label className={labelClass}>{t("vouchers.consentStatusFilter")}</label>
         <select
           className={inputClass}
           value={status}
           onChange={(event) => onStatusChange(event.target.value)}
         >
-          <option value="">Tất cả</option>
+          <option value="">{t("vouchers.all")}</option>
           <option value="PENDING">PENDING</option>
           <option value="ACCEPTED">ACCEPTED</option>
           <option value="REJECTED">REJECTED</option>
@@ -602,11 +620,11 @@ function ConsentTable({
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-5 py-3">Voucher</th>
-                <th className="px-5 py-3">Giá trị</th>
-                <th className="px-5 py-3">Đơn tối thiểu</th>
-                <th className="px-5 py-3">Hiệu lực</th>
-                <th className="px-5 py-3">Trạng thái</th>
-                <th className="px-5 py-3">Hành động</th>
+                <th className="px-5 py-3">{t("vouchers.value")}</th>
+                <th className="px-5 py-3">{t("vouchers.minOrder")}</th>
+                <th className="px-5 py-3">{t("vouchers.validity")}</th>
+                <th className="px-5 py-3">{t("vouchers.status")}</th>
+                <th className="px-5 py-3">{t("vouchers.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -630,7 +648,9 @@ function ConsentTable({
                   <td className="px-5 py-4 text-sm text-gray-700">
                     <p>{formatDate(consent.validFrom)}</p>
                     <p className="text-xs text-gray-500">
-                      đến {formatDate(consent.validUntil)}
+                      {t("vouchers.validUntil", {
+                        date: formatDate(consent.validUntil),
+                      })}
                     </p>
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700">
@@ -639,12 +659,15 @@ function ConsentTable({
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2">
                       <IconButton
-                        label="Chấp nhận"
+                        label={t("vouchers.accept")}
                         onClick={() => onAccept(consent)}
                       >
                         <FiCheck size={16} />
                       </IconButton>
-                      <IconButton label="Từ chối" onClick={() => onReject(consent)}>
+                      <IconButton
+                        label={t("vouchers.reject")}
+                        onClick={() => onReject(consent)}
+                      >
                         <FiX size={16} />
                       </IconButton>
                     </div>
@@ -657,12 +680,12 @@ function ConsentTable({
 
         {isLoading && (
           <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
-            Đang tải voucher consent...
+            {t("vouchers.loadingConsents")}
           </div>
         )}
         {!isLoading && consents.length === 0 && (
           <div className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-500">
-            Không có voucher consent.
+            {t("vouchers.emptyConsents")}
           </div>
         )}
       </div>
@@ -707,14 +730,17 @@ function VoucherModal({
   onClose: () => void;
   onSubmit: () => void;
 }) {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       wide
       icon={<FiTag size={20} />}
-      title={isEditing ? "Cập nhật voucher" : "Tạo voucher"}
-      subtitle="Thiết lập mã giảm giá áp dụng cho đơn đặt chỗ của nhà xe."
+      title={isEditing ? t("vouchers.updateVoucher") : t("vouchers.create")}
+      subtitle={t("vouchers.operatorModalSubtitle")}
       footer={
         <>
           <button
@@ -722,14 +748,14 @@ function VoucherModal({
             onClick={onClose}
             className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Hủy
+            {tc("cancel")}
           </button>
           <button
             type="button"
             onClick={onSubmit}
             className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
           >
-            {isEditing ? "Cập nhật" : "Tạo voucher"}
+            {isEditing ? t("vouchers.update") : t("vouchers.create")}
           </button>
         </>
       }
@@ -737,23 +763,23 @@ function VoucherModal({
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label="Mã voucher"
+            label={t("vouchers.voucherCode")}
             value={form.code}
             disabled={isEditing}
             onChange={(value) => onChange("code", value)}
             placeholder="OP-SUMMER"
           />
           <Field
-            label="Tên voucher"
+            label={t("vouchers.voucherName")}
             value={form.name}
             onChange={(value) => onChange("name", value)}
-            placeholder="Giảm giá hè"
+            placeholder={t("vouchers.nameSummerPlaceholder")}
           />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <label className={labelClass}>Loại giảm</label>
+            <label className={labelClass}>{t("vouchers.discountType")}</label>
             <select
               className={inputClass}
               value={form.type}
@@ -765,13 +791,13 @@ function VoucherModal({
             </select>
           </div>
           <Field
-            label="Giá trị"
+            label={t("vouchers.value")}
             type="number"
             value={form.value}
             onChange={(value) => onChange("value", value)}
           />
           <Field
-            label="Giảm tối đa"
+            label={t("vouchers.maxDiscount")}
             type="number"
             value={form.maxDiscountAmount}
             onChange={(value) => onChange("maxDiscountAmount", value)}
@@ -780,19 +806,19 @@ function VoucherModal({
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Field
-            label="Đơn tối thiểu"
+            label={t("vouchers.minOrder")}
             type="number"
             value={form.minOrderAmount}
             onChange={(value) => onChange("minOrderAmount", value)}
           />
           <Field
-            label="Tổng lượt dùng"
+            label={t("vouchers.totalUsageLimit")}
             type="number"
             value={form.totalUsageLimit}
             onChange={(value) => onChange("totalUsageLimit", value)}
           />
           <Field
-            label="Mỗi user"
+            label={t("vouchers.perUser")}
             type="number"
             value={form.perUserLimit}
             onChange={(value) => onChange("perUserLimit", value)}
@@ -801,13 +827,13 @@ function VoucherModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label="Hiệu lực từ"
+            label={t("vouchers.validFrom")}
             type="datetime-local"
             value={form.validFrom}
             onChange={(value) => onChange("validFrom", value)}
           />
           <Field
-            label="Hiệu lực đến"
+            label={t("vouchers.validTo")}
             type="datetime-local"
             value={form.validUntil}
             onChange={(value) => onChange("validUntil", value)}
@@ -816,13 +842,13 @@ function VoucherModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label="Route IDs áp dụng"
+            label={t("vouchers.applicableRouteIds")}
             value={form.applicableRouteIds}
             onChange={(value) => onChange("applicableRouteIds", value)}
             placeholder="uuid-1, uuid-2"
           />
           <div>
-            <label className={labelClass}>Nguồn tài trợ</label>
+            <label className={labelClass}>{t("vouchers.fundingType")}</label>
             <select
               className={inputClass}
               value={form.fundingType}
