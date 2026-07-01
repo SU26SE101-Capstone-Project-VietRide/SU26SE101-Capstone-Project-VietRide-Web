@@ -5,7 +5,10 @@
   },
   "roles": {
     "manager": "Quản lý nhà xe",
-    "admin": "Quản trị hệ thống"
+    "admin": "Quản trị hệ thống",
+    "SYSTEM_ADMIN": "Quản trị hệ thống",
+    "OPERATOR_ADMIN": "Admin nhà xe",
+    "OPERATOR_STAFF": "Nhân sự vận hành"
   },
   "closeMenu": "Đóng menu",
   "manager": {
@@ -15,6 +18,7 @@
     "routes": "Tuyến & điểm dừng",
     "vehicles": "Phương tiện",
     "staff": "Nhân sự",
+    "capacity": "Sức chứa & ghế",
     "bookings": "Đặt vé",
     "parcels": "Hàng hóa",
     "gps": "GPS Tracking",
@@ -29,13 +33,17 @@
   "admin": {
     "dashboard": "Dashboard",
     "operators": "Nhà xe",
+    "stations": "Bến nền tảng",
     "users": "Người dùng",
     "vouchers": "Voucher",
     "packages": "Gói dịch vụ",
     "policies": "Policy",
     "payouts": "Phê duyệt Payout",
+    "walletSettlement": "Ví & đối soát",
     "revenue": "Doanh thu",
-    "reports": "Báo cáo"
+    "reports": "Báo cáo",
+    "ragAudit": "RAG & audit",
+    "settings": "Cấu hình hệ thống"
   },
   "layout": {
     "adminDashboard": "Dashboard Quản trị",

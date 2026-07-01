@@ -216,6 +216,7 @@ export default function ManagerPolicies() {
                         type="button"
                         onClick={() => handleToggleActive(policy.id)}
                         title={policy.active ? tc("off") : tc("on")}
+                        aria-label={policy.active ? tc("off") : tc("on")}
                         className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
                       >
                         {policy.active ? (
@@ -228,6 +229,7 @@ export default function ManagerPolicies() {
                         type="button"
                         onClick={() => handleEdit(policy)}
                         title={tc("edit")}
+                        aria-label={tc("edit")}
                         className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
                       >
                         <FiEdit2 className="text-lg" />
@@ -236,6 +238,7 @@ export default function ManagerPolicies() {
                         type="button"
                         onClick={() => handleDelete(policy.id)}
                         title={tc("delete")}
+                        aria-label={tc("delete")}
                         className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-red-100 hover:text-red-600"
                       >
                         <FiTrash2 className="text-lg" />

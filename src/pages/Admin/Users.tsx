@@ -1,4 +1,4 @@
-import { FiPlus, FiSearch, FiFilter } from "react-icons/fi";
+import { FiEye, FiFilter, FiPlus, FiSearch } from "react-icons/fi";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Modal from "../../components/Modal";
@@ -10,12 +10,22 @@ import {
   type CreateAdminUserRequest,
 } from "../../api/vietride";
 
-function formatUserId(userId: string, idx: number) {
-  return userId || `U-${10020 + idx}`;
-}
-
 function isActiveStatus(status: string) {
   return ["ACTIVE", "APPROVED", "active"].includes(status);
+}
+
+function formatJoinedAt(value?: string) {
+  if (!value) {
+    return "--";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--";
+  }
+
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 const emptyUserForm: CreateAdminUserRequest = {
@@ -87,6 +97,8 @@ export default function Users() {
       OPERATOR_ADMIN: t("users.manager"),
       OPERATOR_STAFF: t("users.operator"),
       SYSTEM_ADMIN: t("users.admin"),
+      DRIVER: t("users.driver"),
+      ASSISTANT: t("users.assistant"),
       customer: t("users.customer"),
       manager: t("users.manager"),
       operator: t("users.operator"),
@@ -173,13 +185,13 @@ export default function Users() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  {t("users.userId")}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {t("users.fullName")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {tc("email")}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
+                  {tc("phone")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {t("users.role")}
@@ -190,28 +202,29 @@ export default function Users() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {tc("status")}
                 </th>
+                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
+                  {tc("actions")}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u, idx) => (
+              {filtered.map((u) => (
                 <tr
                   key={u.userId}
                   className="border-b border-gray-100 hover:bg-gray-50 transition"
                 >
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {formatUserId(u.userId, idx + 1)}
-                  </td>
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                     {u.displayName}
                   </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {u.email}
+                    {u.phone ?? "--"}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700">
                     {roleLabel(u.role)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {u.createdAt ?? "--"}
+                    {formatJoinedAt(u.createdAt)}
                   </td>
                   <td className="px-6 py-4 text-sm">
                     {isActiveStatus(u.status) ? (
@@ -223,14 +236,17 @@ export default function Users() {
                         {u.status || t("users.locked")}
                       </span>
                     )}
-                    <div className="mt-2">
-                      <button
-                        onClick={() => setSelected(u)}
-                        className="text-sm text-vr-600 hover:underline"
-                      >
-                        {tc("details")}
-                      </button>
-                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setSelected(u)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-vr-600 transition hover:bg-vr-50"
+                      title={tc("details")}
+                      aria-label={tc("details")}
+                    >
+                      <FiEye size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -239,9 +255,7 @@ export default function Users() {
         </div>
 
         {isLoading && (
-          <div className="mt-4 text-sm text-gray-500">
-            {t("users.loading")}
-          </div>
+          <div className="mt-4 text-sm text-gray-500">{t("users.loading")}</div>
         )}
 
         <div className="mt-4 text-sm text-gray-500">
@@ -266,6 +280,12 @@ export default function Users() {
             <div>
               <p className="text-xs text-gray-600 mb-1">{tc("status")}</p>
               <p className="font-medium text-gray-900">{selected.status}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 mb-1">{tc("phone")}</p>
+              <p className="font-medium text-gray-900">
+                {selected.phone ?? "--"}
+              </p>
             </div>
             <div>
               <p className="text-xs text-gray-600 mb-1">

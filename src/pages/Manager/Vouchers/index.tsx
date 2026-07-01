@@ -15,12 +15,13 @@ import {
   activateOperatorVoucher,
   createOperatorVoucher,
   deactivateOperatorVoucher,
+  getOperatorRoutes,
   deleteOperatorVoucher,
   getOperatorVoucherConsents,
-  getOperatorVouchers,
   rejectOperatorVoucherConsent,
   updateOperatorVoucher,
   type CreateOperatorVoucherRequest,
+  type OperatorRoute,
   type OperatorVoucher,
   type OperatorVoucherConsent,
   type UpdateOperatorVoucherRequest,
@@ -78,6 +79,10 @@ function toRouteIds(value: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function routeIdsToValue(routeIds: string[]) {
+  return routeIds.join(", ");
 }
 
 function formatDate(value: string) {
@@ -152,6 +157,7 @@ export default function ManagerVouchers() {
   const [activeTab, setActiveTab] = useState<VoucherTab>("vouchers");
   const [vouchers, setVouchers] = useState<OperatorVoucher[]>([]);
   const [consents, setConsents] = useState<OperatorVoucherConsent[]>([]);
+  const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [consentStatus, setConsentStatus] = useState("");
   const [form, setForm] = useState<VoucherForm>(emptyForm);
   const [selectedVoucher, setSelectedVoucher] = useState<OperatorVoucher | null>(
@@ -170,13 +176,13 @@ export default function ManagerVouchers() {
     setError("");
 
     try {
-      const [voucherResult, consentResult] = await Promise.all([
-        getOperatorVouchers({ page: 1, pageSize: 50 }),
+      const [consentResult, routeResult] = await Promise.all([
         getOperatorVoucherConsents(consentStatus || undefined),
+        getOperatorRoutes({ page: 1, pageSize: 100 }),
       ]);
 
-      setVouchers(voucherResult.items);
       setConsents(consentResult.items);
+      setRoutes(routeResult.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load vouchers");
     } finally {
@@ -192,17 +198,17 @@ export default function ManagerVouchers() {
       setError("");
 
       try {
-        const [voucherResult, consentResult] = await Promise.all([
-          getOperatorVouchers({ page: 1, pageSize: 50 }),
+        const [consentResult, routeResult] = await Promise.all([
           getOperatorVoucherConsents(consentStatus || undefined),
+          getOperatorRoutes({ page: 1, pageSize: 100 }),
         ]);
 
         if (ignore) {
           return;
         }
 
-        setVouchers(voucherResult.items);
         setConsents(consentResult.items);
+        setRoutes(routeResult.items);
       } catch (err) {
         if (!ignore) {
           setError(err instanceof Error ? err.message : "Failed to load vouchers");
@@ -251,18 +257,25 @@ export default function ManagerVouchers() {
     setMessage("");
 
     if (selectedVoucher) {
-      await updateOperatorVoucher(
+      const updatedVoucher = await updateOperatorVoucher(
         getVoucherId(selectedVoucher),
         toUpdateRequest(form),
       );
+      setVouchers((current) =>
+        current.map((voucher) =>
+          getVoucherId(voucher) === getVoucherId(updatedVoucher)
+            ? updatedVoucher
+            : voucher,
+        ),
+      );
       setMessage(t("vouchers.updateSuccess"));
     } else {
-      await createOperatorVoucher(toCreateRequest(form));
+      const createdVoucher = await createOperatorVoucher(toCreateRequest(form));
+      setVouchers((current) => [createdVoucher, ...current]);
       setMessage(t("vouchers.createSuccess"));
     }
 
     setIsModalOpen(false);
-    await loadData();
   }
 
   async function handleToggle(voucher: OperatorVoucher) {
@@ -270,14 +283,26 @@ export default function ManagerVouchers() {
     setMessage("");
 
     if (voucher.isActive) {
-      await deactivateOperatorVoucher(getVoucherId(voucher));
+      const result = await deactivateOperatorVoucher(getVoucherId(voucher));
+      setVouchers((current) =>
+        current.map((item) =>
+          getVoucherId(item) === getVoucherId(voucher)
+            ? { ...item, isActive: result.isActive ?? false }
+            : item,
+        ),
+      );
       setMessage(t("vouchers.deactivateSuccess"));
     } else {
-      await activateOperatorVoucher(getVoucherId(voucher));
+      const result = await activateOperatorVoucher(getVoucherId(voucher));
+      setVouchers((current) =>
+        current.map((item) =>
+          getVoucherId(item) === getVoucherId(voucher)
+            ? { ...item, isActive: result.isActive ?? true }
+            : item,
+        ),
+      );
       setMessage(t("vouchers.activateSuccess"));
     }
-
-    await loadData();
   }
 
   async function handleDelete(voucher: OperatorVoucher) {
@@ -288,8 +313,10 @@ export default function ManagerVouchers() {
     setError("");
     setMessage("");
     await deleteOperatorVoucher(getVoucherId(voucher));
+    setVouchers((current) =>
+      current.filter((item) => getVoucherId(item) !== getVoucherId(voucher)),
+    );
     setMessage(t("vouchers.deleteOperatorSuccess"));
-    await loadData();
   }
 
   async function handleAcceptConsent(consent: OperatorVoucherConsent) {
@@ -412,6 +439,7 @@ export default function ManagerVouchers() {
         open={isModalOpen}
         form={form}
         isEditing={Boolean(selectedVoucher)}
+        routes={routes}
         onChange={updateForm}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmit}
@@ -719,6 +747,7 @@ function VoucherModal({
   open,
   form,
   isEditing,
+  routes,
   onChange,
   onClose,
   onSubmit,
@@ -726,12 +755,22 @@ function VoucherModal({
   open: boolean;
   form: VoucherForm;
   isEditing: boolean;
+  routes: OperatorRoute[];
   onChange: (key: keyof VoucherForm, value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
 }) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const selectedRouteIds = toRouteIds(form.applicableRouteIds);
+
+  function toggleRoute(routeId: string) {
+    const nextRouteIds = selectedRouteIds.includes(routeId)
+      ? selectedRouteIds.filter((id) => id !== routeId)
+      : [...selectedRouteIds, routeId];
+
+    onChange("applicableRouteIds", routeIdsToValue(nextRouteIds));
+  }
 
   return (
     <Modal
@@ -841,12 +880,53 @@ function VoucherModal({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label={t("vouchers.applicableRouteIds")}
-            value={form.applicableRouteIds}
-            onChange={(value) => onChange("applicableRouteIds", value)}
-            placeholder="uuid-1, uuid-2"
-          />
+          <div>
+            <label className={labelClass}>{t("vouchers.applicableRoutes")}</label>
+            <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+              {routes.length > 0 ? (
+                <div className="space-y-1">
+                  {routes.map((route) => {
+                    const checked = selectedRouteIds.includes(route.id);
+
+                    return (
+                      <label
+                        key={route.id}
+                        className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm ${
+                          checked
+                            ? "bg-vr-50 text-vr-800"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleRoute(route.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">
+                            {route.name}
+                          </span>
+                          <span className="block truncate text-xs text-gray-500">
+                            {route.originStationId} → {route.destinationStationId}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="px-3 py-2 text-sm text-gray-500">
+                  {t("vouchers.noRoutesAvailable")}
+                </p>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {selectedRouteIds.length > 0
+                ? t("vouchers.selectedRoutes", { count: selectedRouteIds.length })
+                : t("vouchers.allRoutesHint")}
+            </p>
+          </div>
           <div>
             <label className={labelClass}>{t("vouchers.fundingType")}</label>
             <select

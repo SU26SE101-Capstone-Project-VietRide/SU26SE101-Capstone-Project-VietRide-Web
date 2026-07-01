@@ -5,7 +5,10 @@
   },
   "roles": {
     "manager": "Operator management",
-    "admin": "System administration"
+    "admin": "System administration",
+    "SYSTEM_ADMIN": "System admin",
+    "OPERATOR_ADMIN": "Operator admin",
+    "OPERATOR_STAFF": "Operator staff"
   },
   "closeMenu": "Close menu",
   "manager": {
@@ -15,6 +18,7 @@
     "routes": "Routes & stops",
     "vehicles": "Vehicles",
     "staff": "Staff",
+    "capacity": "Capacity & seats",
     "bookings": "Bookings",
     "parcels": "Parcels",
     "gps": "GPS Tracking",
@@ -29,13 +33,17 @@
   "admin": {
     "dashboard": "Dashboard",
     "operators": "Operators",
+    "stations": "Platform stations",
     "users": "Users",
     "vouchers": "Vouchers",
     "packages": "Service packages",
     "policies": "Policies",
     "payouts": "Payout approval",
+    "walletSettlement": "Wallet & settlement",
     "revenue": "Revenue",
-    "reports": "Reports"
+    "reports": "Reports",
+    "ragAudit": "RAG & audit",
+    "settings": "System settings"
   },
   "layout": {
     "adminDashboard": "Admin dashboard",

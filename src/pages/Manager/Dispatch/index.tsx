@@ -4,6 +4,8 @@ import {
   FiPlus,
   FiSearch,
   FiDownload,
+  FiEye,
+  FiXCircle,
   FiCheck,
   FiClock,
   FiTrendingUp,
@@ -46,6 +48,9 @@ type ShuttleVehicle = {
   status: VehicleStatus;
   currentPickups?: number;
 };
+
+const tableActionClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700";
 
 const INITIAL_REQUESTS: ShuttleRequest[] = [
   {
@@ -482,30 +487,39 @@ export default function DispatchPanel() {
                       </span>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex gap-1">
+                      <div className="flex gap-2">
                         {r.status === "pending" && (
                           <button
+                            type="button"
                             onClick={() => {
                               setSelectedRequest(r);
                               setOpenAssignVehicle(true);
                             }}
-                            className="px-2 py-1 bg-vr-500 hover:bg-vr-600 text-white text-xs font-medium rounded transition"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-vr-600 text-white hover:bg-vr-700"
+                            title={t("dispatch.assignVehicle")}
+                            aria-label={t("dispatch.assignVehicle")}
                           >
-                            {t("dispatch.assignVehicle")}
+                            <FiTruck size={16} />
                           </button>
                         )}
                         <button
+                          type="button"
                           onClick={() => openDetail(r)}
-                          className="px-2 py-1 border border-gray-200 text-gray-700 text-xs font-medium rounded hover:bg-gray-50"
+                          className={tableActionClass}
+                          title={tc("details")}
+                          aria-label={tc("details")}
                         >
-                          {tc("details")}
+                          <FiEye size={16} />
                         </button>
                         {r.status === "pending" && (
                           <button
+                            type="button"
                             onClick={() => handleCancelRequest(r.id)}
-                            className="px-2 py-1 border border-red-200 text-red-600 text-xs font-medium rounded hover:bg-red-50"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                            title={tc("cancel")}
+                            aria-label={tc("cancel")}
                           >
-                            {tc("cancel")}
+                            <FiXCircle size={16} />
                           </button>
                         )}
                       </div>

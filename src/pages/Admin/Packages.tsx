@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiBox, FiEdit2, FiTrash2 } from "react-icons/fi";
+import { FiBox, FiEdit2, FiPlus, FiPower, FiTrash2 } from "react-icons/fi";
 import Modal from "../../components/Modal";
 import { packages as mockPackages, type Package } from "../../data/mockData";
 
@@ -137,23 +137,31 @@ export default function Packages() {
 
             <div className="flex items-center gap-2 pt-4 border-t border-gray-200">
               <button
+                type="button"
                 onClick={() => handleToggleActive(pkg.id)}
-                className="flex-1 p-2 text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg text-sm font-medium transition"
+                className="flex h-10 flex-1 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
                 title={pkg.active ? tc("disable") : tc("enable")}
+                aria-label={pkg.active ? tc("disable") : tc("enable")}
               >
-                {pkg.active ? tc("disable") : tc("enable")}
+                <FiPower size={16} />
               </button>
               <button
+                type="button"
                 onClick={() => handleEdit(pkg)}
-                className="flex-1 p-2 text-vr-600 hover:text-vr-700 border border-vr-200 rounded-lg text-sm font-medium transition"
+                className="flex h-10 flex-1 items-center justify-center rounded-lg border border-vr-200 text-vr-600 transition hover:bg-vr-50 hover:text-vr-700"
+                title={tc("edit")}
+                aria-label={tc("edit")}
               >
-                <FiEdit2 size={14} className="inline mr-1" /> {tc("edit")}
+                <FiEdit2 size={16} />
               </button>
               <button
+                type="button"
                 onClick={() => handleDelete(pkg.id)}
-                className="flex-1 p-2 text-red-600 hover:text-red-700 border border-red-200 rounded-lg text-sm font-medium transition"
+                className="flex h-10 flex-1 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                title={tc("delete")}
+                aria-label={tc("delete")}
               >
-                <FiTrash2 size={14} className="inline mr-1" /> {tc("delete")}
+                <FiTrash2 size={16} />
               </button>
             </div>
           </div>

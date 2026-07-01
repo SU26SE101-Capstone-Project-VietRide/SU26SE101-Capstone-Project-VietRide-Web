@@ -391,6 +391,45 @@ export type OperatorVoucherConsent = {
   respondedByUserId?: string;
 };
 
+export type AdminVoucher = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  voucherType?: string;
+  discountType?: string;
+  discount?: number;
+  applicableTo?: string;
+  quantity?: number;
+  totalUsageLimit?: number;
+  usedCount?: number;
+  expiryDate?: string;
+  validUntil?: string;
+  active?: boolean;
+  isActive?: boolean;
+  type?: string;
+  value?: number;
+  minOrderValue?: number;
+  maxUsagePerUser?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateAdminVoucherRequest = {
+  code: string;
+  name: string;
+  description: string;
+  voucherType: string;
+  discountType: string;
+  discount: number;
+  applicableTo: string;
+  minOrderValue: number;
+  quantity: number;
+  expiryDate: string;
+  maxUsagePerUser: number;
+  active: boolean;
+};
+
 export type AlternativeRoute = {
   id: string;
   routeId: string;
@@ -821,12 +860,6 @@ export function createRouteFareTemplate(
   );
 }
 
-export function getOperatorVouchers(params: PageParams = {}) {
-  return apiRequest<PagedResult<OperatorVoucher>>(
-    `/v1/operator/vouchers${buildQuery(params)}`,
-  );
-}
-
 export function createOperatorVoucher(request: CreateOperatorVoucherRequest) {
   return apiRequest<OperatorVoucher>("/v1/operator/vouchers", {
     method: "POST",
@@ -882,6 +915,33 @@ export function rejectOperatorVoucherConsent(id: string, reason: string) {
     `/v1/operator/voucher-consents/${id}/reject`,
     { method: "POST", body: { reason } },
   );
+}
+
+export async function getAdminVouchers(params: PageParams = {}) {
+  const response = await apiRequest<PagedResult<AdminVoucher> | AdminVoucher[]>(
+    `/v1/admin/vouchers${buildQuery(params)}`,
+  );
+
+  if (Array.isArray(response)) {
+    return {
+      items: response,
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? response.length,
+      totalItems: response.length,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    };
+  }
+
+  return response;
+}
+
+export function createAdminVoucher(request: CreateAdminVoucherRequest) {
+  return apiRequest<AdminVoucher>("/v1/admin/vouchers", {
+    method: "POST",
+    body: request,
+  });
 }
 
 export function getAlternativeRoutes(routeId: string, params: PageParams = {}) {

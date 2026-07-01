@@ -1,15 +1,13 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiTag, FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi";
+import { FiPlus, FiRefreshCw, FiTag } from "react-icons/fi";
+import {
+  createAdminVoucher,
+  getAdminVouchers,
+  type AdminVoucher,
+  type CreateAdminVoucherRequest,
+} from "../../api/vietride";
 import Modal from "../../components/Modal";
-import { vouchers as mockVouchers } from "../../data/mockData";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Voucher = any;
-
-function formatNumber(n: number) {
-  return n.toLocaleString();
-}
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -17,38 +15,174 @@ const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
 type VoucherTab = "event" | "package";
 
+type VoucherForm = {
+  code: string;
+  name: string;
+  description: string;
+  discountType: string;
+  discount: string;
+  applicableTo: string;
+  minOrderValue: string;
+  quantity: string;
+  expiryDate: string;
+  maxUsagePerUser: string;
+  active: boolean;
+};
+
+const emptyForm: VoucherForm = {
+  code: "",
+  name: "",
+  description: "",
+  discountType: "percent",
+  discount: "10",
+  applicableTo: "all",
+  minOrderValue: "0",
+  quantity: "1000",
+  expiryDate: "",
+  maxUsagePerUser: "1",
+  active: true,
+};
+
+function formatNumber(value: number) {
+  return value.toLocaleString("vi-VN");
+}
+
+function toNumber(value: string) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : 0;
+}
+
+function voucherTypeOf(voucher: AdminVoucher): VoucherTab {
+  return voucher.voucherType?.toLowerCase() === "package" ? "package" : "event";
+}
+
+function discountTypeOf(voucher: AdminVoucher) {
+  if (voucher.discountType) return voucher.discountType.toLowerCase();
+  return voucher.type === "FIXED" ? "fixed" : "percent";
+}
+
+function discountValueOf(voucher: AdminVoucher) {
+  return voucher.discount ?? voucher.value ?? 0;
+}
+
+function quantityOf(voucher: AdminVoucher) {
+  return voucher.quantity ?? voucher.totalUsageLimit ?? 0;
+}
+
+function usedCountOf(voucher: AdminVoucher) {
+  return voucher.usedCount ?? 0;
+}
+
+function expiryDateOf(voucher: AdminVoucher) {
+  return voucher.expiryDate ?? voucher.validUntil ?? "";
+}
+
+function activeOf(voucher: AdminVoucher) {
+  return voucher.active ?? voucher.isActive ?? false;
+}
+
+function toCreateRequest(
+  form: VoucherForm,
+  voucherType: VoucherTab,
+): CreateAdminVoucherRequest {
+  return {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    description: form.description.trim(),
+    voucherType,
+    discountType: form.discountType,
+    discount: toNumber(form.discount),
+    applicableTo: form.applicableTo,
+    minOrderValue: toNumber(form.minOrderValue),
+    quantity: toNumber(form.quantity),
+    expiryDate: form.expiryDate
+      ? new Date(`${form.expiryDate}T23:59:59`).toISOString()
+      : new Date().toISOString(),
+    maxUsagePerUser: toNumber(form.maxUsagePerUser),
+    active: form.active,
+  };
+}
+
 export default function Vouchers() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [activeTab, setActiveTab] = useState<VoucherTab>("event");
+  const [vouchers, setVouchers] = useState<AdminVoucher[]>([]);
+  const [form, setForm] = useState<VoucherForm>(emptyForm);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const eventVouchers = mockVouchers.filter((v) => v.voucherType === "event");
-  const packageVouchers = mockVouchers.filter(
-    (v) => v.voucherType === "package",
+  const eventVouchers = useMemo(
+    () => vouchers.filter((voucher) => voucherTypeOf(voucher) === "event"),
+    [vouchers],
   );
-
+  const packageVouchers = useMemo(
+    () => vouchers.filter((voucher) => voucherTypeOf(voucher) === "package"),
+    [vouchers],
+  );
   const currentVouchers =
     activeTab === "event" ? eventVouchers : packageVouchers;
 
-  const handleEdit = (voucher: Voucher) => {
-    setSelectedVoucher(voucher);
-    setEditOpen(true);
-  };
+  const loadVouchers = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
 
-  const handleDelete = (id: string) => {
-    if (confirm(t("vouchers.deleteConfirm"))) {
-      alert(t("vouchers.deleteSuccess", { id }));
+    try {
+      const result = await getAdminVouchers({ page: 1, pageSize: 100 });
+      setVouchers(result.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("vouchers.loadFailed"));
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [t]);
 
-  const handleToggleActive = (id: string) => {
-    alert(t("vouchers.toggleSuccess", { id }));
-  };
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadVouchers();
+    });
+  }, [loadVouchers]);
 
-  const getApplicableLabel = (applicableTo: string) => {
+  function updateForm<K extends keyof VoucherForm>(
+    key: K,
+    value: VoucherForm[K],
+  ) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function openCreateModal() {
+    setForm({
+      ...emptyForm,
+      name:
+        activeTab === "event"
+          ? "Giam 20% chuyen dau"
+          : "Goi Premium - Giam 100K",
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10),
+    });
+    setCreateOpen(true);
+    setMessage("");
+    setError("");
+  }
+
+  async function handleCreate() {
+    setMessage("");
+    setError("");
+
+    try {
+      const created = await createAdminVoucher(toCreateRequest(form, activeTab));
+      setVouchers((current) => [created, ...current]);
+      setCreateOpen(false);
+      setMessage(t("vouchers.saveSuccess", { action: t("vouchers.saveActionCreate") }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("vouchers.createFailed"));
+    }
+  }
+
+  const getApplicableLabel = (applicableTo = "all") => {
     const map: Record<string, string> = {
       all: t("vouchers.allServices"),
       rides: t("vouchers.tripsOnly"),
@@ -60,77 +194,95 @@ export default function Vouchers() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
             {t("vouchers.title")}
           </h1>
-          <p className="text-gray-600 mt-1">{t("vouchers.subtitleLong")}</p>
+          <p className="mt-1 text-gray-600">{t("vouchers.subtitleLong")}</p>
         </div>
-        <div
-          onClick={() => {
-            setSelectedVoucher(null);
-            setCreateOpen(true);
-          }}
-          className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-white rounded-lg font-medium transition flex items-center gap-2"
-        >
-          <FiPlus size={16} /> {t("vouchers.create")}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={loadVouchers}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <FiRefreshCw size={16} />
+            {tc("refresh")}
+          </button>
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+          >
+            <FiPlus size={16} />
+            {t("vouchers.create")}
+          </button>
         </div>
       </div>
 
       <div className="flex gap-0 border-b border-gray-200">
         <button
+          type="button"
           onClick={() => setActiveTab("event")}
-          className={`px-6 py-3 font-medium text-sm border-b-2 transition ${
+          className={`border-b-2 px-6 py-3 text-sm font-medium transition ${
             activeTab === "event"
               ? "border-vr-500 text-vr-600"
               : "border-transparent text-gray-600 hover:text-gray-900"
           }`}
         >
           {t("vouchers.tabEvent")}
-          <span className="ml-2 text-xs bg-vr-100 text-vr-700 px-2 py-1 rounded-full">
+          <span className="ml-2 rounded-full bg-vr-100 px-2 py-1 text-xs text-vr-700">
             {eventVouchers.length}
           </span>
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab("package")}
-          className={`px-6 py-3 font-medium text-sm border-b-2 transition ${
+          className={`border-b-2 px-6 py-3 text-sm font-medium transition ${
             activeTab === "package"
               ? "border-vr-500 text-vr-600"
               : "border-transparent text-gray-600 hover:text-gray-900"
           }`}
         >
           {t("vouchers.tabPackage")}
-          <span className="ml-2 text-xs bg-vr-100 text-vr-700 px-2 py-1 rounded-full">
+          <span className="ml-2 rounded-full bg-vr-100 px-2 py-1 text-xs text-vr-700">
             {packageVouchers.length}
           </span>
         </button>
       </div>
 
-      <div className="space-y-4">
-        {activeTab === "event" && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              {t("vouchers.eventSectionTitle")}
-            </h2>
-            <p className="text-sm text-gray-600 mb-6">
-              {t("vouchers.eventSectionDesc")}
-            </p>
-          </div>
-        )}
-        {activeTab === "package" && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              {t("vouchers.packageSectionTitle")}
-            </h2>
-            <p className="text-sm text-gray-600 mb-6">
-              {t("vouchers.packageSectionDesc")}
-            </p>
-          </div>
-        )}
+      {message && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {message}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-        {currentVouchers.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="space-y-4">
+        <div>
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">
+            {activeTab === "event"
+              ? t("vouchers.eventSectionTitle")
+              : t("vouchers.packageSectionTitle")}
+          </h2>
+          <p className="mb-6 text-sm text-gray-600">
+            {activeTab === "event"
+              ? t("vouchers.eventSectionDesc")
+              : t("vouchers.packageSectionDesc")}
+          </p>
+        </div>
+
+        {isLoading ? (
+          <div className="rounded-lg border border-gray-200 bg-white px-6 py-8 text-sm text-gray-500">
+            {t("vouchers.loading")}
+          </div>
+        ) : currentVouchers.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 py-12 text-center">
             <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
             <p className="text-gray-600">
               {t("vouchers.emptyType", {
@@ -140,137 +292,106 @@ export default function Vouchers() {
                     : t("vouchers.emptyTypePackage"),
               })}
             </p>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500">
               {t("vouchers.emptyHint")}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table className="w-full min-w-[880px]">
+              <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.code")}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.name")}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.discount")}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.applicable")}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.issued")}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.used")}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.expiry")}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {tc("status")}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    {tc("actions")}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {currentVouchers.map((voucher) => {
-                  const usageRate = Math.round(
-                    (voucher.usedCount / voucher.quantity) * 100,
-                  );
-                  const expiryDate = new Date(
-                    voucher.expiryDate,
-                  ).toLocaleDateString("vi-VN");
+                  const quantity = quantityOf(voucher);
+                  const usedCount = usedCountOf(voucher);
+                  const usageRate =
+                    quantity > 0 ? Math.round((usedCount / quantity) * 100) : 0;
+                  const expiryDate = expiryDateOf(voucher)
+                    ? new Date(expiryDateOf(voucher)).toLocaleDateString("vi-VN")
+                    : "-";
+                  const discount = discountValueOf(voucher);
 
                   return (
                     <tr key={voucher.id} className="border-t border-gray-200">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-6 py-4">
                         <span className="font-mono font-semibold text-vr-600">
                           {voucher.code}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {voucher.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {voucher.description}
-                          </p>
-                        </div>
+                        <p className="font-medium text-gray-900">{voucher.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {voucher.description}
+                        </p>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-6 py-4">
                         <span className="text-lg font-bold text-gray-900">
-                          {voucher.discountType === "percent"
-                            ? `${voucher.discount}%`
-                            : `${formatNumber(voucher.discount)}₫`}
+                          {discountTypeOf(voucher) === "percent"
+                            ? `${discount}%`
+                            : `${formatNumber(discount)}₫`}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-6 py-4">
                         <span className="text-sm text-gray-600">
                           {getApplicableLabel(voucher.applicableTo)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {formatNumber(voucher.quantity)}
+                      <td className="whitespace-nowrap px-6 py-4">
+                        {formatNumber(quantity)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-6 py-4">
                         <div className="w-20">
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-2 overflow-hidden rounded-full bg-gray-200">
                             <div
                               className="h-2 rounded-full bg-vr-500"
                               style={{ width: `${Math.min(100, usageRate)}%` }}
                             />
                           </div>
-                          <p className="text-xs text-gray-600 mt-1">
-                            {formatNumber(voucher.usedCount)} ({usageRate}%)
+                          <p className="mt-1 text-xs text-gray-600">
+                            {formatNumber(usedCount)} ({usageRate}%)
                           </p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm">
                         {expiryDate}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-6 py-4">
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                            voucher.active
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                            activeOf(voucher)
                               ? "bg-green-100 text-green-800"
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {voucher.active ? tc("active") : tc("inactive")}
+                          {activeOf(voucher) ? tc("active") : tc("inactive")}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleToggleActive(voucher.id)}
-                            className="p-2 text-gray-400 hover:text-gray-600"
-                          >
-                            {voucher.active ? (
-                              <FiCheck size={16} />
-                            ) : (
-                              <FiX size={16} />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleEdit(voucher)}
-                            className="p-2 text-gray-400 hover:text-vr-500"
-                          >
-                            <FiEdit2 size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(voucher.id)}
-                            className="p-2 text-gray-400 hover:text-red-500"
-                          >
-                            <FiTrash2 size={16} />
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   );
@@ -282,94 +403,60 @@ export default function Vouchers() {
       </div>
 
       <Modal
-        open={createOpen || editOpen}
-        onClose={() => {
-          setCreateOpen(false);
-          setEditOpen(false);
-          setSelectedVoucher(null);
-        }}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
         wide
         icon={<FiTag size={20} />}
-        title={
-          selectedVoucher ? t("vouchers.editTitle") : t("vouchers.createTitle")
-        }
+        title={t("vouchers.createTitle")}
         subtitle={
-          selectedVoucher
-            ? t("vouchers.updateSubtitle")
-            : activeTab === "event"
-              ? t("vouchers.createEventSubtitle")
-              : t("vouchers.createPackageSubtitle")
+          activeTab === "event"
+            ? t("vouchers.createEventSubtitle")
+            : t("vouchers.createPackageSubtitle")
         }
         footer={
           <>
-            <div
-              onClick={() => {
-                setCreateOpen(false);
-                setEditOpen(false);
-                setSelectedVoucher(null);
-              }}
-              className="rounded-lg border border-gray-200 cursor-pointer bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            <button
+              type="button"
+              onClick={() => setCreateOpen(false)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
               {tc("cancel")}
-            </div>
-            <div
-              onClick={() => {
-                alert(
-                  t("vouchers.saveSuccess", {
-                    action: selectedVoucher
-                      ? t("vouchers.saveActionUpdate")
-                      : t("vouchers.saveActionCreate"),
-                  }),
-                );
-                setCreateOpen(false);
-                setEditOpen(false);
-                setSelectedVoucher(null);
-              }}
-              className="rounded-lg bg-vr-500 cursor-pointer px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
+            </button>
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
             >
               {t("vouchers.saveButton", {
-                action: selectedVoucher
-                  ? t("vouchers.saveActionUpdate")
-                  : t("vouchers.saveActionCreate"),
+                action: t("vouchers.saveActionCreate"),
               })}
-            </div>
+            </button>
           </>
         }
       >
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>
-                {t("vouchers.voucherCode")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass + " border-vr-500 ring-1 ring-vr-500/50"}
-                defaultValue={selectedVoucher?.code || "VIETRIDE"}
-                placeholder={t("vouchers.codePlaceholder")}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>
-                {t("vouchers.displayName")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                defaultValue={
-                  selectedVoucher?.name ||
-                  (activeTab === "event"
-                    ? "Giảm 20% chuyến đầu"
-                    : "Gói Premium - Giảm 100K")
-                }
-              />
-            </div>
+            <Field
+              label={t("vouchers.voucherCode")}
+              value={form.code}
+              onChange={(value) => updateForm("code", value)}
+              placeholder={t("vouchers.codePlaceholder")}
+              required
+            />
+            <Field
+              label={t("vouchers.displayName")}
+              value={form.name}
+              onChange={(value) => updateForm("name", value)}
+              required
+            />
           </div>
+
           <div>
             <label className={labelClass}>{tc("description")}</label>
             <textarea
               className={inputClass + " min-h-[88px]"}
-              defaultValue={selectedVoucher?.description || ""}
+              value={form.description}
+              onChange={(event) => updateForm("description", event.target.value)}
               placeholder={
                 activeTab === "event"
                   ? t("vouchers.eventDescPlaceholder")
@@ -378,28 +465,26 @@ export default function Vouchers() {
               rows={3}
             />
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>{t("vouchers.discountType")}</label>
               <select
                 className={inputClass}
-                defaultValue={selectedVoucher?.discountType || "percent"}
+                value={form.discountType}
+                onChange={(event) => updateForm("discountType", event.target.value)}
               >
                 <option value="percent">{t("vouchers.percentDiscount")}</option>
                 <option value="fixed">{t("vouchers.fixedDiscount")}</option>
               </select>
             </div>
-            <div>
-              <label className={labelClass}>
-                {t("vouchers.discountValue")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                type="number"
-                defaultValue={selectedVoucher?.discount || ""}
-              />
-            </div>
+            <Field
+              label={t("vouchers.discountValue")}
+              value={form.discount}
+              type="number"
+              onChange={(value) => updateForm("discount", value)}
+              required
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -407,82 +492,97 @@ export default function Vouchers() {
               <label className={labelClass}>{t("vouchers.applicable")}</label>
               <select
                 className={inputClass}
-                defaultValue={selectedVoucher?.applicableTo || "all"}
+                value={form.applicableTo}
+                onChange={(event) => updateForm("applicableTo", event.target.value)}
               >
                 <option value="all">{t("vouchers.allServicesFull")}</option>
                 <option value="rides">{t("vouchers.ridesOnlyFull")}</option>
                 <option value="parcels">{t("vouchers.parcelsOnly")}</option>
+                <option value="packages">{t("vouchers.packagesOnly")}</option>
               </select>
             </div>
-            <div>
-              <label className={labelClass}>{t("vouchers.minOrder")}</label>
-              <input
-                className={inputClass}
-                type="number"
-                defaultValue={selectedVoucher?.minOrderValue || "200000"}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>
-                {t("vouchers.quantity")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                type="number"
-                defaultValue={selectedVoucher?.quantity || "5000"}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>
-                {t("vouchers.expiryDate")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                type="date"
-                defaultValue={selectedVoucher?.expiryDate?.split("T")[0] || ""}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>
-              {t("vouchers.maxUsagePerUser")}
-            </label>
-            <input
-              className={inputClass}
+            <Field
+              label={t("vouchers.minOrder")}
+              value={form.minOrderValue}
               type="number"
-              defaultValue={selectedVoucher?.maxUsagePerUser || "1"}
+              onChange={(value) => updateForm("minOrderValue", value)}
             />
           </div>
 
-          <div>
-            <p className={labelClass}>{t("vouchers.activateOnCreate")}</p>
-            <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 flex items-start gap-3">
-              <button
-                type="button"
-                role="switch"
-                aria-checked="true"
-                className="relative h-7 w-12 shrink-0 rounded-full bg-vr-500"
-              >
-                <span className="absolute right-1 top-1 h-5 w-5 rounded-full bg-white shadow" />
-              </button>
-              <div>
-                <p className="text-sm font-bold text-gray-900">
-                  {t("vouchers.activateOnCreateTitle")}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {t("vouchers.activateOnCreateHint")}
-                </p>
-              </div>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={t("vouchers.quantity")}
+              value={form.quantity}
+              type="number"
+              onChange={(value) => updateForm("quantity", value)}
+              required
+            />
+            <Field
+              label={t("vouchers.expiryDate")}
+              value={form.expiryDate}
+              type="date"
+              onChange={(value) => updateForm("expiryDate", value)}
+              required
+            />
           </div>
+
+          <Field
+            label={t("vouchers.maxUsagePerUser")}
+            value={form.maxUsagePerUser}
+            type="number"
+            onChange={(value) => updateForm("maxUsagePerUser", value)}
+          />
+
+          <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(event) => updateForm("active", event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+            />
+            <span>
+              <span className="block text-sm font-bold text-gray-900">
+                {t("vouchers.activateOnCreateTitle")}
+              </span>
+              <span className="mt-0.5 block text-xs text-gray-500">
+                {t("vouchers.activateOnCreateHint")}
+              </span>
+            </span>
+          </label>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label className={labelClass}>
+        {label}
+        {required && <span className="text-red-500"> *</span>}
+      </label>
+      <input
+        className={inputClass}
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   );
 }

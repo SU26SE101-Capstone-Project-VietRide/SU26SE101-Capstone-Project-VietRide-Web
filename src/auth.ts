@@ -51,9 +51,13 @@ function normalizeRole(value: unknown): AuthRole | null {
     SYSTEM_ADMIN: "SYSTEM_ADMIN",
     OPERATOR_ADMIN: "OPERATOR_ADMIN",
     OPERATOR_STAFF: "OPERATOR_STAFF",
+    OPERATION_ADMIN: "OPERATOR_ADMIN",
+    OPERATION_STAFF: "OPERATOR_STAFF",
     admin: "SYSTEM_ADMIN",
     manager: "OPERATOR_ADMIN",
     operator: "OPERATOR_STAFF",
+    operationAdmin: "OPERATOR_ADMIN",
+    operationStaff: "OPERATOR_STAFF",
   };
 
   if (typeof value === "string") {

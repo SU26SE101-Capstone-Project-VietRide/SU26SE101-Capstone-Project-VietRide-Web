@@ -4,12 +4,15 @@ import {
   FiAlertCircle,
   FiCheckCircle,
   FiDownload,
+  FiEye,
   FiFilter,
+  FiImage,
   FiList,
   FiPackage,
   FiPlus,
   FiSearch,
   FiTruck,
+  FiXCircle,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import {
@@ -21,6 +24,78 @@ import {
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
+const actionIconClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700";
+
+type ExtraLargeParcelStatus = "pending" | "approved" | "rejected";
+
+type ExtraLargeParcelReview = {
+  id: string;
+  code: string;
+  sender: string;
+  recipient: string;
+  trip: string;
+  route: string;
+  declaredWeightKg: number;
+  dimensionsCm: string;
+  declaredValue: number;
+  capacityRemainingKg: number;
+  requestedAt: string;
+  images: number;
+  status: ExtraLargeParcelStatus;
+  manualFee?: number;
+  decisionReason?: string;
+};
+
+const initialReviewQueue: ExtraLargeParcelReview[] = [
+  {
+    id: "xl-001",
+    code: "VRP-XL-2401",
+    sender: "Cty Minh Phat",
+    recipient: "Nguyen Bao Tran",
+    trip: "VR-2401",
+    route: "TP.HCM - Da Lat",
+    declaredWeightKg: 68,
+    dimensionsCm: "140 x 70 x 65",
+    declaredValue: 8_500_000,
+    capacityRemainingKg: 82,
+    requestedAt: "2026-07-01 09:20",
+    images: 3,
+    status: "pending",
+  },
+  {
+    id: "xl-002",
+    code: "VRP-XL-2402",
+    sender: "Le Gia Furniture",
+    recipient: "Tran Minh Quan",
+    trip: "VR-2403",
+    route: "TP.HCM - Nha Trang",
+    declaredWeightKg: 95,
+    dimensionsCm: "180 x 80 x 90",
+    declaredValue: 12_000_000,
+    capacityRemainingKg: 60,
+    requestedAt: "2026-07-01 10:05",
+    images: 2,
+    status: "pending",
+  },
+  {
+    id: "xl-003",
+    code: "VRP-XL-2403",
+    sender: "Hoang Lam",
+    recipient: "Pham Nhu Y",
+    trip: "VR-2408",
+    route: "Can Tho - TP.HCM",
+    declaredWeightKg: 52,
+    dimensionsCm: "100 x 50 x 45",
+    declaredValue: 4_200_000,
+    capacityRemainingKg: 110,
+    requestedAt: "2026-06-30 16:40",
+    images: 1,
+    status: "approved",
+    manualFee: 180_000,
+    decisionReason: "Capacity available.",
+  },
+];
 
 function parcelStatusBadge(
   s: Parcel["status"],
@@ -51,11 +126,58 @@ function cargoBarColor(pct: number) {
   return "bg-emerald-500";
 }
 
+function reviewStatusBadge(
+  status: ExtraLargeParcelStatus,
+  t: (key: string) => string,
+) {
+  if (status === "approved") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+        <FiCheckCircle size={13} />
+        {t("parcels.reviewStatusApproved")}
+      </span>
+    );
+  }
+
+  if (status === "rejected") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+        <FiXCircle size={13} />
+        {t("parcels.reviewStatusRejected")}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+      <FiAlertCircle size={13} />
+      {t("parcels.reviewStatusPending")}
+    </span>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
 export default function ParcelsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [reviewQueue, setReviewQueue] = useState(initialReviewQueue);
+  const [selectedReviewId, setSelectedReviewId] = useState(
+    initialReviewQueue[0]?.id ?? "",
+  );
+  const [manualFee, setManualFee] = useState("220000");
+  const [decisionReason, setDecisionReason] = useState("");
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewError, setReviewError] = useState("");
   const [consignOpen, setConsignOpen] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
   const [openDelivery, setOpenDelivery] = useState(false);
@@ -71,6 +193,87 @@ export default function ParcelsList() {
       ),
     [searchTerm],
   );
+  const selectedReview =
+    reviewQueue.find((item) => item.id === selectedReviewId) ??
+    reviewQueue[0] ??
+    null;
+  const pendingReviewCount = reviewQueue.filter(
+    (item) => item.status === "pending",
+  ).length;
+
+  function openReview(review: ExtraLargeParcelReview) {
+    setSelectedReviewId(review.id);
+    setManualFee(review.manualFee ? String(review.manualFee) : "220000");
+    setDecisionReason(review.decisionReason ?? "");
+    setReviewMessage("");
+    setReviewError("");
+  }
+
+  function updateReview(
+    review: ExtraLargeParcelReview,
+    patch: Pick<
+      ExtraLargeParcelReview,
+      "status" | "manualFee" | "decisionReason"
+    >,
+  ) {
+    setReviewQueue((current) =>
+      current.map((item) =>
+        item.id === review.id ? { ...item, ...patch } : item,
+      ),
+    );
+  }
+
+  function handleApproveReview() {
+    if (!selectedReview) return;
+    setReviewMessage("");
+    setReviewError("");
+
+    if (selectedReview.status !== "pending") {
+      setReviewError(t("parcels.reviewAlreadyProcessed"));
+      return;
+    }
+
+    const fee = Number(manualFee);
+    if (!Number.isFinite(fee) || fee <= 0) {
+      setReviewError(t("parcels.reviewInvalidFee"));
+      return;
+    }
+
+    if (selectedReview.declaredWeightKg > selectedReview.capacityRemainingKg) {
+      setReviewError(t("parcels.reviewInsufficientCapacity"));
+      return;
+    }
+
+    updateReview(selectedReview, {
+      status: "approved",
+      manualFee: fee,
+      decisionReason: decisionReason.trim() || t("parcels.reviewApproved"),
+    });
+    setReviewMessage(t("parcels.reviewApproveSuccess"));
+  }
+
+  function handleRejectReview() {
+    if (!selectedReview) return;
+    setReviewMessage("");
+    setReviewError("");
+
+    if (selectedReview.status !== "pending") {
+      setReviewError(t("parcels.reviewAlreadyProcessed"));
+      return;
+    }
+
+    if (!decisionReason.trim()) {
+      setReviewError(t("parcels.reviewReasonRequired"));
+      return;
+    }
+
+    updateReview(selectedReview, {
+      status: "rejected",
+      manualFee: undefined,
+      decisionReason: decisionReason.trim(),
+    });
+    setReviewMessage(t("parcels.reviewRejectSuccess"));
+  }
 
   return (
     <div className="space-y-6">
@@ -140,9 +343,11 @@ export default function ParcelsList() {
           <div className="flex justify-between">
             <div>
               <p className="text-sm text-gray-500">{t("parcels.needsAction")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">12</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {pendingReviewCount}
+              </p>
               <p className="mt-2 text-xs text-gray-500">
-                {t("parcels.returnClaims")}
+                {t("parcels.extraLargePending")}
               </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
@@ -151,6 +356,189 @@ export default function ParcelsList() {
           </div>
         </div>
       </div>
+
+      <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                {t("parcels.reviewTitle")}
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm text-gray-500">
+                {t("parcels.reviewSubtitle")}
+              </p>
+            </div>
+            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+              <FiAlertCircle size={14} />
+              {t("parcels.pendingReviews", { count: pendingReviewCount })}
+            </span>
+          </div>
+        </div>
+
+        {reviewMessage && (
+          <div className="mx-5 mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {reviewMessage}
+          </div>
+        )}
+        {reviewError && (
+          <div className="mx-5 mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {reviewError}
+          </div>
+        )}
+
+        <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px]">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <th className="px-4 py-3">{t("parcels.orderCode")}</th>
+                  <th className="px-4 py-3">{t("parcels.parcelDetails")}</th>
+                  <th className="px-4 py-3">{t("parcels.requestedTrip")}</th>
+                  <th className="px-4 py-3">{t("parcels.capacity")}</th>
+                  <th className="px-4 py-3">{tc("status")}</th>
+                  <th className="px-4 py-3 text-right">{tc("actions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviewQueue.map((review) => (
+                  <tr
+                    key={review.id}
+                    className={`border-b border-gray-100 last:border-0 hover:bg-gray-50/60 ${
+                      selectedReview?.id === review.id ? "bg-vr-50/50" : ""
+                    }`}
+                  >
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-gray-900">{review.code}</p>
+                      <p className="text-xs text-gray-500">{review.requestedAt}</p>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-700">
+                      <p>
+                        {review.declaredWeightKg}kg · {review.dimensionsCm}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {review.sender} → {review.recipient}
+                      </p>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-700">
+                      <p className="font-medium text-gray-900">{review.trip}</p>
+                      <p className="text-xs text-gray-500">{review.route}</p>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-700">
+                      {review.capacityRemainingKg}kg
+                    </td>
+                    <td className="px-4 py-4">
+                      {reviewStatusBadge(review.status, t)}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openReview(review)}
+                          className={actionIconClass}
+                          title={t("parcels.reviewOpen")}
+                          aria-label={t("parcels.reviewOpen")}
+                        >
+                          <FiEye size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <aside className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            {selectedReview ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {t("parcels.reviewSelected")}
+                  </p>
+                  <h3 className="mt-1 text-lg font-bold text-gray-900">
+                    {selectedReview.code}
+                  </h3>
+                  <p className="text-sm text-gray-500">{selectedReview.route}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <Info label={t("parcels.weightKg")} value={`${selectedReview.declaredWeightKg} kg`} />
+                  <Info label={t("parcels.dimensions")} value={selectedReview.dimensionsCm} />
+                  <Info
+                    label={t("parcels.declaredValue")}
+                    value={`${selectedReview.declaredValue.toLocaleString("vi-VN")}đ`}
+                  />
+                  <Info
+                    label={t("parcels.images")}
+                    value={t("parcels.imageCount", { count: selectedReview.images })}
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {Array.from({ length: selectedReview.images }).map((_, index) => (
+                    <div
+                      key={`${selectedReview.id}-${index}`}
+                      className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white text-gray-400"
+                    >
+                      <FiImage size={20} />
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <label className={labelClass}>{t("parcels.manualFee")}</label>
+                  <input
+                    className={inputClass}
+                    type="number"
+                    value={manualFee}
+                    onChange={(event) => setManualFee(event.target.value)}
+                    disabled={selectedReview.status !== "pending"}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>{t("parcels.decisionReason")}</label>
+                  <textarea
+                    className={inputClass + " min-h-[92px]"}
+                    value={decisionReason}
+                    onChange={(event) => setDecisionReason(event.target.value)}
+                    placeholder={t("parcels.decisionReasonPlaceholder")}
+                    rows={3}
+                    disabled={selectedReview.status !== "pending"}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleApproveReview}
+                    disabled={selectedReview.status !== "pending"}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FiCheckCircle />
+                    {t("parcels.approve")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRejectReview}
+                    disabled={selectedReview.status !== "pending"}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FiXCircle />
+                    {t("parcels.reject")}
+                  </button>
+                </div>
+
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  {t("parcels.reviewPaymentRule")}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">{t("parcels.reviewEmpty")}</p>
+            )}
+          </aside>
+        </div>
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -169,24 +557,27 @@ export default function ParcelsList() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className={actionIconClass}
+                  title={tc("filter")}
+                  aria-label={tc("filter")}
                 >
                   <FiFilter size={16} />
-                  {tc("filter")}
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className={actionIconClass}
+                  title={tc("columns")}
+                  aria-label={tc("columns")}
                 >
                   <FiList size={16} />
-                  {tc("columns")}
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className={actionIconClass}
+                  title={tc("exportCsv")}
+                  aria-label={tc("exportCsv")}
                 >
                   <FiDownload size={16} />
-                  {tc("exportCsv")}
                 </button>
               </div>
             </div>
@@ -229,16 +620,19 @@ export default function ParcelsList() {
                     <td className="px-5 py-4">
                       {parcelStatusBadge(p.status, t)}
                     </td>
-                    <td className="px-5 py-4 text-sm space-x-2">
+                    <td className="px-5 py-4 text-sm">
+                      <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedParcel(p);
                           setOpenDetail(true);
                         }}
-                        className="text-vr-600 hover:text-vr-700 font-medium"
+                        className={actionIconClass}
+                        title={tc("details")}
+                        aria-label={tc("details")}
                       >
-                        {tc("details")}
+                        <FiEye size={16} />
                       </button>
                       {p.status === "in_transit" && (
                         <button
@@ -247,9 +641,11 @@ export default function ParcelsList() {
                             setSelectedParcel(p);
                             setOpenDelivery(true);
                           }}
-                          className="text-emerald-600 hover:text-emerald-700 font-medium"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                          title={t("parcels.confirmDelivery")}
+                          aria-label={t("parcels.confirmDelivery")}
                         >
-                          {t("parcels.confirmDelivery")}
+                          <FiCheckCircle size={16} />
                         </button>
                       )}
                       {p.status !== "delivered" && (
@@ -260,11 +656,14 @@ export default function ParcelsList() {
                               alert(t("parcels.cancelSuccess"));
                             }
                           }}
-                          className="text-red-600 hover:text-red-700 font-medium"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                          title={tc("cancel")}
+                          aria-label={tc("cancel")}
                         >
-                          {tc("cancel")}
+                          <FiXCircle size={16} />
                         </button>
                       )}
+                      </div>
                     </td>
                   </tr>
                 ))}

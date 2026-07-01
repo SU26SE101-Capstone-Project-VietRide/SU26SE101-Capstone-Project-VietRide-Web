@@ -150,12 +150,12 @@ export default function Login() {
                     <label className="text-sm font-semibold text-slate-800">
                       {t("password")} <span className="text-red-500">*</span>
                     </label>
-                    <a
-                      href="#"
+                    <Link
+                      to="/forgot-password"
                       className="text-sm font-semibold text-vr-700 hover:text-vr-900"
                     >
                       {t("forgotPassword")}
-                    </a>
+                    </Link>
                   </div>
                   <div className="relative">
                     <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />

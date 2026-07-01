@@ -4,6 +4,8 @@ import {
   FiClock,
   FiDollarSign,
   FiDownload,
+  FiEdit2,
+  FiEye,
   FiFilter,
   FiList,
   FiPlus,
@@ -18,6 +20,8 @@ import { bookings as mockBookings, type Booking } from "../../../data/mockData";
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
+const actionIconClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700";
 
 const SOLD_SEATS = new Set(["A1", "A2", "B3", "C1", "D4", "E2", "F1", "G3"]);
 
@@ -254,16 +258,19 @@ export default function BookingsList() {
                     {formatMoney(b.price)}
                   </td>
                   <td className="px-5 py-4">{bookingStatusBadge(b.status)}</td>
-                  <td className="px-5 py-4 text-sm space-x-2">
+                  <td className="px-5 py-4 text-sm">
+                    <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedBooking(b);
                         setOpenDetail(true);
                       }}
-                      className="text-vr-600 hover:text-vr-700 font-medium"
+                      className={actionIconClass}
+                      title={tc("details")}
+                      aria-label={tc("details")}
                     >
-                      {tc("details")}
+                      <FiEye size={16} />
                     </button>
                     {b.status === "pending" && (
                       <>
@@ -274,9 +281,11 @@ export default function BookingsList() {
                             setEditSeats([b.seat]);
                             setOpenEdit(true);
                           }}
-                          className="text-blue-600 hover:text-blue-700 font-medium"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50"
+                          title={tc("edit")}
+                          aria-label={tc("edit")}
                         >
-                          {tc("edit")}
+                          <FiEdit2 size={16} />
                         </button>
                         <button
                           type="button"
@@ -285,12 +294,15 @@ export default function BookingsList() {
                               alert(t("bookings.cancelSuccess"));
                             }
                           }}
-                          className="text-red-600 hover:text-red-700 font-medium"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                          title={t("bookings.cancelTicket")}
+                          aria-label={t("bookings.cancelTicket")}
                         >
-                          {t("bookings.cancelTicket")}
+                          <FiXCircle size={16} />
                         </button>
                       </>
                     )}
+                    </div>
                   </td>
                 </tr>
               ))}

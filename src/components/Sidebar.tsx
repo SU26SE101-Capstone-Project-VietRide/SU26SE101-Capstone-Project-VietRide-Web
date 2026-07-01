@@ -14,10 +14,12 @@ import {
   FiDollarSign,
   FiAlertTriangle,
   FiFileText,
+  FiGrid,
+  FiDatabase,
 } from "react-icons/fi";
 import logo from "../assets/login/logo.svg";
 import { AiOutlineLogout } from "react-icons/ai";
-import { logout } from "../auth";
+import { logout, type AuthRole } from "../auth";
 
 type MenuItem = {
   labelKey: string;
@@ -30,7 +32,7 @@ type MenuSection = {
   items: MenuItem[];
 };
 
-const managerMenuConfig: MenuSection[] = [
+const operatorAdminMenuConfig: MenuSection[] = [
   {
     titleKey: "sections.menu",
     items: [
@@ -56,6 +58,11 @@ const managerMenuConfig: MenuSection[] = [
         icon: <FiTruck />,
       },
       { labelKey: "manager.staff", path: "/manager/staff", icon: <FiUsers /> },
+      {
+        labelKey: "manager.capacity",
+        path: "/manager/capacity",
+        icon: <FiGrid />,
+      },
       {
         labelKey: "manager.bookings",
         path: "/manager/bookings",
@@ -111,6 +118,51 @@ const managerMenuConfig: MenuSection[] = [
   },
 ];
 
+const operatorStaffMenuConfig: MenuSection[] = [
+  {
+    titleKey: "sections.menu",
+    items: [
+      {
+        labelKey: "manager.dashboard",
+        path: "/manager/dashboard",
+        icon: <FiLayout />,
+      },
+      { labelKey: "manager.trips", path: "/manager/trips", icon: <FiTruck /> },
+      {
+        labelKey: "manager.routeEta",
+        path: "/manager/route-eta",
+        icon: <FiAlertTriangle />,
+      },
+      {
+        labelKey: "manager.routes",
+        path: "/manager/routes",
+        icon: <FiNavigation />,
+      },
+      {
+        labelKey: "manager.vehicles",
+        path: "/manager/vehicles",
+        icon: <FiTruck />,
+      },
+      {
+        labelKey: "manager.bookings",
+        path: "/manager/bookings",
+        icon: <FiBookOpen />,
+      },
+      {
+        labelKey: "manager.parcels",
+        path: "/manager/parcels",
+        icon: <FiPackage />,
+      },
+      { labelKey: "manager.gps", path: "/manager/gps", icon: <FiMapPin /> },
+      {
+        labelKey: "manager.dispatch",
+        path: "/manager/dispatch",
+        icon: <FiNavigation />,
+      },
+    ],
+  },
+];
+
 const adminMenuConfig: MenuSection[] = [
   {
     titleKey: "sections.menu",
@@ -124,6 +176,11 @@ const adminMenuConfig: MenuSection[] = [
         labelKey: "admin.operators",
         path: "/admin/operators",
         icon: <FiTruck />,
+      },
+      {
+        labelKey: "admin.stations",
+        path: "/admin/stations",
+        icon: <FiMapPin />,
       },
       { labelKey: "admin.users", path: "/admin/users", icon: <FiBookOpen /> },
       {
@@ -146,6 +203,11 @@ const adminMenuConfig: MenuSection[] = [
         path: "/admin/payouts",
         icon: <FiDollarSign />,
       },
+      {
+        labelKey: "admin.walletSettlement",
+        path: "/admin/wallet-settlement",
+        icon: <FiDollarSign />,
+      },
     ],
   },
   {
@@ -161,12 +223,22 @@ const adminMenuConfig: MenuSection[] = [
         path: "/admin/reports",
         icon: <FiBarChart2 />,
       },
+      {
+        labelKey: "admin.ragAudit",
+        path: "/admin/rag-audit",
+        icon: <FiDatabase />,
+      },
+      {
+        labelKey: "admin.settings",
+        path: "/admin/settings",
+        icon: <FiSettings />,
+      },
     ],
   },
 ];
 
 type SidebarProps = {
-  role: "manager" | "SYSTEM_ADMIN";
+  role: AuthRole;
   isOpen: boolean;
   onClose: () => void;
 };
@@ -184,9 +256,12 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation(["nav", "common"]);
-  const menus = (
-    role === "manager" ? managerMenuConfig : adminMenuConfig
-  ).filter((s) => s.items.length > 0);
+  const menuConfigByRole: Record<AuthRole, MenuSection[]> = {
+    SYSTEM_ADMIN: adminMenuConfig,
+    OPERATOR_ADMIN: operatorAdminMenuConfig,
+    OPERATOR_STAFF: operatorStaffMenuConfig,
+  };
+  const menus = menuConfigByRole[role].filter((s) => s.items.length > 0);
 
   const handleLogout = async () => {
     await logout();

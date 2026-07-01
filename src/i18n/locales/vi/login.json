@@ -6,6 +6,14 @@
   "emailPlaceholder": "hello@vietride.vn",
   "passwordPlaceholder": "Nhập mật khẩu",
   "forgotPassword": "Quên mật khẩu?",
+  "forgotPasswordPage": {
+    "title": "Quên mật khẩu",
+    "subtitle": "Nhập email tài khoản. UI luồng đặt lại mật khẩu đã sẵn sàng và sẽ gửi email khi API được kết nối.",
+    "heroTitle": "Khôi phục truy cập mà không gián đoạn vận hành.",
+    "heroSubtitle": "Giữ luồng đặt lại mật khẩu rõ ràng cho quản lý và nhân sự trong khi endpoint backend đang được chuẩn bị.",
+    "submit": "Yêu cầu link đặt lại",
+    "pendingApiMessage": "API quên mật khẩu chưa được kết nối. UI này đã sẵn sàng; khi endpoint có, VietRide sẽ gửi link đặt lại đến email này."
+  },
   "showPassword": "Hiện mật khẩu",
   "hidePassword": "Ẩn mật khẩu",
   "capsLockOn": "Phím Caps Lock đang bật",

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FiEye } from "react-icons/fi";
 import Modal from "../../components/Modal";
 
 type PayoutBatch = {
@@ -319,10 +320,13 @@ export default function Payouts() {
                     </td>
                     <td className="px-4 py-3">
                       <button
+                        type="button"
                         onClick={() => openBatch(realIdx)}
-                        className="px-3 py-1.5 bg-white border border-gray-200 rounded text-xs text-gray-700 hover:bg-gray-50"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50"
+                        title={tc("details")}
+                        aria-label={tc("details")}
                       >
-                        {tc("details")}
+                        <FiEye size={16} />
                       </button>
                     </td>
                   </tr>

@@ -6,6 +6,14 @@
   "emailPlaceholder": "hello@vietride.vn",
   "passwordPlaceholder": "Enter password",
   "forgotPassword": "Forgot password?",
+  "forgotPasswordPage": {
+    "title": "Forgot password",
+    "subtitle": "Enter your account email. The reset flow UI is ready and will send email once the API is connected.",
+    "heroTitle": "Recover access without slowing operations.",
+    "heroSubtitle": "Keep the reset flow clear for managers and staff while the backend endpoint is being prepared.",
+    "submit": "Request reset link",
+    "pendingApiMessage": "Forgot password API is not connected yet. This UI is ready; once the endpoint is available, VietRide will send a reset link to this email."
+  },
   "showPassword": "Show password",
   "hidePassword": "Hide password",
   "capsLockOn": "Caps Lock is on",
