@@ -2,23 +2,37 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
+  FiDollarSign,
   FiGitBranch,
   FiMapPin,
   FiPlus,
   FiRefreshCw,
+  FiSave,
   FiSearch,
   FiShuffle,
+  FiTrash2,
 } from "react-icons/fi";
 import {
   addRouteStop,
   createAlternativeRoute,
+  createRouteFareTemplate,
   createOperatorRoute,
   createOperatorStation,
   createOperatorStop,
+  getAlternativeRoutes,
+  getOperatorRoute,
   getOperatorRoutes,
+  getOperatorStop,
   getOperatorStops,
+  getRouteFareTemplates,
+  removeRouteStop,
   searchStations,
+  updateOperatorRoute,
+  updateOperatorStop,
+  type AlternativeRoute,
   type AlternativeRouteRequest,
+  type FareTemplate,
+  type FareTemplateRequest,
   type OperatorRoute,
   type OperatorRouteRequest,
   type OperatorStop,
@@ -26,16 +40,11 @@ import {
   type RouteStopRequest,
   type Station,
 } from "../../../api/vietride";
+import PlacePicker, { type PlaceSelection } from "../../../components/PlacePicker";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
-
-const emptyStationSearch = {
-  q: "",
-  city: "",
-  province: "",
-};
 
 const emptyStopForm: OperatorStopRequest = {
   name: "",
@@ -67,9 +76,20 @@ const emptyAlternativeForm: AlternativeRouteRequest = {
   stops: [],
 };
 
+const emptyFareTemplateForm: FareTemplateRequest = {
+  stopId: "",
+  fareFromThisStop: 0,
+  effectiveFrom: "",
+  effectiveUntil: "",
+};
+
 type RouteStopDraft = RouteStopRequest & {
   routeName: string;
   stopName: string;
+};
+
+type StationOption = Station & {
+  address?: string;
 };
 
 function toNumber(value: string) {
@@ -77,14 +97,28 @@ function toNumber(value: string) {
   return Number.isFinite(next) ? next : 0;
 }
 
+function routeToForm(route: OperatorRoute): OperatorRouteRequest {
+  return {
+    name: route.name,
+    originStationId: route.originStationId,
+    destinationStationId: route.destinationStationId,
+    returnRouteId: route.returnRouteId ?? "",
+    baseFare: route.baseFare,
+    totalDistanceKm: route.totalDistanceKm,
+    estimatedDurationMinutes: route.estimatedDurationMinutes,
+    isActive: route.isActive,
+  };
+}
+
 export default function RoutesPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [stops, setStops] = useState<OperatorStop[]>([]);
-  const [stations, setStations] = useState<Station[]>([]);
+  const [stations, setStations] = useState<StationOption[]>([]);
+  const [stationPlaceDraft, setStationPlaceDraft] =
+    useState<PlaceSelection | null>(null);
   const [routeStopDrafts, setRouteStopDrafts] = useState<RouteStopDraft[]>([]);
-  const [stationSearch, setStationSearch] = useState(emptyStationSearch);
   const [selectedStationId, setSelectedStationId] = useState("");
   const [stopForm, setStopForm] = useState<OperatorStopRequest>(emptyStopForm);
   const [routeForm, setRouteForm] =
@@ -98,6 +132,12 @@ export default function RoutesPage() {
   const [allowDropoff, setAllowDropoff] = useState(true);
   const [alternativeForm, setAlternativeForm] =
     useState<AlternativeRouteRequest>(emptyAlternativeForm);
+  const [alternativeRoutes, setAlternativeRoutes] = useState<AlternativeRoute[]>(
+    [],
+  );
+  const [fareTemplates, setFareTemplates] = useState<FareTemplate[]>([]);
+  const [fareTemplateForm, setFareTemplateForm] =
+    useState<FareTemplateRequest>(emptyFareTemplateForm);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -120,16 +160,38 @@ export default function RoutesPage() {
         getOperatorRoutes({ page: 1, pageSize: 50 }),
         getOperatorStops({ page: 1, pageSize: 50 }),
       ]);
+      const nextRoute =
+        routeResult.items.find((item) => item.id === selectedRouteId) ??
+        routeResult.items[0];
+      const nextStop =
+        stopResult.items.find((item) => item.id === selectedStopId) ??
+        stopResult.items[0];
+
       setRoutes(routeResult.items);
       setStops(stopResult.items);
-      setSelectedRouteId((current) => current || routeResult.items[0]?.id || "");
-      setSelectedStopId((current) => current || stopResult.items[0]?.id || "");
+      setSelectedRouteId(nextRoute?.id ?? "");
+      setSelectedStopId(nextStop?.id ?? "");
+
+      if (nextRoute) {
+        setRouteForm(routeToForm(nextRoute));
+      }
+
+      if (nextStop) {
+        setStopForm({
+          name: nextStop.name,
+          latitude: nextStop.latitude,
+          longitude: nextStop.longitude,
+          description: nextStop.description,
+          address: nextStop.address,
+          googlePlaceId: nextStop.googlePlaceId,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("routes.loadFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [selectedRouteId, selectedStopId, t]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -152,6 +214,72 @@ export default function RoutesPage() {
     setStopForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  const selectedStationPlace = useMemo<PlaceSelection | null>(() => {
+    const station = stations.find((item) => item.id === selectedStationId);
+
+    if (!station) {
+      return stationPlaceDraft;
+    }
+
+    return {
+      placeId: station.id,
+      name: station.name,
+      address: station.address ?? `${station.name}, ${station.city || station.province}`,
+      city: station.city,
+      province: station.province,
+      latitude: station.latitude,
+      longitude: station.longitude,
+    };
+  }, [selectedStationId, stationPlaceDraft, stations]);
+
+  const selectedStopPlace = useMemo<PlaceSelection | null>(() => {
+    if (!stopForm.latitude || !stopForm.longitude) {
+      return null;
+    }
+
+    return {
+      placeId: stopForm.googlePlaceId || `${stopForm.latitude},${stopForm.longitude}`,
+      name: stopForm.name,
+      address: stopForm.address,
+      city: "",
+      province: "",
+      latitude: stopForm.latitude,
+      longitude: stopForm.longitude,
+    };
+  }, [stopForm]);
+
+  async function applyStationPlace(place: PlaceSelection) {
+    setStationPlaceDraft(place);
+    setSelectedStationId("");
+
+    const result = await searchStations({
+      q: place.name,
+      city: place.city,
+      province: place.province,
+    });
+
+    if (!result.length) {
+      setStations([]);
+      setError(t("routes.platformStationNotFound"));
+      return;
+    }
+
+    setStations(result);
+    setSelectedStationId(result[0]?.id ?? "");
+    setMessage(t("routes.stationSearchFound", { count: result.length }));
+  }
+
+  function applyStopPlace(place: PlaceSelection) {
+    setStopForm((current) => ({
+      ...current,
+      name: place.name,
+      address: place.address,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      googlePlaceId: place.placeId,
+    }));
+  }
+
   function updateRoute<K extends keyof OperatorRouteRequest>(
     key: K,
     value: OperatorRouteRequest[K],
@@ -166,24 +294,11 @@ export default function RoutesPage() {
     setAlternativeForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleSearchStations() {
-    if (!stationSearch.q.trim() && !stationSearch.city.trim()) {
-      setError(t("routes.stationSearchRequired"));
-      return;
-    }
-
-    const result = await searchStations({
-      q: stationSearch.q,
-      city: stationSearch.city,
-      province: stationSearch.province,
-    });
-    setStations(result);
-    setSelectedStationId(result[0]?.id ?? "");
-    setMessage(
-      result.length
-        ? t("routes.stationSearchFound", { count: result.length })
-        : t("routes.stationSearchEmpty"),
-    );
+  function updateFareTemplate<K extends keyof FareTemplateRequest>(
+    key: K,
+    value: FareTemplateRequest[K],
+  ) {
+    setFareTemplateForm((prev) => ({ ...prev, [key]: value }));
   }
 
   async function handleAttachStation() {
@@ -196,10 +311,19 @@ export default function RoutesPage() {
     await createOperatorStation({
       stationId: selectedStationId,
       displayNameOverride: station?.name,
+      counterLocation: "",
+      contactPhone: "",
+      instructions: "",
+      name: station?.name,
       city: station?.city,
       province: station?.province,
       latitude: station?.latitude,
       longitude: station?.longitude,
+      addressStreet: station?.address ?? station?.name,
+      contactEmail: "",
+      operatingHours: "",
+      facilities: "",
+      supportsShuttle: false,
     });
     setMessage(t("routes.stationAttached"));
   }
@@ -220,6 +344,48 @@ export default function RoutesPage() {
     setSelectedStopId(created.id);
     setStopForm(emptyStopForm);
     setMessage(t("routes.stopCreated"));
+  }
+
+  async function handleUpdateStop() {
+    if (!selectedStopId) {
+      setError(t("routes.selectStopFirst"));
+      return;
+    }
+
+    if (!stopForm.name.trim() || !stopForm.address.trim()) {
+      setError(t("routes.stopRequired"));
+      return;
+    }
+
+    const updated = await updateOperatorStop(selectedStopId, stopForm);
+    setStops((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    );
+    setMessage(t("routes.stopUpdated"));
+  }
+
+  async function handleSelectStop(stopId: string) {
+    setSelectedStopId(stopId);
+
+    if (!stopId) {
+      setStopForm(emptyStopForm);
+      return;
+    }
+
+    const stop = await getOperatorStop(stopId);
+    setStops((prev) =>
+      prev.some((item) => item.id === stop.id)
+        ? prev.map((item) => (item.id === stop.id ? stop : item))
+        : [stop, ...prev],
+    );
+    setStopForm({
+      name: stop.name,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      description: stop.description,
+      address: stop.address,
+      googlePlaceId: stop.googlePlaceId,
+    });
   }
 
   async function handleCreateRoute() {
@@ -246,6 +412,58 @@ export default function RoutesPage() {
     setSelectedRouteId(created.id);
     setRouteForm(emptyRouteForm);
     setMessage(t("routes.routeCreated"));
+  }
+
+  async function handleSelectRoute(routeId: string) {
+    setSelectedRouteId(routeId);
+
+    if (!routeId) {
+      setRouteForm(emptyRouteForm);
+      setFareTemplates([]);
+      setAlternativeRoutes([]);
+      return;
+    }
+
+    const [route, fareResult, alternativeResult] = await Promise.all([
+      getOperatorRoute(routeId),
+      getRouteFareTemplates(routeId, { page: 1, pageSize: 50 }),
+      getAlternativeRoutes(routeId, { page: 1, pageSize: 50 }),
+    ]);
+    setRoutes((prev) =>
+      prev.some((item) => item.id === route.id)
+        ? prev.map((item) => (item.id === route.id ? route : item))
+        : [route, ...prev],
+    );
+    setRouteForm(routeToForm(route));
+    setFareTemplates(fareResult.items);
+    setAlternativeRoutes(alternativeResult.items);
+  }
+
+  async function handleUpdateRoute() {
+    if (!selectedRouteId) {
+      setError(t("routes.selectRouteFirst"));
+      return;
+    }
+
+    if (!routeForm.name.trim()) {
+      setError(t("routes.routeNameRequired"));
+      return;
+    }
+
+    if (routeForm.originStationId === routeForm.destinationStationId) {
+      setError(t("routes.originDestinationDifferent"));
+      return;
+    }
+
+    const updated = await updateOperatorRoute(selectedRouteId, {
+      ...routeForm,
+      returnRouteId: routeForm.returnRouteId || undefined,
+    });
+    setRoutes((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    );
+    setRouteForm(routeToForm(updated));
+    setMessage(t("routes.routeUpdated"));
   }
 
   async function handleAddRouteStop() {
@@ -282,6 +500,41 @@ export default function RoutesPage() {
     setMessage(t("routes.routeStopAdded"));
   }
 
+  async function handleRemoveRouteStop(stopId: string) {
+    if (!selectedRoute) {
+      setError(t("routes.selectRouteFirst"));
+      return;
+    }
+
+    await removeRouteStop(selectedRoute.id, stopId);
+    setRouteStopDrafts((prev) =>
+      prev.filter(
+        (item) => item.routeName !== selectedRoute.name || item.stopId !== stopId,
+      ),
+    );
+    setMessage(t("routes.routeStopRemoved"));
+  }
+
+  async function handleCreateFareTemplate() {
+    if (!selectedRoute) {
+      setError(t("routes.selectRouteFirst"));
+      return;
+    }
+
+    if (!fareTemplateForm.stopId || fareTemplateForm.fareFromThisStop <= 0) {
+      setError(t("routes.fareTemplateRequired"));
+      return;
+    }
+
+    const created = await createRouteFareTemplate(
+      selectedRoute.id,
+      fareTemplateForm,
+    );
+    setFareTemplates((prev) => [created, ...prev]);
+    setFareTemplateForm(emptyFareTemplateForm);
+    setMessage(t("routes.fareTemplateCreated"));
+  }
+
   async function handleCreateAlternativeRoute() {
     if (!selectedRoute) {
       setError(t("routes.selectRouteFirst"));
@@ -305,6 +558,11 @@ export default function RoutesPage() {
           distanceFromOriginKm: item.distanceFromOriginKm,
         })),
     });
+    const alternativeResult = await getAlternativeRoutes(selectedRoute.id, {
+      page: 1,
+      pageSize: 50,
+    });
+    setAlternativeRoutes(alternativeResult.items);
     setAlternativeForm(emptyAlternativeForm);
     setMessage(t("routes.alternativeCreated"));
   }
@@ -362,30 +620,14 @@ export default function RoutesPage() {
               title={t("routes.stationManagement")}
               subtitle={t("routes.stationManagementHint")}
             />
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <Input
+            <div className="mt-4">
+              <PlacePicker
                 label={t("routes.stationName")}
-                value={stationSearch.q}
-                onChange={(value) =>
-                  setStationSearch((prev) => ({ ...prev, q: value }))
-                }
-                placeholder="Mien Dong"
-              />
-              <Input
-                label={t("routes.city")}
-                value={stationSearch.city}
-                onChange={(value) =>
-                  setStationSearch((prev) => ({ ...prev, city: value }))
-                }
-                placeholder="Ho Chi Minh City"
-              />
-              <Input
-                label={t("routes.province")}
-                value={stationSearch.province}
-                onChange={(value) =>
-                  setStationSearch((prev) => ({ ...prev, province: value }))
-                }
-                placeholder="Ho Chi Minh"
+                placeholder="Mien Dong, Ho Chi Minh City"
+                selectedPlace={selectedStationPlace}
+                onSelect={(place) => {
+                  runAction(() => applyStationPlace(place));
+                }}
               />
             </div>
             <div className="mt-4 flex flex-col gap-3 lg:flex-row">
@@ -401,14 +643,6 @@ export default function RoutesPage() {
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={() => runAction(handleSearchStations)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                <FiSearch size={16} />
-                {t("routes.searchStations")}
-              </button>
               <button
                 type="button"
                 onClick={() => runAction(handleAttachStation)}
@@ -427,40 +661,20 @@ export default function RoutesPage() {
               title={t("routes.stopManagement")}
               subtitle={t("routes.stopManagementHint")}
             />
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <Input
+            <div className="mt-4">
+              <PlacePicker
                 label={t("routes.stopName")}
-                value={stopForm.name}
-                onChange={(value) => updateStop("name", value)}
-                placeholder="District 1 pickup"
+                placeholder="Điểm đón, bến xe, địa chỉ..."
+                selectedPlace={selectedStopPlace}
+                onSelect={applyStopPlace}
               />
-              <Input
-                label={t("routes.placeId")}
-                value={stopForm.googlePlaceId}
-                onChange={(value) => updateStop("googlePlaceId", value)}
-                placeholder="place-id"
-              />
-              <Input
-                label={t("routes.address")}
-                value={stopForm.address}
-                onChange={(value) => updateStop("address", value)}
-                placeholder="123 Nguyen Hue"
-              />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               <Input
                 label={t("routes.description")}
                 value={stopForm.description}
                 onChange={(value) => updateStop("description", value)}
                 placeholder={t("routes.stopDescriptionPlaceholder")}
-              />
-              <NumberInput
-                label={t("routes.latitude")}
-                value={stopForm.latitude}
-                onChange={(value) => updateStop("latitude", value)}
-              />
-              <NumberInput
-                label={t("routes.longitude")}
-                value={stopForm.longitude}
-                onChange={(value) => updateStop("longitude", value)}
               />
             </div>
             <button
@@ -470,6 +684,15 @@ export default function RoutesPage() {
             >
               <FiPlus size={16} />
               {t("routes.createStop")}
+            </button>
+            <button
+              type="button"
+              onClick={() => runAction(handleUpdateStop)}
+              disabled={!selectedStopId}
+              className="ml-2 mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              <FiSave size={16} />
+              {t("routes.updateStop")}
             </button>
           </section>
 
@@ -536,10 +759,21 @@ export default function RoutesPage() {
                 <FiPlus size={16} />
                 {t("routes.createRoute")}
               </button>
+              <button
+                type="button"
+                onClick={() => runAction(handleUpdateRoute)}
+                disabled={!selectedRouteId}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <FiSave size={16} />
+                {t("routes.updateRoute")}
+              </button>
               <select
                 className={inputClass + " min-w-64"}
                 value={selectedRouteId}
-                onChange={(event) => setSelectedRouteId(event.target.value)}
+                onChange={(event) =>
+                  runAction(() => handleSelectRoute(event.target.value))
+                }
               >
                 <option value="">{t("routes.selectRoute")}</option>
                 {routes.map((route) => (
@@ -563,7 +797,9 @@ export default function RoutesPage() {
                 <select
                   className={inputClass}
                   value={selectedStopId}
-                  onChange={(event) => setSelectedStopId(event.target.value)}
+                  onChange={(event) =>
+                    runAction(() => handleSelectStop(event.target.value))
+                  }
                 >
                   <option value="">{t("routes.selectStop")}</option>
                   {stops.map((stop) => (
@@ -623,6 +859,83 @@ export default function RoutesPage() {
 
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
+              icon={<FiDollarSign />}
+              title={t("routes.fareTemplates")}
+              subtitle={t("routes.fareTemplatesHint")}
+            />
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div>
+                <label className={labelClass}>{t("routes.stop")}</label>
+                <select
+                  className={inputClass}
+                  value={fareTemplateForm.stopId}
+                  onChange={(event) =>
+                    updateFareTemplate("stopId", event.target.value)
+                  }
+                >
+                  <option value="">{t("routes.selectStop")}</option>
+                  {stops.map((stop) => (
+                    <option key={stop.id} value={stop.id}>
+                      {stop.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <NumberInput
+                label={t("routes.fareFromStop")}
+                value={fareTemplateForm.fareFromThisStop}
+                onChange={(value) =>
+                  updateFareTemplate("fareFromThisStop", value)
+                }
+              />
+              <Input
+                label={t("routes.effectiveFrom")}
+                value={fareTemplateForm.effectiveFrom}
+                onChange={(value) => updateFareTemplate("effectiveFrom", value)}
+                type="datetime-local"
+              />
+              <Input
+                label={t("routes.effectiveUntil")}
+                value={fareTemplateForm.effectiveUntil}
+                onChange={(value) => updateFareTemplate("effectiveUntil", value)}
+                type="datetime-local"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => runAction(handleCreateFareTemplate)}
+              disabled={!selectedRouteId}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50"
+            >
+              <FiPlus size={16} />
+              {t("routes.createFareTemplate")}
+            </button>
+            <div className="mt-4 space-y-2">
+              {fareTemplates.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
+                >
+                  <p className="font-semibold text-gray-900">
+                    {stops.find((stop) => stop.id === item.stopId)?.name ??
+                      item.stopId}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {item.fareFromThisStop.toLocaleString()} ·{" "}
+                    {item.effectiveFrom || "--"} - {item.effectiveUntil || "--"}
+                  </p>
+                </div>
+              ))}
+              {!fareTemplates.length && (
+                <p className="text-sm text-gray-500">
+                  {t("routes.noFareTemplates")}
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <SectionHeader
               icon={<FiShuffle />}
               title={t("routes.alternativeRoutes")}
               subtitle={t("routes.alternativeRoutesHint")}
@@ -677,6 +990,25 @@ export default function RoutesPage() {
               <FiPlus size={16} />
               {t("routes.createAlternative")}
             </button>
+            <div className="mt-4 space-y-2">
+              {alternativeRoutes.map((route) => (
+                <div
+                  key={route.id}
+                  className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
+                >
+                  <p className="font-semibold text-gray-900">{route.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {route.totalDistanceKm} km ·{" "}
+                    {route.estimatedDurationMinutes} min
+                  </p>
+                </div>
+              ))}
+              {!alternativeRoutes.length && (
+                <p className="text-sm text-gray-500">
+                  {t("routes.noAlternativeRoutes")}
+                </p>
+              )}
+            </div>
           </section>
         </main>
 
@@ -701,15 +1033,26 @@ export default function RoutesPage() {
                 .map((item) => (
                   <div
                     key={`${item.stopId}-${item.orderIndex}`}
-                    className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
                   >
-                    <p className="font-semibold text-gray-900">
-                      #{item.orderIndex} · {item.stopName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {item.distanceFromOriginKm} km ·{" "}
-                      {item.estimatedDurationFromOriginMinutes} min
-                    </p>
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        #{item.orderIndex} · {item.stopName}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {item.distanceFromOriginKm} km ·{" "}
+                        {item.estimatedDurationFromOriginMinutes} min
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => runAction(() => handleRemoveRouteStop(item.stopId))}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
+                      aria-label={t("routes.removeRouteStop")}
+                      title={t("routes.removeRouteStop")}
+                    >
+                      <FiTrash2 size={16} />
+                    </button>
                   </div>
                 ))}
               {routeStopDrafts.filter(
@@ -728,7 +1071,7 @@ export default function RoutesPage() {
                 <button
                   key={stop.id}
                   type="button"
-                  onClick={() => setSelectedStopId(stop.id)}
+                  onClick={() => runAction(() => handleSelectStop(stop.id))}
                   className="block w-full rounded-lg border border-gray-100 px-3 py-2 text-left text-sm hover:border-vr-200 hover:bg-vr-50"
                 >
                   <span className="font-semibold text-gray-900">{stop.name}</span>

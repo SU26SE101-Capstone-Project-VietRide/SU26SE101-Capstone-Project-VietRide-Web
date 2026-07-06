@@ -40,7 +40,6 @@ import AdminPolicies from "./pages/Admin/Policies";
 import AdminStations from "./pages/Admin/Stations";
 import WalletSettlement from "./pages/Admin/WalletSettlement";
 import RagAudit from "./pages/Admin/RagAudit";
-import SystemSettings from "./pages/Admin/SystemSettings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -58,6 +57,8 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/set-initial-password" element={<SetInitialPassword />} />
+        <Route path="/auth/set-password" element={<SetInitialPassword />} />
+        <Route path="/auth/set-initial-password" element={<SetInitialPassword />} />
 
         {/* Manager routes */}
         <Route
@@ -108,7 +109,6 @@ export default function App() {
             <Route path="payouts" element={<Payouts />} />
             <Route path="wallet-settlement" element={<WalletSettlement />} />
             <Route path="rag-audit" element={<RagAudit />} />
-            <Route path="settings" element={<SystemSettings />} />
             <Route path="policies" element={<AdminPolicies />} />
             <Route path="profile" element={<Profile />} />
           </Route>

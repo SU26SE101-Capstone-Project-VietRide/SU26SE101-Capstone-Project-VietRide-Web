@@ -42,8 +42,7 @@
     "walletSettlement": "Wallet & settlement",
     "revenue": "Revenue",
     "reports": "Reports",
-    "ragAudit": "RAG & audit",
-    "settings": "System settings"
+    "ragAudit": "RAG & audit"
   },
   "layout": {
     "adminDashboard": "Admin dashboard",

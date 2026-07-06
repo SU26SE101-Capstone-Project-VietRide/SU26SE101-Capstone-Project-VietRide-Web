@@ -149,7 +149,7 @@ export default function Operators() {
     await reloadOperators();
     setOpenApprove(false);
     setMessage(
-      `${selectedOperator.name} approved. The operator admin should receive an invite email and set their first password at /set-initial-password?token=... before login.`,
+      `${selectedOperator.name} approved. The operator admin should receive an invite email and set their first password at /auth/set-password?token=... before login.`,
     );
     setSelectedOperator(null);
   };
@@ -185,7 +185,7 @@ export default function Operators() {
     await createAdminOperator(operatorForm);
     await reloadOperators();
     setMessage(
-      `${operatorForm.name} profile created without a password. Approve the operator next; backend will send the set-initial-password invite token to the representative email.`,
+      `${operatorForm.name} profile created without a password. Approve the operator next; backend will send the set-password invite token to the representative email.`,
     );
     setOperatorForm(emptyOperatorForm);
     setOpenOnboard(false);
@@ -548,7 +548,7 @@ export default function Operators() {
               </div>
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                 {t("operators.firstLoginNoteBefore")}{" "}
-                <span className="font-mono">/set-initial-password?token=...</span>{" "}
+                <span className="font-mono">/auth/set-password?token=...</span>{" "}
                 {t("operators.firstLoginNoteMiddle")}{" "}
                 <span className="font-mono">
                   POST /v1/auth/set-initial-password

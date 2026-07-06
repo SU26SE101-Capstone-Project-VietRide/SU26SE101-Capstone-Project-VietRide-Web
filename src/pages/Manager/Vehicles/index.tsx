@@ -16,6 +16,7 @@ import {
 } from "react-icons/fi";
 import { FaChair } from "react-icons/fa";
 import Modal from "../../../components/Modal";
+import { getAuthUser } from "../../../auth";
 import {
   createOperatorVehicle,
   getOperatorVehicle,
@@ -33,6 +34,29 @@ import {
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
+
+const vehiclePhotos = [
+  {
+    src: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=900&q=80",
+    alt: "Modern coach bus exterior",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=900&q=80",
+    alt: "Passenger coach on road",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1494515843206-f3117d3f51b7?auto=format&fit=crop&w=900&q=80",
+    alt: "Bus cabin seats",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1509749837427-ac94a2553d0e?auto=format&fit=crop&w=900&q=80",
+    alt: "Coach bus side view",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1571019613914-85f342c6a11e?auto=format&fit=crop&w=900&q=80",
+    alt: "Bus passenger interior",
+  },
+];
 
 type VehicleForm = {
   vehicleTypeId: string;
@@ -132,7 +156,9 @@ function toSeatLayoutJson(
   const decks = createDecks(form);
   const options = toSeatLayoutOptions(form);
   const seats = decks.flatMap((deck) => deck.seats);
-  const vehicleType = vehicleTypes.find((type) => type.id === form.vehicleTypeId);
+  const vehicleType = vehicleTypes.find(
+    (type) => type.id === form.vehicleTypeId,
+  );
 
   return {
     version: 1,
@@ -227,23 +253,53 @@ function getVehicleId(vehicle: OperatorVehicle) {
   return vehicle.vehicleId || vehicle.id || "";
 }
 
+function getVehicleTypeLabel(
+  vehicle: Pick<
+    OperatorVehicle,
+    "vehicleTypeId" | "vehicleTypeName" | "vehicleTypeCode"
+  >,
+  vehicleTypes: VehicleType[],
+) {
+  const matchedType = vehicleTypes.find(
+    (type) => type.id === vehicle.vehicleTypeId,
+  );
+
+  return (
+    vehicle.vehicleTypeName ||
+    matchedType?.displayName ||
+    vehicle.vehicleTypeCode ||
+    matchedType?.code ||
+    "-"
+  );
+}
+
+function getVehiclePhoto(vehicle: OperatorVehicle) {
+  const key = getVehicleId(vehicle) || vehicle.licensePlate;
+  const hash = Array.from(key).reduce(
+    (total, char) => total + char.charCodeAt(0),
+    0,
+  );
+
+  return vehiclePhotos[hash % vehiclePhotos.length];
+}
+
 export default function VehiclesPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const authUser = getAuthUser();
+  const canManageVehicles = authUser?.role === "OPERATOR_ADMIN";
   const [search, setSearch] = useState("");
   const [openReg, setOpenReg] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [selectedVehicle, setSelectedVehicle] = useState<OperatorVehicle | null>(
-    null,
-  );
+  const [selectedVehicle, setSelectedVehicle] =
+    useState<OperatorVehicle | null>(null);
   const [detailVehicle, setDetailVehicle] = useState<OperatorVehicle | null>(
     null,
   );
-  const [vehicleForm, setVehicleForm] =
-    useState<VehicleForm>(emptyVehicleForm);
+  const [vehicleForm, setVehicleForm] = useState<VehicleForm>(emptyVehicleForm);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -341,7 +397,9 @@ export default function VehiclesPage() {
   );
 
   const total = vehicles.length;
-  const active = vehicles.filter((vehicle) => vehicle.status === "ACTIVE").length;
+  const active = vehicles.filter(
+    (vehicle) => vehicle.status === "ACTIVE",
+  ).length;
   const maint = vehicles.filter(
     (vehicle) => vehicle.status === "MAINTENANCE",
   ).length;
@@ -396,7 +454,9 @@ export default function VehiclesPage() {
       setDetailVehicle(detail);
     } catch (err) {
       setOpenDetail(false);
-      setError(err instanceof Error ? err.message : t("vehicles.loadDetailFailed"));
+      setError(
+        err instanceof Error ? err.message : t("vehicles.loadDetailFailed"),
+      );
     } finally {
       setIsDetailLoading(false);
     }
@@ -474,9 +534,6 @@ export default function VehiclesPage() {
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
             {t("vehicles.title")}
           </h1>
-          <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            {t("vehicles.apiSubtitle")}
-          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -487,14 +544,16 @@ export default function VehiclesPage() {
             <FiRefreshCw size={16} />
             {tc("refresh")}
           </button>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
-          >
-            <FiPlus size={18} />
-            {t("vehicles.add")}
-          </button>
+          {canManageVehicles && (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
+            >
+              <FiPlus size={18} />
+              {t("vehicles.add")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -510,9 +569,21 @@ export default function VehiclesPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <MetricCard label={t("vehicles.total")} value={total} icon={<FiTruck size={20} />} />
-        <MetricCard label={t("vehicles.active")} value={active} icon={<FiShield size={20} />} />
-        <MetricCard label={t("vehicles.maintenance")} value={maint} icon={<FiTool size={20} />} />
+        <MetricCard
+          label={t("vehicles.total")}
+          value={total}
+          icon={<FiTruck size={20} />}
+        />
+        <MetricCard
+          label={t("vehicles.active")}
+          value={active}
+          icon={<FiShield size={20} />}
+        />
+        <MetricCard
+          label={t("vehicles.maintenance")}
+          value={maint}
+          icon={<FiTool size={20} />}
+        />
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -529,16 +600,20 @@ export default function VehiclesPage() {
           <div className="flex flex-wrap gap-2">
             <ToolbarButton icon={<FiFilter size={16} />} label={tc("filter")} />
             <ToolbarButton icon={<FiList size={16} />} label={tc("columns")} />
-            <ToolbarButton icon={<FiDownload size={16} />} label={tc("exportCsv")} />
+            <ToolbarButton
+              icon={<FiDownload size={16} />}
+              label={tc("exportCsv")}
+            />
           </div>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[900px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="px-5 py-3">{t("vehicles.photo")}</th>
                 <th className="px-5 py-3">{t("vehicles.plate")}</th>
                 <th className="px-5 py-3">{t("vehicles.model")}</th>
                 <th className="px-5 py-3">{t("vehicles.capacity")}</th>
@@ -553,13 +628,21 @@ export default function VehiclesPage() {
                   key={getVehicleId(vehicle) || vehicle.licensePlate}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
+                  <td className="px-5 py-4">
+                    <img
+                      src={getVehiclePhoto(vehicle).src}
+                      alt={getVehiclePhoto(vehicle).alt}
+                      width={96}
+                      height={64}
+                      loading="lazy"
+                      className="h-16 w-24 rounded-lg border border-gray-200 object-cover"
+                    />
+                  </td>
                   <td className="px-5 py-4 text-sm font-semibold text-gray-900">
                     {vehicle.licensePlate}
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700">
-                    {vehicle.vehicleTypeName ??
-                      vehicle.vehicleTypeCode ??
-                      vehicle.vehicleTypeId}
+                    {getVehicleTypeLabel(vehicle, vehicleTypes)}
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700">
                     {vehicle.totalSeats}
@@ -568,7 +651,9 @@ export default function VehiclesPage() {
                   <td className="px-5 py-4 text-sm text-gray-700">
                     {vehicle.maxCargoWeightKg}
                   </td>
-                  <td className="px-5 py-4">{vehicleStatusBadge(vehicle.status)}</td>
+                  <td className="px-5 py-4">
+                    {vehicleStatusBadge(vehicle.status)}
+                  </td>
                   <td className="px-5 py-4 text-sm">
                     <div className="flex items-center gap-2">
                       <button
@@ -580,15 +665,17 @@ export default function VehiclesPage() {
                       >
                         <FiEye size={16} />
                       </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(vehicle)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                        title={tc("edit")}
-                        aria-label={tc("edit")}
-                    >
-                        <FiEdit2 size={16} />
-                    </button>
+                      {canManageVehicles && (
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(vehicle)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                          title={tc("edit")}
+                          aria-label={tc("edit")}
+                        >
+                          <FiEdit2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -628,6 +715,7 @@ export default function VehiclesPage() {
       <VehicleDetailModal
         open={openDetail}
         vehicle={detailVehicle}
+        vehicleTypes={vehicleTypes}
         isLoading={isDetailLoading}
         onClose={() => setOpenDetail(false)}
       />
@@ -695,7 +783,6 @@ function VehicleModal({
   const previewDecks = createDecks(form);
   const generatedSeats = countSeats(previewDecks);
   const layoutOptions = toSeatLayoutOptions(form);
-  const previewSeatLayout = toSeatLayoutJson(form);
 
   return (
     <Modal
@@ -766,7 +853,9 @@ function VehicleModal({
             className={inputClass}
             type="number"
             value={form.maxCargoWeightKg}
-            onChange={(event) => onChange("maxCargoWeightKg", event.target.value)}
+            onChange={(event) =>
+              onChange("maxCargoWeightKg", event.target.value)
+            }
           />
         </div>
         <div>
@@ -790,7 +879,9 @@ function VehicleModal({
             onChange={(event) => onChange("status", event.target.value)}
           >
             <option value="ACTIVE">{t("vehicles.statusActive")}</option>
-            <option value="MAINTENANCE">{t("vehicles.statusMaintenance")}</option>
+            <option value="MAINTENANCE">
+              {t("vehicles.statusMaintenance")}
+            </option>
             <option value="INACTIVE">{t("vehicles.inactive")}</option>
           </select>
         </div>
@@ -839,7 +930,9 @@ function VehicleModal({
               min={1}
               type="number"
               value={form.columnsPerRow}
-              onChange={(event) => onChange("columnsPerRow", event.target.value)}
+              onChange={(event) =>
+                onChange("columnsPerRow", event.target.value)
+              }
             />
           </div>
           <div>
@@ -849,7 +942,9 @@ function VehicleModal({
               min={1}
               type="number"
               value={form.aisleAfterCol}
-              onChange={(event) => onChange("aisleAfterCol", event.target.value)}
+              onChange={(event) =>
+                onChange("aisleAfterCol", event.target.value)
+              }
             />
           </div>
           <div>
@@ -897,15 +992,6 @@ function VehicleModal({
             </div>
           ))}
         </div>
-
-        <details className="mt-4 rounded-lg border border-gray-200 bg-white">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-600">
-            {t("vehicles.viewApiJson")}
-          </summary>
-          <pre className="max-h-56 overflow-auto border-t border-gray-100 p-3 text-xs text-gray-700">
-            {JSON.stringify(previewSeatLayout, null, 2)}
-          </pre>
-        </details>
       </div>
     </Modal>
   );
@@ -914,11 +1000,13 @@ function VehicleModal({
 function VehicleDetailModal({
   open,
   vehicle,
+  vehicleTypes,
   isLoading,
   onClose,
 }: {
   open: boolean;
   vehicle: OperatorVehicle | null;
+  vehicleTypes: VehicleType[];
   isLoading: boolean;
   onClose: () => void;
 }) {
@@ -958,18 +1046,45 @@ function VehicleDetailModal({
 
       {!isLoading && vehicle && (
         <div className="space-y-5">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <img
+                src={vehiclePhotos[0].src}
+                alt={vehiclePhotos[0].alt}
+                width={900}
+                height={600}
+                loading="lazy"
+                className="h-64 w-full object-cover"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {vehiclePhotos.slice(1).map((photo) => (
+                <img
+                  key={photo.src}
+                  src={photo.src}
+                  alt={photo.alt}
+                  width={450}
+                  height={300}
+                  loading="lazy"
+                  className="h-[122px] w-full rounded-xl border border-gray-200 object-cover"
+                />
+              ))}
+            </div>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <DetailItem label={t("vehicles.vehicleId")} value={getVehicleId(vehicle)} />
-            <DetailItem label={t("vehicles.plate")} value={vehicle.licensePlate} />
+            <DetailItem
+              label={t("vehicles.plate")}
+              value={vehicle.licensePlate}
+            />
             <DetailItem
               label={t("vehicles.vehicleType")}
-              value={
-                vehicle.vehicleTypeName ??
-                vehicle.vehicleTypeCode ??
-                vehicle.vehicleTypeId
-              }
+              value={getVehicleTypeLabel(vehicle, vehicleTypes)}
             />
-            <DetailItem label={t("vehicles.seatCount")} value={String(vehicle.totalSeats)} />
+            <DetailItem
+              label={t("vehicles.seatCount")}
+              value={String(vehicle.totalSeats)}
+            />
             <DetailItem
               label={t("vehicles.cargoWeight")}
               value={`${vehicle.maxCargoWeightKg} kg`}
@@ -978,7 +1093,10 @@ function VehicleDetailModal({
               label={t("vehicles.cargoVolume")}
               value={`${vehicle.maxCargoVolumeM3 ?? 0} m3`}
             />
-            <DetailItem label={t("vehicles.deckCount")} value={String(layout?.decks ?? decks.length)} />
+            <DetailItem
+              label={t("vehicles.deckCount")}
+              value={String(layout?.decks ?? decks.length)}
+            />
             <DetailItem label={tc("status")} value={vehicle.status} />
           </div>
 

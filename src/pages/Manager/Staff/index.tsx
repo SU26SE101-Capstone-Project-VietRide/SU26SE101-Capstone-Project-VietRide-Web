@@ -14,18 +14,22 @@ import {
 import Modal from "../../../components/Modal";
 import {
   createOperatorUser,
-  getInternalUser,
   getOperatorUsers,
   resendInitialPassword,
-  type AdminUser,
   type AdminUserRole,
   type CreateOperatorUserRequest,
   type OperatorUser,
 } from "../../../api/vietride";
+import {
+  formatVietnamPhoneForDisplay,
+  normalizeVietnamPhoneForApi,
+} from "../../../utils/phone";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
+const staffAvatarUrl =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='32' fill='%23ecfeff'/%3E%3Ccircle cx='64' cy='48' r='22' fill='%2314b8a6'/%3E%3Cpath d='M28 106c5-24 19-36 36-36s31 12 36 36' fill='%230f766e'/%3E%3C/svg%3E";
 
 const emptyUserForm: CreateOperatorUserRequest = {
   email: "",
@@ -40,12 +44,11 @@ const staffGroups = [
   { key: "OPS", label: "Quản trị & vận hành" },
 ] as const;
 
-const roleOptions: Array<{ value: AdminUserRole; label: string; description: string }> = [
-  {
-    value: "OPERATOR_ADMIN",
-    label: "Quản lý nhà xe",
-    description: "Toàn quyền công ty, quản lý tuyến, xe, chuyến, giá vé và nhân sự.",
-  },
+const roleOptions: Array<{
+  value: AdminUserRole;
+  label: string;
+  description: string;
+}> = [
   {
     value: "OPERATOR_STAFF",
     label: "Nhân viên vận hành",
@@ -79,22 +82,18 @@ function isOpsRole(role: AdminUserRole) {
   return role === "OPERATOR_ADMIN" || role === "OPERATOR_STAFF";
 }
 
-function normalizeVietnamPhone(phone: string) {
-  const digits = phone.replace(/[^\d+]/g, "");
-
-  if (digits.startsWith("+")) {
-    return digits;
+function formatJoinedAt(value?: string) {
+  if (!value) {
+    return "--";
   }
 
-  if (digits.startsWith("0")) {
-    return `+84${digits.slice(1)}`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--";
   }
 
-  if (digits.startsWith("84")) {
-    return `+${digits}`;
-  }
-
-  return digits;
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export default function StaffPage() {
@@ -108,11 +107,10 @@ export default function StaffPage() {
   const [openAdd, setOpenAdd] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
   const [users, setUsers] = useState<OperatorUser[]>([]);
-  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<OperatorUser | null>(null);
   const [userForm, setUserForm] =
     useState<CreateOperatorUserRequest>(emptyUserForm);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -189,7 +187,9 @@ export default function StaffPage() {
   }
 
   function roleDescription(role: AdminUserRole) {
-    return roleOptions.find((option) => option.value === role)?.description ?? "";
+    return (
+      roleOptions.find((option) => option.value === role)?.description ?? ""
+    );
   }
 
   async function reloadUsers() {
@@ -206,7 +206,7 @@ export default function StaffPage() {
     setMessage("");
     await createOperatorUser({
       ...userForm,
-      phone: normalizeVietnamPhone(userForm.phone),
+      phone: normalizeVietnamPhoneForApi(userForm.phone),
     });
     await reloadUsers();
     setUserForm(emptyUserForm);
@@ -228,7 +228,7 @@ export default function StaffPage() {
     setMessage(t("staff.resendInitialPasswordSuccess", { email: user.email }));
   }
 
-  async function handleOpenDetail(user: OperatorUser) {
+  function handleOpenDetail(user: OperatorUser) {
     const userId = getUserId(user);
 
     if (!userId) {
@@ -237,19 +237,8 @@ export default function StaffPage() {
     }
 
     setOpenDetail(true);
-    setSelectedUser(null);
-    setIsDetailLoading(true);
+    setSelectedUser(user);
     setError("");
-
-    try {
-      const detail = await getInternalUser(userId);
-      setSelectedUser(detail);
-    } catch (err) {
-      setOpenDetail(false);
-      setError(err instanceof Error ? err.message : t("staff.loadDetailFailed"));
-    } finally {
-      setIsDetailLoading(false);
-    }
   }
 
   function updateUserForm(key: keyof CreateOperatorUserRequest, value: string) {
@@ -264,7 +253,8 @@ export default function StaffPage() {
             {t("staff.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            Quản lý tài khoản nội bộ, gửi link đặt mật khẩu lần đầu và phân nhóm vai trò vận hành.
+            Quản lý tài khoản nội bộ, gửi link đặt mật khẩu lần đầu và phân nhóm
+            vai trò vận hành.
           </p>
         </div>
         <button
@@ -293,24 +283,6 @@ export default function StaffPage() {
               {group.label}
             </button>
           ))}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-        <div className="flex gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-blue-700">
-            <FiMail size={18} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-blue-900">
-              {t("staff.initialPasswordFlow")}
-            </p>
-            <p className="mt-1 text-sm text-blue-800">
-              {t("staff.initialPasswordFlowBefore")}{" "}
-              <span className="font-mono">/set-initial-password?token=...</span>
-              {t("staff.initialPasswordFlowAfter")}
-            </p>
-          </div>
         </div>
       </div>
 
@@ -380,13 +352,13 @@ export default function StaffPage() {
               onChange={(event) => setStatusFilter(event.target.value)}
             >
               <option value="">{t("staff.allStatuses")}</option>
-              {[...new Set(users.map((user) => user.status).filter(Boolean))].map(
-                (status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ),
-              )}
+              {[
+                ...new Set(users.map((user) => user.status).filter(Boolean)),
+              ].map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
             </select>
             <button
               type="button"
@@ -427,14 +399,16 @@ export default function StaffPage() {
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px]">
+          <table className="w-full min-w-[960px]">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3">{t("staff.fullName")}</th>
-                <th className="px-5 py-3">{tc("email")}</th>
-                <th className="px-5 py-3">{t("staff.role")}</th>
-                <th className="px-5 py-3">{tc("status")}</th>
-                <th className="px-5 py-3">{tc("actions")}</th>
+              <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold text-gray-700">
+                <th className="px-6 py-3">{t("staff.fullName")}</th>
+                <th className="px-6 py-3">{tc("email")}</th>
+                <th className="px-6 py-3">{tc("phone")}</th>
+                <th className="px-6 py-3">{t("staff.role")}</th>
+                <th className="px-6 py-3">{t("staff.joined")}</th>
+                <th className="px-6 py-3">{tc("status")}</th>
+                <th className="px-6 py-3 text-center">{tc("actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -443,23 +417,22 @@ export default function StaffPage() {
                   key={user.userId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-100 text-vr-700">
-                        <FiUser size={16} />
-                      </div>
-                      <span className="font-semibold text-gray-900">
-                        {user.displayName}
-                      </span>
-                    </div>
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                    {user.displayName}
                   </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
+                  <td className="px-6 py-4 text-sm text-gray-600">
                     {user.email}
                   </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {formatVietnamPhoneForDisplay(user.phone)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
                     {roleLabel(user.role)}
                   </td>
-                  <td className="px-5 py-4">
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {formatJoinedAt(user.createdAt)}
+                  </td>
+                  <td className="px-6 py-4">
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                         isActiveStatus(user.status)
@@ -470,8 +443,8 @@ export default function StaffPage() {
                       {user.status}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-sm">
-                    <div className="flex items-center gap-2">
+                  <td className="px-6 py-4 text-center text-sm">
+                    <div className="flex items-center justify-center gap-2">
                       <button
                         type="button"
                         onClick={() => handleOpenDetail(user)}
@@ -506,7 +479,10 @@ export default function StaffPage() {
 
         <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-500">
-            {tc("showingItems", { count: filtered.length, total: users.length })}
+            {tc("showingItems", {
+              count: filtered.length,
+              total: users.length,
+            })}
           </p>
         </div>
       </div>
@@ -551,7 +527,9 @@ export default function StaffPage() {
                 <input
                   className={inputClass}
                   value={userForm.displayName}
-                  onChange={(e) => updateUserForm("displayName", e.target.value)}
+                  onChange={(e) =>
+                    updateUserForm("displayName", e.target.value)
+                  }
                   placeholder="Nguyen Van A"
                 />
               </div>
@@ -579,7 +557,7 @@ export default function StaffPage() {
                   placeholder="+84901234567"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Có thể nhập 0901234567, hệ thống sẽ tự đổi thành +84901234567.
+                  {t("staff.phoneInputHint")}
                 </p>
               </div>
               <div>
@@ -634,7 +612,6 @@ export default function StaffPage() {
       <StaffDetailModal
         open={openDetail}
         user={selectedUser}
-        isLoading={isDetailLoading}
         roleLabel={roleLabel}
         roleDescription={roleDescription}
         onClose={() => setOpenDetail(false)}
@@ -646,14 +623,12 @@ export default function StaffPage() {
 function StaffDetailModal({
   open,
   user,
-  isLoading,
   roleLabel,
   roleDescription,
   onClose,
 }: {
   open: boolean;
-  user: AdminUser | null;
-  isLoading: boolean;
+  user: OperatorUser | null;
   roleLabel: (role: AdminUserRole) => string;
   roleDescription: (role: AdminUserRole) => string;
   onClose: () => void;
@@ -679,22 +654,46 @@ function StaffDetailModal({
         </button>
       }
     >
-      {isLoading && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500">
-          {t("staff.loadingDetail")}
-        </div>
-      )}
-
-      {!isLoading && user && (
+      {user && (
         <div className="space-y-5">
+          <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center">
+            <img
+              src={staffAvatarUrl}
+              alt={user.displayName}
+              width={72}
+              height={72}
+              loading="lazy"
+              className="h-[72px] w-[72px] rounded-2xl border border-white bg-white object-cover shadow-sm"
+            />
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-gray-900">
+                {user.displayName || "-"}
+              </p>
+              <p className="mt-1 break-words text-sm text-gray-600">
+                {user.email || "-"}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-vr-700">
+                {roleLabel(user.role)}
+              </p>
+            </div>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <DetailItem label={t("staff.staffId")} value={user.userId} />
-            <DetailItem label={t("staff.displayName")} value={user.displayName} />
+            <DetailItem
+              label={t("staff.displayName")}
+              value={user.displayName}
+            />
             <DetailItem label={tc("email")} value={user.email} />
-            <DetailItem label={tc("phone")} value={user.phone ?? "-"} />
+            <DetailItem
+              label={tc("phone")}
+              value={formatVietnamPhoneForDisplay(user.phone)}
+            />
             <DetailItem label={t("staff.role")} value={roleLabel(user.role)} />
             <DetailItem label={tc("status")} value={user.status} />
-            <DetailItem label={t("staff.createdAt")} value={user.createdAt ?? "-"} />
+            <DetailItem
+              label={t("staff.createdAt")}
+              value={formatJoinedAt(user.createdAt)}
+            />
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -718,7 +717,8 @@ function StaffDetailModal({
               Quyền của vai trò
             </p>
             <p className="mt-1 text-sm text-gray-600">
-              {roleDescription(user.role) || "Chưa có mô tả quyền cho vai trò này."}
+              {roleDescription(user.role) ||
+                "Chưa có mô tả quyền cho vai trò này."}
             </p>
             <p className="mt-2 font-mono text-xs text-gray-400">{user.role}</p>
           </div>

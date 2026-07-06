@@ -1,14 +1,9 @@
-import { FiEye, FiFilter, FiPlus, FiSearch } from "react-icons/fi";
-import { useEffect, useMemo, useState } from "react";
+import { FiEye, FiFilter, FiSearch, FiUser } from "react-icons/fi";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Modal from "../../components/Modal";
-import {
-  getAdminOperatorUsers,
-  createAdminUser,
-  type AdminUser,
-  type AdminUserRole,
-  type CreateAdminUserRequest,
-} from "../../api/vietride";
+import { type AdminUser, type AdminUserRole } from "../../api/vietride";
+import { formatVietnamPhoneForDisplay } from "../../utils/phone";
 
 function isActiveStatus(status: string) {
   return ["ACTIVE", "APPROVED", "active"].includes(status);
@@ -28,58 +23,48 @@ function formatJoinedAt(value?: string) {
   return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-const emptyUserForm: CreateAdminUserRequest = {
-  email: "",
-  displayName: "",
-  role: "OPERATOR_ADMIN",
-};
+const passengerAvatarUrl =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='32' fill='%23eff6ff'/%3E%3Ccircle cx='64' cy='48' r='22' fill='%233b82f6'/%3E%3Cpath d='M28 106c5-24 19-36 36-36s31 12 36 36' fill='%231d4ed8'/%3E%3C/svg%3E";
+
+const mockPassengerUsers: AdminUser[] = [
+  {
+    userId: "passenger-001",
+    email: "minh.nguyen@example.com",
+    displayName: "Nguyễn Hoàng Minh",
+    phone: "+84901234567",
+    role: "PASSENGER",
+    status: "ACTIVE",
+    operatorId: null,
+    createdAt: "2026-07-01T08:20:00+07:00",
+  },
+  {
+    userId: "passenger-002",
+    email: "linh.tran@example.com",
+    displayName: "Trần Gia Linh",
+    phone: "+84981234567",
+    role: "PASSENGER",
+    status: "ACTIVE",
+    operatorId: null,
+    createdAt: "2026-07-03T14:35:00+07:00",
+  },
+  {
+    userId: "passenger-003",
+    email: "anh.pham@example.com",
+    displayName: "Phạm Quang Anh",
+    phone: "+84701234567",
+    role: "PASSENGER",
+    status: "PENDING_EMAIL_VERIFICATION",
+    operatorId: null,
+    createdAt: "2026-07-05T09:10:00+07:00",
+  },
+];
 
 export default function Users() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [searchTerm, setSearchTerm] = useState("");
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [users] = useState<AdminUser[]>(mockPassengerUsers);
   const [selected, setSelected] = useState<AdminUser | null>(null);
-  const [openCreate, setOpenCreate] = useState(false);
-  const [userForm, setUserForm] =
-    useState<CreateAdminUserRequest>(emptyUserForm);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadUsers() {
-      setIsLoading(true);
-      setError("");
-
-      try {
-        const result = await getAdminOperatorUsers({
-          page: 1,
-          pageSize: 20,
-          search: searchTerm,
-        });
-
-        if (!cancelled) {
-          setUsers(result.items);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load users");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadUsers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [searchTerm]);
 
   const filtered = useMemo(
     () =>
@@ -107,26 +92,6 @@ export default function Users() {
     return map[role] ?? role;
   };
 
-  const reloadUsers = async () => {
-    const result = await getAdminOperatorUsers({
-      page: 1,
-      pageSize: 20,
-      search: searchTerm,
-    });
-    setUsers(result.items);
-  };
-
-  const handleCreateUser = async () => {
-    await createAdminUser(userForm);
-    await reloadUsers();
-    setUserForm(emptyUserForm);
-    setOpenCreate(false);
-  };
-
-  const updateUserForm = (key: keyof CreateAdminUserRequest, value: string) => {
-    setUserForm((prev) => ({ ...prev, [key]: value }));
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -136,14 +101,6 @@ export default function Users() {
           </h1>
           <p className="text-gray-600 mt-1">{t("users.subtitle")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpenCreate(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-vr-600"
-        >
-          <FiPlus size={16} />
-          {t("users.createUser")}
-        </button>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -173,12 +130,6 @@ export default function Users() {
             </button>
           </div>
         </div>
-
-        {error && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
 
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
@@ -218,7 +169,7 @@ export default function Users() {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {u.phone ?? "--"}
+                    {formatVietnamPhoneForDisplay(u.phone)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700">
                     {roleLabel(u.role)}
@@ -254,117 +205,114 @@ export default function Users() {
           </table>
         </div>
 
-        {isLoading && (
-          <div className="mt-4 text-sm text-gray-500">{t("users.loading")}</div>
-        )}
-
         <div className="mt-4 text-sm text-gray-500">
           {tc("showingItems", { count: filtered.length, total: users.length })}
         </div>
       </div>
 
-      <Modal
+      <UserDetailModal
         open={selected !== null}
+        user={selected}
+        roleLabel={roleLabel}
         onClose={() => setSelected(null)}
-        title={selected?.displayName ?? tc("details")}
-        subtitle={selected?.email}
-      >
-        {selected && (
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs text-gray-600 mb-1">{t("users.role")}</p>
-              <p className="font-medium text-gray-900">
-                {roleLabel(selected.role)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 mb-1">{tc("status")}</p>
-              <p className="font-medium text-gray-900">{selected.status}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 mb-1">{tc("phone")}</p>
-              <p className="font-medium text-gray-900">
-                {selected.phone ?? "--"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 mb-1">
-                {t("users.operatorId")}
-              </p>
-              <p className="font-medium text-gray-900">
-                {selected.operatorId ?? "--"}
-              </p>
-            </div>
-          </div>
-        )}
-        <div />
-      </Modal>
+      />
+    </div>
+  );
+}
 
-      <Modal
-        open={openCreate}
-        onClose={() => setOpenCreate(false)}
-        title={t("users.createAdminUser")}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenCreate(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={handleCreateUser}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-            >
-              {tc("create")}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              {tc("name")}
-            </label>
-            <input
-              value={userForm.displayName}
-              onChange={(e) => updateUserForm("displayName", e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              placeholder="Operator manager"
+function UserDetailModal({
+  open,
+  user,
+  roleLabel,
+  onClose,
+}: {
+  open: boolean;
+  user: AdminUser | null;
+  roleLabel: (role: AdminUserRole) => string;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation("admin");
+  const { t: tc } = useTranslation("common");
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      wide
+      icon={<FiUser size={20} />}
+      title={tc("details")}
+      subtitle={t("users.subtitle")}
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {tc("close")}
+        </button>
+      }
+    >
+      {user && (
+        <div className="space-y-5">
+          <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center">
+            <img
+              src={passengerAvatarUrl}
+              alt={user.displayName}
+              width={72}
+              height={72}
+              loading="lazy"
+              className="h-[72px] w-[72px] rounded-2xl border border-white bg-white object-cover shadow-sm"
+            />
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-gray-900">
+                {user.displayName || "-"}
+              </p>
+              <p className="mt-1 break-words text-sm text-gray-600">
+                {user.email || "-"}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-vr-700">
+                {roleLabel(user.role)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <DetailItem label={t("users.fullName")} value={user.displayName} />
+            <DetailItem label={tc("email")} value={user.email} />
+            <DetailItem
+              label={tc("phone")}
+              value={formatVietnamPhoneForDisplay(user.phone)}
+            />
+            <DetailItem label={t("users.role")} value={roleLabel(user.role)} />
+            <DetailItem label={tc("status")} value={user.status} />
+            <DetailItem
+              label={t("users.joined")}
+              value={formatJoinedAt(user.createdAt)}
             />
           </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              {tc("email")}
-            </label>
-            <input
-              value={userForm.email}
-              onChange={(e) => updateUserForm("email", e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              placeholder="manager@operator.vn"
-              type="email"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              {t("users.role")}
-            </label>
-            <select
-              value={userForm.role}
-              onChange={(e) => updateUserForm("role", e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-            >
-              <option value="OPERATOR_ADMIN">{t("users.operatorAdmin")}</option>
-              <option value="OPERATOR_STAFF">{t("users.operatorStaff")}</option>
-              <option value="DRIVER">{t("users.driver")}</option>
-              <option value="ASSISTANT">{t("users.assistant")}</option>
-              <option value="SYSTEM_ADMIN">{t("users.systemAdmin")}</option>
-            </select>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <p className="text-sm font-semibold text-gray-900">
+              {t("users.customer")}
+            </p>
+            <p className="mt-1 text-sm text-gray-600">
+              {t("users.passengerDetailHint")}
+            </p>
+            <p className="mt-2 font-mono text-xs text-gray-400">{user.role}</p>
           </div>
         </div>
-      </Modal>
+      )}
+    </Modal>
+  );
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="text-xs font-medium text-gray-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-gray-900">
+        {value || "-"}
+      </p>
     </div>
   );
 }

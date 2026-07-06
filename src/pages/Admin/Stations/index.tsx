@@ -8,6 +8,7 @@ import {
   FiSave,
   FiSearch,
 } from "react-icons/fi";
+import PlacePicker, { type PlaceSelection } from "../../../components/PlacePicker";
 
 type StationStatus = "ACTIVE" | "DUPLICATE" | "INACTIVE";
 
@@ -180,8 +181,33 @@ export default function AdminStations() {
     setAlert(null);
   };
 
-  const updateForm = (key: keyof StationForm, value: string) => {
-    setForm((current) => ({ ...current, [key]: value }));
+  const selectedPlace = useMemo<PlaceSelection | null>(() => {
+    const latitude = Number(form.latitude);
+    const longitude = Number(form.longitude);
+
+    if (!isValidCoordinate(latitude, longitude)) {
+      return null;
+    }
+
+    return {
+      placeId: selectedStationId || `${latitude},${longitude}`,
+      name: form.name,
+      address: form.address,
+      city: form.city,
+      province: form.city,
+      latitude,
+      longitude,
+    };
+  }, [form, selectedStationId]);
+
+  const applyPlace = (place: PlaceSelection) => {
+    setForm({
+      name: place.name,
+      address: place.address,
+      city: place.city || place.province,
+      latitude: String(place.latitude),
+      longitude: String(place.longitude),
+    });
   };
 
   const saveStation = () => {
@@ -398,7 +424,6 @@ export default function AdminStations() {
                 <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
                   <th className="px-4 py-3">{t("stations.stationName")}</th>
                   <th className="px-4 py-3">{t("stations.city")}</th>
-                  <th className="px-4 py-3">{t("stations.coordinates")}</th>
                   <th className="px-4 py-3">{t("stations.linkedOperators")}</th>
                   <th className="px-4 py-3">{tc("status")}</th>
                   <th className="px-4 py-3 text-center">{tc("actions")}</th>
@@ -419,10 +444,6 @@ export default function AdminStations() {
                       </p>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{station.city}</td>
-                    <td className="px-4 py-3 text-xs text-gray-600">
-                      {station.latitude.toFixed(4)},{" "}
-                      {station.longitude.toFixed(4)}
-                    </td>
                     <td className="px-4 py-3 text-gray-700">
                       {station.linkedOperators}
                     </td>
@@ -499,58 +520,12 @@ export default function AdminStations() {
               </div>
 
               <div className="mt-5 space-y-4">
-                <label>
-                  <span className={labelClass}>
-                    {t("stations.stationName")}
-                  </span>
-                  <input
-                    className={inputClass}
-                    value={form.name}
-                    onChange={(event) => updateForm("name", event.target.value)}
-                  />
-                </label>
-                <label>
-                  <span className={labelClass}>{t("stations.address")}</span>
-                  <input
-                    className={inputClass}
-                    value={form.address}
-                    onChange={(event) =>
-                      updateForm("address", event.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  <span className={labelClass}>{t("stations.city")}</span>
-                  <input
-                    className={inputClass}
-                    value={form.city}
-                    onChange={(event) => updateForm("city", event.target.value)}
-                  />
-                </label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label>
-                    <span className={labelClass}>{t("stations.latitude")}</span>
-                    <input
-                      className={inputClass}
-                      value={form.latitude}
-                      onChange={(event) =>
-                        updateForm("latitude", event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span className={labelClass}>
-                      {t("stations.longitude")}
-                    </span>
-                    <input
-                      className={inputClass}
-                      value={form.longitude}
-                      onChange={(event) =>
-                        updateForm("longitude", event.target.value)
-                      }
-                    />
-                  </label>
-                </div>
+                <PlacePicker
+                  label={t("stations.stationName")}
+                  placeholder={t("stations.searchPlaceholder")}
+                  selectedPlace={selectedPlace}
+                  onSelect={applyPlace}
+                />
               </div>
 
               <button

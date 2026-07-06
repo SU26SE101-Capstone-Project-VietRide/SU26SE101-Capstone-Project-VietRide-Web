@@ -228,11 +228,6 @@ const adminMenuConfig: MenuSection[] = [
         path: "/admin/rag-audit",
         icon: <FiDatabase />,
       },
-      {
-        labelKey: "admin.settings",
-        path: "/admin/settings",
-        icon: <FiSettings />,
-      },
     ],
   },
 ];

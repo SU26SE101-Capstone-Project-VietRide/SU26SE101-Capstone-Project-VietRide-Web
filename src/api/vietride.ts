@@ -154,6 +154,7 @@ export type OperatorUser = {
   status: string;
   operatorId: string;
   createdAt?: string;
+  initialPasswordExpiresAt?: string;
 };
 
 export type CreateOperatorUserRequest = {
@@ -430,6 +431,160 @@ export type CreateAdminVoucherRequest = {
   active: boolean;
 };
 
+export type BookingStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "PAID"
+  | "CANCELLED"
+  | "BOARDED"
+  | string;
+
+export type BookingPassengerRequest = {
+  passengerId?: string;
+  fullName: string;
+  phone?: string;
+  email?: string;
+  identityDocument?: string;
+  seatNumber: string;
+};
+
+export type BookingPassengerRecord = BookingPassengerRequest & {
+  passengerRecordId: string;
+  checkedInAt?: string | null;
+  boardedAt?: string | null;
+  status?: string;
+};
+
+export type Booking = {
+  bookingId: string;
+  code?: string;
+  tripId: string;
+  operatorId?: string;
+  status: BookingStatus;
+  seatNumbers?: string[];
+  passengers?: BookingPassengerRecord[];
+  pickupStopId?: string;
+  dropoffStopId?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  subtotalAmount?: number;
+  discountAmount?: number;
+  totalAmount?: number;
+  currency?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  cancelledAt?: string | null;
+};
+
+export type CreateBookingRequest = {
+  tripId: string;
+  seatLockToken: string;
+  pickupStopId?: string;
+  dropoffStopId?: string;
+  contactName: string;
+  contactPhone: string;
+  contactEmail?: string;
+  passengers: BookingPassengerRequest[];
+  voucherCode?: string;
+  paymentMethod?: string;
+  note?: string;
+};
+
+export type CreateRoundTripBookingRequest = {
+  outbound: CreateBookingRequest;
+  return: CreateBookingRequest;
+};
+
+export type RoundTripBooking = {
+  outbound: Booking;
+  return: Booking;
+};
+
+export type EditBookingPickupRequest = {
+  pickupStopId: string;
+  note?: string;
+};
+
+export type EditBookingDropoffRequest = {
+  dropoffStopId: string;
+  note?: string;
+};
+
+export type CancelBookingRequest = {
+  reason: string;
+  note?: string;
+};
+
+export type BookingManifest = {
+  tripId: string;
+  operatorId?: string;
+  bookingCount?: number;
+  passengerCount?: number;
+  passengers: BookingPassengerRecord[];
+  bookings?: Booking[];
+};
+
+export type BoardPassengerRequest = {
+  boardedAt?: string;
+  note?: string;
+};
+
+export type BoardingQrScanRequest = {
+  qrCode: string;
+  scannedAt?: string;
+  note?: string;
+};
+
+export type BoardingResult = {
+  tripId: string;
+  bookingId?: string;
+  passengerRecordId?: string;
+  status: string;
+  boardedAt?: string;
+};
+
+export type BookingTrackingAuthorization = {
+  tripId: string;
+  bookings: Array<{
+    bookingId: string;
+    passengerRecordId?: string;
+    passengerName?: string;
+    phone?: string;
+    seatNumber?: string;
+    canTrack?: boolean;
+    status?: string;
+  }>;
+};
+
+export type PickupBooking = {
+  bookingId: string;
+  passengerRecordId?: string;
+  passengerName?: string;
+  phone?: string;
+  seatNumber?: string;
+  pickupStopId: string;
+  status?: string;
+};
+
+export type BookingStatsParams = {
+  from?: string;
+  to?: string;
+  operatorId?: string;
+  routeId?: string;
+  status?: string;
+};
+
+export type BookingStatsAggregate = {
+  totalBookings: number;
+  totalPassengers?: number;
+  totalRevenue?: number;
+  cancelledBookings?: number;
+  pendingBookings?: number;
+  confirmedBookings?: number;
+  byStatus?: Record<string, number>;
+};
+
 export type AlternativeRoute = {
   id: string;
   routeId: string;
@@ -624,6 +779,164 @@ export type BookSeatsRequest = {
   }>;
 };
 
+export type TripTrackingAuthorization = {
+  tripId: string;
+  operatorId?: string;
+  userId?: string;
+  role?: AdminUserRole;
+  status?: string;
+  isAuthorized?: boolean;
+  allowedScopes?: string[];
+  expiresAt?: string;
+};
+
+export type TripRouteStop = {
+  tripId?: string;
+  stopId: string;
+  orderIndex: number;
+  name?: string;
+  allowPickup?: boolean;
+  allowDropoff?: boolean;
+  estimatedArrivalTime?: string;
+  actualArrivalTime?: string | null;
+  distanceFromOriginKm?: number;
+  fareFromThisStop?: number;
+  status?: string;
+};
+
+export type TripRouteGeometryPoint = {
+  latitude: number;
+  longitude: number;
+  orderIndex?: number;
+};
+
+export type TripRouteGeometry = {
+  tripId: string;
+  encodedPolyline?: string;
+  geoJson?: unknown;
+  points?: TripRouteGeometryPoint[];
+};
+
+export type CargoCapacity = {
+  tripId: string;
+  reservedWeightKg?: number;
+  loadedWeightKg?: number;
+  percentFull?: number;
+  maxCargoWeightKg: number;
+  maxCargoVolumeM3?: number;
+  reservedCargoWeightKg?: number;
+  reservedCargoVolumeM3?: number;
+  loadedCargoWeightKg?: number;
+  loadedCargoVolumeM3?: number;
+  availableCargoWeightKg?: number;
+  availableCargoVolumeM3?: number;
+};
+
+export type CargoReserveRequest = {
+  parcelId?: string;
+  bookingId?: string;
+  weightKg: number;
+  volumeM3?: number;
+  holdOwnerId?: string;
+  ttlSeconds?: number;
+};
+
+export type CargoReserveResult = {
+  tripId: string;
+  cargoLockToken?: string;
+  reservedWeightKg?: number;
+  reservedVolumeM3?: number;
+  expiresAt?: string;
+};
+
+export type CargoLoadRequest = {
+  parcelId?: string;
+  bookingId?: string;
+  cargoLockToken?: string;
+  weightKg?: number;
+  volumeM3?: number;
+  loadedByUserId?: string;
+  note?: string;
+};
+
+export type CargoReleaseRequest = {
+  parcelId?: string;
+  bookingId?: string;
+  cargoLockToken?: string;
+  weightKg?: number;
+  volumeM3?: number;
+  reason?: string;
+};
+
+export type CargoActionResult = {
+  tripId: string;
+  status?: string;
+  releasedAt?: string;
+  loadedAt?: string;
+};
+
+export type OperatorDriverSchedule = {
+  id: string;
+  operatorId: string;
+  routeId: string;
+  vehicleId: string;
+  driverId: string;
+  assistantId?: string | null;
+  departureTime: string;
+  effectiveFrom: string;
+  effectiveUntil?: string | null;
+  daysOfWeek?: number[];
+  status?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type OperatorDriverScheduleRequest = {
+  routeId: string;
+  vehicleId: string;
+  driverId: string;
+  assistantId?: string;
+  departureTime: string;
+  effectiveFrom: string;
+  effectiveUntil?: string;
+  daysOfWeek?: number[];
+};
+
+export type TripStopArrivalRequest = {
+  actualArrivalTime?: string;
+  note?: string;
+};
+
+export type TripStopArrivalResult = {
+  tripId: string;
+  stopId: string;
+  status?: string;
+  actualArrivalTime?: string;
+};
+
+export type SubstituteVehicleRequest = {
+  newVehicleId: string;
+  newDriverUserId?: string;
+  newAssistantUserId?: string;
+  reason: string;
+};
+
+export type TripDisruptionRequest = {
+  reason: string;
+};
+
+export type TripOperationResult = {
+  tripId: string;
+  oldTripId?: string;
+  newTripId?: string;
+  stopId?: string;
+  status?: string;
+  vehicleId?: string;
+  actualArrivalTime?: string;
+  message?: string;
+};
+
 export type VerifyEmailRequest = {
   email: string;
   code: string;
@@ -727,10 +1040,24 @@ export function registerOperator(request: RegisterOperatorRequest) {
   });
 }
 
-export function getOperatorUsers(params: AdminUserParams = {}) {
-  return apiRequest<PagedResult<OperatorUser>>(
+export async function getOperatorUsers(params: AdminUserParams = {}) {
+  const response = await apiRequest<PagedResult<OperatorUser> | OperatorUser[]>(
     `/v1/operator/users${buildQuery(params)}`,
   );
+
+  if (Array.isArray(response)) {
+    return {
+      items: response,
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? response.length,
+      totalItems: response.length,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    };
+  }
+
+  return response;
 }
 
 export function createOperatorUser(request: CreateOperatorUserRequest) {
@@ -741,7 +1068,7 @@ export function createOperatorUser(request: CreateOperatorUserRequest) {
 }
 
 export function resendInitialPassword(userId: string) {
-  return apiRequest<{ userId: string; message: string }>(
+  return apiRequest<{ userId: string; status: string; expiresAt?: string }>(
     `/v1/operator/users/${userId}/resend-initial-password`,
     { method: "POST" },
   );
@@ -860,6 +1187,34 @@ export function createRouteFareTemplate(
   );
 }
 
+export function createOperatorDriverSchedule(
+  request: OperatorDriverScheduleRequest,
+) {
+  return apiRequest<OperatorDriverSchedule>("/v1/operator/driver-schedules", {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function activateOperatorDriverSchedule(id: string) {
+  return apiRequest<OperatorDriverSchedule>(
+    `/v1/operator/driver-schedules/${id}/activate`,
+    { method: "PATCH" },
+  );
+}
+
+export function getOperatorBookingStats(params: BookingStatsParams = {}) {
+  return apiRequest<BookingStatsAggregate>(
+    `/v1/operator/booking-stats${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorVouchers(params: PageParams = {}) {
+  return apiRequest<PagedResult<OperatorVoucher>>(
+    `/v1/operator/vouchers${buildQuery(params)}`,
+  );
+}
+
 export function createOperatorVoucher(request: CreateOperatorVoucherRequest) {
   return apiRequest<OperatorVoucher>("/v1/operator/vouchers", {
     method: "POST",
@@ -914,6 +1269,21 @@ export function rejectOperatorVoucherConsent(id: string, reason: string) {
   return apiRequest<{ id: string; status: string }>(
     `/v1/operator/voucher-consents/${id}/reject`,
     { method: "POST", body: { reason } },
+  );
+}
+
+export function getAdminBookingStatsAggregate(params: BookingStatsParams = {}) {
+  return apiRequest<BookingStatsAggregate>(
+    `/v1/admin/booking-stats/aggregate${buildQuery(params)}`,
+  );
+}
+
+export function getAdminVoucherConsents(
+  voucherId: string,
+  params: PageParams & { status?: string } = {},
+) {
+  return apiRequest<PagedResult<OperatorVoucherConsent>>(
+    `/v1/admin/vouchers/${voucherId}/consents${buildQuery(params)}`,
   );
 }
 
@@ -1022,6 +1392,82 @@ export function getPublicTripSeatMap(tripId: string) {
   return apiRequest<unknown>(`/v1/trips/${tripId}/seat-map`);
 }
 
+export function createBooking(request: CreateBookingRequest) {
+  return apiRequest<Booking>("/v1/bookings", {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function createRoundTripBooking(
+  request: CreateRoundTripBookingRequest,
+  idempotencyKey?: string,
+) {
+  return apiRequest<RoundTripBooking>("/v1/bookings/round-trip", {
+    method: "POST",
+    body: request,
+    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+  });
+}
+
+export function editBookingPickup(
+  bookingId: string,
+  request: EditBookingPickupRequest,
+) {
+  return apiRequest<Booking>(`/v1/bookings/${bookingId}/edit-pickup`, {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function editBookingDropoff(
+  bookingId: string,
+  request: EditBookingDropoffRequest,
+) {
+  return apiRequest<Booking>(`/v1/bookings/${bookingId}/edit-dropoff`, {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function cancelBooking(bookingId: string, request: CancelBookingRequest) {
+  return apiRequest<Booking>(`/v1/bookings/${bookingId}/cancel`, {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function getBookingTripManifest(tripId: string) {
+  return apiRequest<BookingManifest>(`/v1/bookings/trips/${tripId}/manifest`);
+}
+
+export function boardBookingPassenger(
+  tripId: string,
+  passengerRecordId: string,
+  request: BoardPassengerRequest = {},
+) {
+  return apiRequest<BoardingResult>(
+    `/v1/bookings/trips/${tripId}/boarding/passenger/${passengerRecordId}`,
+    { method: "POST", body: request },
+  );
+}
+
+export function scanBookingBoardingQr(
+  tripId: string,
+  request: BoardingQrScanRequest,
+) {
+  return apiRequest<BoardingResult>(
+    `/v1/bookings/trips/${tripId}/boarding/qr-scan`,
+    { method: "POST", body: request },
+  );
+}
+
+export function pingTripService() {
+  return apiRequest<{ message?: string }>("/v1/ping", {
+    authenticated: false,
+  });
+}
+
 export function getInternalStation(id: string) {
   return apiRequest<Station>(`/internal/v1/stations/${id}`);
 }
@@ -1032,6 +1478,39 @@ export function getInternalStop(id: string) {
 
 export function getInternalTrip(tripId: string) {
   return apiRequest<PublicTrip>(`/internal/v1/trips/${tripId}`);
+}
+
+export function getInternalTripTrackingAuthorization(tripId: string) {
+  return apiRequest<TripTrackingAuthorization>(
+    `/internal/v1/trips/${tripId}/tracking-authorization`,
+  );
+}
+
+export function getInternalTripRouteStops(tripId: string) {
+  return apiRequest<TripRouteStop[]>(
+    `/internal/v1/trips/${tripId}/route-stops`,
+  );
+}
+
+export function getInternalTripRouteGeometry(tripId: string) {
+  return apiRequest<TripRouteGeometry>(
+    `/internal/v1/trips/${tripId}/route-geometry`,
+  );
+}
+
+export function getInternalTripTrackingAuthorizationBookings(tripId: string) {
+  return apiRequest<BookingTrackingAuthorization>(
+    `/internal/v1/trips/${tripId}/tracking-authorization/bookings`,
+  );
+}
+
+export function getInternalTripStopPickupBookings(
+  tripId: string,
+  stopId: string,
+) {
+  return apiRequest<PickupBooking[]>(
+    `/internal/v1/trips/${tripId}/stops/${stopId}/pickup-bookings`,
+  );
 }
 
 export function lockInternalTripSeats(tripId: string, request: SeatLockRequest) {
@@ -1058,6 +1537,33 @@ export function bookInternalTripSeats(tripId: string, request: BookSeatsRequest)
   });
 }
 
+export function reserveInternalTripCargo(
+  tripId: string,
+  request: CargoReserveRequest,
+) {
+  return apiRequest<CargoReserveResult>(
+    `/internal/v1/trips/${tripId}/cargo/reserve`,
+    { method: "POST", body: request },
+  );
+}
+
+export function loadInternalTripCargo(tripId: string, request: CargoLoadRequest) {
+  return apiRequest<CargoActionResult>(
+    `/internal/v1/trips/${tripId}/cargo/load`,
+    { method: "POST", body: request },
+  );
+}
+
+export function releaseInternalTripCargo(
+  tripId: string,
+  request: CargoReleaseRequest,
+) {
+  return apiRequest<CargoActionResult>(
+    `/internal/v1/trips/${tripId}/cargo/release`,
+    { method: "POST", body: request },
+  );
+}
+
 export function lockInternalRoundTripSeats(
   request: RoundTripSeatLockRequest,
   idempotencyKey?: string,
@@ -1069,5 +1575,42 @@ export function lockInternalRoundTripSeats(
       body: request,
       headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
     },
+  );
+}
+
+export function getOperatorTripCargoCapacity(tripId: string) {
+  return apiRequest<CargoCapacity>(
+    `/v1/operator/trips/${tripId}/cargo-capacity`,
+  );
+}
+
+export function arriveOperatorTripStop(
+  tripId: string,
+  stopId: string,
+  request: TripStopArrivalRequest = {},
+) {
+  return apiRequest<TripStopArrivalResult>(
+    `/v1/operator/trips/${tripId}/stops/${stopId}/arrive`,
+    { method: "POST", body: request },
+  );
+}
+
+export function substituteOperatorTripVehicle(
+  tripId: string,
+  request: SubstituteVehicleRequest,
+) {
+  return apiRequest<TripOperationResult>(
+    `/v1/operator/trips/${tripId}/substitute-vehicle`,
+    { method: "POST", body: request },
+  );
+}
+
+export function disruptOperatorTripNoSubstitution(
+  tripId: string,
+  request: TripDisruptionRequest,
+) {
+  return apiRequest<TripOperationResult>(
+    `/v1/operator/trips/${tripId}/disrupt-no-substitution`,
+    { method: "POST", body: request },
   );
 }
