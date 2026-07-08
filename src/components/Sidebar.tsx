@@ -159,6 +159,11 @@ const operatorStaffMenuConfig: MenuSection[] = [
         path: "/manager/dispatch",
         icon: <FiNavigation />,
       },
+      {
+        labelKey: "manager.vouchers",
+        path: "/manager/vouchers",
+        icon: <FiPackage />,
+      },
     ],
   },
 ];

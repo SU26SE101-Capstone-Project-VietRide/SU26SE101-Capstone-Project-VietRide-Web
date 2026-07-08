@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiTruck,
@@ -25,6 +25,10 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import {
+  getOperatorBookingStats,
+  type BookingStatsItem,
+} from "../../api/vietride";
 
 type KPICard = {
   labelKey: string;
@@ -34,7 +38,14 @@ type KPICard = {
   icon: React.ReactNode;
 };
 
-const revenueChartData = [
+type RevenueChartPoint = {
+  month: string;
+  revenue: number;
+  orders: number;
+  rawRevenue?: number;
+};
+
+const revenueChartData: RevenueChartPoint[] = [
   { month: "T1", revenue: 180, orders: 320 },
   { month: "T2", revenue: 165, orders: 310 },
   { month: "T3", revenue: 195, orders: 340 },
@@ -46,6 +57,72 @@ const revenueChartData = [
   { month: "T9", revenue: 255, orders: 470 },
   { month: "T10", revenue: 270, orders: 490 },
 ];
+
+function toDateInput(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function currentYearRange() {
+  const now = new Date();
+  return {
+    from: toDateInput(new Date(now.getFullYear(), 0, 1)),
+    to: toDateInput(new Date(now.getFullYear(), 11, 31)),
+  };
+}
+
+function monthLabel(dateValue?: string) {
+  if (!dateValue) {
+    return "N/A";
+  }
+
+  const month = new Date(dateValue).getMonth() + 1;
+  return Number.isNaN(month) ? dateValue : `T${month}`;
+}
+
+function asHundredMillion(value = 0) {
+  return Math.round(value / 100_000_000);
+}
+
+function formatCompactMoney(value: number) {
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
+  }
+
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+
+  return value.toLocaleString("vi-VN");
+}
+
+function formatCompactNumber(value: number) {
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+
+  return value.toLocaleString("vi-VN");
+}
+
+function sumStats(items: BookingStatsItem[], key: keyof BookingStatsItem) {
+  return items.reduce((total, item) => {
+    const value = item[key];
+    return total + (typeof value === "number" ? value : 0);
+  }, 0);
+}
+
+function mapRevenueStats(items: BookingStatsItem[]) {
+  return items.map((item) => ({
+    month: monthLabel(item.date),
+    revenue: asHundredMillion(item.totalRevenue),
+    orders: item.totalBookings,
+    rawRevenue: item.totalRevenue,
+  }));
+}
+
+async function fetchOperatorBookingStats() {
+  const { from, to } = currentYearRange();
+  return getOperatorBookingStats({ from, to, groupBy: "month" });
+}
 
 const cargoStatusData = [
   { name: "HCM - Da Lat", value: 245 },
@@ -132,19 +209,50 @@ export default function ManagerDashboard() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [isLoading, setIsLoading] = useState(false);
+  const [revenueData, setRevenueData] = useState(revenueChartData);
+  const [summary, setSummary] = useState({
+    totalRevenue: 2_284_500_000,
+    totalBookings: 1_284,
+  });
+
+  const applyBookingStats = (stats: Awaited<ReturnType<typeof fetchOperatorBookingStats>>) => {
+    if (stats.items.length === 0) {
+      return;
+    }
+
+    setRevenueData(mapRevenueStats(stats.items));
+    setSummary({
+      totalRevenue: stats.totalRevenue ?? sumStats(stats.items, "totalRevenue"),
+      totalBookings: stats.totalBookings ?? sumStats(stats.items, "totalBookings"),
+    });
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void fetchOperatorBookingStats().then((stats) => {
+      if (isMounted) {
+        applyBookingStats(stats);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const kpis: KPICard[] = useMemo(
     () => [
       {
         labelKey: "dashboard.revenue",
-        value: "2284.5M",
+        value: formatCompactMoney(summary.totalRevenue),
         change: "+15.2%",
         trend: "up",
         icon: <FiBarChart2 className="w-6 h-6" />,
       },
       {
         labelKey: "dashboard.bookings",
-        value: "1,284",
+        value: formatCompactNumber(summary.totalBookings),
         change: "+8.5%",
         trend: "up",
         icon: <FiPackage className="w-6 h-6" />,
@@ -164,12 +272,14 @@ export default function ManagerDashboard() {
         icon: <FiTrendingUp className="w-6 h-6" />,
       },
     ],
-    [],
+    [summary.totalBookings, summary.totalRevenue],
   );
 
   const handleRefresh = () => {
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 1000);
+    void fetchOperatorBookingStats()
+      .then(applyBookingStats)
+      .finally(() => setIsLoading(false));
   };
 
   const getStatusBadge = (status: Shipment["status"]) => {
@@ -257,7 +367,7 @@ export default function ManagerDashboard() {
             </button>
           </div>
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={revenueChartData}>
+            <LineChart data={revenueData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="month" stroke="#9ca3af" />
               <YAxis stroke="#9ca3af" />

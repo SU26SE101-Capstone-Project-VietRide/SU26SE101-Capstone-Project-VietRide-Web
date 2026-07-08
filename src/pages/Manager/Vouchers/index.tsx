@@ -18,6 +18,7 @@ import {
   getOperatorRoutes,
   deleteOperatorVoucher,
   getOperatorVoucherConsents,
+  getOperatorVouchers,
   rejectOperatorVoucherConsent,
   updateOperatorVoucher,
   type CreateOperatorVoucherRequest,
@@ -26,6 +27,7 @@ import {
   type OperatorVoucherConsent,
   type UpdateOperatorVoucherRequest,
 } from "../../../api/vietride";
+import { getAuthUser } from "../../../auth";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -51,10 +53,10 @@ type VoucherForm = {
 const emptyForm: VoucherForm = {
   code: "",
   name: "",
-  type: "PERCENT",
+  type: "PERCENT_OFF",
   value: "10",
   minOrderAmount: "0",
-  maxDiscountAmount: "0",
+  maxDiscountAmount: "50000",
   totalUsageLimit: "100",
   perUserLimit: "1",
   validFrom: new Date().toISOString().slice(0, 16),
@@ -154,7 +156,10 @@ function toUpdateRequest(form: VoucherForm): UpdateOperatorVoucherRequest {
 export default function ManagerVouchers() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [activeTab, setActiveTab] = useState<VoucherTab>("vouchers");
+  const isOperatorAdmin = getAuthUser()?.role === "OPERATOR_ADMIN";
+  const [activeTab, setActiveTab] = useState<VoucherTab>(
+    isOperatorAdmin ? "vouchers" : "consents",
+  );
   const [vouchers, setVouchers] = useState<OperatorVoucher[]>([]);
   const [consents, setConsents] = useState<OperatorVoucherConsent[]>([]);
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
@@ -163,6 +168,8 @@ export default function ManagerVouchers() {
   const [selectedVoucher, setSelectedVoucher] = useState<OperatorVoucher | null>(
     null,
   );
+  const [deletingVoucher, setDeletingVoucher] =
+    useState<OperatorVoucher | null>(null);
   const [rejectingConsent, setRejectingConsent] =
     useState<OperatorVoucherConsent | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -176,11 +183,15 @@ export default function ManagerVouchers() {
     setError("");
 
     try {
-      const [consentResult, routeResult] = await Promise.all([
+      const [voucherResult, consentResult, routeResult] = await Promise.all([
+        isOperatorAdmin
+          ? getOperatorVouchers({ page: 1, pageSize: 100 })
+          : Promise.resolve(null),
         getOperatorVoucherConsents(consentStatus || undefined),
         getOperatorRoutes({ page: 1, pageSize: 100 }),
       ]);
 
+      setVouchers(voucherResult?.items ?? []);
       setConsents(consentResult.items);
       setRoutes(routeResult.items);
     } catch (err) {
@@ -198,7 +209,10 @@ export default function ManagerVouchers() {
       setError("");
 
       try {
-        const [consentResult, routeResult] = await Promise.all([
+        const [voucherResult, consentResult, routeResult] = await Promise.all([
+          isOperatorAdmin
+            ? getOperatorVouchers({ page: 1, pageSize: 100 })
+            : Promise.resolve(null),
           getOperatorVoucherConsents(consentStatus || undefined),
           getOperatorRoutes({ page: 1, pageSize: 100 }),
         ]);
@@ -207,6 +221,7 @@ export default function ManagerVouchers() {
           return;
         }
 
+        setVouchers(voucherResult?.items ?? []);
         setConsents(consentResult.items);
         setRoutes(routeResult.items);
       } catch (err) {
@@ -225,7 +240,7 @@ export default function ManagerVouchers() {
     return () => {
       ignore = true;
     };
-  }, [consentStatus]);
+  }, [consentStatus, isOperatorAdmin]);
 
   const activeCount = useMemo(
     () => vouchers.filter((voucher) => voucher.isActive).length,
@@ -256,26 +271,30 @@ export default function ManagerVouchers() {
     setError("");
     setMessage("");
 
-    if (selectedVoucher) {
-      const updatedVoucher = await updateOperatorVoucher(
-        getVoucherId(selectedVoucher),
-        toUpdateRequest(form),
-      );
-      setVouchers((current) =>
-        current.map((voucher) =>
-          getVoucherId(voucher) === getVoucherId(updatedVoucher)
-            ? updatedVoucher
-            : voucher,
-        ),
-      );
-      setMessage(t("vouchers.updateSuccess"));
-    } else {
-      const createdVoucher = await createOperatorVoucher(toCreateRequest(form));
-      setVouchers((current) => [createdVoucher, ...current]);
-      setMessage(t("vouchers.createSuccess"));
-    }
+    try {
+      if (selectedVoucher) {
+        const updatedVoucher = await updateOperatorVoucher(
+          getVoucherId(selectedVoucher),
+          toUpdateRequest(form),
+        );
+        setVouchers((current) =>
+          current.map((voucher) =>
+            getVoucherId(voucher) === getVoucherId(updatedVoucher)
+              ? updatedVoucher
+              : voucher,
+          ),
+        );
+        setMessage(t("vouchers.updateSuccess"));
+      } else {
+        const createdVoucher = await createOperatorVoucher(toCreateRequest(form));
+        setVouchers((current) => [createdVoucher, ...current]);
+        setMessage(t("vouchers.createSuccess"));
+      }
 
-    setIsModalOpen(false);
+      setIsModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("vouchers.saveFailed"));
+    }
   }
 
   async function handleToggle(voucher: OperatorVoucher) {
@@ -305,26 +324,38 @@ export default function ManagerVouchers() {
     }
   }
 
-  async function handleDelete(voucher: OperatorVoucher) {
-    if (!confirm(t("vouchers.confirmDeleteOperatorVoucher"))) {
+  async function handleDelete() {
+    if (!deletingVoucher) {
       return;
     }
 
     setError("");
     setMessage("");
-    await deleteOperatorVoucher(getVoucherId(voucher));
-    setVouchers((current) =>
-      current.filter((item) => getVoucherId(item) !== getVoucherId(voucher)),
-    );
-    setMessage(t("vouchers.deleteOperatorSuccess"));
+
+    try {
+      await deleteOperatorVoucher(getVoucherId(deletingVoucher));
+      setVouchers((current) =>
+        current.filter(
+          (item) => getVoucherId(item) !== getVoucherId(deletingVoucher),
+        ),
+      );
+      setDeletingVoucher(null);
+      setMessage(t("vouchers.deleteOperatorSuccess"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("vouchers.deleteFailed"));
+    }
   }
 
   async function handleAcceptConsent(consent: OperatorVoucherConsent) {
     setError("");
     setMessage("");
-    await acceptOperatorVoucherConsent(consent.id);
-    setMessage(t("vouchers.acceptConsentSuccess", { code: consent.voucherCode }));
-    await loadData();
+    try {
+      await acceptOperatorVoucherConsent(consent.id);
+      setMessage(t("vouchers.acceptConsentSuccess", { code: consent.voucherCode }));
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("vouchers.acceptFailed"));
+    }
   }
 
   async function handleRejectConsent() {
@@ -334,11 +365,15 @@ export default function ManagerVouchers() {
 
     setError("");
     setMessage("");
-    await rejectOperatorVoucherConsent(rejectingConsent.id, rejectReason);
-    setMessage(t("vouchers.rejectConsentSuccess", { code: rejectingConsent.voucherCode }));
-    setRejectingConsent(null);
-    setRejectReason("");
-    await loadData();
+    try {
+      await rejectOperatorVoucherConsent(rejectingConsent.id, rejectReason);
+      setMessage(t("vouchers.rejectConsentSuccess", { code: rejectingConsent.voucherCode }));
+      setRejectingConsent(null);
+      setRejectReason("");
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("vouchers.rejectFailed"));
+    }
   }
 
   return (
@@ -361,14 +396,16 @@ export default function ManagerVouchers() {
             <FiRefreshCw size={16} />
             {tc("refresh")}
           </button>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
-          >
-            <FiPlus size={16} />
-            {t("vouchers.create")}
-          </button>
+          {isOperatorAdmin && (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
+            >
+              <FiPlus size={16} />
+              {t("vouchers.create")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -378,32 +415,34 @@ export default function ManagerVouchers() {
         <MetricCard label={t("vouchers.pendingConsents")} value={pendingConsentCount} />
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("vouchers")}
-            className={`rounded-lg px-4 py-3 text-left text-sm font-semibold ${
-              activeTab === "vouchers"
-                ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
-                : "text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            {t("vouchers.operatorVouchers")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("consents")}
-            className={`rounded-lg px-4 py-3 text-left text-sm font-semibold ${
-              activeTab === "consents"
-                ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
-                : "text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            {t("vouchers.consentVouchers")}
-          </button>
+      {isOperatorAdmin && (
+        <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("vouchers")}
+              className={`rounded-lg px-4 py-3 text-left text-sm font-semibold ${
+                activeTab === "vouchers"
+                  ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {t("vouchers.operatorVouchers")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("consents")}
+              className={`rounded-lg px-4 py-3 text-left text-sm font-semibold ${
+                activeTab === "consents"
+                  ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {t("vouchers.consentVouchers")}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {message && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -416,19 +455,20 @@ export default function ManagerVouchers() {
         </div>
       )}
 
-      {activeTab === "vouchers" ? (
+      {isOperatorAdmin && activeTab === "vouchers" ? (
         <VoucherTable
           vouchers={vouchers}
           isLoading={isLoading}
           onEdit={openEditModal}
           onToggle={handleToggle}
-          onDelete={handleDelete}
+          onDelete={setDeletingVoucher}
         />
       ) : (
         <ConsentTable
           consents={consents}
           status={consentStatus}
           isLoading={isLoading}
+          canManage={isOperatorAdmin}
           onStatusChange={setConsentStatus}
           onAccept={handleAcceptConsent}
           onReject={setRejectingConsent}
@@ -444,6 +484,36 @@ export default function ManagerVouchers() {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmit}
       />
+
+      <Modal
+        open={Boolean(deletingVoucher)}
+        onClose={() => setDeletingVoucher(null)}
+        icon={<FiTrash2 size={20} />}
+        title={t("vouchers.deleteOperatorTitle")}
+        subtitle={deletingVoucher?.code}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeletingVoucher(null)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {tc("cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600"
+            >
+              {tc("delete")}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          {t("vouchers.confirmDeleteOperatorVoucher")}
+        </p>
+      </Modal>
 
       <Modal
         open={Boolean(rejectingConsent)}
@@ -538,7 +608,7 @@ function VoucherTable({
                   <p className="text-xs text-gray-500">{voucher.type}</p>
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-700">
-                  {voucher.type === "PERCENT"
+                  {voucher.type === "PERCENT_OFF"
                     ? `${voucher.value}%`
                     : `${formatMoney(voucher.value)} VND`}
                 </td>
@@ -613,6 +683,7 @@ function ConsentTable({
   consents,
   status,
   isLoading,
+  canManage,
   onStatusChange,
   onAccept,
   onReject,
@@ -620,6 +691,7 @@ function ConsentTable({
   consents: OperatorVoucherConsent[];
   status: string;
   isLoading: boolean;
+  canManage: boolean;
   onStatusChange: (status: string) => void;
   onAccept: (consent: OperatorVoucherConsent) => void;
   onReject: (consent: OperatorVoucherConsent) => void;
@@ -656,11 +728,14 @@ function ConsentTable({
               </tr>
             </thead>
             <tbody>
-              {consents.map((consent) => (
-                <tr
-                  key={consent.id}
-                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
-                >
+              {consents.map((consent) => {
+                const canRespond = canManage && consent.status === "PENDING";
+
+                return (
+                  <tr
+                    key={consent.id}
+                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
+                  >
                   <td className="px-5 py-4">
                     <p className="font-mono text-sm font-semibold text-vr-700">
                       {consent.voucherCode}
@@ -684,24 +759,27 @@ function ConsentTable({
                   <td className="px-5 py-4 text-sm text-gray-700">
                     {consent.status}
                   </td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <IconButton
-                        label={t("vouchers.accept")}
-                        onClick={() => onAccept(consent)}
-                      >
-                        <FiCheck size={16} />
-                      </IconButton>
-                      <IconButton
-                        label={t("vouchers.reject")}
-                        onClick={() => onReject(consent)}
-                      >
-                        <FiX size={16} />
-                      </IconButton>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <IconButton
+                          label={t("vouchers.accept")}
+                          disabled={!canRespond}
+                          onClick={() => onAccept(consent)}
+                        >
+                          <FiCheck size={16} />
+                        </IconButton>
+                        <IconButton
+                          label={t("vouchers.reject")}
+                          disabled={!canRespond}
+                          onClick={() => onReject(consent)}
+                        >
+                          <FiX size={16} />
+                        </IconButton>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -724,17 +802,20 @@ function ConsentTable({
 function IconButton({
   label,
   onClick,
+  disabled = false,
   children,
 }: {
   label: string;
   onClick: () => void;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
+      disabled={disabled}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:text-gray-600"
       title={label}
       aria-label={label}
     >
@@ -825,8 +906,12 @@ function VoucherModal({
               disabled={isEditing}
               onChange={(event) => onChange("type", event.target.value)}
             >
-              <option value="PERCENT">PERCENT</option>
-              <option value="FIXED">FIXED</option>
+              <option value="PERCENT_OFF">
+                {t("vouchers.discountTypePercent")}
+              </option>
+              <option value="FIXED_AMOUNT">
+                {t("vouchers.discountTypeFixed")}
+              </option>
             </select>
           </div>
           <Field

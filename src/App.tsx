@@ -78,13 +78,13 @@ export default function App() {
             <Route path="gps" element={<GPSTracking />} />
             <Route path="dispatch" element={<DispatchPanel />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="vouchers" element={<ManagerVouchers />} />
             <Route
               element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
             >
               <Route path="vehicle-builder" element={<VehicleBuilderPage />} />
               <Route path="staff" element={<StaffList />} />
               <Route path="capacity" element={<ManagerCapacity />} />
-              <Route path="vouchers" element={<ManagerVouchers />} />
               <Route path="packages" element={<ManagerPackages />} />
               <Route path="policies" element={<ManagerPolicies />} />
               <Route path="reports" element={<Reports />} />

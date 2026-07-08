@@ -9,6 +9,10 @@ export type PageParams = {
   status?: string;
 };
 
+export type VoucherService = "BOOKING" | "PARCEL" | string;
+
+export type PaymentMethod = "VNPAY" | "WALLET" | string;
+
 export type PagedResult<T> = {
   items: T[];
   page: number;
@@ -42,6 +46,7 @@ export type AdminOperator = {
   representativePhone?: string;
   representativeEmail?: string;
   registrationStatus: OperatorStatus;
+  isActive?: boolean;
   createdAt?: string;
   approvedAt?: string | null;
 };
@@ -216,7 +221,7 @@ export type StationSearchParams = {
 };
 
 export type OperatorStationRequest = {
-  stationId: string;
+  stationId?: string;
   displayNameOverride?: string;
   counterLocation?: string;
   contactPhone?: string;
@@ -392,6 +397,254 @@ export type OperatorVoucherConsent = {
   respondedByUserId?: string;
 };
 
+export type PromotionVoucher = {
+  voucherId: string;
+  code: string;
+  name: string;
+  type: string;
+  value: number;
+  applicableServices: string[];
+  validUntil: string;
+};
+
+export type AvailableVoucher = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  value: number;
+  minOrderAmount: number;
+  maxDiscountAmount?: number;
+  discountAmount: number;
+  applicableServices: string[];
+  applicablePaymentMethods: string[];
+  validUntil: string;
+};
+
+export type AvailableVoucherParams = {
+  service: VoucherService;
+  tripId?: string;
+  operatorId?: string;
+  routeId?: string;
+  paymentMethod?: PaymentMethod;
+  orderAmount?: number;
+};
+
+export type ParcelSizeCategory = "SMALL" | "MEDIUM" | "LARGE" | "EXTRA_LARGE" | string;
+
+export type ParcelAvailableTripsParams = PageParams & {
+  originStationId: string;
+  destinationStationId: string;
+  departureDate: string;
+  estimatedWeightKg: number;
+  sizeCategory: ParcelSizeCategory;
+};
+
+export type ParcelAvailableTrip = {
+  tripId: string;
+  routeId: string;
+  operatorName: string;
+  departureDateTime: string;
+  availableCargoWeightKg: number;
+  priceVnd: number;
+};
+
+export type ParcelRecipientRequest = {
+  fullName: string;
+  phoneNumber: string;
+  email?: string;
+};
+
+export type CreateParcelRequest = {
+  tripId: string;
+  dropoffStopId?: string | null;
+  bookingId?: string | null;
+  itemName?: string | null;
+  description?: string | null;
+  sizeCategory: ParcelSizeCategory;
+  estimatedWeightKg: number;
+  photoUrl?: string | null;
+  recipient: ParcelRecipientRequest;
+  deliveryMethod: "TERMINAL_PICKUP" | string;
+  paymentMethod: PaymentMethod;
+  voucherCode?: string | null;
+};
+
+export type CreateParcelResult = {
+  parcelId: string;
+  parcelCode: string;
+  status: string;
+  totalAmount: number;
+  originalDepositAmount?: number;
+  discountAmount?: number;
+  voucherCode?: string | null;
+  paymentRedirectUrl?: string | null;
+};
+
+export type ParcelStationSummary = {
+  id: string;
+  name: string;
+};
+
+export type ReceivedParcel = {
+  parcelId: string;
+  parcelCode: string;
+  status: string;
+  originStation?: ParcelStationSummary;
+  destinationStation?: ParcelStationSummary;
+  eta?: string | null;
+  senderUserId?: string;
+  recipientName: string;
+  sizeCategory: string;
+  createdAt: string;
+  operatorId: string;
+  tripId: string;
+};
+
+export type ParcelDetail = {
+  parcelId: string;
+  parcelCode: string;
+  status: string;
+  senderUserId?: string;
+  recipientUserId?: string | null;
+  recipientName: string;
+  recipientPhone?: string;
+  operatorId: string;
+  tripId: string;
+  dropoffStopId?: string | null;
+  description?: string | null;
+  sizeCategory: string;
+  estimatedWeightKg: number;
+  actualWeightKg?: number | null;
+  deliveryMethod: string;
+  depositAmount: number;
+  originalDepositAmount?: number;
+  discountAmount?: number;
+  voucherCode?: string | null;
+  voucherUsageId?: string | null;
+  additionalAmount?: number;
+  createdAt: string;
+  loadedAt?: string | null;
+  unloadedAt?: string | null;
+  deliveredPendingConfirmAt?: string | null;
+  confirmedAt?: string | null;
+  rejectedAt?: string | null;
+  originStationName?: string;
+  destinationStationName?: string;
+  eta?: string | null;
+};
+
+export type ParcelDeliveryTokenRequest = {
+  token: string;
+};
+
+export type ParcelDeliveryRejectRequest = ParcelDeliveryTokenRequest & {
+  rejectionReason: string;
+};
+
+export type ParcelActionResult = {
+  parcelId: string;
+  parcelCode?: string;
+  status: string;
+  confirmedAt?: string;
+  rejectedAt?: string;
+  undoneAt?: string;
+  canUndoUntil?: string;
+  depositAmount?: number;
+  paymentRedirectUrl?: string | null;
+  tripId?: string;
+  transferTargetTripId?: string;
+  transferConfirmedAt?: string;
+  returnReason?: string;
+  returnedAt?: string;
+  additionalAmount?: number;
+};
+
+export type OperatorParcelReportParams = {
+  from?: string;
+  to?: string;
+};
+
+export type OperatorParcelReportSummary = {
+  operatorId: string;
+  from?: string;
+  to?: string;
+  totalParcels: number;
+  totalLoaded: number;
+  totalDelivered: number;
+  totalRejected: number;
+  totalReturned: number;
+  totalRevenue: number;
+  totalRefunded: number;
+  source?: string;
+};
+
+export type OperatorParcelReviewRequest = {
+  decision: "APPROVED" | "REJECTED";
+  depositAmount?: number | null;
+  reason?: string | null;
+  paymentMethod?: PaymentMethod | null;
+};
+
+export type OperatorParcelTransferRequest = {
+  targetTripId: string;
+  reason: string;
+};
+
+export type OperatorParcelReturnRequest = {
+  returnReason: string;
+};
+
+export type OperatorParcelCancelRequest = {
+  reason: string;
+  refundChoice?: "FULL_REFUND" | "POLICY_REFUND" | "NO_REFUND" | string | null;
+};
+
+export type OperatorParcelConfirmDeliveryRequest = {
+  note: string;
+};
+
+export type OperatorParcelStatusRequest = {
+  targetStatus: "RETURNED" | string;
+  reason: string;
+};
+
+export type ParcelRouteFare = {
+  routeId: string;
+  sizeCategory: string;
+  operatorId: string;
+  priceVnd: number;
+  effectiveFrom: string;
+  effectiveUntil?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ParcelRouteFareParams = PageParams & {
+  routeId?: string;
+  sizeCategory?: ParcelSizeCategory;
+};
+
+export type CreateParcelRouteFareRequest = {
+  routeId: string;
+  sizeCategory: ParcelSizeCategory;
+  priceVnd: number;
+  effectiveFrom: string;
+  effectiveUntil?: string | null;
+};
+
+export type UpdateParcelRouteFareRequest = {
+  priceVnd?: number | null;
+  effectiveFrom?: string | null;
+  effectiveUntil?: string | null;
+};
+
+export type AssistantParcelReweighRequest = {
+  actualWeightKg: number;
+  actualSizeCategory: ParcelSizeCategory;
+  paymentMethod: PaymentMethod;
+};
+
 export type AdminVoucher = {
   id: string;
   code: string;
@@ -401,34 +654,76 @@ export type AdminVoucher = {
   discountType?: string;
   discount?: number;
   applicableTo?: string;
+  fundingType?: string;
+  operatorScope?: string;
+  applicableOperatorIds?: string[];
   quantity?: number;
   totalUsageLimit?: number;
   usedCount?: number;
   expiryDate?: string;
+  validFrom?: string;
   validUntil?: string;
   active?: boolean;
   isActive?: boolean;
   type?: string;
   value?: number;
+  minOrderAmount?: number;
   minOrderValue?: number;
+  maxDiscountAmount?: number;
+  perUserLimit?: number;
   maxUsagePerUser?: number;
+  newUserOnly?: boolean;
+  applicablePaymentMethods?: string[];
+  applicableServices?: string[];
+  ownerOperatorId?: string;
   createdAt?: string;
   updatedAt?: string;
 };
 
 export type CreateAdminVoucherRequest = {
-  code: string;
+  code?: string;
   name: string;
-  description: string;
-  voucherType: string;
-  discountType: string;
-  discount: number;
-  applicableTo: string;
-  minOrderValue: number;
-  quantity: number;
-  expiryDate: string;
-  maxUsagePerUser: number;
-  active: boolean;
+  type: string;
+  value: number;
+  minOrderAmount: number;
+  maxDiscountAmount: number;
+  totalUsageLimit: number;
+  perUserLimit: number;
+  validFrom: string;
+  validUntil: string;
+  newUserOnly: boolean;
+  applicablePaymentMethods: PaymentMethod[];
+  applicableServices: VoucherService[];
+  applicableRouteIds: string[] | null;
+  applicableOperatorIds: string[] | null;
+  fundingType: string;
+};
+
+export type AdminVoucherParams = PageParams & {
+  ownerOperatorId?: string;
+  fundingType?: string;
+  isActive?: boolean;
+};
+
+export type AdminCampaign = {
+  id: string;
+  name: string;
+  description?: string;
+  ownerOperatorId?: string | null;
+  isActive: boolean;
+  validFrom: string;
+  validUntil: string;
+  createdAt?: string;
+};
+
+export type AdminCampaignRequest = {
+  name: string;
+  description?: string;
+  ownerOperatorId?: string | null;
+  validFrom: string;
+  validUntil: string;
+  isActive: boolean;
+  voucherIds: string[];
 };
 
 export type BookingStatus =
@@ -570,15 +865,33 @@ export type PickupBooking = {
 export type BookingStatsParams = {
   from?: string;
   to?: string;
+  groupBy?: string;
   operatorId?: string;
   routeId?: string;
   status?: string;
 };
 
-export type BookingStatsAggregate = {
+export type BookingStatsItem = {
+  operatorId?: string;
+  operatorName?: string;
+  date?: string;
   totalBookings: number;
-  totalPassengers?: number;
   totalRevenue?: number;
+  totalCancellations?: number;
+  totalNoShows?: number;
+  totalPartialNoShows?: number;
+  totalCompleted?: number;
+};
+
+export type BookingStatsAggregate = {
+  items: BookingStatsItem[];
+  totalBookings?: number;
+  totalRevenue?: number;
+  totalCancellations?: number;
+  totalNoShows?: number;
+  totalPartialNoShows?: number;
+  totalCompleted?: number;
+  totalPassengers?: number;
   cancelledBookings?: number;
   pendingBookings?: number;
   confirmedBookings?: number;
@@ -1209,6 +1522,301 @@ export function getOperatorBookingStats(params: BookingStatsParams = {}) {
   );
 }
 
+export function getPromotions(service: VoucherService) {
+  return apiRequest<PromotionVoucher[]>(
+    `/v1/promotions${buildQuery({ service })}`,
+    { authenticated: false },
+  );
+}
+
+export function getAvailableVouchers(params: AvailableVoucherParams) {
+  return apiRequest<AvailableVoucher[]>(
+    `/v1/vouchers/available${buildQuery(params)}`,
+  );
+}
+
+export function getParcelAvailableVouchers(
+  params: Pick<
+    AvailableVoucherParams,
+    "tripId" | "paymentMethod" | "orderAmount"
+  > & {
+    sizeCategory: string;
+  },
+) {
+  return apiRequest<AvailableVoucher[]>(
+    `/v1/parcels/vouchers/available${buildQuery(params)}`,
+  );
+}
+
+export function getParcelAvailableTrips(params: ParcelAvailableTripsParams) {
+  return apiRequest<PagedResult<ParcelAvailableTrip>>(
+    `/v1/parcels/available-trips${buildQuery(params)}`,
+  );
+}
+
+export function createParcel(
+  request: CreateParcelRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<CreateParcelResult>("/v1/parcels", {
+    method: "POST",
+    body: request,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function getReceivedParcels(params: PageParams = {}) {
+  return apiRequest<PagedResult<ReceivedParcel>>(
+    `/v1/parcels/received${buildQuery(params)}`,
+  );
+}
+
+export function getParcelDetail(parcelId: string) {
+  return apiRequest<ParcelDetail>(`/v1/parcels/${parcelId}`);
+}
+
+export function confirmParcelDeliveryByToken(
+  request: ParcelDeliveryTokenRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>("/v1/parcels/delivery/confirm", {
+    method: "POST",
+    body: request,
+    authenticated: false,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function rejectParcelDeliveryByToken(
+  request: ParcelDeliveryRejectRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>("/v1/parcels/delivery/reject", {
+    method: "POST",
+    body: request,
+    authenticated: false,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function undoRejectParcelDeliveryByToken(
+  request: ParcelDeliveryTokenRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>("/v1/parcels/delivery/undo-reject", {
+    method: "POST",
+    body: request,
+    authenticated: false,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function getOperatorParcelReportSummary(
+  params: OperatorParcelReportParams = {},
+) {
+  return apiRequest<OperatorParcelReportSummary>(
+    `/v1/operator/parcels/reports/summary${buildQuery(params)}`,
+  );
+}
+
+export function reviewOperatorParcel(
+  parcelId: string,
+  request: OperatorParcelReviewRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/operator/parcels/${parcelId}/review`,
+    {
+      method: "PATCH",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function requestOperatorParcelTransfer(
+  parcelId: string,
+  request: OperatorParcelTransferRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/operator/parcels/${parcelId}/request-transfer`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function returnOperatorParcel(
+  parcelId: string,
+  request: OperatorParcelReturnRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/operator/parcels/${parcelId}/return`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function cancelOperatorParcel(
+  parcelId: string,
+  request: OperatorParcelCancelRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/operator/parcels/${parcelId}/cancel`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function confirmOperatorParcelDelivery(
+  parcelId: string,
+  request: OperatorParcelConfirmDeliveryRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/operator/parcels/${parcelId}/confirm-delivery`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function updateOperatorParcelStatus(
+  parcelId: string,
+  request: OperatorParcelStatusRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/operator/parcels/${parcelId}/status`,
+    {
+      method: "PATCH",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function createOperatorParcelRouteFare(
+  request: CreateParcelRouteFareRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelRouteFare>("/v1/operator/parcel-route-fares", {
+    method: "POST",
+    body: request,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function getOperatorParcelRouteFares(
+  params: ParcelRouteFareParams = {},
+) {
+  return apiRequest<PagedResult<ParcelRouteFare>>(
+    `/v1/operator/parcel-route-fares${buildQuery(params)}`,
+  );
+}
+
+export function updateOperatorParcelRouteFare(
+  routeId: string,
+  sizeCategory: ParcelSizeCategory,
+  request: UpdateParcelRouteFareRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelRouteFare>(
+    `/v1/operator/parcel-route-fares/${routeId}/${sizeCategory}`,
+    {
+      method: "PATCH",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function reweighAssistantParcel(
+  parcelId: string,
+  request: AssistantParcelReweighRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/assistant/parcels/${parcelId}/reweigh`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function confirmAssistantParcelDelivery(
+  parcelId: string,
+  request: OperatorParcelConfirmDeliveryRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/assistant/parcels/${parcelId}/confirm-delivery`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function unloadAssistantParcel(
+  parcelId: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/assistant/parcels/${parcelId}/unload`,
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
 export function getOperatorVouchers(params: PageParams = {}) {
   return apiRequest<PagedResult<OperatorVoucher>>(
     `/v1/operator/vouchers${buildQuery(params)}`,
@@ -1219,6 +1827,9 @@ export function createOperatorVoucher(request: CreateOperatorVoucherRequest) {
   return apiRequest<OperatorVoucher>("/v1/operator/vouchers", {
     method: "POST",
     body: request,
+    headers: {
+      "Idempotency-Key": createIdempotencyKey(),
+    },
   });
 }
 
@@ -1229,26 +1840,42 @@ export function updateOperatorVoucher(
   return apiRequest<OperatorVoucher>(`/v1/operator/vouchers/${id}`, {
     method: "PATCH",
     body: request,
+    headers: {
+      "Idempotency-Key": createIdempotencyKey(),
+    },
   });
 }
 
 export function deleteOperatorVoucher(id: string) {
   return apiRequest<OperatorVoucherActionResult>(`/v1/operator/vouchers/${id}`, {
     method: "DELETE",
+    headers: {
+      "Idempotency-Key": createIdempotencyKey(),
+    },
   });
 }
 
 export function activateOperatorVoucher(id: string) {
   return apiRequest<OperatorVoucherActionResult>(
     `/v1/operator/vouchers/${id}/activate`,
-    { method: "POST" },
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+    },
   );
 }
 
 export function deactivateOperatorVoucher(id: string) {
   return apiRequest<OperatorVoucherActionResult>(
     `/v1/operator/vouchers/${id}/deactivate`,
-    { method: "POST" },
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+    },
   );
 }
 
@@ -1261,14 +1888,25 @@ export function getOperatorVoucherConsents(status?: string) {
 export function acceptOperatorVoucherConsent(id: string) {
   return apiRequest<{ id: string; status: string }>(
     `/v1/operator/voucher-consents/${id}/accept`,
-    { method: "POST" },
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+    },
   );
 }
 
 export function rejectOperatorVoucherConsent(id: string, reason: string) {
   return apiRequest<{ id: string; status: string }>(
     `/v1/operator/voucher-consents/${id}/reject`,
-    { method: "POST", body: { reason } },
+    {
+      method: "POST",
+      body: { reason },
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+    },
   );
 }
 
@@ -1287,7 +1925,7 @@ export function getAdminVoucherConsents(
   );
 }
 
-export async function getAdminVouchers(params: PageParams = {}) {
+export async function getAdminVouchers(params: AdminVoucherParams = {}) {
   const response = await apiRequest<PagedResult<AdminVoucher> | AdminVoucher[]>(
     `/v1/admin/vouchers${buildQuery(params)}`,
   );
@@ -1307,11 +1945,73 @@ export async function getAdminVouchers(params: PageParams = {}) {
   return response;
 }
 
+function createIdempotencyKey() {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function createAdminVoucher(request: CreateAdminVoucherRequest) {
   return apiRequest<AdminVoucher>("/v1/admin/vouchers", {
     method: "POST",
     body: request,
+    headers: {
+      "Idempotency-Key": createIdempotencyKey(),
+    },
   });
+}
+
+export function getAdminCampaigns() {
+  return apiRequest<AdminCampaign[]>("/v1/admin/campaigns");
+}
+
+export function createAdminCampaign(request: AdminCampaignRequest) {
+  return apiRequest<AdminCampaign>("/v1/admin/campaigns", {
+    method: "POST",
+    body: request,
+    headers: {
+      "Idempotency-Key": createIdempotencyKey(),
+    },
+  });
+}
+
+export function updateAdminCampaign(
+  campaignId: string,
+  request: AdminCampaignRequest,
+) {
+  return apiRequest<AdminCampaign>(`/v1/admin/campaigns/${campaignId}`, {
+    method: "PATCH",
+    body: request,
+    headers: {
+      "Idempotency-Key": createIdempotencyKey(),
+    },
+  });
+}
+
+export function activateAdminCampaign(campaignId: string) {
+  return apiRequest<AdminCampaign>(
+    `/v1/admin/campaigns/${campaignId}/activate`,
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+    },
+  );
+}
+
+export function deactivateAdminCampaign(campaignId: string) {
+  return apiRequest<AdminCampaign>(
+    `/v1/admin/campaigns/${campaignId}/deactivate`,
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+    },
+  );
 }
 
 export function getAlternativeRoutes(routeId: string, params: PageParams = {}) {

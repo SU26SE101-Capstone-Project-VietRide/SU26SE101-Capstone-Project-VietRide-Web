@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiUsers,
@@ -25,8 +25,27 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import {
+  getAdminBookingStatsAggregate,
+  type BookingStatsItem,
+} from "../../api/vietride";
 
-const revenueByOperator = [
+type BookingChartPoint = {
+  month: string;
+  revenue: number;
+  bookings: number;
+  cancelled: number;
+  rawRevenue?: number;
+};
+
+type OperatorRevenuePoint = {
+  operator: string;
+  revenue: number;
+  bookings: number;
+  rawRevenue?: number;
+};
+
+const revenueByOperator: OperatorRevenuePoint[] = [
   { operator: "Phương Trang", revenue: 12500, bookings: 3240 },
   { operator: "Mai Linh", revenue: 10800, bookings: 2890 },
   { operator: "Kumho", revenue: 9200, bookings: 2450 },
@@ -34,7 +53,7 @@ const revenueByOperator = [
   { operator: "Khác", revenue: 5200, bookings: 1390 },
 ];
 
-const bookingStats = [
+const bookingStats: BookingChartPoint[] = [
   { month: "T1", revenue: 2400, bookings: 15200, cancelled: 1850 },
   { month: "T2", revenue: 2210, bookings: 14880, cancelled: 1920 },
   { month: "T3", revenue: 2290, bookings: 15450, cancelled: 1890 },
@@ -49,15 +68,136 @@ const bookingStats = [
   { month: "T12", revenue: 3400, bookings: 23800, cancelled: 2900 },
 ];
 
+function toDateInput(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function currentYearRange() {
+  const now = new Date();
+  return {
+    from: toDateInput(new Date(now.getFullYear(), 0, 1)),
+    to: toDateInput(new Date(now.getFullYear(), 11, 31)),
+  };
+}
+
+function monthLabel(dateValue?: string) {
+  if (!dateValue) {
+    return "N/A";
+  }
+
+  const month = new Date(dateValue).getMonth() + 1;
+  return Number.isNaN(month) ? dateValue : `T${month}`;
+}
+
+function asHundredMillion(value = 0) {
+  return Math.round(value / 100_000_000);
+}
+
+function formatCompactMoney(value: number) {
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
+  }
+
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+
+  return value.toLocaleString("vi-VN");
+}
+
+function formatCompactNumber(value: number) {
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+
+  return value.toLocaleString("vi-VN");
+}
+
+function sumStats(items: BookingStatsItem[], key: keyof BookingStatsItem) {
+  return items.reduce((total, item) => {
+    const value = item[key];
+    return total + (typeof value === "number" ? value : 0);
+  }, 0);
+}
+
+function mapMonthlyStats(items: BookingStatsItem[]) {
+  return items.map((item) => ({
+    month: monthLabel(item.date),
+    revenue: asHundredMillion(item.totalRevenue),
+    bookings: item.totalBookings,
+    cancelled: item.totalCancellations ?? 0,
+    rawRevenue: item.totalRevenue,
+  }));
+}
+
+function mapOperatorStats(items: BookingStatsItem[]) {
+  return items.map((item) => ({
+    operator: item.operatorName || item.operatorId || "N/A",
+    revenue: asHundredMillion(item.totalRevenue),
+    bookings: item.totalBookings,
+    rawRevenue: item.totalRevenue,
+  }));
+}
+
+async function fetchAdminBookingStats() {
+  const { from, to } = currentYearRange();
+  const [monthlyStats, operatorStats] = await Promise.all([
+    getAdminBookingStatsAggregate({ from, to, groupBy: "month" }),
+    getAdminBookingStatsAggregate({ from, to, groupBy: "operator" }),
+  ]);
+
+  return { monthlyStats, operatorStats };
+}
+
 export default function AdminDashboard() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [isLoading, setIsLoading] = useState(false);
+  const [bookingStatsData, setBookingStatsData] = useState(bookingStats);
+  const [revenueByOperatorData, setRevenueByOperatorData] =
+    useState(revenueByOperator);
+  const [summary, setSummary] = useState({
+    totalRevenue: 45_800_000_000,
+    totalBookings: 245_600,
+  });
+
+  const applyBookingStats = ({
+    monthlyStats,
+    operatorStats,
+  }: Awaited<ReturnType<typeof fetchAdminBookingStats>>) => {
+    if (monthlyStats.items.length > 0) {
+      setBookingStatsData(mapMonthlyStats(monthlyStats.items));
+      setSummary({
+        totalRevenue:
+          monthlyStats.totalRevenue ?? sumStats(monthlyStats.items, "totalRevenue"),
+        totalBookings:
+          monthlyStats.totalBookings ?? sumStats(monthlyStats.items, "totalBookings"),
+      });
+    }
+
+    if (operatorStats.items.length > 0) {
+      setRevenueByOperatorData(mapOperatorStats(operatorStats.items));
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void fetchAdminBookingStats().then((stats) => {
+      if (isMounted) {
+        applyBookingStats(stats);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const adminKPIs = [
     {
       label: t("dashboard.totalRevenue"),
-      value: "45.8B",
+      value: formatCompactMoney(summary.totalRevenue),
       change: "+24.5%",
       icon: <FiDollarSign className="w-6 h-6" />,
     },
@@ -75,7 +215,7 @@ export default function AdminDashboard() {
     },
     {
       label: t("dashboard.monthlyBookings"),
-      value: "245.6K",
+      value: formatCompactNumber(summary.totalBookings),
       change: "+16.3%",
       icon: <FiBarChart2 className="w-6 h-6" />,
     },
@@ -104,7 +244,9 @@ export default function AdminDashboard() {
 
   const handleRefresh = () => {
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 1000);
+    void fetchAdminBookingStats()
+      .then(applyBookingStats)
+      .finally(() => setIsLoading(false));
   };
 
   return (
@@ -150,7 +292,7 @@ export default function AdminDashboard() {
             {t("dashboard.revenueBookingChart")}
           </h2>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={bookingStats}>
+            <LineChart data={bookingStatsData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="month" stroke="#9ca3af" />
               <YAxis stroke="#9ca3af" />
@@ -231,7 +373,7 @@ export default function AdminDashboard() {
           </h2>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart
-              data={revenueByOperator}
+              data={revenueByOperatorData}
               layout="vertical"
               margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
             >

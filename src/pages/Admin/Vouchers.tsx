@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import { FiPlus, FiRefreshCw, FiTag } from "react-icons/fi";
 import {
   createAdminVoucher,
+  getAdminOperators,
   getAdminVouchers,
+  type AdminOperator,
   type AdminVoucher,
   type CreateAdminVoucherRequest,
 } from "../../api/vietride";
@@ -21,7 +23,11 @@ type VoucherForm = {
   description: string;
   discountType: string;
   discount: string;
+  maxDiscountAmount: string;
   applicableTo: string;
+  fundingType: string;
+  operatorScope: string;
+  applicableOperatorIds: string;
   minOrderValue: string;
   quantity: string;
   expiryDate: string;
@@ -33,9 +39,13 @@ const emptyForm: VoucherForm = {
   code: "",
   name: "",
   description: "",
-  discountType: "percent",
+  discountType: "PERCENT_OFF",
   discount: "10",
+  maxDiscountAmount: "50000",
   applicableTo: "all",
+  fundingType: "VIETRIDE_FUNDED",
+  operatorScope: "ALL_OPERATORS",
+  applicableOperatorIds: "",
   minOrderValue: "0",
   quantity: "1000",
   expiryDate: "",
@@ -57,8 +67,8 @@ function voucherTypeOf(voucher: AdminVoucher): VoucherTab {
 }
 
 function discountTypeOf(voucher: AdminVoucher) {
-  if (voucher.discountType) return voucher.discountType.toLowerCase();
-  return voucher.type === "FIXED" ? "fixed" : "percent";
+  const type = (voucher.discountType ?? voucher.type ?? "").toUpperCase();
+  return type.includes("FIXED") ? "fixed" : "percent";
 }
 
 function discountValueOf(voucher: AdminVoucher) {
@@ -77,29 +87,107 @@ function expiryDateOf(voucher: AdminVoucher) {
   return voucher.expiryDate ?? voucher.validUntil ?? "";
 }
 
+function formatInputDate(date: Date) {
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDisplayDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function parseInputDate(value: string) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const vietnameseDate = trimmedValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (vietnameseDate) {
+    const [, day, month, year] = vietnameseDate;
+    return new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59);
+  }
+
+  const browserDate = trimmedValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (browserDate) {
+    const [, year, month, day] = browserDate;
+    return new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59);
+  }
+
+  return null;
+}
+
+function toEndOfDayIso(value: string) {
+  const date = parseInputDate(value) ?? new Date();
+  return date.toISOString();
+}
+
 function activeOf(voucher: AdminVoucher) {
   return voucher.active ?? voucher.isActive ?? false;
 }
 
-function toCreateRequest(
-  form: VoucherForm,
-  voucherType: VoucherTab,
-): CreateAdminVoucherRequest {
+function toOperatorIds(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toApplicableServices(applicableTo: string) {
+  if (applicableTo === "rides") {
+    return ["BOOKING"];
+  }
+
+  if (applicableTo === "parcels") {
+    return ["PARCEL"];
+  }
+
+  return ["BOOKING", "PARCEL"];
+}
+
+function operatorIdsToValue(operatorIds: string[]) {
+  return operatorIds.join(", ");
+}
+
+function isActiveOperator(operator: AdminOperator) {
+  return operator.registrationStatus === "APPROVED" && operator.isActive !== false;
+}
+
+function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
+  const selectedOperatorIds = toOperatorIds(form.applicableOperatorIds);
+
   return {
-    code: form.code.trim(),
+    code: form.code.trim() || undefined,
     name: form.name.trim(),
-    description: form.description.trim(),
-    voucherType,
-    discountType: form.discountType,
-    discount: toNumber(form.discount),
-    applicableTo: form.applicableTo,
-    minOrderValue: toNumber(form.minOrderValue),
-    quantity: toNumber(form.quantity),
-    expiryDate: form.expiryDate
-      ? new Date(`${form.expiryDate}T23:59:59`).toISOString()
-      : new Date().toISOString(),
-    maxUsagePerUser: toNumber(form.maxUsagePerUser),
-    active: form.active,
+    type: form.discountType,
+    value: toNumber(form.discount),
+    minOrderAmount: toNumber(form.minOrderValue),
+    maxDiscountAmount: toNumber(form.maxDiscountAmount),
+    totalUsageLimit: toNumber(form.quantity),
+    perUserLimit: toNumber(form.maxUsagePerUser),
+    validFrom: new Date().toISOString(),
+    validUntil: toEndOfDayIso(form.expiryDate),
+    newUserOnly: false,
+    applicablePaymentMethods: ["VNPAY", "WALLET"],
+    applicableServices: toApplicableServices(form.applicableTo),
+    applicableOperatorIds:
+      form.operatorScope === "SELECTED_OPERATORS" ? selectedOperatorIds : null,
+    applicableRouteIds: null,
+    fundingType: form.fundingType,
   };
 }
 
@@ -108,6 +196,7 @@ export default function Vouchers() {
   const { t: tc } = useTranslation("common");
   const [activeTab, setActiveTab] = useState<VoucherTab>("event");
   const [vouchers, setVouchers] = useState<AdminVoucher[]>([]);
+  const [operators, setOperators] = useState<AdminOperator[]>([]);
   const [form, setForm] = useState<VoucherForm>(emptyForm);
   const [createOpen, setCreateOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -130,8 +219,12 @@ export default function Vouchers() {
     setError("");
 
     try {
-      const result = await getAdminVouchers({ page: 1, pageSize: 100 });
-      setVouchers(result.items);
+      const [voucherResult, operatorResult] = await Promise.all([
+        getAdminVouchers({ page: 1, pageSize: 100 }),
+        getAdminOperators({ page: 1, pageSize: 100 }),
+      ]);
+      setVouchers(voucherResult.items);
+      setOperators(operatorResult.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("vouchers.loadFailed"));
     } finally {
@@ -159,9 +252,9 @@ export default function Vouchers() {
         activeTab === "event"
           ? "Giam 20% chuyen dau"
           : "Goi Premium - Giam 100K",
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10),
+      expiryDate: formatInputDate(
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      ),
     });
     setCreateOpen(true);
     setMessage("");
@@ -172,8 +265,27 @@ export default function Vouchers() {
     setMessage("");
     setError("");
 
+    const expiryDate = parseInputDate(form.expiryDate);
+    if (!expiryDate || expiryDate <= new Date()) {
+      setError(t("vouchers.invalidExpiryDate"));
+      return;
+    }
+
+    if (toNumber(form.maxDiscountAmount) <= 0) {
+      setError(t("vouchers.invalidMaxDiscountAmount"));
+      return;
+    }
+
+    if (
+      form.fundingType === "OPERATOR_FUNDED" &&
+      toOperatorIds(form.applicableOperatorIds).length === 0
+    ) {
+      setError(t("vouchers.operatorFundedRequiresOperators"));
+      return;
+    }
+
     try {
-      const created = await createAdminVoucher(toCreateRequest(form, activeTab));
+      const created = await createAdminVoucher(toCreateRequest(form));
       setVouchers((current) => [created, ...current]);
       setCreateOpen(false);
       setMessage(t("vouchers.saveSuccess", { action: t("vouchers.saveActionCreate") }));
@@ -190,6 +302,23 @@ export default function Vouchers() {
       packages: t("vouchers.packagesOnly"),
     };
     return map[applicableTo] ?? applicableTo;
+  };
+
+  const getFundingLabel = (fundingType = "VIETRIDE_FUNDED") => {
+    const map: Record<string, string> = {
+      VIETRIDE_FUNDED: t("vouchers.vietrideFunded"),
+      OPERATOR_FUNDED: t("vouchers.operatorFunded"),
+    };
+    return map[fundingType] ?? fundingType;
+  };
+
+  const getOperatorScopeLabel = (voucher: AdminVoucher) => {
+    if (voucher.operatorScope === "SELECTED_OPERATORS") {
+      const count = voucher.applicableOperatorIds?.length ?? 0;
+      return t("vouchers.selectedOperatorsCount", { count });
+    }
+
+    return t("vouchers.allOperators");
   };
 
   return (
@@ -314,6 +443,9 @@ export default function Vouchers() {
                     {t("vouchers.applicable")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
+                    {t("vouchers.fundingAndScope")}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.issued")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
@@ -333,9 +465,7 @@ export default function Vouchers() {
                   const usedCount = usedCountOf(voucher);
                   const usageRate =
                     quantity > 0 ? Math.round((usedCount / quantity) * 100) : 0;
-                  const expiryDate = expiryDateOf(voucher)
-                    ? new Date(expiryDateOf(voucher)).toLocaleDateString("vi-VN")
-                    : "-";
+                  const expiryDate = formatDisplayDate(expiryDateOf(voucher));
                   const discount = discountValueOf(voucher);
 
                   return (
@@ -362,6 +492,14 @@ export default function Vouchers() {
                         <span className="text-sm text-gray-600">
                           {getApplicableLabel(voucher.applicableTo)}
                         </span>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <p className="text-sm font-medium text-gray-900">
+                          {getFundingLabel(voucher.fundingType)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {getOperatorScopeLabel(voucher)}
+                        </p>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
                         {formatNumber(quantity)}
@@ -474,8 +612,12 @@ export default function Vouchers() {
                 value={form.discountType}
                 onChange={(event) => updateForm("discountType", event.target.value)}
               >
-                <option value="percent">{t("vouchers.percentDiscount")}</option>
-                <option value="fixed">{t("vouchers.fixedDiscount")}</option>
+                <option value="PERCENT_OFF">
+                  {t("vouchers.percentDiscount")}
+                </option>
+                <option value="FIXED_AMOUNT">
+                  {t("vouchers.fixedDiscount")}
+                </option>
               </select>
             </div>
             <Field
@@ -488,6 +630,13 @@ export default function Vouchers() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={t("vouchers.maxDiscountAmount")}
+              value={form.maxDiscountAmount}
+              type="number"
+              onChange={(value) => updateForm("maxDiscountAmount", value)}
+              required
+            />
             <div>
               <label className={labelClass}>{t("vouchers.applicable")}</label>
               <select
@@ -509,6 +658,66 @@ export default function Vouchers() {
             />
           </div>
 
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>{t("vouchers.fundingType")}</label>
+                <select
+                  className={inputClass}
+                  value={form.fundingType}
+                  onChange={(event) =>
+                    updateForm("fundingType", event.target.value)
+                  }
+                >
+                  <option value="VIETRIDE_FUNDED">
+                    {t("vouchers.vietrideFunded")}
+                  </option>
+                  <option value="OPERATOR_FUNDED">
+                    {t("vouchers.operatorFunded")}
+                  </option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  {form.fundingType === "VIETRIDE_FUNDED"
+                    ? t("vouchers.vietrideFundedHint")
+                    : t("vouchers.operatorFundedHint")}
+                </p>
+              </div>
+              <div>
+                <label className={labelClass}>{t("vouchers.operatorScope")}</label>
+                <select
+                  className={inputClass}
+                  value={form.operatorScope}
+                  onChange={(event) =>
+                    updateForm("operatorScope", event.target.value)
+                  }
+                >
+                  <option value="ALL_OPERATORS">
+                    {t("vouchers.allOperators")}
+                  </option>
+                  <option value="SELECTED_OPERATORS">
+                    {t("vouchers.selectedOperators")}
+                  </option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  {form.fundingType === "OPERATOR_FUNDED"
+                    ? t("vouchers.operatorConsentHint")
+                    : t("vouchers.operatorScopeHint")}
+                </p>
+              </div>
+            </div>
+
+            {(form.operatorScope === "SELECTED_OPERATORS" ||
+              form.fundingType === "OPERATOR_FUNDED") && (
+              <OperatorSelector
+                operators={operators.filter(isActiveOperator)}
+                selectedOperatorIds={toOperatorIds(form.applicableOperatorIds)}
+                onChange={(operatorIds) =>
+                  updateForm("applicableOperatorIds", operatorIdsToValue(operatorIds))
+                }
+              />
+            )}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label={t("vouchers.quantity")}
@@ -520,7 +729,7 @@ export default function Vouchers() {
             <Field
               label={t("vouchers.expiryDate")}
               value={form.expiryDate}
-              type="date"
+              placeholder="dd/mm/yyyy"
               onChange={(value) => updateForm("expiryDate", value)}
               required
             />
@@ -583,6 +792,84 @@ function Field({
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
+    </div>
+  );
+}
+
+function OperatorSelector({
+  operators,
+  selectedOperatorIds,
+  onChange,
+}: {
+  operators: AdminOperator[];
+  selectedOperatorIds: string[];
+  onChange: (operatorIds: string[]) => void;
+}) {
+  const { t } = useTranslation("admin");
+  const visibleOperatorIds = operators.map((operator) => operator.operatorId);
+  const visibleSelectedOperatorIds = selectedOperatorIds.filter((operatorId) =>
+    visibleOperatorIds.includes(operatorId),
+  );
+
+  function toggleOperator(operatorId: string) {
+    const nextOperatorIds = visibleSelectedOperatorIds.includes(operatorId)
+      ? visibleSelectedOperatorIds.filter((id) => id !== operatorId)
+      : [...visibleSelectedOperatorIds, operatorId];
+
+    onChange(nextOperatorIds);
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between gap-3">
+        <label className={labelClass}>{t("vouchers.selectOperators")}</label>
+        <span className="text-xs font-medium text-gray-500">
+          {t("vouchers.selectedOperatorsCount", {
+            count: visibleSelectedOperatorIds.length,
+          })}
+        </span>
+      </div>
+      <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+        {operators.length > 0 ? (
+          <div className="space-y-1">
+            {operators.map((operator) => {
+              const checked = visibleSelectedOperatorIds.includes(
+                operator.operatorId,
+              );
+
+              return (
+                <label
+                  key={operator.operatorId}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 text-sm ${
+                    checked
+                      ? "bg-vr-50 text-vr-800"
+                      : "text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleOperator(operator.operatorId)}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">
+                      {operator.name}
+                    </span>
+                    <span className="block truncate text-xs text-gray-500">
+                      {operator.contactEmail || operator.operatorId}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="px-3 py-2 text-sm text-gray-500">
+            {t("vouchers.noOperatorsAvailable")}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

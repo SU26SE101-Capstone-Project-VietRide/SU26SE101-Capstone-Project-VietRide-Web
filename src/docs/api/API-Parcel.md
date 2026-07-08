@@ -99,6 +99,7 @@ Model-binding lỗi JSON/type/missing non-null field trả HTTP `400` với `VAL
 | GET | `/ready` | Readiness |
 | GET | `/v1/ping` | Ping Parcel |
 | GET | `/v1/parcels/available-trips` | Passenger tìm chuyến có thể gửi hàng |
+| GET | `/v1/parcels/vouchers/available` | Passenger xem voucher có thể áp dụng cho parcel |
 | POST | `/v1/parcels` | Passenger tạo parcel |
 | GET | `/v1/parcels/received` | Passenger xem parcel mình nhận |
 | GET | `/v1/parcels/{parcelId}` | Xem chi tiết parcel |
@@ -251,6 +252,58 @@ await fetch(`${baseUrl}/v1/parcels/available-trips?originStationId=${originStati
 }).then(r => r.json());
 ```
 
+### GET `/v1/parcels/vouchers/available`
+
+Passenger lấy danh sách voucher có thể áp dụng cho parcel.
+
+Auth: `Authorization: Bearer <token>` role `PASSENGER`.
+
+Query params:
+
+| Tên | Kiểu | Bắt buộc | Default | Validation |
+|---|---|---:|---:|---|
+| `tripId` | Guid | Có | - | Trip phải tồn tại |
+| `sizeCategory` | string | Có | - | enum `ParcelSizeCategory`, ignore-case; `EXTRA_LARGE` trả list rỗng |
+| `paymentMethod` | string? | Không | null | Booking service lọc theo payment method nếu có |
+| `orderAmount` | long? | Không | Giá fare theo route/size | Nếu không truyền, Parcel tự tính theo fare đang cấu hình |
+
+Success `200`:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": [
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "code": "PARCEL10",
+      "name": "Giảm 10% phí gửi hàng",
+      "type": "PERCENT",
+      "value": 10,
+      "minOrderAmount": 50000,
+      "maxDiscountAmount": 20000,
+      "discountAmount": 5000,
+      "applicableServices": ["PARCEL"],
+      "applicablePaymentMethods": ["VNPAY", "WALLET"],
+      "validUntil": "2026-07-31T16:59:59Z"
+    }
+  ],
+  "meta": { "traceId": "req-123", "timestamp": "2026-07-05T10:00:00.0000000Z" }
+}
+```
+
+Errors trong code: `401/403` auth, `404 TRIP_NOT_FOUND`, `422 INVALID_SIZE_CATEGORY`, `503 TRIP_SERVICE_UNAVAILABLE`. Nếu Booking service không trả `200`, Parcel trả list rỗng.
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:5005/v1/parcels/vouchers/available?tripId=11111111-1111-4111-8111-111111111111&sizeCategory=SMALL&paymentMethod=VNPAY"
+```
+
+```js
+await fetch(`${baseUrl}/v1/parcels/vouchers/available?tripId=${tripId}&sizeCategory=SMALL&paymentMethod=VNPAY`, {
+  headers: { Authorization: `Bearer ${token}` }
+}).then(r => r.json());
+```
+
 ### POST `/v1/parcels`
 
 Passenger tạo parcel.
@@ -275,7 +328,8 @@ Request body:
     "email": "a@example.com"
   },
   "deliveryMethod": "TERMINAL_PICKUP",
-  "paymentMethod": "VNPAY"
+  "paymentMethod": "VNPAY",
+  "voucherCode": "PARCEL10"
 }
 ```
 
@@ -296,6 +350,7 @@ Validation:
 | `recipient.email` | string? | Không | max 255, email nếu không null |
 | `deliveryMethod` | string | Có | chỉ `TERMINAL_PICKUP` |
 | `paymentMethod` | string | Có | `VNPAY` hoặc `WALLET` |
+| `voucherCode` | string? | Không | Nếu có, Parcel gọi Booking để validate voucher cho service `PARCEL`, operator, route, user, amount và payment method |
 
 Success `201`:
 
@@ -307,19 +362,24 @@ Success `201`:
     "parcelId": "33333333-3333-4333-8333-333333333333",
     "parcelCode": "PRC123456",
     "status": "PENDING_PAYMENT",
-    "totalAmount": 50000,
+    "totalAmount": 45000,
+    "originalDepositAmount": 50000,
+    "discountAmount": 5000,
+    "voucherCode": "PARCEL10",
     "paymentRedirectUrl": "https://payment.example/redirect"
   },
   "meta": { "traceId": "req-123", "timestamp": "2026-07-05T10:00:00.0000000Z" }
 }
 ```
 
-Errors trong code: `400 VALIDATION_ERROR` model binding, `401/403`, `403 USER_NOT_PASSENGER`, `403 USER_INACTIVE`, `403 FORBIDDEN`, `404 USER_NOT_FOUND`, `404 TRIP_NOT_FOUND`, `404 BOOKING_NOT_FOUND`, `409 BOOKING_ALREADY_HAS_PARCEL`, `409 BOOKING_TRIP_MISMATCH`, `409 BOOKING_USER_MISMATCH`, `409 BOOKING_NOT_CONFIRMED`, `409 TRIP_NOT_OPEN_FOR_PARCEL`, `409 TRIP_CARGO_CAPACITY_EXCEEDED`, `422 VALIDATION_ERROR`, `422 IDEMPOTENCY_KEY_MISMATCH`, `503 USER_LOOKUP_UNAVAILABLE`, `503 TRIP_SERVICE_UNAVAILABLE`, `503 BOOKING_SERVICE_UNAVAILABLE`, `503 PAYMENT_SERVICE_UNAVAILABLE`.
+`totalAmount` là số tiền cần thanh toán sau khi trừ `discountAmount`; `originalDepositAmount` là fare gốc trước voucher.
+
+Errors trong code: `400 VALIDATION_ERROR` model binding, `401/403`, `403 USER_NOT_PASSENGER`, `403 USER_INACTIVE`, `403 FORBIDDEN`, `403 USER_FORBIDDEN`, `404 USER_NOT_FOUND`, `404 TRIP_NOT_FOUND`, `404 BOOKING_NOT_FOUND`, `409 BOOKING_NOT_FOR_THIS_TRIP`, `409 BOOKING_NOT_ATTACHABLE`, `409 TRIP_NOT_ACCEPTING_PARCEL`, `409 TRIP_CARGO_CAPACITY_EXCEEDED`, `409 PARCEL_CODE_COLLISION`, `422 VALIDATION_ERROR`, `422 INVALID_SIZE_CATEGORY`, `422 INVALID_DELIVERY_METHOD`, `422 DROP_OFF_STOP_NOT_FOUND`, `422 DROP_OFF_STOP_NOT_ALLOWED`, `422 FARE_NOT_CONFIGURED`, `422 VOUCHER_NOT_APPLICABLE`, `422 VOUCHER_USAGE_REJECTED`, `422 INSUFFICIENT_FUNDS`, `422 IDEMPOTENCY_KEY_MISMATCH`, `503 UPSTREAM_UNAVAILABLE`, `503 TRIP_SERVICE_UNAVAILABLE`, `503 BOOKING_SERVICE_UNAVAILABLE`, `503 PAYMENT_SERVICE_ERROR`.
 
 ```bash
 curl -X POST "http://localhost:5005/v1/parcels" \
   -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: parcel-create-001" -H "Content-Type: application/json" \
-  -d '{"tripId":"11111111-1111-4111-8111-111111111111","dropoffStopId":null,"bookingId":null,"itemName":"Áo khoác","description":"Gói hàng nhỏ","sizeCategory":"SMALL","estimatedWeightKg":2.5,"photoUrl":null,"recipient":{"fullName":"Nguyen Van A","phoneNumber":"0900000000","email":"a@example.com"},"deliveryMethod":"TERMINAL_PICKUP","paymentMethod":"VNPAY"}'
+  -d '{"tripId":"11111111-1111-4111-8111-111111111111","dropoffStopId":null,"bookingId":null,"itemName":"Áo khoác","description":"Gói hàng nhỏ","sizeCategory":"SMALL","estimatedWeightKg":2.5,"photoUrl":null,"recipient":{"fullName":"Nguyen Van A","phoneNumber":"0900000000","email":"a@example.com"},"deliveryMethod":"TERMINAL_PICKUP","paymentMethod":"VNPAY","voucherCode":"PARCEL10"}'
 ```
 
 ```js
@@ -410,7 +470,11 @@ Success `200`:
     "estimatedWeightKg": 2.5,
     "actualWeightKg": null,
     "deliveryMethod": "TERMINAL_PICKUP",
-    "depositAmount": 50000,
+    "depositAmount": 45000,
+    "originalDepositAmount": 50000,
+    "discountAmount": 5000,
+    "voucherCode": "PARCEL10",
+    "voucherUsageId": "77777777-7777-4777-8777-777777777777",
     "additionalAmount": 0,
     "createdAt": "2026-07-05T08:00:00Z",
     "loadedAt": null,
@@ -879,38 +943,47 @@ Các mã dưới đây xuất hiện trực tiếp trong Parcel/API/shared code 
 | 404 | `USER_NOT_FOUND` | Không tìm thấy user |
 | 404 | `BOOKING_NOT_FOUND` | Không tìm thấy booking |
 | 404 | `OPERATOR_NOT_FOUND` | Không tìm thấy operator khi enrich available trips |
+| 403 | `USER_FORBIDDEN` | Identity service không cho phép lookup user |
 | 409 | `INVALID_STATUS` | Trạng thái hiện tại không cho phép thao tác |
 | 409 | `INVALID_TRANSITION` | Chuyển trạng thái không hợp lệ |
 | 409 | `INVALID_TRANSFER_TARGET` | Trip chuyển không hợp lệ |
 | 409 | `RACE_LOST` | Optimistic/concurrent update thất bại |
 | 409 | `PARCEL_ROUTE_FARE_EXISTS` | Fare route/size đã tồn tại |
-| 409 | `BOOKING_ALREADY_HAS_PARCEL` | Booking đã gắn parcel |
-| 409 | `BOOKING_TRIP_MISMATCH` | Booking không thuộc trip request |
-| 409 | `BOOKING_USER_MISMATCH` | Booking không thuộc user request |
-| 409 | `BOOKING_NOT_CONFIRMED` | Booking chưa confirmed |
-| 409 | `TRIP_NOT_OPEN_FOR_PARCEL` | Trip không mở nhận parcel |
+| 409 | `BOOKING_NOT_FOR_THIS_TRIP` | Booking không thuộc trip request |
+| 409 | `BOOKING_NOT_ATTACHABLE` | Booking không confirmed hoặc không có active ticket để gắn parcel |
+| 409 | `TRIP_NOT_ACCEPTING_PARCEL` | Trip không ở trạng thái nhận parcel |
 | 409 | `TRIP_CARGO_CAPACITY_EXCEEDED` | Vượt tải cargo |
+| 409 | `PARCEL_CODE_COLLISION` | Không tạo được mã parcel duy nhất sau số lần thử tối đa |
 | 422 | `VALIDATION_ERROR` | FluentValidation hoặc validation thủ công |
 | 422 | `INVALID_SIZE_CATEGORY` | Size category không hợp lệ |
+| 422 | `INVALID_DELIVERY_METHOD` | Delivery method không hợp lệ |
 | 422 | `INVALID_DECISION` | Review decision không hợp lệ |
 | 422 | `INVALID_REFUND_CHOICE` | Refund choice không hợp lệ |
 | 422 | `ADDITIONAL_PAYMENT_NOT_REQUIRED` | Reweigh không cần thanh toán thêm |
+| 422 | `FARE_NOT_CONFIGURED` | Chưa cấu hình fare parcel cho route/size |
+| 422 | `VOUCHER_NOT_APPLICABLE` | Voucher không hợp lệ hoặc không áp dụng được cho parcel |
+| 422 | `VOUCHER_USAGE_REJECTED` | Booking service từ chối ghi nhận lượt dùng voucher |
+| 422 | `INSUFFICIENT_FUNDS` | Wallet không đủ số dư khi thanh toán parcel |
 | 422 | `DROP_OFF_STOP_NOT_FOUND` | Không tìm thấy stop unload |
 | 422 | `DROP_OFF_STOP_NOT_ALLOWED` | Stop không cho drop-off |
 | 422 | `DROP_OFF_STOP_NOT_ARRIVED` | Stop chưa arrived |
 | 422 | `IDEMPOTENCY_KEY_MISMATCH` | Reuse idempotency key với body khác |
+| 503 | `UPSTREAM_UNAVAILABLE` | Identity service lỗi transport/dependency |
 | 503 | `TRIP_SERVICE_UNAVAILABLE` | Lỗi transport/dependency trip service |
 | 503 | `TRIP_SEARCH_UNAVAILABLE` | Trip search lỗi transport |
 | 503 | `OPERATOR_LOOKUP_UNAVAILABLE` | Identity/operator lookup lỗi |
 | 503 | `USER_LOOKUP_UNAVAILABLE` | User lookup lỗi |
 | 503 | `BOOKING_SERVICE_UNAVAILABLE` | Booking service lỗi |
+| 503 | `PAYMENT_SERVICE_ERROR` | Payment service lỗi khi charge parcel |
 | 503 | `PAYMENT_SERVICE_UNAVAILABLE` | Payment service lỗi |
 | 500 | `INTERNAL_ERROR` | Exception không map rõ, ví dụ `ArgumentException` ở report format/date |
 
 ## Flow và lưu ý đặc biệt
 
-- Passenger thường gọi `GET /v1/parcels/available-trips` trước, sau đó `POST /v1/parcels`.
-- Parcel tạo bằng `paymentMethod=VNPAY` có thể trả `paymentRedirectUrl`; `WALLET` có thể trả null tùy handler Payment.
+- Passenger thường gọi `GET /v1/parcels/available-trips` trước, có thể gọi `GET /v1/parcels/vouchers/available` để chọn voucher, sau đó `POST /v1/parcels`.
+- Khi `POST /v1/parcels` có `voucherCode`, Parcel validate voucher qua Booking với service `PARCEL`; nếu hợp lệ thì `totalAmount = originalDepositAmount - discountAmount` và ghi `voucherUsageId`.
+- Parcel tạo bằng `paymentMethod=VNPAY` có thể trả `paymentRedirectUrl`; `WALLET` có thể trả null tùy handler Payment. Nếu charge Payment thất bại sau khi ghi voucher usage, Parcel gọi Booking để bù trừ/xóa usage theo reference parcel.
+- `EXTRA_LARGE` đang trả list voucher rỗng ở endpoint available voucher và đi flow `PENDING_OPERATOR_REVIEW`.
 - Operator review `APPROVED` cần `depositAmount` và `paymentMethod`; `REJECTED` cần `reason`.
 - Delivery public dùng `token` dạng Guid, không dùng Authorization header, nhưng bắt buộc `Idempotency-Key`.
 - Internal endpoints dùng `X-Internal-Auth`, không dùng `Authorization`.

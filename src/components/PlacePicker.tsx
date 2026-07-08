@@ -46,6 +46,13 @@ function toStringValue(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
+function findAddressPart(displayName: string, patterns: RegExp[]) {
+  return displayName
+    .split(",")
+    .map((part) => part.trim())
+    .find((part) => patterns.some((pattern) => pattern.test(part))) ?? "";
+}
+
 function parseNominatimResult(value: unknown): PlaceSelection | null {
   if (!isRecord(value)) {
     return null;
@@ -70,6 +77,18 @@ function parseNominatimResult(value: unknown): PlaceSelection | null {
     toStringValue(address.province) ||
     toStringValue(address.region);
   const displayName = result.display_name ?? "";
+  const fallbackCity = findAddressPart(displayName, [
+    /thành phố/i,
+    /city/i,
+    /quận/i,
+    /huyện/i,
+  ]);
+  const fallbackProvince = findAddressPart(displayName, [
+    /tỉnh/i,
+    /thành phố/i,
+    /province/i,
+    /state/i,
+  ]);
   const name = result.name || displayName.split(",")[0]?.trim() || displayName;
   const placeId = String(result.place_id ?? result.osm_id ?? `${latitude},${longitude}`);
 
@@ -77,8 +96,8 @@ function parseNominatimResult(value: unknown): PlaceSelection | null {
     placeId,
     name,
     address: displayName,
-    city,
-    province,
+    city: city || fallbackCity || fallbackProvince,
+    province: province || fallbackProvince || city || fallbackCity,
     latitude,
     longitude,
   };
