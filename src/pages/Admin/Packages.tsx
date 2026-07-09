@@ -140,7 +140,7 @@ export default function Packages() {
               <button
                 type="button"
                 onClick={() => handleToggleActive(pkg.id)}
-                className="flex h-10 flex-1 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+                className="table-action-button"
                 title={pkg.active ? tc("disable") : tc("enable")}
                 aria-label={pkg.active ? tc("disable") : tc("enable")}
               >
@@ -149,7 +149,7 @@ export default function Packages() {
               <button
                 type="button"
                 onClick={() => handleEdit(pkg)}
-                className="flex h-10 flex-1 items-center justify-center rounded-lg border border-vr-200 text-vr-600 transition hover:bg-vr-50 hover:text-vr-700"
+                className="table-action-button"
                 title={tc("edit")}
                 aria-label={tc("edit")}
               >
@@ -158,7 +158,7 @@ export default function Packages() {
               <button
                 type="button"
                 onClick={() => handleDelete(pkg.id)}
-                className="flex h-10 flex-1 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                className="table-action-button"
                 title={tc("delete")}
                 aria-label={tc("delete")}
               >

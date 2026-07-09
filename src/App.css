@@ -291,6 +291,58 @@ input[type="week"]::-webkit-calendar-picker-indicator:hover {
   background: rgba(34, 211, 238, 0.12);
 }
 
+.table-action-button,
+tbody td button[title] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #475569;
+  box-shadow: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.table-action-button:hover,
+tbody td button[title]:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+}
+
+.table-action-button:focus-visible,
+tbody td button[title]:focus-visible {
+  outline: 2px solid rgba(115, 217, 217, 0.75);
+  outline-offset: 2px;
+}
+
+.table-action-button:disabled,
+tbody td button[title]:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
+}
+
+.table-action-button svg,
+tbody td button[title] svg {
+  width: 1rem;
+  height: 1rem;
+  stroke-width: 2;
+}
+
 .alert-card {
   border-radius: 20px;
   padding: 1rem;

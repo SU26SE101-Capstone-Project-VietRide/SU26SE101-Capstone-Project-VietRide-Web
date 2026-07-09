@@ -17,6 +17,7 @@ import {
 import { FaChair } from "react-icons/fa";
 import { DetailItem } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
+import Pagination from "../../../components/Pagination";
 import { getAuthUser } from "../../../auth";
 import {
   createOperatorVehicle,
@@ -306,6 +307,8 @@ export default function VehiclesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   async function loadVehicles() {
     setIsLoading(true);
@@ -396,6 +399,11 @@ export default function VehiclesPage() {
             .includes(search.toLowerCase()),
       ),
     [search, vehicles],
+  );
+
+  const paginatedVehicles = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
   );
 
   const total = vehicles.length;
@@ -596,7 +604,10 @@ export default function VehiclesPage() {
               className={inputClass + " pl-10"}
               placeholder={t("vehicles.searchPlaceholder")}
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -625,7 +636,7 @@ export default function VehiclesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((vehicle) => (
+              {paginatedVehicles.map((vehicle) => (
                 <tr
                   key={getVehicleId(vehicle) || vehicle.licensePlate}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
@@ -690,6 +701,12 @@ export default function VehiclesPage() {
             {t("vehicles.loading")}
           </div>
         )}
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
 
       <VehicleModal

@@ -18,6 +18,7 @@ import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
+import Pagination from "../../../components/Pagination";
 
 type RequestType = "Đón" | "Trả";
 type RequestStatus =
@@ -209,6 +210,8 @@ export default function DispatchPanel() {
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">(
     "all",
   );
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const [openCreateRequest, setOpenCreateRequest] = useState(false);
   const [openAssignVehicle, setOpenAssignVehicle] = useState(false);
@@ -255,6 +258,11 @@ export default function DispatchPanel() {
       ready: VEHICLES.filter((v) => v.status === "active").length,
     }),
     [requests],
+  );
+
+  const paginatedRequests = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
   );
 
   const handleCreateRequest = () => {
@@ -393,16 +401,20 @@ export default function DispatchPanel() {
               <input
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
                 placeholder={t("dispatch.searchPlaceholder")}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
               />
             </div>
             <CustomSelect
               value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as RequestStatus | "all")
-              }
+              onChange={(e) => {
+                setStatusFilter(e.target.value as RequestStatus | "all");
+                setPage(1);
+              }}
               className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
             >
               <option value="all">{tc("all")}</option>
@@ -443,9 +455,9 @@ export default function DispatchPanel() {
                     {tc("actions")}
                   </th>
                 </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
+            </thead>
+            <tbody>
+              {paginatedRequests.map((r) => (
                   <tr
                     key={r.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
@@ -533,25 +545,12 @@ export default function DispatchPanel() {
             </table>
           </div>
 
-          <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-            <div>
-              {t("dispatch.showingRequests", {
-                count: filtered.length,
-                total: requests.length,
-              })}
-            </div>
-            <div className="flex gap-1">
-              <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
-                {tc("previous")}
-              </button>
-              <button className="px-3 py-1.5 bg-vr-500 text-white rounded-lg font-semibold">
-                1
-              </button>
-              <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
-                {tc("next")}
-              </button>
-            </div>
-          </div>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={filtered.length}
+            onPageChange={setPage}
+          />
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg p-4">

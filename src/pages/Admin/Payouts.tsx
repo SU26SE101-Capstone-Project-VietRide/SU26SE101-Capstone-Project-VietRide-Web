@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FiEye } from "react-icons/fi";
 import { DetailItem } from "../../components/DetailLayout";
 import Modal from "../../components/Modal";
+import Pagination from "../../components/Pagination";
 
 type PayoutBatch = {
   id: string;
@@ -81,6 +82,8 @@ export default function Payouts() {
   const [batches, setBatches] = useState<PayoutBatch[]>(INITIAL_BATCHES);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const getStatusLabel = (status: PayoutBatch["status"]) => {
     const map: Record<PayoutBatch["status"], string> = {
@@ -97,6 +100,7 @@ export default function Payouts() {
       b.operator.toLowerCase().includes(search.toLowerCase()) ||
       b.id.toLowerCase().includes(search.toLowerCase()),
   );
+  const paginatedBatches = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   function openBatch(i: number) {
     setSelectedIdx(i);
@@ -208,7 +212,10 @@ export default function Payouts() {
             </svg>
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               placeholder={t("payouts.searchPlaceholder")}
               className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-gray-300"
             />
@@ -287,7 +294,7 @@ export default function Payouts() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((b) => {
+              {paginatedBatches.map((b) => {
                 const realIdx = batches.indexOf(b);
                 return (
                   <tr
@@ -337,31 +344,12 @@ export default function Payouts() {
           </table>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-          <div>
-            {tc("showingItems", {
-              count: filtered.length,
-              total: batches.length,
-            })}
-          </div>
-          <div className="flex items-center gap-1">
-            <button className="px-3 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50">
-              {tc("previous")}
-            </button>
-            <button className="px-3 py-1.5 bg-gray-900 text-white rounded text-sm">
-              1
-            </button>
-            <button className="px-3 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50">
-              2
-            </button>
-            <button className="px-3 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50">
-              3
-            </button>
-            <button className="px-3 py-1.5 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50">
-              {tc("next")}
-            </button>
-          </div>
-        </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

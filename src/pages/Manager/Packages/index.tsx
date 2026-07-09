@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiBox,
@@ -7,6 +7,7 @@ import {
   FiTrendingUp,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import Pagination from "../../../components/Pagination";
 import {
   packages as mockPackages,
   operatorSubscriptions,
@@ -21,7 +22,6 @@ function formatNumber(n: number) {
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
 const CURRENT_OPERATOR_ID = "op1";
 
@@ -35,6 +35,8 @@ export default function ManagerPackages() {
     voucherCode: "",
     paymentMethod: "wallet" as "wallet" | "qr_code",
   });
+  const [historyPage, setHistoryPage] = useState(1);
+  const pageSize = 8;
 
   const subscription = operatorSubscriptions.find(
     (s) => s.operatorId === CURRENT_OPERATOR_ID,
@@ -45,6 +47,14 @@ export default function ManagerPackages() {
 
   const purchaseHistory = packagePurchases.filter(
     (p) => p.operatorId === CURRENT_OPERATOR_ID,
+  );
+  const paginatedPurchaseHistory = useMemo(
+    () =>
+      purchaseHistory.slice(
+        (historyPage - 1) * pageSize,
+        historyPage * pageSize,
+      ),
+    [historyPage, purchaseHistory],
   );
 
   const handlePurchaseClick = (pkg: Package) => {
@@ -93,12 +103,19 @@ export default function ManagerPackages() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {t("packages.title")}
+        </h1>
+        <p className="mt-1 text-gray-600">{t("packages.subtitle")}</p>
+      </div>
+
       {subscription && subscription.status === "active" && currentPackage && (
-        <div className="rounded-lg bg-gradient-to-r from-blue-50 to-blue-100 p-6 border border-blue-200">
+        <div className="rounded-lg border border-vr-200 bg-vr-50/70 p-6">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <div className="mt-1">
-                <FiBox className="text-2xl text-blue-600" />
+                <FiBox className="text-2xl text-vr-700" />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
@@ -135,13 +152,13 @@ export default function ManagerPackages() {
                 </div>
               </div>
             </div>
-            <FiCheck className="text-3xl text-green-600" />
+            <FiCheck className="text-3xl text-emerald-600" />
           </div>
         </div>
       )}
 
       {subscription && subscription.status === "none" && (
-        <div className="rounded-lg bg-yellow-50 p-6 border border-yellow-200">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
           <p className="text-yellow-900 font-semibold">
             {t("packages.noSubscription")}
           </p>
@@ -156,56 +173,88 @@ export default function ManagerPackages() {
           {mockPackages.map((pkg) => (
             <div
               key={pkg.id}
-              className="flex flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
+              className="flex flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md"
             >
               <div className="mb-4 flex items-start justify-between">
                 <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-500">
+                    {t("packages.packageLabel")}
+                  </p>
                   <h3 className="text-lg font-bold text-gray-900">
                     {pkg.name}
                   </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {pkg.description}
-                  </p>
+                </div>
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                    pkg.active
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  {pkg.active ? tc("active") : tc("inactive")}
+                </span>
+              </div>
+
+              <p className="mb-4 text-sm text-gray-600">{pkg.description}</p>
+
+              <div className="mb-6 border-b border-gray-200 pb-6">
+                <div className="flex items-baseline">
+                  <span className="text-4xl font-bold text-vr-600">
+                    {formatNumber(pkg.price)}
+                  </span>
+                  <span className="ml-2 text-gray-600">
+                    {t("packages.priceDuration", { n: pkg.duration })}
+                  </span>
                 </div>
               </div>
 
-              <div className="mb-4 rounded-lg bg-blue-50 p-3">
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatNumber(pkg.price)} VND
-                </p>
-                <p className="text-xs text-gray-600 mt-1">
-                  {t("packages.perDuration", { n: pkg.duration })}
-                </p>
-              </div>
-
-              <div className="mb-4 space-y-3 flex-1">
-                <div className="flex items-center gap-2">
-                  <FiBox className="text-sm text-gray-400" />
-                  <span className="text-sm text-gray-700">
-                    {t("packages.maxVehicles", { n: pkg.maxVehicles })}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <FiTrendingUp className="text-sm text-gray-400" />
-                  <span className="text-sm text-gray-700">
-                    {t("packages.maxRoutes", { n: pkg.maxRoutes })}
-                  </span>
-                </div>
-                {pkg.features && (
-                  <div className="space-y-2 pt-2 border-t border-gray-100">
-                    {pkg.features.slice(0, 3).map((feature, idx) => (
-                      <div key={idx} className="flex items-start gap-2">
-                        <FiCheck className="mt-0.5 text-xs text-green-600 flex-shrink-0" />
-                        <span className="text-xs text-gray-600">{feature}</span>
-                      </div>
-                    ))}
+              <div className="mb-6 space-y-3">
+                <div className="flex items-center gap-3">
+                  <FiBox size={16} className="shrink-0 text-vr-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">
+                      {t("packages.vehicleCount")}
+                    </p>
+                    <p className="font-semibold text-gray-900">
+                      {t("packages.maxVehicles", { n: pkg.maxVehicles })}
+                    </p>
                   </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <FiTrendingUp size={16} className="shrink-0 text-vr-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">
+                      {t("packages.routesLabel")}
+                    </p>
+                    <p className="font-semibold text-gray-900">
+                      {t("packages.maxRoutes", { n: pkg.maxRoutes })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6 flex-1">
+                <p className="mb-2 text-xs font-medium text-gray-600">
+                  {t("packages.features")}
+                </p>
+                {pkg.features && (
+                  <ul className="space-y-1">
+                    {pkg.features.map((feature, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-start gap-2 text-sm text-gray-700"
+                      >
+                        <span className="mt-1 text-vr-500">✓</span>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
 
               <button
                 onClick={() => handlePurchaseClick(pkg)}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-vr-500 py-2 font-medium text-white transition-colors hover:bg-vr-600"
               >
                 <FiShoppingCart className="text-lg" />
                 {t("packages.buyPackage")}
@@ -254,7 +303,7 @@ export default function ManagerPackages() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {purchaseHistory.map((purchase) => {
+                {paginatedPurchaseHistory.map((purchase) => {
                   const pkg = mockPackages.find(
                     (p) => p.id === purchase.packageId,
                   );
@@ -311,6 +360,12 @@ export default function ManagerPackages() {
                 })}
               </tbody>
             </table>
+            <Pagination
+              page={historyPage}
+              pageSize={pageSize}
+              totalItems={purchaseHistory.length}
+              onPageChange={setHistoryPage}
+            />
           </div>
         </div>
       )}
@@ -318,36 +373,94 @@ export default function ManagerPackages() {
       <Modal
         open={purchaseOpen}
         onClose={() => setPurchaseOpen(false)}
+        wide
+        icon={<FiBox size={20} />}
         title={t("packages.purchaseTitle", {
           name: selectedPackage?.name || "",
         })}
+        subtitle={selectedPackage?.description}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setPurchaseOpen(false)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              {tc("cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={handlePurchase}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-vr-600"
+            >
+              <FiShoppingCart />
+              {t("packages.confirmPurchase")}
+            </button>
+          </>
+        }
       >
-        <div className="space-y-5">
-          <div className="rounded-lg bg-blue-50 p-4 border border-blue-200">
-            <p className="text-sm text-blue-900">
-              <span className="font-semibold">{t("packages.packageInfo")}</span>{" "}
-              {selectedPackage?.description}
-            </p>
-            <p className="mt-2 text-sm text-blue-900">
-              <span className="font-semibold">{t("packages.basePrice")}</span>{" "}
-              {formatNumber(selectedPackage?.price || 0)} VND /{" "}
-              {selectedPackage?.duration} {t("packages.monthsUnit")}
-            </p>
-          </div>
+        <div className="space-y-6">
+          <section>
+            <h3 className="text-base font-bold text-gray-900">
+              {t("packages.packageInfo")}
+            </h3>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium text-gray-500">
+                  {t("packages.packageColumn")}
+                </p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {selectedPackage?.name}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">
+                  {t("packages.basePrice")}
+                </p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {formatNumber(selectedPackage?.price || 0)} VND /{" "}
+                  {selectedPackage?.duration} {t("packages.monthsUnit")}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">
+                  {t("packages.vehicleCount")}
+                </p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {selectedPackage
+                    ? t("packages.maxVehicles", {
+                        n: selectedPackage.maxVehicles,
+                      })
+                    : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500">
+                  {t("packages.routesLabel")}
+                </p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {selectedPackage
+                    ? t("packages.maxRoutes", { n: selectedPackage.maxRoutes })
+                    : "-"}
+                </p>
+              </div>
+            </div>
+          </section>
 
-          <div>
-            <label className={labelClass}>
+          <section className="border-t border-gray-200 pt-5">
+            <h3 className="text-base font-bold text-gray-900">
               {t("packages.packageDurationLabel")}
-            </label>
-            <div className="flex gap-2">
+            </h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               {[3, 6, 12].map((month) => (
                 <button
                   key={month}
+                  type="button"
                   onClick={() => setFormData({ ...formData, months: month })}
-                  className={`flex-1 rounded-lg py-2 font-medium transition-colors ${
+                  className={`rounded-lg border px-4 py-3 text-sm font-semibold transition-colors ${
                     formData.months === month
-                      ? "bg-blue-600 text-white"
-                      : "border border-gray-200 bg-white text-gray-900 hover:border-blue-300"
+                      ? "border-vr-400 bg-vr-50 text-vr-900"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-vr-200 hover:bg-vr-50/60"
                   }`}
                 >
                   {t("packages.monthsCount", { n: month })}
@@ -355,117 +468,96 @@ export default function ManagerPackages() {
               ))}
             </div>
             {selectedPackage && (
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-3 text-sm text-gray-600">
                 {t("packages.totalPriceLabel")}{" "}
-                {formatNumber(
-                  (selectedPackage.price * formData.months) /
-                    selectedPackage.duration,
-                )}{" "}
-                VND
+                <span className="font-semibold text-gray-900">
+                  {formatNumber(
+                    (selectedPackage.price * formData.months) /
+                      selectedPackage.duration,
+                  )}{" "}
+                  VND
+                </span>
               </p>
             )}
-          </div>
+          </section>
 
-          <div>
-            <label className={labelClass}>
+          <section className="border-t border-gray-200 pt-5">
+            <h3 className="text-base font-bold text-gray-900">
               {t("packages.voucherCodeOptional")}
-            </label>
+            </h3>
             <input
               type="text"
               placeholder={t("packages.voucherPlaceholder")}
-              className={inputClass}
+              className={`${inputClass} mt-3`}
               value={formData.voucherCode}
-              onChange={(e) =>
-                setFormData({ ...formData, voucherCode: e.target.value })
+              onChange={(event) =>
+                setFormData({ ...formData, voucherCode: event.target.value })
               }
             />
             <p className="mt-2 text-xs text-gray-500">
               {t("packages.availableVouchers")}
             </p>
-          </div>
+          </section>
 
-          <div>
-            <label className={labelClass}>{t("packages.paymentMethod")}</label>
-            <div className="space-y-2">
-              <label
-                className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer hover:bg-gray-50"
-                style={{
-                  backgroundColor:
-                    formData.paymentMethod === "wallet" ? "#f0f9ff" : "white",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="payment"
-                  value="wallet"
-                  checked={formData.paymentMethod === "wallet"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      paymentMethod: e.target.value as "wallet" | "qr_code",
-                    })
-                  }
-                  className="w-4 h-4"
-                />
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {t("packages.payWithWallet")}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {t("packages.useWalletBalance")}
-                  </p>
-                </div>
-              </label>
-
-              <label
-                className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer hover:bg-gray-50"
-                style={{
-                  backgroundColor:
-                    formData.paymentMethod === "qr_code" ? "#f0f9ff" : "white",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="payment"
-                  value="qr_code"
-                  checked={formData.paymentMethod === "qr_code"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      paymentMethod: e.target.value as "wallet" | "qr_code",
-                    })
-                  }
-                  className="w-4 h-4"
-                />
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {t("packages.qrCode")}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {t("packages.scanQrToPay")}
-                  </p>
-                </div>
-              </label>
+          <section className="border-t border-gray-200 pt-5">
+            <h3 className="text-base font-bold text-gray-900">
+              {t("packages.paymentMethod")}
+            </h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <PaymentOption
+                checked={formData.paymentMethod === "wallet"}
+                title={t("packages.payWithWallet")}
+                description={t("packages.useWalletBalance")}
+                onChange={() =>
+                  setFormData({ ...formData, paymentMethod: "wallet" })
+                }
+              />
+              <PaymentOption
+                checked={formData.paymentMethod === "qr_code"}
+                title={t("packages.qrCode")}
+                description={t("packages.scanQrToPay")}
+                onChange={() =>
+                  setFormData({ ...formData, paymentMethod: "qr_code" })
+                }
+              />
             </div>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={() => setPurchaseOpen(false)}
-              className="flex-1 rounded-lg border border-gray-200 bg-white py-2 font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              onClick={handlePurchase}
-              className="flex-1 rounded-lg bg-blue-600 py-2 font-medium text-white hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <FiShoppingCart />
-              {t("packages.confirmPurchase")}
-            </button>
-          </div>
+          </section>
         </div>
       </Modal>
     </div>
+  );
+}
+
+function PaymentOption({
+  checked,
+  title,
+  description,
+  onChange,
+}: {
+  checked: boolean;
+  title: string;
+  description: string;
+  onChange: () => void;
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
+        checked
+          ? "border-vr-300 bg-vr-50 text-vr-900"
+          : "border-gray-200 bg-white text-gray-700 hover:border-vr-200 hover:bg-vr-50/60"
+      }`}
+    >
+      <input
+        type="radio"
+        name="payment"
+        checked={checked}
+        onChange={onChange}
+        className="mt-1 h-4 w-4 border-gray-300 text-vr-600 focus:ring-vr-500"
+      />
+      <span>
+        <span className="block text-sm font-semibold">{title}</span>
+        <span className="mt-1 block text-xs text-gray-500">{description}</span>
+      </span>
+    </label>
   );
 }

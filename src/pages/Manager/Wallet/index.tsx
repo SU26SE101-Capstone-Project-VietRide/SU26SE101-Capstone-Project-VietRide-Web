@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import CurrencyInput from "../../../components/CurrencyInput";
 import Modal from "../../../components/Modal";
+import Pagination from "../../../components/Pagination";
 
 type TransactionType = "topup" | "payment" | "refund";
 type TransactionStatus = "pending" | "completed" | "failed";
@@ -117,6 +118,8 @@ export default function ManagerWallet() {
   const [transactions] = useState<WalletTransaction[]>(mockTransactions);
   const [openTopUp, setOpenTopUp] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const transactionTypeDistribution = useMemo(
     () => [
@@ -166,6 +169,11 @@ export default function ManagerWallet() {
     setOpenTopUp(false);
     setTopUpAmount("");
   };
+
+  const paginatedTransactions = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
+  );
 
   const getStatusBadge = (status: TransactionStatus) => {
     switch (status) {
@@ -341,7 +349,10 @@ export default function ManagerWallet() {
               type="text"
               placeholder={t("wallet.searchPlaceholder")}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
             />
           </div>
@@ -381,7 +392,7 @@ export default function ManagerWallet() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((txn) => (
+              {paginatedTransactions.map((txn) => (
                 <tr
                   key={txn.id}
                   className="border-b border-gray-200 hover:bg-gray-50"
@@ -423,28 +434,12 @@ export default function ManagerWallet() {
           </table>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-          <div>
-            {t("wallet.showingTransactions", {
-              count: filtered.length,
-            })}{" "}
-            / {transactions.length}
-          </div>
-          <div className="flex gap-1">
-            <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
-              {tc("previous")}
-            </button>
-            <button className="px-3 py-1.5 bg-vr-500 text-white rounded-lg font-semibold">
-              1
-            </button>
-            <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
-              2
-            </button>
-            <button className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
-              {tc("next")}
-            </button>
-          </div>
-        </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

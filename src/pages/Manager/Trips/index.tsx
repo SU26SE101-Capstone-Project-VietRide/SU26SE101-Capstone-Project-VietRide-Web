@@ -12,6 +12,7 @@ import {
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
+import Pagination from "../../../components/Pagination";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -191,6 +192,8 @@ export default function TripsPage() {
   const [editingId, setEditingId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const activeRoutes = useMemo(
     () => routes.filter((route) => route.status === "active"),
@@ -209,6 +212,10 @@ export default function TripsPage() {
     [],
   );
   const editingSchedule = schedules.find((item) => item.id === editingId);
+  const paginatedSchedules = useMemo(
+    () => schedules.slice((page - 1) * pageSize, page * pageSize),
+    [page, schedules],
+  );
 
   function updateForm<K extends keyof ScheduleForm>(
     key: K,
@@ -523,7 +530,7 @@ export default function TripsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {schedules.map((schedule) => (
+              {paginatedSchedules.map((schedule) => (
                 <tr key={schedule.id} className="hover:bg-gray-50">
                   <td className="px-5 py-4 font-semibold text-gray-900">
                     {schedule.code}
@@ -588,6 +595,12 @@ export default function TripsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={schedules.length}
+          onPageChange={setPage}
+        />
       </section>
     </div>
   );

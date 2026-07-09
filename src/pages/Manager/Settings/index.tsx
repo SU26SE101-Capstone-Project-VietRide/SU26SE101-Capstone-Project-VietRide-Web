@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiPercent,
@@ -13,6 +13,7 @@ import {
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Modal from "../../../components/Modal";
+import Pagination from "../../../components/Pagination";
 import {
   operatorConfigs,
   type HolidayPricingPeriod,
@@ -108,6 +109,16 @@ export default function ManagerSettings() {
     endDate: "",
     surchargePercent: "15",
   });
+  const [periodPage, setPeriodPage] = useState(1);
+  const pageSize = 8;
+  const paginatedHolidayPeriods = useMemo(
+    () =>
+      config.holidayPeriods.slice(
+        (periodPage - 1) * pageSize,
+        periodPage * pageSize,
+      ),
+    [config.holidayPeriods, periodPage],
+  );
 
   const updateConfig = <K extends keyof OperatorConfig>(
     key: K,
@@ -332,7 +343,7 @@ export default function ManagerSettings() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {config.holidayPeriods.map((period) => (
+                      {paginatedHolidayPeriods.map((period) => (
                         <tr key={period.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 font-medium text-gray-900">
                             {period.name}
@@ -401,6 +412,12 @@ export default function ManagerSettings() {
                       ))}
                     </tbody>
                   </table>
+                  <Pagination
+                    page={periodPage}
+                    pageSize={pageSize}
+                    totalItems={config.holidayPeriods.length}
+                    onPageChange={setPeriodPage}
+                  />
                 </div>
               )}
             </div>

@@ -36,6 +36,7 @@ import { getAuthUser } from "../../../auth";
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import { DetailItem } from "../../../components/DetailLayout";
+import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 
 const inputClass =
@@ -111,12 +112,18 @@ export default function ParcelsList() {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [farePage, setFarePage] = useState(1);
+  const pageSize = 8;
 
   const pendingActionCount = useMemo(
     () =>
       (summary?.totalRejected ?? 0) +
       (selectedParcel?.status === "PENDING_OPERATOR_REVIEW" ? 1 : 0),
     [selectedParcel, summary],
+  );
+  const paginatedRouteFares = useMemo(
+    () => routeFares.slice((farePage - 1) * pageSize, farePage * pageSize),
+    [farePage, routeFares],
   );
 
   const loadData = useCallback(async () => {
@@ -511,7 +518,7 @@ export default function ParcelsList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {routeFares.map((fare) => (
+                  {paginatedRouteFares.map((fare) => (
                     <tr
                       key={`${fare.routeId}-${fare.sizeCategory}`}
                       className="border-b border-gray-100 last:border-0"
@@ -539,6 +546,12 @@ export default function ParcelsList() {
                 {t("parcels.noRouteFares")}
               </p>
             )}
+            <Pagination
+              page={farePage}
+              pageSize={pageSize}
+              totalItems={routeFares.length}
+              onPageChange={setFarePage}
+            />
           </section>
         </main>
 

@@ -31,6 +31,7 @@ import { getAuthUser } from "../../../auth";
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
+import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 
 const inputClass =
@@ -166,7 +167,6 @@ function toUpdateRequest(form: VoucherForm): UpdateOperatorVoucherRequest {
     perUserLimit: request.perUserLimit,
     validFrom: request.validFrom,
     validUntil: request.validUntil,
-    applicableServices: request.applicableServices,
     applicableRouteIds: request.applicableRouteIds,
   };
 }
@@ -185,9 +185,8 @@ export default function ManagerVouchers() {
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [consentStatus, setConsentStatus] = useState("");
   const [form, setForm] = useState<VoucherForm>(emptyForm);
-  const [selectedVoucher, setSelectedVoucher] = useState<OperatorVoucher | null>(
-    null,
-  );
+  const [selectedVoucher, setSelectedVoucher] =
+    useState<OperatorVoucher | null>(null);
   const [deletingVoucher, setDeletingVoucher] =
     useState<OperatorVoucher | null>(null);
   const [rejectingConsent, setRejectingConsent] =
@@ -246,7 +245,9 @@ export default function ManagerVouchers() {
         setRoutes(routeResult.items);
       } catch (err) {
         if (!ignore) {
-          setError(err instanceof Error ? err.message : "Failed to load vouchers");
+          setError(
+            err instanceof Error ? err.message : "Failed to load vouchers",
+          );
         }
       } finally {
         if (!ignore) {
@@ -316,7 +317,9 @@ export default function ManagerVouchers() {
         );
         setMessage(t("vouchers.updateSuccess"));
       } else {
-        const createdVoucher = await createOperatorVoucher(toCreateRequest(form));
+        const createdVoucher = await createOperatorVoucher(
+          toCreateRequest(form),
+        );
         setVouchers((current) => [createdVoucher, ...current]);
         setMessage(t("vouchers.createSuccess"));
       }
@@ -381,7 +384,9 @@ export default function ManagerVouchers() {
     setMessage("");
     try {
       await acceptOperatorVoucherConsent(consent.id);
-      setMessage(t("vouchers.acceptConsentSuccess", { code: consent.voucherCode }));
+      setMessage(
+        t("vouchers.acceptConsentSuccess", { code: consent.voucherCode }),
+      );
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("vouchers.acceptFailed"));
@@ -397,7 +402,11 @@ export default function ManagerVouchers() {
     setMessage("");
     try {
       await rejectOperatorVoucherConsent(rejectingConsent.id, rejectReason);
-      setMessage(t("vouchers.rejectConsentSuccess", { code: rejectingConsent.voucherCode }));
+      setMessage(
+        t("vouchers.rejectConsentSuccess", {
+          code: rejectingConsent.voucherCode,
+        }),
+      );
       setRejectingConsent(null);
       setRejectReason("");
       await loadData();
@@ -413,9 +422,7 @@ export default function ManagerVouchers() {
           <h1 className="text-3xl font-bold text-gray-900">
             {t("vouchers.operatorTitle")}
           </h1>
-          <p className="mt-1 text-gray-600">
-            {t("vouchers.operatorSubtitle")}
-          </p>
+          <p className="mt-1 text-gray-600">{t("vouchers.operatorSubtitle")}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -440,9 +447,15 @@ export default function ManagerVouchers() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <MetricCard label={t("vouchers.totalVouchers")} value={vouchers.length} />
+        <MetricCard
+          label={t("vouchers.totalVouchers")}
+          value={vouchers.length}
+        />
         <MetricCard label={t("vouchers.activeVouchers")} value={activeCount} />
-        <MetricCard label={t("vouchers.pendingConsents")} value={pendingConsentCount} />
+        <MetricCard
+          label={t("vouchers.pendingConsents")}
+          value={pendingConsentCount}
+        />
       </div>
 
       {isOperatorAdmin && (
@@ -487,33 +500,55 @@ export default function ManagerVouchers() {
 
       {isOperatorAdmin && activeTab === "vouchers" ? (
         <div className="space-y-4">
-          <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
-            <div className="grid gap-2 sm:grid-cols-2">
+          <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {t("vouchers.applicableTo")}
+              </p>
+              <h2 className="mt-1 text-lg font-bold text-gray-900">
+                {activeServiceTab === "BOOKING"
+                  ? t("vouchers.bookingVouchers")
+                  : t("vouchers.parcelVouchers")}
+              </h2>
+            </div>
+            <div className="inline-flex w-full rounded-full bg-gray-100 p-1 sm:w-auto">
               <button
                 type="button"
                 onClick={() => setActiveServiceTab("BOOKING")}
-                className={`rounded-lg px-4 py-3 text-left text-sm font-semibold ${
+                className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none ${
                   activeServiceTab === "BOOKING"
-                    ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "bg-white text-vr-800 shadow-sm ring-1 ring-vr-100"
+                    : "text-gray-500 hover:text-gray-800"
                 }`}
               >
                 {t("vouchers.bookingVouchers")}
-                <span className="ml-2 rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-700">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs ${
+                    activeServiceTab === "BOOKING"
+                      ? "bg-vr-100 text-vr-700"
+                      : "bg-white text-gray-500"
+                  }`}
+                >
                   {bookingVouchers.length}
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveServiceTab("PARCEL")}
-                className={`rounded-lg px-4 py-3 text-left text-sm font-semibold ${
+                className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none ${
                   activeServiceTab === "PARCEL"
-                    ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "bg-white text-vr-800 shadow-sm ring-1 ring-vr-100"
+                    : "text-gray-500 hover:text-gray-800"
                 }`}
               >
                 {t("vouchers.parcelVouchers")}
-                <span className="ml-2 rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-700">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs ${
+                    activeServiceTab === "PARCEL"
+                      ? "bg-vr-100 text-vr-700"
+                      : "bg-white text-gray-500"
+                  }`}
+                >
                   {parcelVouchers.length}
                 </span>
               </button>
@@ -640,6 +675,18 @@ function VoucherTable({
 }) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const totalPages = Math.max(1, Math.ceil(vouchers.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedVouchers = useMemo(
+    () =>
+      vouchers.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize,
+      ),
+    [currentPage, vouchers],
+  );
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -657,7 +704,7 @@ function VoucherTable({
             </tr>
           </thead>
           <tbody>
-            {vouchers.map((voucher) => (
+            {paginatedVouchers.map((voucher) => (
               <tr
                 key={voucher.id}
                 className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
@@ -677,9 +724,15 @@ function VoucherTable({
                     : `${formatMoney(voucher.value)} VND`}
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-700">
-                  <p>{t("vouchers.totalLimit", { count: voucher.totalUsageLimit })}</p>
+                  <p>
+                    {t("vouchers.totalLimit", {
+                      count: voucher.totalUsageLimit,
+                    })}
+                  </p>
                   <p className="text-xs text-gray-500">
-                    {t("vouchers.perUserLimit", { count: voucher.perUserLimit })}
+                    {t("vouchers.perUserLimit", {
+                      count: voucher.perUserLimit,
+                    })}
                   </p>
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-700">
@@ -713,12 +766,22 @@ function VoucherTable({
                       }
                       onClick={() => onToggle(voucher)}
                     >
-                      {voucher.isActive ? <FiX size={16} /> : <FiCheck size={16} />}
+                      {voucher.isActive ? (
+                        <FiX size={16} />
+                      ) : (
+                        <FiCheck size={16} />
+                      )}
                     </IconButton>
-                    <IconButton label={tc("edit")} onClick={() => onEdit(voucher)}>
+                    <IconButton
+                      label={tc("edit")}
+                      onClick={() => onEdit(voucher)}
+                    >
                       <FiEdit2 size={16} />
                     </IconButton>
-                    <IconButton label={tc("delete")} onClick={() => onDelete(voucher)}>
+                    <IconButton
+                      label={tc("delete")}
+                      onClick={() => onDelete(voucher)}
+                    >
                       <FiTrash2 size={16} />
                     </IconButton>
                   </div>
@@ -739,6 +802,12 @@ function VoucherTable({
           {t("vouchers.emptyOperatorVoucher")}
         </div>
       )}
+      <Pagination
+        page={currentPage}
+        pageSize={pageSize}
+        totalItems={vouchers.length}
+        onPageChange={setPage}
+      />
     </div>
   );
 }
@@ -761,15 +830,32 @@ function ConsentTable({
   onReject: (consent: OperatorVoucherConsent) => void;
 }) {
   const { t } = useTranslation("manager");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const totalPages = Math.max(1, Math.ceil(consents.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedConsents = useMemo(
+    () =>
+      consents.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize,
+      ),
+    [consents, currentPage],
+  );
 
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <label className={labelClass}>{t("vouchers.consentStatusFilter")}</label>
+        <label className={labelClass}>
+          {t("vouchers.consentStatusFilter")}
+        </label>
         <CustomSelect
           className={inputClass}
           value={status}
-          onChange={(event) => onStatusChange(event.target.value)}
+          onChange={(event) => {
+            onStatusChange(event.target.value);
+            setPage(1);
+          }}
         >
           <option value="">{t("vouchers.all")}</option>
           <option value="PENDING">PENDING</option>
@@ -792,7 +878,7 @@ function ConsentTable({
               </tr>
             </thead>
             <tbody>
-              {consents.map((consent) => {
+              {paginatedConsents.map((consent) => {
                 const canRespond = canManage && consent.status === "PENDING";
 
                 return (
@@ -800,29 +886,31 @@ function ConsentTable({
                     key={consent.id}
                     className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                   >
-                  <td className="px-5 py-4">
-                    <p className="font-mono text-sm font-semibold text-vr-700">
-                      {consent.voucherCode}
-                    </p>
-                    <p className="text-xs text-gray-500">{consent.voucherType}</p>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {consent.voucherValue}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {formatMoney(consent.minOrderAmount)} VND
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    <p>{formatDate(consent.validFrom)}</p>
-                    <p className="text-xs text-gray-500">
-                      {t("vouchers.validUntil", {
-                        date: formatDate(consent.validUntil),
-                      })}
-                    </p>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {consent.status}
-                  </td>
+                    <td className="px-5 py-4">
+                      <p className="font-mono text-sm font-semibold text-vr-700">
+                        {consent.voucherCode}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {consent.voucherType}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-700">
+                      {consent.voucherValue}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-700">
+                      {formatMoney(consent.minOrderAmount)} VND
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-700">
+                      <p>{formatDate(consent.validFrom)}</p>
+                      <p className="text-xs text-gray-500">
+                        {t("vouchers.validUntil", {
+                          date: formatDate(consent.validUntil),
+                        })}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-700">
+                      {consent.status}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <IconButton
@@ -858,6 +946,12 @@ function ConsentTable({
             {t("vouchers.emptyConsents")}
           </div>
         )}
+        <Pagination
+          page={currentPage}
+          pageSize={pageSize}
+          totalItems={consents.length}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );
@@ -1033,7 +1127,9 @@ function VoucherModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={labelClass}>{t("vouchers.applicableRoutes")}</label>
+            <label className={labelClass}>
+              {t("vouchers.applicableRoutes")}
+            </label>
             <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
               {routes.length > 0 ? (
                 <div className="space-y-1">
@@ -1059,9 +1155,6 @@ function VoucherModal({
                           <span className="block truncate font-medium">
                             {route.name}
                           </span>
-                          <span className="block truncate text-xs text-gray-500">
-                            {route.originStationId} → {route.destinationStationId}
-                          </span>
                         </span>
                       </label>
                     );
@@ -1075,7 +1168,9 @@ function VoucherModal({
             </div>
             <p className="mt-1 text-xs text-gray-500">
               {selectedRouteIds.length > 0
-                ? t("vouchers.selectedRoutes", { count: selectedRouteIds.length })
+                ? t("vouchers.selectedRoutes", {
+                    count: selectedRouteIds.length,
+                  })
                 : t("vouchers.allRoutesHint")}
             </p>
           </div>

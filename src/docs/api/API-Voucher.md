@@ -105,6 +105,8 @@ Discount:
 | GET | `/v1/vouchers/available` | User token | Lấy voucher user hiện tại có thể dùng |
 | POST | `/v1/admin/vouchers` | `SYSTEM_ADMIN` | Admin tạo platform voucher |
 | GET | `/v1/admin/vouchers` | `SYSTEM_ADMIN` | Admin list platform voucher |
+| PATCH | `/v1/admin/vouchers/{id}` | `SYSTEM_ADMIN` | Admin cập nhật platform voucher |
+| DELETE | `/v1/admin/vouchers/{id}` | `SYSTEM_ADMIN` | Admin soft-delete platform voucher |
 | GET | `/v1/admin/vouchers/{voucherId}/consents` | `SYSTEM_ADMIN` | Admin xem consent của voucher |
 | GET | `/v1/admin/campaigns` | `SYSTEM_ADMIN` | Admin list campaign |
 | POST | `/v1/admin/campaigns` | `SYSTEM_ADMIN` | Admin tạo campaign |
@@ -252,6 +254,7 @@ Validation chính:
 | `maxDiscountAmount` | `> 0` nếu có |
 | `totalUsageLimit`, `perUserLimit` | `> 0` nếu có |
 | `validUntil` | phải sau `validFrom` |
+| `applicableServices` | optional; nếu có chỉ được `BOOKING`, `PARCEL`, hoặc cả hai |
 | `applicableOperatorIds` | bắt buộc non-empty nếu `fundingType=OPERATOR_FUNDED` |
 
 Success `201`:
@@ -345,6 +348,96 @@ Success `200`: `PagedResult<VoucherListItem>`.
 ```
 
 Errors trong code: `401/403`, `422 INVALID_SORT_DIRECTION`, `422 INVALID_SORT_FIELD`, `422 VALIDATION_ERROR`.
+
+### PATCH `/v1/admin/vouchers/{id}`
+
+Admin cập nhật partial platform voucher. Endpoint này chỉ thao tác voucher có `ownerOperatorId = null`; voucher operator-owned hoặc voucher đã soft-delete được che thành `404 VOUCHER_NOT_FOUND`.
+
+Auth: `SYSTEM_ADMIN`. Header bắt buộc: `Idempotency-Key`.
+
+Body tất cả field đều optional; `null` nghĩa là giữ nguyên:
+
+```json
+{
+  "name": "Giảm 15% vé xe và gửi hàng",
+  "value": 15,
+  "minOrderAmount": 50000,
+  "maxDiscountAmount": 30000,
+  "totalUsageLimit": 2000,
+  "perUserLimit": 2,
+  "validFrom": "2026-07-01T00:00:00Z",
+  "validUntil": "2026-08-31T16:59:59Z",
+  "newUserOnly": false,
+  "applicablePaymentMethods": ["VNPAY", "WALLET"],
+  "applicableServices": ["BOOKING", "PARCEL"],
+  "applicableRouteIds": ["44444444-4444-4444-8444-444444444444"]
+}
+```
+
+Field immutable, không có trong body: `code`, `type`, `fundingType`, `ownerOperatorId`, `createdByUserId`.
+
+Freeze-on-first-use giống operator voucher:
+
+- Khi voucher chưa có usage: các field mutable đều có thể sửa.
+- Khi đã có usage: `value`, `minOrderAmount`, `maxDiscountAmount`, `validFrom` bị khóa.
+- `validUntil` chỉ được kéo dài, không được rút ngắn.
+- `totalUsageLimit`, `perUserLimit` chỉ được nới lỏng: tăng hoặc set unlimited; không được siết lại.
+
+Success `200` data:
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "code": "BOOK10",
+  "name": "Giảm 15% vé xe và gửi hàng",
+  "type": "PERCENT_OFF",
+  "value": 15,
+  "fundingType": "VIETRIDE_FUNDED",
+  "ownerOperatorId": null,
+  "isActive": true,
+  "validFrom": "2026-07-01T00:00:00Z",
+  "validUntil": "2026-08-31T16:59:59Z",
+  "newUserOnly": false,
+  "applicablePaymentMethods": ["VNPAY", "WALLET"],
+  "applicableServices": ["BOOKING", "PARCEL"],
+  "applicableRouteIds": ["44444444-4444-4444-8444-444444444444"]
+}
+```
+
+Errors trong code: `400 VALIDATION_ERROR`, `401/403`, `404 VOUCHER_NOT_FOUND`, `409 VOUCHER_LOCKED`, `422 VALIDATION_ERROR`, `422 IDEMPOTENCY_KEY_MISMATCH`.
+
+```bash
+curl -X PATCH "http://localhost:5003/v1/admin/vouchers/11111111-1111-4111-8111-111111111111" \
+  -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: admin-voucher-update-001" -H "Content-Type: application/json" \
+  -d '{"name":"Giảm 15% vé xe và gửi hàng","value":15,"applicableServices":["BOOKING","PARCEL"],"validUntil":"2026-08-31T16:59:59Z"}'
+```
+
+### DELETE `/v1/admin/vouchers/{id}`
+
+Soft-delete platform voucher. Endpoint này chỉ thao tác voucher có `ownerOperatorId = null`; voucher operator-owned trả `404 VOUCHER_NOT_FOUND`. Behavior-idempotent với platform voucher đã soft-deleted: gọi lại trả cùng `deletedAt`.
+
+Auth: `SYSTEM_ADMIN`. Header bắt buộc: `Idempotency-Key`.
+
+Success `200`:
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "deletedAt": "2026-07-05T10:00:00Z"
+  },
+  "meta": { "traceId": "req-123", "timestamp": "2026-07-05T10:00:00.0000000Z" }
+}
+```
+
+Errors trong code: `401/403`, `404 VOUCHER_NOT_FOUND`, `422 VALIDATION_ERROR`, `422 IDEMPOTENCY_KEY_MISMATCH`.
+
+```bash
+curl -X DELETE "http://localhost:5003/v1/admin/vouchers/11111111-1111-4111-8111-111111111111" \
+  -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: admin-voucher-delete-001"
+```
 
 ### GET `/v1/operator/vouchers`
 
@@ -464,10 +557,13 @@ Request body:
   "perUserLimit": 1,
   "validFrom": "2026-07-01T00:00:00Z",
   "validUntil": "2026-07-31T16:59:59Z",
+  "applicableServices": ["PARCEL"],
   "applicableRouteIds": ["44444444-4444-4444-8444-444444444444"],
   "fundingType": "OPERATOR_FUNDED"
 }
 ```
+
+`applicableServices` optional. Nếu không gửi, server giữ behavior cũ và default `["BOOKING"]`. Nếu gửi thì chỉ hợp lệ `BOOKING`, `PARCEL`, hoặc cả hai.
 
 Success `201`:
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiX, FiFileText } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import Pagination from "../../../components/Pagination";
 import {
   operatorPolicies as mockOperatorPolicies,
   type OperatorPolicy,
@@ -31,6 +32,8 @@ export default function ManagerPolicies() {
     content: "",
     category: "",
   });
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const sortedPolicies = useMemo(
     () =>
@@ -39,6 +42,11 @@ export default function ManagerPolicies() {
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       ),
     [policies],
+  );
+
+  const paginatedPolicies = useMemo(
+    () => sortedPolicies.slice((page - 1) * pageSize, page * pageSize),
+    [page, sortedPolicies],
   );
 
   const resetForm = () => {
@@ -167,7 +175,7 @@ export default function ManagerPolicies() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {sortedPolicies.map((policy) => (
+              {paginatedPolicies.map((policy) => (
                 <tr key={policy.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <div>
@@ -246,6 +254,12 @@ export default function ManagerPolicies() {
               ))}
             </tbody>
           </table>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={sortedPolicies.length}
+            onPageChange={setPage}
+          />
         </div>
       )}
 

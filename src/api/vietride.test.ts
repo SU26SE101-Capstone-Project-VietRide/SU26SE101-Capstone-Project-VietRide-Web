@@ -5,6 +5,7 @@ import {
   approveRagDocument,
   chatWithRag,
   confirmOperatorParcelRefund,
+  deleteAdminVoucher,
   createAdminUser,
   createOperatorVoucher,
   createParcel,
@@ -34,6 +35,7 @@ import {
   reviewOperatorParcel,
   returnOperatorParcel,
   reweighAssistantParcel,
+  updateAdminVoucher,
   updateOperatorVoucher,
   updateOperatorParcelStatus,
 } from "./vietride";
@@ -362,7 +364,6 @@ describe("vietride API", () => {
       perUserLimit: 1,
       validFrom: "2026-07-01T00:00:00.000Z",
       validUntil: "2026-08-31T16:59:59.000Z",
-      applicableServices: ["PARCEL"],
       applicableRouteIds: [],
     });
 
@@ -382,7 +383,7 @@ describe("vietride API", () => {
       "https://api.vietride.online/v1/operator/vouchers/voucher-1",
       expect.objectContaining({
         method: "PATCH",
-        body: expect.stringContaining('"applicableServices":["PARCEL"]'),
+        body: expect.not.stringContaining("applicableServices"),
       }),
     );
   });
@@ -508,6 +509,20 @@ describe("vietride API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await getAdminVouchers({ page: 1, pageSize: 20, fundingType: "OPERATOR_FUNDED" });
+    await updateAdminVoucher("voucher-1", {
+      name: "Summer parcel",
+      value: 15,
+      minOrderAmount: 50000,
+      maxDiscountAmount: 30000,
+      totalUsageLimit: 2000,
+      perUserLimit: 2,
+      validUntil: "2026-08-31T16:59:59.000Z",
+      newUserOnly: false,
+      applicablePaymentMethods: ["VNPAY"],
+      applicableServices: ["PARCEL"],
+      applicableRouteIds: null,
+    });
+    await deleteAdminVoucher("voucher-1");
     await getAdminVoucherConsents("voucher-1", { page: 1, pageSize: 20 });
     await getAdminCampaigns();
     await activateAdminCampaign("campaign-1");
@@ -525,20 +540,41 @@ describe("vietride API", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
+      "https://api.vietride.online/v1/admin/vouchers/voucher-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"applicableServices":["PARCEL"]'),
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/admin/vouchers/voucher-1",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
       "https://api.vietride.online/v1/admin/vouchers/voucher-1/consents?page=1&pageSize=20",
       expect.objectContaining({
         method: "GET",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      5,
       "https://api.vietride.online/v1/admin/campaigns",
       expect.objectContaining({
         method: "GET",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
+      6,
       "https://api.vietride.online/v1/admin/campaigns/campaign-1/activate",
       expect.objectContaining({
         method: "POST",
@@ -548,7 +584,7 @@ describe("vietride API", () => {
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      5,
+      7,
       "https://api.vietride.online/v1/admin/campaigns/campaign-1/deactivate",
       expect.objectContaining({
         method: "POST",

@@ -1,24 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiEdit2, FiPlus, FiPower, FiRefreshCw, FiTag } from "react-icons/fi";
+import { FiEdit2, FiPlus, FiPower, FiRefreshCw, FiTag, FiTrash2 } from "react-icons/fi";
 import {
   activateAdminCampaign,
   createAdminCampaign,
   createAdminVoucher,
+  deleteAdminVoucher,
   deactivateAdminCampaign,
   getAdminOperators,
   getAdminCampaigns,
   getAdminVouchers,
   updateAdminCampaign,
+  updateAdminVoucher,
   type AdminCampaign,
   type AdminCampaignRequest,
   type AdminOperator,
   type AdminVoucher,
   type CreateAdminVoucherRequest,
+  type UpdateAdminVoucherRequest,
 } from "../../api/vietride";
 import CurrencyInput from "../../components/CurrencyInput";
 import Modal from "../../components/Modal";
 import CustomSelect from "../../components/CustomSelect";
+import Pagination from "../../components/Pagination";
 import { formatDateOnly } from "../../utils/date";
 
 const inputClass =
@@ -192,6 +196,20 @@ function operatorIdsToValue(operatorIds: string[]) {
   return operatorIds.join(", ");
 }
 
+function applicableToOf(voucher: AdminVoucher) {
+  const services = voucherServicesOf(voucher);
+
+  if (services.includes("BOOKING") && services.includes("PARCEL")) {
+    return "all";
+  }
+
+  if (services.includes("PARCEL")) {
+    return "parcels";
+  }
+
+  return "rides";
+}
+
 function isActiveOperator(operator: AdminOperator) {
   return operator.registrationStatus === "APPROVED" && operator.isActive !== false;
 }
@@ -220,6 +238,45 @@ function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
   };
 }
 
+function toUpdateRequest(form: VoucherForm): UpdateAdminVoucherRequest {
+  return {
+    name: form.name.trim(),
+    value: toNumber(form.discount),
+    minOrderAmount: toNumber(form.minOrderValue),
+    maxDiscountAmount: toNumber(form.maxDiscountAmount),
+    totalUsageLimit: toNumber(form.quantity),
+    perUserLimit: toNumber(form.maxUsagePerUser),
+    validUntil: toEndOfDayIso(form.expiryDate),
+    newUserOnly: false,
+    applicablePaymentMethods: ["VNPAY", "WALLET"],
+    applicableServices: toApplicableServices(form.applicableTo),
+    applicableRouteIds: null,
+  };
+}
+
+function toForm(voucher: AdminVoucher): VoucherForm {
+  return {
+    code: voucher.code,
+    name: voucher.name,
+    description: voucher.description ?? "",
+    discountType: voucher.type ?? voucher.discountType ?? "PERCENT_OFF",
+    discount: String(discountValueOf(voucher)),
+    maxDiscountAmount: String(voucher.maxDiscountAmount ?? 0),
+    applicableTo: applicableToOf(voucher),
+    fundingType: voucher.fundingType ?? "VIETRIDE_FUNDED",
+    operatorScope:
+      voucher.applicableOperatorIds && voucher.applicableOperatorIds.length > 0
+        ? "SELECTED_OPERATORS"
+        : "ALL_OPERATORS",
+    applicableOperatorIds: operatorIdsToValue(voucher.applicableOperatorIds ?? []),
+    minOrderValue: String(voucher.minOrderAmount ?? voucher.minOrderValue ?? 0),
+    quantity: String(quantityOf(voucher)),
+    expiryDate: formatDisplayDate(expiryDateOf(voucher)),
+    maxUsagePerUser: String(voucher.perUserLimit ?? voucher.maxUsagePerUser ?? 1),
+    active: activeOf(voucher),
+  };
+}
+
 function toCampaignRequest(form: CampaignForm): AdminCampaignRequest {
   return {
     name: form.name.trim(),
@@ -244,6 +301,8 @@ export default function Vouchers() {
     useState<CampaignForm>(emptyCampaignForm);
   const [createOpen, setCreateOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
+  const [editingVoucher, setEditingVoucher] = useState<AdminVoucher | null>(null);
+  const [deletingVoucher, setDeletingVoucher] = useState<AdminVoucher | null>(null);
   const [editingCampaign, setEditingCampaign] = useState<AdminCampaign | null>(
     null,
   );
@@ -251,6 +310,9 @@ export default function Vouchers() {
   const [isCampaignActionLoading, setIsCampaignActionLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [voucherPage, setVoucherPage] = useState(1);
+  const [campaignPage, setCampaignPage] = useState(1);
+  const pageSize = 8;
 
   const bookingVouchers = useMemo(
     () => vouchers.filter(isBookingVoucher),
@@ -262,6 +324,22 @@ export default function Vouchers() {
   );
   const currentVouchers =
     activeTab === "booking" ? bookingVouchers : parcelVouchers;
+  const paginatedVouchers = useMemo(
+    () =>
+      currentVouchers.slice(
+        (voucherPage - 1) * pageSize,
+        voucherPage * pageSize,
+      ),
+    [currentVouchers, voucherPage],
+  );
+  const paginatedCampaigns = useMemo(
+    () =>
+      campaigns.slice(
+        (campaignPage - 1) * pageSize,
+        campaignPage * pageSize,
+      ),
+    [campaignPage, campaigns],
+  );
 
   const loadVouchers = useCallback(async () => {
     setIsLoading(true);
@@ -297,6 +375,7 @@ export default function Vouchers() {
   }
 
   function openCreateModal() {
+    setEditingVoucher(null);
     setForm({
       ...emptyForm,
       applicableTo: activeTab === "booking" ? "rides" : "parcels",
@@ -308,6 +387,14 @@ export default function Vouchers() {
         new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       ),
     });
+    setCreateOpen(true);
+    setMessage("");
+    setError("");
+  }
+
+  function openEditModal(voucher: AdminVoucher) {
+    setEditingVoucher(voucher);
+    setForm(toForm(voucher));
     setCreateOpen(true);
     setMessage("");
     setError("");
@@ -344,7 +431,7 @@ export default function Vouchers() {
     setError("");
   }
 
-  async function handleCreate() {
+  async function handleSaveVoucher() {
     setMessage("");
     setError("");
 
@@ -360,6 +447,7 @@ export default function Vouchers() {
     }
 
     if (
+      !editingVoucher &&
       form.fundingType === "OPERATOR_FUNDED" &&
       toOperatorIds(form.applicableOperatorIds).length === 0
     ) {
@@ -368,10 +456,44 @@ export default function Vouchers() {
     }
 
     try {
-      const created = await createAdminVoucher(toCreateRequest(form));
-      setVouchers((current) => [created, ...current]);
+      const saved = editingVoucher
+        ? await updateAdminVoucher(editingVoucher.id, toUpdateRequest(form))
+        : await createAdminVoucher(toCreateRequest(form));
+
+      setVouchers((current) =>
+        editingVoucher
+          ? current.map((voucher) => (voucher.id === saved.id ? saved : voucher))
+          : [saved, ...current],
+      );
       setCreateOpen(false);
-      setMessage(t("vouchers.saveSuccess", { action: t("vouchers.saveActionCreate") }));
+      setEditingVoucher(null);
+      setMessage(
+        t("vouchers.saveSuccess", {
+          action: editingVoucher
+            ? t("vouchers.saveActionUpdate")
+            : t("vouchers.saveActionCreate"),
+        }),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("vouchers.createFailed"));
+    }
+  }
+
+  async function handleDeleteVoucher() {
+    if (!deletingVoucher) {
+      return;
+    }
+
+    setMessage("");
+    setError("");
+
+    try {
+      await deleteAdminVoucher(deletingVoucher.id);
+      setVouchers((current) =>
+        current.filter((voucher) => voucher.id !== deletingVoucher.id),
+      );
+      setDeletingVoucher(null);
+      setMessage(t("vouchers.deleteSuccess", { id: deletingVoucher.code }));
     } catch (err) {
       setError(err instanceof Error ? err.message : t("vouchers.createFailed"));
     }
@@ -504,7 +626,10 @@ export default function Vouchers() {
       <div className="flex gap-0 border-b border-gray-200">
         <button
           type="button"
-          onClick={() => setActiveTab("booking")}
+          onClick={() => {
+            setActiveTab("booking");
+            setVoucherPage(1);
+          }}
           className={`border-b-2 px-6 py-3 text-sm font-medium transition ${
             activeTab === "booking"
               ? "border-vr-500 text-vr-600"
@@ -518,7 +643,10 @@ export default function Vouchers() {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("parcel")}
+          onClick={() => {
+            setActiveTab("parcel");
+            setVoucherPage(1);
+          }}
           className={`border-b-2 px-6 py-3 text-sm font-medium transition ${
             activeTab === "parcel"
               ? "border-vr-500 text-vr-600"
@@ -578,7 +706,7 @@ export default function Vouchers() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="w-full min-w-[880px]">
+            <table className="w-full min-w-[980px]">
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
@@ -608,10 +736,13 @@ export default function Vouchers() {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {tc("status")}
                   </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-600">
+                    {tc("actions")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {currentVouchers.map((voucher) => {
+                {paginatedVouchers.map((voucher) => {
                   const quantity = quantityOf(voucher);
                   const usedCount = usedCountOf(voucher);
                   const usageRate =
@@ -641,7 +772,7 @@ export default function Vouchers() {
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
                         <span className="text-sm text-gray-600">
-                          {getApplicableLabel(voucher.applicableTo)}
+                          {getApplicableLabel(applicableToOf(voucher))}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
@@ -682,11 +813,39 @@ export default function Vouchers() {
                           {activeOf(voucher) ? tc("active") : tc("inactive")}
                         </span>
                       </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(voucher)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            aria-label={tc("edit")}
+                            title={tc("edit")}
+                          >
+                            <FiEdit2 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingVoucher(voucher)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 text-red-500 hover:bg-red-50"
+                            aria-label={tc("delete")}
+                            title={tc("delete")}
+                          >
+                            <FiTrash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            <Pagination
+              page={voucherPage}
+              pageSize={pageSize}
+              totalItems={currentVouchers.length}
+              onPageChange={setVoucherPage}
+            />
           </div>
         )}
       </div>
@@ -723,7 +882,7 @@ export default function Vouchers() {
               </tr>
             </thead>
             <tbody>
-              {campaigns.map((campaign) => (
+              {paginatedCampaigns.map((campaign) => (
                 <tr key={campaign.id} className="border-b border-gray-100 last:border-0">
                   <td className="px-5 py-4">
                     <p className="font-semibold text-gray-900">{campaign.name}</p>
@@ -787,17 +946,28 @@ export default function Vouchers() {
               {t("vouchers.noCampaigns")}
             </p>
           )}
+          <Pagination
+            page={campaignPage}
+            pageSize={pageSize}
+            totalItems={campaigns.length}
+            onPageChange={setCampaignPage}
+          />
         </div>
       </section>
 
       <Modal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false);
+          setEditingVoucher(null);
+        }}
         wide
         icon={<FiTag size={20} />}
-        title={t("vouchers.createTitle")}
+        title={editingVoucher ? t("vouchers.editTitle") : t("vouchers.createTitle")}
         subtitle={
-          activeTab === "booking"
+          editingVoucher
+            ? t("vouchers.updateSubtitle")
+            : activeTab === "booking"
             ? t("vouchers.createBookingSubtitle")
             : t("vouchers.createParcelSubtitle")
         }
@@ -805,18 +975,23 @@ export default function Vouchers() {
           <>
             <button
               type="button"
-              onClick={() => setCreateOpen(false)}
+              onClick={() => {
+                setCreateOpen(false);
+                setEditingVoucher(null);
+              }}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
               {tc("cancel")}
             </button>
             <button
               type="button"
-              onClick={handleCreate}
+              onClick={handleSaveVoucher}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
             >
               {t("vouchers.saveButton", {
-                action: t("vouchers.saveActionCreate"),
+                action: editingVoucher
+                  ? t("vouchers.saveActionUpdate")
+                  : t("vouchers.saveActionCreate"),
               })}
             </button>
           </>
@@ -827,6 +1002,7 @@ export default function Vouchers() {
             <Field
               label={t("vouchers.voucherCode")}
               value={form.code}
+              disabled={Boolean(editingVoucher)}
               onChange={(value) => updateForm("code", value)}
               placeholder={t("vouchers.codePlaceholder")}
               required
@@ -860,6 +1036,7 @@ export default function Vouchers() {
               <CustomSelect
                 className={inputClass}
                 value={form.discountType}
+                disabled={Boolean(editingVoucher)}
                 onChange={(event) => updateForm("discountType", event.target.value)}
               >
                 <option value="PERCENT_OFF">
@@ -917,6 +1094,7 @@ export default function Vouchers() {
                 <CustomSelect
                   className={inputClass}
                   value={form.fundingType}
+                  disabled={Boolean(editingVoucher)}
                   onChange={(event) =>
                     updateForm("fundingType", event.target.value)
                   }
@@ -939,6 +1117,7 @@ export default function Vouchers() {
                 <CustomSelect
                   className={inputClass}
                   value={form.operatorScope}
+                  disabled={Boolean(editingVoucher)}
                   onChange={(event) =>
                     updateForm("operatorScope", event.target.value)
                   }
@@ -958,8 +1137,9 @@ export default function Vouchers() {
               </div>
             </div>
 
-            {(form.operatorScope === "SELECTED_OPERATORS" ||
-              form.fundingType === "OPERATOR_FUNDED") && (
+            {!editingVoucher &&
+              (form.operatorScope === "SELECTED_OPERATORS" ||
+                form.fundingType === "OPERATOR_FUNDED") && (
               <OperatorSelector
                 operators={operators.filter(isActiveOperator)}
                 selectedOperatorIds={toOperatorIds(form.applicableOperatorIds)}
@@ -1140,6 +1320,34 @@ export default function Vouchers() {
           </label>
         </div>
       </Modal>
+
+      <Modal
+        open={Boolean(deletingVoucher)}
+        onClose={() => setDeletingVoucher(null)}
+        icon={<FiTrash2 size={20} />}
+        title={t("vouchers.deleteConfirm")}
+        subtitle={deletingVoucher?.code}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeletingVoucher(null)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              {tc("cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDeleteVoucher()}
+              className="rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600"
+            >
+              {tc("delete")}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">{deletingVoucher?.name}</p>
+      </Modal>
     </div>
   );
 }
@@ -1152,6 +1360,7 @@ function Field({
   type = "text",
   required = false,
   currency = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -1160,6 +1369,7 @@ function Field({
   type?: string;
   required?: boolean;
   currency?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -1173,6 +1383,7 @@ function Field({
           value={value}
           placeholder={placeholder}
           required={required}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         />
       ) : (
@@ -1181,6 +1392,7 @@ function Field({
           type={type}
           value={value}
           placeholder={placeholder}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         />
       )}

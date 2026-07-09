@@ -29,6 +29,7 @@ import {
   getOperatorBookingStats,
   type BookingStatsItem,
 } from "../../api/vietride";
+import Pagination from "../../components/Pagination";
 
 type KPICard = {
   labelKey: string;
@@ -214,6 +215,16 @@ export default function ManagerDashboard() {
     totalRevenue: 2_284_500_000,
     totalBookings: 1_284,
   });
+  const [shipmentPage, setShipmentPage] = useState(1);
+  const pageSize = 8;
+  const paginatedShipments = useMemo(
+    () =>
+      recentShipments.slice(
+        (shipmentPage - 1) * pageSize,
+        shipmentPage * pageSize,
+      ),
+    [shipmentPage],
+  );
 
   const applyBookingStats = (stats: Awaited<ReturnType<typeof fetchOperatorBookingStats>>) => {
     if (stats.items.length === 0) {
@@ -546,7 +557,7 @@ export default function ManagerDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {recentShipments.map((shipment) => (
+              {paginatedShipments.map((shipment) => (
                 <tr key={shipment.id} className="hover:bg-gray-50 transition">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
                     {shipment.code}
@@ -579,6 +590,12 @@ export default function ManagerDashboard() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={shipmentPage}
+          pageSize={pageSize}
+          totalItems={recentShipments.length}
+          onPageChange={setShipmentPage}
+        />
       </div>
     </div>
   );

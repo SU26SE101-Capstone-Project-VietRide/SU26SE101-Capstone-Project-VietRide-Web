@@ -14,6 +14,7 @@ import {
 import CustomSelect from "../../../components/CustomSelect";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
+import Pagination from "../../../components/Pagination";
 import { bookings as mockBookings, type Booking } from "../../../data/mockData";
 import { formatDateTime } from "../../../utils/date";
 
@@ -41,6 +42,8 @@ export default function BookingsList() {
   const [refundFilter, setRefundFilter] = useState<RefundFilter>("all");
   const [openDetail, setOpenDetail] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const filtered = useMemo(
     () =>
@@ -82,6 +85,11 @@ export default function BookingsList() {
       totalBookings: mockBookings.length,
     };
   }, []);
+
+  const paginatedBookings = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
+  );
 
   const selectedRefundStatus = selectedBooking
     ? getRefundStatus(selectedBooking)
@@ -224,7 +232,10 @@ export default function BookingsList() {
                 type="text"
                 placeholder={t("bookings.searchPlaceholder")}
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setPage(1);
+                }}
                 className={inputClass + " pl-10"}
               />
             </div>
@@ -232,9 +243,10 @@ export default function BookingsList() {
               <CustomSelect
                 className={inputClass}
                 value={refundFilter}
-                onChange={(event) =>
-                  setRefundFilter(event.target.value as RefundFilter)
-                }
+                onChange={(event) => {
+                  setRefundFilter(event.target.value as RefundFilter);
+                  setPage(1);
+                }}
               >
                 <option value="all">{t("bookings.allRefundStatuses")}</option>
                 <option value="not_applicable">
@@ -293,7 +305,7 @@ export default function BookingsList() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((booking) => {
+              {paginatedBookings.map((booking) => {
                 const refundStatus = getRefundStatus(booking);
 
                 return (
@@ -360,46 +372,12 @@ export default function BookingsList() {
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-gray-500">
-            {tc("showingItems", {
-              count: filtered.length,
-              total: mockBookings.length,
-            })}
-          </p>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              className="cursor-pointer rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              {tc("previous")}
-            </button>
-            <button
-              type="button"
-              className="cursor-pointer rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-semibold text-slate-900"
-            >
-              1
-            </button>
-            <button
-              type="button"
-              className="cursor-pointer rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              2
-            </button>
-            <button
-              type="button"
-              className="cursor-pointer rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              3
-            </button>
-            <button
-              type="button"
-              className="cursor-pointer rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            >
-              {tc("next")}
-            </button>
-          </div>
-        </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

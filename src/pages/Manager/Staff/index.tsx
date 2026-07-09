@@ -27,6 +27,7 @@ import {
   normalizeVietnamPhoneForApi,
 } from "../../../utils/phone";
 import CustomSelect from "../../../components/CustomSelect";
+import Pagination from "../../../components/Pagination";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -102,6 +103,8 @@ export default function StaffPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   useEffect(() => {
     let cancelled = false;
@@ -154,6 +157,11 @@ export default function StaffPage() {
         return matchesSearch && matchesGroup && matchesRole && matchesStatus;
       }),
     [activeGroup, roleFilter, search, statusFilter, users],
+  );
+
+  const paginatedUsers = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
   );
 
   function roleLabel(role: AdminUserRole) {
@@ -262,7 +270,10 @@ export default function StaffPage() {
             <button
               key={group.key}
               type="button"
-              onClick={() => setActiveGroup(group.key)}
+              onClick={() => {
+                setActiveGroup(group.key);
+                setPage(1);
+              }}
               className={`rounded-lg px-4 py-3 text-left text-sm font-semibold transition ${
                 activeGroup === group.key
                   ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
@@ -319,14 +330,20 @@ export default function StaffPage() {
               className={inputClass + " pl-10"}
               placeholder={t("staff.searchPlaceholder")}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
           <div className="flex flex-wrap gap-2">
             <CustomSelect
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
               value={roleFilter}
-              onChange={(event) => setRoleFilter(event.target.value)}
+              onChange={(event) => {
+                setRoleFilter(event.target.value);
+                setPage(1);
+              }}
             >
               <option value="">{t("staff.allRoles")}</option>
               {roleOptions.map((role) => (
@@ -338,7 +355,10 @@ export default function StaffPage() {
             <CustomSelect
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                setPage(1);
+              }}
             >
               <option value="">{t("staff.allStatuses")}</option>
               {[
@@ -401,7 +421,7 @@ export default function StaffPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((user) => (
+              {paginatedUsers.map((user) => (
                 <tr
                   key={user.userId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
@@ -466,14 +486,12 @@ export default function StaffPage() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-gray-500">
-            {tc("showingItems", {
-              count: filtered.length,
-              total: users.length,
-            })}
-          </p>
-        </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

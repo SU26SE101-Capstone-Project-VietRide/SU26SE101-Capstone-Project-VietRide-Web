@@ -373,7 +373,7 @@ export type CreateOperatorVoucherRequest = {
 
 export type UpdateOperatorVoucherRequest = Omit<
   CreateOperatorVoucherRequest,
-  "code" | "type" | "fundingType"
+  "code" | "type" | "fundingType" | "applicableServices"
 >;
 
 export type OperatorVoucherActionResult = {
@@ -881,6 +881,10 @@ export type CreateAdminVoucherRequest = {
   applicableOperatorIds: string[] | null;
   fundingType: string;
 };
+
+export type UpdateAdminVoucherRequest = Partial<
+  Omit<CreateAdminVoucherRequest, "code" | "type" | "fundingType" | "applicableOperatorIds">
+>;
 
 export type AdminVoucherParams = PageParams & {
   ownerOperatorId?: string;
@@ -2073,18 +2077,12 @@ export function updateOperatorVoucher(
   return apiRequest<OperatorVoucher>(`/v1/operator/vouchers/${id}`, {
     method: "PATCH",
     body: request,
-    headers: {
-      "Idempotency-Key": createIdempotencyKey(),
-    },
   });
 }
 
 export function deleteOperatorVoucher(id: string) {
   return apiRequest<OperatorVoucherActionResult>(`/v1/operator/vouchers/${id}`, {
     method: "DELETE",
-    headers: {
-      "Idempotency-Key": createIdempotencyKey(),
-    },
   });
 }
 
@@ -2093,9 +2091,6 @@ export function activateOperatorVoucher(id: string) {
     `/v1/operator/vouchers/${id}/activate`,
     {
       method: "POST",
-      headers: {
-        "Idempotency-Key": createIdempotencyKey(),
-      },
     },
   );
 }
@@ -2105,9 +2100,6 @@ export function deactivateOperatorVoucher(id: string) {
     `/v1/operator/vouchers/${id}/deactivate`,
     {
       method: "POST",
-      headers: {
-        "Idempotency-Key": createIdempotencyKey(),
-      },
     },
   );
 }
@@ -2194,6 +2186,28 @@ export function createAdminVoucher(request: CreateAdminVoucherRequest) {
       "Idempotency-Key": createIdempotencyKey(),
     },
   });
+}
+
+export function updateAdminVoucher(id: string, request: UpdateAdminVoucherRequest) {
+  return apiRequest<AdminVoucher>(`/v1/admin/vouchers/${id}`, {
+    method: "PATCH",
+    body: request,
+    headers: {
+      "Idempotency-Key": createIdempotencyKey(),
+    },
+  });
+}
+
+export function deleteAdminVoucher(id: string) {
+  return apiRequest<{ id: string; deletedAt: string }>(
+    `/v1/admin/vouchers/${id}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+    },
+  );
 }
 
 export function getAdminCampaigns() {

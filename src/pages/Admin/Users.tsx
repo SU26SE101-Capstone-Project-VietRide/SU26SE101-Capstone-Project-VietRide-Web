@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DetailItem } from "../../components/DetailLayout";
 import Modal from "../../components/Modal";
+import Pagination from "../../components/Pagination";
 import { type AdminUser, type AdminUserRole } from "../../api/vietride";
 import { formatDateTime } from "../../utils/date";
 import { formatVietnamPhoneForDisplay } from "../../utils/phone";
@@ -53,6 +54,8 @@ export default function Users() {
   const [searchTerm, setSearchTerm] = useState("");
   const [users] = useState<AdminUser[]>(mockPassengerUsers);
   const [selected, setSelected] = useState<AdminUser | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const filtered = useMemo(
     () =>
@@ -62,6 +65,11 @@ export default function Users() {
           u.email.toLowerCase().includes(searchTerm.toLowerCase()),
       ),
     [searchTerm, users],
+  );
+
+  const paginatedUsers = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
   );
 
   const roleLabel = (role: AdminUserRole) => {
@@ -99,7 +107,10 @@ export default function Users() {
               type="text"
               placeholder={t("users.searchPlaceholder")}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
               className="w-full pl-10 pr-4 py-3 border border-gray-100 rounded-lg focus:outline-none text-sm bg-gray-50"
             />
           </div>
@@ -147,7 +158,7 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u) => (
+              {paginatedUsers.map((u) => (
                 <tr
                   key={u.userId}
                   className="border-b border-gray-100 hover:bg-gray-50 transition"
@@ -193,9 +204,12 @@ export default function Users() {
           </table>
         </div>
 
-        <div className="mt-4 text-sm text-gray-500">
-          {tc("showingItems", { count: filtered.length, total: users.length })}
-        </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
 
       <UserDetailModal

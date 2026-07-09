@@ -11,6 +11,7 @@ import {
   type RagFeedback,
   type RagRuntimeConfig,
 } from "../../../api/vietride";
+import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 
 const statusClass: Record<string, string> = {
@@ -49,6 +50,8 @@ export default function RagAudit() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const filtered = useMemo(
     () =>
@@ -56,6 +59,10 @@ export default function RagAudit() {
         document.title.toLowerCase().includes(search.toLowerCase()),
       ),
     [documents, search],
+  );
+  const paginatedDocuments = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
   );
 
   const loadData = useCallback(async () => {
@@ -169,7 +176,10 @@ export default function RagAudit() {
               <input
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 placeholder={t("ragAudit.searchPlaceholder")}
               />
             </div>
@@ -186,7 +196,7 @@ export default function RagAudit() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((document) => (
+                {paginatedDocuments.map((document) => (
                   <tr
                     key={document.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
@@ -239,6 +249,12 @@ export default function RagAudit() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={filtered.length}
+            onPageChange={setPage}
+          />
         </section>
 
         <section className="rounded-lg border border-gray-200 bg-white p-4">

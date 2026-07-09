@@ -12,6 +12,7 @@ import {
 } from "react-icons/fi";
 import { DetailItem, DetailSection } from "../../components/DetailLayout";
 import Modal from "../../components/Modal";
+import Pagination from "../../components/Pagination";
 import {
   approveAdminOperator,
   createAdminOperator,
@@ -81,6 +82,8 @@ export default function Operators() {
   const [operatorForm, setOperatorForm] =
     useState<CreateAdminOperatorRequest>(emptyOperatorForm);
   const [rejectReason, setRejectReason] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +129,11 @@ export default function Operators() {
         operator.name.toLowerCase().includes(searchTerm.toLowerCase()),
       ),
     [operators, searchTerm],
+  );
+
+  const paginatedOperators = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
   );
 
   const pendingCount = operators.filter(
@@ -289,16 +297,20 @@ export default function Operators() {
               type="text"
               placeholder={t("operators.searchPlaceholder")}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none text-sm bg-gray-50 focus:bg-white focus:border-vr-500"
             />
           </div>
 
           <CustomSelect
             value={filterStatus}
-            onChange={(e) =>
-              setFilterStatus(e.target.value as typeof filterStatus)
-            }
+            onChange={(e) => {
+              setFilterStatus(e.target.value as typeof filterStatus);
+              setPage(1);
+            }}
             className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium focus:outline-none focus:border-vr-500"
           >
             <option value="ALL">{t("operators.allStatus")}</option>
@@ -348,7 +360,7 @@ export default function Operators() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((operator, idx) => {
+              {paginatedOperators.map((operator, idx) => {
                 const status = toKnownStatus(operator.registrationStatus);
                 return (
                   <tr
@@ -356,7 +368,11 @@ export default function Operators() {
                     className="border-b border-gray-100 hover:bg-gray-50 transition"
                   >
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      OP-{String(idx + 1).padStart(3, "0")}
+                      OP-
+                      {String((page - 1) * pageSize + idx + 1).padStart(
+                        3,
+                        "0",
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                       {operator.name}
@@ -433,14 +449,12 @@ export default function Operators() {
           </div>
         )}
 
-        <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm text-gray-500">
-            {t("operators.showingPagination", {
-              count: filtered.length,
-              total: operators.length,
-            })}
-          </p>
-        </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

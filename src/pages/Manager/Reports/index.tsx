@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiDownload, FiArrowUp, FiCalendar } from "react-icons/fi";
 import {
@@ -17,6 +17,7 @@ import {
   PolarRadiusAxis,
   Radar,
 } from "recharts";
+import Pagination from "../../../components/Pagination";
 
 type RevenueData = {
   month: string;
@@ -76,6 +77,8 @@ const CATEGORY_KEYS = [
 export default function ManagerReports() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const stats = useMemo(() => {
     const totalRevenue = monthlyData.reduce((sum, d) => sum + d.revenue, 0);
@@ -402,6 +405,12 @@ export default function ManagerReports() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={3}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

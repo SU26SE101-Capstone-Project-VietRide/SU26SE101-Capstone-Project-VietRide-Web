@@ -10,6 +10,7 @@ import {
 } from "react-icons/fi";
 import PlacePicker, { type PlaceSelection } from "../../../components/PlacePicker";
 import CustomSelect from "../../../components/CustomSelect";
+import Pagination from "../../../components/Pagination";
 
 type StationStatus = "ACTIVE" | "DUPLICATE" | "INACTIVE";
 
@@ -140,6 +141,8 @@ export default function AdminStations() {
   );
   const [form, setForm] = useState<StationForm>(toForm(initialStations[0]));
   const [alert, setAlert] = useState<AlertState | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const filteredStations = useMemo(
     () =>
@@ -152,6 +155,11 @@ export default function AdminStations() {
         );
       }),
     [searchTerm, stations],
+  );
+
+  const paginatedStations = useMemo(
+    () => filteredStations.slice((page - 1) * pageSize, page * pageSize),
+    [filteredStations, page],
   );
 
   const selectedStation = useMemo(
@@ -413,7 +421,10 @@ export default function AdminStations() {
               <input
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setPage(1);
+                }}
                 placeholder={t("stations.searchPlaceholder")}
               />
             </div>
@@ -431,7 +442,7 @@ export default function AdminStations() {
                 </tr>
               </thead>
               <tbody>
-                {filteredStations.map((station) => (
+                {paginatedStations.map((station) => (
                   <tr
                     key={station.id}
                     className="border-b border-gray-100 transition hover:bg-gray-50"
@@ -501,6 +512,12 @@ export default function AdminStations() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={filteredStations.length}
+            onPageChange={setPage}
+          />
         </div>
 
         {selectedStation && (

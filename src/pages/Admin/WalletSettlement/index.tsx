@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiCheckCircle, FiDollarSign, FiEye, FiRefreshCw, FiSearch } from "react-icons/fi";
+import Pagination from "../../../components/Pagination";
 
 type SettlementStatus = "PENDING" | "ELIGIBLE" | "SETTLED" | "FAILED";
 
@@ -38,6 +39,8 @@ export default function WalletSettlement() {
   const [records, setRecords] = useState(initialSettlements);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const filtered = useMemo(
     () =>
@@ -50,6 +53,11 @@ export default function WalletSettlement() {
         );
       }),
     [records, search],
+  );
+
+  const paginatedRecords = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
   );
 
   const totals = useMemo(
@@ -113,7 +121,10 @@ export default function WalletSettlement() {
             <input
               className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
               placeholder={t("walletSettlement.searchPlaceholder")}
             />
           </div>
@@ -137,7 +148,7 @@ export default function WalletSettlement() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((record) => (
+              {paginatedRecords.map((record) => (
                 <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs text-gray-600">{record.id}</td>
                   <td className="px-4 py-3 font-semibold text-gray-900">{record.operator}</td>
@@ -169,6 +180,13 @@ export default function WalletSettlement() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+        />
 
         <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
           <FiDollarSign className="mr-1 inline" />
