@@ -28,6 +28,10 @@ import {
   type UpdateOperatorVoucherRequest,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
+import CurrencyInput from "../../../components/CurrencyInput";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
+import CustomSelect from "../../../components/CustomSelect";
+import { formatDateTime } from "../../../utils/date";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -88,11 +92,7 @@ function routeIdsToValue(routeIds: string[]) {
 }
 
 function formatDate(value: string) {
-  if (!value) {
-    return "-";
-  }
-
-  return new Date(value).toLocaleString("vi-VN");
+  return formatDateTime(value);
 }
 
 function formatMoney(value: number) {
@@ -702,7 +702,7 @@ function ConsentTable({
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <label className={labelClass}>{t("vouchers.consentStatusFilter")}</label>
-        <select
+        <CustomSelect
           className={inputClass}
           value={status}
           onChange={(event) => onStatusChange(event.target.value)}
@@ -711,7 +711,7 @@ function ConsentTable({
           <option value="PENDING">PENDING</option>
           <option value="ACCEPTED">ACCEPTED</option>
           <option value="REJECTED">REJECTED</option>
-        </select>
+        </CustomSelect>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -900,7 +900,7 @@ function VoucherModal({
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className={labelClass}>{t("vouchers.discountType")}</label>
-            <select
+            <CustomSelect
               className={inputClass}
               value={form.type}
               disabled={isEditing}
@@ -912,18 +912,20 @@ function VoucherModal({
               <option value="FIXED_AMOUNT">
                 {t("vouchers.discountTypeFixed")}
               </option>
-            </select>
+            </CustomSelect>
           </div>
           <Field
             label={t("vouchers.value")}
             type="number"
             value={form.value}
+            currency={form.type === "FIXED_AMOUNT"}
             onChange={(value) => onChange("value", value)}
           />
           <Field
             label={t("vouchers.maxDiscount")}
             type="number"
             value={form.maxDiscountAmount}
+            currency
             onChange={(value) => onChange("maxDiscountAmount", value)}
           />
         </div>
@@ -933,6 +935,7 @@ function VoucherModal({
             label={t("vouchers.minOrder")}
             type="number"
             value={form.minOrderAmount}
+            currency
             onChange={(value) => onChange("minOrderAmount", value)}
           />
           <Field
@@ -1014,7 +1017,7 @@ function VoucherModal({
           </div>
           <div>
             <label className={labelClass}>{t("vouchers.fundingType")}</label>
-            <select
+            <CustomSelect
               className={inputClass}
               value={form.fundingType}
               disabled={isEditing}
@@ -1022,7 +1025,7 @@ function VoucherModal({
             >
               <option value="OPERATOR_FUNDED">OPERATOR_FUNDED</option>
               <option value="VIETRIDE_FUNDED">VIETRIDE_FUNDED</option>
-            </select>
+            </CustomSelect>
           </div>
         </div>
       </div>
@@ -1037,6 +1040,7 @@ function Field({
   placeholder,
   type = "text",
   disabled = false,
+  currency = false,
 }: {
   label: string;
   value: string;
@@ -1044,18 +1048,45 @@ function Field({
   placeholder?: string;
   type?: string;
   disabled?: boolean;
+  currency?: boolean;
 }) {
+  const isCustomDateTime =
+    type === "date" ||
+    type === "datetime-local" ||
+    type === "time" ||
+    type === "month" ||
+    type === "week";
+
   return (
     <div>
       <label className={labelClass}>{label}</label>
-      <input
-        className={inputClass}
-        type={type}
-        value={value}
-        disabled={disabled}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      {isCustomDateTime ? (
+        <CustomDateTimeInput
+          className={inputClass}
+          type={type}
+          value={value}
+          disabled={disabled}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : currency ? (
+        <CurrencyInput
+          className={inputClass}
+          value={value}
+          disabled={disabled}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <input
+          className={inputClass}
+          type={type}
+          value={value}
+          disabled={disabled}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
     </div>
   );
 }

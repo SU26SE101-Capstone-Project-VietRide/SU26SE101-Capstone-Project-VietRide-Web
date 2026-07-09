@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  approveRagDocument,
+  chatWithRag,
   createAdminUser,
   createParcel,
   getAvailableVouchers,
@@ -7,6 +9,11 @@ import {
   getOperatorParcelReportSummary,
   getParcelAvailableTrips,
   getPromotions,
+  getRagFeedback,
+  getRagRuntimeConfigs,
+  getTrackingTripEta,
+  getTrackingTripLatest,
+  getTrackingTripTrail,
   lockInternalRoundTripSeats,
   registerOperator,
   reviewOperatorParcel,
@@ -471,6 +478,153 @@ describe("vietride API", () => {
           Authorization: "Bearer assistant-token",
           "Idempotency-Key": "assistant-idem-1",
         }),
+      }),
+    );
+  });
+
+  it("calls RAG APIs for system admin", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "System Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.headers && JSON.stringify(init.headers).includes("text/event-stream")) {
+        return new Response("event: done\ndata: {}\n\n", { status: 200 });
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await chatWithRag({ message: "Chính sách hủy vé là gì?" });
+    await getRagFeedback({ page: 1, pageSize: 20 });
+    await approveRagDocument("77777777-7777-4777-8777-777777777777");
+    await getRagRuntimeConfigs();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/rag/chat",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Accept: "text/event-stream",
+          Authorization: "Bearer system-admin-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/rag/feedback?page=1&pageSize=20",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/rag/documents/77777777-7777-4777-8777-777777777777/approve",
+      expect.objectContaining({
+        method: "PUT",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/v1/admin/rag-config",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+  });
+
+  it("calls Tracking APIs for operator roles", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "staff@operator.vn",
+          displayName: "Operator Staff",
+          role: "OPERATOR_STAFF",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getTrackingTripLatest("11111111-1111-4111-8111-111111111111");
+    await getTrackingTripTrail("11111111-1111-4111-8111-111111111111", {
+      page: 1,
+      pageSize: 20,
+      sortBy: "recordedAt",
+      sortDir: "desc",
+    });
+    await getTrackingTripEta(
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/tracking/trips/11111111-1111-4111-8111-111111111111/latest",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/tracking/trips/11111111-1111-4111-8111-111111111111/trail?page=1&pageSize=20&sortBy=recordedAt&sortDir=desc",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/tracking/trips/11111111-1111-4111-8111-111111111111/eta?stopId=22222222-2222-4222-8222-222222222222",
+      expect.objectContaining({
+        method: "GET",
       }),
     );
   });

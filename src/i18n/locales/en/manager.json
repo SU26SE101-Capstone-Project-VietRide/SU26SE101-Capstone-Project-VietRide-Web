@@ -194,6 +194,7 @@
     "addStop": "Add stop",
     "manageTitle": "Manage stations, routes and stops",
     "manageSubtitle": "Create and maintain stations, routes, stop order and return routes under operator scope.",
+    "staffReadOnlyHint": "Operator staff can view routes, stations and stops. Admin actions are disabled for this role.",
     "loadFailed": "Failed to load routes and stops.",
     "actionFailed": "Request failed.",
     "stationSearchRequired": "Enter station name or city to search.",
@@ -463,8 +464,8 @@
     "initialPasswordDetailHint": "If the staff member has not received the email or the link expired, return to the list and click the mail icon to resend the password setup link."
   },
   "bookings": {
-    "title": "Booking management",
-    "subtitle": "All customer tickets booked via app, web and counter.",
+    "title": "Booking monitor",
+    "subtitle": "Monitor customer tickets booked via app, web and refund status within the operator scope.",
     "counterSale": "Counter sale",
     "todayTickets": "Tickets today",
     "ticketRevenue": "Ticket revenue",
@@ -512,7 +513,40 @@
     "selectNewSeat": "Select new seat",
     "notePlaceholder": "Notes about ticket changes...",
     "saveChanges": "Save changes",
-    "updateSuccess": "Ticket updated"
+    "updateSuccess": "Ticket updated",
+    "monitorNoticeTitle": "Operator Admin monitors bookings only",
+    "monitorNotice": "This page does not create, edit or cancel tickets directly. When a customer cancels a refundable ticket, the refund status is shown so the operator admin can identify orders that need review or coordination.",
+    "monitorOnlyBadge": "Read-only",
+    "refundAttention": "Refunds needing action",
+    "refundAttentionBadge": "{{pending}} pending · {{failed}} failed",
+    "refundStatus": "Refund status",
+    "refundAmount": "Refund amount",
+    "refundInfo": "Refund information",
+    "cancellationFee": "Cancellation fee",
+    "cancelledAt": "Cancelled at",
+    "cancelledBy": "Cancelled by",
+    "refundReason": "Refund reason / note",
+    "refundTransactionId": "Refund transaction ID",
+    "createdAt": "Created at",
+    "allRefundStatuses": "All refund statuses",
+    "noRefundReason": "No refund note.",
+    "noResults": "No matching bookings found.",
+    "refundStatuses": {
+      "not_applicable": "Not applicable",
+      "pending": "Pending refund",
+      "refunded": "Refunded",
+      "failed": "Refund failed"
+    },
+    "paymentMethods": {
+      "cash": "Cash",
+      "wallet": "VietRide Wallet",
+      "vnpay": "VNPay"
+    },
+    "cancelledByOptions": {
+      "passenger": "Passenger",
+      "operator": "Operator",
+      "system": "System"
+    }
   },
   "parcels": {
     "title": "Parcel management",
@@ -629,7 +663,7 @@
   },
   "gps": {
     "title": "GPS tracking",
-    "subtitle": "Real-time map tracking of fleet position, speed and operating status. Sample data — connect real GPS devices via platform API.",
+    "subtitle": "Real-time map tracking of fleet position, speed and operating status.",
     "updated": "Updated:",
     "totalOnMap": "Total on map",
     "tracking": "vehicles tracked",
@@ -674,7 +708,18 @@
     "handlerContact": "Handler contact (phone)",
     "reporterPhonePlaceholder": "Reporter phone number",
     "incidentNoticeLabel": "Note:",
-    "incidentNotice": "The report will be sent to technical support and operations management for timely handling."
+    "incidentNotice": "The report will be sent to technical support and operations management for timely handling.",
+    "tripId": "Trip ID",
+    "stopId": "Stop ID",
+    "stopIdOptional": "stopId (optional for ETA)",
+    "loadTracking": "Load tracking",
+    "loadingTracking": "Loading...",
+    "trackingLoaded": "Tracking data loaded.",
+    "trackingLoadFailed": "Failed to load tracking data.",
+    "tripIdRequired": "Enter a trip ID first.",
+    "latestLocation": "Latest location",
+    "trailPoints": "Trail points",
+    "eta": "ETA"
   },
   "dispatch": {
     "title": "Shuttle dispatch",

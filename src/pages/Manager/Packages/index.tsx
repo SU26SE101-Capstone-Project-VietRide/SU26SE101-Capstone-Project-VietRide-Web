@@ -13,6 +13,7 @@ import {
   packagePurchases,
   type Package,
 } from "../../../data/mockData";
+import { formatDateOnly, formatDateTime } from "../../../utils/date";
 
 function formatNumber(n: number) {
   return n.toLocaleString();
@@ -105,7 +106,7 @@ export default function ManagerPackages() {
                 </h3>
                 <p className="mt-1 text-sm text-gray-600">
                   {t("packages.expiresWithDays", {
-                    date: subscription.expiryDate,
+                    date: formatDateOnly(subscription.expiryDate),
                     n: subscription.remainingDays,
                   })}
                 </p>
@@ -303,7 +304,7 @@ export default function ManagerPackages() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        {purchase.purchasedAt}
+                        {formatDateTime(purchase.purchasedAt)}
                       </td>
                     </tr>
                   );

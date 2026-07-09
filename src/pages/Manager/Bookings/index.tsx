@@ -4,72 +4,97 @@ import {
   FiClock,
   FiDollarSign,
   FiDownload,
-  FiEdit2,
   FiEye,
   FiFilter,
   FiList,
-  FiPlus,
+  FiRefreshCw,
   FiSearch,
   FiTag,
-  FiUser,
-  FiXCircle,
 } from "react-icons/fi";
+import CustomSelect from "../../../components/CustomSelect";
+import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
 import { bookings as mockBookings, type Booking } from "../../../data/mockData";
+import { formatDateTime } from "../../../utils/date";
+
+type RefundStatus = NonNullable<Booking["refundStatus"]>;
+type RefundFilter = "all" | RefundStatus;
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 const actionIconClass =
-  "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700";
-
-const SOLD_SEATS = new Set(["A1", "A2", "B3", "C1", "D4", "E2", "F1", "G3"]);
+  "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700";
 
 function formatMoney(n: number) {
   return `${n.toLocaleString("vi-VN")}₫`;
+}
+
+function getRefundStatus(booking: Booking): RefundStatus {
+  if (booking.refundStatus) return booking.refundStatus;
+  return booking.status === "cancelled" ? "pending" : "not_applicable";
 }
 
 export default function BookingsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [searchTerm, setSearchTerm] = useState("");
-  const [counterOpen, setCounterOpen] = useState(false);
-  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
+  const [refundFilter, setRefundFilter] = useState<RefundFilter>("all");
   const [openDetail, setOpenDetail] = useState(false);
-  const [openEdit, setOpenEdit] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [editSeats, setEditSeats] = useState<string[]>([]);
-
-  const totalRecords = 1284;
 
   const filtered = useMemo(
     () =>
-      mockBookings.filter(
-        (b) =>
-          b.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          b.passenger.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          b.phone.replace(/\s/g, "").includes(searchTerm.replace(/\s/g, "")),
-      ),
-    [searchTerm],
+      mockBookings.filter((booking) => {
+        const query = searchTerm.toLowerCase();
+        const normalizedPhone = booking.phone.replace(/\s/g, "");
+        const matchesSearch =
+          booking.code.toLowerCase().includes(query) ||
+          booking.passenger.toLowerCase().includes(query) ||
+          normalizedPhone.includes(searchTerm.replace(/\s/g, ""));
+        const matchesRefund =
+          refundFilter === "all" || getRefundStatus(booking) === refundFilter;
+
+        return matchesSearch && matchesRefund;
+      }),
+    [refundFilter, searchTerm],
   );
 
-  const toggleSeat = (id: string) => {
-    if (SOLD_SEATS.has(id)) return;
-    setSelectedSeats((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
+  const metrics = useMemo(() => {
+    const paidRevenue = mockBookings
+      .filter((booking) => booking.status === "paid")
+      .reduce((sum, booking) => sum + booking.price, 0);
+    const pendingPayment = mockBookings.filter(
+      (booking) => booking.status === "pending",
+    ).length;
+    const refundPending = mockBookings.filter(
+      (booking) => getRefundStatus(booking) === "pending",
+    ).length;
+    const refundFailed = mockBookings.filter(
+      (booking) => getRefundStatus(booking) === "failed",
+    ).length;
 
-  const seatTotal = selectedSeats.length * 320000;
+    return {
+      paidRevenue,
+      pendingPayment,
+      refundPending,
+      refundFailed,
+      refundAttention: refundPending + refundFailed,
+      totalBookings: mockBookings.length,
+    };
+  }, []);
 
-  function bookingStatusBadge(s: Booking["status"]) {
-    if (s === "paid")
+  const selectedRefundStatus = selectedBooking
+    ? getRefundStatus(selectedBooking)
+    : "not_applicable";
+
+  function bookingStatusBadge(status: Booking["status"]) {
+    if (status === "paid")
       return (
         <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
           {t("bookings.paid")}
         </span>
       );
-    if (s === "pending")
+    if (status === "pending")
       return (
         <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
           {t("bookings.pendingPayment")}
@@ -82,21 +107,20 @@ export default function BookingsList() {
     );
   }
 
-  function seatLegend() {
+  function refundStatusBadge(status: RefundStatus) {
+    const statusClass: Record<RefundStatus, string> = {
+      not_applicable: "bg-gray-100 text-gray-700",
+      pending: "bg-amber-50 text-amber-800",
+      refunded: "bg-emerald-50 text-emerald-800",
+      failed: "bg-red-50 text-red-800",
+    };
+
     return (
-      <div className="flex flex-wrap gap-3 text-xs text-gray-600">
-        <span className="inline-flex items-center gap-1">
-          <span className="h-4 w-6 rounded border border-gray-200 bg-white" />{" "}
-          {t("bookings.available")}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-vr-500" /> {t("bookings.selected")}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-4 w-6 rounded border border-red-200 bg-red-50" />{" "}
-          {t("bookings.sold")}
-        </span>
-      </div>
+      <span
+        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusClass[status]}`}
+      >
+        {t(`bookings.refundStatuses.${status}`)}
+      </span>
     );
   }
 
@@ -111,27 +135,20 @@ export default function BookingsList() {
             {t("bookings.subtitle")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedSeats([]);
-            setCounterOpen(true);
-          }}
-          className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
-        >
-          <FiPlus size={18} />
-          {t("bookings.counterSale")}
-        </button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">{t("bookings.todayTickets")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">1.284</p>
+              <p className="text-sm text-gray-500">
+                {t("bookings.todayTickets")}
+              </p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {metrics.totalBookings}
+              </p>
               <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                ↗ 8.1%
+                {t("bookings.monitorOnlyBadge")}
               </span>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
@@ -142,10 +159,14 @@ export default function BookingsList() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">{t("bookings.ticketRevenue")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">₫184.2M</p>
+              <p className="text-sm text-gray-500">
+                {t("bookings.ticketRevenue")}
+              </p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {formatMoney(metrics.paidRevenue)}
+              </p>
               <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                ↗ 11.2%
+                {t("bookings.paid")}
               </span>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
@@ -156,10 +177,14 @@ export default function BookingsList() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">{t("bookings.awaitingPayment")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">42</p>
-              <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">
-                {t("bookings.pendingBadge")}
+              <p className="text-sm text-gray-500">
+                {t("bookings.awaitingPayment")}
+              </p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {metrics.pendingPayment}
+              </p>
+              <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                {t("bookings.pendingPayment")}
               </span>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
@@ -170,14 +195,21 @@ export default function BookingsList() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-between">
             <div>
-              <p className="text-sm text-gray-500">{t("bookings.cancelled")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">18</p>
+              <p className="text-sm text-gray-500">
+                {t("bookings.refundAttention")}
+              </p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {metrics.refundAttention}
+              </p>
               <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">
-                {t("bookings.cancelledBadge")}
+                {t("bookings.refundAttentionBadge", {
+                  pending: metrics.refundPending,
+                  failed: metrics.refundFailed,
+                })}
               </span>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
-              <FiXCircle size={20} />
+              <FiRefreshCw size={20} />
             </div>
           </div>
         </div>
@@ -185,35 +217,58 @@ export default function BookingsList() {
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
             <div className="relative min-w-0 flex-1">
               <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder={t("bookings.searchPlaceholder")}
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(event) => setSearchTerm(event.target.value)}
                 className={inputClass + " pl-10"}
               />
+            </div>
+            <div className="w-full sm:w-72">
+              <CustomSelect
+                className={inputClass}
+                value={refundFilter}
+                onChange={(event) =>
+                  setRefundFilter(event.target.value as RefundFilter)
+                }
+              >
+                <option value="all">{t("bookings.allRefundStatuses")}</option>
+                <option value="not_applicable">
+                  {t("bookings.refundStatuses.not_applicable")}
+                </option>
+                <option value="pending">
+                  {t("bookings.refundStatuses.pending")}
+                </option>
+                <option value="refunded">
+                  {t("bookings.refundStatuses.refunded")}
+                </option>
+                <option value="failed">
+                  {t("bookings.refundStatuses.failed")}
+                </option>
+              </CustomSelect>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <FiFilter size={16} />
                 {tc("filter")}
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <FiList size={16} />
                 {tc("columns")}
               </button>
               <button
                 type="button"
-                className="ml-auto inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:ml-0"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <FiDownload size={16} />
                 {tc("exportCsv")}
@@ -222,7 +277,7 @@ export default function BookingsList() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px]">
+          <table className="w-full min-w-[1040px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-5 py-3">{t("bookings.ticketCode")}</th>
@@ -232,115 +287,114 @@ export default function BookingsList() {
                 <th className="px-5 py-3">{t("bookings.seat")}</th>
                 <th className="px-5 py-3">{t("bookings.amount")}</th>
                 <th className="px-5 py-3">{tc("status")}</th>
+                <th className="px-5 py-3">{t("bookings.refundStatus")}</th>
+                <th className="px-5 py-3">{t("bookings.refundAmount")}</th>
                 <th className="px-5 py-3">{tc("actions")}</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((b) => (
-                <tr
-                  key={b.id}
-                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
-                >
-                  <td className="px-5 py-4 text-sm font-semibold text-gray-900">
-                    {b.code}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-800">
-                    {b.passenger}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">{b.phone}</td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {b.tripCode}
-                  </td>
-                  <td className="px-5 py-4 text-sm font-medium text-gray-900">
-                    {b.seat}
-                  </td>
-                  <td className="px-5 py-4 text-sm font-semibold text-gray-900">
-                    {formatMoney(b.price)}
-                  </td>
-                  <td className="px-5 py-4">{bookingStatusBadge(b.status)}</td>
-                  <td className="px-5 py-4 text-sm">
-                    <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedBooking(b);
-                        setOpenDetail(true);
-                      }}
-                      className={actionIconClass}
-                      title={tc("details")}
-                      aria-label={tc("details")}
-                    >
-                      <FiEye size={16} />
-                    </button>
-                    {b.status === "pending" && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedBooking(b);
-                            setEditSeats([b.seat]);
-                            setOpenEdit(true);
-                          }}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50"
-                          title={tc("edit")}
-                          aria-label={tc("edit")}
-                        >
-                          <FiEdit2 size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm(t("bookings.confirmCancel"))) {
-                              alert(t("bookings.cancelSuccess"));
-                            }
-                          }}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                          title={t("bookings.cancelTicket")}
-                          aria-label={t("bookings.cancelTicket")}
-                        >
-                          <FiXCircle size={16} />
-                        </button>
-                      </>
-                    )}
-                    </div>
+              {filtered.map((booking) => {
+                const refundStatus = getRefundStatus(booking);
+
+                return (
+                  <tr
+                    key={booking.id}
+                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
+                  >
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-900">
+                      {booking.code}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-800">
+                      {booking.passenger}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-700">
+                      {booking.phone}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-700">
+                      {booking.tripCode}
+                    </td>
+                    <td className="px-5 py-4 text-sm font-medium text-gray-900">
+                      {booking.seat}
+                    </td>
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-900">
+                      {formatMoney(booking.price)}
+                    </td>
+                    <td className="px-5 py-4">
+                      {bookingStatusBadge(booking.status)}
+                    </td>
+                    <td className="px-5 py-4">
+                      {refundStatusBadge(refundStatus)}
+                    </td>
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-900">
+                      {booking.refundAmount
+                        ? formatMoney(booking.refundAmount)
+                        : "-"}
+                    </td>
+                    <td className="px-5 py-4 text-sm">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBooking(booking);
+                          setOpenDetail(true);
+                        }}
+                        className={actionIconClass}
+                        title={tc("details")}
+                        aria-label={tc("details")}
+                      >
+                        <FiEye size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={10}
+                    className="px-5 py-8 text-center text-sm text-gray-500"
+                  >
+                    {t("bookings.noResults")}
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
         <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-500">
-            {tc("showingItems", { count: filtered.length, total: totalRecords })}
+            {tc("showingItems", {
+              count: filtered.length,
+              total: mockBookings.length,
+            })}
           </p>
           <div className="flex gap-1">
             <button
               type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              className="cursor-pointer rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
               {tc("previous")}
             </button>
             <button
               type="button"
-              className="rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-semibold text-slate-900"
+              className="cursor-pointer rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-semibold text-slate-900"
             >
               1
             </button>
             <button
               type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              className="cursor-pointer rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
             >
               2
             </button>
             <button
               type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              className="cursor-pointer rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
             >
               3
             </button>
             <button
               type="button"
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              className="cursor-pointer rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
               {tc("next")}
             </button>
@@ -349,300 +403,120 @@ export default function BookingsList() {
       </div>
 
       <Modal
-        open={counterOpen}
-        onClose={() => setCounterOpen(false)}
-        wide
-        icon={<FiTag size={20} />}
-        title={t("bookings.counterTitle")}
-        subtitle={t("bookings.counterSubtitle")}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setCounterOpen(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCounterOpen(false)}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
-            >
-              {t("bookings.confirmPrint")}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-6">
-          <div>
-            <label className={labelClass}>
-              {t("bookings.selectTrip")} <span className="text-red-500">*</span>
-            </label>
-            <select className={inputClass} defaultValue="vr2401">
-              <option value="vr2401">
-                VR-2401 · HCM -&gt; Đà Lạt · 06:00 18/05
-              </option>
-            </select>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-gray-900">
-                {t("bookings.seatMap")}
-              </h3>
-              {seatLegend()}
-            </div>
-            <div className="grid grid-cols-4 gap-2 sm:max-w-md">
-              {Array.from({ length: 10 }, (_, row) =>
-                [1, 2, 3, 4].map((col) => {
-                  const letter = String.fromCharCode(65 + row);
-                  const id = `${letter}${col}`;
-                  const sold = SOLD_SEATS.has(id);
-                  const sel = selectedSeats.includes(id);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      disabled={sold}
-                      onClick={() => toggleSeat(id)}
-                      className={`rounded-lg border py-2 text-xs font-semibold transition ${
-                        sold
-                          ? "cursor-not-allowed border-red-200 bg-red-50 text-red-700"
-                          : sel
-                            ? "border-vr-700 bg-vr-600 text-white"
-                            : "border-gray-200 bg-white text-gray-800 hover:border-vr-300"
-                      }`}
-                    >
-                      {id}
-                    </button>
-                  );
-                }),
-              ).flat()}
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">
-              {t("bookings.customerInfo")}
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass}>
-                  {t("bookings.fullNameLabel")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input className={inputClass} placeholder="Nguyễn Văn A" />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  {tc("phone")} <span className="text-red-500">*</span>
-                </label>
-                <input className={inputClass} placeholder="0901 234 567" />
-              </div>
-              <div>
-                <label className={labelClass}>{t("bookings.idDoc")}</label>
-                <input className={inputClass} placeholder="079..." />
-              </div>
-              <div>
-                <label className={labelClass}>{tc("email")}</label>
-                <input
-                  className={inputClass}
-                  placeholder={t("bookings.optionalPlaceholder")}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>{t("bookings.pickupPoint")}</label>
-                <select className={inputClass} defaultValue="west">
-                  <option value="west">Bến xe Miền Tây</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>{t("bookings.paymentMethod")}</label>
-                <select className={inputClass} defaultValue="cash">
-                  <option value="cash">{t("bookings.cash")}</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg bg-gray-100 px-4 py-3">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <FiUser className="text-gray-400" />
-              {t("bookings.seatsSelected", { n: selectedSeats.length })}
-            </div>
-            <span className="text-lg font-bold text-vr-700">
-              {formatMoney(seatTotal)}
-            </span>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
         open={openDetail}
         onClose={() => setOpenDetail(false)}
+        wide
         icon={<FiTag size={20} />}
         title={t("bookings.detailTitle")}
         footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenDetail(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("close")}
-            </button>
-            {selectedBooking?.status === "pending" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenDetail(false);
-                  setEditSeats(selectedBooking?.seat ? [selectedBooking.seat] : []);
-                  setOpenEdit(true);
-                }}
-                className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600"
-              >
-                {t("bookings.editTicket")}
-              </button>
-            )}
-          </>
+          <button
+            type="button"
+            onClick={() => setOpenDetail(false)}
+            className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {tc("close")}
+          </button>
         }
       >
         {selectedBooking && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-medium text-gray-500">
-                  {t("bookings.ticketCode")}
-                </p>
-                <p className="text-lg font-bold text-gray-900">{selectedBooking.code}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-500">{tc("status")}</p>
-                <div className="mt-1">{bookingStatusBadge(selectedBooking.status)}</div>
-              </div>
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <DetailItem
+                label={t("bookings.ticketCode")}
+                value={selectedBooking.code}
+              />
+              <DetailItem
+                label={tc("status")}
+                value={bookingStatusBadge(selectedBooking.status)}
+              />
+              <DetailItem
+                label={t("bookings.amount")}
+                value={formatMoney(selectedBooking.price)}
+              />
+              <DetailItem
+                label={t("bookings.refundStatus")}
+                value={refundStatusBadge(selectedRefundStatus)}
+              />
             </div>
-            <div className="border-t pt-4">
-              <h4 className="font-bold text-gray-900 mb-3">
-                {t("bookings.passengerInfo")}
-              </h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-xs text-gray-500">{t("bookings.passengerName")}</p>
-                  <p className="font-semibold text-gray-900">{selectedBooking.passenger}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">{tc("phone")}</p>
-                  <p className="font-semibold text-gray-900">{selectedBooking.phone}</p>
-                </div>
-              </div>
-            </div>
-            <div className="border-t pt-4">
-              <h4 className="font-bold text-gray-900 mb-3">{t("bookings.tripInfo")}</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-xs text-gray-500">{t("bookings.tripCode")}</p>
-                  <p className="font-semibold text-gray-900">{selectedBooking.tripCode}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">{t("bookings.seat")}</p>
-                  <p className="font-semibold text-gray-900">{selectedBooking.seat}</p>
-                </div>
-              </div>
-            </div>
-            <div className="border-t pt-4 bg-gray-50 -mx-6 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-700">{t("bookings.amountLabel")}</span>
-                <span className="text-2xl font-bold text-vr-600">
-                  {formatMoney(selectedBooking.price)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
 
-      <Modal
-        open={openEdit}
-        onClose={() => setOpenEdit(false)}
-        icon={<FiTag size={20} />}
-        title={t("bookings.editTitle")}
-        wide
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenEdit(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpenEdit(false);
-                alert(t("bookings.updateSuccess"));
-              }}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600"
-            >
-              {t("bookings.saveChanges")}
-            </button>
-          </>
-        }
-      >
-        {selectedBooking && (
-          <div className="space-y-4">
-            <div>
-              <label className={labelClass}>{t("bookings.currentTrip")}</label>
-              <input
-                type="text"
-                className={inputClass}
+            <DetailSection title={t("bookings.passengerInfo")}>
+              <DetailItem
+                label={t("bookings.passengerName")}
+                value={selectedBooking.passenger}
+              />
+              <DetailItem label={tc("phone")} value={selectedBooking.phone} />
+            </DetailSection>
+
+            <DetailSection title={t("bookings.tripInfo")} columns="four">
+              <DetailItem
+                label={t("bookings.tripCode")}
                 value={selectedBooking.tripCode}
-                disabled
               />
-            </div>
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-900">
-                  {t("bookings.selectNewSeat")}
-                </h3>
-                {seatLegend()}
-              </div>
-              <div className="grid grid-cols-4 gap-2 sm:max-w-md">
-                {Array.from({ length: 10 }, (_, row) =>
-                  [1, 2, 3, 4].map((col) => {
-                    const letter = String.fromCharCode(65 + row);
-                    const id = `${letter}${col}`;
-                    const sold = SOLD_SEATS.has(id);
-                    const sel = editSeats.includes(id);
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        disabled={sold}
-                        onClick={() => setEditSeats([id])}
-                        className={`rounded-lg border py-2 text-xs font-semibold transition ${
-                          sold
-                            ? "cursor-not-allowed border-red-200 bg-red-50 text-red-700"
-                            : sel
-                              ? "border-vr-700 bg-vr-600 text-white"
-                              : "border-gray-200 bg-white text-gray-800 hover:border-vr-300"
-                        }`}
-                      >
-                        {id}
-                      </button>
-                    );
-                  }),
-                ).flat()}
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>{tc("note")}</label>
-              <input
-                className={inputClass}
-                placeholder={t("bookings.notePlaceholder")}
+              <DetailItem label={t("bookings.seat")} value={selectedBooking.seat} />
+              <DetailItem
+                label={t("bookings.paymentMethod")}
+                value={
+                  selectedBooking.paymentMethod
+                    ? t(
+                        `bookings.paymentMethods.${selectedBooking.paymentMethod}`,
+                      )
+                    : "-"
+                }
               />
-            </div>
+              <DetailItem
+                label={t("bookings.createdAt")}
+                value={formatDateTime(selectedBooking.createdAt)}
+              />
+            </DetailSection>
+
+            <DetailSection title={t("bookings.refundInfo")} columns="three">
+              <DetailItem
+                label={t("bookings.refundStatus")}
+                value={refundStatusBadge(selectedRefundStatus)}
+              />
+              <DetailItem
+                label={t("bookings.refundAmount")}
+                value={
+                  selectedBooking.refundAmount
+                    ? formatMoney(selectedBooking.refundAmount)
+                    : "-"
+                }
+              />
+              <DetailItem
+                label={t("bookings.cancellationFee")}
+                value={
+                  selectedBooking.cancellationFee !== undefined
+                    ? formatMoney(selectedBooking.cancellationFee)
+                    : "-"
+                }
+              />
+              <DetailItem
+                label={t("bookings.cancelledAt")}
+                value={formatDateTime(selectedBooking.cancelledAt)}
+              />
+              <DetailItem
+                label={t("bookings.cancelledBy")}
+                value={
+                  selectedBooking.cancelledBy
+                    ? t(
+                        `bookings.cancelledByOptions.${selectedBooking.cancelledBy}`,
+                      )
+                    : "-"
+                }
+              />
+              <DetailItem
+                label={t("bookings.refundTransactionId")}
+                value={selectedBooking.refundTransactionId || "-"}
+              />
+              <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 sm:col-span-2 lg:col-span-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {t("bookings.refundReason")}
+                </p>
+                <p className="mt-1">
+                  {selectedBooking.refundReason || t("bookings.noRefundReason")}
+                </p>
+              </div>
+            </DetailSection>
           </div>
         )}
       </Modal>

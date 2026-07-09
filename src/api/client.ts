@@ -22,7 +22,7 @@ type ApiEnvelope<T> = {
 };
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   authenticated?: boolean;
   headers?: Record<string, string>;
@@ -145,7 +145,7 @@ function buildHeaders(options: RequestOptions, accessToken?: string) {
     Accept: "application/json",
   };
 
-  if (options.body !== undefined) {
+  if (options.body !== undefined && !(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -163,9 +163,17 @@ function sendRequest(
   options: RequestOptions,
   accessToken?: string,
 ) {
+  const isFormData = options.body instanceof FormData;
+  const body =
+    options.body === undefined
+      ? undefined
+      : isFormData
+        ? options.body
+        : JSON.stringify(options.body);
+
   return fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: buildHeaders(options, accessToken),
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: body as BodyInit | undefined,
   });
 }

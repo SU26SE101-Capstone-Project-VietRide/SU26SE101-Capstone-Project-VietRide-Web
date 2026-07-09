@@ -3,12 +3,10 @@ import { useTranslation } from "react-i18next";
 import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi";
 import Modal from "../../components/Modal";
 import { policies as mockPolicies, type Policy } from "../../data/mockData";
+import CustomSelect from "../../components/CustomSelect";
+import { formatDateOnly } from "../../utils/date";
 
 type PolicyTab = "for_operator" | "for_user";
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("vi-VN");
-}
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -215,7 +213,7 @@ export default function AdminPolicies() {
                 </td>
                 <td className="px-4 py-3 text-gray-600">v{policy.version}</td>
                 <td className="px-4 py-3 text-gray-600">
-                  {formatDate(policy.updatedAt)}
+                  {formatDateOnly(policy.updatedAt)}
                 </td>
                 <td className="px-4 py-3">
                   <span
@@ -326,10 +324,10 @@ export default function AdminPolicies() {
 
           <div>
             <label className={labelClass}>{t("policies.type")} *</label>
-            <select className={inputClass} value={activeTab} disabled>
+            <CustomSelect className={inputClass} value={activeTab} disabled>
               <option value="for_operator">{t("policies.forOperator")}</option>
               <option value="for_user">{t("policies.forUser")}</option>
-            </select>
+            </CustomSelect>
           </div>
 
           <div>

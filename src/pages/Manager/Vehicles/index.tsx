@@ -15,6 +15,7 @@ import {
   FiTruck,
 } from "react-icons/fi";
 import { FaChair } from "react-icons/fa";
+import { DetailItem } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
 import { getAuthUser } from "../../../auth";
 import {
@@ -30,6 +31,7 @@ import {
   type VehicleSeat,
   type VehicleType,
 } from "../../../api/vietride";
+import CustomSelect from "../../../components/CustomSelect";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -822,7 +824,7 @@ function VehicleModal({
         </div>
         <div>
           <label className={labelClass}>{t("vehicles.vehicleType")}</label>
-          <select
+          <CustomSelect
             className={inputClass}
             value={form.vehicleTypeId}
             onChange={(event) => onChange("vehicleTypeId", event.target.value)}
@@ -833,7 +835,7 @@ function VehicleModal({
                 {type.displayName}
               </option>
             ))}
-          </select>
+          </CustomSelect>
         </div>
         <div>
           <label className={labelClass}>{t("vehicles.capacitySeats")}</label>
@@ -873,7 +875,7 @@ function VehicleModal({
         </div>
         <div>
           <label className={labelClass}>{tc("status")}</label>
-          <select
+          <CustomSelect
             className={inputClass}
             value={form.status}
             onChange={(event) => onChange("status", event.target.value)}
@@ -883,7 +885,7 @@ function VehicleModal({
               {t("vehicles.statusMaintenance")}
             </option>
             <option value="INACTIVE">{t("vehicles.inactive")}</option>
-          </select>
+          </CustomSelect>
         </div>
       </div>
 
@@ -1169,16 +1171,5 @@ function VehicleDetailModal({
         </div>
       )}
     </Modal>
-  );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 break-words text-sm font-semibold text-gray-900">
-        {value || "-"}
-      </p>
-    </div>
   );
 }

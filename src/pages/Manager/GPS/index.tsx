@@ -12,8 +12,17 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { LatLngExpression } from "leaflet";
+import {
+  getTrackingTripEta,
+  getTrackingTripLatest,
+  getTrackingTripTrail,
+  type TrackingEtaResponse,
+  type TrackingLatestResponse,
+  type TrackingTrailPoint,
+} from "../../../api/vietride";
 import Modal from "../../../components/Modal";
 import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
+import CustomSelect from "../../../components/CustomSelect";
 
 const fleetSeed: FleetVehicleMapPoint[] = [
   {
@@ -131,6 +140,14 @@ export default function GPSTracking() {
   const [mapReady, setMapReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
   const [openIncident, setOpenIncident] = useState(false);
+  const [tripId, setTripId] = useState("");
+  const [stopId, setStopId] = useState("");
+  const [latest, setLatest] = useState<TrackingLatestResponse | null>(null);
+  const [trail, setTrail] = useState<TrackingTrailPoint[]>([]);
+  const [eta, setEta] = useState<TrackingEtaResponse | null>(null);
+  const [apiMessage, setApiMessage] = useState("");
+  const [apiError, setApiError] = useState("");
+  const [isApiLoading, setIsApiLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   const severityLevels = useMemo(
@@ -173,6 +190,50 @@ export default function GPSTracking() {
     const v = fleetSeed.find((x) => x.id === id);
     if (v) setFocusCenter(v.position);
   }, []);
+
+  async function loadTripTracking() {
+    if (!tripId.trim()) {
+      setApiError(t("gps.tripIdRequired"));
+      return;
+    }
+
+    setIsApiLoading(true);
+    setApiError("");
+    setApiMessage("");
+
+    try {
+      const [latestResult, trailResult, etaResult] = await Promise.all([
+        getTrackingTripLatest(tripId.trim()),
+        getTrackingTripTrail(tripId.trim(), {
+          page: 1,
+          pageSize: 20,
+          sortBy: "recordedAt",
+          sortDir: "desc",
+        }),
+        stopId.trim()
+          ? getTrackingTripEta(tripId.trim(), stopId.trim())
+          : Promise.resolve<TrackingEtaResponse | null>(null),
+      ]);
+
+      setLatest(latestResult);
+      setTrail(trailResult.items);
+      setEta(etaResult);
+
+      if (latestResult.latest) {
+        setFocusCenter([
+          latestResult.latest.latitude,
+          latestResult.latest.longitude,
+        ]);
+      }
+
+      setLastRefresh(new Date());
+      setApiMessage(t("gps.trackingLoaded"));
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : t("gps.trackingLoadFailed"));
+    } finally {
+      setIsApiLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!selectedId || !listRef.current) return;
@@ -299,7 +360,7 @@ export default function GPSTracking() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <FiFilter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select
+              <CustomSelect
                 value={filterStatus}
                 onChange={(e) =>
                   setFilterStatus(e.target.value as typeof filterStatus)
@@ -310,7 +371,7 @@ export default function GPSTracking() {
                 <option value="moving">{t("gps.moving")}</option>
                 <option value="idle">{t("gps.stopped")}</option>
                 <option value="offline">{t("gps.signalLostStatus")}</option>
-              </select>
+              </CustomSelect>
             </div>
             <button
               type="button"
@@ -322,6 +383,84 @@ export default function GPSTracking() {
           </div>
         </div>
       </div>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              {t("gps.tripId")}
+            </label>
+            <input
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+              value={tripId}
+              onChange={(event) => setTripId(event.target.value)}
+              placeholder="tripId"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              {t("gps.stopId")}
+            </label>
+            <input
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+              value={stopId}
+              onChange={(event) => setStopId(event.target.value)}
+              placeholder={t("gps.stopIdOptional")}
+            />
+          </div>
+          <button
+            type="button"
+            disabled={isApiLoading}
+            onClick={() => void loadTripTracking()}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FiRefreshCw size={16} />
+            {isApiLoading ? t("gps.loadingTracking") : t("gps.loadTracking")}
+          </button>
+        </div>
+
+        {apiMessage && (
+          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {apiMessage}
+          </div>
+        )}
+        {apiError && (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {apiError}
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+            <p className="text-xs font-medium text-gray-500">
+              {t("gps.latestLocation")}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {latest?.latest
+                ? `${latest.latest.latitude}, ${latest.latest.longitude}`
+                : "-"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+            <p className="text-xs font-medium text-gray-500">
+              {t("gps.trailPoints")}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {trail.length}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+            <p className="text-xs font-medium text-gray-500">
+              {t("gps.eta")}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {eta?.eta
+                ? `${eta.eta.etaMinutes} min · ${eta.eta.distanceMeters} m`
+                : "-"}
+            </p>
+          </div>
+        </div>
+      </section>
 
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1fr_380px]">
         <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-inner xl:min-h-[min(72vh,640px)]">
@@ -500,7 +639,7 @@ export default function GPSTracking() {
                   {t("gps.incidentType")}{" "}
                   <span className="text-red-500">*</span>
                 </label>
-                <select
+                <CustomSelect
                   className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
                   defaultValue="breakdown"
                 >
@@ -516,7 +655,7 @@ export default function GPSTracking() {
                   </option>
                   <option value="safety">{t("gps.incidentSafety")}</option>
                   <option value="gps">{t("gps.incidentGps")}</option>
-                </select>
+                </CustomSelect>
               </div>
 
               <div>

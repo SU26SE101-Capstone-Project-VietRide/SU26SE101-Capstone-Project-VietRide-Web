@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiEye } from "react-icons/fi";
+import { DetailItem } from "../../components/DetailLayout";
 import Modal from "../../components/Modal";
 
 type PayoutBatch = {
@@ -378,47 +379,28 @@ export default function Payouts() {
       >
         {selectedIdx !== null && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-50 rounded p-3">
-                <p className="text-xs text-gray-500">{t("payouts.cycle")}</p>
-                <p className="text-sm font-medium mt-0.5">
-                  {batches[selectedIdx].cycle}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded p-3">
-                <p className="text-xs text-gray-500">
-                  {t("payouts.tripCount")}
-                </p>
-                <p className="text-sm font-medium mt-0.5">
-                  {batches[selectedIdx].trips}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded p-3">
-                <p className="text-xs text-gray-500">
-                  {t("payouts.grossLabel")}
-                </p>
-                <p className="text-sm font-medium mt-0.5">
-                  đ{batches[selectedIdx].gross.toLocaleString("vi-VN")}
-                  {t("payouts.billion")}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded p-3">
-                <p className="text-xs text-gray-500">
-                  {t("payouts.commission")}
-                </p>
-                <p className="text-sm font-medium mt-0.5">
-                  đ{batches[selectedIdx].commission.toLocaleString("vi-VN")}
-                  {t("payouts.billion")}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded p-3 col-span-2">
-                <p className="text-xs text-gray-500">
-                  {t("payouts.netPayout")}
-                </p>
-                <p className="text-lg font-bold mt-0.5">
-                  đ{batches[selectedIdx].net.toLocaleString("vi-VN")}
-                  {t("payouts.billion")}
-                </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DetailItem
+                label={t("payouts.cycle")}
+                value={batches[selectedIdx].cycle}
+              />
+              <DetailItem
+                label={t("payouts.tripCount")}
+                value={String(batches[selectedIdx].trips)}
+              />
+              <DetailItem
+                label={t("payouts.grossLabel")}
+                value={`đ${batches[selectedIdx].gross.toLocaleString("vi-VN")}${t("payouts.billion")}`}
+              />
+              <DetailItem
+                label={t("payouts.commission")}
+                value={`đ${batches[selectedIdx].commission.toLocaleString("vi-VN")}${t("payouts.billion")}`}
+              />
+              <div className="sm:col-span-2">
+                <DetailItem
+                  label={t("payouts.netPayout")}
+                  value={`đ${batches[selectedIdx].net.toLocaleString("vi-VN")}${t("payouts.billion")}`}
+                />
               </div>
             </div>
             <div className="pt-2 flex items-center gap-2">

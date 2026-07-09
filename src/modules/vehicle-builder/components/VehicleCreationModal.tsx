@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { VehicleType } from "../types";
+import CustomSelect from "../../../components/CustomSelect";
 
 interface VehicleCreationModalProps {
   isOpen: boolean;
@@ -99,7 +100,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             {t("vehicleBuilder.vehicleType")}
           </label>
-          <select
+          <CustomSelect
             value={vehicleType}
             onChange={(e) => setVehicleType(e.target.value as VehicleType)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
@@ -109,14 +110,14 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
                 {t(`vehicleBuilder.vehicleTypes.${type}`)}
               </option>
             ))}
-          </select>
+          </CustomSelect>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             {t("vehicleBuilder.vehicleModel")}
           </label>
-          <select
+          <CustomSelect
             value={model}
             onChange={(e) => setModel(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg"
@@ -126,7 +127,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
                 {m.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
+          </CustomSelect>
         </div>
 
         <div className="flex gap-2 pt-4">

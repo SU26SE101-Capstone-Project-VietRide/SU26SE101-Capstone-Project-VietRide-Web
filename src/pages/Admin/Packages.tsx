@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiBox, FiEdit2, FiPlus, FiPower, FiTrash2 } from "react-icons/fi";
+import CurrencyInput from "../../components/CurrencyInput";
 import Modal from "../../components/Modal";
 import { packages as mockPackages, type Package } from "../../data/mockData";
 
@@ -239,9 +240,8 @@ export default function Packages() {
                 {t("packages.packagePrice")}{" "}
                 <span className="text-red-500">*</span>
               </label>
-              <input
+              <CurrencyInput
                 className={inputClass}
-                type="number"
                 defaultValue={selectedPackage?.price || ""}
                 placeholder="VD: 1000000"
               />

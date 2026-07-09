@@ -10,12 +10,15 @@ import {
   FiCheck,
   FiX,
 } from "react-icons/fi";
+import CurrencyInput from "../../../components/CurrencyInput";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Modal from "../../../components/Modal";
 import {
   operatorConfigs,
   type HolidayPricingPeriod,
   type OperatorConfig,
 } from "../../../data/mockData";
+import { formatDateOnly } from "../../../utils/date";
 
 const CURRENT_OPERATOR_ID = "op1";
 
@@ -72,10 +75,6 @@ function Field({
       {hint && <p className="text-xs text-gray-400">{hint}</p>}
     </div>
   );
-}
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("vi-VN");
 }
 
 function formatVnd(n: number) {
@@ -339,8 +338,8 @@ export default function ManagerSettings() {
                             {period.name}
                           </td>
                           <td className="px-4 py-3 text-gray-600">
-                            {formatDate(period.startDate)} –{" "}
-                            {formatDate(period.endDate)}
+                            {formatDateOnly(period.startDate)} –{" "}
+                            {formatDateOnly(period.endDate)}
                           </td>
                           <td className="px-4 py-3">
                             <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
@@ -540,10 +539,7 @@ export default function ManagerSettings() {
                 label={t("settings.baseFee")}
                 hint={t("settings.baseFeeHint")}
               >
-                <input
-                  type="number"
-                  min={0}
-                  step={1000}
+                <CurrencyInput
                   className={inputClass}
                   value={config.parcelBaseFeeVnd}
                   onChange={(e) =>
@@ -552,10 +548,7 @@ export default function ManagerSettings() {
                 />
               </Field>
               <Field label={t("settings.insuranceThreshold")}>
-                <input
-                  type="number"
-                  min={0}
-                  step={100000}
+                <CurrencyInput
                   className={inputClass}
                   value={config.insuranceThresholdVnd}
                   onChange={(e) =>
@@ -633,7 +626,7 @@ export default function ManagerSettings() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>{t("settings.fromDate")}</label>
-              <input
+              <CustomDateTimeInput
                 type="date"
                 className={inputClass}
                 value={periodForm.startDate}
@@ -644,7 +637,7 @@ export default function ManagerSettings() {
             </div>
             <div>
               <label className={labelClass}>{t("settings.toDate")}</label>
-              <input
+              <CustomDateTimeInput
                 type="date"
                 className={inputClass}
                 value={periodForm.endDate}

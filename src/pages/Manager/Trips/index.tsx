@@ -4,12 +4,14 @@ import {
   FiAlertCircle,
   FiCalendar,
   FiCheckCircle,
-  FiClock,
   FiEdit2,
   FiPlus,
   FiRefreshCw,
   FiTruck,
 } from "react-icons/fi";
+import CurrencyInput from "../../../components/CurrencyInput";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
+import CustomSelect from "../../../components/CustomSelect";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -82,17 +84,47 @@ const routes: RouteOption[] = [
 ];
 
 const vehicles: VehicleOption[] = [
-  { id: "vehicle-51b-22011", plate: "51B-220.11", seats: 34, status: "available" },
-  { id: "vehicle-51b-88991", plate: "51B-889.91", seats: 22, status: "available" },
+  {
+    id: "vehicle-51b-22011",
+    plate: "51B-220.11",
+    seats: 34,
+    status: "available",
+  },
+  {
+    id: "vehicle-51b-88991",
+    plate: "51B-889.91",
+    seats: 22,
+    status: "available",
+  },
   { id: "vehicle-51f-12009", plate: "51F-120.09", seats: 16, status: "busy" },
 ];
 
 const staff: StaffOption[] = [
-  { id: "driver-an", name: "Nguyen Van An", role: "driver", status: "available" },
-  { id: "driver-binh", name: "Tran Quoc Binh", role: "driver", status: "available" },
+  {
+    id: "driver-an",
+    name: "Nguyen Van An",
+    role: "driver",
+    status: "available",
+  },
+  {
+    id: "driver-binh",
+    name: "Tran Quoc Binh",
+    role: "driver",
+    status: "available",
+  },
   { id: "driver-cu", name: "Le Manh Cu", role: "driver", status: "busy" },
-  { id: "assistant-mai", name: "Pham Thu Mai", role: "assistant", status: "available" },
-  { id: "assistant-linh", name: "Do Khanh Linh", role: "assistant", status: "available" },
+  {
+    id: "assistant-mai",
+    name: "Pham Thu Mai",
+    role: "assistant",
+    status: "available",
+  },
+  {
+    id: "assistant-linh",
+    name: "Do Khanh Linh",
+    role: "assistant",
+    status: "available",
+  },
 ];
 
 const emptyForm: ScheduleForm = {
@@ -242,7 +274,9 @@ export default function TripsPage() {
     if (editingId) {
       setSchedules((current) =>
         current.map((schedule) =>
-          schedule.id === editingId ? { ...schedule, ...form, status } : schedule,
+          schedule.id === editingId
+            ? { ...schedule, ...form, status }
+            : schedule,
         ),
       );
       setEditingId("");
@@ -322,10 +356,26 @@ export default function TripsPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard label={t("trips.activeRoutes")} value={activeRoutes.length} />
-        <MetricCard label={t("trips.availableVehicles")} value={availableVehicles.length} />
-        <MetricCard label={t("trips.availableDrivers")} value={drivers.filter((driver) => driver.status === "available").length} />
-        <MetricCard label={t("trips.openSchedules")} value={schedules.filter((schedule) => schedule.status === "open").length} />
+        <MetricCard
+          label={t("trips.activeRoutes")}
+          value={activeRoutes.length}
+        />
+        <MetricCard
+          label={t("trips.availableVehicles")}
+          value={availableVehicles.length}
+        />
+        <MetricCard
+          label={t("trips.availableDrivers")}
+          value={
+            drivers.filter((driver) => driver.status === "available").length
+          }
+        />
+        <MetricCard
+          label={t("trips.openSchedules")}
+          value={
+            schedules.filter((schedule) => schedule.status === "open").length
+          }
+        />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -403,6 +453,7 @@ export default function TripsPage() {
               label={t("trips.ticketPrice")}
               value={form.fare}
               type="number"
+              currency
               onChange={(value) => updateForm("fare", value)}
             />
             <Select
@@ -446,9 +497,6 @@ export default function TripsPage() {
               <li>{t("trips.ruleSubscription")}</li>
             </ul>
           </Panel>
-          <Panel title={t("trips.apiNoticeTitle")} icon={<FiClock />}>
-            <p className="text-sm text-gray-600">{t("trips.apiNotice")}</p>
-          </Panel>
         </aside>
       </div>
 
@@ -481,17 +529,33 @@ export default function TripsPage() {
                     {schedule.code}
                   </td>
                   <td className="px-5 py-4 text-gray-700">
-                    {optionLabel(routes, schedule.routeId, (route) => route.name)}
+                    {optionLabel(
+                      routes,
+                      schedule.routeId,
+                      (route) => route.name,
+                    )}
                   </td>
                   <td className="px-5 py-4 text-gray-700">
-                    {optionLabel(vehicles, schedule.vehicleId, (vehicle) => vehicle.plate)}
+                    {optionLabel(
+                      vehicles,
+                      schedule.vehicleId,
+                      (vehicle) => vehicle.plate,
+                    )}
                   </td>
                   <td className="px-5 py-4 text-gray-700">
                     <span className="block">
-                      {optionLabel(staff, schedule.driverId, (person) => person.name)}
+                      {optionLabel(
+                        staff,
+                        schedule.driverId,
+                        (person) => person.name,
+                      )}
                     </span>
                     <span className="text-xs text-gray-500">
-                      {optionLabel(staff, schedule.assistantId, (person) => person.name)}
+                      {optionLabel(
+                        staff,
+                        schedule.assistantId,
+                        (person) => person.name,
+                      )}
                     </span>
                   </td>
                   <td className="px-5 py-4 text-gray-700">
@@ -585,21 +649,45 @@ function Input({
   value,
   onChange,
   type = "text",
+  currency = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  currency?: boolean;
 }) {
+  const isCustomDateTime =
+    type === "date" ||
+    type === "datetime-local" ||
+    type === "time" ||
+    type === "month" ||
+    type === "week";
+
   return (
     <div>
       <label className={labelClass}>{label}</label>
-      <input
-        className={inputClass}
-        value={value}
-        type={type}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      {isCustomDateTime ? (
+        <CustomDateTimeInput
+          className={inputClass}
+          value={value}
+          type={type}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : currency ? (
+        <CurrencyInput
+          className={inputClass}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <input
+          className={inputClass}
+          value={value}
+          type={type}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
     </div>
   );
 }
@@ -618,13 +706,13 @@ function Select({
   return (
     <div>
       <label className={labelClass}>{label}</label>
-      <select
+      <CustomSelect
         className={inputClass}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
         {children}
-      </select>
+      </CustomSelect>
     </div>
   );
 }

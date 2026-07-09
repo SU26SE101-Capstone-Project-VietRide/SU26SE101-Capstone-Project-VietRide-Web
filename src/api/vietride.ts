@@ -645,6 +645,160 @@ export type AssistantParcelReweighRequest = {
   paymentMethod: PaymentMethod;
 };
 
+export type RagRole =
+  | "PASSENGER"
+  | "SYSTEM_ADMIN"
+  | "DRIVER"
+  | "ASSISTANT"
+  | "OPERATOR_STAFF"
+  | "OPERATOR_ADMIN"
+  | string;
+
+export type RagDocumentAccessLevel = "PUBLIC" | "OPERATOR" | "ADMIN" | string;
+
+export type RagDocumentCategory =
+  | "CUSTOMER_SUPPORT"
+  | "OPERATOR_POLICY"
+  | "PLATFORM_ADMIN"
+  | string;
+
+export type RagDocumentType = "FAQ" | "POLICY" | "SOP" | "GUIDE" | "TERMS" | string;
+
+export type RagDocumentStatus =
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "ARCHIVED"
+  | string;
+
+export type RagIngestStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED"
+  | string;
+
+export type RagChatRequest = {
+  message: string;
+  conversationId?: string | null;
+  operatorId?: string | null;
+};
+
+export type RagFeedbackRequest = {
+  rating: -1 | 1;
+  comment?: string | null;
+};
+
+export type RagFeedback = {
+  id: string;
+  messageId: string;
+  conversationId?: string;
+  rating: number;
+  comment?: string | null;
+  userId?: string;
+  role?: RagRole;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type RagDocumentUploadRequest = {
+  file: File;
+  title: string;
+  description?: string;
+  accessLevel: RagDocumentAccessLevel;
+  operatorId?: string;
+  category: RagDocumentCategory;
+  documentType: RagDocumentType;
+  audienceRoles?: string[];
+  language?: "vi" | string;
+};
+
+export type RagDocument = {
+  id: string;
+  title: string;
+  description?: string | null;
+  storagePath?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileSize?: string | number;
+  fileType?: string;
+  accessLevel: RagDocumentAccessLevel;
+  operatorId?: string | null;
+  category: RagDocumentCategory;
+  documentType: RagDocumentType;
+  audienceRoles?: string[];
+  language?: string;
+  status: RagDocumentStatus;
+  ingestStatus?: RagIngestStatus;
+  previewUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  approvedAt?: string | null;
+};
+
+export type RagRuntimeConfig = {
+  key: string;
+  value: unknown;
+  valueType?: string;
+  editableGroup?: string;
+  riskLevel?: "low" | "medium" | "high" | string;
+  requiresRestart?: boolean;
+  updatedAt?: string;
+  updatedBy?: string | null;
+};
+
+export type RagRuntimeConfigUpdateRequest = {
+  value: unknown;
+  reason: string;
+};
+
+export type RagRuntimeConfigHistory = {
+  id: string;
+  key: string;
+  oldValue?: unknown;
+  newValue?: unknown;
+  reason?: string | null;
+  changedBy?: string | null;
+  createdAt: string;
+};
+
+export type TrackingLatestLocation = {
+  tripId: string;
+  latitude: number;
+  longitude: number;
+  speedKmh?: number;
+  headingDeg?: number;
+  recordedAt: string;
+};
+
+export type TrackingLatestResponse = {
+  latest: TrackingLatestLocation | null;
+};
+
+export type TrackingTrailPoint = TrackingLatestLocation;
+
+export type TrackingTrailParams = {
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: "recordedAt" | string;
+  sortDir?: "asc" | "desc";
+};
+
+export type TrackingEta = {
+  tripId: string;
+  stopId: string;
+  etaMinutes: number;
+  estimatedArrivalTime: string;
+  distanceMeters: number;
+  updatedAt: string;
+};
+
+export type TrackingEtaResponse = {
+  eta: TrackingEta | null;
+};
+
 export type AdminVoucher = {
   id: string;
   code: string;
@@ -2174,6 +2328,125 @@ export function getInternalStation(id: string) {
 
 export function getInternalStop(id: string) {
   return apiRequest<OperatorStop>(`/internal/v1/stops/${id}`);
+}
+
+export function chatWithRag(request: RagChatRequest) {
+  return apiRequest<string>("/v1/rag/chat", {
+    method: "POST",
+    body: request,
+    headers: {
+      Accept: "text/event-stream",
+    },
+  });
+}
+
+export function createRagFeedback(
+  messageId: string,
+  request: RagFeedbackRequest,
+) {
+  return apiRequest<RagFeedback>(`/v1/rag/messages/${messageId}/feedback`, {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function getRagFeedback(params: PageParams = {}) {
+  return apiRequest<PagedResult<RagFeedback>>(
+    `/v1/rag/feedback${buildQuery(params)}`,
+  );
+}
+
+export function uploadRagDocument(request: RagDocumentUploadRequest) {
+  const form = new FormData();
+  form.append("file", request.file);
+  form.append("title", request.title);
+  form.append("accessLevel", request.accessLevel);
+  form.append("category", request.category);
+  form.append("documentType", request.documentType);
+  form.append("audienceRoles", JSON.stringify(request.audienceRoles ?? []));
+  form.append("language", request.language ?? "vi");
+
+  if (request.description) {
+    form.append("description", request.description);
+  }
+
+  if (request.operatorId) {
+    form.append("operatorId", request.operatorId);
+  }
+
+  return apiRequest<RagDocument>("/v1/rag/documents", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export function approveRagDocument(documentId: string) {
+  return apiRequest<RagDocument>(`/v1/rag/documents/${documentId}/approve`, {
+    method: "PUT",
+  });
+}
+
+export function getRagRuntimeConfigs() {
+  return apiRequest<RagRuntimeConfig[]>("/v1/admin/rag-config");
+}
+
+export function reloadRagRuntimeConfigs() {
+  return apiRequest<RagRuntimeConfig[]>("/v1/admin/rag-config/reload", {
+    method: "POST",
+  });
+}
+
+export function getRagRuntimeConfig(key: string) {
+  return apiRequest<RagRuntimeConfig>(
+    `/v1/admin/rag-config/${encodeURIComponent(key)}`,
+  );
+}
+
+export function updateRagRuntimeConfig(
+  key: string,
+  request: RagRuntimeConfigUpdateRequest,
+) {
+  return apiRequest<RagRuntimeConfig>(
+    `/v1/admin/rag-config/${encodeURIComponent(key)}`,
+    { method: "PATCH", body: request },
+  );
+}
+
+export function getRagRuntimeConfigHistory(
+  key: string,
+  params: PageParams = {},
+) {
+  return apiRequest<PagedResult<RagRuntimeConfigHistory>>(
+    `/v1/admin/rag-config/${encodeURIComponent(key)}/history${buildQuery(params)}`,
+  );
+}
+
+export function rollbackRagRuntimeConfig(key: string, historyId: string) {
+  return apiRequest<RagRuntimeConfig>(
+    `/v1/admin/rag-config/${encodeURIComponent(key)}/rollback`,
+    { method: "POST", body: { historyId } },
+  );
+}
+
+export function getTrackingTripLatest(tripId: string) {
+  return apiRequest<TrackingLatestResponse>(
+    `/v1/tracking/trips/${tripId}/latest`,
+  );
+}
+
+export function getTrackingTripTrail(
+  tripId: string,
+  params: TrackingTrailParams = {},
+) {
+  return apiRequest<PagedResult<TrackingTrailPoint>>(
+    `/v1/tracking/trips/${tripId}/trail${buildQuery(params)}`,
+  );
+}
+
+export function getTrackingTripEta(tripId: string, stopId: string) {
+  return apiRequest<TrackingEtaResponse>(
+    `/v1/tracking/trips/${tripId}/eta${buildQuery({ stopId })}`,
+  );
 }
 
 export function getInternalTrip(tripId: string) {

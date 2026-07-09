@@ -12,6 +12,7 @@ import {
   FiUsers,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import { DetailItem } from "../../../components/DetailLayout";
 import {
   createOperatorUser,
   getOperatorUsers,
@@ -20,10 +21,12 @@ import {
   type CreateOperatorUserRequest,
   type OperatorUser,
 } from "../../../api/vietride";
+import { formatDateTime } from "../../../utils/date";
 import {
   formatVietnamPhoneForDisplay,
   normalizeVietnamPhoneForApi,
 } from "../../../utils/phone";
+import CustomSelect from "../../../components/CustomSelect";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -80,20 +83,6 @@ function isFieldRole(role: AdminUserRole) {
 
 function isOpsRole(role: AdminUserRole) {
   return role === "OPERATOR_ADMIN" || role === "OPERATOR_STAFF";
-}
-
-function formatJoinedAt(value?: string) {
-  if (!value) {
-    return "--";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "--";
-  }
-
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export default function StaffPage() {
@@ -334,7 +323,7 @@ export default function StaffPage() {
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            <select
+            <CustomSelect
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
               value={roleFilter}
               onChange={(event) => setRoleFilter(event.target.value)}
@@ -345,8 +334,8 @@ export default function StaffPage() {
                   {role.label}
                 </option>
               ))}
-            </select>
-            <select
+            </CustomSelect>
+            <CustomSelect
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
@@ -359,7 +348,7 @@ export default function StaffPage() {
                   {status}
                 </option>
               ))}
-            </select>
+            </CustomSelect>
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -430,7 +419,7 @@ export default function StaffPage() {
                     {roleLabel(user.role)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatJoinedAt(user.createdAt)}
+                    {formatDateTime(user.createdAt)}
                   </td>
                   <td className="px-6 py-4">
                     <span
@@ -564,7 +553,7 @@ export default function StaffPage() {
                 <label className={labelClass}>
                   {t("staff.role")} <span className="text-red-500">*</span>
                 </label>
-                <select
+                <CustomSelect
                   className={inputClass}
                   value={userForm.role}
                   onChange={(e) => updateUserForm("role", e.target.value)}
@@ -574,7 +563,7 @@ export default function StaffPage() {
                       {role.label}
                     </option>
                   ))}
-                </select>
+                </CustomSelect>
               </div>
             </div>
           </section>
@@ -692,7 +681,7 @@ function StaffDetailModal({
             <DetailItem label={tc("status")} value={user.status} />
             <DetailItem
               label={t("staff.createdAt")}
-              value={formatJoinedAt(user.createdAt)}
+              value={formatDateTime(user.createdAt)}
             />
           </div>
 
@@ -725,16 +714,5 @@ function StaffDetailModal({
         </div>
       )}
     </Modal>
-  );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 break-words text-sm font-semibold text-gray-900">
-        {value || "-"}
-      </p>
-    </div>
   );
 }

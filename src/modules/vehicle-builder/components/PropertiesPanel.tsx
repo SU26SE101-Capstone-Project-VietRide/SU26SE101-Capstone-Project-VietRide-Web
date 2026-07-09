@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { SeatType } from "../types";
 import { FiTrash2 } from "react-icons/fi";
+import CustomSelect from "../../../components/CustomSelect";
 
 const SEAT_TYPES: SeatType[] = ["NORMAL", "VIP", "BED", "DRIVER"];
 
@@ -54,7 +55,7 @@ export const PropertiesPanel: React.FC = () => {
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {t("vehicleBuilder.seatType")}
         </label>
-        <select
+        <CustomSelect
           value={selectedSeat.type}
           onChange={(e) =>
             updateSeat(selectedSeat.id, { type: e.target.value as SeatType })
@@ -66,7 +67,7 @@ export const PropertiesPanel: React.FC = () => {
               {t(`vehicleBuilder.seatTypes.${type}`)}
             </option>
           ))}
-        </select>
+        </CustomSelect>
       </div>
 
       {/* Position X */}

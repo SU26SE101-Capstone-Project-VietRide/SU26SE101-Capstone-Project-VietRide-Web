@@ -24,6 +24,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import CurrencyInput from "../../../components/CurrencyInput";
 import Modal from "../../../components/Modal";
 
 type TransactionType = "topup" | "payment" | "refund";
@@ -470,8 +471,7 @@ export default function ManagerWallet() {
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
                 đ
               </span>
-              <input
-                type="number"
+              <CurrencyInput
                 value={topUpAmount}
                 onChange={(e) => setTopUpAmount(e.target.value)}
                 placeholder={t("wallet.topupPlaceholder")}

@@ -1,38 +1,36 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiArchive, FiCheck, FiFileText, FiSearch, FiX } from "react-icons/fi";
+import { FiCheck, FiFileText, FiRefreshCw, FiSearch } from "react-icons/fi";
+import {
+  approveRagDocument,
+  getRagFeedback,
+  getRagRuntimeConfigs,
+  reloadRagRuntimeConfigs,
+  type RagFeedback,
+  type RagRuntimeConfig,
+} from "../../../api/vietride";
+import { formatDateTime } from "../../../utils/date";
 
 type RagStatus = "PENDING" | "APPROVED" | "REJECTED" | "ARCHIVED";
 
-type RagDocument = {
+type RagDocumentShortcut = {
   id: string;
   title: string;
   fileType: string;
   permission: string;
   uploadedBy: string;
   status: RagStatus;
-  updatedAt: string;
 };
 
-type ConversationLog = {
-  id: string;
-  user: string;
-  intent: string;
-  channel: string;
-  risk: "LOW" | "MEDIUM" | "HIGH";
-  createdAt: string;
-};
-
-const initialDocuments: RagDocument[] = [
-  { id: "RAG-001", title: "Operator onboarding handbook", fileType: "PDF", permission: "SYSTEM_ADMIN", uploadedBy: "admin@vietride.vn", status: "PENDING", updatedAt: "2026-07-01" },
-  { id: "RAG-002", title: "Parcel delivery policy", fileType: "DOCX", permission: "OPERATOR_ADMIN", uploadedBy: "ops@vietride.vn", status: "APPROVED", updatedAt: "2026-06-29" },
-  { id: "RAG-003", title: "Refund escalation script", fileType: "PDF", permission: "OPERATOR_STAFF", uploadedBy: "support@vietride.vn", status: "REJECTED", updatedAt: "2026-06-28" },
-];
-
-const logs: ConversationLog[] = [
-  { id: "LOG-9821", user: "passenger_284", intent: "Refund policy question", channel: "Web chat", risk: "LOW", createdAt: "2026-07-01 09:12" },
-  { id: "LOG-9822", user: "operator_11", intent: "Settlement dispute", channel: "Admin support", risk: "HIGH", createdAt: "2026-07-01 10:05" },
-  { id: "LOG-9823", user: "driver_42", intent: "Route delay explanation", channel: "Mobile chat", risk: "MEDIUM", createdAt: "2026-07-01 11:20" },
+const documentShortcuts: RagDocumentShortcut[] = [
+  {
+    id: "77777777-7777-4777-8777-777777777777",
+    title: "Customer support policy",
+    fileType: "MD",
+    permission: "SYSTEM_ADMIN",
+    uploadedBy: "admin@vietride.vn",
+    status: "PENDING",
+  },
 ];
 
 const statusClass: Record<RagStatus, string> = {
@@ -42,18 +40,30 @@ const statusClass: Record<RagStatus, string> = {
   ARCHIVED: "bg-slate-100 text-slate-600",
 };
 
-const riskClass: Record<ConversationLog["risk"], string> = {
-  LOW: "bg-emerald-50 text-emerald-700",
-  MEDIUM: "bg-amber-50 text-amber-700",
-  HIGH: "bg-rose-50 text-rose-700",
-};
+function feedbackTone(rating: number) {
+  return rating > 0
+    ? "bg-emerald-50 text-emerald-700"
+    : "bg-rose-50 text-rose-700";
+}
+
+function formatConfigValue(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return JSON.stringify(value);
+}
 
 export default function RagAudit() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
-  const [documents, setDocuments] = useState(initialDocuments);
+  const [documents, setDocuments] = useState(documentShortcuts);
+  const [feedback, setFeedback] = useState<RagFeedback[]>([]);
+  const [configs, setConfigs] = useState<RagRuntimeConfig[]>([]);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   const filtered = useMemo(
     () =>
@@ -63,30 +73,85 @@ export default function RagAudit() {
     [documents, search],
   );
 
-  const setDocumentStatus = (id: string, status: RagStatus) => {
-    const document = documents.find((item) => item.id === id);
-    if (!document) return;
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
 
-    if (status === "APPROVED" && document.status !== "PENDING") {
-      setMessage(t("ragAudit.approvalBlocked"));
-      return;
+    try {
+      const [feedbackResult, configResult] = await Promise.all([
+        getRagFeedback({ page: 1, pageSize: 20, sortBy: "createdAt", sortDir: "desc" }),
+        getRagRuntimeConfigs(),
+      ]);
+
+      setFeedback(feedbackResult.items);
+      setConfigs(configResult);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("ragAudit.loadFailed"));
+    } finally {
+      setIsLoading(false);
     }
+  }, [t]);
 
-    setDocuments((current) =>
-      current.map((item) =>
-        item.id === id
-          ? { ...item, status, updatedAt: new Date().toISOString().slice(0, 10) }
-          : item,
-      ),
-    );
-    setMessage(t("ragAudit.statusUpdated", { title: document.title }));
-  };
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadData]);
+
+  async function handleApproveDocument(id: string) {
+    setError("");
+    setMessage("");
+
+    try {
+      const approved = await approveRagDocument(id);
+      setDocuments((current) =>
+        current.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                title: approved.title || item.title,
+                status: "APPROVED",
+              }
+            : item,
+        ),
+      );
+      setMessage(t("ragAudit.statusUpdated", { title: approved.title || id }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("ragAudit.actionFailed"));
+    }
+  }
+
+  async function handleReloadConfigs() {
+    setError("");
+    setMessage("");
+
+    try {
+      setConfigs(await reloadRagRuntimeConfigs());
+      setMessage(t("ragAudit.configReloaded"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("ragAudit.actionFailed"));
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">{t("ragAudit.title")}</h1>
-        <p className="mt-1 text-sm text-gray-600">{t("ragAudit.subtitle")}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("ragAudit.title")}
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">{t("ragAudit.subtitle")}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void loadData()}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+        >
+          <FiRefreshCw size={16} />
+          {tc("refresh")}
+        </button>
       </div>
 
       {message && (
@@ -94,13 +159,22 @@ export default function RagAudit() {
           {message}
         </div>
       )}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
         <section className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">{t("ragAudit.documents")}</h2>
-              <p className="mt-1 text-sm text-gray-500">{t("ragAudit.documentsHint")}</p>
+              <h2 className="text-lg font-bold text-gray-900">
+                {t("ragAudit.documents")}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("ragAudit.documentsHint")}
+              </p>
             </div>
             <div className="relative min-w-72">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -125,34 +199,45 @@ export default function RagAudit() {
               </thead>
               <tbody>
                 {filtered.map((document) => (
-                  <tr key={document.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr
+                    key={document.id}
+                    className="border-b border-gray-100 hover:bg-gray-50"
+                  >
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-3">
                         <FiFileText className="mt-1 text-vr-600" />
                         <div>
-                          <p className="font-semibold text-gray-900">{document.title}</p>
+                          <p className="font-semibold text-gray-900">
+                            {document.title}
+                          </p>
                           <p className="text-xs text-gray-500">
                             {document.fileType} - {document.uploadedBy}
+                          </p>
+                          <p className="mt-1 font-mono text-[11px] text-gray-400">
+                            {document.id}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-700">{document.permission}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {document.permission}
+                    </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[document.status]}`}>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[document.status]}`}
+                      >
                         {t(`ragAudit.status.${document.status}`)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
-                        <button className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50" onClick={() => setDocumentStatus(document.id, "APPROVED")} title={tc("approve")} aria-label={tc("approve")}>
+                        <button
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50"
+                          onClick={() => void handleApproveDocument(document.id)}
+                          title={tc("approve")}
+                          aria-label={tc("approve")}
+                        >
                           <FiCheck size={16} />
-                        </button>
-                        <button className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50" onClick={() => setDocumentStatus(document.id, "REJECTED")} title={tc("reject")} aria-label={tc("reject")}>
-                          <FiX size={16} />
-                        </button>
-                        <button className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-50" onClick={() => setDocumentStatus(document.id, "ARCHIVED")} title={t("ragAudit.archive")} aria-label={t("ragAudit.archive")}>
-                          <FiArchive size={16} />
                         </button>
                       </div>
                     </td>
@@ -164,20 +249,36 @@ export default function RagAudit() {
         </section>
 
         <section className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-lg font-bold text-gray-900">{t("ragAudit.conversationAudit")}</h2>
+          <h2 className="text-lg font-bold text-gray-900">
+            {t("ragAudit.conversationAudit")}
+          </h2>
           <p className="mt-1 text-sm text-gray-500">{t("ragAudit.auditHint")}</p>
           <div className="mt-4 space-y-3">
-            {logs.map((log) => (
-              <div key={log.id} className="rounded-lg border border-gray-100 bg-slate-50 p-3">
+            {isLoading && (
+              <p className="text-sm text-gray-500">{t("ragAudit.loading")}</p>
+            )}
+            {!isLoading && feedback.length === 0 && (
+              <p className="text-sm text-gray-500">{t("ragAudit.noFeedback")}</p>
+            )}
+            {feedback.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-lg border border-gray-100 bg-slate-50 p-3"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-gray-900">{log.intent}</p>
+                    <p className="font-semibold text-gray-900">
+                      {item.comment || item.messageId}
+                    </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      {log.user} - {log.channel} - {log.createdAt}
+                      {item.role ?? "-"} - {item.userId ?? "-"} -{" "}
+                      {formatDateTime(item.createdAt)}
                     </p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${riskClass[log.risk]}`}>
-                    {t(`ragAudit.risk.${log.risk}`)}
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${feedbackTone(item.rating)}`}
+                  >
+                    {item.rating > 0 ? "+1" : "-1"}
                   </span>
                 </div>
               </div>
@@ -185,6 +286,42 @@ export default function RagAudit() {
           </div>
         </section>
       </div>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">
+              {t("ragAudit.runtimeConfig")}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {t("ragAudit.runtimeConfigHint")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleReloadConfigs()}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <FiRefreshCw size={16} />
+            {t("ragAudit.reloadConfig")}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {configs.slice(0, 6).map((config) => (
+            <div
+              key={config.key}
+              className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
+            >
+              <p className="font-mono text-xs font-semibold text-gray-900">
+                {config.key}
+              </p>
+              <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+                {formatConfigValue(config.value)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

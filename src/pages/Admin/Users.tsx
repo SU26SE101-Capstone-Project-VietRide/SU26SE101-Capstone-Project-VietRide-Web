@@ -1,26 +1,14 @@
 import { FiEye, FiFilter, FiSearch, FiUser } from "react-icons/fi";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { DetailItem } from "../../components/DetailLayout";
 import Modal from "../../components/Modal";
 import { type AdminUser, type AdminUserRole } from "../../api/vietride";
+import { formatDateTime } from "../../utils/date";
 import { formatVietnamPhoneForDisplay } from "../../utils/phone";
 
 function isActiveStatus(status: string) {
   return ["ACTIVE", "APPROVED", "active"].includes(status);
-}
-
-function formatJoinedAt(value?: string) {
-  if (!value) {
-    return "--";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "--";
-  }
-
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 const passengerAvatarUrl =
@@ -175,7 +163,7 @@ export default function Users() {
                     {roleLabel(u.role)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatJoinedAt(u.createdAt)}
+                    {formatDateTime(u.createdAt)}
                   </td>
                   <td className="px-6 py-4 text-sm">
                     {isActiveStatus(u.status) ? (
@@ -287,7 +275,7 @@ function UserDetailModal({
             <DetailItem label={tc("status")} value={user.status} />
             <DetailItem
               label={t("users.joined")}
-              value={formatJoinedAt(user.createdAt)}
+              value={formatDateTime(user.createdAt)}
             />
           </div>
 
@@ -303,16 +291,5 @@ function UserDetailModal({
         </div>
       )}
     </Modal>
-  );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 break-words text-sm font-semibold text-gray-900">
-        {value || "-"}
-      </p>
-    </div>
   );
 }

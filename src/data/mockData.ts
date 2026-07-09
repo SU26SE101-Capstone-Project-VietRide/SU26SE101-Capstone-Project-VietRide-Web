@@ -19,6 +19,14 @@ export type Booking = {
   seat: string;
   price: number;
   status: "paid" | "pending" | "cancelled";
+  paymentMethod?: "cash" | "wallet" | "vnpay";
+  refundStatus?: "not_applicable" | "pending" | "refunded" | "failed";
+  refundAmount?: number;
+  cancellationFee?: number;
+  cancelledAt?: string;
+  cancelledBy?: "passenger" | "operator" | "system";
+  refundReason?: string;
+  refundTransactionId?: string;
   createdAt: string;
 };
 
@@ -350,6 +358,8 @@ export const bookings: Booking[] = [
     seat: "A12",
     price: 320000,
     status: "paid",
+    paymentMethod: "vnpay",
+    refundStatus: "not_applicable",
     createdAt: "2026-05-14T06:10:00",
   },
   {
@@ -361,6 +371,8 @@ export const bookings: Booking[] = [
     seat: "B04",
     price: 320000,
     status: "paid",
+    paymentMethod: "wallet",
+    refundStatus: "not_applicable",
     createdAt: "2026-05-14T07:00:00",
   },
   {
@@ -372,6 +384,8 @@ export const bookings: Booking[] = [
     seat: "C08",
     price: 280000,
     status: "pending",
+    paymentMethod: "vnpay",
+    refundStatus: "not_applicable",
     createdAt: "2026-05-14T08:15:00",
   },
   {
@@ -383,6 +397,8 @@ export const bookings: Booking[] = [
     seat: "D01",
     price: 150000,
     status: "pending",
+    paymentMethod: "wallet",
+    refundStatus: "not_applicable",
     createdAt: "2026-05-14T09:20:00",
   },
   {
@@ -394,6 +410,13 @@ export const bookings: Booking[] = [
     seat: "E11",
     price: 210000,
     status: "cancelled",
+    paymentMethod: "vnpay",
+    refundStatus: "pending",
+    refundAmount: 168000,
+    cancellationFee: 42000,
+    cancelledAt: "2026-05-14T08:30:00",
+    cancelledBy: "passenger",
+    refundReason: "Khách hủy trong thời hạn được hoàn 80%.",
     createdAt: "2026-05-13T12:00:00",
   },
   {
@@ -405,7 +428,47 @@ export const bookings: Booking[] = [
     seat: "F02",
     price: 320000,
     status: "paid",
+    paymentMethod: "wallet",
+    refundStatus: "not_applicable",
     createdAt: "2026-05-12T10:30:00",
+  },
+  {
+    id: "b7",
+    code: "BK-88427",
+    tripCode: "VR-2410",
+    passenger: "Vũ Minh Khang",
+    phone: "0907 111 222",
+    seat: "G06",
+    price: 450000,
+    status: "cancelled",
+    paymentMethod: "wallet",
+    refundStatus: "refunded",
+    refundAmount: 450000,
+    cancellationFee: 0,
+    cancelledAt: "2026-05-14T10:15:00",
+    cancelledBy: "operator",
+    refundReason: "Nhà xe hủy chuyến, hoàn 100% vào ví khách hàng.",
+    refundTransactionId: "RF-20260514-002",
+    createdAt: "2026-05-13T16:20:00",
+  },
+  {
+    id: "b8",
+    code: "BK-88428",
+    tripCode: "VR-2411",
+    passenger: "Bùi Thanh Mai",
+    phone: "0908 333 444",
+    seat: "H03",
+    price: 320000,
+    status: "cancelled",
+    paymentMethod: "vnpay",
+    refundStatus: "failed",
+    refundAmount: 256000,
+    cancellationFee: 64000,
+    cancelledAt: "2026-05-14T11:05:00",
+    cancelledBy: "passenger",
+    refundReason: "Giao dịch hoàn qua cổng thanh toán thất bại, cần kiểm tra lại.",
+    refundTransactionId: "RF-20260514-003",
+    createdAt: "2026-05-13T21:40:00",
   },
 ];
 

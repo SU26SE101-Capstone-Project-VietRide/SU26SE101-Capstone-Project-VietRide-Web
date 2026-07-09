@@ -6,10 +6,7 @@ import {
   operatorPolicies as mockOperatorPolicies,
   type OperatorPolicy,
 } from "../../../data/mockData";
-
-function formatDate(date: string, locale: string) {
-  return new Date(date).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US");
-}
+import { formatDateOnly } from "../../../utils/date";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -18,7 +15,7 @@ const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 const CURRENT_OPERATOR_ID = "op1";
 
 export default function ManagerPolicies() {
-  const { t, i18n } = useTranslation("manager");
+  const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [policies, setPolicies] = useState<OperatorPolicy[]>(
     mockOperatorPolicies.filter((p) => p.operatorId === CURRENT_OPERATOR_ID),
@@ -187,7 +184,7 @@ export default function ManagerPolicies() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">v{policy.version}</td>
                   <td className="px-4 py-3 text-gray-600">
-                    {formatDate(policy.updatedAt, i18n.language)}
+                    {formatDateOnly(policy.updatedAt)}
                   </td>
                   <td className="px-4 py-3">
                     <span

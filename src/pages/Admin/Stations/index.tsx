@@ -9,6 +9,7 @@ import {
   FiSearch,
 } from "react-icons/fi";
 import PlacePicker, { type PlaceSelection } from "../../../components/PlacePicker";
+import CustomSelect from "../../../components/CustomSelect";
 
 type StationStatus = "ACTIVE" | "DUPLICATE" | "INACTIVE";
 
@@ -557,7 +558,7 @@ export default function AdminStations() {
 
               <label className="mt-4 block">
                 <span className={labelClass}>{t("stations.mergeTarget")}</span>
-                <select
+                <CustomSelect
                   className={inputClass}
                   value={mergeTargetId}
                   onChange={(event) => setMergeTargetId(event.target.value)}
@@ -567,7 +568,7 @@ export default function AdminStations() {
                       {station.name} - {station.city}
                     </option>
                   ))}
-                </select>
+                </CustomSelect>
               </label>
 
               <button

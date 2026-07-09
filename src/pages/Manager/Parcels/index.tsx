@@ -27,6 +27,10 @@ import {
   type ParcelRouteFare,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
+import CurrencyInput from "../../../components/CurrencyInput";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
+import { DetailItem } from "../../../components/DetailLayout";
+import { formatDateTime } from "../../../utils/date";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -48,12 +52,7 @@ function formatMoney(value = 0) {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("vi-VN");
+  return formatDateTime(value);
 }
 
 function normalizeStatus(status?: string) {
@@ -470,6 +469,7 @@ export default function ParcelsList() {
                 label={t("parcels.manualFee")}
                 value={manualFee}
                 type="number"
+                currency
                 onChange={setManualFee}
               />
               <div>
@@ -570,32 +570,49 @@ function Field({
   value,
   onChange,
   type = "text",
+  currency = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  currency?: boolean;
 }) {
+  const isCustomDateTime =
+    type === "date" ||
+    type === "datetime-local" ||
+    type === "time" ||
+    type === "month" ||
+    type === "week";
+
   return (
     <div>
       <label className={labelClass}>{label}</label>
-      <input
-        className={inputClass}
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      {isCustomDateTime ? (
+        <CustomDateTimeInput
+          className={inputClass}
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : currency ? (
+        <CurrencyInput
+          className={inputClass}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <input
+          className={inputClass}
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
     </div>
   );
 }
 
 function Info({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 break-words text-sm font-semibold text-gray-900">
-        {value}
-      </p>
-    </div>
-  );
+  return <DetailItem label={label} value={value} />;
 }

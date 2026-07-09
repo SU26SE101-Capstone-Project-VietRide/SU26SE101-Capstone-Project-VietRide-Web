@@ -194,6 +194,7 @@
     "addStop": "Thêm điểm dừng",
     "manageTitle": "Quản lý bến, tuyến và điểm dừng",
     "manageSubtitle": "Tạo và duy trì bến, tuyến, điểm dừng, thứ tự dừng và tuyến chiều về trong phạm vi nhà xe.",
+    "staffReadOnlyHint": "Nhân sự vận hành chỉ được xem tuyến, bến và điểm dừng. Các thao tác quản trị đang bị khóa cho role này.",
     "loadFailed": "Tải tuyến và điểm dừng thất bại.",
     "actionFailed": "Thao tác thất bại.",
     "stationSearchRequired": "Nhập tên bến hoặc thành phố để tìm kiếm.",
@@ -463,8 +464,8 @@
     "initialPasswordDetailHint": "Nếu nhân sự chưa nhận email hoặc link hết hạn, quay lại danh sách và bấm icon thư để gửi lại link đặt mật khẩu."
   },
   "bookings": {
-    "title": "Quản lý đặt vé",
-    "subtitle": "Tổng hợp toàn bộ vé khách hàng đặt qua app, web và tại quầy.",
+    "title": "Theo dõi booking",
+    "subtitle": "Theo dõi vé khách hàng đặt qua app, web và trạng thái hoàn tiền trong phạm vi nhà xe.",
     "counterSale": "Tạo vé tại quầy",
     "todayTickets": "Vé hôm nay",
     "ticketRevenue": "Doanh thu vé",
@@ -512,7 +513,40 @@
     "selectNewSeat": "Chọn ghế mới",
     "notePlaceholder": "Ghi chú về thay đổi vé...",
     "saveChanges": "Lưu thay đổi",
-    "updateSuccess": "Vé đã cập nhật"
+    "updateSuccess": "Vé đã cập nhật",
+    "monitorNoticeTitle": "Operator Admin chỉ theo dõi booking",
+    "monitorNotice": "Trang này không tạo vé, sửa vé hoặc hủy vé trực tiếp. Khi khách hủy vé còn đủ điều kiện hoàn tiền, hệ thống hiển thị trạng thái hoàn để admin nhà xe biết đơn nào cần kiểm tra hoặc phối hợp xử lý.",
+    "monitorOnlyBadge": "Read-only",
+    "refundAttention": "Cần xử lý hoàn",
+    "refundAttentionBadge": "{{pending}} chờ · {{failed}} lỗi",
+    "refundStatus": "Trạng thái hoàn",
+    "refundAmount": "Số tiền hoàn",
+    "refundInfo": "Thông tin hoàn tiền",
+    "cancellationFee": "Phí hủy",
+    "cancelledAt": "Thời điểm hủy",
+    "cancelledBy": "Người hủy",
+    "refundReason": "Lý do / ghi chú hoàn",
+    "refundTransactionId": "Mã giao dịch hoàn",
+    "createdAt": "Ngày tạo",
+    "allRefundStatuses": "Tất cả trạng thái hoàn",
+    "noRefundReason": "Không có ghi chú hoàn tiền.",
+    "noResults": "Không tìm thấy booking phù hợp.",
+    "refundStatuses": {
+      "not_applicable": "Không áp dụng",
+      "pending": "Chờ hoàn",
+      "refunded": "Đã hoàn",
+      "failed": "Hoàn lỗi"
+    },
+    "paymentMethods": {
+      "cash": "Tiền mặt",
+      "wallet": "Ví VietRide",
+      "vnpay": "VNPay"
+    },
+    "cancelledByOptions": {
+      "passenger": "Khách hàng",
+      "operator": "Nhà xe",
+      "system": "Hệ thống"
+    }
   },
   "parcels": {
     "title": "Quản lý hàng hóa",
@@ -629,7 +663,7 @@
   },
   "gps": {
     "title": "Theo dõi GPS",
-    "subtitle": "Bản đồ thời gian thực theo dõi vị trí đội xe, tốc độ và trạng thái vận hành. Dữ liệu minh họa — kết nối thiết bị GPS thật qua API nền tảng.",
+    "subtitle": "Bản đồ thời gian thực theo dõi vị trí đội xe, tốc độ và trạng thái vận hành.",
     "updated": "Cập nhật:",
     "totalOnMap": "Tổng trên bản đồ",
     "tracking": "xe đang theo dõi",
@@ -674,7 +708,18 @@
     "handlerContact": "Liên hệ xử lý (SĐT)",
     "reporterPhonePlaceholder": "Số điện thoại người báo cáo",
     "incidentNoticeLabel": "Lưu ý:",
-    "incidentNotice": "Báo cáo sẽ được gửi tới đội hỗ trợ kỹ thuật và quản lý vận hành để xử lý kịp thời."
+    "incidentNotice": "Báo cáo sẽ được gửi tới đội hỗ trợ kỹ thuật và quản lý vận hành để xử lý kịp thời.",
+    "tripId": "Mã chuyến",
+    "stopId": "Mã điểm dừng",
+    "stopIdOptional": "stopId (không bắt buộc, dùng cho ETA)",
+    "loadTracking": "Tải tracking",
+    "loadingTracking": "Đang tải...",
+    "trackingLoaded": "Đã tải dữ liệu tracking.",
+    "trackingLoadFailed": "Tải dữ liệu tracking thất bại.",
+    "tripIdRequired": "Vui lòng nhập mã chuyến trước.",
+    "latestLocation": "Vị trí mới nhất",
+    "trailPoints": "Điểm GPS lịch sử",
+    "eta": "ETA"
   },
   "dispatch": {
     "title": "Điều phối xe trung chuyển",

@@ -14,7 +14,10 @@ import {
   FiUser,
   FiTruck,
 } from "react-icons/fi";
+import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
+import CustomSelect from "../../../components/CustomSelect";
 
 type RequestType = "Đón" | "Trả";
 type RequestStatus =
@@ -395,7 +398,7 @@ export default function DispatchPanel() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
               />
             </div>
-            <select
+            <CustomSelect
               value={statusFilter}
               onChange={(e) =>
                 setStatusFilter(e.target.value as RequestStatus | "all")
@@ -408,7 +411,7 @@ export default function DispatchPanel() {
               <option value="picking">{t("dispatch.statusPicking")}</option>
               <option value="completed">{t("dispatch.statusCompleted")}</option>
               <option value="cancelled">{t("dispatch.filterCancelled")}</option>
-            </select>
+            </CustomSelect>
             <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
               <FiDownload size={16} /> {tc("exportCsv")}
             </button>
@@ -652,7 +655,7 @@ export default function DispatchPanel() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t("dispatch.type")}
               </label>
-              <select
+              <CustomSelect
                 value={newRequestForm.type}
                 onChange={(e) =>
                   setNewRequestForm({
@@ -664,13 +667,13 @@ export default function DispatchPanel() {
               >
                 <option value="Đón">{t("dispatch.pickup")}</option>
                 <option value="Trả">{t("dispatch.dropoff")}</option>
-              </select>
+              </CustomSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {tc("time")}
               </label>
-              <input
+              <CustomDateTimeInput
                 type="time"
                 value={newRequestForm.time}
                 onChange={(e) =>
@@ -787,7 +790,7 @@ export default function DispatchPanel() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {t("dispatch.selectVehicle")}
               </label>
-              <select
+              <CustomSelect
                 value={assignForm.vehicleId}
                 onChange={(e) =>
                   setAssignForm({ ...assignForm, vehicleId: e.target.value })
@@ -805,7 +808,7 @@ export default function DispatchPanel() {
                     })}
                   </option>
                 ))}
-              </select>
+              </CustomSelect>
             </div>
 
             <div>
@@ -848,123 +851,77 @@ export default function DispatchPanel() {
         wide
       >
         {selectedRequest && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-gray-600">
-                  {t("dispatch.requestCodeLabel")}
-                </p>
-                <p className="font-mono font-semibold text-gray-900">
-                  {selectedRequest.id}
-                </p>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-gray-600">{tc("status")}</p>
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_CLASS[selectedRequest.status]}`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
-                  {statusLabel(selectedRequest.status)}
-                </span>
-              </div>
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DetailItem
+                label={t("dispatch.requestCodeLabel")}
+                value={<span className="font-mono">{selectedRequest.id}</span>}
+              />
+              <DetailItem
+                label={tc("status")}
+                value={
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASS[selectedRequest.status]}`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+                    {statusLabel(selectedRequest.status)}
+                  </span>
+                }
+              />
             </div>
 
-            <div className="border-t pt-4">
-              <h4 className="font-semibold text-gray-900 mb-3">
-                {t("dispatch.customerInfo")}
-              </h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-600">{t("dispatch.customerName")}</p>
-                  <p className="font-medium text-gray-900">
-                    {selectedRequest.customerName}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-600">{tc("phone")}</p>
-                  <p className="font-medium text-gray-900">
-                    {selectedRequest.phone}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <DetailSection title={t("dispatch.customerInfo")}>
+              <DetailItem
+                label={t("dispatch.customerName")}
+                value={selectedRequest.customerName}
+              />
+              <DetailItem label={tc("phone")} value={selectedRequest.phone} />
+            </DetailSection>
 
-            <div className="border-t pt-4">
-              <h4 className="font-semibold text-gray-900 mb-3">
-                {t("dispatch.tripInfo")}
-              </h4>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-600">{t("dispatch.tripCode")}</p>
-                  <p className="font-medium text-gray-900">
-                    {selectedRequest.trip}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-600">{t("dispatch.type")}</p>
-                  <p className="font-medium text-gray-900">
-                    {requestTypeLabel(selectedRequest.type)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-600">{tc("time")}</p>
-                  <p className="font-medium text-gray-900">
-                    {selectedRequest.time}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <DetailSection title={t("dispatch.tripInfo")} columns="three">
+              <DetailItem
+                label={t("dispatch.tripCode")}
+                value={selectedRequest.trip}
+              />
+              <DetailItem
+                label={t("dispatch.type")}
+                value={requestTypeLabel(selectedRequest.type)}
+              />
+              <DetailItem label={tc("time")} value={selectedRequest.time} />
+            </DetailSection>
 
-            <div className="border-t pt-4">
-              <h4 className="font-semibold text-gray-900 mb-3">
-                {t("dispatch.addressAndNotes")}
-              </h4>
-              <div className="bg-gray-50 p-3 rounded-lg text-sm">
-                <p className="text-gray-600">{t("dispatch.address")}</p>
-                <p className="font-medium text-gray-900 flex items-start gap-2 mt-1">
-                  <FiMapPin className="mt-0.5 shrink-0" />{" "}
-                  {selectedRequest.address}
-                </p>
-              </div>
+            <DetailSection title={t("dispatch.addressAndNotes")}>
+              <DetailItem
+                label={t("dispatch.address")}
+                value={
+                  <span className="flex items-start gap-2">
+                    <FiMapPin className="mt-0.5 shrink-0" />
+                    {selectedRequest.address}
+                  </span>
+                }
+              />
               {selectedRequest.note && (
-                <div className="bg-blue-50 p-3 rounded-lg text-sm mt-2">
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm">
                   <p className="text-blue-700">{selectedRequest.note}</p>
                 </div>
               )}
-            </div>
+            </DetailSection>
 
             {selectedRequest.assignedDriver && (
-              <div className="border-t pt-4">
-                <h4 className="font-semibold text-gray-900 mb-3">
-                  {t("dispatch.assignedVehicle")}
-                </h4>
-                <div className="bg-green-50 border border-green-200 p-3 rounded-lg text-sm">
-                  <p>
-                    <span className="text-gray-600">
-                      {t("dispatch.driverLabel")}
-                    </span>{" "}
-                    <span className="font-medium text-gray-900">
-                      {selectedRequest.assignedDriver}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="text-gray-600">
-                      {t("dispatch.plateLabel")}
-                    </span>{" "}
-                    <span className="font-medium text-gray-900">
-                      {selectedRequest.assignedPlate}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="text-gray-600">
-                      {t("dispatch.vehicleLabel")}
-                    </span>{" "}
-                    <span className="font-medium text-gray-900">
-                      {selectedRequest.assignedCap}
-                    </span>
-                  </p>
-                </div>
-              </div>
+              <DetailSection title={t("dispatch.assignedVehicle")} columns="three">
+                <DetailItem
+                  label={t("dispatch.driverLabel")}
+                  value={selectedRequest.assignedDriver}
+                />
+                <DetailItem
+                  label={t("dispatch.plateLabel")}
+                  value={selectedRequest.assignedPlate}
+                />
+                <DetailItem
+                  label={t("dispatch.vehicleLabel")}
+                  value={selectedRequest.assignedCap}
+                />
+              </DetailSection>
             )}
 
             <div className="flex gap-3 border-t pt-4">

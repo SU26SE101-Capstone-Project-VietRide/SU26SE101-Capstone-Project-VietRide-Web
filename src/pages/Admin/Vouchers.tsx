@@ -9,7 +9,10 @@ import {
   type AdminVoucher,
   type CreateAdminVoucherRequest,
 } from "../../api/vietride";
+import CurrencyInput from "../../components/CurrencyInput";
 import Modal from "../../components/Modal";
+import CustomSelect from "../../components/CustomSelect";
+import { formatDateOnly } from "../../utils/date";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -96,17 +99,7 @@ function formatInputDate(date: Date) {
 }
 
 function formatDisplayDate(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
+  return formatDateOnly(value);
 }
 
 function parseInputDate(value: string) {
@@ -607,7 +600,7 @@ export default function Vouchers() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>{t("vouchers.discountType")}</label>
-              <select
+              <CustomSelect
                 className={inputClass}
                 value={form.discountType}
                 onChange={(event) => updateForm("discountType", event.target.value)}
@@ -618,12 +611,13 @@ export default function Vouchers() {
                 <option value="FIXED_AMOUNT">
                   {t("vouchers.fixedDiscount")}
                 </option>
-              </select>
+              </CustomSelect>
             </div>
             <Field
               label={t("vouchers.discountValue")}
               value={form.discount}
               type="number"
+              currency={form.discountType === "FIXED_AMOUNT"}
               onChange={(value) => updateForm("discount", value)}
               required
             />
@@ -634,12 +628,13 @@ export default function Vouchers() {
               label={t("vouchers.maxDiscountAmount")}
               value={form.maxDiscountAmount}
               type="number"
+              currency
               onChange={(value) => updateForm("maxDiscountAmount", value)}
               required
             />
             <div>
               <label className={labelClass}>{t("vouchers.applicable")}</label>
-              <select
+              <CustomSelect
                 className={inputClass}
                 value={form.applicableTo}
                 onChange={(event) => updateForm("applicableTo", event.target.value)}
@@ -648,12 +643,13 @@ export default function Vouchers() {
                 <option value="rides">{t("vouchers.ridesOnlyFull")}</option>
                 <option value="parcels">{t("vouchers.parcelsOnly")}</option>
                 <option value="packages">{t("vouchers.packagesOnly")}</option>
-              </select>
+              </CustomSelect>
             </div>
             <Field
               label={t("vouchers.minOrder")}
               value={form.minOrderValue}
               type="number"
+              currency
               onChange={(value) => updateForm("minOrderValue", value)}
             />
           </div>
@@ -662,7 +658,7 @@ export default function Vouchers() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>{t("vouchers.fundingType")}</label>
-                <select
+                <CustomSelect
                   className={inputClass}
                   value={form.fundingType}
                   onChange={(event) =>
@@ -675,7 +671,7 @@ export default function Vouchers() {
                   <option value="OPERATOR_FUNDED">
                     {t("vouchers.operatorFunded")}
                   </option>
-                </select>
+                </CustomSelect>
                 <p className="mt-1 text-xs text-gray-500">
                   {form.fundingType === "VIETRIDE_FUNDED"
                     ? t("vouchers.vietrideFundedHint")
@@ -684,7 +680,7 @@ export default function Vouchers() {
               </div>
               <div>
                 <label className={labelClass}>{t("vouchers.operatorScope")}</label>
-                <select
+                <CustomSelect
                   className={inputClass}
                   value={form.operatorScope}
                   onChange={(event) =>
@@ -697,7 +693,7 @@ export default function Vouchers() {
                   <option value="SELECTED_OPERATORS">
                     {t("vouchers.selectedOperators")}
                   </option>
-                </select>
+                </CustomSelect>
                 <p className="mt-1 text-xs text-gray-500">
                   {form.fundingType === "OPERATOR_FUNDED"
                     ? t("vouchers.operatorConsentHint")
@@ -771,6 +767,7 @@ function Field({
   placeholder,
   type = "text",
   required = false,
+  currency = false,
 }: {
   label: string;
   value: string;
@@ -778,6 +775,7 @@ function Field({
   placeholder?: string;
   type?: string;
   required?: boolean;
+  currency?: boolean;
 }) {
   return (
     <div>
@@ -785,13 +783,23 @@ function Field({
         {label}
         {required && <span className="text-red-500"> *</span>}
       </label>
-      <input
-        className={inputClass}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      {currency ? (
+        <CurrencyInput
+          className={inputClass}
+          value={value}
+          placeholder={placeholder}
+          required={required}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <input
+          className={inputClass}
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
     </div>
   );
 }

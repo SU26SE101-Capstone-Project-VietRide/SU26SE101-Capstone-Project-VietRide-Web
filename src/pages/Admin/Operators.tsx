@@ -10,6 +10,7 @@ import {
   FiEye,
   FiFilter,
 } from "react-icons/fi";
+import { DetailItem, DetailSection } from "../../components/DetailLayout";
 import Modal from "../../components/Modal";
 import {
   approveAdminOperator,
@@ -20,6 +21,8 @@ import {
   type AdminOperator,
   type CreateAdminOperatorRequest,
 } from "../../api/vietride";
+import CustomSelect from "../../components/CustomSelect";
+import { formatDateTime } from "../../utils/date";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -73,9 +76,8 @@ export default function Operators() {
   const [openDetail, setOpenDetail] = useState(false);
   const [openApprove, setOpenApprove] = useState(false);
   const [openReject, setOpenReject] = useState(false);
-  const [selectedOperator, setSelectedOperator] = useState<AdminOperator | null>(
-    null,
-  );
+  const [selectedOperator, setSelectedOperator] =
+    useState<AdminOperator | null>(null);
   const [operatorForm, setOperatorForm] =
     useState<CreateAdminOperatorRequest>(emptyOperatorForm);
   const [rejectReason, setRejectReason] = useState("");
@@ -292,7 +294,7 @@ export default function Operators() {
             />
           </div>
 
-          <select
+          <CustomSelect
             value={filterStatus}
             onChange={(e) =>
               setFilterStatus(e.target.value as typeof filterStatus)
@@ -304,7 +306,7 @@ export default function Operators() {
             <option value="APPROVED">{tc("active")}</option>
             <option value="SUSPENDED">{tc("suspended")}</option>
             <option value="REJECTED">{tc("rejected")}</option>
-          </select>
+          </CustomSelect>
 
           <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50">
             <FiDownload className="inline mr-2" size={16} />
@@ -444,6 +446,7 @@ export default function Operators() {
       <Modal
         open={openDetail}
         onClose={() => setOpenDetail(false)}
+        wide
         icon={<FiEye size={20} />}
         title={t("operators.detailTitle")}
         footer={
@@ -456,79 +459,66 @@ export default function Operators() {
         }
       >
         {selectedOperator && (
-          <div className="space-y-6">
-            <section>
-              <h3 className="mb-3 text-sm font-bold text-gray-900">
-                {t("operators.profile")}
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailItem
-                  label={t("operators.operatorId")}
-                  value={selectedOperator.operatorId}
-                />
-                <DetailItem
-                  label={t("operators.operatorName")}
-                  value={selectedOperator.name}
-                  strong
-                />
-                <DetailItem
-                  label={t("operators.businessRegistrationNumber")}
-                  value={selectedOperator.businessRegistrationNumber}
-                />
-                <DetailItem label={t("operators.taxCode")} value={selectedOperator.taxCode} />
-                <DetailItem
-                  label={t("operators.contactEmail")}
-                  value={selectedOperator.contactEmail}
-                />
-                <DetailItem
-                  label={tc("phone")}
-                  value={selectedOperator.contactPhone}
-                />
-                <div>
-                  <p className="text-xs font-medium text-gray-600">
-                    {tc("status")}
-                  </p>
-                  <div className="mt-1">
-                    {getStatusBadge(selectedOperator.registrationStatus)}
-                  </div>
-                </div>
+          <div className="space-y-5">
+            <DetailSection title={t("operators.profile")} columns="three">
+              <DetailItem
+                label={t("operators.operatorName")}
+                value={selectedOperator.name}
+              />
+              <DetailItem
+                label={t("operators.businessRegistrationNumber")}
+                value={selectedOperator.businessRegistrationNumber}
+              />
+              <DetailItem
+                label={t("operators.taxCode")}
+                value={selectedOperator.taxCode}
+              />
+              <DetailItem
+                label={t("operators.contactEmail")}
+                value={selectedOperator.contactEmail}
+              />
+              <DetailItem
+                label={tc("phone")}
+                value={selectedOperator.contactPhone}
+              />
+              <DetailItem
+                label={tc("status")}
+                value={getStatusBadge(selectedOperator.registrationStatus)}
+              />
                 <DetailItem
                   label={t("operators.createdAt")}
-                  value={selectedOperator.createdAt}
+                  value={formatDateTime(selectedOperator.createdAt)}
                 />
                 <DetailItem
                   label={t("operators.approvedAt")}
-                  value={selectedOperator.approvedAt}
+                  value={formatDateTime(selectedOperator.approvedAt)}
                 />
-              </div>
-            </section>
+            </DetailSection>
 
-            <section>
-              <h3 className="mb-3 text-sm font-bold text-gray-900">
-                {t("operators.address")}
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailItem
-                  label={t("operators.street")}
-                  value={selectedOperator.addressStreet}
-                />
-                <DetailItem label={t("operators.ward")} value={selectedOperator.addressWard} />
-                <DetailItem
-                  label={t("operators.district")}
-                  value={selectedOperator.addressDistrict}
-                />
-                <DetailItem
-                  label={t("operators.province")}
-                  value={selectedOperator.addressProvince}
-                />
-              </div>
-            </section>
+            <DetailSection title={t("operators.address")}>
+              <DetailItem
+                label={t("operators.street")}
+                value={selectedOperator.addressStreet}
+              />
+              <DetailItem
+                label={t("operators.ward")}
+                value={selectedOperator.addressWard}
+              />
+              <DetailItem
+                label={t("operators.district")}
+                value={selectedOperator.addressDistrict}
+              />
+              <DetailItem
+                label={t("operators.province")}
+                value={selectedOperator.addressProvince}
+              />
+            </DetailSection>
 
-            <section>
-              <h3 className="mb-3 text-sm font-bold text-gray-900">
+            <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">
                 {t("operators.representativeFlow")}
               </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <DetailItem
                   label={t("operators.representative")}
                   value={selectedOperator.representativeName}
@@ -545,15 +535,6 @@ export default function Operators() {
                   label={t("operators.representativeEmail")}
                   value={selectedOperator.representativeEmail}
                 />
-              </div>
-              <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                {t("operators.firstLoginNoteBefore")}{" "}
-                <span className="font-mono">/auth/set-password?token=...</span>{" "}
-                {t("operators.firstLoginNoteMiddle")}{" "}
-                <span className="font-mono">
-                  POST /v1/auth/set-initial-password
-                </span>
-                {t("operators.firstLoginNoteAfter")}
               </div>
             </section>
           </div>
@@ -691,7 +672,8 @@ export default function Operators() {
               </div>
               <div>
                 <label className={labelClass}>
-                  Business Registration No. <span className="text-red-500">*</span>
+                  Business Registration No.{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input
                   className={inputClass}
@@ -707,13 +689,14 @@ export default function Operators() {
               </div>
               <div>
                 <label className={labelClass}>
-                  {t("operators.taxId")}{" "}
-                  <span className="text-red-500">*</span>
+                  {t("operators.taxId")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   className={inputClass}
                   value={operatorForm.taxCode}
-                  onChange={(e) => updateOperatorForm("taxCode", e.target.value)}
+                  onChange={(e) =>
+                    updateOperatorForm("taxCode", e.target.value)
+                  }
                   placeholder="0301234567"
                 />
               </div>
@@ -846,29 +829,6 @@ export default function Operators() {
           </section>
         </div>
       </Modal>
-    </div>
-  );
-}
-
-function DetailItem({
-  label,
-  value,
-  strong = false,
-}: {
-  label: string;
-  value?: string | null;
-  strong?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-gray-600">{label}</p>
-      <p
-        className={`break-words text-sm ${
-          strong ? "font-semibold text-gray-900" : "text-gray-900"
-        }`}
-      >
-        {value || "Not provided"}
-      </p>
     </div>
   );
 }

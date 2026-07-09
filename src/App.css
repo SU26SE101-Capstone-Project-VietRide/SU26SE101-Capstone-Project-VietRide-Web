@@ -81,6 +81,123 @@ select {
   font: inherit;
 }
 
+button:not(:disabled),
+[role="button"]:not(:disabled),
+select:not(:disabled),
+input[type="date"]:not(:disabled),
+input[type="datetime-local"]:not(:disabled),
+input[type="month"]:not(:disabled),
+input[type="time"]:not(:disabled),
+input[type="week"]:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+select,
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="time"],
+input[type="week"] {
+  color-scheme: light;
+  accent-color: var(--primary-dark);
+  min-height: 2.75rem;
+  border-color: #d1d5db;
+  background-color: #ffffff;
+  color: #0f172a;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #2d8282 50%),
+    linear-gradient(135deg, #2d8282 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.15rem) 50%,
+    calc(100% - 0.8rem) 50%;
+  background-size:
+    0.38rem 0.38rem,
+    0.38rem 0.38rem;
+  background-repeat: no-repeat;
+  padding-right: 2.6rem;
+}
+
+select:hover,
+input[type="date"]:hover,
+input[type="datetime-local"]:hover,
+input[type="month"]:hover,
+input[type="time"]:hover,
+input[type="week"]:hover {
+  border-color: var(--primary-dark);
+  background-color: #f8ffff;
+}
+
+select:focus,
+input[type="date"]:focus,
+input[type="datetime-local"]:focus,
+input[type="month"]:focus,
+input[type="time"]:focus,
+input[type="week"]:focus {
+  border-color: var(--primary-dark);
+  box-shadow: 0 0 0 3px rgba(115, 217, 217, 0.28);
+  outline: none;
+}
+
+select:disabled,
+input[type="date"]:disabled,
+input[type="datetime-local"]:disabled,
+input[type="month"]:disabled,
+input[type="time"]:disabled,
+input[type="week"]:disabled {
+  background-color: #f3f4f6;
+  color: #94a3b8;
+  opacity: 1;
+}
+
+select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+select option:checked {
+  background-color: #d4f4f4;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator {
+  border-radius: 0.5rem;
+  cursor: pointer;
+  opacity: 0.72;
+  padding: 0.25rem;
+  transition:
+    background-color 160ms ease,
+    opacity 160ms ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="week"]::-webkit-calendar-picker-indicator:hover {
+  background-color: var(--primary-light);
+  opacity: 1;
+}
+
 .app-shell {
   position: relative;
   overflow: hidden;
