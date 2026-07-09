@@ -154,6 +154,7 @@ Gateway có thể trả lỗi trước khi request tới RAG:
 | POST | `/v1/rag/chat` | Chat RAG dạng SSE |
 | POST | `/v1/rag/messages/:messageId/feedback` | Tạo/cập nhật feedback cho assistant message |
 | GET | `/v1/rag/feedback` | Admin xem danh sách feedback |
+| GET | `/v1/rag/documents` | Admin xem danh sách document knowledge base |
 | POST | `/v1/rag/documents` | Upload document knowledge base, auto approve và enqueue ingest |
 | PUT | `/v1/rag/documents/:documentId/approve` | Approve document đang `PENDING_REVIEW` |
 | GET | `/v1/admin/rag-config` | Admin list runtime config |
@@ -559,6 +560,93 @@ console.log(await res.json());
 ```
 
 ## RAG Documents
+
+### GET `/v1/rag/documents`
+
+Admin audit danh sách document knowledge base.
+
+**Headers bắt buộc:** `Authorization: Bearer <SYSTEM_ADMIN accessToken>`.
+
+**Query params**
+
+| Query | Kiểu | Bắt buộc | Default | Rule |
+|---|---|---:|---|---|
+| `page` | number | Không | `1` | Số nguyên dương |
+| `pageSize` | number | Không | `20` | Số nguyên dương, tối đa `100` |
+| `sortBy` | string | Không | `createdAt` | `createdAt`, `updatedAt`, `title`, `status`, `ingestStatus` |
+| `sortDir` | string | Không | `desc` | `asc`, `desc` |
+| `status` | string | Không |  | `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `ARCHIVED` |
+| `ingestStatus` | string | Không |  | `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED` |
+| `accessLevel` | string | Không |  | `PUBLIC`, `OPERATOR`, `ADMIN` |
+| `category` | string | Không |  | `CUSTOMER_SUPPORT`, `OPERATOR_POLICY`, `PLATFORM_ADMIN` |
+| `documentType` | string | Không |  | `FAQ`, `POLICY`, `SOP`, `GUIDE`, `TERMS` |
+| `operatorId` | string UUID | Không |  | Lọc document theo operator |
+| `q` | string | Không |  | Tìm trong `title`, `fileName`, `description` |
+
+**Response 200**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "items": [
+      {
+        "id": "77777777-7777-4777-8777-777777777777",
+        "title": "Chính sách hủy vé",
+        "description": null,
+        "storagePath": "documents/88888888-8888-4888-8888-888888888888.md",
+        "fileName": "policy.md",
+        "mimeType": "text/markdown",
+        "fileSize": "1024",
+        "fileType": "MARKDOWN",
+        "accessLevel": "PUBLIC",
+        "operatorId": null,
+        "category": "CUSTOMER_SUPPORT",
+        "documentType": "POLICY",
+        "audienceRoles": [],
+        "language": "vi",
+        "status": "APPROVED",
+        "ingestStatus": "COMPLETED",
+        "createdAt": "2026-07-05T10:00:00.000Z",
+        "updatedAt": "2026-07-05T10:00:00.000Z",
+        "approvedAt": "2026-07-05T10:00:00.000Z"
+      }
+    ],
+    "page": 1,
+    "pageSize": 20,
+    "totalItems": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  },
+  "meta": {
+    "traceId": "req-abc",
+    "timestamp": "2026-07-05T10:00:00.000Z"
+  }
+}
+```
+
+**Response lỗi**
+
+| Status | code | Nguyên nhân |
+|---:|---|---|
+| 400 | `VALIDATION_FAILED` | Query không hợp lệ |
+| 401 | `UNAUTHORIZED` | Thiếu/sai internal bearer token khi tới RAG |
+| 403 | `INSUFFICIENT_ROLE` | Không phải `SYSTEM_ADMIN` |
+| 500 | `INTERNAL_ERROR` | Lỗi không được catch cụ thể |
+
+```bash
+curl "http://localhost:3000/v1/rag/documents?page=1&pageSize=20&status=APPROVED&sortBy=createdAt&sortDir=desc" \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN"
+```
+
+```js
+const res = await fetch('http://localhost:3000/v1/rag/documents?page=1&pageSize=20', {
+  headers: { Authorization: `Bearer ${systemAdminToken}` },
+});
+console.log(await res.json());
+```
 
 ### POST `/v1/rag/documents`
 

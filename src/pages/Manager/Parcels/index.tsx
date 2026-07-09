@@ -18,13 +18,19 @@ import {
 import {
   cancelOperatorParcel,
   confirmOperatorParcelDelivery,
+  confirmOperatorParcelRefund,
+  exportOperatorParcelReport,
   getOperatorParcelReportSummary,
   getOperatorParcelRouteFares,
   getParcelDetail,
+  overrideOperatorParcelCapacity,
+  requestOperatorParcelTransfer,
   reviewOperatorParcel,
+  returnOperatorParcel,
   type OperatorParcelReportSummary,
   type ParcelDetail,
   type ParcelRouteFare,
+  updateOperatorParcelStatus,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
 import CurrencyInput from "../../../components/CurrencyInput";
@@ -67,6 +73,25 @@ function isPendingDeliveryConfirm(parcel: ParcelDetail | null) {
   return parcel?.status === "DELIVERED_PENDING_CONFIRM";
 }
 
+function pendingActionOf(parcel: ParcelDetail | null) {
+  return parcel?.pendingActionType ?? "";
+}
+
+function isPendingRefundConfirmation(parcel: ParcelDetail | null) {
+  return (
+    parcel?.status === "PENDING_OPERATOR_ACTION" &&
+    pendingActionOf(parcel) === "REFUND_CONFIRMATION"
+  );
+}
+
+function isPendingCapacityOverride(parcel: ParcelDetail | null) {
+  const pendingAction = pendingActionOf(parcel);
+  return (
+    parcel?.status === "PENDING_OPERATOR_ACTION" &&
+    (pendingAction === "CAPACITY_EXCEEDED" || pendingAction === "RESERVE_FAILED")
+  );
+}
+
 export default function ParcelsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -79,6 +104,7 @@ export default function ParcelsList() {
   const [parcelId, setParcelId] = useState("");
   const [selectedParcel, setSelectedParcel] = useState<ParcelDetail | null>(null);
   const [manualFee, setManualFee] = useState("50000");
+  const [targetTripId, setTargetTripId] = useState("");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -170,6 +196,121 @@ export default function ParcelsList() {
     setMessage(t("parcels.reviewApproveSuccess"));
   }
 
+  async function handleExportReport() {
+    const report = await exportOperatorParcelReport({
+      from: fromDate,
+      to: toDate,
+      format: "csv",
+    });
+    const url = URL.createObjectURL(report);
+    const anchor = document.createElement("a");
+
+    anchor.href = url;
+    anchor.download = `parcel-report-${fromDate}-${toDate}.csv`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setMessage(t("parcels.exportSuccess"));
+  }
+
+  async function handleConfirmRefund() {
+    if (!selectedParcel || !isPendingRefundConfirmation(selectedParcel)) {
+      setError(t("parcels.refundNotPending"));
+      return;
+    }
+
+    if (!reason.trim()) {
+      setError(t("parcels.refundReasonRequired"));
+      return;
+    }
+
+    await confirmOperatorParcelRefund(selectedParcel.parcelId, {
+      reason: reason.trim(),
+    });
+    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
+    setMessage(t("parcels.refundConfirmSuccess"));
+  }
+
+  async function handleOverrideCapacity() {
+    if (!selectedParcel || !isPendingCapacityOverride(selectedParcel)) {
+      setError(t("parcels.capacityOverrideNotPending"));
+      return;
+    }
+
+    if (!reason.trim()) {
+      setError(t("parcels.capacityOverrideReasonRequired"));
+      return;
+    }
+
+    await overrideOperatorParcelCapacity(selectedParcel.parcelId, {
+      reason: reason.trim(),
+    });
+    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
+    setMessage(t("parcels.capacityOverrideSuccess"));
+  }
+
+  async function handleRequestTransfer() {
+    if (!selectedParcel) {
+      setError(t("parcels.reviewEmpty"));
+      return;
+    }
+
+    if (!targetTripId.trim()) {
+      setError(t("parcels.transferTripRequired"));
+      return;
+    }
+
+    if (!reason.trim()) {
+      setError(t("parcels.transferReasonRequired"));
+      return;
+    }
+
+    await requestOperatorParcelTransfer(selectedParcel.parcelId, {
+      targetTripId: targetTripId.trim(),
+      reason: reason.trim(),
+    });
+    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
+    setMessage(t("parcels.transferRequestSuccess"));
+  }
+
+  async function handleReturnParcel() {
+    if (!selectedParcel) {
+      setError(t("parcels.reviewEmpty"));
+      return;
+    }
+
+    if (!reason.trim()) {
+      setError(t("parcels.returnReasonRequired"));
+      return;
+    }
+
+    await returnOperatorParcel(selectedParcel.parcelId, {
+      returnReason: reason.trim(),
+    });
+    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
+    setMessage(t("parcels.returnSuccess"));
+  }
+
+  async function handleMarkReturned() {
+    if (!selectedParcel) {
+      setError(t("parcels.reviewEmpty"));
+      return;
+    }
+
+    if (!reason.trim()) {
+      setError(t("parcels.returnReasonRequired"));
+      return;
+    }
+
+    await updateOperatorParcelStatus(selectedParcel.parcelId, {
+      targetStatus: "RETURNED",
+      reason: reason.trim(),
+    });
+    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
+    setMessage(t("parcels.statusReturnedSuccess"));
+  }
+
   async function handleRejectReview() {
     if (!selectedParcel || !isActionableReview(selectedParcel)) {
       setError(t("parcels.reviewEmpty"));
@@ -246,7 +387,7 @@ export default function ParcelsList() {
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
           <Field
             label={t("parcels.fromDate")}
             value={fromDate}
@@ -266,6 +407,15 @@ export default function ParcelsList() {
           >
             <FiSearch size={16} />
             {t("parcels.loadReport")}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runAction(handleExportReport)}
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 bg-vr-50 px-4 py-2 text-sm font-semibold text-vr-800 hover:bg-vr-100 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isActionLoading}
+          >
+            <FiDollarSign size={16} />
+            {t("parcels.exportReport")}
           </button>
         </div>
       </section>
@@ -429,6 +579,16 @@ export default function ParcelsList() {
                   value={normalizeStatus(selectedParcel.status)}
                 />
                 <Info
+                  label={t("parcels.pendingActionType")}
+                  value={
+                    pendingActionOf(selectedParcel)
+                      ? t(`parcels.pendingActions.${pendingActionOf(selectedParcel)}`, {
+                          defaultValue: normalizeStatus(pendingActionOf(selectedParcel)),
+                        })
+                      : "-"
+                  }
+                />
+                <Info
                   label={t("parcels.recipient")}
                   value={selectedParcel.recipientName}
                 />
@@ -439,6 +599,14 @@ export default function ParcelsList() {
                 <Info
                   label={t("parcels.fee")}
                   value={`${formatMoney(selectedParcel.depositAmount)} VND`}
+                />
+                <Info
+                  label={t("parcels.refundAmount")}
+                  value={
+                    selectedParcel.refundAmount == null
+                      ? "-"
+                      : `${formatMoney(selectedParcel.refundAmount)} VND`
+                  }
                 />
                 <Info
                   label={t("parcels.route")}
@@ -471,6 +639,11 @@ export default function ParcelsList() {
                 type="number"
                 currency
                 onChange={setManualFee}
+              />
+              <Field
+                label={t("parcels.targetTripId")}
+                value={targetTripId}
+                onChange={setTargetTripId}
               />
               <div>
                 <label className={labelClass}>{t("parcels.decisionReason")}</label>
@@ -523,6 +696,59 @@ export default function ParcelsList() {
               >
                 <FiPackage size={16} />
                 {t("parcels.confirmDelivery")}
+              </button>
+              <button
+                type="button"
+                disabled={
+                  !canMutate ||
+                  isActionLoading ||
+                  !isPendingRefundConfirmation(selectedParcel)
+                }
+                onClick={() => void runAction(handleConfirmRefund)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <FiDollarSign size={16} />
+                {t("parcels.confirmRefund")}
+              </button>
+              <button
+                type="button"
+                disabled={
+                  !canMutate ||
+                  isActionLoading ||
+                  !isPendingCapacityOverride(selectedParcel)
+                }
+                onClick={() => void runAction(handleOverrideCapacity)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-800 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <FiTruck size={16} />
+                {t("parcels.overrideCapacity")}
+              </button>
+              <button
+                type="button"
+                disabled={!canMutate || isActionLoading || !selectedParcel}
+                onClick={() => void runAction(handleRequestTransfer)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <FiTruck size={16} />
+                {t("parcels.requestTransfer")}
+              </button>
+              <button
+                type="button"
+                disabled={!canMutate || isActionLoading || !selectedParcel}
+                onClick={() => void runAction(handleReturnParcel)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <FiPackage size={16} />
+                {t("parcels.returnParcel")}
+              </button>
+              <button
+                type="button"
+                disabled={!canMutate || isActionLoading || !selectedParcel}
+                onClick={() => void runAction(handleMarkReturned)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <FiCheckCircle size={16} />
+                {t("parcels.markReturned")}
               </button>
               <button
                 type="button"

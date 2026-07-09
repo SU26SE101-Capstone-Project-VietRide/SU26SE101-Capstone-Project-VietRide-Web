@@ -1,23 +1,41 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  acceptOperatorVoucherConsent,
+  activateAdminCampaign,
   approveRagDocument,
   chatWithRag,
+  confirmOperatorParcelRefund,
   createAdminUser,
+  createOperatorVoucher,
   createParcel,
+  deactivateAdminCampaign,
+  exportOperatorParcelReport,
+  getAdminCampaigns,
+  getAdminVoucherConsents,
+  getAdminVouchers,
   getAvailableVouchers,
+  getOperatorVoucherConsents,
   getOperatorVouchers,
   getOperatorParcelReportSummary,
   getParcelAvailableTrips,
   getPromotions,
+  getRagDocuments,
   getRagFeedback,
   getRagRuntimeConfigs,
   getTrackingTripEta,
   getTrackingTripLatest,
   getTrackingTripTrail,
   lockInternalRoundTripSeats,
+  overrideOperatorParcelCapacity,
+  rejectOperatorVoucherConsent,
   registerOperator,
+  reloadRagRuntimeConfigs,
+  requestOperatorParcelTransfer,
   reviewOperatorParcel,
+  returnOperatorParcel,
   reweighAssistantParcel,
+  updateOperatorVoucher,
+  updateOperatorParcelStatus,
 } from "./vietride";
 
 describe("vietride API", () => {
@@ -291,6 +309,256 @@ describe("vietride API", () => {
     );
   });
 
+  it("creates and updates operator vouchers with service scope", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "manager@operator.vn",
+          displayName: "Operator Manager",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: "voucher-1",
+            code: "OP-PARCEL",
+            name: "Parcel discount",
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createOperatorVoucher({
+      code: "OP-PARCEL",
+      name: "Parcel discount",
+      type: "PERCENT_OFF",
+      value: 10,
+      minOrderAmount: 50000,
+      maxDiscountAmount: 20000,
+      totalUsageLimit: 100,
+      perUserLimit: 1,
+      validFrom: "2026-07-01T00:00:00.000Z",
+      validUntil: "2026-07-31T16:59:59.000Z",
+      applicableServices: ["PARCEL"],
+      applicableRouteIds: [],
+      fundingType: "OPERATOR_FUNDED",
+    });
+    await updateOperatorVoucher("voucher-1", {
+      name: "Parcel discount updated",
+      value: 15,
+      minOrderAmount: 60000,
+      maxDiscountAmount: 25000,
+      totalUsageLimit: 120,
+      perUserLimit: 1,
+      validFrom: "2026-07-01T00:00:00.000Z",
+      validUntil: "2026-08-31T16:59:59.000Z",
+      applicableServices: ["PARCEL"],
+      applicableRouteIds: [],
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/vouchers",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"applicableServices":["PARCEL"]'),
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/vouchers/voucher-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"applicableServices":["PARCEL"]'),
+      }),
+    );
+  });
+
+  it("calls operator voucher consent APIs for operator roles", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-staff-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "staff@operator.vn",
+          displayName: "Operator Staff",
+          role: "OPERATOR_STAFF",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorVoucherConsents("PENDING");
+
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-2",
+          email: "admin@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    await acceptOperatorVoucherConsent("consent-1");
+    await rejectOperatorVoucherConsent("consent-1", "Not suitable");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/voucher-consents?status=PENDING",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-staff-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/voucher-consents/consent-1/accept",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-admin-token",
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/operator/voucher-consents/consent-1/reject",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Not suitable" }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-admin-token",
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("calls admin voucher consent and campaign APIs for system admin", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "System Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getAdminVouchers({ page: 1, pageSize: 20, fundingType: "OPERATOR_FUNDED" });
+    await getAdminVoucherConsents("voucher-1", { page: 1, pageSize: 20 });
+    await getAdminCampaigns();
+    await activateAdminCampaign("campaign-1");
+    await deactivateAdminCampaign("campaign-1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/admin/vouchers?page=1&pageSize=20&fundingType=OPERATOR_FUNDED",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer system-admin-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/admin/vouchers/voucher-1/consents?page=1&pageSize=20",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/admin/campaigns",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/v1/admin/campaigns/campaign-1/activate",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "https://api.vietride.online/v1/admin/campaigns/campaign-1/deactivate",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+  });
+
   it("calls passenger parcel APIs with auth and idempotency headers", async () => {
     localStorage.setItem(
       "auth",
@@ -317,6 +585,9 @@ describe("vietride API", () => {
       originStationId: "station-a",
       destinationStationId: "station-b",
       departureDate: "2026-07-20",
+      lengthCm: 50,
+      widthCm: 30,
+      heightCm: 20,
       estimatedWeightKg: 5,
       sizeCategory: "MEDIUM",
       page: 1,
@@ -341,7 +612,7 @@ describe("vietride API", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://api.vietride.online/v1/parcels/available-trips?originStationId=station-a&destinationStationId=station-b&departureDate=2026-07-20&estimatedWeightKg=5&sizeCategory=MEDIUM&page=1&pageSize=10",
+      "https://api.vietride.online/v1/parcels/available-trips?originStationId=station-a&destinationStationId=station-b&departureDate=2026-07-20&lengthCm=50&widthCm=30&heightCm=20&estimatedWeightKg=5&sizeCategory=MEDIUM&page=1&pageSize=10",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
@@ -394,6 +665,10 @@ describe("vietride API", () => {
       from: "2026-07-01",
       to: "2026-07-31",
     });
+    await exportOperatorParcelReport({
+      from: "2026-07-01",
+      to: "2026-07-31",
+    });
     await reviewOperatorParcel(
       "parcel-1",
       {
@@ -402,6 +677,37 @@ describe("vietride API", () => {
         paymentMethod: "VNPAY",
       },
       "review-idem-1",
+    );
+    await confirmOperatorParcelRefund(
+      "parcel-1",
+      { reason: "Refund confirmed by operator" },
+      "refund-idem-1",
+    );
+    await overrideOperatorParcelCapacity(
+      "parcel-1",
+      { reason: "Manual capacity verified" },
+      "capacity-idem-1",
+    );
+    await requestOperatorParcelTransfer(
+      "parcel-1",
+      {
+        targetTripId: "trip-2",
+        reason: "Trip disrupted",
+      },
+      "transfer-idem-1",
+    );
+    await returnOperatorParcel(
+      "parcel-1",
+      { returnReason: "Recipient unavailable" },
+      "return-idem-1",
+    );
+    await updateOperatorParcelStatus(
+      "parcel-1",
+      {
+        targetStatus: "RETURNED",
+        reason: "Returned at counter",
+      },
+      "status-idem-1",
     );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -416,12 +722,89 @@ describe("vietride API", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
+      "https://api.vietride.online/v1/operator/parcels/reports/export?format=csv&from=2026-07-01&to=2026-07-31",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Accept: "text/csv",
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
       "https://api.vietride.online/v1/operator/parcels/parcel-1/review",
       expect.objectContaining({
         method: "PATCH",
         headers: expect.objectContaining({
           Authorization: "Bearer operator-token",
           "Idempotency-Key": "review-idem-1",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/v1/operator/parcels/parcel-1/confirm-refund",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Refund confirmed by operator" }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+          "Idempotency-Key": "refund-idem-1",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "https://api.vietride.online/v1/operator/parcels/parcel-1/override-capacity",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Manual capacity verified" }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+          "Idempotency-Key": "capacity-idem-1",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      6,
+      "https://api.vietride.online/v1/operator/parcels/parcel-1/request-transfer",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          targetTripId: "trip-2",
+          reason: "Trip disrupted",
+        }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+          "Idempotency-Key": "transfer-idem-1",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      7,
+      "https://api.vietride.online/v1/operator/parcels/parcel-1/return",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ returnReason: "Recipient unavailable" }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+          "Idempotency-Key": "return-idem-1",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      8,
+      "https://api.vietride.online/v1/operator/parcels/parcel-1/status",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({
+          targetStatus: "RETURNED",
+          reason: "Returned at counter",
+        }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+          "Idempotency-Key": "status-idem-1",
         }),
       }),
     );
@@ -458,6 +841,9 @@ describe("vietride API", () => {
     await reweighAssistantParcel(
       "parcel-1",
       {
+        actualLengthCm: 35,
+        actualWidthCm: 25,
+        actualHeightCm: 18,
         actualWeightKg: 7,
         actualSizeCategory: "LARGE",
         paymentMethod: "VNPAY",
@@ -470,6 +856,9 @@ describe("vietride API", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
+          actualLengthCm: 35,
+          actualWidthCm: 25,
+          actualHeightCm: 18,
           actualWeightKg: 7,
           actualSizeCategory: "LARGE",
           paymentMethod: "VNPAY",
@@ -520,9 +909,16 @@ describe("vietride API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await chatWithRag({ message: "Chính sách hủy vé là gì?" });
+    await getRagDocuments({
+      page: 1,
+      pageSize: 20,
+      status: "APPROVED",
+      accessLevel: "PUBLIC",
+    });
     await getRagFeedback({ page: 1, pageSize: 20 });
     await approveRagDocument("77777777-7777-4777-8777-777777777777");
     await getRagRuntimeConfigs();
+    await reloadRagRuntimeConfigs();
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -537,23 +933,37 @@ describe("vietride API", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://api.vietride.online/v1/rag/feedback?page=1&pageSize=20",
+      "https://api.vietride.online/v1/rag/documents?page=1&pageSize=20&status=APPROVED&accessLevel=PUBLIC",
       expect.objectContaining({
         method: "GET",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
+      "https://api.vietride.online/v1/rag/feedback?page=1&pageSize=20",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
       "https://api.vietride.online/v1/rag/documents/77777777-7777-4777-8777-777777777777/approve",
       expect.objectContaining({
         method: "PUT",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
+      5,
       "https://api.vietride.online/v1/admin/rag-config",
       expect.objectContaining({
         method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      6,
+      "https://api.vietride.online/v1/admin/rag-config/reload",
+      expect.objectContaining({
+        method: "POST",
       }),
     );
   });

@@ -1,4 +1,4 @@
-import { apiRequest, buildQuery } from "./client";
+import { apiBlobRequest, apiRequest, buildQuery } from "./client";
 
 export type PageParams = {
   page?: number;
@@ -347,6 +347,7 @@ export type OperatorVoucher = {
   usedCount?: number;
   validFrom: string;
   validUntil: string;
+  applicableServices?: VoucherService[];
   applicableRouteIds: string[];
   fundingType?: string;
   isActive?: boolean;
@@ -365,6 +366,7 @@ export type CreateOperatorVoucherRequest = {
   perUserLimit: number;
   validFrom: string;
   validUntil: string;
+  applicableServices: VoucherService[];
   applicableRouteIds: string[];
   fundingType: string;
 };
@@ -436,6 +438,9 @@ export type ParcelAvailableTripsParams = PageParams & {
   originStationId: string;
   destinationStationId: string;
   departureDate: string;
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
   estimatedWeightKg: number;
   sizeCategory: ParcelSizeCategory;
 };
@@ -532,6 +537,8 @@ export type ParcelDetail = {
   originStationName?: string;
   destinationStationName?: string;
   eta?: string | null;
+  pendingActionType?: string | null;
+  refundAmount?: number | null;
 };
 
 export type ParcelDeliveryTokenRequest = {
@@ -563,6 +570,10 @@ export type ParcelActionResult = {
 export type OperatorParcelReportParams = {
   from?: string;
   to?: string;
+};
+
+export type OperatorParcelReportExportParams = OperatorParcelReportParams & {
+  format?: "csv" | string;
 };
 
 export type OperatorParcelReportSummary = {
@@ -604,6 +615,10 @@ export type OperatorParcelConfirmDeliveryRequest = {
   note: string;
 };
 
+export type OperatorParcelReasonRequest = {
+  reason: string;
+};
+
 export type OperatorParcelStatusRequest = {
   targetStatus: "RETURNED" | string;
   reason: string;
@@ -640,6 +655,9 @@ export type UpdateParcelRouteFareRequest = {
 };
 
 export type AssistantParcelReweighRequest = {
+  actualLengthCm: number;
+  actualWidthCm: number;
+  actualHeightCm: number;
   actualWeightKg: number;
   actualSizeCategory: ParcelSizeCategory;
   paymentMethod: PaymentMethod;
@@ -736,6 +754,13 @@ export type RagDocument = {
   approvedAt?: string | null;
 };
 
+export type RagDocumentParams = PageParams & {
+  status?: RagDocumentStatus;
+  accessLevel?: RagDocumentAccessLevel;
+  category?: RagDocumentCategory;
+  search?: string;
+};
+
 export type RagRuntimeConfig = {
   key: string;
   value: unknown;
@@ -760,6 +785,10 @@ export type RagRuntimeConfigHistory = {
   reason?: string | null;
   changedBy?: string | null;
   createdAt: string;
+};
+
+export type RagRuntimeConfigReloadResult = {
+  reloaded: boolean;
 };
 
 export type TrackingLatestLocation = {
@@ -1781,6 +1810,22 @@ export function getOperatorParcelReportSummary(
   );
 }
 
+export function exportOperatorParcelReport(
+  params: OperatorParcelReportExportParams = {},
+) {
+  return apiBlobRequest(
+    `/v1/operator/parcels/reports/export${buildQuery({
+      format: "csv",
+      ...params,
+    })}`,
+    {
+      headers: {
+        Accept: "text/csv",
+      },
+    },
+  );
+}
+
 export function reviewOperatorParcel(
   parcelId: string,
   request: OperatorParcelReviewRequest,
@@ -1790,6 +1835,40 @@ export function reviewOperatorParcel(
     `/v1/operator/parcels/${parcelId}/review`,
     {
       method: "PATCH",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function confirmOperatorParcelRefund(
+  parcelId: string,
+  request: OperatorParcelReasonRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/operator/parcels/${parcelId}/confirm-refund`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function overrideOperatorParcelCapacity(
+  parcelId: string,
+  request: OperatorParcelReasonRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelActionResult>(
+    `/v1/operator/parcels/${parcelId}/override-capacity`,
+    {
+      method: "POST",
       body: request,
       headers: {
         "Idempotency-Key": idempotencyKey,
@@ -2356,6 +2435,12 @@ export function getRagFeedback(params: PageParams = {}) {
   );
 }
 
+export function getRagDocuments(params: RagDocumentParams = {}) {
+  return apiRequest<PagedResult<RagDocument>>(
+    `/v1/rag/documents${buildQuery(params)}`,
+  );
+}
+
 export function uploadRagDocument(request: RagDocumentUploadRequest) {
   const form = new FormData();
   form.append("file", request.file);
@@ -2391,7 +2476,7 @@ export function getRagRuntimeConfigs() {
 }
 
 export function reloadRagRuntimeConfigs() {
-  return apiRequest<RagRuntimeConfig[]>("/v1/admin/rag-config/reload", {
+  return apiRequest<RagRuntimeConfigReloadResult>("/v1/admin/rag-config/reload", {
     method: "POST",
   });
 }

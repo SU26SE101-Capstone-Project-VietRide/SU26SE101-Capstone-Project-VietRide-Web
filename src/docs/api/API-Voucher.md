@@ -104,7 +104,7 @@ Discount:
 | GET | `/v1/promotions` | Public | Lấy promotion/voucher public theo service |
 | GET | `/v1/vouchers/available` | User token | Lấy voucher user hiện tại có thể dùng |
 | POST | `/v1/admin/vouchers` | `SYSTEM_ADMIN` | Admin tạo platform voucher |
-| GET | `/v1/admin/vouchers` | `SYSTEM_ADMIN` | Admin list voucher |
+| GET | `/v1/admin/vouchers` | `SYSTEM_ADMIN` | Admin list platform voucher |
 | GET | `/v1/admin/vouchers/{voucherId}/consents` | `SYSTEM_ADMIN` | Admin xem consent của voucher |
 | GET | `/v1/admin/campaigns` | `SYSTEM_ADMIN` | Admin list campaign |
 | POST | `/v1/admin/campaigns` | `SYSTEM_ADMIN` | Admin tạo campaign |
@@ -112,6 +112,7 @@ Discount:
 | POST | `/v1/admin/campaigns/{campaignId}/activate` | `SYSTEM_ADMIN` | Admin bật campaign |
 | POST | `/v1/admin/campaigns/{campaignId}/deactivate` | `SYSTEM_ADMIN` | Admin tắt campaign |
 | POST | `/v1/operator/vouchers` | `OPERATOR_ADMIN` | Operator tạo voucher của chính operator |
+| GET | `/v1/operator/vouchers` | `OPERATOR_ADMIN` | Operator list voucher của chính operator |
 | PATCH | `/v1/operator/vouchers/{id}` | `OPERATOR_ADMIN` | Operator cập nhật voucher |
 | DELETE | `/v1/operator/vouchers/{id}` | `OPERATOR_ADMIN` | Operator soft-delete voucher |
 | POST | `/v1/operator/vouchers/{id}/activate` | `OPERATOR_ADMIN` | Operator bật voucher |
@@ -286,7 +287,7 @@ curl -X POST "http://localhost:5003/v1/admin/vouchers" \
 
 ### GET `/v1/admin/vouchers`
 
-Admin list non-soft-deleted vouchers.
+Admin list platform vouchers non-soft-deleted (`ownerOperatorId = null`). Endpoint này không nhận `ownerOperatorId` và không trả voucher nhà xe.
 
 Auth: `SYSTEM_ADMIN`.
 
@@ -294,7 +295,6 @@ Query params:
 
 | Tên | Kiểu | Default | Rule |
 |---|---|---:|---|
-| `ownerOperatorId` | Guid? | null | Lọc theo owner operator |
 | `fundingType` | string? | null | `VIETRIDE_FUNDED` hoặc `OPERATOR_FUNDED` |
 | `isActive` | bool? | null | Lọc active/inactive |
 | `page` | int | `1` | QueryOptions paging |
@@ -316,6 +316,15 @@ Success `200`: `PagedResult<VoucherListItem>`.
         "name": "Giảm 10% vé xe",
         "type": "PERCENT_OFF",
         "value": 10,
+        "minOrderAmount": 50000,
+        "maxDiscountAmount": 20000,
+        "totalUsageLimit": 1000,
+        "perUserLimit": 1,
+        "newUserOnly": false,
+        "applicableServices": ["BOOKING", "PARCEL"],
+        "applicablePaymentMethods": ["VNPAY", "WALLET"],
+        "applicableOperatorIds": ["33333333-3333-4333-8333-333333333333"],
+        "applicableRouteIds": ["44444444-4444-4444-8444-444444444444"],
         "fundingType": "OPERATOR_FUNDED",
         "ownerOperatorId": null,
         "isActive": true,
@@ -336,6 +345,28 @@ Success `200`: `PagedResult<VoucherListItem>`.
 ```
 
 Errors trong code: `401/403`, `422 INVALID_SORT_DIRECTION`, `422 INVALID_SORT_FIELD`, `422 VALIDATION_ERROR`.
+
+### GET `/v1/operator/vouchers`
+
+Operator admin list voucher của chính operator. Server lấy `operatorId` từ JWT claim và luôn lọc `ownerOperatorId = caller.operatorId`; client không truyền `ownerOperatorId`.
+
+Auth: `OPERATOR_ADMIN`. Không yêu cầu `Idempotency-Key`.
+
+Query params:
+
+| Tên | Kiểu | Default | Rule |
+|---|---|---:|---|
+| `isActive` | bool? | null | Lọc active/inactive |
+| `page` | int | `1` | QueryOptions paging |
+| `pageSize` | int | `20` | QueryOptions paging |
+| `sortBy` | string? | null | `createdAt`, `validFrom`, `validUntil`, `code`, `name`, `isActive` |
+| `sortDir` | string | `desc` | `asc` hoặc `desc` |
+
+Success `200`: `PagedResult<VoucherListItem>` giống `GET /v1/admin/vouchers`, nhưng `ownerOperatorId` luôn là operator hiện tại.
+
+`applicableServices` cho biết voucher dùng cho `BOOKING`, `PARCEL`, hoặc cả hai.
+
+Errors trong code: `401/403`, `422 INVALID_SORT_DIRECTION`, `422 INVALID_SORT_FIELD`.
 
 ### GET `/v1/admin/vouchers/{voucherId}/consents`
 

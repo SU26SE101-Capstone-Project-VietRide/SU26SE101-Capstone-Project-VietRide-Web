@@ -38,6 +38,7 @@ const inputClass =
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
 type VoucherTab = "vouchers" | "consents";
+type VoucherServiceTab = "BOOKING" | "PARCEL";
 
 type VoucherForm = {
   code: string;
@@ -50,6 +51,7 @@ type VoucherForm = {
   perUserLimit: string;
   validFrom: string;
   validUntil: string;
+  applicableService: VoucherServiceTab;
   applicableRouteIds: string;
   fundingType: string;
 };
@@ -67,6 +69,7 @@ const emptyForm: VoucherForm = {
   validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 16),
+  applicableService: "BOOKING",
   applicableRouteIds: "",
   fundingType: "OPERATOR_FUNDED",
 };
@@ -103,6 +106,18 @@ function getVoucherId(voucher: OperatorVoucher) {
   return voucher.id;
 }
 
+function voucherServicesOf(voucher: OperatorVoucher) {
+  return voucher.applicableServices ?? ["BOOKING"];
+}
+
+function isBookingVoucher(voucher: OperatorVoucher) {
+  return voucherServicesOf(voucher).includes("BOOKING");
+}
+
+function isParcelVoucher(voucher: OperatorVoucher) {
+  return voucherServicesOf(voucher).includes("PARCEL");
+}
+
 function toForm(voucher: OperatorVoucher): VoucherForm {
   return {
     code: voucher.code,
@@ -115,6 +130,7 @@ function toForm(voucher: OperatorVoucher): VoucherForm {
     perUserLimit: String(voucher.perUserLimit),
     validFrom: voucher.validFrom ? voucher.validFrom.slice(0, 16) : "",
     validUntil: voucher.validUntil ? voucher.validUntil.slice(0, 16) : "",
+    applicableService: isParcelVoucher(voucher) ? "PARCEL" : "BOOKING",
     applicableRouteIds: voucher.applicableRouteIds.join(", "),
     fundingType: voucher.fundingType ?? "OPERATOR_FUNDED",
   };
@@ -132,6 +148,7 @@ function toCreateRequest(form: VoucherForm): CreateOperatorVoucherRequest {
     perUserLimit: toNumber(form.perUserLimit),
     validFrom: toIsoLocal(form.validFrom),
     validUntil: toIsoLocal(form.validUntil),
+    applicableServices: [form.applicableService],
     applicableRouteIds: toRouteIds(form.applicableRouteIds),
     fundingType: form.fundingType,
   };
@@ -149,6 +166,7 @@ function toUpdateRequest(form: VoucherForm): UpdateOperatorVoucherRequest {
     perUserLimit: request.perUserLimit,
     validFrom: request.validFrom,
     validUntil: request.validUntil,
+    applicableServices: request.applicableServices,
     applicableRouteIds: request.applicableRouteIds,
   };
 }
@@ -160,6 +178,8 @@ export default function ManagerVouchers() {
   const [activeTab, setActiveTab] = useState<VoucherTab>(
     isOperatorAdmin ? "vouchers" : "consents",
   );
+  const [activeServiceTab, setActiveServiceTab] =
+    useState<VoucherServiceTab>("BOOKING");
   const [vouchers, setVouchers] = useState<OperatorVoucher[]>([]);
   const [consents, setConsents] = useState<OperatorVoucherConsent[]>([]);
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
@@ -246,6 +266,16 @@ export default function ManagerVouchers() {
     () => vouchers.filter((voucher) => voucher.isActive).length,
     [vouchers],
   );
+  const bookingVouchers = useMemo(
+    () => vouchers.filter(isBookingVoucher),
+    [vouchers],
+  );
+  const parcelVouchers = useMemo(
+    () => vouchers.filter(isParcelVoucher),
+    [vouchers],
+  );
+  const currentServiceVouchers =
+    activeServiceTab === "BOOKING" ? bookingVouchers : parcelVouchers;
   const pendingConsentCount = useMemo(
     () => consents.filter((consent) => consent.status === "PENDING").length,
     [consents],
@@ -253,7 +283,7 @@ export default function ManagerVouchers() {
 
   function openCreateModal() {
     setSelectedVoucher(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, applicableService: activeServiceTab });
     setIsModalOpen(true);
   }
 
@@ -456,13 +486,47 @@ export default function ManagerVouchers() {
       )}
 
       {isOperatorAdmin && activeTab === "vouchers" ? (
-        <VoucherTable
-          vouchers={vouchers}
-          isLoading={isLoading}
-          onEdit={openEditModal}
-          onToggle={handleToggle}
-          onDelete={setDeletingVoucher}
-        />
+        <div className="space-y-4">
+          <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setActiveServiceTab("BOOKING")}
+                className={`rounded-lg px-4 py-3 text-left text-sm font-semibold ${
+                  activeServiceTab === "BOOKING"
+                    ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {t("vouchers.bookingVouchers")}
+                <span className="ml-2 rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-700">
+                  {bookingVouchers.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveServiceTab("PARCEL")}
+                className={`rounded-lg px-4 py-3 text-left text-sm font-semibold ${
+                  activeServiceTab === "PARCEL"
+                    ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {t("vouchers.parcelVouchers")}
+                <span className="ml-2 rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-700">
+                  {parcelVouchers.length}
+                </span>
+              </button>
+            </div>
+          </div>
+          <VoucherTable
+            vouchers={currentServiceVouchers}
+            isLoading={isLoading}
+            onEdit={openEditModal}
+            onToggle={handleToggle}
+            onDelete={setDeletingVoucher}
+          />
+        </div>
       ) : (
         <ConsentTable
           consents={consents}
@@ -1014,6 +1078,23 @@ function VoucherModal({
                 ? t("vouchers.selectedRoutes", { count: selectedRouteIds.length })
                 : t("vouchers.allRoutesHint")}
             </p>
+          </div>
+          <div>
+            <label className={labelClass}>{t("vouchers.applicableTo")}</label>
+            <CustomSelect
+              className={inputClass}
+              value={form.applicableService}
+              disabled={isEditing}
+              onChange={(event) =>
+                onChange(
+                  "applicableService",
+                  event.target.value as VoucherServiceTab,
+                )
+              }
+            >
+              <option value="BOOKING">{t("vouchers.applicableRides")}</option>
+              <option value="PARCEL">{t("vouchers.applicableParcels")}</option>
+            </CustomSelect>
           </div>
           <div>
             <label className={labelClass}>{t("vouchers.fundingType")}</label>

@@ -3,38 +3,19 @@ import { useTranslation } from "react-i18next";
 import { FiCheck, FiFileText, FiRefreshCw, FiSearch } from "react-icons/fi";
 import {
   approveRagDocument,
+  getRagDocuments,
   getRagFeedback,
   getRagRuntimeConfigs,
   reloadRagRuntimeConfigs,
+  type RagDocument,
   type RagFeedback,
   type RagRuntimeConfig,
 } from "../../../api/vietride";
 import { formatDateTime } from "../../../utils/date";
 
-type RagStatus = "PENDING" | "APPROVED" | "REJECTED" | "ARCHIVED";
-
-type RagDocumentShortcut = {
-  id: string;
-  title: string;
-  fileType: string;
-  permission: string;
-  uploadedBy: string;
-  status: RagStatus;
-};
-
-const documentShortcuts: RagDocumentShortcut[] = [
-  {
-    id: "77777777-7777-4777-8777-777777777777",
-    title: "Customer support policy",
-    fileType: "MD",
-    permission: "SYSTEM_ADMIN",
-    uploadedBy: "admin@vietride.vn",
-    status: "PENDING",
-  },
-];
-
-const statusClass: Record<RagStatus, string> = {
+const statusClass: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700",
+  PENDING_REVIEW: "bg-amber-50 text-amber-700",
   APPROVED: "bg-emerald-50 text-emerald-700",
   REJECTED: "bg-rose-50 text-rose-700",
   ARCHIVED: "bg-slate-100 text-slate-600",
@@ -54,10 +35,14 @@ function formatConfigValue(value: unknown) {
   return JSON.stringify(value);
 }
 
+function normalizeRuntimeConfigs(value: unknown): RagRuntimeConfig[] {
+  return Array.isArray(value) ? value : [];
+}
+
 export default function RagAudit() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
-  const [documents, setDocuments] = useState(documentShortcuts);
+  const [documents, setDocuments] = useState<RagDocument[]>([]);
   const [feedback, setFeedback] = useState<RagFeedback[]>([]);
   const [configs, setConfigs] = useState<RagRuntimeConfig[]>([]);
   const [search, setSearch] = useState("");
@@ -78,13 +63,15 @@ export default function RagAudit() {
     setError("");
 
     try {
-      const [feedbackResult, configResult] = await Promise.all([
+      const [documentResult, feedbackResult, configResult] = await Promise.all([
+        getRagDocuments({ page: 1, pageSize: 20, sortBy: "createdAt", sortDir: "desc" }),
         getRagFeedback({ page: 1, pageSize: 20, sortBy: "createdAt", sortDir: "desc" }),
         getRagRuntimeConfigs(),
       ]);
 
+      setDocuments(documentResult.items);
       setFeedback(feedbackResult.items);
-      setConfigs(configResult);
+      setConfigs(normalizeRuntimeConfigs(configResult));
     } catch (err) {
       setError(err instanceof Error ? err.message : t("ragAudit.loadFailed"));
     } finally {
@@ -128,7 +115,8 @@ export default function RagAudit() {
     setMessage("");
 
     try {
-      setConfigs(await reloadRagRuntimeConfigs());
+      await reloadRagRuntimeConfigs();
+      setConfigs(normalizeRuntimeConfigs(await getRagRuntimeConfigs()));
       setMessage(t("ragAudit.configReloaded"));
     } catch (err) {
       setError(err instanceof Error ? err.message : t("ragAudit.actionFailed"));
@@ -211,7 +199,8 @@ export default function RagAudit() {
                             {document.title}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {document.fileType} - {document.uploadedBy}
+                            {document.fileType ?? document.documentType} -{" "}
+                            {document.operatorId ?? "SYSTEM"}
                           </p>
                           <p className="mt-1 font-mono text-[11px] text-gray-400">
                             {document.id}
@@ -220,13 +209,17 @@ export default function RagAudit() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {document.permission}
+                      {document.accessLevel}
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[document.status]}`}
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          statusClass[document.status] ?? "bg-gray-100 text-gray-600"
+                        }`}
                       >
-                        {t(`ragAudit.status.${document.status}`)}
+                        {t(`ragAudit.status.${document.status}`, {
+                          defaultValue: document.status.replaceAll("_", " "),
+                        })}
                       </span>
                     </td>
                     <td className="px-4 py-3">

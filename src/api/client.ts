@@ -140,6 +140,53 @@ export async function apiRequest<T>(
   return payload as T;
 }
 
+export async function apiBlobRequest(
+  path: string,
+  options: RequestOptions = {},
+): Promise<Blob> {
+  const method = options.method ?? "GET";
+  const session = getAuthSession();
+  const shouldAuthenticate = options.authenticated !== false;
+  const response = await sendRequest(
+    path,
+    method,
+    options,
+    shouldAuthenticate ? session?.accessToken : undefined,
+  );
+
+  if (response.status === 401 && shouldAuthenticate && session?.refreshToken) {
+    const refreshedSession = await refreshAuthSession();
+
+    if (refreshedSession?.accessToken) {
+      const retryResponse = await sendRequest(
+        path,
+        method,
+        options,
+        refreshedSession.accessToken,
+      );
+
+      if (!retryResponse.ok) {
+        const retryPayload = await parseResponse(retryResponse);
+        throw new Error(
+          parseErrorMessage(
+            retryPayload,
+            `Request failed: ${retryResponse.status}`,
+          ),
+        );
+      }
+
+      return retryResponse.blob();
+    }
+  }
+
+  if (!response.ok) {
+    const payload = await parseResponse(response);
+    throw new Error(parseErrorMessage(payload, `Request failed: ${response.status}`));
+  }
+
+  return response.blob();
+}
+
 function buildHeaders(options: RequestOptions, accessToken?: string) {
   const headers: Record<string, string> = {
     Accept: "application/json",
