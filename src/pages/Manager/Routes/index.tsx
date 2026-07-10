@@ -32,6 +32,7 @@ import {
   createOperatorStop,
   getOperatorRoute,
   getOperatorRoutes,
+  getOperatorStations,
   getOperatorStop,
   getOperatorStops,
   removeRouteStop,
@@ -40,6 +41,7 @@ import {
   updateOperatorStop,
   type OperatorRoute,
   type OperatorRouteRequest,
+  type OperatorStation,
   type OperatorStop,
   type OperatorStopRequest,
   type RouteStopRequest,
@@ -139,6 +141,36 @@ function routeToForm(route: OperatorRoute): OperatorRouteRequest {
     totalDistanceKm: route.totalDistanceKm,
     estimatedDurationMinutes: route.estimatedDurationMinutes,
     isActive: route.isActive,
+  };
+}
+
+function toStationOption(operatorStation: OperatorStation): StationOption {
+  const station = operatorStation.station;
+
+  return {
+    id: operatorStation.stationId || station?.id || operatorStation.id || "",
+    name:
+      operatorStation.displayNameOverride ||
+      station?.name ||
+      operatorStation.name ||
+      "",
+    slug: station?.slug,
+    address:
+      station?.address ||
+      station?.addressStreet ||
+      operatorStation.addressStreet ||
+      "",
+    addressStreet:
+      station?.addressStreet || operatorStation.addressStreet || "",
+    city: station?.city || operatorStation.city || "",
+    province: station?.province || operatorStation.province || "",
+    latitude: station?.latitude ?? operatorStation.latitude ?? 0,
+    longitude: station?.longitude ?? operatorStation.longitude ?? 0,
+    supportsShuttle:
+      station?.supportsShuttle ?? operatorStation.supportsShuttle ?? false,
+    isActive: station?.isActive ?? operatorStation.isActive,
+    createdAt: station?.createdAt ?? operatorStation.createdAt,
+    updatedAt: station?.updatedAt ?? operatorStation.updatedAt,
   };
 }
 
@@ -268,9 +300,10 @@ export default function RoutesPage() {
     setError("");
 
     try {
-      const [routeResult, stopResult] = await Promise.all([
+      const [routeResult, stopResult, stationResult] = await Promise.all([
         getOperatorRoutes({ page: 1, pageSize: 50 }),
         getOperatorStops({ page: 1, pageSize: 50 }),
+        getOperatorStations({ page: 1, pageSize: 100 }),
       ]);
       const nextRoute =
         routeResult.items.find((item) => item.id === selectedRouteId) ??
@@ -281,6 +314,11 @@ export default function RoutesPage() {
 
       setRoutes(routeResult.items);
       setStops(stopResult.items);
+      setStations(
+        mergeStations([], stationResult.items.map(toStationOption)).filter(
+          (station) => station.id && station.name,
+        ),
+      );
       setSelectedRouteId(nextRoute?.id ?? "");
       setSelectedStopId(nextStop?.id ?? "");
 

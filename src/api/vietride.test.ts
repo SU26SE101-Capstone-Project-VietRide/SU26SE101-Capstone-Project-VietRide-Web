@@ -24,6 +24,8 @@ import {
   getInternalTripCargoCapacity,
   getInternalTripParcelAvailability,
   getOperatorRoute,
+  getOperatorDriverSchedules,
+  getOperatorStations,
   getOperatorStop,
   getOperatorVehicle,
   getOperatorVoucherConsents,
@@ -267,6 +269,49 @@ describe("vietride API", () => {
       expect.objectContaining({
         method: "PATCH",
       }),
+    );
+  });
+
+  it("loads operator stations and driver schedules", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: { items: [] } }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorStations({ page: 1, pageSize: 100, search: "Mien Dong" });
+    await getOperatorDriverSchedules({
+      page: 1,
+      pageSize: 100,
+      routeId: "route-1",
+      driverUserId: "driver-1",
+      isActive: true,
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/stations?page=1&pageSize=100&search=Mien+Dong",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/driver-schedules?page=1&pageSize=100&routeId=route-1&driverUserId=driver-1&isActive=true",
+      expect.objectContaining({ method: "GET" }),
     );
   });
 

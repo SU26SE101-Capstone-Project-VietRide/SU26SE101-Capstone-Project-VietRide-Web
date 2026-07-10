@@ -18,6 +18,7 @@ import { formatDateTime } from "../../../utils/date";
 import {
   activateOperatorDriverSchedule,
   createOperatorDriverSchedule,
+  getOperatorDriverSchedules,
   getOperatorRoutes,
   getOperatorUsers,
   getOperatorVehicles,
@@ -73,9 +74,11 @@ type TripSchedule = ScheduleForm & {
   id: string;
   code: string;
   status: ScheduleStatus;
+  routeName?: string;
+  vehiclePlate?: string;
+  driverName?: string;
+  assistantName?: string;
 };
-
-const scheduleStorageKeyPrefix = "vietride.manager.tripSchedules";
 
 const routeSeeds: RouteOption[] = [
   {
@@ -178,86 +181,6 @@ function formatMoney(value: string) {
     : value;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function readString(value: unknown) {
-  return typeof value === "string" ? value : "";
-}
-
-function parseStoredSchedules(value: unknown): TripSchedule[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (!isRecord(item)) {
-      return [];
-    }
-
-    const id = readString(item.id);
-    const code = readString(item.code);
-    const routeId = readString(item.routeId);
-    const vehicleId = readString(item.vehicleId);
-    const driverId = readString(item.driverId);
-    const departureAt = readString(item.departureAt);
-    const arrivalEstimate = readString(item.arrivalEstimate);
-    const status = readString(item.status) as ScheduleStatus;
-
-    if (
-      !id ||
-      !code ||
-      !routeId ||
-      !vehicleId ||
-      !driverId ||
-      !departureAt ||
-      !arrivalEstimate ||
-      !["draft", "open", "blocked"].includes(status)
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        id,
-        code,
-        routeId,
-        vehicleId,
-        driverId,
-        assistantId: readString(item.assistantId),
-        departureAt,
-        arrivalEstimate,
-        fare: readString(item.fare),
-        recurrence: readString(item.recurrence) || "once",
-        status,
-      },
-    ];
-  });
-}
-
-function loadStoredSchedules(storageKey: string) {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    return parseStoredSchedules(
-      JSON.parse(window.sessionStorage.getItem(storageKey) ?? "[]"),
-    );
-  } catch {
-    return [];
-  }
-}
-
-function saveStoredSchedules(storageKey: string, schedules: TripSchedule[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.sessionStorage.setItem(storageKey, JSON.stringify(schedules));
-}
-
 function toDatetimeLocalValue(date: Date) {
   const offsetMs = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
@@ -306,6 +229,22 @@ function toScheduleTimeValue(dateTimeValue: string) {
   return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:${second.padStart(2, "0")}`;
 }
 
+function toScheduleDateTime(validFrom?: string, departureTime?: string) {
+  if (!validFrom || !departureTime) {
+    return "";
+  }
+
+  const rawTime = departureTime.includes("T")
+    ? departureTime.split("T")[1]
+    : departureTime;
+  const [hour = "00", minute = "00"] = rawTime
+    .replace("Z", "")
+    .split(".")[0]
+    .split(":");
+
+  return `${validFrom}T${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+}
+
 function toResourceStatus(status?: string): ResourceStatus {
   if (status === "ACTIVE" || status === "active" || status === "APPROVED") {
     return "active";
@@ -326,8 +265,8 @@ function toRouteOption(route: OperatorRoute): RouteOption {
   return {
     id: route.id,
     name: route.name,
-    origin: route.originStationId,
-    destination: route.destinationStationId,
+    origin: route.originStation?.name ?? route.originStationId,
+    destination: route.destinationStation?.name ?? route.destinationStationId,
     status: route.isActive ? "active" : "inactive",
     distanceKm: route.totalDistanceKm,
     durationMinutes: route.estimatedDurationMinutes,
@@ -386,6 +325,37 @@ function toTripSchedule(
     assistantId: schedule.assistantUserId ?? schedule.assistantId ?? "",
     departureAt: form.departureAt,
     status: schedule.isActive || schedule.status === "ACTIVE" ? "open" : status,
+    routeName: schedule.route?.name,
+    vehiclePlate: schedule.vehicle?.licensePlate,
+    driverName: schedule.driver?.displayName,
+    assistantName: schedule.assistant?.displayName,
+  };
+}
+
+function toTripScheduleFromApi(schedule: OperatorDriverSchedule): TripSchedule {
+  const routeOption = schedule.route ? toRouteOption(schedule.route) : undefined;
+  const departureAt = toScheduleDateTime(
+    schedule.validFrom ?? schedule.effectiveFrom,
+    schedule.departureTime,
+  );
+  const arrivalEstimate = getArrivalEstimateValue(departureAt, routeOption);
+
+  return {
+    id: schedule.id,
+    code: `SCH-${schedule.id.slice(0, 8).toUpperCase()}`,
+    routeId: schedule.routeId,
+    vehicleId: schedule.vehicleId,
+    driverId: schedule.driverUserId ?? schedule.driverId ?? "",
+    assistantId: schedule.assistantUserId ?? schedule.assistantId ?? "",
+    departureAt,
+    arrivalEstimate,
+    fare: String(schedule.route?.baseFare ?? ""),
+    recurrence: "once",
+    status: schedule.isActive ? "open" : "draft",
+    routeName: schedule.route?.name,
+    vehiclePlate: schedule.vehicle?.licensePlate,
+    driverName: schedule.driver?.displayName,
+    assistantName: schedule.assistant?.displayName,
   };
 }
 
@@ -393,10 +363,7 @@ export default function TripsPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const authUser = getAuthUser();
-  const scheduleStorageKey = `${scheduleStorageKeyPrefix}.${authUser?.operatorId ?? authUser?.id ?? "guest"}`;
-  const [schedules, setSchedules] = useState<TripSchedule[]>(() =>
-    loadStoredSchedules(scheduleStorageKey),
-  );
+  const [schedules, setSchedules] = useState<TripSchedule[]>([]);
   const [routes, setRoutes] = useState<RouteOption[]>(routeSeeds);
   const [vehicles, setVehicles] = useState<VehicleOption[]>(vehicleSeeds);
   const [staff, setStaff] = useState<StaffOption[]>(staffSeeds);
@@ -495,8 +462,33 @@ export default function TripsPage() {
   }, []);
 
   useEffect(() => {
-    saveStoredSchedules(scheduleStorageKey, schedules);
-  }, [scheduleStorageKey, schedules]);
+    let ignore = false;
+
+    async function loadSchedules() {
+      try {
+        const result = await getOperatorDriverSchedules({
+          page: 1,
+          pageSize: 100,
+        });
+
+        if (!ignore) {
+          setSchedules(result.items.map(toTripScheduleFromApi));
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load schedules",
+          );
+        }
+      }
+    }
+
+    void loadSchedules();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   function updateForm<K extends keyof ScheduleForm>(
     key: K,
@@ -914,33 +906,37 @@ export default function TripsPage() {
                       {schedule.code}
                     </td>
                     <td className="px-5 py-4 text-gray-700">
-                      {optionLabel(
-                        routes,
-                        schedule.routeId,
-                        (route) => route.name,
-                      )}
+                      {schedule.routeName ||
+                        optionLabel(
+                          routes,
+                          schedule.routeId,
+                          (route) => route.name,
+                        )}
                     </td>
                     <td className="px-5 py-4 text-gray-700">
-                      {optionLabel(
-                        vehicles,
-                        schedule.vehicleId,
-                        (vehicle) => vehicle.plate,
-                      )}
+                      {schedule.vehiclePlate ||
+                        optionLabel(
+                          vehicles,
+                          schedule.vehicleId,
+                          (vehicle) => vehicle.plate,
+                        )}
                     </td>
                     <td className="px-5 py-4 text-gray-700">
                       <span className="block">
-                        {optionLabel(
-                          staff,
-                          schedule.driverId,
-                          (person) => person.name,
-                        )}
+                        {schedule.driverName ||
+                          optionLabel(
+                            staff,
+                            schedule.driverId,
+                            (person) => person.name,
+                          )}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {optionLabel(
-                          staff,
-                          schedule.assistantId,
-                          (person) => person.name,
-                        )}
+                        {schedule.assistantName ||
+                          optionLabel(
+                            staff,
+                            schedule.assistantId,
+                            (person) => person.name,
+                          )}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-gray-700">

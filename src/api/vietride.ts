@@ -205,10 +205,16 @@ export type Station = {
   name: string;
   slug?: string;
   address?: string;
+  addressStreet?: string;
+  locationId?: string;
   city: string;
   province: string;
   latitude: number;
   longitude: number;
+  contactPhone?: string;
+  contactEmail?: string;
+  operatingHours?: string;
+  facilities?: string;
   isActive?: boolean;
   supportsShuttle?: boolean;
   createdAt?: string;
@@ -273,6 +279,9 @@ export type OperatorStation = OperatorStationRequest & {
   operatorId: string;
   stationId: string;
   station?: Station;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type OperatorStop = {
@@ -310,6 +319,8 @@ export type OperatorRoute = {
   totalDistanceKm: number;
   estimatedDurationMinutes: number;
   isActive: boolean;
+  originStation?: Station;
+  destinationStation?: Station;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -1427,6 +1438,14 @@ export type OperatorDriverSchedule = {
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  route?: OperatorRoute;
+  vehicle?: OperatorVehicle;
+  driver?: Pick<OperatorUser, "id" | "displayName" | "role" | "operatorId" | "status"> & {
+    avatarUrl?: string;
+  };
+  assistant?: Pick<OperatorUser, "id" | "displayName" | "role" | "operatorId" | "status"> & {
+    avatarUrl?: string;
+  };
 };
 
 export type OperatorDriverScheduleRequest = {
@@ -1439,6 +1458,12 @@ export type OperatorDriverScheduleRequest = {
   validUntil?: string | null;
   dayOfWeek: number[];
   isActive: boolean;
+};
+
+export type OperatorDriverScheduleParams = PageParams & {
+  routeId?: string;
+  driverUserId?: string;
+  isActive?: boolean;
 };
 
 export type DriverScheduleItem = OperatorDriverSchedule & {
@@ -1770,6 +1795,12 @@ export function createOperatorStation(request: OperatorStationRequest) {
   });
 }
 
+export function getOperatorStations(params: PageParams = {}) {
+  return apiRequest<PagedResult<OperatorStation>>(
+    `/v1/operator/stations${buildQuery(params)}`,
+  );
+}
+
 export function getOperatorStops(params: PageParams = {}) {
   return apiRequest<PagedResult<OperatorStop>>(
     `/v1/operator/stops${buildQuery(params)}`,
@@ -1865,6 +1896,14 @@ export function createOperatorDriverSchedule(
     method: "POST",
     body: request,
   });
+}
+
+export function getOperatorDriverSchedules(
+  params: OperatorDriverScheduleParams = {},
+) {
+  return apiRequest<PagedResult<OperatorDriverSchedule>>(
+    `/v1/operator/driver-schedules${buildQuery(params)}`,
+  );
 }
 
 export function activateOperatorDriverSchedule(id: string) {
