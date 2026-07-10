@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FiArrowLeft, FiArrowRight, FiMail } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight, FiKey, FiLock, FiMail } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import { requestForgotPassword, resetPassword } from "../api/vietride";
 import logo from "../assets/Login/logo.svg";
 import login_2 from "../assets/Login/login_2.png";
 
@@ -10,25 +11,93 @@ export default function ForgotPassword() {
   const { t } = useTranslation("login");
   const { t: tc } = useTranslation("common");
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
     setMessage("");
 
-    if (!email.trim()) {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
       setError(t("errors.required"));
       return;
     }
 
-    if (!email.includes("@")) {
+    if (!trimmedEmail.includes("@")) {
       setError(t("errors.invalidEmail"));
       return;
     }
 
-    setMessage(t("forgotPasswordPage.pendingApiMessage"));
+    if (!otpRequested) {
+      setLoading(true);
+
+      try {
+        const result = await requestForgotPassword({ email: trimmedEmail });
+        setOtpRequested(true);
+        setEmail(result.email);
+        setMessage(
+          t("forgotPasswordPage.otpSent", {
+            minutes: result.otpTtlMinutes,
+          }),
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : t("forgotPasswordPage.requestFailed"),
+        );
+      } finally {
+        setLoading(false);
+      }
+
+      return;
+    }
+
+    if (!code.trim() || !newPassword || !confirmPassword) {
+      setError(t("errors.required"));
+      return;
+    }
+
+    if (!/^\d{6}$/.test(code.trim())) {
+      setError(t("forgotPasswordPage.invalidCode"));
+      return;
+    }
+
+    if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setError(t("forgotPasswordPage.passwordRules"));
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError(t("forgotPasswordPage.passwordMismatch"));
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await resetPassword({
+        email: trimmedEmail,
+        code: code.trim(),
+        newPassword,
+      });
+      setMessage(t("forgotPasswordPage.resetSuccess"));
+      setCode("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("forgotPasswordPage.resetFailed"),
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -105,19 +174,92 @@ export default function ForgotPassword() {
                     <input
                       type="email"
                       value={email}
+                      disabled={otpRequested || loading}
                       onChange={(event) => setEmail(event.target.value)}
                       placeholder={t("emailPlaceholder")}
-                      className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                      className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25 disabled:bg-slate-50 disabled:text-slate-500"
                     />
                   </div>
                 </div>
 
+                {otpRequested && (
+                  <>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-800">
+                        {t("forgotPasswordPage.code")}{" "}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <FiKey className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          value={code}
+                          onChange={(event) => setCode(event.target.value)}
+                          placeholder={t("forgotPasswordPage.codePlaceholder")}
+                          maxLength={6}
+                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-800">
+                        {t("forgotPasswordPage.newPassword")}{" "}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(event) => setNewPassword(event.target.value)}
+                          placeholder={t("forgotPasswordPage.newPasswordPlaceholder")}
+                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-800">
+                        {t("forgotPasswordPage.confirmPassword")}{" "}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(event) =>
+                            setConfirmPassword(event.target.value)
+                          }
+                          placeholder={t(
+                            "forgotPasswordPage.confirmPasswordPlaceholder",
+                          )}
+                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <button
                   type="submit"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700"
+                  disabled={loading}
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400"
                 >
-                  {t("forgotPasswordPage.submit")}
-                  <FiArrowRight className="h-5 w-5" />
+                  {loading ? (
+                    <>
+                      <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      {t("submitting")}
+                    </>
+                  ) : (
+                    <>
+                      {otpRequested
+                        ? t("forgotPasswordPage.resetSubmit")
+                        : t("forgotPasswordPage.submit")}
+                      <FiArrowRight className="h-5 w-5" />
+                    </>
+                  )}
                 </button>
               </form>
 

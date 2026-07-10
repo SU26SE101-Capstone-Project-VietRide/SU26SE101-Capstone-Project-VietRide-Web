@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiEdit2,
@@ -11,6 +11,11 @@ import {
 import PlacePicker, { type PlaceSelection } from "../../../components/PlacePicker";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
+import {
+  getAdminLocations,
+  updateAdminLocation,
+  type AdminLocation,
+} from "../../../api/vietride";
 
 type StationStatus = "ACTIVE" | "DUPLICATE" | "INACTIVE";
 
@@ -128,6 +133,33 @@ function isValidCoordinate(latitude: number, longitude: number) {
   );
 }
 
+function toStationStatus(location: AdminLocation): StationStatus {
+  if (location.status === "DUPLICATE") {
+    return "DUPLICATE";
+  }
+
+  if (location.status === "INACTIVE" || location.isActive === false) {
+    return "INACTIVE";
+  }
+
+  return "ACTIVE";
+}
+
+function toPlatformStation(location: AdminLocation): PlatformStation {
+  return {
+    id: location.id,
+    name: location.name,
+    address: location.address ?? "",
+    city: location.city ?? location.province ?? "",
+    latitude: location.latitude,
+    longitude: location.longitude,
+    linkedOperators: location.linkedOperators ?? 0,
+    duplicateOf: location.duplicateOf ?? undefined,
+    status: toStationStatus(location),
+    updatedAt: location.updatedAt ?? location.createdAt ?? "",
+  };
+}
+
 export default function AdminStations() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
@@ -141,8 +173,49 @@ export default function AdminStations() {
   );
   const [form, setForm] = useState<StationForm>(toForm(initialStations[0]));
   const [alert, setAlert] = useState<AlertState | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 8;
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadLocations() {
+      setIsLoading(true);
+
+      try {
+        const result = await getAdminLocations({ page: 1, pageSize: 100 });
+        const nextStations = result.items.map(toPlatformStation);
+
+        if (ignore || nextStations.length === 0) {
+          return;
+        }
+
+        setStations(nextStations);
+        setSelectedStationId(nextStations[0].id);
+        setMergeTargetId(nextStations[1]?.id ?? nextStations[0].id);
+        setForm(toForm(nextStations[0]));
+      } catch (err) {
+        if (!ignore) {
+          setAlert({
+            tone: "error",
+            message:
+              err instanceof Error ? err.message : "Failed to load locations",
+          });
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadLocations();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const filteredStations = useMemo(
     () =>
@@ -219,7 +292,7 @@ export default function AdminStations() {
     });
   };
 
-  const saveStation = () => {
+  const saveStation = async () => {
     if (!selectedStation) {
       return;
     }
@@ -237,25 +310,36 @@ export default function AdminStations() {
       return;
     }
 
-    setStations((currentStations) =>
-      currentStations.map((station) =>
-        station.id === selectedStation.id
-          ? {
-              ...station,
-              name: form.name.trim(),
-              address: form.address.trim(),
-              city: form.city.trim(),
-              latitude,
-              longitude,
-              updatedAt: new Date().toISOString().slice(0, 10),
-            }
-          : station,
-      ),
-    );
-    setAlert({
-      tone: "success",
-      message: t("stations.savedMessage", { station: form.name.trim() }),
-    });
+    try {
+      const updated = await updateAdminLocation(selectedStation.id, {
+        name: form.name.trim(),
+        address: form.address.trim(),
+        city: form.city.trim(),
+        province: form.city.trim(),
+        latitude,
+        longitude,
+        status: selectedStation.status,
+        duplicateOf: selectedStation.duplicateOf ?? null,
+      });
+      const nextStation = toPlatformStation(updated);
+
+      setStations((currentStations) =>
+        currentStations.map((station) =>
+          station.id === selectedStation.id ? nextStation : station,
+        ),
+      );
+      setSelectedStationId(nextStation.id);
+      setForm(toForm(nextStation));
+      setAlert({
+        tone: "success",
+        message: t("stations.savedMessage", { station: form.name.trim() }),
+      });
+    } catch (err) {
+      setAlert({
+        tone: "error",
+        message: err instanceof Error ? err.message : "Failed to save location",
+      });
+    }
   };
 
   const mergeStation = () => {
@@ -308,31 +392,47 @@ export default function AdminStations() {
     });
   };
 
-  const deactivateStation = (station: PlatformStation) => {
+  const deactivateStation = async (station: PlatformStation) => {
     if (station.linkedOperators > 0 && station.status === "ACTIVE") {
       setAlert({ tone: "error", message: t("stations.activeUseBlocked") });
       selectStation(station);
       return;
     }
 
-    setStations((currentStations) =>
-      currentStations.map((item) =>
-        item.id === station.id
-          ? {
-              ...item,
-              status: item.status === "INACTIVE" ? "ACTIVE" : "INACTIVE",
-              updatedAt: new Date().toISOString().slice(0, 10),
-            }
-          : item,
-      ),
-    );
-    setAlert({
-      tone: "success",
-      message:
-        station.status === "INACTIVE"
-          ? t("stations.activatedMessage", { station: station.name })
-          : t("stations.deactivatedMessage", { station: station.name }),
-    });
+    const nextStatus = station.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+
+    try {
+      const updated = await updateAdminLocation(station.id, {
+        name: station.name,
+        address: station.address,
+        city: station.city,
+        province: station.city,
+        latitude: station.latitude,
+        longitude: station.longitude,
+        status: nextStatus,
+        duplicateOf: station.duplicateOf ?? null,
+      });
+      const nextStation = toPlatformStation(updated);
+
+      setStations((currentStations) =>
+        currentStations.map((item) =>
+          item.id === station.id ? nextStation : item,
+        ),
+      );
+      setAlert({
+        tone: "success",
+        message:
+          station.status === "INACTIVE"
+            ? t("stations.activatedMessage", { station: station.name })
+            : t("stations.deactivatedMessage", { station: station.name }),
+      });
+    } catch (err) {
+      setAlert({
+        tone: "error",
+        message:
+          err instanceof Error ? err.message : "Failed to update location",
+      });
+    }
   };
 
   const statusLabel = (status: StationStatus) => {
@@ -491,7 +591,7 @@ export default function AdminStations() {
                         <button
                           type="button"
                           className={`${iconButtonClass} text-rose-600 hover:bg-rose-50`}
-                          onClick={() => deactivateStation(station)}
+                          onClick={() => void deactivateStation(station)}
                           title={
                             station.status === "INACTIVE"
                               ? tc("enable")
@@ -549,7 +649,9 @@ export default function AdminStations() {
               <button
                 type="button"
                 className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-vr-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-vr-700"
-                onClick={saveStation}
+                onClick={() => void saveStation()}
+                disabled={isLoading}
+                aria-busy={isLoading}
               >
                 <FiSave size={16} />
                 {t("stations.saveStation")}

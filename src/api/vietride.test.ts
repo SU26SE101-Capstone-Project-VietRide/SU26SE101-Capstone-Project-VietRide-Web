@@ -2,42 +2,65 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptOperatorVoucherConsent,
   activateAdminCampaign,
+  activateOperatorDriverSchedule,
   approveRagDocument,
   chatWithRag,
   confirmOperatorParcelRefund,
+  createAdminLocation,
   deleteAdminVoucher,
   createAdminUser,
+  createOperatorDriverSchedule,
   createOperatorVoucher,
   createParcel,
   deactivateAdminCampaign,
   exportOperatorParcelReport,
   getAdminCampaigns,
+  getAdminLocations,
   getAdminVoucherConsents,
   getAdminVouchers,
   getAvailableVouchers,
+  getBookingHealth,
+  getDriverMeSchedule,
+  getInternalTripCargoCapacity,
+  getInternalTripParcelAvailability,
+  getOperatorRoute,
+  getOperatorStop,
+  getOperatorVehicle,
   getOperatorVoucherConsents,
   getOperatorVouchers,
   getOperatorParcelReportSummary,
   getParcelAvailableTrips,
   getPromotions,
+  getPublicLocations,
+  getPublicTrip,
+  getPublicTripSeatMap,
   getRagDocuments,
   getRagFeedback,
   getRagRuntimeConfigs,
   getTrackingTripEta,
   getTrackingTripLatest,
   getTrackingTripTrail,
+  getTripHealth,
+  getVehicleTypes,
   lockInternalRoundTripSeats,
   overrideOperatorParcelCapacity,
   rejectOperatorVoucherConsent,
+  remeasureInternalTripCargo,
   registerOperator,
   reloadRagRuntimeConfigs,
+  requestForgotPassword,
   requestOperatorParcelTransfer,
+  resetPassword,
   reviewOperatorParcel,
   returnOperatorParcel,
   reweighAssistantParcel,
+  searchPublicTrips,
+  updateAdminLocation,
   updateAdminVoucher,
+  updateAlternativeRouteGeometry,
   updateOperatorVoucher,
   updateOperatorParcelStatus,
+  updateOperatorRouteGeometry,
 } from "./vietride";
 
 describe("vietride API", () => {
@@ -96,6 +119,386 @@ describe("vietride API", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer access-token",
         }),
+      }),
+    );
+  });
+
+  it("creates an admin location", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: "loc-1",
+            name: "Mien Dong",
+            latitude: 10.1,
+            longitude: 106.1,
+          },
+        }),
+        { status: 201 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createAdminLocation({
+      name: "Mien Dong",
+      address: "292 Dinh Bo Linh",
+      city: "Ho Chi Minh City",
+      province: "Ho Chi Minh City",
+      latitude: 10.1,
+      longitude: 106.1,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/admin/locations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "Mien Dong",
+          address: "292 Dinh Bo Linh",
+          city: "Ho Chi Minh City",
+          province: "Ho Chi Minh City",
+          latitude: 10.1,
+          longitude: 106.1,
+        }),
+      }),
+    );
+  });
+
+  it("creates and activates an operator driver schedule", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-admin",
+          email: "admin@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/activate")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              id: "schedule-1",
+              routeId: "route-1",
+              vehicleId: "vehicle-1",
+              driverUserId: "driver-1",
+              departureTime: "08:00:00",
+              validFrom: "2026-07-11",
+              isActive: true,
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: "schedule-1",
+            routeId: "route-1",
+            vehicleId: "vehicle-1",
+            driverUserId: "driver-1",
+            departureTime: "08:00:00",
+            validFrom: "2026-07-11",
+            isActive: false,
+          },
+        }),
+        { status: 201 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createOperatorDriverSchedule({
+      routeId: "route-1",
+      vehicleId: "vehicle-1",
+      driverUserId: "driver-1",
+      assistantUserId: "assistant-1",
+      departureTime: "08:00:00",
+      validFrom: "2026-07-11",
+      validUntil: null,
+      dayOfWeek: [1, 2, 3],
+      isActive: true,
+    });
+    await activateOperatorDriverSchedule("schedule-1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/driver-schedules",
+      expect.objectContaining({
+        body: JSON.stringify({
+          routeId: "route-1",
+          vehicleId: "vehicle-1",
+          driverUserId: "driver-1",
+          assistantUserId: "assistant-1",
+          departureTime: "08:00:00",
+          validFrom: "2026-07-11",
+          validUntil: null,
+          dayOfWeek: [1, 2, 3],
+          isActive: true,
+        }),
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/driver-schedules/schedule-1/activate",
+      expect.objectContaining({
+        method: "PATCH",
+      }),
+    );
+  });
+
+  it("calls new trip, geometry, and driver schedule endpoints", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Ops",
+          role: "OPERATOR_STAFF",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: { items: [] } }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getDriverMeSchedule({ page: 1, pageSize: 10 });
+    await updateOperatorRouteGeometry("route-1", {
+      pathPolyline: "abc",
+    });
+    await updateAlternativeRouteGeometry("alt-1", {
+      pathPolyline: "def",
+    });
+    await getInternalTripParcelAvailability({ routeId: "route-1" });
+    await getInternalTripCargoCapacity("trip-1");
+    await remeasureInternalTripCargo("trip-1", {
+      parcelId: "parcel-1",
+      weightKg: 12,
+      volumeM3: 0.5,
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/driver/me/schedule?page=1&pageSize=10",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/routes/route-1/geometry",
+      expect.objectContaining({
+        body: JSON.stringify({ pathPolyline: "abc" }),
+        method: "PUT",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/operator/alternative-routes/alt-1/geometry",
+      expect.objectContaining({
+        body: JSON.stringify({ pathPolyline: "def" }),
+        method: "PUT",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/internal/v1/trips/parcel-availability?routeId=route-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "https://api.vietride.online/internal/v1/trips/trip-1/cargo/capacity",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      6,
+      "https://api.vietride.online/internal/v1/trips/trip-1/cargo/remeasure",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("calls trip and booking endpoints used by the three dashboard roles", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "role-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: { items: [] } }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getAdminLocations({ page: 1, pageSize: 20, search: "HCM" });
+    await updateAdminLocation("location-1", {
+      name: "Ho Chi Minh",
+      latitude: 10.8,
+      longitude: 106.7,
+    });
+    await getOperatorStop("stop-1");
+    await getOperatorRoute("route-1");
+    await getOperatorVehicle("vehicle-1");
+    await getVehicleTypes({ page: 1, pageSize: 20, search: "BUS" });
+    await getPublicLocations();
+    await searchPublicTrips({
+      originStationId: "station-a",
+      destinationStationId: "station-b",
+      departureDate: "2026-07-20",
+      passengerCount: 1,
+    });
+    await getPublicTrip("trip-1");
+    await getPublicTripSeatMap("trip-1");
+    await getTripHealth();
+    await getBookingHealth();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/admin/locations?page=1&pageSize=20&search=HCM",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/admin/locations/location-1",
+      expect.objectContaining({
+        body: JSON.stringify({
+          name: "Ho Chi Minh",
+          latitude: 10.8,
+          longitude: 106.7,
+        }),
+        method: "PATCH",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/operator/stops/stop-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/v1/operator/routes/route-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "https://api.vietride.online/v1/operator/vehicles/vehicle-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      6,
+      "https://api.vietride.online/v1/vehicle-types?page=1&pageSize=20&search=BUS",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      7,
+      "https://api.vietride.online/v1/locations",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      8,
+      "https://api.vietride.online/v1/trips/search?originStationId=station-a&destinationStationId=station-b&departureDate=2026-07-20&passengerCount=1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      9,
+      "https://api.vietride.online/v1/trips/trip-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      10,
+      "https://api.vietride.online/v1/trips/trip-1/seat-map",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      11,
+      "https://api.vietride.online/v1/trip/health",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      12,
+      "https://api.vietride.online/v1/booking/health",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("calls public forgot and reset password endpoints", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            email: "ops@operator.vn",
+            otpTtlMinutes: 5,
+            status: "ACTIVE",
+            userId: "user-1",
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestForgotPassword({ email: "ops@operator.vn" });
+    await resetPassword({
+      email: "ops@operator.vn",
+      code: "123456",
+      newPassword: "Password123",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/auth/forgot-password",
+      expect.objectContaining({
+        body: JSON.stringify({ email: "ops@operator.vn" }),
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/auth/reset-password",
+      expect.objectContaining({
+        body: JSON.stringify({
+          email: "ops@operator.vn",
+          code: "123456",
+          newPassword: "Password123",
+        }),
+        method: "POST",
       }),
     );
   });

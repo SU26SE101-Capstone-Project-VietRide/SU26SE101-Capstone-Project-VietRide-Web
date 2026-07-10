@@ -204,6 +204,7 @@ export type Station = {
   id: string;
   name: string;
   slug?: string;
+  address?: string;
   city: string;
   province: string;
   latitude: number;
@@ -218,6 +219,35 @@ export type StationSearchParams = {
   q?: string;
   city?: string;
   province?: string;
+};
+
+export type AdminLocationStatus = "ACTIVE" | "INACTIVE" | "DUPLICATE" | string;
+
+export type AdminLocation = {
+  id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  province?: string;
+  latitude: number;
+  longitude: number;
+  linkedOperators?: number;
+  duplicateOf?: string | null;
+  status?: AdminLocationStatus;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type AdminLocationRequest = {
+  name: string;
+  address?: string;
+  city?: string;
+  province?: string;
+  latitude: number;
+  longitude: number;
+  status?: AdminLocationStatus;
+  duplicateOf?: string | null;
 };
 
 export type OperatorStationRequest = {
@@ -275,6 +305,7 @@ export type OperatorRoute = {
   originStationId: string;
   destinationStationId: string;
   returnRouteId?: string | null;
+  pathPolyline?: string | null;
   baseFare: number;
   totalDistanceKm: number;
   estimatedDurationMinutes: number;
@@ -1091,6 +1122,7 @@ export type AlternativeRoute = {
   name: string;
   description: string;
   destinationStationId: string;
+  pathPolyline?: string | null;
   totalDistanceKm: number;
   estimatedDurationMinutes: number;
   isActive: boolean;
@@ -1380,12 +1412,17 @@ export type OperatorDriverSchedule = {
   operatorId: string;
   routeId: string;
   vehicleId: string;
-  driverId: string;
+  driverId?: string;
+  driverUserId?: string;
   assistantId?: string | null;
+  assistantUserId?: string | null;
   departureTime: string;
   effectiveFrom: string;
+  validFrom?: string;
   effectiveUntil?: string | null;
+  validUntil?: string | null;
   daysOfWeek?: number[];
+  dayOfWeek?: number[];
   status?: string;
   isActive?: boolean;
   createdAt?: string;
@@ -1394,13 +1431,25 @@ export type OperatorDriverSchedule = {
 
 export type OperatorDriverScheduleRequest = {
   routeId: string;
-  vehicleId: string;
-  driverId: string;
-  assistantId?: string;
+  vehicleId?: string | null;
+  driverUserId: string;
+  assistantUserId?: string | null;
   departureTime: string;
-  effectiveFrom: string;
-  effectiveUntil?: string;
-  daysOfWeek?: number[];
+  validFrom: string;
+  validUntil?: string | null;
+  dayOfWeek: number[];
+  isActive: boolean;
+};
+
+export type DriverScheduleItem = OperatorDriverSchedule & {
+  routeName?: string;
+  vehiclePlate?: string;
+  driverName?: string;
+  assistantName?: string;
+};
+
+export type RouteGeometryRequest = {
+  pathPolyline: string | null;
 };
 
 export type TripStopArrivalRequest = {
@@ -1437,6 +1486,32 @@ export type TripOperationResult = {
   message?: string;
 };
 
+export type ParcelAvailabilityParams = {
+  tripId?: string;
+  routeId?: string;
+  fromStopId?: string;
+  toStopId?: string;
+  departureDate?: string;
+  weightKg?: number;
+  volumeM3?: number;
+};
+
+export type ParcelAvailability = {
+  tripId: string;
+  routeId?: string;
+  isAvailable: boolean;
+  remainingWeightKg?: number;
+  remainingVolumeM3?: number;
+  reason?: string;
+};
+
+export type CargoRemeasureRequest = {
+  parcelId: string;
+  weightKg: number;
+  volumeM3: number;
+  note?: string;
+};
+
 export type VerifyEmailRequest = {
   email: string;
   code: string;
@@ -1458,6 +1533,26 @@ export type SetInitialPasswordResult = {
   status: string;
 };
 
+export type ForgotPasswordRequest = {
+  email: string;
+};
+
+export type ForgotPasswordResult = {
+  email: string;
+  otpTtlMinutes: number;
+};
+
+export type ResetPasswordRequest = {
+  email: string;
+  code: string;
+  newPassword: string;
+};
+
+export type ResetPasswordResult = {
+  userId: string;
+  status: string;
+};
+
 export function verifyEmail(request: VerifyEmailRequest) {
   return apiRequest<VerifyEmailResult>("/v1/auth/verify-email", {
     method: "POST",
@@ -1468,6 +1563,22 @@ export function verifyEmail(request: VerifyEmailRequest) {
 
 export function setInitialPassword(request: SetInitialPasswordRequest) {
   return apiRequest<SetInitialPasswordResult>("/v1/auth/set-initial-password", {
+    method: "POST",
+    body: request,
+    authenticated: false,
+  });
+}
+
+export function requestForgotPassword(request: ForgotPasswordRequest) {
+  return apiRequest<ForgotPasswordResult>("/v1/auth/forgot-password", {
+    method: "POST",
+    body: request,
+    authenticated: false,
+  });
+}
+
+export function resetPassword(request: ResetPasswordRequest) {
+  return apiRequest<ResetPasswordResult>("/v1/auth/reset-password", {
     method: "POST",
     body: request,
     authenticated: false,
@@ -1511,6 +1622,50 @@ export function suspendAdminOperator(operatorId: string, reason: string) {
 export function getAdminOperatorUsers(params: AdminUserParams = {}) {
   return apiRequest<PagedResult<AdminUser>>(
     `/v1/admin/operator-users${buildQuery(params)}`,
+  );
+}
+
+export async function getAdminLocations(params: PageParams = {}) {
+  const response = await apiRequest<PagedResult<AdminLocation> | AdminLocation[]>(
+    `/v1/admin/locations${buildQuery(params)}`,
+  );
+
+  if (Array.isArray(response)) {
+    return {
+      items: response,
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? response.length,
+      totalItems: response.length,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    };
+  }
+
+  return response;
+}
+
+export function createAdminLocation(request: AdminLocationRequest) {
+  return apiRequest<AdminLocation>("/v1/admin/locations", {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function updateAdminLocation(
+  id: string,
+  request: AdminLocationRequest,
+) {
+  return apiRequest<AdminLocation>(`/v1/admin/locations/${id}`, {
+    method: "PATCH",
+    body: request,
+  });
+}
+
+export function deleteAdminLocation(id: string) {
+  return apiRequest<{ id?: string; deletedAt?: string; message?: string }>(
+    `/v1/admin/locations/${id}`,
+    { method: "DELETE" },
   );
 }
 
@@ -1602,6 +1757,12 @@ export function searchStations(params: StationSearchParams) {
   return apiRequest<Station[]>(`/v1/stations/search${buildQuery(params)}`);
 }
 
+export function getPublicLocations(params: StationSearchParams = {}) {
+  return apiRequest<Station[]>(`/v1/locations${buildQuery(params)}`, {
+    authenticated: false,
+  });
+}
+
 export function createOperatorStation(request: OperatorStationRequest) {
   return apiRequest<OperatorStation>("/v1/operator/stations", {
     method: "POST",
@@ -1657,6 +1818,16 @@ export function updateOperatorRoute(id: string, request: OperatorRouteRequest) {
   });
 }
 
+export function updateOperatorRouteGeometry(
+  routeId: string,
+  request: RouteGeometryRequest,
+) {
+  return apiRequest<OperatorRoute>(`/v1/operator/routes/${routeId}/geometry`, {
+    method: "PUT",
+    body: request,
+  });
+}
+
 export function addRouteStop(routeId: string, request: RouteStopRequest) {
   return apiRequest<RouteStop>(`/v1/operator/routes/${routeId}/stops`, {
     method: "POST",
@@ -1700,6 +1871,12 @@ export function activateOperatorDriverSchedule(id: string) {
   return apiRequest<OperatorDriverSchedule>(
     `/v1/operator/driver-schedules/${id}/activate`,
     { method: "PATCH" },
+  );
+}
+
+export function getDriverMeSchedule(params: PageParams = {}) {
+  return apiRequest<PagedResult<DriverScheduleItem>>(
+    `/v1/driver/me/schedule${buildQuery(params)}`,
   );
 }
 
@@ -2287,6 +2464,16 @@ export function updateAlternativeRoute(
   );
 }
 
+export function updateAlternativeRouteGeometry(
+  alternativeRouteId: string,
+  request: RouteGeometryRequest,
+) {
+  return apiRequest<AlternativeRoute>(
+    `/v1/operator/alternative-routes/${alternativeRouteId}/geometry`,
+    { method: "PUT", body: request },
+  );
+}
+
 export function deleteAlternativeRoute(alternativeRouteId: string) {
   return apiRequest<{ message?: string }>(
     `/v1/operator/alternative-routes/${alternativeRouteId}`,
@@ -2337,6 +2524,24 @@ export function getPublicTrip(tripId: string) {
 
 export function getPublicTripSeatMap(tripId: string) {
   return apiRequest<unknown>(`/v1/trips/${tripId}/seat-map`);
+}
+
+export type ServiceHealth = {
+  status?: string;
+  service?: string;
+  timestamp?: string;
+};
+
+export function getTripHealth() {
+  return apiRequest<ServiceHealth>("/v1/trip/health", {
+    authenticated: false,
+  });
+}
+
+export function getBookingHealth() {
+  return apiRequest<ServiceHealth>("/v1/booking/health", {
+    authenticated: false,
+  });
 }
 
 export function createBooking(request: CreateBookingRequest) {
@@ -2552,6 +2757,14 @@ export function getInternalTrip(tripId: string) {
   return apiRequest<PublicTrip>(`/internal/v1/trips/${tripId}`);
 }
 
+export function getInternalTripParcelAvailability(
+  params: ParcelAvailabilityParams = {},
+) {
+  return apiRequest<ParcelAvailability[]>(
+    `/internal/v1/trips/parcel-availability${buildQuery(params)}`,
+  );
+}
+
 export function getInternalTripTrackingAuthorization(tripId: string) {
   return apiRequest<TripTrackingAuthorization>(
     `/internal/v1/trips/${tripId}/tracking-authorization`,
@@ -2615,6 +2828,22 @@ export function reserveInternalTripCargo(
 ) {
   return apiRequest<CargoReserveResult>(
     `/internal/v1/trips/${tripId}/cargo/reserve`,
+    { method: "POST", body: request },
+  );
+}
+
+export function getInternalTripCargoCapacity(tripId: string) {
+  return apiRequest<CargoCapacity>(
+    `/internal/v1/trips/${tripId}/cargo/capacity`,
+  );
+}
+
+export function remeasureInternalTripCargo(
+  tripId: string,
+  request: CargoRemeasureRequest,
+) {
+  return apiRequest<CargoReserveResult>(
+    `/internal/v1/trips/${tripId}/cargo/remeasure`,
     { method: "POST", body: request },
   );
 }

@@ -112,17 +112,41 @@ function sumStats(items: BookingStatsItem[], key: keyof BookingStatsItem) {
 }
 
 function mapRevenueStats(items: BookingStatsItem[]) {
-  return items.map((item) => ({
-    month: monthLabel(item.date),
-    revenue: asHundredMillion(item.totalRevenue),
-    orders: item.totalBookings,
-    rawRevenue: item.totalRevenue,
-  }));
+  const monthlyStats = new Map<
+    string,
+    { revenue: number; orders: number; rawRevenue: number }
+  >();
+
+  for (const item of items) {
+    const month = monthLabel(item.date);
+    const current = monthlyStats.get(month) ?? {
+      revenue: 0,
+      orders: 0,
+      rawRevenue: 0,
+    };
+
+    current.rawRevenue += item.totalRevenue ?? 0;
+    current.revenue = asHundredMillion(current.rawRevenue);
+    current.orders += item.totalBookings ?? 0;
+    monthlyStats.set(month, current);
+  }
+
+  return Array.from(monthlyStats.entries())
+    .map(([month, value]) => ({
+      month,
+      ...value,
+    }))
+    .sort((a, b) => {
+      const aMonth = Number(a.month.slice(1));
+      const bMonth = Number(b.month.slice(1));
+      return (Number.isFinite(aMonth) ? aMonth : 13) -
+        (Number.isFinite(bMonth) ? bMonth : 13);
+    });
 }
 
 async function fetchOperatorBookingStats() {
   const { from, to } = currentYearRange();
-  return getOperatorBookingStats({ from, to, groupBy: "month" });
+  return getOperatorBookingStats({ from, to, groupBy: "date" });
 }
 
 const cargoStatusData = [
