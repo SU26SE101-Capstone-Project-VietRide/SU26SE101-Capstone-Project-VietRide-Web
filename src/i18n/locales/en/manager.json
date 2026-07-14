@@ -930,11 +930,19 @@
     "activateHint": "The voucher will be active and customers can use it immediately."
   },
   "packages": {
+    "title": "Service packages",
+    "subtitle": "Track your current package, operating quota, and package upgrades.",
+    "loading": "Loading service packages...",
+    "loadFailed": "Failed to load subscription data.",
+    "upgradeFailed": "Failed to create upgrade request.",
+    "upgradePending": "Upgrade request created. Redirecting to VNPay.",
     "currentPackage": "Current package: {{name}}",
     "expires": "Expires:",
+    "expiresOn": "Expires: {{date}}",
     "daysLeft": "{{n}} days left",
     "vehiclesUsed": "Vehicles in use",
     "routesUsed": "Routes",
+    "tripsUsed": "Trips this month",
     "duration": "Duration",
     "noSubscription": "You haven't purchased any service package. Buy one below to get started.",
     "available": "Available service packages",
@@ -961,6 +969,13 @@
     "perDuration": "/ {{n}} months",
     "maxVehicles": "Up to {{n}} vehicles",
     "maxRoutes": "Up to {{n}} routes",
+    "tripsPerMonth": "Trips/month",
+    "pendingPayment": "An upgrade payment is pending: {{paymentId}}",
+    "billingPeriod": "Billing period",
+    "billing": {
+      "MONTHLY": "Monthly",
+      "YEARLY": "Yearly"
+    },
     "packageColumn": "Package",
     "voucherCode": "Voucher code",
     "cancelled": "Cancelled",
@@ -976,6 +991,7 @@
     "payWithWallet": "Pay with wallet",
     "useWalletBalance": "Use your wallet balance",
     "scanQrToPay": "Scan QR code to pay",
+    "vnpayNote": "After confirmation, the system redirects to VNPay. When payment is complete, return to this screen to refresh the subscription status.",
     "purchaseAlert": "Buy {{name}} for {{months}} months\nBase price: {{base}} VND\nDiscount: {{discount}} VND\nTotal: {{total}} VND\nPayment method: {{method}}\n\nPurchase successful!"
   },
   "policies": {

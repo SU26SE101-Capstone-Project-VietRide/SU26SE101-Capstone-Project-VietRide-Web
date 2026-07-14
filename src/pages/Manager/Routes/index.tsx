@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -223,6 +224,7 @@ export default function RoutesPage() {
   const [messageScope, setMessageScope] = useState<FeedbackScope>("global");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const lastEstimatedRoutePairRef = useRef("");
 
   const selectedRoute = useMemo(
     () => routes.find((route) => route.id === selectedRouteId) ?? null,
@@ -231,6 +233,15 @@ export default function RoutesPage() {
   const selectedStop = useMemo(
     () => stops.find((stop) => stop.id === selectedStopId) ?? null,
     [selectedStopId, stops],
+  );
+  const selectedOriginStation = useMemo(
+    () => stations.find((station) => station.id === routeForm.originStationId),
+    [routeForm.originStationId, stations],
+  );
+  const selectedDestinationStation = useMemo(
+    () =>
+      stations.find((station) => station.id === routeForm.destinationStationId),
+    [routeForm.destinationStationId, stations],
   );
   const activeRouteKey = selectedRoute?.id ?? draftRouteId;
   const activeRouteName =
@@ -323,6 +334,7 @@ export default function RoutesPage() {
       setSelectedStopId(nextStop?.id ?? "");
 
       if (nextRoute) {
+        lastEstimatedRoutePairRef.current = `${nextRoute.originStationId}:${nextRoute.destinationStationId}`;
         setRouteForm(routeToForm(nextRoute));
       }
 
@@ -348,6 +360,64 @@ export default function RoutesPage() {
       void loadData();
     });
   }, [loadData]);
+
+  useEffect(() => {
+    if (!canManageRoutes || !selectedOriginStation || !selectedDestinationStation) {
+      return;
+    }
+
+    if (
+      selectedOriginStation.id === selectedDestinationStation.id ||
+      !selectedOriginStation.latitude ||
+      !selectedOriginStation.longitude ||
+      !selectedDestinationStation.latitude ||
+      !selectedDestinationStation.longitude
+    ) {
+      return;
+    }
+
+    const routePairKey = `${selectedOriginStation.id}:${selectedDestinationStation.id}`;
+    const shouldEstimate =
+      lastEstimatedRoutePairRef.current !== routePairKey ||
+      routeForm.totalDistanceKm === 0 ||
+      routeForm.estimatedDurationMinutes === 0;
+
+    if (!shouldEstimate) {
+      return;
+    }
+
+    const distance = distanceKmBetween(
+      selectedOriginStation,
+      selectedDestinationStation,
+    );
+    const totalDistanceKm = Number(distance.toFixed(1));
+    const estimatedDurationMinutes = Math.max(
+      1,
+      Math.round((distance / averageRouteSpeedKmh) * 60),
+    );
+
+    lastEstimatedRoutePairRef.current = routePairKey;
+    setRouteForm((current) => {
+      if (
+        current.originStationId !== selectedOriginStation.id ||
+        current.destinationStationId !== selectedDestinationStation.id
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        totalDistanceKm,
+        estimatedDurationMinutes,
+      };
+    });
+  }, [
+    canManageRoutes,
+    routeForm.estimatedDurationMinutes,
+    routeForm.totalDistanceKm,
+    selectedDestinationStation,
+    selectedOriginStation,
+  ]);
 
   function runAction(action: () => Promise<void>) {
     setError("");
@@ -647,6 +717,7 @@ export default function RoutesPage() {
     setSelectedRouteId(routeId);
 
     if (!routeId) {
+      lastEstimatedRoutePairRef.current = "";
       setRouteForm(emptyRouteForm);
       return;
     }
@@ -657,6 +728,7 @@ export default function RoutesPage() {
         ? prev.map((item) => (item.id === route.id ? route : item))
         : [route, ...prev],
     );
+    lastEstimatedRoutePairRef.current = `${route.originStationId}:${route.destinationStationId}`;
     setRouteForm(routeToForm(route));
   }
 

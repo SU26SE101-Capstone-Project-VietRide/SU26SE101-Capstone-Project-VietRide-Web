@@ -930,11 +930,19 @@
     "activateHint": "Voucher sẽ có hiệu lực và khách hàng có thể sử dụng ngay."
   },
   "packages": {
+    "title": "Gói dịch vụ",
+    "subtitle": "Theo dõi gói đang dùng, quota vận hành và nâng cấp gói cho nhà xe.",
+    "loading": "Đang tải gói dịch vụ...",
+    "loadFailed": "Tải thông tin gói dịch vụ thất bại.",
+    "upgradeFailed": "Tạo yêu cầu nâng cấp gói thất bại.",
+    "upgradePending": "Đã tạo yêu cầu nâng cấp. Đang chuyển sang VNPay.",
     "currentPackage": "Gói đang sử dụng: {{name}}",
     "expires": "Hết hạn:",
+    "expiresOn": "Hết hạn: {{date}}",
     "daysLeft": "{{n}} ngày còn lại",
     "vehiclesUsed": "Xe đang dùng",
     "routesUsed": "Tuyến đường",
+    "tripsUsed": "Chuyến trong tháng",
     "duration": "Thời hạn",
     "noSubscription": "Bạn chưa mua bất kỳ gói dịch vụ nào. Hãy mua một gói bên dưới để bắt đầu.",
     "available": "Các gói dịch vụ có sẵn",
@@ -961,6 +969,13 @@
     "perDuration": "/ {{n}} tháng",
     "maxVehicles": "Tối đa {{n}} xe",
     "maxRoutes": "Tối đa {{n}} tuyến đường",
+    "tripsPerMonth": "Chuyến/tháng",
+    "pendingPayment": "Đang có thanh toán nâng cấp chờ xử lý: {{paymentId}}",
+    "billingPeriod": "Kỳ thanh toán",
+    "billing": {
+      "MONTHLY": "Theo tháng",
+      "YEARLY": "Theo năm"
+    },
     "packageColumn": "Gói",
     "voucherCode": "Mã voucher",
     "cancelled": "Hủy",
@@ -976,6 +991,7 @@
     "payWithWallet": "Thanh toán bằng ví",
     "useWalletBalance": "Sử dụng số dư ví của bạn",
     "scanQrToPay": "Quét mã QR để thanh toán",
+    "vnpayNote": "Sau khi xác nhận, hệ thống sẽ chuyển sang VNPay. Khi thanh toán xong, quay lại màn này để đồng bộ trạng thái gói.",
     "purchaseAlert": "Mua {{name}} trong {{months}} tháng\nGiá gốc: {{base}} VND\nGiảm giá: {{discount}} VND\nTổng: {{total}} VND\nPhương thức thanh toán: {{method}}\n\nMua thành công!"
   },
   "policies": {

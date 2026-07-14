@@ -195,6 +195,87 @@ export type OperatorSubscription = {
   usage: Record<string, number>;
 };
 
+export type SubscriptionBillingPeriod = "MONTHLY" | "YEARLY";
+
+export type SubscriptionPlan = {
+  planId: string;
+  name: string;
+  description?: string;
+  pricePerMonth: number;
+  pricePerYear: number;
+  limits: {
+    maxVehicles: number;
+    maxDrivers: number;
+    maxAssistants: number;
+    maxOperatorUsers: number;
+    maxRoutes: number;
+    maxTripsPerMonth: number;
+  };
+  modules: {
+    enableParcel: boolean;
+    enableShuttle: boolean;
+    enableRag: boolean;
+  };
+  isActive: boolean;
+};
+
+export type OperatorSubscriptionDetail = {
+  subscriptionId: string;
+  status: string;
+  billingPeriod: SubscriptionBillingPeriod;
+  startedAt: string;
+  expiresAt: string;
+  plan: SubscriptionPlan;
+  usage: {
+    currentVehicles: number;
+    currentDrivers: number;
+    currentAssistants: number;
+    currentOperatorUsers: number;
+    currentRoutes: number;
+    currentTripsThisMonth: number;
+    lastResetAt?: string;
+  };
+  pendingUpgrade?: SubscriptionUpgradeResult | null;
+};
+
+export type SubscriptionUpgradeRequest = {
+  planId: string;
+  billingPeriod: SubscriptionBillingPeriod;
+  returnUrl: string;
+};
+
+export type SubscriptionUpgradeResult = {
+  subscriptionId: string;
+  upgradeAttemptId: string;
+  status: string;
+  paymentId: string;
+  amount: number;
+  billingPeriod: SubscriptionBillingPeriod;
+  paymentRedirectUrl: string;
+  dueAt: string;
+};
+
+export type AdminSubscriptionPlanRequest = {
+  name: string;
+  description: string;
+  pricePerMonth: number;
+  pricePerYear: number;
+  maxVehicles: number;
+  maxDrivers: number;
+  maxAssistants: number;
+  maxOperatorUsers: number;
+  maxRoutes: number;
+  maxTripsPerMonth: number;
+  enableParcel: boolean;
+  enableShuttle: boolean;
+  enableRag: boolean;
+  isActive: boolean;
+};
+
+export type AdminSubscriptionPlanParams = {
+  includeInactive?: boolean;
+};
+
 export type IncrementUsageRequest = {
   resource: string;
   delta: number;
@@ -1771,6 +1852,59 @@ export function incrementInternalOperatorUsage(
   return apiRequest<OperatorSubscription>(
     `/internal/v1/operators/${operatorId}/usage/increment`,
     { method: "POST", body: request },
+  );
+}
+
+export function getOperatorSubscription() {
+  return apiRequest<OperatorSubscriptionDetail>("/v1/operator/subscription");
+}
+
+export function getOperatorSubscriptionPlans() {
+  return apiRequest<SubscriptionPlan[]>("/v1/operator/subscription-plans");
+}
+
+export function upgradeOperatorSubscription(
+  request: SubscriptionUpgradeRequest,
+  idempotencyKey = crypto.randomUUID(),
+) {
+  return apiRequest<SubscriptionUpgradeResult>("/v1/operator/subscription/upgrade", {
+    method: "POST",
+    body: request,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+export function getAdminSubscriptionPlans(
+  params: AdminSubscriptionPlanParams = {},
+) {
+  return apiRequest<SubscriptionPlan[]>(
+    `/v1/admin/subscription-plans${buildQuery(params)}`,
+  );
+}
+
+export function createAdminSubscriptionPlan(
+  request: AdminSubscriptionPlanRequest,
+  idempotencyKey = crypto.randomUUID(),
+) {
+  return apiRequest<SubscriptionPlan>("/v1/admin/subscription-plans", {
+    method: "POST",
+    body: request,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+export function updateAdminSubscriptionPlan(
+  planId: string,
+  request: AdminSubscriptionPlanRequest,
+  idempotencyKey = crypto.randomUUID(),
+) {
+  return apiRequest<SubscriptionPlan>(
+    `/v1/admin/subscription-plans/${planId}`,
+    {
+      method: "PATCH",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
   );
 }
 

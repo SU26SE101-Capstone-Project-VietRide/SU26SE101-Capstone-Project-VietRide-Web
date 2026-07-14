@@ -6,6 +6,7 @@ import {
   approveRagDocument,
   chatWithRag,
   confirmOperatorParcelRefund,
+  createAdminSubscriptionPlan,
   createAdminLocation,
   deleteAdminVoucher,
   createAdminUser,
@@ -16,6 +17,7 @@ import {
   exportOperatorParcelReport,
   getAdminCampaigns,
   getAdminLocations,
+  getAdminSubscriptionPlans,
   getAdminVoucherConsents,
   getAdminVouchers,
   getAvailableVouchers,
@@ -25,6 +27,8 @@ import {
   getInternalTripParcelAvailability,
   getOperatorRoute,
   getOperatorDriverSchedules,
+  getOperatorSubscription,
+  getOperatorSubscriptionPlans,
   getOperatorStations,
   getOperatorStop,
   getOperatorVehicle,
@@ -58,11 +62,13 @@ import {
   reweighAssistantParcel,
   searchPublicTrips,
   updateAdminLocation,
+  updateAdminSubscriptionPlan,
   updateAdminVoucher,
   updateAlternativeRouteGeometry,
   updateOperatorVoucher,
   updateOperatorParcelStatus,
   updateOperatorRouteGeometry,
+  upgradeOperatorSubscription,
 } from "./vietride";
 
 describe("vietride API", () => {
@@ -1519,6 +1525,127 @@ describe("vietride API", () => {
       "https://api.vietride.online/v1/tracking/trips/11111111-1111-4111-8111-111111111111/eta?stopId=22222222-2222-4222-8222-222222222222",
       expect.objectContaining({
         method: "GET",
+      }),
+    );
+  });
+
+  it("calls Subscription APIs for system admin and operator admin", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "subscription-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const planRequest = {
+      name: "Professional",
+      description: "For growing operators",
+      pricePerMonth: 3000000,
+      pricePerYear: 30000000,
+      maxVehicles: 20,
+      maxDrivers: 40,
+      maxAssistants: 40,
+      maxOperatorUsers: 10,
+      maxRoutes: 10,
+      maxTripsPerMonth: 1000,
+      enableParcel: true,
+      enableShuttle: true,
+      enableRag: true,
+      isActive: true,
+    };
+
+    await getAdminSubscriptionPlans({ includeInactive: true });
+    await createAdminSubscriptionPlan(
+      planRequest,
+      "11111111-1111-4111-8111-111111111111",
+    );
+    await updateAdminSubscriptionPlan(
+      "plan-1",
+      planRequest,
+      "22222222-2222-4222-8222-222222222222",
+    );
+    await getOperatorSubscription();
+    await getOperatorSubscriptionPlans();
+    await upgradeOperatorSubscription(
+      {
+        planId: "plan-1",
+        billingPeriod: "YEARLY",
+        returnUrl: "https://app.vietride.vn/manager/packages",
+      },
+      "33333333-3333-4333-8333-333333333333",
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/admin/subscription-plans?includeInactive=true",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer subscription-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/admin/subscription-plans",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(planRequest),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/admin/subscription-plans/plan-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify(planRequest),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "22222222-2222-4222-8222-222222222222",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/v1/operator/subscription",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "https://api.vietride.online/v1/operator/subscription-plans",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      6,
+      "https://api.vietride.online/v1/operator/subscription/upgrade",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          planId: "plan-1",
+          billingPeriod: "YEARLY",
+          returnUrl: "https://app.vietride.vn/manager/packages",
+        }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "33333333-3333-4333-8333-333333333333",
+        }),
       }),
     );
   });
