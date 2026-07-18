@@ -71,9 +71,11 @@
   "topbar": {
     "defaultUserName": "Quản lý nhà xe",
     "searchPlaceholder": "Tìm chuyến, booking, parcel...",
-    "notifLateTrips": "2 chuyến đang trễ ETA",
-    "notifGpsLost": "Xe ABC-001 mất GPS tín hiệu",
-    "notifUndelivered": "5 parcel chưa giao"
+    "unreadNotifications": "{{count}} thông báo chưa đọc",
+    "loadingNotifications": "Đang tải thông báo...",
+    "noNotifications": "Chưa có thông báo nào.",
+    "notificationLoadFailed": "Không thể tải thông báo.",
+    "notificationReadFailed": "Không thể đánh dấu đã đọc."
   },
   "profilePage": {
     "home": "Trang chủ",

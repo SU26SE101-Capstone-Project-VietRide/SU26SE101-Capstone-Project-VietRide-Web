@@ -9,8 +9,11 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
+  FiCornerUpLeft,
+  FiEdit2,
   FiGitBranch,
   FiMapPin,
+  FiNavigation,
   FiPlus,
   FiRefreshCw,
   FiSave,
@@ -24,8 +27,10 @@ import {
   Polyline,
   TileLayer,
   Tooltip,
+  useMap,
+  useMapEvents,
 } from "react-leaflet";
-import type { LatLngExpression } from "leaflet";
+import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
 import {
   addRouteStop,
   createOperatorRoute,
@@ -39,6 +44,7 @@ import {
   removeRouteStop,
   searchStations,
   updateOperatorRoute,
+  updateOperatorRouteGeometry,
   updateOperatorStop,
   type OperatorRoute,
   type OperatorRouteRequest,
@@ -54,13 +60,20 @@ import PlacePicker, {
   type PlaceSelection,
 } from "../../../components/PlacePicker";
 import CustomSelect from "../../../components/CustomSelect";
+import {
+  decodeGooglePolyline,
+  encodeGooglePolyline,
+  estimateCoachDurationMinutes,
+  type RouteCoordinate,
+} from "./polyline";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 const draftRouteId = "__draft_route__";
 const defaultRouteMapCenter: LatLngExpression = [10.7769, 106.7009];
-const averageRouteSpeedKmh = 45;
+const routingBaseUrl =
+  import.meta.env.VITE_ROUTING_API_URL || "https://router.project-osrm.org";
 
 const emptyStopForm: OperatorStopRequest = {
   name: "",
@@ -95,7 +108,13 @@ type StationOption = Station & {
 };
 
 type StationRouteRole = "" | "origin" | "destination";
-type FeedbackScope = "global" | "station" | "stop" | "route" | "routeStop";
+type FeedbackScope =
+  | "global"
+  | "station"
+  | "stop"
+  | "route"
+  | "routeStop"
+  | "geometry";
 
 function toNumber(value: string) {
   const next = Number(value);
@@ -130,6 +149,53 @@ function distanceKmBetween(
     earthRadiusKm *
     Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
   );
+}
+
+function calculatePathDistance(points: RouteCoordinate[]) {
+  return points.slice(1).reduce(
+    (total, point, index) => total + distanceKmBetween(points[index], point),
+    0,
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+async function requestRoadGeometry(
+  points: RouteCoordinate[],
+  errorMessage: string,
+) {
+  const coordinates = points
+    .map((point) => `${point.longitude},${point.latitude}`)
+    .join(";");
+  const response = await fetch(
+    `${routingBaseUrl}/route/v1/driving/${coordinates}?overview=full&geometries=polyline&steps=false`,
+  );
+  const body: unknown = await response.json();
+
+  if (!response.ok || !isRecord(body) || !Array.isArray(body.routes)) {
+    throw new Error(errorMessage);
+  }
+
+  const firstRoute = body.routes[0];
+  if (
+    !isRecord(firstRoute) ||
+    typeof firstRoute.geometry !== "string" ||
+    typeof firstRoute.distance !== "number" ||
+    typeof firstRoute.duration !== "number"
+  ) {
+    throw new Error(errorMessage);
+  }
+
+  return {
+    points: decodeGooglePolyline(firstRoute.geometry),
+    totalDistanceKm: Number((firstRoute.distance / 1000).toFixed(1)),
+    estimatedDurationMinutes: estimateCoachDurationMinutes(
+      firstRoute.distance / 1000,
+      firstRoute.duration,
+    ),
+  };
 }
 
 function routeToForm(route: OperatorRoute): OperatorRouteRequest {
@@ -224,6 +290,9 @@ export default function RoutesPage() {
   const [messageScope, setMessageScope] = useState<FeedbackScope>("global");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [routePathPoints, setRoutePathPoints] = useState<RouteCoordinate[]>([]);
+  const [isEditingGeometry, setIsEditingGeometry] = useState(false);
+  const [isGeometryDirty, setIsGeometryDirty] = useState(false);
   const lastEstimatedRoutePairRef = useRef("");
 
   const selectedRoute = useMemo(
@@ -306,6 +375,32 @@ export default function RoutesPage() {
     t,
   ]);
 
+  const routeWaypoints = useMemo<RouteCoordinate[]>(
+    () =>
+      routeMapPoints.map((point) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+      })),
+    [routeMapPoints],
+  );
+
+  const applySavedGeometry = useCallback((route: OperatorRoute | null) => {
+    setIsEditingGeometry(false);
+    setIsGeometryDirty(false);
+
+    if (!route?.pathPolyline) {
+      setRoutePathPoints([]);
+      return;
+    }
+
+    try {
+      setRoutePathPoints(decodeGooglePolyline(route.pathPolyline));
+    } catch {
+      setRoutePathPoints([]);
+      setError(t("routes.invalidSavedGeometry"));
+    }
+  }, [t]);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError("");
@@ -316,14 +411,23 @@ export default function RoutesPage() {
         getOperatorStops({ page: 1, pageSize: 50 }),
         getOperatorStations({ page: 1, pageSize: 100 }),
       ]);
-      const nextRoute =
+      const nextRouteSummary =
         routeResult.items.find((item) => item.id === selectedRouteId) ??
         routeResult.items[0];
+      const nextRoute = nextRouteSummary
+        ? await getOperatorRoute(nextRouteSummary.id)
+        : undefined;
       const nextStop =
         stopResult.items.find((item) => item.id === selectedStopId) ??
         stopResult.items[0];
 
-      setRoutes(routeResult.items);
+      setRoutes(
+        nextRoute
+          ? routeResult.items.map((route) =>
+              route.id === nextRoute.id ? nextRoute : route,
+            )
+          : routeResult.items,
+      );
       setStops(stopResult.items);
       setStations(
         mergeStations([], stationResult.items.map(toStationOption)).filter(
@@ -336,6 +440,9 @@ export default function RoutesPage() {
       if (nextRoute) {
         lastEstimatedRoutePairRef.current = `${nextRoute.originStationId}:${nextRoute.destinationStationId}`;
         setRouteForm(routeToForm(nextRoute));
+        applySavedGeometry(nextRoute);
+      } else {
+        applySavedGeometry(null);
       }
 
       if (nextStop) {
@@ -353,7 +460,7 @@ export default function RoutesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedRouteId, selectedStopId, t]);
+  }, [applySavedGeometry, selectedRouteId, selectedStopId, t]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -391,10 +498,7 @@ export default function RoutesPage() {
       selectedDestinationStation,
     );
     const totalDistanceKm = Number(distance.toFixed(1));
-    const estimatedDurationMinutes = Math.max(
-      1,
-      Math.round((distance / averageRouteSpeedKmh) * 60),
-    );
+    const estimatedDurationMinutes = estimateCoachDurationMinutes(distance);
 
     lastEstimatedRoutePairRef.current = routePairKey;
     setRouteForm((current) => {
@@ -431,6 +535,119 @@ export default function RoutesPage() {
   function showMessage(scope: FeedbackScope, nextMessage: string) {
     setMessageScope(scope);
     setMessage(nextMessage);
+  }
+
+  function invalidateLocalGeometry(routeId = selectedRouteId) {
+    setRoutePathPoints([]);
+    setIsEditingGeometry(false);
+    setIsGeometryDirty(false);
+    setRoutes((current) =>
+      current.map((route) =>
+        route.id === routeId ? { ...route, pathPolyline: null } : route,
+      ),
+    );
+  }
+
+  async function handleCalculateGeometry() {
+    if (routeWaypoints.length < 2) {
+      setError(t("routes.geometryRequiresEndpoints"));
+      return;
+    }
+
+    const result = await requestRoadGeometry(
+      routeWaypoints,
+      t("routes.routingFailed"),
+    );
+    setRoutePathPoints(result.points);
+    setRouteForm((current) => ({
+      ...current,
+      totalDistanceKm: result.totalDistanceKm,
+      estimatedDurationMinutes: result.estimatedDurationMinutes,
+    }));
+    setIsEditingGeometry(false);
+    setIsGeometryDirty(true);
+    showMessage("geometry", t("routes.geometryCalculated"));
+  }
+
+  function handleStartManualGeometry() {
+    setRoutePathPoints([]);
+    setIsEditingGeometry(true);
+    setIsGeometryDirty(true);
+    setMessageScope("geometry");
+    setMessage(t("routes.manualGeometryHint"));
+  }
+
+  function handleAppendGeometryPoint(point: RouteCoordinate) {
+    setRoutePathPoints((current) => [...current, point]);
+    setIsGeometryDirty(true);
+  }
+
+  function handleUndoGeometryPoint() {
+    setRoutePathPoints((current) => current.slice(0, -1));
+    setIsGeometryDirty(true);
+  }
+
+  async function handleSaveGeometry() {
+    if (!selectedRouteId) {
+      setError(t("routes.selectRouteFirst"));
+      return;
+    }
+
+    if (routePathPoints.length < 2) {
+      setError(t("routes.geometryRequiresTwoPoints"));
+      return;
+    }
+
+    const nextRouteForm = isEditingGeometry
+      ? (() => {
+          const totalDistanceKm = Number(
+            calculatePathDistance(routePathPoints).toFixed(1),
+          );
+          return {
+            ...routeForm,
+            totalDistanceKm,
+            estimatedDurationMinutes:
+              estimateCoachDurationMinutes(totalDistanceKm),
+          };
+        })()
+      : routeForm;
+    const updatedRoute = await updateOperatorRoute(selectedRouteId, {
+      ...nextRouteForm,
+      returnRouteId: nextRouteForm.returnRouteId || undefined,
+    });
+    const savedRoute = await updateOperatorRouteGeometry(selectedRouteId, {
+      pathPolyline: encodeGooglePolyline(routePathPoints),
+    });
+    const routeWithMetrics = {
+      ...savedRoute,
+      totalDistanceKm: updatedRoute.totalDistanceKm,
+      estimatedDurationMinutes: updatedRoute.estimatedDurationMinutes,
+    };
+
+    setRoutes((current) =>
+      current.map((route) =>
+        route.id === routeWithMetrics.id ? routeWithMetrics : route,
+      ),
+    );
+    setRouteForm(routeToForm(routeWithMetrics));
+    applySavedGeometry(routeWithMetrics);
+    showMessage("geometry", t("routes.geometrySaved"));
+  }
+
+  async function handleClearGeometry() {
+    if (!selectedRouteId) {
+      setError(t("routes.selectRouteFirst"));
+      return;
+    }
+
+    const updated = await updateOperatorRouteGeometry(selectedRouteId, {
+      pathPolyline: null,
+    });
+    setRoutes((current) =>
+      current.map((route) => (route.id === updated.id ? updated : route)),
+    );
+    applySavedGeometry(updated);
+    showMessage("geometry", t("routes.geometryCleared"));
   }
 
   function updateStop<K extends keyof OperatorStopRequest>(
@@ -512,6 +729,13 @@ export default function RoutesPage() {
     key: K,
     value: OperatorRouteRequest[K],
   ) {
+    if (
+      (key === "originStationId" || key === "destinationStationId") &&
+      routeForm[key] !== value
+    ) {
+      invalidateLocalGeometry();
+    }
+
     setRouteForm((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -702,6 +926,7 @@ export default function RoutesPage() {
     setRoutes((prev) => [created, ...prev]);
     setSelectedRouteId(created.id);
     setRouteForm(routeToForm(created));
+    applySavedGeometry(created);
     setRouteStopDrafts((prev) => [
       ...prev.filter((item) => item.routeId !== draftRouteId),
       ...pendingStops.map((item) => ({
@@ -719,6 +944,7 @@ export default function RoutesPage() {
     if (!routeId) {
       lastEstimatedRoutePairRef.current = "";
       setRouteForm(emptyRouteForm);
+      applySavedGeometry(null);
       return;
     }
 
@@ -730,6 +956,7 @@ export default function RoutesPage() {
     );
     lastEstimatedRoutePairRef.current = `${route.originStationId}:${route.destinationStationId}`;
     setRouteForm(routeToForm(route));
+    applySavedGeometry(route);
   }
 
   async function handleUpdateRoute() {
@@ -764,6 +991,7 @@ export default function RoutesPage() {
       prev.map((item) => (item.id === updated.id ? updated : item)),
     );
     setRouteForm(routeToForm(updated));
+    applySavedGeometry(updated);
     showMessage("route", t("routes.routeUpdated"));
   }
 
@@ -795,6 +1023,7 @@ export default function RoutesPage() {
 
     if (selectedRoute) {
       await addRouteStop(selectedRoute.id, request);
+      invalidateLocalGeometry(selectedRoute.id);
     }
 
     setRouteStopDrafts((prev) => [
@@ -838,10 +1067,7 @@ export default function RoutesPage() {
     }
 
     const distance = distanceKmBetween(origin, selectedStop);
-    const durationMinutes = Math.max(
-      1,
-      Math.round((distance / averageRouteSpeedKmh) * 60),
-    );
+    const durationMinutes = estimateCoachDurationMinutes(distance);
 
     setRouteStopDistance(distance.toFixed(1));
     setRouteStopDuration(String(durationMinutes));
@@ -868,6 +1094,7 @@ export default function RoutesPage() {
     }
 
     await removeRouteStop(selectedRoute.id, item.stopId);
+    invalidateLocalGeometry(selectedRoute.id);
     setRouteStopDrafts((prev) =>
       prev.filter(
         (draft) =>
@@ -1119,12 +1346,14 @@ export default function RoutesPage() {
                 onChange={(value) => updateRoute("totalDistanceKm", value)}
                 disabled={!canManageRoutes}
               />
-              <NumberInput
+              <DurationInput
                 label={t("routes.durationMinutes")}
                 value={routeForm.estimatedDurationMinutes}
                 onChange={(value) =>
                   updateRoute("estimatedDurationMinutes", value)
                 }
+                hourLabel={t("routes.hours")}
+                minuteLabel={t("routes.minutes")}
                 disabled={!canManageRoutes}
               />
               <label className="flex items-end gap-2 text-sm text-gray-700">
@@ -1271,6 +1500,101 @@ export default function RoutesPage() {
               message={messageScope === "routeStop" ? message : ""}
             />
           </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <SectionHeader
+                icon={<FiNavigation />}
+                title={t("routes.geometryTitle")}
+                subtitle={t("routes.geometryHint")}
+              />
+              <span
+                className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                  isEditingGeometry
+                    ? "bg-amber-50 text-amber-700"
+                    : isGeometryDirty
+                      ? "bg-blue-50 text-blue-700"
+                      : selectedRoute?.pathPolyline
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                {isEditingGeometry
+                  ? t("routes.geometryDrawing")
+                  : isGeometryDirty
+                    ? t("routes.geometryUnsaved")
+                    : selectedRoute?.pathPolyline
+                      ? t("routes.geometrySavedStatus")
+                      : t("routes.geometryMissing")}
+              </span>
+            </div>
+
+            <RouteDesignMap
+              points={routeMapPoints}
+              pathPoints={routePathPoints}
+              isEditing={isEditingGeometry}
+              onAppendPoint={handleAppendGeometryPoint}
+              emptyText={t("routes.mapNoPoints")}
+            />
+
+            {canManageRoutes && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => runAction(handleCalculateGeometry)}
+                  disabled={routeWaypoints.length < 2}
+                  className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiNavigation size={16} />
+                  {t("routes.calculateGeometry")}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartManualGeometry}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  <FiEdit2 size={16} />
+                  {t("routes.drawGeometry")}
+                </button>
+                {isEditingGeometry && (
+                  <button
+                    type="button"
+                    onClick={handleUndoGeometryPoint}
+                    disabled={routePathPoints.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FiCornerUpLeft size={16} />
+                    {t("routes.undoGeometryPoint")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => runAction(handleSaveGeometry)}
+                  disabled={
+                    !selectedRouteId ||
+                    routePathPoints.length < 2 ||
+                    !isGeometryDirty
+                  }
+                  className="inline-flex items-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiSave size={16} />
+                  {t("routes.saveGeometry")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runAction(handleClearGeometry)}
+                  disabled={!selectedRouteId || routePathPoints.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiTrash2 size={16} />
+                  {t("routes.clearGeometry")}
+                </button>
+              </div>
+            )}
+            <InlineFeedback
+              message={messageScope === "geometry" ? message : ""}
+            />
+          </section>
         </main>
 
         <aside className="space-y-5">
@@ -1287,10 +1611,6 @@ export default function RoutesPage() {
             <p className="text-sm font-semibold text-gray-900">
               {activeRouteName}
             </p>
-            <RouteDesignMap
-              points={routeMapPoints}
-              emptyText={t("routes.mapNoPoints")}
-            />
             <div className="mt-3 space-y-2">
               {currentRouteStops.map((item) => (
                 <div
@@ -1372,6 +1692,9 @@ function MetricCard({ label, value }: { label: string; value: number }) {
 
 function RouteDesignMap({
   points,
+  pathPoints,
+  isEditing,
+  onAppendPoint,
   emptyText,
 }: {
   points: Array<{
@@ -1381,29 +1704,34 @@ function RouteDesignMap({
     longitude: number;
     color: string;
   }>;
+  pathPoints: RouteCoordinate[];
+  isEditing: boolean;
+  onAppendPoint: (point: RouteCoordinate) => void;
   emptyText: string;
 }) {
+  const displayedPath = pathPoints.length > 0 ? pathPoints : points;
   const center: LatLngExpression =
-    points.length > 0
+    displayedPath.length > 0
       ? [
-          points.reduce((total, point) => total + point.latitude, 0) /
-            points.length,
-          points.reduce((total, point) => total + point.longitude, 0) /
-            points.length,
+          displayedPath.reduce((total, point) => total + point.latitude, 0) /
+            displayedPath.length,
+          displayedPath.reduce((total, point) => total + point.longitude, 0) /
+            displayedPath.length,
         ]
       : defaultRouteMapCenter;
-  const linePositions: LatLngExpression[] = points.map((point) => [
+  const linePositions: LatLngExpression[] = displayedPath.map((point) => [
     point.latitude,
     point.longitude,
   ]);
+  const hasSavedOrDraftPath = pathPoints.length > 1;
 
   return (
     <div className="mt-3 overflow-hidden rounded-xl border border-gray-200">
-      <div className="h-64">
+      <div className={`h-96 ${isEditing ? "cursor-crosshair" : ""}`}>
         <MapContainer
           key={`${points.map((point) => point.id).join("-") || "empty-route-map"}`}
           center={center}
-          zoom={points.length > 1 ? 10 : 13}
+          zoom={displayedPath.length > 1 ? 8 : 13}
           scrollWheelZoom={false}
           className="h-full w-full"
         >
@@ -1411,10 +1739,16 @@ function RouteDesignMap({
             attribution="&copy; OpenStreetMap contributors"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <RouteMapBounds positions={linePositions} />
+          {isEditing && <RouteMapClickHandler onAppendPoint={onAppendPoint} />}
           {linePositions.length > 1 && (
             <Polyline
               positions={linePositions}
-              pathOptions={{ color: "#0f766e" }}
+              pathOptions={{
+                color: hasSavedOrDraftPath ? "#0f766e" : "#64748b",
+                dashArray: hasSavedOrDraftPath ? undefined : "8 8",
+                weight: hasSavedOrDraftPath ? 5 : 3,
+              }}
             />
           )}
           {points.map((point) => (
@@ -1431,6 +1765,20 @@ function RouteDesignMap({
               <Tooltip>{point.name}</Tooltip>
             </CircleMarker>
           ))}
+          {isEditing &&
+            pathPoints.map((point, index) => (
+              <CircleMarker
+                key={`geometry-${index}-${point.latitude}-${point.longitude}`}
+                center={[point.latitude, point.longitude]}
+                radius={5}
+                pathOptions={{
+                  color: "#0f766e",
+                  fillColor: "#ffffff",
+                  fillOpacity: 1,
+                  weight: 2,
+                }}
+              />
+            ))}
         </MapContainer>
       </div>
       {points.length === 0 && (
@@ -1440,6 +1788,39 @@ function RouteDesignMap({
       )}
     </div>
   );
+}
+
+function RouteMapBounds({ positions }: { positions: LatLngExpression[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (positions.length < 2) {
+      return;
+    }
+
+    map.fitBounds(positions as LatLngBoundsExpression, {
+      padding: [24, 24],
+    });
+  }, [map, positions]);
+
+  return null;
+}
+
+function RouteMapClickHandler({
+  onAppendPoint,
+}: {
+  onAppendPoint: (point: RouteCoordinate) => void;
+}) {
+  useMapEvents({
+    click(event) {
+      onAppendPoint({
+        latitude: event.latlng.lat,
+        longitude: event.latlng.lng,
+      });
+    },
+  });
+
+  return null;
 }
 
 function InlineFeedback({ message }: { message: string }) {
@@ -1595,6 +1976,71 @@ function NumberInput({
           onChange={(event) => onChange(toNumber(event.target.value))}
         />
       )}
+    </div>
+  );
+}
+
+function DurationInput({
+  label,
+  value,
+  onChange,
+  hourLabel,
+  minuteLabel,
+  disabled = false,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  hourLabel: string;
+  minuteLabel: string;
+  disabled?: boolean;
+}) {
+  const totalMinutes = Math.max(0, Math.round(value));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return (
+    <div>
+      <label className={labelClass}>{label}</label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="relative">
+          <span className="sr-only">{hourLabel}</span>
+          <input
+            className={`${inputClass} pr-12`}
+            value={hours}
+            type="number"
+            min={0}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(Math.max(0, Math.floor(toNumber(event.target.value))) * 60 + minutes)
+            }
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+            {hourLabel}
+          </span>
+        </label>
+        <label className="relative">
+          <span className="sr-only">{minuteLabel}</span>
+          <input
+            className={`${inputClass} pr-14`}
+            value={minutes}
+            type="number"
+            min={0}
+            max={59}
+            disabled={disabled}
+            onChange={(event) => {
+              const nextMinutes = Math.min(
+                59,
+                Math.max(0, Math.floor(toNumber(event.target.value))),
+              );
+              onChange(hours * 60 + nextMinutes);
+            }}
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+            {minuteLabel}
+          </span>
+        </label>
+      </div>
     </div>
   );
 }

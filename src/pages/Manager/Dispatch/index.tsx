@@ -1,24 +1,34 @@
-import { useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  FiPlus,
   FiSearch,
   FiDownload,
   FiEye,
-  FiXCircle,
   FiCheck,
   FiClock,
   FiTrendingUp,
   FiPhone,
   FiMapPin,
-  FiUser,
   FiTruck,
+  FiRefreshCw,
 } from "react-icons/fi";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
+import { getAuthUser } from "../../../auth";
+import {
+  createOperatorShuttleTrip,
+  getOperatorShuttleRequests,
+  getOperatorUsers,
+  getOperatorVehicles,
+  type AdminUserRole,
+  type OperatorUser,
+  type OperatorVehicle,
+  type ShuttleBookingGroup,
+  type ShuttleRequestGroup,
+} from "../../../api/vietride";
 
 type RequestType = "Đón" | "Trả";
 type RequestStatus =
@@ -31,6 +41,8 @@ type VehicleStatus = "active" | "picking" | "idle";
 
 type ShuttleRequest = {
   id: string;
+  mainTripId: string;
+  bookingId: string;
   customerName: string;
   phone: string;
   trip: string;
@@ -38,6 +50,11 @@ type ShuttleRequest = {
   address: string;
   note?: string;
   time: string;
+  hardCutoffAt?: string;
+  passengerCount: number;
+  pickupLat?: number;
+  pickupLng?: number;
+  stationName?: string;
   assignedDriver?: string;
   assignedPlate?: string;
   assignedCap?: string;
@@ -45,110 +62,26 @@ type ShuttleRequest = {
 };
 
 type ShuttleVehicle = {
+  id: string;
   plate: string;
   vehicleModel: string;
   capacity: number;
-  driver: string;
   status: VehicleStatus;
   currentPickups?: number;
+};
+
+type ShuttleDriver = {
+  id: string;
+  name: string;
+  phone?: string;
+  status: string;
 };
 
 const tableActionClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700";
 
-const INITIAL_REQUESTS: ShuttleRequest[] = [
-  {
-    id: "SH-9001",
-    customerName: "Nguyễn Thu Hà",
-    phone: "0901 234 567",
-    trip: "VR-2401",
-    type: "Đón",
-    address: "123 Nguyễn Trãi, Q.5, TP.HCM",
-    note: "Có 1 vali lớn",
-    time: "05:10",
-    status: "pending",
-  },
-  {
-    id: "SH-9002",
-    customerName: "Trần Đức Long",
-    phone: "0912 345 678",
-    trip: "VR-2401",
-    type: "Đón",
-    address: "45 Lê Lợi, Q.1, TP.HCM",
-    time: "05:25",
-    assignedDriver: "Phạm Văn Tài",
-    assignedPlate: "51A-77821",
-    assignedCap: "Limo 9 chỗ",
-    status: "assigned",
-  },
-  {
-    id: "SH-9003",
-    customerName: "Lê Mai Anh",
-    phone: "0987 654 321",
-    trip: "VR-2451",
-    type: "Trả",
-    address: "78 Pasteur, Q.3, TP.HCM",
-    time: "21:55",
-    status: "pending",
-  },
-  {
-    id: "SH-9004",
-    customerName: "Phạm Quang Huy",
-    phone: "0934 567 890",
-    trip: "VR-2402",
-    type: "Đón",
-    address: "210 CMT8, Q.10, TP.HCM",
-    note: "Gọi trước 10 phút",
-    time: "06:50",
-    assignedDriver: "Vũ Minh Hải",
-    assignedPlate: "51A-66110",
-    assignedCap: "Limo 7 chỗ",
-    status: "picking",
-  },
-  {
-    id: "SH-9005",
-    customerName: "Đặng Lan Phương",
-    phone: "0945 678 901",
-    trip: "VR-2405",
-    type: "Trả",
-    address: "Bến Ninh Kiều, Cần Thơ",
-    time: "12:35",
-    assignedDriver: "Trần Văn Phú",
-    assignedPlate: "65A-12039",
-    status: "completed",
-  },
-];
-
-const VEHICLES: ShuttleVehicle[] = [
-  {
-    plate: "51A-77821",
-    vehicleModel: "Ford Transit Limo 9",
-    capacity: 9,
-    driver: "Phạm Văn Tài",
-    status: "active",
-  },
-  {
-    plate: "51A-66110",
-    vehicleModel: "Toyota Hiace 7",
-    capacity: 7,
-    driver: "Vũ Minh Hải",
-    status: "picking",
-  },
-  {
-    plate: "51A-99230",
-    vehicleModel: "Mercedes Sprinter 11",
-    capacity: 11,
-    driver: "Đỗ Tuấn Anh",
-    status: "active",
-  },
-  {
-    plate: "65A-12039",
-    vehicleModel: "Toyota Innova",
-    capacity: 7,
-    driver: "Trần Văn Phú",
-    status: "idle",
-  },
-];
+const INITIAL_REQUESTS: ShuttleRequest[] = [];
+const INITIAL_VEHICLES: ShuttleVehicle[] = [];
 
 const STATUS_CLASS: Record<RequestStatus, string> = {
   pending: "bg-gray-100 text-gray-600",
@@ -169,9 +102,91 @@ const V_DOT_CLASS: Record<VehicleStatus, string> = {
   idle: "bg-gray-300",
 };
 
+function formatTime(value?: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function toRequestRows(group: ShuttleRequestGroup): ShuttleRequest[] {
+  const orderMap = new Map(
+    group.suggestedBookingOrder.map((bookingId, index) => [bookingId, index]),
+  );
+
+  return [...group.bookingGroups]
+    .sort((left, right) => {
+      const leftOrder = orderMap.get(left.bookingId) ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = orderMap.get(right.bookingId) ?? Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder;
+    })
+    .map((booking) => toRequestRow(group, booking));
+}
+
+function toRequestRow(
+  group: ShuttleRequestGroup,
+  booking: ShuttleBookingGroup,
+): ShuttleRequest {
+  return {
+    id: booking.bookingId,
+    mainTripId: group.mainTripId,
+    bookingId: booking.bookingId,
+    customerName: booking.bookingId,
+    phone: "-",
+    trip: group.mainTripId,
+    type: "Đón",
+    address: booking.pickupAddress,
+    note: `${group.stationName} - ${booking.distanceToStationMeters}m`,
+    time: formatTime(group.departureDateTime),
+    hardCutoffAt: group.hardCutoffAt,
+    passengerCount: booking.passengerCount,
+    pickupLat: booking.pickupLat,
+    pickupLng: booking.pickupLng,
+    stationName: group.stationName,
+    status: "pending",
+  };
+}
+
+function toVehicleOption(vehicle: OperatorVehicle): ShuttleVehicle {
+  return {
+    id: vehicle.vehicleId || vehicle.id || "",
+    plate: vehicle.licensePlate,
+    vehicleModel: vehicle.vehicleTypeName || vehicle.vehicleTypeCode || "-",
+    capacity: vehicle.totalSeats,
+    status: vehicle.status === "ACTIVE" ? "active" : "idle",
+  };
+}
+
+function toDriverOption(user: OperatorUser): ShuttleDriver {
+  return {
+    id: user.userId || user.id || "",
+    name: user.displayName || user.email,
+    phone: user.phone,
+    status: user.status,
+  };
+}
+
+function isDriverRole(role: AdminUserRole) {
+  return role === "DRIVER" || role === "driver";
+}
+
 export default function DispatchPanel() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const authUser = getAuthUser();
+  const canDispatchShuttle = authUser?.role === "OPERATOR_ADMIN";
 
   const statusLabel = useCallback(
     (status: RequestStatus) => {
@@ -206,6 +221,11 @@ export default function DispatchPanel() {
   );
 
   const [requests, setRequests] = useState<ShuttleRequest[]>(INITIAL_REQUESTS);
+  const [vehicles, setVehicles] = useState<ShuttleVehicle[]>(INITIAL_VEHICLES);
+  const [drivers, setDrivers] = useState<ShuttleDriver[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">(
     "all",
@@ -232,8 +252,52 @@ export default function DispatchPanel() {
 
   const [assignForm, setAssignForm] = useState({
     vehicleId: "",
+    driverId: "",
+    scheduledDepartureTime: "",
+    scheduledEndTime: "",
     notes: "",
   });
+
+  const loadDispatchData = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const [requestResult, vehicleResult, userResult] = await Promise.all([
+        getOperatorShuttleRequests({ page: 1, pageSize: 100 }),
+        getOperatorVehicles({ page: 1, pageSize: 100 }),
+        getOperatorUsers({ page: 1, pageSize: 100 }),
+      ]);
+
+      const nextRequests = requestResult.items.flatMap(toRequestRows);
+      const nextVehicles = vehicleResult.items.map(toVehicleOption).filter((vehicle) => vehicle.id);
+      const nextDrivers = userResult.items
+        .filter((user) => isDriverRole(user.role))
+        .map(toDriverOption)
+        .filter((driver) => driver.id);
+
+      setRequests(nextRequests);
+      setVehicles(nextVehicles);
+      setDrivers(nextDrivers);
+      setAssignForm((current) => ({
+        ...current,
+        vehicleId: current.vehicleId || nextVehicles[0]?.id || "",
+        driverId: current.driverId || nextDrivers[0]?.id || "",
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load shuttle requests");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadDispatchData();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadDispatchData]);
 
   const filtered = useMemo(() => {
     return requests.filter((r) => {
@@ -255,9 +319,9 @@ export default function DispatchPanel() {
         (r) => r.status === "assigned" || r.status === "picking",
       ).length,
       completed: requests.filter((r) => r.status === "completed").length,
-      ready: VEHICLES.filter((v) => v.status === "active").length,
+      ready: vehicles.filter((v) => v.status === "active").length,
     }),
-    [requests],
+    [requests, vehicles],
   );
 
   const paginatedRequests = useMemo(
@@ -276,7 +340,10 @@ export default function DispatchPanel() {
     }
     const newReq: ShuttleRequest = {
       id: `SH-${Date.now()}`,
+      mainTripId: newRequestForm.trip,
+      bookingId: `SH-${Date.now()}`,
       ...newRequestForm,
+      passengerCount: 1,
       status: "pending",
     };
     setRequests([newReq, ...requests]);
@@ -293,42 +360,49 @@ export default function DispatchPanel() {
     alert(t("dispatch.createSuccess"));
   };
 
-  const handleAssignVehicle = () => {
-    if (!selectedRequest || !assignForm.vehicleId) return;
-    const vehicle = VEHICLES.find((v) => v.plate === assignForm.vehicleId);
-    if (!vehicle) return;
+  const handleAssignVehicle = async () => {
+    if (
+      !selectedRequest ||
+      !assignForm.vehicleId ||
+      !assignForm.driverId ||
+      !assignForm.scheduledDepartureTime ||
+      !assignForm.scheduledEndTime
+    ) {
+      setError(t("dispatch.fillRequired"));
+      return;
+    }
 
-    setRequests(
-      requests.map((r) =>
-        r.id === selectedRequest.id
-          ? {
-              ...r,
-              status: "assigned" as RequestStatus,
-              assignedDriver: vehicle.driver,
-              assignedPlate: vehicle.plate,
-              assignedCap: vehicle.vehicleModel,
-            }
-          : r,
-      ),
-    );
-    setOpenAssignVehicle(false);
-    setAssignForm({ vehicleId: "", notes: "" });
-    alert(t("dispatch.assignSuccess"));
+    try {
+      const result = await createOperatorShuttleTrip({
+        mainTripId: selectedRequest.mainTripId,
+        vehicleId: assignForm.vehicleId,
+        driverUserId: assignForm.driverId,
+        scheduledDepartureTime: new Date(assignForm.scheduledDepartureTime).toISOString(),
+        scheduledEndTime: new Date(assignForm.scheduledEndTime).toISOString(),
+        orderedBookingIds: [selectedRequest.bookingId],
+        notes: assignForm.notes || undefined,
+      });
+
+      setOpenAssignVehicle(false);
+      setAssignForm({
+        vehicleId: vehicles[0]?.id || "",
+        driverId: drivers[0]?.id || "",
+        scheduledDepartureTime: "",
+        scheduledEndTime: "",
+        notes: "",
+      });
+      setMessage(
+        `${t("dispatch.assignSuccess")} ${result.shuttleTripId} (${result.assignedPassengerCount})`,
+      );
+      await loadDispatchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to assign shuttle");
+    }
   };
 
   const openDetail = (request: ShuttleRequest) => {
     setSelectedRequest(request);
     setOpenRequestDetail(true);
-  };
-
-  const handleCancelRequest = (requestId: string) => {
-    if (confirm(t("dispatch.confirmCancelRequest"))) {
-      setRequests(
-        requests.map((r) =>
-          r.id === requestId ? { ...r, status: "cancelled" } : r,
-        ),
-      );
-    }
   };
 
   return (
@@ -341,12 +415,25 @@ export default function DispatchPanel() {
           <p className="text-gray-600 mt-1 text-sm">{t("dispatch.subtitle")}</p>
         </div>
         <button
-          onClick={() => setOpenCreateRequest(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+          type="button"
+          onClick={() => void loadDispatchData()}
+          className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50"
         >
-          <FiPlus size={18} /> {t("dispatch.create")}
+          <FiRefreshCw size={18} /> {tc("refresh")}
         </button>
       </div>
+
+      {message && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -370,7 +457,7 @@ export default function DispatchPanel() {
           },
           {
             label: t("dispatch.vehiclesReady"),
-            value: `${stats.ready}/${VEHICLES.length}`,
+            value: `${stats.ready}/${vehicles.length}`,
             icon: FiTruck,
             color: "text-vr-600",
           },
@@ -503,7 +590,7 @@ export default function DispatchPanel() {
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex gap-2">
-                        {r.status === "pending" && (
+                        {r.status === "pending" && canDispatchShuttle && (
                           <button
                             type="button"
                             onClick={() => {
@@ -526,21 +613,20 @@ export default function DispatchPanel() {
                         >
                           <FiEye size={16} />
                         </button>
-                        {r.status === "pending" && (
-                          <button
-                            type="button"
-                            onClick={() => handleCancelRequest(r.id)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                            title={tc("cancel")}
-                            aria-label={tc("cancel")}
-                          >
-                            <FiXCircle size={16} />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
                 ))}
+                {paginatedRequests.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-3 py-8 text-center text-sm text-gray-500"
+                    >
+                      {isLoading ? t("dispatch.loading") : t("dispatch.noRequests")}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -558,9 +644,9 @@ export default function DispatchPanel() {
             {t("dispatch.shuttleFleet")}
           </h3>
           <div className="space-y-3">
-            {VEHICLES.map((v) => (
+            {vehicles.map((v) => (
               <div
-                key={v.plate}
+                key={v.id}
                 className="p-3 border border-gray-200 rounded-lg"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -569,9 +655,6 @@ export default function DispatchPanel() {
                       {v.plate}
                     </p>
                     <p className="text-xs text-gray-600">{v.vehicleModel}</p>
-                    <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
-                      <FiUser size={12} /> {v.driver}
-                    </p>
                     <p className="text-xs text-gray-500 mt-1">
                       {t("dispatch.capacity", { n: v.capacity })}
                     </p>
@@ -589,6 +672,11 @@ export default function DispatchPanel() {
                 </div>
               </div>
             ))}
+            {vehicles.length === 0 && (
+              <p className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-sm text-gray-500">
+                {isLoading ? t("dispatch.loading") : t("dispatch.noVehicles")}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -797,17 +885,72 @@ export default function DispatchPanel() {
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
               >
                 <option value="">{t("dispatch.selectVehiclePlaceholder")}</option>
-                {VEHICLES.filter((v) => v.status !== "idle").map((v) => (
-                  <option key={v.plate} value={v.plate}>
+                {vehicles.filter((v) => v.status !== "idle").map((v) => (
+                  <option key={v.id} value={v.id}>
                     {t("dispatch.vehicleOption", {
                       plate: v.plate,
                       model: v.vehicleModel,
                       capacity: v.capacity,
-                      driver: v.driver,
+                      driver: "",
                     })}
                   </option>
                 ))}
               </CustomSelect>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t("dispatch.driverLabel")}
+              </label>
+              <CustomSelect
+                value={assignForm.driverId}
+                onChange={(e) =>
+                  setAssignForm({ ...assignForm, driverId: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              >
+                <option value="">{t("dispatch.selectDriverPlaceholder")}</option>
+                {drivers.map((driver) => (
+                  <option key={driver.id} value={driver.id}>
+                    {driver.name} {driver.phone ? `- ${driver.phone}` : ""}
+                  </option>
+                ))}
+              </CustomSelect>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t("dispatch.scheduledDeparture")}
+                </label>
+              <CustomDateTimeInput
+                type="datetime-local"
+                value={assignForm.scheduledDepartureTime}
+                onChange={(e) =>
+                  setAssignForm({
+                      ...assignForm,
+                      scheduledDepartureTime: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t("dispatch.scheduledEnd")}
+                </label>
+              <CustomDateTimeInput
+                type="datetime-local"
+                value={assignForm.scheduledEndTime}
+                onChange={(e) =>
+                  setAssignForm({
+                      ...assignForm,
+                      scheduledEndTime: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+                />
+              </div>
             </div>
 
             <div>
@@ -930,27 +1073,16 @@ export default function DispatchPanel() {
               >
                 {tc("close")}
               </button>
-              {selectedRequest.status === "pending" && (
-                <>
-                  <button
-                    onClick={() => {
-                      setOpenRequestDetail(false);
-                      setOpenAssignVehicle(true);
-                    }}
-                    className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
-                  >
-                    {t("dispatch.assignVehicle")}
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleCancelRequest(selectedRequest.id);
-                      setOpenRequestDetail(false);
-                    }}
-                    className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition"
-                  >
-                    {tc("cancel")}
-                  </button>
-                </>
+              {selectedRequest.status === "pending" && canDispatchShuttle && (
+                <button
+                  onClick={() => {
+                    setOpenRequestDetail(false);
+                    setOpenAssignVehicle(true);
+                  }}
+                  className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+                >
+                  {t("dispatch.assignVehicle")}
+                </button>
               )}
             </div>
           </div>

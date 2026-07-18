@@ -1,506 +1,243 @@
-import { useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiArrowDown,
   FiArrowUp,
-  FiDownload,
-  FiFilter,
-  FiPlus,
-  FiSearch,
   FiClock,
-  FiCheck,
-  FiAlertCircle,
+  FiDollarSign,
+  FiRefreshCw,
 } from "react-icons/fi";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
-import CurrencyInput from "../../../components/CurrencyInput";
-import Modal from "../../../components/Modal";
+  getOperatorLedger,
+  getOperatorTripSettlements,
+  getOperatorWallet,
+  getOperatorWalletTransactions,
+  type OperatorLedgerEntry,
+  type OperatorWallet,
+  type TripSettlement,
+  type WalletTransaction,
+} from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
 
-type TransactionType = "topup" | "payment" | "refund";
-type TransactionStatus = "pending" | "completed" | "failed";
+type WalletTab = "transactions" | "settlements" | "ledger";
 
-type WalletTransaction = {
-  id: string;
-  date: string;
-  type: TransactionType;
-  description: string;
-  amount: number;
-  balance: number;
-  status: TransactionStatus;
-  reference?: string;
-};
+const pageSize = 10;
 
-const mockTransactions: WalletTransaction[] = [
-  {
-    id: "TXN-001",
-    date: "2026-05-24 10:30",
-    type: "topup",
-    description: "Nạp tiền qua VNPay",
-    amount: 500,
-    balance: 5284.3,
-    status: "completed",
-    reference: "VNP-20260524-001",
-  },
-  {
-    id: "TXN-002",
-    date: "2026-05-23 14:15",
-    type: "payment",
-    description: "Phí duyệt chuyến VR-2401",
-    amount: 284,
-    balance: 4784.3,
-    status: "completed",
-    reference: "BK-VR2401",
-  },
-  {
-    id: "TXN-003",
-    date: "2026-05-23 09:45",
-    type: "payment",
-    description: "Phí duyệt chuyến VR-2399",
-    amount: 256,
-    balance: 5068.3,
-    status: "completed",
-  },
-  {
-    id: "TXN-004",
-    date: "2026-05-22 16:20",
-    type: "refund",
-    description: "Hoàn tiền hủy chuyến VR-2395",
-    amount: 120,
-    balance: 5324.3,
-    status: "completed",
-    reference: "REF-VR2395",
-  },
-  {
-    id: "TXN-005",
-    date: "2026-05-22 11:00",
-    type: "topup",
-    description: "Nạp tiền qua VNPay",
-    amount: 300,
-    balance: 5204.3,
-    status: "completed",
-    reference: "VNP-20260522-002",
-  },
-  {
-    id: "TXN-006",
-    date: "2026-05-21 08:30",
-    type: "payment",
-    description: "Phí duyệt chuyến VR-2388",
-    amount: 195,
-    balance: 5399.3,
-    status: "completed",
-  },
-];
+function formatMoney(value: number) {
+  return `${value.toLocaleString("vi-VN")} đ`;
+}
 
-const monthlyData = [
-  { month: "Tháng 1", topup: 2000, payment: 1240, refund: 180 },
-  { month: "Tháng 2", topup: 2100, payment: 1420, refund: 210 },
-  { month: "Tháng 3", topup: 2300, payment: 1650, refund: 150 },
-  { month: "Tháng 4", topup: 2500, payment: 1880, refund: 320 },
-  { month: "Tháng 5", topup: 2800, payment: 2150, refund: 280 },
-];
+function formatDate(value: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
+}
 
 export default function ManagerWallet() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [search, setSearch] = useState("");
-  const [transactions] = useState<WalletTransaction[]>(mockTransactions);
-  const [openTopUp, setOpenTopUp] = useState(false);
-  const [topUpAmount, setTopUpAmount] = useState("");
+  const [wallet, setWallet] = useState<OperatorWallet | null>(null);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [settlements, setSettlements] = useState<TripSettlement[]>([]);
+  const [ledger, setLedger] = useState<OperatorLedgerEntry[]>([]);
+  const [tab, setTab] = useState<WalletTab>("transactions");
   const [page, setPage] = useState(1);
-  const pageSize = 8;
+  const [totalItems, setTotalItems] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const transactionTypeDistribution = useMemo(
-    () => [
-      { name: t("wallet.topupType"), value: 32, color: "#10b981" },
-      { name: t("wallet.expenseType"), value: 56, color: "#ef4444" },
-      { name: t("wallet.refundType"), value: 12, color: "#f59e0b" },
-    ],
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const [walletResult, transactionResult, settlementResult, ledgerResult] =
+        await Promise.all([
+          getOperatorWallet(),
+          getOperatorWalletTransactions({
+            page: tab === "transactions" ? page : 1,
+            pageSize,
+            sortBy: "createdAt",
+            sortDir: "desc",
+          }),
+          getOperatorTripSettlements({
+            page: tab === "settlements" ? page : 1,
+            pageSize,
+            sortBy: "createdAt",
+            sortDir: "desc",
+          }),
+          getOperatorLedger({
+            page: tab === "ledger" ? page : 1,
+            pageSize,
+            sortBy: "createdAt",
+            sortDir: "desc",
+          }),
+        ]);
+
+      setWallet(walletResult);
+      setTransactions(transactionResult.items);
+      setSettlements(settlementResult.items);
+      setLedger(ledgerResult.items);
+      setTotalItems(
+        tab === "transactions"
+          ? transactionResult.totalItems
+          : tab === "settlements"
+            ? settlementResult.totalItems
+            : ledgerResult.totalItems,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("wallet.loadFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }, [page, t, tab]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void loadData();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadData]);
+
+  const tabs = useMemo(
+    () =>
+      (["transactions", "settlements", "ledger"] as WalletTab[]).map(
+        (value) => ({ value, label: t(`wallet.tabs.${value}`) }),
+      ),
     [t],
   );
 
-  const stats = useMemo(() => {
-    const totalTopUp = transactions
-      .filter((txn) => txn.type === "topup" && txn.status === "completed")
-      .reduce((sum, txn) => sum + txn.amount, 0);
-    const totalPayment = transactions
-      .filter((txn) => txn.type === "payment" && txn.status === "completed")
-      .reduce((sum, txn) => sum + txn.amount, 0);
-    const totalRefund = transactions
-      .filter((txn) => txn.type === "refund" && txn.status === "completed")
-      .reduce((sum, txn) => sum + txn.amount, 0);
-    const currentBalance =
-      transactions.length > 0 ? transactions[0].balance : 0;
-
-    return {
-      currentBalance,
-      totalTopUp,
-      totalPayment,
-      totalRefund,
-    };
-  }, [transactions]);
-
-  const filtered = useMemo(() => {
-    return transactions.filter((txn) => {
-      const q = search.toLowerCase();
-      return (
-        !q ||
-        txn.id.toLowerCase().includes(q) ||
-        txn.description.toLowerCase().includes(q) ||
-        txn.reference?.toLowerCase().includes(q)
-      );
-    });
-  }, [search, transactions]);
-
-  const handleTopUp = () => {
-    if (!topUpAmount || isNaN(Number(topUpAmount))) return;
-    alert(t("wallet.topupAlert", { amount: topUpAmount }));
-    setOpenTopUp(false);
-    setTopUpAmount("");
-  };
-
-  const paginatedTransactions = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page],
-  );
-
-  const getStatusBadge = (status: TransactionStatus) => {
-    switch (status) {
-      case "completed":
-        return (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-            <FiCheck size={14} /> {t("wallet.success")}
-          </span>
-        );
-      case "pending":
-        return (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">
-            <FiClock size={14} /> {t("wallet.pending")}
-          </span>
-        );
-      case "failed":
-        return (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
-            <FiAlertCircle size={14} /> {t("wallet.failed")}
-          </span>
-        );
-    }
-  };
-
-  const getTransactionIcon = (type: TransactionType) => {
-    switch (type) {
-      case "topup":
-        return <FiArrowDown className="text-green-500" />;
-      case "payment":
-        return <FiArrowUp className="text-red-500" />;
-      case "refund":
-        return <FiArrowDown className="text-amber-500" />;
-    }
-  };
-
-  const getTransactionTypeLabel = (type: TransactionType) => {
-    switch (type) {
-      case "topup":
-        return t("wallet.topupType");
-      case "payment":
-        return t("wallet.expenseType");
-      case "refund":
-        return t("wallet.refundType");
-    }
-  };
+  function selectTab(nextTab: WalletTab) {
+    setTab(nextTab);
+    setPage(1);
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            {t("wallet.title")}
-          </h1>
-          <p className="text-gray-600 mt-1">{t("wallet.subtitleShort")}</p>
+          <h1 className="text-3xl font-bold text-gray-900">{t("wallet.title")}</h1>
+          <p className="mt-1 text-gray-600">{t("wallet.apiSubtitle")}</p>
         </div>
         <button
-          onClick={() => setOpenTopUp(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+          type="button"
+          onClick={() => void loadData()}
+          disabled={loading}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <FiPlus size={18} /> {t("wallet.topup")}
+          <FiRefreshCw className={loading ? "animate-spin" : ""} />
+          {tc("refresh")}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">
-            {t("wallet.currentBalance")}
-          </p>
-          <p className="text-3xl font-bold text-vr-600 mt-2">
-            đ{stats.currentBalance.toLocaleString()}
-          </p>
-          <p className="text-xs text-gray-400 mt-2">{t("wallet.billionVnd")}</p>
+      {error && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
         </div>
-        <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">
-            {t("wallet.totalTopup")}
-          </p>
-          <p className="text-3xl font-bold text-green-600 mt-2">
-            đ{stats.totalTopUp.toLocaleString()}
-          </p>
-          <p className="text-xs text-gray-400 mt-2">{t("wallet.billionVnd")}</p>
-        </div>
-        <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">
-            {t("wallet.totalExpense")}
-          </p>
-          <p className="text-3xl font-bold text-red-600 mt-2">
-            đ{stats.totalPayment.toLocaleString()}
-          </p>
-          <p className="text-xs text-gray-400 mt-2">{t("wallet.billionVnd")}</p>
-        </div>
-        <div className="p-4 bg-white border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium">
-            {t("wallet.refund")}
-          </p>
-          <p className="text-3xl font-bold text-amber-600 mt-2">
-            đ{stats.totalRefund.toLocaleString()}
-          </p>
-          <p className="text-xs text-gray-400 mt-2">{t("wallet.billionVnd")}</p>
-        </div>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Metric icon={<FiDollarSign />} label={t("wallet.currentBalance")} value={formatMoney(wallet?.balance ?? 0)} />
+        <Metric icon={<FiClock />} label={t("wallet.pendingHold")} value={formatMoney(wallet?.pendingHoldAmount ?? 0)} />
+        <Metric icon={<FiArrowDown />} label={t("wallet.eligibleAmount")} value={formatMoney(wallet?.eligibleAmount ?? 0)} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {t("wallet.monthlyHistory")}
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="month" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                }}
-              />
-              <Legend />
-              <Bar
-                dataKey="topup"
-                name={t("wallet.topupType")}
-                fill="#10b981"
-                radius={[8, 8, 0, 0]}
-              />
-              <Bar
-                dataKey="payment"
-                name={t("wallet.expenseType")}
-                fill="#ef4444"
-                radius={[8, 8, 0, 0]}
-              />
-              <Bar
-                dataKey="refund"
-                name={t("wallet.refundType")}
-                fill="#f59e0b"
-                radius={[8, 8, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {t("wallet.distribution")}
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={transactionTypeDistribution}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name} ${value}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {transactionTypeDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-end mb-4">
-          <div className="flex-1 relative">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder={t("wallet.searchPlaceholder")}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
-            />
-          </div>
-          <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-            <FiFilter size={16} /> {tc("filter")}
-          </button>
-          <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-            <FiDownload size={16} /> {tc("exportCsv")}
-          </button>
+      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="flex border-b border-gray-200 px-4">
+          {tabs.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => selectTab(item.value)}
+              className={`cursor-pointer border-b-2 px-4 py-3 text-sm font-semibold transition ${
+                tab === item.value
+                  ? "border-vr-500 text-vr-700"
+                  : "border-transparent text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  {t("wallet.datetime")}
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  {t("wallet.type")}
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  {t("wallet.descriptionCol")}
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  {t("wallet.amount")}
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  {t("wallet.balance")}
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  {tc("status")}
-                </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                  {t("wallet.reference")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedTransactions.map((txn) => (
-                <tr
-                  key={txn.id}
-                  className="border-b border-gray-200 hover:bg-gray-50"
-                >
-                  <td className="px-4 py-3 text-gray-700">{txn.date}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {getTransactionIcon(txn.type)}
-                      <span className="font-medium">
-                        {getTransactionTypeLabel(txn.type)}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">{txn.description}</td>
-                  <td className="px-4 py-3 font-semibold">
-                    <span
-                      className={
-                        txn.type === "topup" || txn.type === "refund"
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }
-                    >
-                      {txn.type === "topup" || txn.type === "refund"
-                        ? "+"
-                        : "-"}
-                      đ{txn.amount.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">
-                    đ{txn.balance.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3">{getStatusBadge(txn.status)}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">
-                    {txn.reference || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {loading ? (
+            <p className="p-8 text-center text-sm text-gray-500">{tc("loading")}</p>
+          ) : tab === "transactions" ? (
+            <TransactionTable items={transactions} t={t} />
+          ) : tab === "settlements" ? (
+            <SettlementTable items={settlements} t={t} />
+          ) : (
+            <LedgerTable items={ledger} t={t} />
+          )}
         </div>
 
-        <Pagination
-          page={page}
-          pageSize={pageSize}
-          totalItems={filtered.length}
-          onPageChange={setPage}
-        />
-      </div>
-
-      <Modal
-        open={openTopUp}
-        onClose={() => setOpenTopUp(false)}
-        title={t("wallet.topupTitle")}
-        wide
-      >
-        <div className="space-y-6">
-          <div className="bg-vr-50 border border-vr-200 rounded-lg p-4">
-            <p className="text-sm text-vr-900 font-medium">
-              {t("wallet.currentBalanceLabel", {
-                amount: stats.currentBalance.toLocaleString(),
-              })}
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t("wallet.topupAmount")}{" "}
-              <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                đ
-              </span>
-              <CurrencyInput
-                value={topUpAmount}
-                onChange={(e) => setTopUpAmount(e.target.value)}
-                placeholder={t("wallet.topupPlaceholder")}
-                className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {t("wallet.topupLimit")}
-            </p>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-xs text-blue-900">
-              <strong>{t("wallet.topupNoteLabel")}</strong>{" "}
-              {t("wallet.topupNote")}
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setOpenTopUp(false)}
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              onClick={handleTopUp}
-              className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
-            >
-              {t("wallet.topupPay")}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        <Pagination page={page} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} />
+      </section>
     </div>
+  );
+}
+
+function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="flex items-center gap-2 text-sm text-gray-500">{icon}{label}</div>
+      <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+type Translate = (key: string) => string;
+
+function EmptyRow({ columns, t }: { columns: number; t: Translate }) {
+  return <tr><td colSpan={columns} className="px-4 py-10 text-center text-sm text-gray-500">{t("wallet.empty")}</td></tr>;
+}
+
+function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Translate }) {
+  return (
+    <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+      <th className="px-4 py-3">{t("wallet.datetime")}</th><th className="px-4 py-3">{t("wallet.type")}</th><th className="px-4 py-3">{t("wallet.descriptionCol")}</th><th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.balance")}</th><th className="px-4 py-3">{t("wallet.reference")}</th>
+    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={6} t={t} /> : items.map((item) => (
+      <tr key={item.transactionId} className="border-t border-gray-100">
+        <td className="px-4 py-3 text-gray-600">{formatDate(item.createdAt)}</td>
+        <td className="px-4 py-3"><span className="inline-flex items-center gap-1 font-semibold">{item.type === "CREDIT" ? <FiArrowDown className="text-emerald-600" /> : <FiArrowUp className="text-red-600" />}{item.type}</span></td>
+        <td className="px-4 py-3 text-gray-700">{item.note || item.referenceType}</td>
+        <td className={`px-4 py-3 font-semibold ${item.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>{item.type === "CREDIT" ? "+" : "-"}{formatMoney(item.amount)}</td>
+        <td className="px-4 py-3">{formatMoney(item.balanceAfter)}</td>
+        <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.referenceId || "-"}</td>
+      </tr>
+    ))}</tbody></table>
+  );
+}
+
+function SettlementTable({ items, t }: { items: TripSettlement[]; t: Translate }) {
+  return (
+    <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+      <th className="px-4 py-3">{t("wallet.settlementId")}</th><th className="px-4 py-3">{t("wallet.trip")}</th><th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.eligibleAt")}</th><th className="px-4 py-3">{t("wallet.statusLabel")}</th>
+    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={5} t={t} /> : items.map((item) => (
+      <tr key={item.settlementId} className="border-t border-gray-100"><td className="px-4 py-3 font-mono text-xs">{item.settlementId}</td><td className="px-4 py-3 font-mono text-xs">{item.tripId}</td><td className="px-4 py-3 font-semibold">{formatMoney(item.netAmount)}</td><td className="px-4 py-3">{formatDate(item.eligibleAt)}</td><td className="px-4 py-3"><span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">{item.status}</span></td></tr>
+    ))}</tbody></table>
+  );
+}
+
+function LedgerTable({ items, t }: { items: OperatorLedgerEntry[]; t: Translate }) {
+  return (
+    <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+      <th className="px-4 py-3">{t("wallet.datetime")}</th><th className="px-4 py-3">{t("wallet.entryType")}</th><th className="px-4 py-3">{t("wallet.trip")}</th><th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.reference")}</th>
+    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={5} t={t} /> : items.map((item) => (
+      <tr key={item.ledgerEntryId} className="border-t border-gray-100"><td className="px-4 py-3">{formatDate(item.createdAt)}</td><td className="px-4 py-3 font-semibold">{item.entryType}</td><td className="px-4 py-3 font-mono text-xs">{item.tripId}</td><td className={`px-4 py-3 font-semibold ${item.amount < 0 ? "text-red-700" : "text-emerald-700"}`}>{formatMoney(item.amount)}</td><td className="px-4 py-3 font-mono text-xs text-gray-500">{item.referenceId}</td></tr>
+    ))}</tbody></table>
   );
 }

@@ -166,6 +166,16 @@ const operatorStaffMenuConfig: MenuSection[] = [
       },
     ],
   },
+  {
+    titleKey: "sections.support",
+    items: [
+      {
+        labelKey: "manager.wallet",
+        path: "/manager/wallet",
+        icon: <FiDollarSign />,
+      },
+    ],
+  },
 ];
 
 const adminMenuConfig: MenuSection[] = [

@@ -58,6 +58,12 @@
   "registerSubmit": "Tạo tài khoản",
   "registerVerificationPrompt": "Đăng ký đã được gửi. Vui lòng nhập mã xác minh email.",
   "registerSuccess": "Tạo tài khoản thành công. Vui lòng đăng nhập.",
+  "registrationCompleteTitle": "Đăng ký thành công",
+  "registrationCompleteDescription": "Email đã được xác minh. Hồ sơ nhà xe của bạn đã được gửi đến Quản trị hệ thống.",
+  "registrationPendingApproval": "Đang chờ Admin duyệt",
+  "registrationPendingNote": "Bạn sẽ đăng nhập được sau khi hồ sơ nhà xe được phê duyệt.",
+  "registrationEmailLabel": "Email đăng ký",
+  "goToLogin": "Về trang đăng nhập",
   "registrationSteps": "Các bước đăng ký",
   "stepLabel": "Bước {{number}}",
   "registerSteps": {
@@ -90,6 +96,10 @@
   "verificationEmail": "Email xác minh",
   "verificationCode": "Mã xác minh",
   "verifyEmail": "Xác minh email",
+  "didNotReceiveCode": "Bạn chưa nhận được mã?",
+  "resendVerification": "Gửi lại mã",
+  "resendingVerification": "Đang gửi lại...",
+  "resendVerificationSuccess": "Đã gửi lại mã xác minh đến email của bạn.",
   "continue": "Tiếp tục",
   "back": "Quay lại",
   "displayName": "Tên hiển thị",
@@ -103,7 +113,8 @@
     "invalidEmail": "Email không hợp lệ",
     "passwordMin": "Mật khẩu phải có ít nhất 6 ký tự",
     "failed": "Đăng nhập thất bại, vui lòng thử lại",
-    "registerFailed": "Đăng ký thất bại, vui lòng thử lại"
+    "registerFailed": "Đăng ký thất bại, vui lòng thử lại",
+    "resendVerificationFailed": "Không thể gửi lại mã xác minh"
   },
   "hero": {
     "bus": "Xe buýt",

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
@@ -25,7 +25,6 @@ const HERO_SLIDE_SRC = [login_1, login_2, login_3, login_4, login_5];
 
 export default function Login() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { t } = useTranslation("login");
   const { t: tc } = useTranslation("common");
   const [email, setEmail] = useState("");
@@ -36,7 +35,6 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
-  const registered = isRecord(location.state) && location.state.registered === true;
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -117,14 +115,6 @@ export default function Login() {
                   role="alert"
                 >
                   {error}
-                </div>
-              )}
-              {registered && !error && (
-                <div
-                  className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-                  role="status"
-                >
-                  {t("registerSuccess")}
                 </div>
               )}
 
@@ -259,8 +249,4 @@ export default function Login() {
       </div>
     </div>
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

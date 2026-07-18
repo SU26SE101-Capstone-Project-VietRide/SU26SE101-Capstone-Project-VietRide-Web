@@ -71,9 +71,11 @@
   "topbar": {
     "defaultUserName": "Operator manager",
     "searchPlaceholder": "Search trips, bookings, parcels...",
-    "notifLateTrips": "2 trips behind ETA",
-    "notifGpsLost": "Vehicle ABC-001 lost GPS signal",
-    "notifUndelivered": "5 undelivered parcels"
+    "unreadNotifications": "{{count}} unread notifications",
+    "loadingNotifications": "Loading notifications...",
+    "noNotifications": "No notifications yet.",
+    "notificationLoadFailed": "Unable to load notifications.",
+    "notificationReadFailed": "Unable to mark notification as read."
   },
   "profilePage": {
     "home": "Home",

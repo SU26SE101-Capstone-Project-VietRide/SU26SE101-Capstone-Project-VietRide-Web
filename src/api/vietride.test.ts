@@ -16,6 +16,9 @@ import {
   deactivateAdminCampaign,
   exportOperatorParcelReport,
   getAdminCampaigns,
+  getAdminPlatformWallet,
+  getAdminPlatformWalletTransactions,
+  getAdminTripSettlements,
   getAdminLocations,
   getAdminSubscriptionPlans,
   getAdminVoucherConsents,
@@ -27,8 +30,15 @@ import {
   getInternalTripParcelAvailability,
   getOperatorRoute,
   getOperatorDriverSchedules,
+  getOperatorInvoice,
+  getOperatorInvoices,
+  getOperatorLedger,
+  getNotifications,
   getOperatorSubscription,
   getOperatorSubscriptionPlans,
+  getOperatorTripSettlements,
+  getOperatorWallet,
+  getOperatorWalletTransactions,
   getOperatorStations,
   getOperatorStop,
   getOperatorVehicle,
@@ -49,11 +59,16 @@ import {
   getTripHealth,
   getVehicleTypes,
   lockInternalRoundTripSeats,
+  markNotificationRead,
+  downloadOperatorInvoice,
+  adjustAdminOperatorWallet,
+  adjustAdminPlatformWallet,
   overrideOperatorParcelCapacity,
   rejectOperatorVoucherConsent,
   remeasureInternalTripCargo,
   registerOperator,
   reloadRagRuntimeConfigs,
+  resendVerificationEmail,
   requestForgotPassword,
   requestOperatorParcelTransfer,
   resetPassword,
@@ -61,6 +76,7 @@ import {
   returnOperatorParcel,
   reweighAssistantParcel,
   searchPublicTrips,
+  settleAdminTripSettlement,
   updateAdminLocation,
   updateAdminSubscriptionPlan,
   updateAdminVoucher,
@@ -68,6 +84,7 @@ import {
   updateOperatorVoucher,
   updateOperatorParcelStatus,
   updateOperatorRouteGeometry,
+  retryAdminInvoice,
   upgradeOperatorSubscription,
 } from "./vietride";
 
@@ -554,6 +571,29 @@ describe("vietride API", () => {
     );
   });
 
+  it("resends the registration verification code", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: null }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resendVerificationEmail({
+      email: "ops@operator.vn",
+      purpose: "REGISTRATION",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/auth/resend-verification-email",
+      expect.objectContaining({
+        body: JSON.stringify({
+          email: "ops@operator.vn",
+          purpose: "REGISTRATION",
+        }),
+        method: "POST",
+      }),
+    );
+  });
+
   it("registers an operator without an auth token", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
@@ -579,9 +619,7 @@ describe("vietride API", () => {
       addressDistrict: "District 1",
       addressProvince: "Ho Chi Minh City",
       representativeName: "Nguyen Van A",
-      representativePosition: "Owner",
       representativePhone: "0901234567",
-      representativeEmail: "owner@operator.vn",
       password: "secret123",
     });
 
@@ -589,6 +627,20 @@ describe("vietride API", () => {
       "https://api.vietride.online/v1/operators/register",
       expect.objectContaining({
         method: "POST",
+        body: JSON.stringify({
+          name: "VietRide Express",
+          contactEmail: "ops@operator.vn",
+          contactPhone: "0901234567",
+          businessRegistrationNumber: "0312345678",
+          taxCode: "0301234567",
+          addressStreet: "123 Nguyen Van Linh",
+          addressWard: "Ward 1",
+          addressDistrict: "District 1",
+          addressProvince: "Ho Chi Minh City",
+          representativeName: "Nguyen Van A",
+          representativePhone: "0901234567",
+          password: "secret123",
+        }),
         headers: expect.not.objectContaining({
           Authorization: expect.any(String),
         }),
@@ -1582,6 +1634,7 @@ describe("vietride API", () => {
       {
         planId: "plan-1",
         billingPeriod: "YEARLY",
+        paymentMethod: "VNPAY",
         returnUrl: "https://app.vietride.vn/manager/packages",
       },
       "33333333-3333-4333-8333-333333333333",
@@ -1641,12 +1694,179 @@ describe("vietride API", () => {
         body: JSON.stringify({
           planId: "plan-1",
           billingPeriod: "YEARLY",
+          paymentMethod: "VNPAY",
           returnUrl: "https://app.vietride.vn/manager/packages",
         }),
         headers: expect.objectContaining({
           "Idempotency-Key": "33333333-3333-4333-8333-333333333333",
         }),
       }),
+    );
+  });
+
+  it("calls operator and admin wallet, settlement, ledger, and invoice APIs", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "finance-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorWallet();
+    await getOperatorWalletTransactions({ page: 1, pageSize: 20 });
+    await getOperatorTripSettlements({ status: "ELIGIBLE" });
+    await getOperatorLedger({ entryType: "BOOKING_REVENUE" });
+    await getOperatorInvoices({ status: "ISSUED" });
+    await getOperatorInvoice("invoice-1");
+    await downloadOperatorInvoice("invoice-1");
+    await getAdminTripSettlements({ stuckOnly: true, severity: "HIGH" });
+    await settleAdminTripSettlement("settlement-1", "settle-idem");
+    await getAdminPlatformWallet();
+    await getAdminPlatformWalletTransactions({ type: "DEBIT" });
+    await adjustAdminPlatformWallet(
+      { type: "CREDIT", amount: 100000, note: "Manual adjustment" },
+      "platform-idem",
+    );
+    await adjustAdminOperatorWallet(
+      "operator-1",
+      { type: "DEBIT", amount: 50000, note: "Correction" },
+      "operator-idem",
+    );
+    await retryAdminInvoice("invoice-1", "invoice-idem");
+
+    const expectedUrls = [
+      "https://api.vietride.online/v1/operator/wallet",
+      "https://api.vietride.online/v1/operator/wallet/transactions?page=1&pageSize=20",
+      "https://api.vietride.online/v1/operator/trip-settlements?status=ELIGIBLE",
+      "https://api.vietride.online/v1/operator/ledger?entryType=BOOKING_REVENUE",
+      "https://api.vietride.online/v1/operator/invoices?status=ISSUED",
+      "https://api.vietride.online/v1/operator/invoices/invoice-1",
+      "https://api.vietride.online/v1/operator/invoices/invoice-1/download",
+      "https://api.vietride.online/v1/admin/trip-settlements?stuckOnly=true&severity=HIGH",
+      "https://api.vietride.online/v1/admin/trip-settlements/settlement-1/settle",
+      "https://api.vietride.online/v1/admin/platform-wallet",
+      "https://api.vietride.online/v1/admin/platform-wallet/transactions?type=DEBIT",
+      "https://api.vietride.online/v1/admin/platform-wallet/adjust",
+      "https://api.vietride.online/v1/admin/operators/operator-1/wallet/adjust",
+      "https://api.vietride.online/v1/admin/invoices/invoice-1/retry",
+    ];
+
+    expectedUrls.forEach((url, index) => {
+      expect(fetchMock.mock.calls[index]?.[0]).toBe(url);
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      9,
+      expectedUrls[8],
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "settle-idem" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      12,
+      expectedUrls[11],
+      expect.objectContaining({
+        body: JSON.stringify({
+          type: "CREDIT",
+          amount: 100000,
+          note: "Manual adjustment",
+        }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "platform-idem",
+        }),
+      }),
+    );
+  });
+
+  it("lists the current user's notifications and marks one as read", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "notification-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/read")) {
+        return new Response(null, { status: 204 });
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getNotifications({
+      unreadOnly: true,
+      page: 1,
+      pageSize: 20,
+      sortBy: "createdAt",
+      sortDir: "desc",
+    });
+    await markNotificationRead("7e7d44b8-3d84-4dd5-b0a2-1f445de7c701");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/notifications?unreadOnly=true&page=1&pageSize=20&sortBy=createdAt&sortDir=desc",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer notification-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/notifications/7e7d44b8-3d84-4dd5-b0a2-1f445de7c701/read",
+      expect.objectContaining({ method: "POST" }),
     );
   });
 });

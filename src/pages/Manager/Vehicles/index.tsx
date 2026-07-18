@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { ChangeEvent, DragEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiDownload,
@@ -13,6 +13,8 @@ import {
   FiShield,
   FiTool,
   FiTruck,
+  FiUpload,
+  FiX,
 } from "react-icons/fi";
 import { FaChair } from "react-icons/fa";
 import { DetailItem } from "../../../components/DetailLayout";
@@ -67,6 +69,7 @@ type VehicleForm = {
   totalSeats: string;
   maxCargoWeightKg: string;
   maxCargoVolumeM3: string;
+  imageUrls: string;
   status: string;
   deckCount: string;
   rowsPerDeck: string;
@@ -81,6 +84,7 @@ const emptyVehicleForm: VehicleForm = {
   totalSeats: "40",
   maxCargoWeightKg: "500",
   maxCargoVolumeM3: "5",
+  imageUrls: "",
   status: "ACTIVE",
   deckCount: "1",
   rowsPerDeck: "10",
@@ -136,7 +140,6 @@ function createDecks(form: VehicleForm): VehicleDeck[] {
           col,
           deck: deckIndex + 1,
           type: "STANDARD",
-          isAvailable: true,
           isWindow: col === 1 || col === options.columnsPerRow,
           isAisle: false,
           disabled: false,
@@ -249,7 +252,47 @@ function toVehicleRequest(
     maxCargoWeightKg: toNumber(form.maxCargoWeightKg),
     maxCargoVolumeM3: toNumber(form.maxCargoVolumeM3),
     seatLayoutJson,
+    imageUrls: getImageEntries(form.imageUrls).filter(isPublicImageUrl),
   };
+}
+
+function getImageEntries(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function isPublicImageUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function hasLocalImagePreview(value: string) {
+  return getImageEntries(value).some((url) => url.startsWith("data:image/"));
+}
+
+function readImageFile(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Unable to read image file."));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function readImageFiles(files: FileList | File[]) {
+  const imageFiles = Array.from(files).filter((file) =>
+    file.type.startsWith("image/"),
+  );
+
+  return Promise.all(imageFiles.map(readImageFile));
 }
 
 function getVehicleId(vehicle: OperatorVehicle) {
@@ -277,6 +320,15 @@ function getVehicleTypeLabel(
 }
 
 function getVehiclePhoto(vehicle: OperatorVehicle) {
+  const firstImageUrl = vehicle.imageUrls?.find((url) => url.trim());
+
+  if (firstImageUrl) {
+    return {
+      src: firstImageUrl,
+      alt: vehicle.licensePlate,
+    };
+  }
+
   const key = getVehicleId(vehicle) || vehicle.licensePlate;
   const hash = Array.from(key).reduce(
     (total, char) => total + char.charCodeAt(0),
@@ -284,6 +336,16 @@ function getVehiclePhoto(vehicle: OperatorVehicle) {
   );
 
   return vehiclePhotos[hash % vehiclePhotos.length];
+}
+
+function getVehiclePhotos(vehicle: OperatorVehicle) {
+  const apiPhotos =
+    vehicle.imageUrls?.filter(Boolean).map((url) => ({
+      src: url,
+      alt: vehicle.licensePlate,
+    })) ?? [];
+
+  return apiPhotos.length > 0 ? apiPhotos : vehiclePhotos;
 }
 
 export default function VehiclesPage() {
@@ -437,6 +499,7 @@ export default function VehiclesPage() {
       totalSeats: String(vehicle.totalSeats),
       maxCargoWeightKg: String(vehicle.maxCargoWeightKg),
       maxCargoVolumeM3: String(vehicle.maxCargoVolumeM3 ?? 5),
+      imageUrls: vehicle.imageUrls?.join("\n") ?? "",
       status: vehicle.status,
       deckCount: layoutShape.deckCount,
       rowsPerDeck: layoutShape.rowsPerDeck,
@@ -473,6 +536,11 @@ export default function VehiclesPage() {
   }
 
   async function handleCreateVehicle() {
+    if (hasLocalImagePreview(vehicleForm.imageUrls)) {
+      setError(t("vehicles.localImageSubmitError"));
+      return;
+    }
+
     await createOperatorVehicle(toVehicleRequest(vehicleForm, vehicleTypes));
     setMessage(t("vehicles.createSuccess"));
     setOpenReg(false);
@@ -488,6 +556,11 @@ export default function VehiclesPage() {
 
     if (!vehicleId) {
       setError(t("vehicles.missingVehicleForUpdate"));
+      return;
+    }
+
+    if (hasLocalImagePreview(vehicleForm.imageUrls)) {
+      setError(t("vehicles.localImageSubmitError"));
       return;
     }
 
@@ -802,6 +875,38 @@ function VehicleModal({
   const previewDecks = createDecks(form);
   const generatedSeats = countSeats(previewDecks);
   const layoutOptions = toSeatLayoutOptions(form);
+  const selectedImages = getImageEntries(form.imageUrls);
+
+  async function addImageFiles(files: FileList | File[]) {
+    const dataUrls = await readImageFiles(files);
+
+    if (dataUrls.length === 0) {
+      return;
+    }
+
+    onChange("imageUrls", [...selectedImages, ...dataUrls].join("\n"));
+  }
+
+  function removeImage(index: number) {
+    onChange(
+      "imageUrls",
+      selectedImages.filter((_, currentIndex) => currentIndex !== index).join("\n"),
+    );
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    if (!event.target.files) {
+      return;
+    }
+
+    void addImageFiles(event.target.files);
+    event.target.value = "";
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    void addImageFiles(event.dataTransfer.files);
+  }
 
   return (
     <Modal
@@ -903,6 +1008,69 @@ function VehicleModal({
             </option>
             <option value="INACTIVE">{t("vehicles.inactive")}</option>
           </CustomSelect>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>{t("vehicles.images")}</label>
+          <div
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={handleDrop}
+            className="rounded-xl border border-dashed border-vr-200 bg-vr-50/40 p-4 transition hover:border-vr-300 hover:bg-vr-50"
+          >
+            <div className="flex flex-col items-center justify-center gap-2 text-center">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-vr-700 shadow-sm">
+                <FiUpload size={18} />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">
+                  {t("vehicles.dropImages")}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {t("vehicles.imagePickerHint")}
+                </p>
+              </div>
+              <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-vr-200 bg-white px-3 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50">
+                {t("vehicles.chooseImages")}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only"
+                  onChange={handleFileChange}
+                />
+              </label>
+            </div>
+          </div>
+          {selectedImages.length > 0 && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {selectedImages.map((src, index) => (
+                <div
+                  key={`${src.slice(0, 32)}-${index}`}
+                  className="relative overflow-hidden rounded-lg border border-gray-200 bg-white"
+                >
+                  <img
+                    src={src}
+                    alt={t("vehicles.imagePreview", { index: index + 1 })}
+                    width={240}
+                    height={160}
+                    loading="lazy"
+                    className="h-28 w-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-gray-600 shadow-sm hover:text-red-600"
+                    aria-label={t("vehicles.removeImage")}
+                    title={t("vehicles.removeImage")}
+                  >
+                    <FiX size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-gray-500">
+            {t("vehicles.localImageWarning")}
+          </p>
         </div>
       </div>
 
@@ -1036,6 +1204,7 @@ function VehicleDetailModal({
     vehicle?.seatLayoutJson && typeof vehicle.seatLayoutJson !== "string"
       ? vehicle.seatLayoutJson
       : null;
+  const photos = vehicle ? getVehiclePhotos(vehicle) : vehiclePhotos;
   const columnCount =
     layout?.cols ??
     Math.max(...decks.flatMap((deck) => deck.seats.map((seat) => seat.col)), 1);
@@ -1068,8 +1237,8 @@ function VehicleDetailModal({
           <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
               <img
-                src={vehiclePhotos[0].src}
-                alt={vehiclePhotos[0].alt}
+                src={photos[0]?.src ?? vehiclePhotos[0].src}
+                alt={photos[0]?.alt ?? vehiclePhotos[0].alt}
                 width={900}
                 height={600}
                 loading="lazy"
@@ -1077,7 +1246,7 @@ function VehicleDetailModal({
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {vehiclePhotos.slice(1).map((photo) => (
+              {photos.slice(1, 5).map((photo) => (
                 <img
                   key={photo.src}
                   src={photo.src}

@@ -80,6 +80,27 @@ describe("auth", () => {
     expect(getAuthUser()).toBeNull();
   });
 
+  it("uses the backend error message when login is rejected", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          statusCode: 403,
+          error: {
+            code: "FORBIDDEN",
+            message: "Operator registration is not approved.",
+          },
+        }),
+        { status: 403 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      login({ email: "operator@vietride.vn", password: "secret123" }),
+    ).rejects.toThrow("Operator registration is not approved.");
+  });
+
   it("normalizes legacy roles from stored sessions", () => {
     localStorage.setItem(
       "auth",

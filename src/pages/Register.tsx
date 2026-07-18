@@ -15,6 +15,7 @@ import logo from "../assets/Login/logo.svg";
 import login_3 from "../assets/Login/login_3.png";
 import {
   registerOperator,
+  resendVerificationEmail,
   verifyEmail,
   type RegisterOperatorRequest,
 } from "../api/vietride";
@@ -30,9 +31,7 @@ const emptyOperatorForm: RegisterOperatorRequest = {
   addressDistrict: "",
   addressProvince: "",
   representativeName: "",
-  representativePosition: "",
   representativePhone: "",
-  representativeEmail: "",
   password: "",
 };
 
@@ -62,12 +61,32 @@ const stepRequiredFields: Array<Array<keyof RegisterOperatorRequest>> = [
   ["addressStreet", "addressWard", "addressDistrict", "addressProvince"],
   [
     "representativeName",
-    "representativePosition",
     "representativePhone",
-    "representativeEmail",
     "password",
   ],
 ];
+
+function logRegistrationDebug(
+  step: string,
+  details: Record<string, unknown> = {},
+) {
+  if (!import.meta.env.DEV || import.meta.env.MODE === "test") {
+    return;
+  }
+
+  console.info(`[OperatorRegistration] ${step}`, details);
+}
+
+function logRegistrationError(step: string, error: unknown) {
+  if (!import.meta.env.DEV || import.meta.env.MODE === "test") {
+    return;
+  }
+
+  console.error(`[OperatorRegistration] ${step}`, {
+    errorName: error instanceof Error ? error.name : typeof error,
+    errorMessage: error instanceof Error ? error.message : String(error),
+  });
+}
 
 export default function Register() {
   const navigate = useNavigate();
@@ -80,6 +99,9 @@ export default function Register() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendError, setResendError] = useState("");
+  const [resendMessage, setResendMessage] = useState("");
 
   const updateForm = (key: keyof RegisterOperatorRequest, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -96,14 +118,6 @@ export default function Register() {
       return false;
     }
 
-    if (
-      fields.includes("representativeEmail") &&
-      !form.representativeEmail.includes("@")
-    ) {
-      setError(t("errors.invalidEmail"));
-      return false;
-    }
-
     if (fields.includes("password") && form.password.length < 6) {
       setError(t("errors.passwordMin"));
       return false;
@@ -115,11 +129,23 @@ export default function Register() {
   const handleNextStep = () => {
     setError("");
     setMessage("");
+    logRegistrationDebug("STEP_VALIDATION_START", {
+      currentStep: currentStep + 1,
+      targetStep: Math.min(currentStep + 2, registerSteps.length),
+    });
 
     if (!validateFields(stepRequiredFields[currentStep])) {
+      logRegistrationDebug("STEP_VALIDATION_FAILED", {
+        currentStep: currentStep + 1,
+      });
       return;
     }
 
+    logRegistrationDebug("STEP_CHANGED", {
+      fromStep: currentStep + 1,
+      toStep: Math.min(currentStep + 2, registerSteps.length),
+      apiCalled: false,
+    });
     setCurrentStep((step) => Math.min(step + 1, registerSteps.length - 1));
   };
 
@@ -129,8 +155,7 @@ export default function Register() {
     setCurrentStep((step) => Math.max(step - 1, 0));
   };
 
-  const handleRegister = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleRegister = async () => {
     setError("");
     setMessage("");
 
@@ -145,23 +170,31 @@ export default function Register() {
       form.addressDistrict,
       form.addressProvince,
       form.representativeName,
-      form.representativePosition,
       form.representativePhone,
-      form.representativeEmail,
       form.password,
     ];
 
     if (requiredValues.some((value) => !value.trim())) {
+      logRegistrationDebug("REGISTER_VALIDATION_FAILED", {
+        reason: "REQUIRED_FIELD_MISSING",
+      });
       setError(t("errors.required"));
       return;
     }
 
-    if (!form.contactEmail.includes("@") || !form.representativeEmail.includes("@")) {
+    if (!form.contactEmail.includes("@")) {
+      logRegistrationDebug("REGISTER_VALIDATION_FAILED", {
+        reason: "INVALID_EMAIL",
+      });
       setError(t("errors.invalidEmail"));
       return;
     }
 
     if (form.password.length < 6) {
+      logRegistrationDebug("REGISTER_VALIDATION_FAILED", {
+        reason: "PASSWORD_TOO_SHORT",
+        passwordLength: form.password.length,
+      });
       setError(t("errors.passwordMin"));
       return;
     }
@@ -169,15 +202,70 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await registerOperator(form);
-      setRegisteredEmail(form.representativeEmail || form.contactEmail);
+      const request: RegisterOperatorRequest = {
+        name: form.name.trim(),
+        contactEmail: form.contactEmail.trim().toLowerCase(),
+        contactPhone: form.contactPhone.trim(),
+        businessRegistrationNumber: form.businessRegistrationNumber.trim(),
+        taxCode: form.taxCode.trim(),
+        addressStreet: form.addressStreet.trim(),
+        addressWard: form.addressWard.trim(),
+        addressDistrict: form.addressDistrict.trim(),
+        addressProvince: form.addressProvince.trim(),
+        representativeName: form.representativeName.trim(),
+        representativePhone: form.representativePhone.trim(),
+        password: form.password,
+      };
+
+      const startedAt = performance.now();
+      logRegistrationDebug("REGISTER_REQUEST_START", {
+        endpoint: "POST /v1/operators/register",
+        contactEmail: request.contactEmail,
+        operatorName: request.name,
+        businessRegistrationNumber: request.businessRegistrationNumber,
+        taxCode: request.taxCode,
+        passwordLength: request.password.length,
+      });
+
+      const result = await registerOperator(request);
+      logRegistrationDebug("REGISTER_REQUEST_SUCCESS", {
+        endpoint: "POST /v1/operators/register",
+        durationMs: Math.round(performance.now() - startedAt),
+        operatorId: result.operatorId,
+        message: result.message,
+      });
+      setRegisteredEmail(request.contactEmail);
       setCurrentStep(0);
       setMessage(t("registerVerificationPrompt"));
+      logRegistrationDebug("OTP_SCREEN_READY", {
+        verificationEmail: request.contactEmail,
+        initialOtpDelivery: "Requested by registration endpoint",
+      });
     } catch (err) {
+      logRegistrationError("REGISTER_REQUEST_FAILED", err);
       setError(err instanceof Error ? err.message : t("errors.registerFailed"));
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRegistrationFormSubmit = (e: FormEvent) => {
+    e.preventDefault();
+
+    if (currentStep < registerSteps.length - 1) {
+      logRegistrationDebug("FORM_SUBMIT_ROUTED_TO_NEXT_STEP", {
+        currentStep: currentStep + 1,
+        apiCalled: false,
+      });
+      handleNextStep();
+      return;
+    }
+
+    logRegistrationDebug("FORM_SUBMIT_ROUTED_TO_REGISTER_API", {
+      currentStep: currentStep + 1,
+      apiCalled: true,
+    });
+    void handleRegister();
   };
 
   const handleVerifyEmail = async (e: FormEvent) => {
@@ -193,16 +281,68 @@ export default function Register() {
     setLoading(true);
 
     try {
+      const startedAt = performance.now();
+      logRegistrationDebug("VERIFY_OTP_REQUEST_START", {
+        endpoint: "POST /v1/auth/verify-email",
+        email: registeredEmail,
+        purpose: "REGISTRATION",
+        codeLength: verificationCode.trim().length,
+      });
       await verifyEmail({
         email: registeredEmail,
         code: verificationCode.trim(),
         purpose: "REGISTRATION",
       });
-      navigate("/login", { replace: true, state: { registered: true } });
+      logRegistrationDebug("VERIFY_OTP_REQUEST_SUCCESS", {
+        endpoint: "POST /v1/auth/verify-email",
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+      navigate("/register/success", {
+        replace: true,
+        state: { email: registeredEmail },
+      });
     } catch (err) {
+      logRegistrationError("VERIFY_OTP_REQUEST_FAILED", err);
       setError(err instanceof Error ? err.message : "Email verification failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerificationEmail = async () => {
+    setResendError("");
+    setResendMessage("");
+
+    if (!registeredEmail) {
+      setResendError(t("errors.required"));
+      return;
+    }
+
+    setResendLoading(true);
+
+    try {
+      const startedAt = performance.now();
+      logRegistrationDebug("RESEND_OTP_REQUEST_START", {
+        endpoint: "POST /v1/auth/resend-verification-email",
+        email: registeredEmail,
+        purpose: "REGISTRATION",
+      });
+      await resendVerificationEmail({
+        email: registeredEmail,
+        purpose: "REGISTRATION",
+      });
+      logRegistrationDebug("RESEND_OTP_REQUEST_SUCCESS", {
+        endpoint: "POST /v1/auth/resend-verification-email",
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+      setResendMessage(t("resendVerificationSuccess"));
+    } catch (err) {
+      logRegistrationError("RESEND_OTP_REQUEST_FAILED", err);
+      setResendError(
+        err instanceof Error ? err.message : t("errors.resendVerificationFailed"),
+      );
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -278,6 +418,7 @@ export default function Register() {
                     onChange={setRegisteredEmail}
                     placeholder="owner@operator.vn"
                     type="email"
+                    readOnly
                   />
                   <Field
                     icon={<FiLock />}
@@ -286,9 +427,32 @@ export default function Register() {
                     onChange={setVerificationCode}
                     placeholder="123456"
                   />
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-gray-500">{t("didNotReceiveCode")}</span>
+                    <button
+                      type="button"
+                      onClick={handleResendVerificationEmail}
+                      disabled={loading || resendLoading}
+                      className="cursor-pointer font-semibold text-vr-700 underline-offset-4 transition hover:text-vr-900 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                    >
+                      {resendLoading
+                        ? t("resendingVerification")
+                        : t("resendVerification")}
+                    </button>
+                  </div>
+                  {resendError && (
+                    <p className="text-sm text-red-600" role="alert">
+                      {resendError}
+                    </p>
+                  )}
+                  {resendMessage && (
+                    <p className="text-sm text-emerald-700" role="status">
+                      {resendMessage}
+                    </p>
+                  )}
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || resendLoading}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
                   >
                     {loading ? (
@@ -305,7 +469,10 @@ export default function Register() {
                   </button>
                 </form>
               ) : (
-                <form onSubmit={handleRegister} className="mt-6 space-y-5">
+                <form
+                  onSubmit={handleRegistrationFormSubmit}
+                  className="mt-6 space-y-5"
+                >
                   <div
                     className="grid grid-cols-3 gap-2"
                     aria-label={t("registrationSteps")}
@@ -449,15 +616,6 @@ export default function Register() {
                         placeholder={t("displayNamePlaceholder")}
                       />
                       <Field
-                        icon={<FiUser />}
-                        label={t("representativePosition")}
-                        value={form.representativePosition}
-                        onChange={(value) =>
-                          updateForm("representativePosition", value)
-                        }
-                        placeholder="Operations manager"
-                      />
-                      <Field
                         icon={<FiPhone />}
                         label={t("representativePhone")}
                         value={form.representativePhone}
@@ -466,16 +624,6 @@ export default function Register() {
                         }
                         placeholder={t("phonePlaceholder")}
                         type="tel"
-                      />
-                      <Field
-                        icon={<FiMail />}
-                        label={t("representativeEmail")}
-                        value={form.representativeEmail}
-                        onChange={(value) =>
-                          updateForm("representativeEmail", value)
-                        }
-                        placeholder="owner@operator.vn"
-                        type="email"
                       />
                       <div className="sm:col-span-2">
                         <Field
@@ -566,6 +714,7 @@ type FieldProps = {
   onChange: (value: string) => void;
   placeholder: string;
   type?: string;
+  readOnly?: boolean;
 };
 
 function Field({
@@ -575,6 +724,7 @@ function Field({
   onChange,
   placeholder,
   type = "text",
+  readOnly = false,
 }: FieldProps) {
   return (
     <div>
@@ -590,6 +740,7 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
+          readOnly={readOnly}
           className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
         />
       </div>

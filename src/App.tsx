@@ -22,6 +22,7 @@ import ManagerWallet from "./pages/Manager/Wallet/index";
 import RouteETA from "./pages/Manager/RouteETA/index";
 import ManagerVouchers from "./pages/Manager/Vouchers/index";
 import ManagerPackages from "./pages/Manager/Packages/index";
+import SubscriptionPaymentReturn from "./pages/Manager/Packages/PaymentReturn";
 import ManagerPolicies from "./pages/Manager/Policies/index";
 import ManagerSettings from "./pages/Manager/Settings/index";
 import ManagerCapacity from "./pages/Manager/Capacity/index";
@@ -42,6 +43,7 @@ import WalletSettlement from "./pages/Admin/WalletSettlement";
 import RagAudit from "./pages/Admin/RagAudit";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import RegisterSuccess from "./pages/RegisterSuccess";
 import ForgotPassword from "./pages/ForgotPassword";
 import SetInitialPassword from "./pages/SetInitialPassword";
 import ManagerDashboard from "./pages/Manager/Dashboard";
@@ -55,10 +57,19 @@ export default function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/register/success" element={<RegisterSuccess />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/set-initial-password" element={<SetInitialPassword />} />
         <Route path="/auth/set-password" element={<SetInitialPassword />} />
         <Route path="/auth/set-initial-password" element={<SetInitialPassword />} />
+
+        {/* VNPay redirects the operator's browser to this result page. */}
+        <Route element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}>
+          <Route
+            path="/payments/return"
+            element={<SubscriptionPaymentReturn />}
+          />
+        </Route>
 
         {/* Manager routes */}
         <Route
@@ -79,6 +90,7 @@ export default function App() {
             <Route path="dispatch" element={<DispatchPanel />} />
             <Route path="profile" element={<Profile />} />
             <Route path="vouchers" element={<ManagerVouchers />} />
+            <Route path="wallet" element={<ManagerWallet />} />
             <Route
               element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
             >
@@ -88,7 +100,6 @@ export default function App() {
               <Route path="packages" element={<ManagerPackages />} />
               <Route path="policies" element={<ManagerPolicies />} />
               <Route path="reports" element={<Reports />} />
-              <Route path="wallet" element={<ManagerWallet />} />
               <Route path="settings" element={<ManagerSettings />} />
             </Route>
           </Route>

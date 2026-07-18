@@ -142,9 +142,11 @@ async function postJson<TResponse>(
 
   const data = parseData(payload.data);
   const message = asString(payload.message);
+  const apiError = isRecord(payload.error) ? payload.error : null;
+  const errorMessage = apiError ? asString(apiError.message) : "";
 
   if (!response.ok || !data) {
-    throw new Error(message || "Request failed");
+    throw new Error(errorMessage || message || "Request failed");
   }
 
   return {

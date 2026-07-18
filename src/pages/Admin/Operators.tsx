@@ -158,9 +158,7 @@ export default function Operators() {
     await approveAdminOperator(selectedOperator.operatorId);
     await reloadOperators();
     setOpenApprove(false);
-    setMessage(
-      `${selectedOperator.name} approved. The operator admin should receive an invite email and set their first password at /auth/set-password?token=... before login.`,
-    );
+    setMessage(t("operators.approvedAlert", { name: selectedOperator.name }));
     setSelectedOperator(null);
   };
 
@@ -176,6 +174,12 @@ export default function Operators() {
 
     await rejectAdminOperator(selectedOperator.operatorId, rejectReason.trim());
     await reloadOperators();
+    setMessage(
+      t("operators.rejectedAlert", {
+        name: selectedOperator.name,
+        reason: rejectReason.trim(),
+      }),
+    );
     setOpenReject(false);
     setRejectReason("");
     setSelectedOperator(null);
@@ -194,9 +198,7 @@ export default function Operators() {
   const handleCreateOperator = async () => {
     await createAdminOperator(operatorForm);
     await reloadOperators();
-    setMessage(
-      `${operatorForm.name} profile created without a password. Approve the operator next; backend will send the set-password invite token to the representative email.`,
-    );
+    setMessage(t("operators.createdPendingMessage", { name: operatorForm.name }));
     setOperatorForm(emptyOperatorForm);
     setOpenOnboard(false);
   };
@@ -258,6 +260,45 @@ export default function Operators() {
           <FiPlus size={16} /> {t("operators.addOperator")}
         </button>
       </div>
+
+      <section className="rounded-xl border border-vr-100 bg-vr-50/60 p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-vr-800">
+              {t("operators.registrationFlowTitle")}
+            </p>
+            <p className="mt-1 text-sm text-vr-700">
+              {t("operators.registrationFlowSubtitle")}
+            </p>
+          </div>
+          <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[560px]">
+            <div className="rounded-lg border border-vr-100 bg-white px-3 py-2">
+              <p className="font-semibold text-gray-900">
+                {t("operators.flowStepApply")}
+              </p>
+              <p className="text-xs text-gray-500">
+                {t("operators.flowStepApplyHint")}
+              </p>
+            </div>
+            <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+              <p className="font-semibold text-gray-900">
+                {t("operators.flowStepReview")}
+              </p>
+              <p className="text-xs text-gray-500">
+                {t("operators.flowStepReviewHint")}
+              </p>
+            </div>
+            <div className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+              <p className="font-semibold text-gray-900">
+                {t("operators.flowStepActivate")}
+              </p>
+              <p className="text-xs text-gray-500">
+                {t("operators.flowStepActivateHint")}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {pendingCount > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -663,9 +704,7 @@ export default function Operators() {
       >
         <div className="space-y-6">
           <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            This creates the operator profile only. No password is collected
-            here. After approval, the representative uses the email invite link
-            to set the first password.
+            {t("operators.onboardInfo")}
           </div>
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">

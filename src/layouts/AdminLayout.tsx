@@ -20,7 +20,6 @@ export default function AdminLayout() {
         <Topbar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           userName={t("layout.adminDashboard")}
-          unreadNotifications={3}
         />
 
         <main className="flex-1 overflow-auto bg-white">

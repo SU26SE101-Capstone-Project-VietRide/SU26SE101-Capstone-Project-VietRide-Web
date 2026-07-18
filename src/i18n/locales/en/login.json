@@ -58,6 +58,12 @@
   "registerSubmit": "Create account",
   "registerVerificationPrompt": "Registration submitted. Please enter the email verification code.",
   "registerSuccess": "Account created successfully. Please sign in.",
+  "registrationCompleteTitle": "Registration successful",
+  "registrationCompleteDescription": "Your email has been verified. Your operator application was sent to the system administrator.",
+  "registrationPendingApproval": "Waiting for Admin approval",
+  "registrationPendingNote": "You can sign in after your operator application has been approved.",
+  "registrationEmailLabel": "Registration email",
+  "goToLogin": "Go to sign in",
   "registrationSteps": "Registration steps",
   "stepLabel": "Step {{number}}",
   "registerSteps": {
@@ -90,6 +96,10 @@
   "verificationEmail": "Verification email",
   "verificationCode": "Verification code",
   "verifyEmail": "Verify email",
+  "didNotReceiveCode": "Didn't receive the code?",
+  "resendVerification": "Resend code",
+  "resendingVerification": "Resending...",
+  "resendVerificationSuccess": "A new verification code was sent to your email.",
   "continue": "Continue",
   "back": "Back",
   "displayName": "Display name",
@@ -103,7 +113,8 @@
     "invalidEmail": "Invalid email address",
     "passwordMin": "Password must be at least 6 characters",
     "failed": "Sign in failed, please try again",
-    "registerFailed": "Registration failed, please try again"
+    "registerFailed": "Registration failed, please try again",
+    "resendVerificationFailed": "Could not resend the verification code"
   },
   "hero": {
     "bus": "Bus",

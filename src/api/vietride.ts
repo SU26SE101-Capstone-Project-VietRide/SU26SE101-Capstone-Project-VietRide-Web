@@ -23,6 +23,25 @@ export type PagedResult<T> = {
   hasNextPage: boolean;
 };
 
+export type NotificationItem = {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  data: unknown | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type NotificationParams = {
+  unreadOnly?: boolean;
+  page?: number;
+  pageSize?: number;
+  sortBy?: "createdAt" | "readAt" | "type";
+  sortDir?: "asc" | "desc";
+};
+
 export type OperatorStatus =
   | "PENDING"
   | "APPROVED"
@@ -145,7 +164,20 @@ export type UpdateOperatorProfileRequest = {
   luggagePolicy: string;
 };
 
-export type RegisterOperatorRequest = CreateAdminOperatorRequest & {
+export type RegisterOperatorRequest = Pick<
+  CreateAdminOperatorRequest,
+  | "name"
+  | "contactEmail"
+  | "contactPhone"
+  | "businessRegistrationNumber"
+  | "taxCode"
+  | "addressStreet"
+  | "addressWard"
+  | "addressDistrict"
+  | "addressProvince"
+  | "representativeName"
+  | "representativePhone"
+> & {
   password: string;
 };
 
@@ -241,6 +273,7 @@ export type OperatorSubscriptionDetail = {
 export type SubscriptionUpgradeRequest = {
   planId: string;
   billingPeriod: SubscriptionBillingPeriod;
+  paymentMethod: "VNPAY";
   returnUrl: string;
 };
 
@@ -251,8 +284,150 @@ export type SubscriptionUpgradeResult = {
   paymentId: string;
   amount: number;
   billingPeriod: SubscriptionBillingPeriod;
-  paymentRedirectUrl: string;
-  dueAt: string;
+  paymentRedirectUrl: string | null;
+  dueAt: string | null;
+  invoiceStatus: string | null;
+};
+
+export type FinancialListParams = Pick<
+  PageParams,
+  "page" | "pageSize" | "sortBy" | "sortDir"
+> & {
+  from?: string;
+  to?: string;
+};
+
+export type WalletTransactionType = "CREDIT" | "DEBIT";
+
+export type OperatorWallet = {
+  operatorId: string;
+  balance: number;
+  pendingHoldAmount: number;
+  eligibleAmount: number;
+  updatedAt: string;
+};
+
+export type WalletTransaction = {
+  transactionId: string;
+  type: WalletTransactionType;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  referenceType: string;
+  referenceId: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
+export type WalletTransactionParams = FinancialListParams & {
+  type?: WalletTransactionType;
+  referenceType?: string;
+};
+
+export type TripSettlementStatus =
+  | "PENDING_HOLD"
+  | "ELIGIBLE"
+  | "SETTLED"
+  | "CANCELLED";
+
+export type TripSettlement = {
+  settlementId: string;
+  tripId: string;
+  operatorId?: string;
+  status: TripSettlementStatus;
+  eligibleAt: string | null;
+  netAmount: number;
+  settlementMethod: "AUTO_WEEKLY" | "ADMIN_MANUAL" | null;
+  settledAt: string | null;
+  createdAt: string;
+  failureCount?: number;
+  activeFailureCode?: string | null;
+  severity?: "HIGH" | "WARNING" | null;
+};
+
+export type OperatorTripSettlementParams = FinancialListParams & {
+  status?: TripSettlementStatus;
+  tripId?: string;
+};
+
+export type AdminTripSettlementParams = OperatorTripSettlementParams & {
+  operatorId?: string;
+  stuckOnly?: boolean;
+  severity?: "HIGH" | "WARNING";
+};
+
+export type OperatorLedgerEntry = {
+  ledgerEntryId: string;
+  tripId: string;
+  entryType: string;
+  amount: number;
+  referenceType: string;
+  referenceId: string;
+  createdAt: string;
+};
+
+export type OperatorLedgerParams = FinancialListParams & {
+  tripId?: string;
+  entryType?: string;
+  referenceType?: string;
+};
+
+export type OperatorInvoice = {
+  invoiceId: string;
+  invoiceNumber: string;
+  paymentId: string;
+  status: "DRAFT" | "ISSUED" | "CANCELLED";
+  amount: number;
+  billingPeriod: SubscriptionBillingPeriod;
+  periodFrom: string;
+  periodTo: string;
+  pdfGenerationStatus: "PENDING" | "PROCESSING" | "FAILED" | "COMPLETED";
+  createdAt: string;
+  issuedAt: string | null;
+};
+
+export type OperatorInvoiceDetail = OperatorInvoice & {
+  planName: string;
+  buyerSnapshot: {
+    name: string;
+    businessRegistrationNumber: string;
+    taxCode: string;
+    contactEmail: string;
+    contactPhone: string;
+    addressStreet: string;
+    addressWard: string | null;
+    addressDistrict: string;
+    addressProvince: string;
+  };
+  invoiceWebUrl: string;
+  downloadApiUrl: string;
+};
+
+export type OperatorInvoiceParams = FinancialListParams & {
+  status?: OperatorInvoice["status"];
+};
+
+export type InvoiceDownload = {
+  downloadUrl: string;
+  expiresAt: string;
+};
+
+export type PlatformWallet = {
+  platformWalletId: string;
+  balance: number;
+  updatedAt: string;
+};
+
+export type WalletAdjustmentRequest = {
+  type: WalletTransactionType;
+  amount: number;
+  note: string;
+};
+
+export type InvoiceRetryResult = {
+  invoiceId: string;
+  pdfGenerationStatus: "PENDING";
+  attemptsUsed: number;
 };
 
 export type AdminSubscriptionPlanRequest = {
@@ -307,6 +482,28 @@ export type StationSearchParams = {
   city?: string;
   province?: string;
 };
+
+export type AdminStationParams = PageParams & {
+  isActive?: boolean;
+};
+
+export type AdminStationRequest = Partial<
+  Pick<
+    Station,
+    | "name"
+    | "addressStreet"
+    | "city"
+    | "province"
+    | "latitude"
+    | "longitude"
+    | "contactPhone"
+    | "contactEmail"
+    | "operatingHours"
+    | "facilities"
+    | "supportsShuttle"
+    | "isActive"
+  >
+>;
 
 export type AdminLocationStatus = "ACTIVE" | "INACTIVE" | "DUPLICATE" | string;
 
@@ -386,6 +583,15 @@ export type OperatorStopRequest = {
   description: string;
   address: string;
   googlePlaceId: string;
+};
+
+export type AdminStopParams = PageParams & {
+  operatorId?: string;
+  isActive?: boolean;
+};
+
+export type AdminStopRequest = Partial<OperatorStopRequest> & {
+  isActive?: boolean;
 };
 
 export type OperatorRoute = {
@@ -951,6 +1157,62 @@ export type TrackingEtaResponse = {
   eta: TrackingEta | null;
 };
 
+export type ShuttleBookingGroup = {
+  bookingId: string;
+  passengerCount: number;
+  pickupAddress: string;
+  pickupLat: number;
+  pickupLng: number;
+  distanceToStationMeters: number;
+  requestedAt: string;
+};
+
+export type ShuttleRequestGroup = {
+  mainTripId: string;
+  departureDateTime: string;
+  hardCutoffAt: string;
+  stationId: string;
+  stationName: string;
+  pendingPassengerCount: number;
+  bookingGroups: ShuttleBookingGroup[];
+  suggestedBookingOrder: string[];
+};
+
+export type CreateShuttleTripRequest = {
+  mainTripId: string;
+  driverUserId: string;
+  vehicleId: string;
+  scheduledDepartureTime: string;
+  scheduledEndTime: string;
+  orderedBookingIds: string[];
+  notes?: string;
+};
+
+export type CreateShuttleTripResult = {
+  shuttleTripId: string;
+  mainTripId: string;
+  assignedPassengerCount: number;
+  remainingPassengerCount: number;
+};
+
+export type ShuttleTrackingLatest = {
+  shuttleTripId: string;
+  latitude: number;
+  longitude: number;
+  speedKmh?: number;
+  heading?: number;
+  recordedAt: string;
+};
+
+export type ShuttleTrackingEta = {
+  shuttleTripId: string;
+  nextPickupOrder: number;
+  etaMinutes: number;
+  estimatedArrivalTime: string;
+  distanceMeters: number;
+  updatedAt: string;
+};
+
 export type AdminVoucher = {
   id: string;
   code: string;
@@ -1254,7 +1516,6 @@ export type VehicleSeat = {
   col: number;
   deck?: number;
   type: string;
-  isAvailable: boolean;
   isWindow?: boolean;
   isAisle?: boolean;
   disabled?: boolean;
@@ -1281,7 +1542,7 @@ export type SeatLayoutJson = {
 
 export type OperatorVehicle = {
   id?: string;
-  vehicleId: string;
+  vehicleId?: string;
   operatorId: string;
   licensePlate: string;
   vehicleTypeId: string;
@@ -1291,6 +1552,8 @@ export type OperatorVehicle = {
   maxCargoWeightKg: number;
   maxCargoVolumeM3?: number;
   status: string;
+  isActive?: boolean;
+  imageUrls?: string[];
   decks?: VehicleDeck[];
   seatLayoutJson?: SeatLayoutJson | string;
   createdAt?: string;
@@ -1304,6 +1567,7 @@ export type OperatorVehicleRequest = {
   maxCargoWeightKg: number;
   maxCargoVolumeM3: number;
   seatLayoutJson: SeatLayoutJson;
+  imageUrls: string[];
 };
 
 export type VehicleType = {
@@ -1624,6 +1888,11 @@ export type VerifyEmailRequest = {
   purpose: string;
 };
 
+export type ResendVerificationEmailRequest = Pick<
+  VerifyEmailRequest,
+  "email" | "purpose"
+>;
+
 export type VerifyEmailResult = {
   userId: string;
   status: string;
@@ -1661,6 +1930,16 @@ export type ResetPasswordResult = {
 
 export function verifyEmail(request: VerifyEmailRequest) {
   return apiRequest<VerifyEmailResult>("/v1/auth/verify-email", {
+    method: "POST",
+    body: request,
+    authenticated: false,
+  });
+}
+
+export function resendVerificationEmail(
+  request: ResendVerificationEmailRequest,
+) {
+  return apiRequest<unknown>("/v1/auth/resend-verification-email", {
     method: "POST",
     body: request,
     authenticated: false,
@@ -1874,6 +2153,122 @@ export function upgradeOperatorSubscription(
   });
 }
 
+export function getOperatorWallet() {
+  return apiRequest<OperatorWallet>("/v1/operator/wallet");
+}
+
+export function getOperatorWalletTransactions(
+  params: WalletTransactionParams = {},
+) {
+  return apiRequest<PagedResult<WalletTransaction>>(
+    `/v1/operator/wallet/transactions${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorTripSettlements(
+  params: OperatorTripSettlementParams = {},
+) {
+  return apiRequest<PagedResult<TripSettlement>>(
+    `/v1/operator/trip-settlements${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorLedger(params: OperatorLedgerParams = {}) {
+  return apiRequest<PagedResult<OperatorLedgerEntry>>(
+    `/v1/operator/ledger${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorInvoices(params: OperatorInvoiceParams = {}) {
+  return apiRequest<PagedResult<OperatorInvoice>>(
+    `/v1/operator/invoices${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorInvoice(invoiceId: string) {
+  return apiRequest<OperatorInvoiceDetail>(
+    `/v1/operator/invoices/${invoiceId}`,
+  );
+}
+
+export function downloadOperatorInvoice(invoiceId: string) {
+  return apiRequest<InvoiceDownload>(
+    `/v1/operator/invoices/${invoiceId}/download`,
+  );
+}
+
+export function getAdminTripSettlements(
+  params: AdminTripSettlementParams = {},
+) {
+  return apiRequest<PagedResult<TripSettlement>>(
+    `/v1/admin/trip-settlements${buildQuery(params)}`,
+  );
+}
+
+export function settleAdminTripSettlement(
+  settlementId: string,
+  idempotencyKey: string = crypto.randomUUID(),
+) {
+  return apiRequest<TripSettlement>(
+    `/v1/admin/trip-settlements/${settlementId}/settle`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+export function getAdminPlatformWallet() {
+  return apiRequest<PlatformWallet>("/v1/admin/platform-wallet");
+}
+
+export function getAdminPlatformWalletTransactions(
+  params: WalletTransactionParams = {},
+) {
+  return apiRequest<PagedResult<WalletTransaction>>(
+    `/v1/admin/platform-wallet/transactions${buildQuery(params)}`,
+  );
+}
+
+export function adjustAdminPlatformWallet(
+  request: WalletAdjustmentRequest,
+  idempotencyKey: string = crypto.randomUUID(),
+) {
+  return apiRequest<WalletTransaction>("/v1/admin/platform-wallet/adjust", {
+    method: "POST",
+    body: request,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+export function adjustAdminOperatorWallet(
+  operatorId: string,
+  request: WalletAdjustmentRequest,
+  idempotencyKey: string = crypto.randomUUID(),
+) {
+  return apiRequest<WalletTransaction>(
+    `/v1/admin/operators/${operatorId}/wallet/adjust`,
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+export function retryAdminInvoice(
+  invoiceId: string,
+  idempotencyKey: string = crypto.randomUUID(),
+) {
+  return apiRequest<InvoiceRetryResult>(
+    `/v1/admin/invoices/${invoiceId}/retry`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
 export function getAdminSubscriptionPlans(
   params: AdminSubscriptionPlanParams = {},
 ) {
@@ -1922,6 +2317,81 @@ export function getPublicLocations(params: StationSearchParams = {}) {
   });
 }
 
+export function getAdminStations(params: AdminStationParams = {}) {
+  return apiRequest<PagedResult<Station>>(
+    `/v1/admin/stations${buildQuery(params)}`,
+  );
+}
+
+export function getAdminStation(id: string) {
+  return apiRequest<Station>(`/v1/admin/stations/${id}`);
+}
+
+export function updateAdminStation(
+  id: string,
+  request: AdminStationRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<Station>(`/v1/admin/stations/${id}`, {
+    method: "PATCH",
+    body: request,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function deleteAdminStation(
+  id: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<{ id: string; deleted: boolean }>(
+    `/v1/admin/stations/${id}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+export function getAdminStops(params: AdminStopParams = {}) {
+  return apiRequest<PagedResult<OperatorStop>>(
+    `/v1/admin/stops${buildQuery(params)}`,
+  );
+}
+
+export function getAdminStop(id: string) {
+  return apiRequest<OperatorStop>(`/v1/admin/stops/${id}`);
+}
+
+export function updateAdminStop(
+  id: string,
+  request: AdminStopRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<OperatorStop>(`/v1/admin/stops/${id}`, {
+    method: "PATCH",
+    body: request,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function deleteAdminStop(
+  id: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<{ id: string; deleted: boolean }>(`/v1/admin/stops/${id}`, {
+    method: "DELETE",
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
 export function createOperatorStation(request: OperatorStationRequest) {
   return apiRequest<OperatorStation>("/v1/operator/stations", {
     method: "POST",
@@ -1932,6 +2402,35 @@ export function createOperatorStation(request: OperatorStationRequest) {
 export function getOperatorStations(params: PageParams = {}) {
   return apiRequest<PagedResult<OperatorStation>>(
     `/v1/operator/stations${buildQuery(params)}`,
+  );
+}
+
+export function updateOperatorStation(
+  id: string,
+  request: OperatorStationRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<OperatorStation>(`/v1/operator/stations/${id}`, {
+    method: "PATCH",
+    body: request,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function deleteOperatorStation(
+  id: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<{ id: string; deleted: boolean }>(
+    `/v1/operator/stations/${id}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
   );
 }
 
@@ -1957,6 +2456,21 @@ export function updateOperatorStop(id: string, request: OperatorStopRequest) {
     method: "PATCH",
     body: request,
   });
+}
+
+export function deleteOperatorStop(
+  id: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<{ id: string; deleted: boolean }>(
+    `/v1/operator/stops/${id}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
 }
 
 export function getOperatorRoutes(params: PageParams = {}) {
@@ -2926,6 +3440,37 @@ export function getTrackingTripEta(tripId: string, stopId: string) {
   );
 }
 
+export function getOperatorShuttleRequests(params: PageParams = {}) {
+  return apiRequest<PagedResult<ShuttleRequestGroup>>(
+    `/v1/operator/shuttle-requests${buildQuery(params)}`,
+  );
+}
+
+export function createOperatorShuttleTrip(
+  request: CreateShuttleTripRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<CreateShuttleTripResult>("/v1/operator/shuttle-trips", {
+    method: "POST",
+    body: request,
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  });
+}
+
+export function getShuttleTripLatest(shuttleTripId: string) {
+  return apiRequest<ShuttleTrackingLatest | null>(
+    `/v1/tracking/shuttle-trips/${shuttleTripId}/latest`,
+  );
+}
+
+export function getShuttleTripEta(shuttleTripId: string) {
+  return apiRequest<ShuttleTrackingEta | null>(
+    `/v1/tracking/shuttle-trips/${shuttleTripId}/eta`,
+  );
+}
+
 export function getInternalTrip(tripId: string) {
   return apiRequest<PublicTrip>(`/internal/v1/trips/${tripId}`);
 }
@@ -3087,4 +3632,16 @@ export function disruptOperatorTripNoSubstitution(
     `/v1/operator/trips/${tripId}/disrupt-no-substitution`,
     { method: "POST", body: request },
   );
+}
+
+export function getNotifications(params: NotificationParams = {}) {
+  return apiRequest<PagedResult<NotificationItem>>(
+    `/v1/notifications${buildQuery(params)}`,
+  );
+}
+
+export function markNotificationRead(notificationId: string) {
+  return apiRequest<null>(`/v1/notifications/${notificationId}/read`, {
+    method: "POST",
+  });
 }

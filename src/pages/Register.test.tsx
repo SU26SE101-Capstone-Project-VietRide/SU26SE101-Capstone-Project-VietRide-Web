@@ -1,8 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
-import { registerOperator } from "../api/vietride";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  registerOperator,
+  resendVerificationEmail,
+  verifyEmail,
+} from "../api/vietride";
 import Register from "./Register";
 
 vi.mock("../api/vietride", () => ({
@@ -10,6 +14,7 @@ vi.mock("../api/vietride", () => ({
     operatorId: "operator-1",
     message: "Created",
   })),
+  resendVerificationEmail: vi.fn(),
   verifyEmail: vi.fn(),
 }));
 
@@ -43,9 +48,10 @@ vi.mock("react-i18next", () => ({
         district: "District",
         province: "Province",
         representativeName: "Representative name",
-        representativePosition: "Representative position",
         representativePhone: "Representative phone",
-        representativeEmail: "Representative email",
+        resendVerification: "Resend code",
+        resendVerificationSuccess: "Verification code resent",
+        verifyEmail: "Verify email",
       };
 
       return values[key] ?? key;
@@ -54,17 +60,66 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("Register", () => {
-  it("keeps previous step values and submits the complete registration payload", async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("advances from the address step without submitting the registration", async () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter>
-        <Register />
+      <MemoryRouter initialEntries={["/register"]}>
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route
+            path="/register/success"
+            element={<div>Pending operator approval</div>}
+          />
+        </Routes>
       </MemoryRouter>,
     );
 
     await user.type(screen.getByPlaceholderText("VietRide Express"), "VietRide Express");
-    await user.type(screen.getByPlaceholderText("ops@operator.vn"), "ops@operator.vn");
+    await user.type(
+      screen.getByPlaceholderText("ops@operator.vn"),
+      " Ops@Operator.VN ",
+    );
+    await user.type(screen.getAllByPlaceholderText("0901234567")[0], "0901234567");
+    await user.type(screen.getByPlaceholderText("0312345678"), "0312345678");
+    await user.type(screen.getByPlaceholderText("0301234567"), "0301234567");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    await user.type(screen.getByPlaceholderText("123 Nguyen Van Linh"), "123 Nguyen Van Linh");
+    await user.type(screen.getByPlaceholderText("Ward 1"), "Ward 1");
+    await user.type(screen.getByPlaceholderText("District 1"), "District 1");
+    await user.type(screen.getByPlaceholderText("Ho Chi Minh City"), "Ho Chi Minh City");
+
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(await screen.findByPlaceholderText("Nguyen Van A")).toBeInTheDocument();
+    expect(registerOperator).not.toHaveBeenCalled();
+  });
+
+  it("keeps previous step values and submits the complete registration payload", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route
+            path="/register/success"
+            element={<div>Pending operator approval</div>}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByPlaceholderText("VietRide Express"), "VietRide Express");
+    await user.type(
+      screen.getByPlaceholderText("ops@operator.vn"),
+      " Ops@Operator.VN ",
+    );
     await user.type(screen.getAllByPlaceholderText("0901234567")[0], "0901234567");
     await user.type(screen.getByPlaceholderText("0312345678"), "0312345678");
     await user.type(screen.getByPlaceholderText("0301234567"), "0301234567");
@@ -77,9 +132,7 @@ describe("Register", () => {
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
     await user.type(screen.getByPlaceholderText("Nguyen Van A"), "Nguyen Van A");
-    await user.type(screen.getByPlaceholderText("Operations manager"), "Operations manager");
     await user.type(screen.getAllByPlaceholderText("0901234567")[0], "0907654321");
-    await user.type(screen.getByPlaceholderText("owner@operator.vn"), "owner@operator.vn");
     await user.type(screen.getByPlaceholderText("Enter password"), "secret123");
 
     await user.click(screen.getByRole("button", { name: /create account/i }));
@@ -95,10 +148,27 @@ describe("Register", () => {
       addressDistrict: "District 1",
       addressProvince: "Ho Chi Minh City",
       representativeName: "Nguyen Van A",
-      representativePosition: "Operations manager",
       representativePhone: "0907654321",
-      representativeEmail: "owner@operator.vn",
       password: "secret123",
     });
+
+    expect(screen.getByDisplayValue("ops@operator.vn")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /resend code/i }));
+
+    expect(resendVerificationEmail).toHaveBeenCalledWith({
+      email: "ops@operator.vn",
+      purpose: "REGISTRATION",
+    });
+    expect(screen.getByText("Verification code resent")).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("123456"), "654321");
+    await user.click(screen.getByRole("button", { name: /verify email/i }));
+
+    expect(verifyEmail).toHaveBeenCalledWith({
+      email: "ops@operator.vn",
+      code: "654321",
+      purpose: "REGISTRATION",
+    });
+    expect(await screen.findByText("Pending operator approval")).toBeInTheDocument();
   });
 });

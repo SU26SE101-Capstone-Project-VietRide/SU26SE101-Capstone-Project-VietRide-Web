@@ -24,7 +24,6 @@ export default function ManagerLayout() {
         <Topbar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           userName={t("layout.managerDashboard")}
-          unreadNotifications={5}
         />
 
         <main className="flex-1 overflow-auto bg-gray-50">
