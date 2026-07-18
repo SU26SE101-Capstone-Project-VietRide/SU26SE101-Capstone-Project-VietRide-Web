@@ -1,0 +1,107 @@
+name: Deploy frontend
+
+# Chỉ pull image có sẵn trên GHCR rồi up service `frontend` trong compose của BE
+# (/opt/vietride/infra/docker/docker-compose.prod.yml). Không build ở đây.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag image cần deploy"
+        required: false
+        default: "latest"
+
+concurrency:
+  group: deploy-frontend-production
+  cancel-in-progress: false
+
+env:
+  COMPOSE_DIR: /opt/vietride/infra/docker
+  IMAGE_TAG: ${{ inputs.tag || 'latest' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ISP NAT trước server hay reset kết nối SSH từ IP runner của GitHub
+      # (Azure). Script idempotent nên chạy lại an toàn — giữ nguyên pattern
+      # retry của BE, bỏ đi là sẽ dính đỏ ngẫu nhiên.
+      - name: Deploy over SSH
+        id: deploy
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd ${{ env.COMPOSE_DIR }}
+
+            echo "${{ secrets.GHCR_TOKEN }}" \
+              | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            # .env chứa secret thật của BE và phải có sẵn trên server. Không tự
+            # tạo mới: thiếu file nghĩa là BE chưa deploy, fail sớm cho rõ ràng.
+            if [ ! -f .env ]; then
+              echo "::error::${{ env.COMPOSE_DIR }}/.env not found — deploy BE trước"; exit 1
+            fi
+
+            # Ghi FRONTEND_TAG vào .env (idempotent) thay vì chỉ export cho một
+            # lệnh: nhờ vậy lần deploy BE kế tiếp — vốn chạy `up -d` cho cả stack —
+            # vẫn giữ đúng phiên bản FE này thay vì tụt về :latest.
+            sed -i '/^FRONTEND_TAG=/d' .env
+            echo "FRONTEND_TAG=${{ env.IMAGE_TAG }}" >> .env
+
+            docker compose -f docker-compose.prod.yml --env-file .env config --quiet
+            docker compose -f docker-compose.prod.yml --env-file .env pull frontend
+            docker compose -f docker-compose.prod.yml --env-file .env up -d frontend
+
+      - name: Deploy over SSH (retry)
+        if: steps.deploy.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd ${{ env.COMPOSE_DIR }}
+
+            echo "${{ secrets.GHCR_TOKEN }}" \
+              | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            # Giống hệt bước trên — retry chỉ có ý nghĩa khi chạy đúng cùng một script.
+            if [ ! -f .env ]; then
+              echo "::error::${{ env.COMPOSE_DIR }}/.env not found — deploy BE trước"; exit 1
+            fi
+
+            sed -i '/^FRONTEND_TAG=/d' .env
+            echo "FRONTEND_TAG=${{ env.IMAGE_TAG }}" >> .env
+
+            docker compose -f docker-compose.prod.yml --env-file .env config --quiet
+            docker compose -f docker-compose.prod.yml --env-file .env pull frontend
+            docker compose -f docker-compose.prod.yml --env-file .env up -d frontend
+
+      # Gate cuối giống BE: đợi tới ~150s cho container lên rồi mới cho job pass.
+      - name: Smoke check
+        run: |
+          set -euo pipefail
+          DOMAIN="${{ secrets.APP_DOMAIN }}"
+          for i in $(seq 1 10); do
+            if curl -fsS "https://${DOMAIN}/" -o /dev/null; then
+              echo "FE trả 200 ở lần thử ${i}"
+              # Đảm bảo nginx BE vẫn ưu tiên /v1/ cho gateway, không nuốt vào SPA.
+              curl -fsS "https://${DOMAIN}/health" -o /dev/null
+              echo "Health endpoint của BE vẫn nguyên"
+              exit 0
+            fi
+            echo "Lần ${i} chưa được, đợi 15s..."
+            sleep 15
+          done
+          echo "FE không phản hồi sau ~150s"
+          exit 1

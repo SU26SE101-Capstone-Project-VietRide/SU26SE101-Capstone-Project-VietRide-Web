@@ -173,4 +173,61 @@ describe("auth", () => {
       }),
     );
   });
+
+  it("shares a single refresh request across concurrent callers", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "old-access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          phone: "0901234567",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          statusCode: 0,
+          message: "OK",
+          data: {
+            accessToken: "new-access-token",
+            refreshToken: "new-refresh-token",
+            expiresInSeconds: 3600,
+            user: {
+              id: "user-1",
+              email: "admin@vietride.vn",
+              displayName: "Admin",
+              phone: "0901234567",
+              role: "SYSTEM_ADMIN",
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const sessions = await Promise.all([
+      refreshAuthSession(),
+      refreshAuthSession(),
+      refreshAuthSession(),
+      refreshAuthSession(),
+      refreshAuthSession(),
+    ]);
+
+    // Gọi nhiều lần nhưng chỉ được bắn đúng một request, nếu không BE sẽ coi
+    // các lần sau là reuse và revoke toàn bộ token family.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    sessions.forEach((session) => {
+      expect(session?.accessToken).toBe("new-access-token");
+    });
+  });
 });
