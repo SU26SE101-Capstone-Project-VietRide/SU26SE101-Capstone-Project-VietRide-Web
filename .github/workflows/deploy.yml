@@ -1,0 +1,188 @@
+name: Deploy frontend
+
+# Deploy FE như một compose project RIÊNG (`vietride-frontend`), gắn vào network
+# vietride_net do stack BE tạo. Không đụng docker-compose.prod.yml hay .env của BE,
+# nên deploy BE và deploy FE hoàn toàn độc lập theo cả hai chiều.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag image cần deploy"
+        required: false
+        type: string
+        default: "latest"
+  # release.yml gọi vào đây. Bản dispatch ở trên vẫn giữ nguyên vai trò
+  # "rollback một cú bấm": chạy lại với bất kỳ tag cũ nào.
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag image cần deploy"
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-frontend-production
+  cancel-in-progress: false
+
+env:
+  # Thư mục riêng của FE. Stack BE nằm ở /opt/vietride/infra/docker và không bị đụng.
+  COMPOSE_DIR: /opt/vietride/frontend
+  IMAGE_TAG: ${{ inputs.tag || 'latest' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Giống BE (deploy.yml của BE cũng khai `environment: production`). Hai tác dụng:
+    #   - đọc được Environment secrets, không chỉ repository secrets;
+    #   - deploy hiện trong tab Environments, có lịch sử + gắn được protection rule.
+    # Repository secrets vẫn dùng được bình thường — Environment secrets chỉ ghi đè
+    # khi trùng tên, nên đặt ở đâu cũng chạy.
+    environment: production
+
+    steps:
+      # Secret rỗng làm appleboy/ssh-action chết với "can't connect without a
+      # private SSH key or password" — chôn dưới ~60 dòng `docker run`, rất khó
+      # thấy. Chặn ngay từ đầu với thông báo chỉ đúng tên biến còn thiếu.
+      # Secret KHÔNG dùng chung giữa các repo: repo BE có không có nghĩa repo này có.
+      - name: Preflight — kiểm tra secret bắt buộc
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+        run: |
+          missing=""
+          for k in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GHCR_USERNAME GHCR_TOKEN APP_DOMAIN; do
+            [ -n "${!k}" ] || missing="$missing $k"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Repo FE thiếu secret:$missing"
+            echo "Thêm tại: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Secret không dùng chung giữa các repo — repo BE đã có vẫn phải set lại ở đây."
+            exit 1
+          fi
+          echo "Đủ 6 secret bắt buộc. DEPLOY_PORT tuỳ chọn, bỏ trống thì dùng 22."
+
+      # BẮT BUỘC: scp-action đóng gói file từ workspace của runner. Không checkout
+      # thì workspace rỗng và nó chết với "tar: empty archive".
+      - uses: actions/checkout@v4
+
+      # scp-action thường tự tạo thư mục đích, nhưng lần deploy đầu tiên mà nó
+      # không tạo thì scp fail. Bước này rẻ và idempotent nên cứ chạy cho chắc.
+      - name: Ensure target directory
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: mkdir -p ${{ env.COMPOSE_DIR }}
+
+      # ISP NAT trước server hay reset kết nối SSH từ IP runner GitHub (Azure).
+      # Mọi bước scp/ssh đều nhân đôi với retry, giống hệt pipeline BE. Script
+      # idempotent nên chạy lại vô hại. Đừng bỏ các bước retry này.
+      - name: Copy compose file to server
+        id: scp
+        continue-on-error: true
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          source: docker-compose.prod.yml
+          target: ${{ env.COMPOSE_DIR }}
+          overwrite: true
+          strip_components: 0
+
+      - name: Copy compose file to server (retry)
+        if: steps.scp.outcome == 'failure'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          source: docker-compose.prod.yml
+          target: ${{ env.COMPOSE_DIR }}
+          overwrite: true
+          strip_components: 0
+
+      - name: Deploy over SSH
+        id: deploy
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd ${{ env.COMPOSE_DIR }}
+
+            echo "${{ secrets.GHCR_TOKEN }}" \
+              | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            # vietride_net do stack BE tạo. Chưa có nghĩa là BE chưa từng deploy —
+            # báo lỗi rõ ràng thay vì để compose ném lỗi khó đọc.
+            if ! docker network inspect vietride_net >/dev/null 2>&1; then
+              echo "::error::network vietride_net chua ton tai — deploy BE truoc"; exit 1
+            fi
+
+            # .env của riêng FE, chỉ chứa tag. KHÔNG đụng .env secret của BE.
+            printf 'FRONTEND_TAG=%s\n' "${{ env.IMAGE_TAG }}" > .env
+
+            docker compose -f docker-compose.prod.yml --env-file .env config --quiet
+            docker compose -f docker-compose.prod.yml --env-file .env pull
+            docker compose -f docker-compose.prod.yml --env-file .env up -d
+
+      - name: Deploy over SSH (retry)
+        if: steps.deploy.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd ${{ env.COMPOSE_DIR }}
+
+            echo "${{ secrets.GHCR_TOKEN }}" \
+              | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            # Giống hệt bước trên — retry chỉ có nghĩa khi chạy đúng cùng một script.
+            if ! docker network inspect vietride_net >/dev/null 2>&1; then
+              echo "::error::network vietride_net chua ton tai — deploy BE truoc"; exit 1
+            fi
+
+            printf 'FRONTEND_TAG=%s\n' "${{ env.IMAGE_TAG }}" > .env
+
+            docker compose -f docker-compose.prod.yml --env-file .env config --quiet
+            docker compose -f docker-compose.prod.yml --env-file .env pull
+            docker compose -f docker-compose.prod.yml --env-file .env up -d
+
+      # Gate cuối giống BE: đợi tới ~150s cho container lên rồi mới cho job pass.
+      - name: Smoke check
+        run: |
+          set -euo pipefail
+          DOMAIN="${{ secrets.APP_DOMAIN }}"
+          for i in $(seq 1 10); do
+            if curl -fsS "https://${DOMAIN}/" -o /dev/null; then
+              echo "FE trả 200 ở lần thử ${i}"
+              # Đảm bảo nginx BE vẫn ưu tiên /v1/ cho gateway, không nuốt vào SPA.
+              curl -fsS "https://${DOMAIN}/health" -o /dev/null
+              echo "Health endpoint của BE vẫn nguyên"
+              exit 0
+            fi
+            echo "Lần ${i} chưa được, đợi 15s..."
+            sleep 15
+          done
+          echo "FE không phản hồi sau ~150s"
+          exit 1

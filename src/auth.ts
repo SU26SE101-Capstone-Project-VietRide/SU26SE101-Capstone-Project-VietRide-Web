@@ -197,7 +197,23 @@ export async function login(request: LoginRequest): Promise<LoginData> {
   return response.data;
 }
 
-export async function refreshAuthSession(): Promise<LoginData | null> {
+// BE xoay vòng refresh token và có reuse detection: dùng lại một token đã xoay
+// sẽ khiến BE revoke toàn bộ token family. Nếu nhiều request cùng 401 và mỗi
+// request tự gọi /auth/refresh, các lần gọi sau sẽ mang token cũ và bị coi là
+// reuse. Vì vậy mọi lời gọi phải chia sẻ chung một promise refresh duy nhất.
+let refreshInFlight: Promise<LoginData | null> | null = null;
+
+export function refreshAuthSession(): Promise<LoginData | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = performRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+
+  return refreshInFlight;
+}
+
+async function performRefresh(): Promise<LoginData | null> {
   const session = getAuthSession();
   if (!session?.refreshToken) {
     return null;

@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+.agents
+.codegraph
+.docx_work
+*.log
+.env.local
+.env.*.local
+.vscode
+.idea

@@ -1,0 +1,38 @@
+# Stack production của FE — compose project RIÊNG, tách khỏi stack BE.
+#
+# Vì sao không nhét service này vào docker-compose.prod.yml của BE: làm vậy là
+# buộc hai deploy dính nhau cả hai chiều.
+#   - `docker compose pull` bên BE kéo MỌI service, nên image FE hỏng/chưa có sẽ
+#     làm sập một lần deploy BE hoàn toàn không liên quan;
+#   - `up -d --remove-orphans` bên BE có thể recreate hoặc xoá container FE.
+# Tách project ra thì deploy BE không bao giờ chạm FE, và ngược lại.
+#
+# nginx của BE tìm thấy container này qua network vietride_net bằng alias
+# `frontend`, resolve lại mỗi request, nên hai bên deploy độc lập thoải mái.
+#
+# File này được deploy workflow scp lên /opt/vietride/frontend/ trên server.
+
+name: vietride-frontend
+
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/su26se101-capstone-project-vietride/su26se101-capstone-project-vietride-web}:${FRONTEND_TAG:-latest}
+    container_name: vietride_frontend
+    restart: unless-stopped
+    networks:
+      vietride_net:
+        # Bắt buộc khai alias: container thuộc project khác nên KHÔNG tự có
+        # alias theo tên service trên network external này. Thiếu dòng này thì
+        # nginx của BE resolve `frontend` không ra và trả 502.
+        aliases:
+          - frontend
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://127.0.0.1/healthz || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+networks:
+  # Do stack BE tạo ra. FE chỉ gắn vào, không sở hữu.
+  vietride_net:
+    external: true

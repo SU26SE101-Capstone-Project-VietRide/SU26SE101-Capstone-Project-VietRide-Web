@@ -17,7 +17,7 @@ import {
   FiGrid,
   FiDatabase,
 } from "react-icons/fi";
-import logo from "../assets/login/logo.svg";
+import logo from "../assets/Login/logo.svg";
 import { AiOutlineLogout } from "react-icons/ai";
 import { logout, type AuthRole } from "../auth";
 
