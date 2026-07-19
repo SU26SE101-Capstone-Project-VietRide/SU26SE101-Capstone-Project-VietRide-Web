@@ -1,21 +1,32 @@
 name: Deploy frontend
 
-# Chỉ pull image có sẵn trên GHCR rồi up service `frontend` trong compose của BE
-# (/opt/vietride/infra/docker/docker-compose.prod.yml). Không build ở đây.
+# Deploy FE như một compose project RIÊNG (`vietride-frontend`), gắn vào network
+# vietride_net do stack BE tạo. Không đụng docker-compose.prod.yml hay .env của BE,
+# nên deploy BE và deploy FE hoàn toàn độc lập theo cả hai chiều.
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: "Tag image cần deploy"
         required: false
+        type: string
         default: "latest"
+  # release.yml gọi vào đây. Bản dispatch ở trên vẫn giữ nguyên vai trò
+  # "rollback một cú bấm": chạy lại với bất kỳ tag cũ nào.
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag image cần deploy"
+        required: true
+        type: string
 
 concurrency:
   group: deploy-frontend-production
   cancel-in-progress: false
 
 env:
-  COMPOSE_DIR: /opt/vietride/infra/docker
+  # Thư mục riêng của FE. Stack BE nằm ở /opt/vietride/infra/docker và không bị đụng.
+  COMPOSE_DIR: /opt/vietride/frontend
   IMAGE_TAG: ${{ inputs.tag || 'latest' }}
 
 jobs:
@@ -23,9 +34,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ISP NAT trước server hay reset kết nối SSH từ IP runner của GitHub
-      # (Azure). Script idempotent nên chạy lại an toàn — giữ nguyên pattern
-      # retry của BE, bỏ đi là sẽ dính đỏ ngẫu nhiên.
+      # scp-action thường tự tạo thư mục đích, nhưng lần deploy đầu tiên mà nó
+      # không tạo thì scp fail. Bước này rẻ và idempotent nên cứ chạy cho chắc.
+      - name: Ensure target directory
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script: mkdir -p ${{ env.COMPOSE_DIR }}
+
+      # ISP NAT trước server hay reset kết nối SSH từ IP runner GitHub (Azure).
+      # Mọi bước scp/ssh đều nhân đôi với retry, giống hệt pipeline BE. Script
+      # idempotent nên chạy lại vô hại. Đừng bỏ các bước retry này.
+      - name: Copy compose file to server
+        id: scp
+        continue-on-error: true
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          source: docker-compose.prod.yml
+          target: ${{ env.COMPOSE_DIR }}
+          strip_components: 0
+
+      - name: Copy compose file to server (retry)
+        if: steps.scp.outcome == 'failure'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          source: docker-compose.prod.yml
+          target: ${{ env.COMPOSE_DIR }}
+          strip_components: 0
+
       - name: Deploy over SSH
         id: deploy
         continue-on-error: true
@@ -43,21 +91,18 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" \
               | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
-            # .env chứa secret thật của BE và phải có sẵn trên server. Không tự
-            # tạo mới: thiếu file nghĩa là BE chưa deploy, fail sớm cho rõ ràng.
-            if [ ! -f .env ]; then
-              echo "::error::${{ env.COMPOSE_DIR }}/.env not found — deploy BE trước"; exit 1
+            # vietride_net do stack BE tạo. Chưa có nghĩa là BE chưa từng deploy —
+            # báo lỗi rõ ràng thay vì để compose ném lỗi khó đọc.
+            if ! docker network inspect vietride_net >/dev/null 2>&1; then
+              echo "::error::network vietride_net chua ton tai — deploy BE truoc"; exit 1
             fi
 
-            # Ghi FRONTEND_TAG vào .env (idempotent) thay vì chỉ export cho một
-            # lệnh: nhờ vậy lần deploy BE kế tiếp — vốn chạy `up -d` cho cả stack —
-            # vẫn giữ đúng phiên bản FE này thay vì tụt về :latest.
-            sed -i '/^FRONTEND_TAG=/d' .env
-            echo "FRONTEND_TAG=${{ env.IMAGE_TAG }}" >> .env
+            # .env của riêng FE, chỉ chứa tag. KHÔNG đụng .env secret của BE.
+            printf 'FRONTEND_TAG=%s\n' "${{ env.IMAGE_TAG }}" > .env
 
             docker compose -f docker-compose.prod.yml --env-file .env config --quiet
-            docker compose -f docker-compose.prod.yml --env-file .env pull frontend
-            docker compose -f docker-compose.prod.yml --env-file .env up -d frontend
+            docker compose -f docker-compose.prod.yml --env-file .env pull
+            docker compose -f docker-compose.prod.yml --env-file .env up -d
 
       - name: Deploy over SSH (retry)
         if: steps.deploy.outcome == 'failure'
@@ -75,17 +120,16 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" \
               | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
-            # Giống hệt bước trên — retry chỉ có ý nghĩa khi chạy đúng cùng một script.
-            if [ ! -f .env ]; then
-              echo "::error::${{ env.COMPOSE_DIR }}/.env not found — deploy BE trước"; exit 1
+            # Giống hệt bước trên — retry chỉ có nghĩa khi chạy đúng cùng một script.
+            if ! docker network inspect vietride_net >/dev/null 2>&1; then
+              echo "::error::network vietride_net chua ton tai — deploy BE truoc"; exit 1
             fi
 
-            sed -i '/^FRONTEND_TAG=/d' .env
-            echo "FRONTEND_TAG=${{ env.IMAGE_TAG }}" >> .env
+            printf 'FRONTEND_TAG=%s\n' "${{ env.IMAGE_TAG }}" > .env
 
             docker compose -f docker-compose.prod.yml --env-file .env config --quiet
-            docker compose -f docker-compose.prod.yml --env-file .env pull frontend
-            docker compose -f docker-compose.prod.yml --env-file .env up -d frontend
+            docker compose -f docker-compose.prod.yml --env-file .env pull
+            docker compose -f docker-compose.prod.yml --env-file .env up -d
 
       # Gate cuối giống BE: đợi tới ~150s cho container lên rồi mới cho job pass.
       - name: Smoke check

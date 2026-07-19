@@ -11,7 +11,16 @@ on:
       tag:
         description: "Tag gán cho image (ngoài sha)"
         required: false
+        type: string
         default: "latest"
+  # release.yml gọi vào đây để pipeline tự động dùng lại đúng build này,
+  # thay vì nhân bản logic build ra chỗ khác.
+  workflow_call:
+    inputs:
+      tag:
+        description: "Version tag cần build (vd v1.2.3)"
+        required: true
+        type: string
 
 jobs:
   build:
@@ -54,12 +63,17 @@ jobs:
           # GHCR từ chối chữ hoa trong đường dẫn image, mà tên repo này có hoa.
           IMAGE="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           SHORT_SHA="${GITHUB_SHA::7}"
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            EXTRA="${GITHUB_REF_NAME}"
+          # inputs.tag thắng: khi release.yml gọi qua workflow_call thì GITHUB_REF
+          # là ref của caller (main), không phải tag — dựa vào ref sẽ ra sai version.
+          if [ -n "${{ inputs.tag }}" ]; then
+            VERSION="${{ inputs.tag }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
           else
-            EXTRA="${{ inputs.tag }}"
+            VERSION="dev"
           fi
-          echo "list=${IMAGE}:${SHORT_SHA},${IMAGE}:${EXTRA}" >> "$GITHUB_OUTPUT"
+          echo "list=${IMAGE}:${SHORT_SHA},${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building ${IMAGE}:${VERSION} (+ :${SHORT_SHA})"
 
       - name: Build & push
         uses: docker/build-push-action@v6

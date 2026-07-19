@@ -1,0 +1,48 @@
+name: CI
+
+# Chạy trên mọi push/PR, khác với docker-build.yml (chỉ chạy khi tag v*).
+# Không có file này thì code lên main mà không ai kiểm cho tới lúc release.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+# Push liên tiếp lên cùng branch: huỷ run cũ, chỉ giữ run mới nhất.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck / Lint / Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # .npmrc trong repo bật legacy-peer-deps (drei@9 khai peer react@18 nhưng
+      # project dùng react@19). Bỏ file đó là lệnh này fail ngay.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Test không đọc .env (bị gitignore, runner không có). vitest.config.ts tự
+      # pin VITE_API_BASE_URL — xem comment trong file đó.
+      - name: Test
+        run: npm test
+
+      # Bắt lỗi chỉ lộ ra khi build production: import sai hoa/thường (Linux phân
+      # biệt, Windows thì không), biến môi trường thiếu, tree-shaking hỏng.
+      - name: Build
+        run: npm run build
