@@ -20,7 +20,6 @@ import {
   type TrackingLatestResponse,
   type TrackingTrailPoint,
 } from "../../../api/vietride";
-import Modal from "../../../components/Modal";
 import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
 import CustomSelect from "../../../components/CustomSelect";
 
@@ -139,7 +138,6 @@ export default function GPSTracking() {
   );
   const [mapReady, setMapReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
-  const [openIncident, setOpenIncident] = useState(false);
   const [tripId, setTripId] = useState("");
   const [stopId, setStopId] = useState("");
   const [latest, setLatest] = useState<TrackingLatestResponse | null>(null);
@@ -149,15 +147,6 @@ export default function GPSTracking() {
   const [apiError, setApiError] = useState("");
   const [isApiLoading, setIsApiLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-
-  const severityLevels = useMemo(
-    () => [
-      t("gps.severityLow"),
-      t("gps.severityMedium"),
-      t("gps.severityHigh"),
-    ],
-    [t],
-  );
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setMapReady(true));
@@ -571,158 +560,12 @@ export default function GPSTracking() {
               {(() => {
                 const v = fleetSeed.find((x) => x.id === selectedId);
                 if (!v) return null;
-                return (
-                  <div className="space-y-2">
-                    <p>{t("gps.pingInfo", { plate: v.plate })}</p>
-                    <button
-                      type="button"
-                      onClick={() => setOpenIncident(true)}
-                      className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 hover:bg-red-100 transition"
-                    >
-                      {t("gps.reportIncident")}
-                    </button>
-                  </div>
-                );
+                return <p>{t("gps.pingInfo", { plate: v.plate })}</p>;
               })()}
             </div>
           )}
         </aside>
       </div>
-
-      <Modal
-        open={openIncident}
-        onClose={() => setOpenIncident(false)}
-        icon={<FiAlertTriangle size={20} />}
-        title={t("gps.incidentTitle")}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setOpenIncident(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpenIncident(false);
-                alert(t("gps.incidentSubmitted"));
-              }}
-              className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
-            >
-              {t("gps.submitReport")}
-            </button>
-          </>
-        }
-      >
-        {(() => {
-          const v = fleetSeed.find((x) => x.id === selectedId);
-          if (!v) return null;
-          return (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-                <p className="text-sm font-semibold text-red-900">
-                  {t("gps.vehicleLabel")}{" "}
-                  <span className="font-mono">{v.plate}</span>
-                </p>
-                <p className="text-sm text-red-800 mt-1">
-                  {t("gps.driverLabel")} {v.driver}
-                </p>
-                <p className="text-sm text-red-800">
-                  {t("gps.routeLabel")} {v.route}
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">
-                  {t("gps.incidentType")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <CustomSelect
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
-                  defaultValue="breakdown"
-                >
-                  <option value="breakdown">
-                    {t("gps.incidentBreakdown")}
-                  </option>
-                  <option value="accident">
-                    {t("gps.incidentAccident")}
-                  </option>
-                  <option value="delay">{t("gps.incidentDelay")}</option>
-                  <option value="deviation">
-                    {t("gps.incidentDeviation")}
-                  </option>
-                  <option value="safety">{t("gps.incidentSafety")}</option>
-                  <option value="gps">{t("gps.incidentGps")}</option>
-                </CustomSelect>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">
-                  {t("gps.severity")}
-                </label>
-                <div className="flex gap-3">
-                  {severityLevels.map((level, idx) => (
-                    <label key={idx} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="severity"
-                        defaultChecked={idx === 1}
-                        className="text-vr-600"
-                      />
-                      <span className="text-sm text-gray-700">{level}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">
-                  {t("gps.incidentDescription")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35 min-h-[100px]"
-                  placeholder={t("gps.incidentDescriptionPlaceholder")}
-                  rows={4}
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">
-                  {t("gps.actionsTaken")}
-                </label>
-                <textarea
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35 min-h-[80px]"
-                  placeholder={t("gps.actionsTakenPlaceholder")}
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">
-                  {t("gps.handlerContact")}
-                </label>
-                <input
-                  type="tel"
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
-                  placeholder={t("gps.reporterPhonePlaceholder")}
-                />
-              </div>
-
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-                <p className="text-xs text-blue-800">
-                  <span className="font-semibold">
-                    {t("gps.incidentNoticeLabel")}
-                  </span>{" "}
-                  {t("gps.incidentNotice")}
-                </p>
-              </div>
-            </div>
-          );
-        })()}
-      </Modal>
     </div>
   );
 }

@@ -32,6 +32,7 @@ import { VehicleBuilderPage } from "./modules/vehicle-builder";
 
 import Operators from "./pages/Admin/Operators";
 import Users from "./pages/Admin/Users";
+import ActivityLogs from "./pages/Admin/ActivityLogs";
 import Vouchers from "./pages/Admin/Vouchers";
 import Packages from "./pages/Admin/Packages";
 import Revenue from "./pages/Admin/Revenue";
@@ -113,6 +114,7 @@ export default function App() {
             <Route path="operators" element={<Operators />} />
             <Route path="stations" element={<AdminStations />} />
             <Route path="users" element={<Users />} />
+            <Route path="activity-logs" element={<ActivityLogs />} />
             <Route path="vouchers" element={<Vouchers />} />
             <Route path="packages" element={<Packages />} />
             <Route path="revenue" element={<Revenue />} />

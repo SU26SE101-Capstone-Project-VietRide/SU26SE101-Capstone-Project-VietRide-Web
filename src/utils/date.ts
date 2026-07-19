@@ -28,3 +28,21 @@ export function formatDateTime(value?: string | null) {
 
   return `${formatDateOnly(value)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+export function formatDateInputValue(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function toUtcDayStart(dateValue: string) {
+  return dateValue ? `${dateValue}T00:00:00.000Z` : undefined;
+}
+
+export function toExclusiveUtcDayEnd(dateValue: string) {
+  if (!dateValue) {
+    return undefined;
+  }
+
+  const date = new Date(`${dateValue}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString();
+}

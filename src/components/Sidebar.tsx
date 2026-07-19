@@ -199,6 +199,11 @@ const adminMenuConfig: MenuSection[] = [
       },
       { labelKey: "admin.users", path: "/admin/users", icon: <FiBookOpen /> },
       {
+        labelKey: "admin.activityLogs",
+        path: "/admin/activity-logs",
+        icon: <FiFileText />,
+      },
+      {
         labelKey: "admin.vouchers",
         path: "/admin/vouchers",
         icon: <FiPackage />,

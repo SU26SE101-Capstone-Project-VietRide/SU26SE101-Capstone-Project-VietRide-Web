@@ -68,6 +68,8 @@
   "note": "Note",
   "month": "Month",
   "today": "Today",
+  "from": "From",
+  "to": "To",
   "topbar": {
     "defaultUserName": "Operator manager",
     "searchPlaceholder": "Search trips, bookings, parcels...",

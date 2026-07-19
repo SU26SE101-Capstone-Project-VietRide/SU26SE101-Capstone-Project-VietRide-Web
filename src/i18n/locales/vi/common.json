@@ -68,6 +68,8 @@
   "note": "Ghi chú",
   "month": "Tháng",
   "today": "Hôm nay",
+  "from": "Từ ngày",
+  "to": "Đến ngày",
   "topbar": {
     "defaultUserName": "Quản lý nhà xe",
     "searchPlaceholder": "Tìm chuyến, booking, parcel...",

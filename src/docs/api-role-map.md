@@ -11,6 +11,14 @@ This note maps the Swagger screenshots to frontend usage.
 - `POST /v1/admin/operators/{operatorId}/suspend`: suspend an approved operator with a reason.
 - `GET /v1/admin/operator-users`: list users across operators.
 - `POST /v1/admin/users`: create an admin-managed user.
+- `GET /v1/admin/users`: list, filter, sort and page users, including soft-deleted records when explicitly requested.
+- `POST /v1/admin/users/{userId}/lock`: lock a user and revoke active refresh tokens. Requires `Idempotency-Key`.
+- `POST /v1/admin/users/{userId}/unlock`: restore the user's status before lock. Requires `Idempotency-Key`.
+- `GET /v1/admin/activity-logs`: query administrative audit logs by actor, action and UTC range.
+- `GET /v1/admin/stations`: list platform stations.
+- `PATCH /v1/admin/stations/{stationId}`: normalize platform station data.
+- `POST /v1/admin/stations/{primaryStationId}/merge`: merge a duplicate station into the canonical station. Requires `Idempotency-Key`.
+- `GET /v1/admin/reports/platform`: aggregate completed bookings, trips, delivered parcels and earned revenue in a strict UTC range.
 
 ## Operator Admin / Manager
 
@@ -40,6 +48,25 @@ This note maps the Swagger screenshots to frontend usage.
 - `POST /v1/operator/vehicles`: create a vehicle.
 - `GET /v1/operator/vehicles/{id}`: get vehicle detail.
 - `PATCH /v1/operator/vehicles/{id}`: update a vehicle.
+- `GET /v1/notifications`: receive notifications for the current account. Day 39 trip incidents are sent only to active `OPERATOR_ADMIN` users of the matching operator.
+- `POST /v1/notifications/{notificationId}/read`: mark an incident or other notification as read.
+
+## Operator Staff
+
+- Day 40 admin operations are not available to `OPERATOR_STAFF`.
+- Day 39 driver operations are not available to `OPERATOR_STAFF` either. Staff can monitor the operator-facing screens already authorized by the gateway, but cannot report driver incidents or confirm arrivals on behalf of a driver.
+
+## Driver / Assistant Boundary
+
+The following Day 39 APIs belong to driver-facing applications and must not be called from the three web roles (`SYSTEM_ADMIN`, `OPERATOR_ADMIN`, `OPERATOR_STAFF`):
+
+- `POST /v1/driver/trips/{tripId}/incident`
+- `POST /v1/driver/trips/{tripId}/stops/{stopId}/arrive`
+- `POST /v1/driver/trips/{tripId}/destination/arrive`
+- `POST /v1/assistant/parcels/{parcelId}/unload`
+- `POST /v1/assistant/parcels/{parcelId}/deliver`
+
+`POST /v1/operator/trips/{tripId}/stops/{stopId}/arrive` is an obsolete path and must not be used.
 
 ## Public / Passenger-Facing
 
@@ -62,4 +89,4 @@ These are for backend service-to-service calls, not normal browser UI calls:
 - `POST /internal/v1/trips/{tripId}/book-seats`
 - `POST /internal/v1/trips/round-trip/lock-seats`
 
-Use them from frontend only if the gateway intentionally exposes them to the current user token.
+Do not call these endpoints from browser code. They require internal service credentials and are not part of the three-role frontend surface.

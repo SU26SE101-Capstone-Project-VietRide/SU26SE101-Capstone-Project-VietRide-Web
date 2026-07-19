@@ -5,39 +5,31 @@ import {
   FiGitMerge,
   FiMapPin,
   FiPower,
+  FiRefreshCw,
   FiSave,
   FiSearch,
 } from "react-icons/fi";
-import PlacePicker, { type PlaceSelection } from "../../../components/PlacePicker";
+import {
+  getAdminStations,
+  mergeAdminStations,
+  updateAdminStation,
+  type Station,
+} from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
-import {
-  getAdminLocations,
-  updateAdminLocation,
-  type AdminLocation,
-} from "../../../api/vietride";
-
-type StationStatus = "ACTIVE" | "DUPLICATE" | "INACTIVE";
-
-type PlatformStation = {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  latitude: number;
-  longitude: number;
-  linkedOperators: number;
-  duplicateOf?: string;
-  status: StationStatus;
-  updatedAt: string;
-};
+import PlacePicker, { type PlaceSelection } from "../../../components/PlacePicker";
+import { formatDateTime } from "../../../utils/date";
 
 type StationForm = {
   name: string;
-  address: string;
+  addressStreet: string;
   city: string;
+  province: string;
   latitude: string;
   longitude: string;
+  contactPhone: string;
+  contactEmail: string;
+  supportsShuttle: boolean;
 };
 
 type AlertState = {
@@ -45,80 +37,23 @@ type AlertState = {
   message: string;
 };
 
-const initialStations: PlatformStation[] = [
-  {
-    id: "st-sgn-mien-dong",
-    name: "Mien Dong Bus Station",
-    address: "292 Dinh Bo Linh, Binh Thanh",
-    city: "Ho Chi Minh City",
-    latitude: 10.8142,
-    longitude: 106.7111,
-    linkedOperators: 18,
-    status: "ACTIVE",
-    updatedAt: "2026-06-20",
-  },
-  {
-    id: "st-sgn-mien-dong-new",
-    name: "New Mien Dong Bus Station",
-    address: "501 Hoang Huu Nam, Thu Duc",
-    city: "Ho Chi Minh City",
-    latitude: 10.8798,
-    longitude: 106.8143,
-    linkedOperators: 24,
-    status: "ACTIVE",
-    updatedAt: "2026-06-24",
-  },
-  {
-    id: "st-sgn-md-new-duplicate",
-    name: "Ben xe Mien Dong moi",
-    address: "501 Hoang Huu Nam, Thu Duc",
-    city: "Ho Chi Minh City",
-    latitude: 10.8797,
-    longitude: 106.8142,
-    linkedOperators: 3,
-    duplicateOf: "st-sgn-mien-dong-new",
-    status: "DUPLICATE",
-    updatedAt: "2026-06-26",
-  },
-  {
-    id: "st-hni-giap-bat",
-    name: "Giap Bat Bus Station",
-    address: "Giai Phong, Hoang Mai",
-    city: "Ha Noi",
-    latitude: 20.9803,
-    longitude: 105.8412,
-    linkedOperators: 11,
-    status: "ACTIVE",
-    updatedAt: "2026-06-18",
-  },
-  {
-    id: "st-dlt-old-center",
-    name: "Da Lat Old City Stop",
-    address: "Tran Phu, Ward 3",
-    city: "Da Lat",
-    latitude: 11.9404,
-    longitude: 108.4583,
-    linkedOperators: 0,
-    status: "INACTIVE",
-    updatedAt: "2026-06-10",
-  },
-];
-
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
-
 const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
-
 const iconButtonClass =
-  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50";
+  "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 
-function toForm(station: PlatformStation): StationForm {
+function toForm(station: Station): StationForm {
   return {
-    name: station.name,
-    address: station.address,
-    city: station.city,
-    latitude: String(station.latitude),
-    longitude: String(station.longitude),
+    name: station.name ?? "",
+    addressStreet: station.addressStreet ?? station.address ?? "",
+    city: station.city ?? "",
+    province: station.province ?? "",
+    latitude: String(station.latitude ?? ""),
+    longitude: String(station.longitude ?? ""),
+    contactPhone: station.contactPhone ?? "",
+    contactEmail: station.contactEmail ?? "",
+    supportsShuttle: station.supportsShuttle ?? false,
   };
 }
 
@@ -133,74 +68,57 @@ function isValidCoordinate(latitude: number, longitude: number) {
   );
 }
 
-function toStationStatus(location: AdminLocation): StationStatus {
-  if (location.status === "DUPLICATE") {
-    return "DUPLICATE";
-  }
-
-  if (location.status === "INACTIVE" || location.isActive === false) {
-    return "INACTIVE";
-  }
-
-  return "ACTIVE";
-}
-
-function toPlatformStation(location: AdminLocation): PlatformStation {
-  return {
-    id: location.id,
-    name: location.name,
-    address: location.address ?? "",
-    city: location.city ?? location.province ?? "",
-    latitude: location.latitude,
-    longitude: location.longitude,
-    linkedOperators: location.linkedOperators ?? 0,
-    duplicateOf: location.duplicateOf ?? undefined,
-    status: toStationStatus(location),
-    updatedAt: location.updatedAt ?? location.createdAt ?? "",
-  };
-}
-
 export default function AdminStations() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
-  const [stations, setStations] = useState<PlatformStation[]>(initialStations);
+  const [stations, setStations] = useState<Station[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStationId, setSelectedStationId] = useState(
-    initialStations[0]?.id ?? "",
-  );
-  const [mergeTargetId, setMergeTargetId] = useState(
-    initialStations[1]?.id ?? "",
-  );
-  const [form, setForm] = useState<StationForm>(toForm(initialStations[0]));
+  const [selectedStationId, setSelectedStationId] = useState("");
+  const [mergeTargetId, setMergeTargetId] = useState("");
+  const [form, setForm] = useState<StationForm | null>(null);
   const [alert, setAlert] = useState<AlertState | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
   useEffect(() => {
     let ignore = false;
 
-    async function loadLocations() {
+    async function loadStations() {
       setIsLoading(true);
 
       try {
-        const result = await getAdminLocations({ page: 1, pageSize: 100 });
-        const nextStations = result.items.map(toPlatformStation);
+        const result = await getAdminStations({
+          page: 1,
+          pageSize: 100,
+          sortBy: "updatedAt",
+          sortDir: "desc",
+        });
 
-        if (ignore || nextStations.length === 0) {
+        if (ignore) {
           return;
         }
 
-        setStations(nextStations);
-        setSelectedStationId(nextStations[0].id);
-        setMergeTargetId(nextStations[1]?.id ?? nextStations[0].id);
-        setForm(toForm(nextStations[0]));
-      } catch (err) {
+        setStations(result.items);
+        setSelectedStationId((currentId) => {
+          const selected =
+            result.items.find((station) => station.id === currentId) ??
+            result.items[0];
+          setForm(selected ? toForm(selected) : null);
+          setMergeTargetId(
+            result.items.find((station) => station.id !== selected?.id)?.id ?? "",
+          );
+          return selected?.id ?? "";
+        });
+      } catch (error) {
         if (!ignore) {
+          setStations([]);
+          setForm(null);
           setAlert({
             tone: "error",
-            message:
-              err instanceof Error ? err.message : "Failed to load locations",
+            message: error instanceof Error ? error.message : t("stations.loadFailed"),
           });
         }
       } finally {
@@ -210,63 +128,40 @@ export default function AdminStations() {
       }
     }
 
-    void loadLocations();
-
+    void loadStations();
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [reloadKey, t]);
 
-  const filteredStations = useMemo(
-    () =>
-      stations.filter((station) => {
-        const query = searchTerm.toLowerCase();
-        return (
-          station.name.toLowerCase().includes(query) ||
-          station.city.toLowerCase().includes(query) ||
-          station.address.toLowerCase().includes(query)
-        );
-      }),
-    [searchTerm, stations],
-  );
+  const filteredStations = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) {
+      return stations;
+    }
 
-  const paginatedStations = useMemo(
-    () => filteredStations.slice((page - 1) * pageSize, page * pageSize),
-    [filteredStations, page],
-  );
-
-  const selectedStation = useMemo(
-    () =>
-      stations.find((station) => station.id === selectedStationId) ??
-      stations[0],
-    [selectedStationId, stations],
-  );
-
-  const duplicateCount = stations.filter(
-    (station) => station.status === "DUPLICATE",
-  ).length;
-  const activeCount = stations.filter(
-    (station) => station.status === "ACTIVE",
-  ).length;
-  const inactiveCount = stations.filter(
-    (station) => station.status === "INACTIVE",
-  ).length;
-
-  const selectStation = (station: PlatformStation) => {
-    setSelectedStationId(station.id);
-    setForm(toForm(station));
-    setMergeTargetId(
-      stations.find(
-        (item) => item.id !== station.id && item.status !== "INACTIVE",
-      )?.id ?? "",
+    return stations.filter((station) =>
+      [station.name, station.addressStreet, station.address, station.city, station.province]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(query)),
     );
-    setAlert(null);
-  };
+  }, [searchTerm, stations]);
+
+  const paginatedStations = filteredStations.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
+  const selectedStation = stations.find((station) => station.id === selectedStationId);
+  const activeCount = stations.filter((station) => station.isActive !== false).length;
+  const inactiveCount = stations.length - activeCount;
 
   const selectedPlace = useMemo<PlaceSelection | null>(() => {
+    if (!form) {
+      return null;
+    }
+
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
-
     if (!isValidCoordinate(latitude, longitude)) {
       return null;
     }
@@ -274,341 +169,303 @@ export default function AdminStations() {
     return {
       placeId: selectedStationId || `${latitude},${longitude}`,
       name: form.name,
-      address: form.address,
+      address: form.addressStreet,
       city: form.city,
-      province: form.city,
+      province: form.province,
       latitude,
       longitude,
     };
   }, [form, selectedStationId]);
 
-  const applyPlace = (place: PlaceSelection) => {
-    setForm({
-      name: place.name,
-      address: place.address,
-      city: place.city || place.province,
-      latitude: String(place.latitude),
-      longitude: String(place.longitude),
-    });
-  };
+  function selectStation(station: Station) {
+    setSelectedStationId(station.id);
+    setForm(toForm(station));
+    setMergeTargetId(stations.find((item) => item.id !== station.id)?.id ?? "");
+    setAlert(null);
+  }
 
-  const saveStation = async () => {
-    if (!selectedStation) {
+  function applyPlace(place: PlaceSelection) {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            name: place.name,
+            addressStreet: place.address,
+            city: place.city,
+            province: place.province,
+            latitude: String(place.latitude),
+            longitude: String(place.longitude),
+          }
+        : current,
+    );
+  }
+
+  async function saveStation() {
+    if (!selectedStation || !form) {
       return;
     }
 
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
-
-    if (!form.name.trim() || !form.address.trim() || !form.city.trim()) {
+    if (!form.name.trim() || !form.addressStreet.trim() || !form.province.trim()) {
       setAlert({ tone: "error", message: t("stations.requiredFields") });
       return;
     }
-
     if (!isValidCoordinate(latitude, longitude)) {
       setAlert({ tone: "error", message: t("stations.invalidCoordinates") });
       return;
     }
 
+    setIsSaving(true);
+    setAlert(null);
     try {
-      const updated = await updateAdminLocation(selectedStation.id, {
+      const updated = await updateAdminStation(selectedStation.id, {
         name: form.name.trim(),
-        address: form.address.trim(),
+        addressStreet: form.addressStreet.trim(),
         city: form.city.trim(),
-        province: form.city.trim(),
+        province: form.province.trim(),
         latitude,
         longitude,
-        status: selectedStation.status,
-        duplicateOf: selectedStation.duplicateOf ?? null,
+        contactPhone: form.contactPhone.trim() || undefined,
+        contactEmail: form.contactEmail.trim() || undefined,
+        supportsShuttle: form.supportsShuttle,
       });
-      const nextStation = toPlatformStation(updated);
-
-      setStations((currentStations) =>
-        currentStations.map((station) =>
-          station.id === selectedStation.id ? nextStation : station,
-        ),
+      setStations((current) =>
+        current.map((station) => (station.id === updated.id ? updated : station)),
       );
-      setSelectedStationId(nextStation.id);
-      setForm(toForm(nextStation));
+      setForm(toForm(updated));
       setAlert({
         tone: "success",
-        message: t("stations.savedMessage", { station: form.name.trim() }),
+        message: t("stations.savedMessage", { station: updated.name }),
       });
-    } catch (err) {
+    } catch (error) {
       setAlert({
         tone: "error",
-        message: err instanceof Error ? err.message : "Failed to save location",
+        message: error instanceof Error ? error.message : t("stations.saveFailed"),
       });
+    } finally {
+      setIsSaving(false);
     }
-  };
+  }
 
-  const mergeStation = () => {
+  async function toggleStation(station: Station) {
+    setIsSaving(true);
+    setAlert(null);
+    try {
+      const updated = await updateAdminStation(station.id, {
+        isActive: station.isActive === false,
+      });
+      setStations((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      if (selectedStationId === updated.id) {
+        setForm(toForm(updated));
+      }
+      setAlert({
+        tone: "success",
+        message:
+          updated.isActive === false
+            ? t("stations.deactivatedMessage", { station: updated.name })
+            : t("stations.activatedMessage", { station: updated.name }),
+      });
+    } catch (error) {
+      setAlert({
+        tone: "error",
+        message: error instanceof Error ? error.message : t("stations.saveFailed"),
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function mergeStation() {
     if (!selectedStation) {
       return;
     }
 
     const target = stations.find((station) => station.id === mergeTargetId);
-
     if (!target) {
       setAlert({ tone: "error", message: t("stations.invalidMergeTarget") });
       return;
     }
-
     if (target.id === selectedStation.id) {
       setAlert({ tone: "error", message: t("stations.mergeIntoSelf") });
       return;
     }
-
-    setStations((currentStations) =>
-      currentStations.map((station) => {
-        if (station.id === target.id) {
-          return {
-            ...station,
-            linkedOperators:
-              station.linkedOperators + selectedStation.linkedOperators,
-            updatedAt: new Date().toISOString().slice(0, 10),
-          };
-        }
-
-        if (station.id === selectedStation.id) {
-          return {
-            ...station,
-            linkedOperators: 0,
-            duplicateOf: target.id,
-            status: "DUPLICATE",
-            updatedAt: new Date().toISOString().slice(0, 10),
-          };
-        }
-
-        return station;
-      }),
-    );
-    setAlert({
-      tone: "success",
-      message: t("stations.mergedMessage", {
-        source: selectedStation.name,
-        target: target.name,
-      }),
-    });
-  };
-
-  const deactivateStation = async (station: PlatformStation) => {
-    if (station.linkedOperators > 0 && station.status === "ACTIVE") {
-      setAlert({ tone: "error", message: t("stations.activeUseBlocked") });
-      selectStation(station);
+    if (!window.confirm(t("stations.mergeConfirm", { source: selectedStation.name, target: target.name }))) {
       return;
     }
 
-    const nextStatus = station.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
-
+    setIsSaving(true);
+    setAlert(null);
     try {
-      const updated = await updateAdminLocation(station.id, {
-        name: station.name,
-        address: station.address,
-        city: station.city,
-        province: station.city,
-        latitude: station.latitude,
-        longitude: station.longitude,
-        status: nextStatus,
-        duplicateOf: station.duplicateOf ?? null,
-      });
-      const nextStation = toPlatformStation(updated);
-
-      setStations((currentStations) =>
-        currentStations.map((item) =>
-          item.id === station.id ? nextStation : item,
-        ),
+      const result = await mergeAdminStations(target.id, selectedStation.id);
+      const relinkedTotal = Object.values(result.relinkedCounts).reduce(
+        (sum, count) => sum + count,
+        0,
       );
+      setPage(1);
+      setSelectedStationId(result.primaryStation.id);
       setAlert({
         tone: "success",
-        message:
-          station.status === "INACTIVE"
-            ? t("stations.activatedMessage", { station: station.name })
-            : t("stations.deactivatedMessage", { station: station.name }),
+        message: t("stations.mergedMessageWithCount", {
+          source: selectedStation.name,
+          target: result.primaryStation.name,
+          count: relinkedTotal,
+        }),
       });
-    } catch (err) {
+      setReloadKey((value) => value + 1);
+    } catch (error) {
       setAlert({
         tone: "error",
-        message:
-          err instanceof Error ? err.message : "Failed to update location",
+        message: error instanceof Error ? error.message : t("stations.mergeFailed"),
       });
+    } finally {
+      setIsSaving(false);
     }
-  };
-
-  const statusLabel = (status: StationStatus) => {
-    const labels: Record<StationStatus, string> = {
-      ACTIVE: tc("active"),
-      DUPLICATE: t("stations.duplicate"),
-      INACTIVE: tc("inactive"),
-    };
-    return labels[status];
-  };
-
-  const statusClass = (status: StationStatus) => {
-    const classes: Record<StationStatus, string> = {
-      ACTIVE: "bg-emerald-50 text-emerald-700",
-      DUPLICATE: "bg-amber-50 text-amber-700",
-      INACTIVE: "bg-slate-100 text-slate-600",
-    };
-    return classes[status];
-  };
+  }
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            {t("stations.title")}
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm text-gray-600">
-            {t("stations.subtitle")}
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">{t("stations.title")}</h1>
+          <p className="mt-1 max-w-3xl text-sm text-gray-600">{t("stations.subtitle")}</p>
         </div>
-      </section>
+        <button
+          type="button"
+          onClick={() => setReloadKey((value) => value + 1)}
+          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          <FiRefreshCw />
+          {tc("refresh")}
+        </button>
+      </header>
 
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-600">
-            {t("stations.activeStations")}
-          </p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">
-            {activeCount}
-          </p>
+          <p className="text-sm text-gray-600">{t("stations.totalStations")}</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">{stations.length}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-600">
-            {t("stations.duplicateStations")}
-          </p>
-          <p className="mt-1 text-2xl font-bold text-amber-600">
-            {duplicateCount}
-          </p>
+          <p className="text-sm text-gray-600">{t("stations.activeStations")}</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-600">{activeCount}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-600">
-            {t("stations.inactiveStations")}
-          </p>
-          <p className="mt-1 text-2xl font-bold text-slate-700">
-            {inactiveCount}
-          </p>
+          <p className="text-sm text-gray-600">{t("stations.inactiveStations")}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-700">{inactiveCount}</p>
         </div>
       </section>
 
-      {alert && (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm font-medium ${
-            alert.tone === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-rose-200 bg-rose-50 text-rose-700"
-          }`}
-        >
-          {alert.message}
-        </div>
-      )}
-
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                {t("stations.registry")}
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                {t("stations.registryHint")}
-              </p>
+              <h2 className="text-lg font-bold text-gray-900">{t("stations.registry")}</h2>
+              <p className="mt-1 text-sm text-gray-500">{t("stations.registryHint")}</p>
             </div>
             <div className="relative min-w-72">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
                 value={searchTerm}
                 onChange={(event) => {
                   setSearchTerm(event.target.value);
                   setPage(1);
                 }}
                 placeholder={t("stations.searchPlaceholder")}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
               />
             </div>
           </div>
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
                   <th className="px-4 py-3">{t("stations.stationName")}</th>
                   <th className="px-4 py-3">{t("stations.city")}</th>
-                  <th className="px-4 py-3">{t("stations.linkedOperators")}</th>
+                  <th className="px-4 py-3">{t("stations.shuttle")}</th>
                   <th className="px-4 py-3">{tc("status")}</th>
                   <th className="px-4 py-3 text-center">{tc("actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedStations.map((station) => (
-                  <tr
-                    key={station.id}
-                    className="border-b border-gray-100 transition hover:bg-gray-50"
-                  >
+                  <tr key={station.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900">
-                        {station.name}
-                      </p>
+                      <p className="font-semibold text-gray-900">{station.name}</p>
                       <p className="mt-1 text-xs text-gray-500">
-                        {station.address}
+                        {station.addressStreet ?? station.address ?? "-"}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-400">
+                        {formatDateTime(station.updatedAt)}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-gray-700">{station.city}</td>
                     <td className="px-4 py-3 text-gray-700">
-                      {station.linkedOperators}
+                      {[station.city, station.province].filter(Boolean).join(" / ") || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {station.supportsShuttle ? tc("yes") : tc("no")}
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(
-                          station.status,
-                        )}`}
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          station.isActive === false
+                            ? "bg-slate-100 text-slate-600"
+                            : "bg-emerald-50 text-emerald-700"
+                        }`}
                       >
-                        {statusLabel(station.status)}
+                        {station.isActive === false ? tc("inactive") : tc("active")}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          className={`${iconButtonClass} text-vr-600 hover:bg-vr-50`}
+                          className={`${iconButtonClass} text-vr-700 hover:bg-vr-50`}
                           onClick={() => selectStation(station)}
                           title={tc("edit")}
                           aria-label={tc("edit")}
                         >
-                          <FiEdit2 size={16} />
+                          <FiEdit2 />
                         </button>
                         <button
                           type="button"
-                          className={`${iconButtonClass} text-amber-600 hover:bg-amber-50`}
+                          className={`${iconButtonClass} text-amber-700 hover:bg-amber-50`}
                           onClick={() => selectStation(station)}
                           title={t("stations.merge")}
                           aria-label={t("stations.merge")}
                         >
-                          <FiGitMerge size={16} />
+                          <FiGitMerge />
                         </button>
                         <button
                           type="button"
+                          disabled={isSaving}
                           className={`${iconButtonClass} text-rose-600 hover:bg-rose-50`}
-                          onClick={() => void deactivateStation(station)}
-                          title={
-                            station.status === "INACTIVE"
-                              ? tc("enable")
-                              : tc("disable")
-                          }
-                          aria-label={
-                            station.status === "INACTIVE"
-                              ? tc("enable")
-                              : tc("disable")
-                          }
+                          onClick={() => void toggleStation(station)}
+                          title={station.isActive === false ? tc("enable") : tc("disable")}
+                          aria-label={station.isActive === false ? tc("enable") : tc("disable")}
                         >
-                          <FiPower size={16} />
+                          <FiPower />
                         </button>
                       </div>
                     </td>
                   </tr>
                 ))}
+                {!isLoading && paginatedStations.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-12 text-center text-sm text-gray-500">
+                      {t("stations.empty")}
+                    </td>
+                  </tr>
+                )}
+                {isLoading && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-12 text-center text-sm text-gray-500">
+                      {t("stations.loading")}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -620,20 +477,14 @@ export default function AdminStations() {
           />
         </div>
 
-        {selectedStation && (
+        {selectedStation && form && (
           <aside className="space-y-5">
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-vr-50 p-2 text-vr-700">
-                  <FiMapPin size={18} />
-                </div>
+                <div className="rounded-lg bg-vr-50 p-2 text-vr-700"><FiMapPin /></div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">
-                    {t("stations.normalizeTitle")}
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {t("stations.normalizeHint")}
-                  </p>
+                  <h2 className="text-lg font-bold text-gray-900">{t("stations.normalizeTitle")}</h2>
+                  <p className="mt-1 text-sm text-gray-500">{t("stations.normalizeHint")}</p>
                 </div>
               </div>
 
@@ -644,37 +495,59 @@ export default function AdminStations() {
                   selectedPlace={selectedPlace}
                   onSelect={applyPlace}
                 />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label>
+                    <span className={labelClass}>{t("stations.cityOnly")}</span>
+                    <input className={inputClass} value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} />
+                  </label>
+                  <label>
+                    <span className={labelClass}>{t("stations.province")}</span>
+                    <input className={inputClass} value={form.province} onChange={(event) => setForm({ ...form, province: event.target.value })} />
+                  </label>
+                  <label>
+                    <span className={labelClass}>{tc("phone")}</span>
+                    <input className={inputClass} value={form.contactPhone} onChange={(event) => setForm({ ...form, contactPhone: event.target.value })} />
+                  </label>
+                  <label>
+                    <span className={labelClass}>{tc("email")}</span>
+                    <input className={inputClass} value={form.contactEmail} onChange={(event) => setForm({ ...form, contactEmail: event.target.value })} />
+                  </label>
+                </div>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={form.supportsShuttle}
+                    onChange={(event) => setForm({ ...form, supportsShuttle: event.target.checked })}
+                    className="h-4 w-4 cursor-pointer accent-vr-500"
+                  />
+                  {t("stations.supportsShuttle")}
+                </label>
               </div>
 
               <button
                 type="button"
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-vr-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-vr-700"
                 onClick={() => void saveStation()}
-                disabled={isLoading}
-                aria-busy={isLoading}
+                disabled={isSaving}
+                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <FiSave size={16} />
+                <FiSave />
                 {t("stations.saveStation")}
               </button>
+
+              {alert && (
+                <div className={`mt-3 rounded-lg border px-3 py-2.5 text-sm ${alert.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                  {alert.message}
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg border border-gray-200 bg-white p-5">
-              <h2 className="text-lg font-bold text-gray-900">
-                {t("stations.mergeTitle")}
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                {t("stations.mergeHint")}
-              </p>
-
+              <h2 className="text-lg font-bold text-gray-900">{t("stations.mergeTitle")}</h2>
+              <p className="mt-1 text-sm text-gray-500">{t("stations.mergeHint")}</p>
               <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm">
-                <p className="text-xs font-semibold text-slate-500">
-                  {t("stations.mergeSource")}
-                </p>
-                <p className="mt-1 font-semibold text-slate-900">
-                  {selectedStation.name}
-                </p>
+                <p className="text-xs font-semibold text-slate-500">{t("stations.mergeSource")}</p>
+                <p className="mt-1 font-semibold text-slate-900">{selectedStation.name}</p>
               </div>
-
               <label className="mt-4 block">
                 <span className={labelClass}>{t("stations.mergeTarget")}</span>
                 <CustomSelect
@@ -682,26 +555,23 @@ export default function AdminStations() {
                   value={mergeTargetId}
                   onChange={(event) => setMergeTargetId(event.target.value)}
                 >
-                  {stations.map((station) => (
+                  {stations.filter((station) => station.id !== selectedStation.id).map((station) => (
                     <option key={station.id} value={station.id}>
-                      {station.name} - {station.city}
+                      {station.name} - {station.province}
                     </option>
                   ))}
                 </CustomSelect>
               </label>
-
               <button
                 type="button"
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
-                onClick={mergeStation}
+                onClick={() => void mergeStation()}
+                disabled={isSaving || !mergeTargetId}
+                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <FiGitMerge size={16} />
+                <FiGitMerge />
                 {t("stations.merge")}
               </button>
-
-              <p className="mt-3 text-xs text-slate-500">
-                {t("stations.mergeRule")}
-              </p>
+              <p className="mt-3 text-xs text-slate-500">{t("stations.mergeRule")}</p>
             </div>
           </aside>
         )}

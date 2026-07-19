@@ -106,18 +106,53 @@ export type AdminUserRole =
 
 export type AdminUser = {
   userId: string;
+  id?: string;
   email: string;
   displayName: string;
   phone?: string;
+  avatarUrl?: string | null;
   role: AdminUserRole;
   status: string;
   operatorId?: string | null;
   createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string | null;
 };
 
 export type AdminUserParams = PageParams & {
   role?: string;
   operatorId?: string;
+  includeDeleted?: boolean;
+};
+
+export type AdminUserActionResult = {
+  userId: string;
+  status: string;
+  statusChanged: boolean;
+};
+
+export type AdminActivityLogActor = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: string;
+};
+
+export type AdminActivityLog = {
+  id: string;
+  actor: AdminActivityLogActor;
+  action: string;
+  metadata: Record<string, unknown>;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+};
+
+export type AdminActivityLogParams = Pick<PageParams, "page" | "pageSize"> & {
+  userId?: string;
+  action?: string;
+  from?: string;
+  to?: string;
 };
 
 export type CreateAdminUserRequest = {
@@ -504,6 +539,50 @@ export type AdminStationRequest = Partial<
     | "isActive"
   >
 >;
+
+export type AdminStationMergeResult = {
+  primaryStation: Station;
+  duplicateStationId: string;
+  relinkedCounts: {
+    operatorMappings: number;
+    collapsedOperatorMappings: number;
+    routeOrigins: number;
+    routeDestinations: number;
+    alternativeRoutes: number;
+    shuttleTrips: number;
+    flattenedRedirects: number;
+  };
+};
+
+export type AdminPlatformReportMetrics = {
+  completedBookingCount: number;
+  completedTripCount: number;
+  deliveredParcelCount: number;
+  bookingRevenueVnd: number;
+  parcelRevenueVnd: number;
+  netRevenueVnd: number;
+};
+
+export type AdminPlatformOperatorReport = AdminPlatformReportMetrics & {
+  operatorId: string;
+  operatorName: string | null;
+};
+
+export type AdminPlatformReport = {
+  period: {
+    from: string;
+    to: string;
+    timezone: string;
+  };
+  totals: AdminPlatformReportMetrics;
+  byOperator: AdminPlatformOperatorReport[];
+  generatedAt: string;
+};
+
+export type AdminPlatformReportParams = {
+  from: string;
+  to: string;
+};
 
 export type AdminLocationStatus = "ACTIVE" | "INACTIVE" | "DUPLICATE" | string;
 
@@ -1822,18 +1901,6 @@ export type RouteGeometryRequest = {
   pathPolyline: string | null;
 };
 
-export type TripStopArrivalRequest = {
-  actualArrivalTime?: string;
-  note?: string;
-};
-
-export type TripStopArrivalResult = {
-  tripId: string;
-  stopId: string;
-  status?: string;
-  actualArrivalTime?: string;
-};
-
 export type SubstituteVehicleRequest = {
   newVehicleId: string;
   newDriverUserId?: string;
@@ -2059,6 +2126,59 @@ export function createAdminUser(request: CreateAdminUserRequest) {
     method: "POST",
     body: request,
   });
+}
+
+type AdminUserApiItem = Omit<AdminUser, "userId"> & {
+  id: string;
+  userId?: string;
+};
+
+export async function getAdminUsers(params: AdminUserParams = {}) {
+  const result = await apiRequest<PagedResult<AdminUserApiItem>>(
+    `/v1/admin/users${buildQuery(params)}`,
+  );
+
+  return {
+    ...result,
+    items: result.items.map((item) => ({
+      ...item,
+      userId: item.userId ?? item.id,
+    })),
+  } satisfies PagedResult<AdminUser>;
+}
+
+export function lockAdminUser(
+  userId: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<AdminUserActionResult>(`/v1/admin/users/${userId}/lock`, {
+    method: "POST",
+    body: {},
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+export function unlockAdminUser(
+  userId: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<AdminUserActionResult>(`/v1/admin/users/${userId}/unlock`, {
+    method: "POST",
+    body: {},
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+export function getAdminActivityLogs(params: AdminActivityLogParams = {}) {
+  return apiRequest<PagedResult<AdminActivityLog>>(
+    `/v1/admin/activity-logs${buildQuery(params)}`,
+  );
+}
+
+export function getAdminPlatformReport(params: AdminPlatformReportParams) {
+  return apiRequest<AdminPlatformReport>(
+    `/v1/admin/reports/platform${buildQuery(params)}`,
+  );
 }
 
 export function getOperatorProfile() {
@@ -2339,6 +2459,21 @@ export function updateAdminStation(
       "Idempotency-Key": idempotencyKey,
     },
   });
+}
+
+export function mergeAdminStations(
+  primaryStationId: string,
+  duplicateId: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<AdminStationMergeResult>(
+    `/v1/admin/stations/${primaryStationId}/merge`,
+    {
+      method: "POST",
+      body: { duplicateId },
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
 }
 
 export function deleteAdminStation(
@@ -3600,17 +3735,6 @@ export function lockInternalRoundTripSeats(
 export function getOperatorTripCargoCapacity(tripId: string) {
   return apiRequest<CargoCapacity>(
     `/v1/operator/trips/${tripId}/cargo-capacity`,
-  );
-}
-
-export function arriveOperatorTripStop(
-  tripId: string,
-  stopId: string,
-  request: TripStopArrivalRequest = {},
-) {
-  return apiRequest<TripStopArrivalResult>(
-    `/v1/operator/trips/${tripId}/stops/${stopId}/arrive`,
-    { method: "POST", body: request },
   );
 }
 

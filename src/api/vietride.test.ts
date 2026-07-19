@@ -16,11 +16,14 @@ import {
   deactivateAdminCampaign,
   exportOperatorParcelReport,
   getAdminCampaigns,
+  getAdminActivityLogs,
   getAdminPlatformWallet,
+  getAdminPlatformReport,
   getAdminPlatformWalletTransactions,
   getAdminTripSettlements,
   getAdminLocations,
   getAdminSubscriptionPlans,
+  getAdminUsers,
   getAdminVoucherConsents,
   getAdminVouchers,
   getAvailableVouchers,
@@ -59,7 +62,9 @@ import {
   getTripHealth,
   getVehicleTypes,
   lockInternalRoundTripSeats,
+  lockAdminUser,
   markNotificationRead,
+  mergeAdminStations,
   downloadOperatorInvoice,
   adjustAdminOperatorWallet,
   adjustAdminPlatformWallet,
@@ -78,6 +83,7 @@ import {
   searchPublicTrips,
   settleAdminTripSettlement,
   updateAdminLocation,
+  updateAdminStation,
   updateAdminSubscriptionPlan,
   updateAdminVoucher,
   updateAlternativeRouteGeometry,
@@ -86,6 +92,7 @@ import {
   updateOperatorRouteGeometry,
   retryAdminInvoice,
   upgradeOperatorSubscription,
+  unlockAdminUser,
 } from "./vietride";
 
 describe("vietride API", () => {
@@ -144,6 +151,169 @@ describe("vietride API", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer access-token",
         }),
+      }),
+    );
+  });
+
+  it("lists admin users with Day 40 filters and maps API id to userId", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            items: [
+              {
+                id: "user-1",
+                email: "passenger@example.test",
+                displayName: "Test Passenger",
+                role: "PASSENGER",
+                status: "ACTIVE",
+                operatorId: null,
+              },
+            ],
+            page: 2,
+            pageSize: 20,
+            totalItems: 21,
+            totalPages: 2,
+            hasNextPage: false,
+            hasPreviousPage: true,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAdminUsers({
+      search: "passenger",
+      role: "PASSENGER",
+      status: "ACTIVE",
+      includeDeleted: true,
+      page: 2,
+      pageSize: 20,
+      sortBy: "displayName",
+      sortDir: "asc",
+    });
+
+    expect(result.items[0]?.userId).toBe("user-1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/admin/users?search=passenger&role=PASSENGER&status=ACTIVE&includeDeleted=true&page=2&pageSize=20&sortBy=displayName&sortDir=asc",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer system-admin-token",
+        }),
+      }),
+    );
+  });
+
+  it("calls Day 40 admin mutations, audit query, and platform report", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        void input;
+        void init;
+        return new Response(JSON.stringify({ data: {} }), { status: 200 });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await lockAdminUser("user-1", "lock-key");
+    await unlockAdminUser("user-1", "unlock-key");
+    await getAdminActivityLogs({
+      userId: "admin-1",
+      action: "LOCK_USER",
+      from: "2026-07-17T00:00:00Z",
+      to: "2026-07-18T00:00:00Z",
+      page: 1,
+      pageSize: 20,
+    });
+    await updateAdminStation(
+      "station-1",
+      { name: "Ben xe Mien Dong", supportsShuttle: true },
+      "station-key",
+    );
+    await mergeAdminStations("station-1", "station-2", "merge-key");
+    await getAdminPlatformReport({
+      from: "2026-07-01T00:00:00Z",
+      to: "2026-07-18T00:00:00Z",
+    });
+
+    const expectedUrls = [
+      "https://api.vietride.online/v1/admin/users/user-1/lock",
+      "https://api.vietride.online/v1/admin/users/user-1/unlock",
+      "https://api.vietride.online/v1/admin/activity-logs?userId=admin-1&action=LOCK_USER&from=2026-07-17T00%3A00%3A00Z&to=2026-07-18T00%3A00%3A00Z&page=1&pageSize=20",
+      "https://api.vietride.online/v1/admin/stations/station-1",
+      "https://api.vietride.online/v1/admin/stations/station-1/merge",
+      "https://api.vietride.online/v1/admin/reports/platform?from=2026-07-01T00%3A00%3A00Z&to=2026-07-18T00%3A00%3A00Z",
+    ];
+
+    expectedUrls.forEach((url, index) => {
+      expect(fetchMock.mock.calls[index]?.[0]).toBe(url);
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expectedUrls[0],
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({}),
+        headers: expect.objectContaining({ "Idempotency-Key": "lock-key" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expectedUrls[1],
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({}),
+        headers: expect.objectContaining({ "Idempotency-Key": "unlock-key" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      expectedUrls[3],
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({
+          name: "Ben xe Mien Dong",
+          supportsShuttle: true,
+        }),
+        headers: expect.objectContaining({ "Idempotency-Key": "station-key" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      expectedUrls[4],
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ duplicateId: "station-2" }),
+        headers: expect.objectContaining({ "Idempotency-Key": "merge-key" }),
       }),
     );
   });
