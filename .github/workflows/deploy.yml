@@ -65,6 +65,10 @@ jobs:
           fi
           echo "Đủ 6 secret bắt buộc. DEPLOY_PORT tuỳ chọn, bỏ trống thì dùng 22."
 
+      # BẮT BUỘC: scp-action đóng gói file từ workspace của runner. Không checkout
+      # thì workspace rỗng và nó chết với "tar: empty archive".
+      - uses: actions/checkout@v4
+
       # scp-action thường tự tạo thư mục đích, nhưng lần deploy đầu tiên mà nó
       # không tạo thì scp fail. Bước này rẻ và idempotent nên cứ chạy cho chắc.
       - name: Ensure target directory
@@ -91,6 +95,7 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: docker-compose.prod.yml
           target: ${{ env.COMPOSE_DIR }}
+          overwrite: true
           strip_components: 0
 
       - name: Copy compose file to server (retry)
@@ -103,6 +108,7 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: docker-compose.prod.yml
           target: ${{ env.COMPOSE_DIR }}
+          overwrite: true
           strip_components: 0
 
       - name: Deploy over SSH
