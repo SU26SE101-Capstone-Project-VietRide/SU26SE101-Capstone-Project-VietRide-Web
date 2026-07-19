@@ -32,8 +32,39 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Giống BE (deploy.yml của BE cũng khai `environment: production`). Hai tác dụng:
+    #   - đọc được Environment secrets, không chỉ repository secrets;
+    #   - deploy hiện trong tab Environments, có lịch sử + gắn được protection rule.
+    # Repository secrets vẫn dùng được bình thường — Environment secrets chỉ ghi đè
+    # khi trùng tên, nên đặt ở đâu cũng chạy.
+    environment: production
 
     steps:
+      # Secret rỗng làm appleboy/ssh-action chết với "can't connect without a
+      # private SSH key or password" — chôn dưới ~60 dòng `docker run`, rất khó
+      # thấy. Chặn ngay từ đầu với thông báo chỉ đúng tên biến còn thiếu.
+      # Secret KHÔNG dùng chung giữa các repo: repo BE có không có nghĩa repo này có.
+      - name: Preflight — kiểm tra secret bắt buộc
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+        run: |
+          missing=""
+          for k in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY GHCR_USERNAME GHCR_TOKEN APP_DOMAIN; do
+            [ -n "${!k}" ] || missing="$missing $k"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Repo FE thiếu secret:$missing"
+            echo "Thêm tại: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Secret không dùng chung giữa các repo — repo BE đã có vẫn phải set lại ở đây."
+            exit 1
+          fi
+          echo "Đủ 6 secret bắt buộc. DEPLOY_PORT tuỳ chọn, bỏ trống thì dùng 22."
+
       # scp-action thường tự tạo thư mục đích, nhưng lần deploy đầu tiên mà nó
       # không tạo thì scp fail. Bước này rẻ và idempotent nên cứ chạy cho chắc.
       - name: Ensure target directory
@@ -43,7 +74,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
           script: mkdir -p ${{ env.COMPOSE_DIR }}
 
       # ISP NAT trước server hay reset kết nối SSH từ IP runner GitHub (Azure).
@@ -57,7 +88,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: docker-compose.prod.yml
           target: ${{ env.COMPOSE_DIR }}
           strip_components: 0
@@ -69,7 +100,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: docker-compose.prod.yml
           target: ${{ env.COMPOSE_DIR }}
           strip_components: 0
@@ -82,7 +113,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
           script_stop: true
           script: |
             set -euo pipefail
@@ -111,7 +142,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
           script_stop: true
           script: |
             set -euo pipefail
