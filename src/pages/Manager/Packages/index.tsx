@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { FiBox, FiCheck, FiCreditCard, FiDownload, FiEye, FiShoppingCart, FiTrendingUp } from "react-icons/fi";
+import { FiAlertTriangle, FiBox, FiCheck, FiClock, FiCreditCard, FiDownload, FiEye, FiShoppingCart, FiTrendingUp, FiXCircle } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import {
   getOperatorSubscription,
@@ -32,6 +32,32 @@ function planLimit(plan: SubscriptionPlan, key: keyof SubscriptionPlan["limits"]
   return plan.limits[key] ?? 0;
 }
 
+function isPayablePlan(plan: SubscriptionPlan) {
+  return plan.pricePerMonth > 0 || plan.pricePerYear > 0;
+}
+
+function hasUnexpectedSubscriptionPeriod(
+  subscription: OperatorSubscriptionDetail,
+) {
+  if (!isPayablePlan(subscription.plan)) return false;
+  if (
+    !subscription.billingPeriod ||
+    !subscription.startedAt ||
+    !subscription.expiresAt
+  ) {
+    return true;
+  }
+
+  const startedAt = Date.parse(subscription.startedAt);
+  const expiresAt = Date.parse(subscription.expiresAt);
+  if (!Number.isFinite(startedAt) || !Number.isFinite(expiresAt)) return true;
+
+  const durationInDays = (expiresAt - startedAt) / (24 * 60 * 60 * 1000);
+  return subscription.billingPeriod === "YEARLY"
+    ? durationInDays < 360 || durationInDays > 370
+    : durationInDays < 27 || durationInDays > 32;
+}
+
 export default function ManagerPackages() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -49,9 +75,38 @@ export default function ManagerPackages() {
   const upgradeInFlightRef = useRef(false);
 
   const currentPlan = subscription?.plan ?? null;
-  const activePlans = useMemo(
-    () => plans.filter((plan) => plan.isActive),
-    [plans],
+  const hasPendingPayment =
+    subscription?.status === "PENDING_PAYMENT" ||
+    Boolean(subscription?.pendingUpgrade);
+  const hasUnresolvedPendingPayment =
+    subscription?.status === "PENDING_PAYMENT" &&
+    !subscription.pendingUpgrade;
+  const isCancelledSubscription = subscription?.status === "CANCELLED";
+  const isExpiredSubscription = subscription?.status === "EXPIRED";
+  const isInactiveSubscription =
+    isCancelledSubscription || isExpiredSubscription;
+  const canPurchasePackage =
+    subscription?.status === "ACTIVE" || isInactiveSubscription;
+  const canRepurchaseCurrentPlan = Boolean(
+    currentPlan && isInactiveSubscription && isPayablePlan(currentPlan),
+  );
+  const isCurrentTrialPlan = Boolean(
+    currentPlan && !isPayablePlan(currentPlan),
+  );
+  const hasSubscriptionPeriodIssue = Boolean(
+    subscription &&
+      !hasUnresolvedPendingPayment &&
+      hasUnexpectedSubscriptionPeriod(subscription),
+  );
+  const availablePlans = useMemo(
+    () =>
+      plans.filter(
+        (plan) =>
+          plan.isActive &&
+          isPayablePlan(plan) &&
+          plan.planId !== currentPlan?.planId,
+      ),
+    [currentPlan?.planId, plans],
   );
 
   const loadSubscriptionData = useCallback(async () => {
@@ -97,11 +152,12 @@ export default function ManagerPackages() {
   }, []);
 
   function openPurchase(plan: SubscriptionPlan) {
-    if (plan.planId === currentPlan?.planId) {
+    const isCurrentPlan = plan.planId === currentPlan?.planId;
+    if (isCurrentPlan && !canRepurchaseCurrentPlan) {
       return;
     }
 
-    if (plan.pricePerMonth <= 0 && plan.pricePerYear <= 0) {
+    if (!isPayablePlan(plan)) {
       setError(t("packages.planNotPayable"));
       return;
     }
@@ -122,7 +178,11 @@ export default function ManagerPackages() {
       billingPeriod === "YEARLY"
         ? selectedPlan.pricePerYear
         : selectedPlan.pricePerMonth;
-    if (selectedPlan.planId === currentPlan?.planId || payableAmount <= 0) {
+    const isCurrentPlan = selectedPlan.planId === currentPlan?.planId;
+    if (
+      (isCurrentPlan && !canRepurchaseCurrentPlan) ||
+      payableAmount <= 0
+    ) {
       setError(t("packages.planNotPayable"));
       return;
     }
@@ -170,8 +230,6 @@ export default function ManagerPackages() {
     }
   }
 
-  const canUpgrade = subscription?.status === "ACTIVE" || subscription?.status === "EXPIRED";
-
   return (
     <div className="space-y-6">
       <div>
@@ -199,43 +257,93 @@ export default function ManagerPackages() {
       ) : null}
 
       {subscription && currentPlan ? (
-        <div className="rounded-lg border border-vr-200 bg-vr-50/70 p-6">
+        <div
+          className={`rounded-lg border p-6 ${
+            hasPendingPayment
+              ? "border-amber-200 bg-amber-50/70"
+              : isCancelledSubscription
+                ? "border-red-200 bg-red-50/70"
+                : isExpiredSubscription
+                  ? "border-amber-200 bg-amber-50/70"
+              : "border-vr-200 bg-vr-50/70"
+          }`}
+        >
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
               <FiBox className="mt-1 text-2xl text-vr-700" />
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
-                  {t("packages.currentPackage", { name: currentPlan.name })}
+                  {t(
+                    hasUnresolvedPendingPayment
+                      ? "packages.pendingPackage"
+                      : isCancelledSubscription
+                        ? "packages.cancelledPackage"
+                        : isExpiredSubscription
+                          ? "packages.expiredPackage"
+                      : "packages.currentPackage",
+                    { name: currentPlan.name },
+                  )}
                 </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  {t("packages.expiresOn", {
-                    date: formatDateOnly(subscription.expiresAt),
-                  })}
+                {!hasUnresolvedPendingPayment ? (
+                  <p className="mt-1 text-sm text-gray-600">
+                    {t("packages.expiresOn", {
+                      date: formatDateOnly(subscription.expiresAt),
+                    })}
+                  </p>
+                ) : null}
+                <p
+                  className={`mt-1 text-xs font-semibold uppercase ${
+                    isCancelledSubscription
+                      ? "text-red-700"
+                      : hasPendingPayment || isExpiredSubscription
+                        ? "text-amber-700"
+                        : "text-vr-700"
+                  }`}
+                >
+                  {subscription.status} · {subscription.billingPeriod ?? "-"}
                 </p>
-                <p className="mt-1 text-xs font-semibold uppercase text-vr-700">
-                  {subscription.status} · {subscription.billingPeriod}
-                </p>
-                <div className="mt-3 grid gap-4 text-sm sm:grid-cols-3">
-                  <UsageItem
-                    label={t("packages.vehiclesUsed")}
-                    used={subscription.usage.currentVehicles}
-                    limit={planLimit(currentPlan, "maxVehicles")}
-                  />
-                  <UsageItem
-                    label={t("packages.routesUsed")}
-                    used={subscription.usage.currentRoutes}
-                    limit={planLimit(currentPlan, "maxRoutes")}
-                  />
-                  <UsageItem
-                    label={t("packages.tripsUsed")}
-                    used={subscription.usage.currentTripsThisMonth}
-                    limit={planLimit(currentPlan, "maxTripsPerMonth")}
-                  />
-                </div>
+                {subscription.status === "ACTIVE" &&
+                !hasUnresolvedPendingPayment ? (
+                  <div className="mt-3 grid gap-4 text-sm sm:grid-cols-3">
+                    <UsageItem
+                      label={t("packages.vehiclesUsed")}
+                      used={subscription.usage.currentVehicles}
+                      limit={planLimit(currentPlan, "maxVehicles")}
+                    />
+                    <UsageItem
+                      label={t("packages.routesUsed")}
+                      used={subscription.usage.currentRoutes}
+                      limit={planLimit(currentPlan, "maxRoutes")}
+                    />
+                    <UsageItem
+                      label={t("packages.tripsUsed")}
+                      used={subscription.usage.currentTripsThisMonth}
+                      limit={planLimit(currentPlan, "maxTripsPerMonth")}
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
-            <FiCheck className="text-3xl text-emerald-600" />
+            {hasPendingPayment ? (
+              <FiClock className="text-3xl text-amber-600" />
+            ) : isCancelledSubscription ? (
+              <FiXCircle className="text-3xl text-red-600" />
+            ) : isExpiredSubscription ? (
+              <FiClock className="text-3xl text-amber-600" />
+            ) : subscription.status === "ACTIVE" ? (
+              <FiCheck className="text-3xl text-emerald-600" />
+            ) : (
+              <FiClock className="text-3xl text-gray-500" />
+            )}
           </div>
+          {hasUnresolvedPendingPayment ? (
+            <div
+              role="status"
+              className="mt-4 rounded-lg border border-amber-200 bg-white px-4 py-3 text-sm text-amber-800"
+            >
+              {t("packages.pendingPaymentOutOfSync")}
+            </div>
+          ) : null}
           {subscription.pendingUpgrade ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <span>
@@ -258,6 +366,41 @@ export default function ManagerPackages() {
               ) : null}
             </div>
           ) : null}
+          {isCurrentTrialPlan ? (
+            <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              {t("packages.freeTrialNotice")}
+            </div>
+          ) : null}
+          {hasSubscriptionPeriodIssue ? (
+            <div
+              role="alert"
+              className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3 text-sm text-amber-800"
+            >
+              <FiAlertTriangle className="mt-0.5 shrink-0" />
+              <span>{t("packages.subscriptionPeriodMismatch")}</span>
+            </div>
+          ) : null}
+          {isInactiveSubscription ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
+              <span>
+                {t(
+                  isCurrentTrialPlan
+                    ? "packages.trialEndedHint"
+                    : "packages.inactivePackageHint",
+                )}
+              </span>
+              {canRepurchaseCurrentPlan ? (
+                <button
+                  type="button"
+                  onClick={() => openPurchase(currentPlan)}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-vr-600"
+                >
+                  <FiShoppingCart />
+                  {t("packages.repurchasePackage")}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -266,7 +409,12 @@ export default function ManagerPackages() {
           {t("packages.available")}
         </h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {activePlans.map((plan) => (
+          {availablePlans.length === 0 ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500 md:col-span-2 lg:col-span-3">
+              {t("packages.noOtherPayablePlans")}
+            </div>
+          ) : null}
+          {availablePlans.map((plan) => (
             <div
               key={plan.planId}
               className="flex flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md"
@@ -342,19 +490,13 @@ export default function ManagerPackages() {
                 type="button"
                 onClick={() => openPurchase(plan)}
                 disabled={
-                  !canUpgrade ||
-                  Boolean(subscription?.pendingUpgrade) ||
-                  plan.planId === currentPlan?.planId ||
-                  (plan.pricePerMonth <= 0 && plan.pricePerYear <= 0)
+                  !canPurchasePackage ||
+                  Boolean(subscription?.pendingUpgrade)
                 }
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-vr-500 py-2 font-medium text-white transition-colors hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <FiShoppingCart className="text-lg" />
-                {plan.planId === currentPlan?.planId
-                  ? t("packages.currentPlanButton")
-                  : plan.pricePerMonth <= 0 && plan.pricePerYear <= 0
-                    ? t("packages.notPayable")
-                    : t("packages.buyPackage")}
+                {t("packages.buyPackage")}
               </button>
             </div>
           ))}

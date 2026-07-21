@@ -289,9 +289,9 @@ export type SubscriptionPlan = {
 export type OperatorSubscriptionDetail = {
   subscriptionId: string;
   status: string;
-  billingPeriod: SubscriptionBillingPeriod;
-  startedAt: string;
-  expiresAt: string;
+  billingPeriod: SubscriptionBillingPeriod | null;
+  startedAt: string | null;
+  expiresAt: string | null;
   plan: SubscriptionPlan;
   usage: {
     currentVehicles: number;
@@ -1522,6 +1522,75 @@ export type BookingStatsParams = {
   status?: string;
 };
 
+export type OperatorBookingParams = {
+  status?: string;
+  tripId?: string;
+  date?: string;
+  passengerPhone?: string;
+  bookingCode?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+};
+
+export type OperatorBookingTrip = {
+  routeName?: string | null;
+  originName?: string | null;
+  destinationName?: string | null;
+  departureAt?: string | null;
+  currentDepartureAt?: string | null;
+};
+
+export type OperatorBookingListItem = {
+  id: string;
+  bookingCode?: string | null;
+  tripId: string;
+  status?: string | null;
+  trip: OperatorBookingTrip;
+  seatCount: number;
+  totalAmount: number;
+  createdAt: string;
+};
+
+export type OperatorBookingSeat = {
+  passengerRecordId: string;
+  ticketId: string;
+  ticketCode?: string | null;
+  seatNumber?: string | null;
+  ticketStatus?: string | null;
+  boardingStatus?: string | null;
+};
+
+export type OperatorBookingStatusTimeline = {
+  status?: string | null;
+  occurredAt: string;
+  reasonCode?: string | null;
+};
+
+export type OperatorBookingDetail = {
+  id: string;
+  bookingCode?: string | null;
+  buyerUserId: string;
+  tripId: string;
+  status?: string | null;
+  trip: OperatorBookingTrip;
+  seatCount: number;
+  baseFare: number;
+  discountAmount: number;
+  totalAmount: number;
+  pickupStationId?: string | null;
+  pickupStopId?: string | null;
+  dropoffStationId?: string | null;
+  dropoffStopId?: string | null;
+  bookingGroupId?: string | null;
+  tripDirection?: string | null;
+  cancellationReason?: string | null;
+  createdAt: string;
+  seats?: OperatorBookingSeat[] | null;
+  statusTimeline?: OperatorBookingStatusTimeline[] | null;
+};
+
 export type BookingStatsItem = {
   operatorId?: string;
   operatorName?: string;
@@ -1647,6 +1716,10 @@ export type OperatorVehicleRequest = {
   maxCargoVolumeM3: number;
   seatLayoutJson: SeatLayoutJson;
   imageUrls: string[];
+};
+
+export type FirebaseCustomToken = {
+  token: string;
 };
 
 export type VehicleType = {
@@ -2702,6 +2775,16 @@ export function getDriverMeSchedule(params: PageParams = {}) {
   );
 }
 
+export function getOperatorBookings(params: OperatorBookingParams = {}) {
+  return apiRequest<PagedResult<OperatorBookingListItem>>(
+    `/v1/operator/bookings${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorBooking(id: string) {
+  return apiRequest<OperatorBookingDetail>(`/v1/operator/bookings/${id}`);
+}
+
 export function getOperatorBookingStats(params: BookingStatsParams = {}) {
   return apiRequest<BookingStatsAggregate>(
     `/v1/operator/booking-stats${buildQuery(params)}`,
@@ -3327,6 +3410,12 @@ export function updateOperatorVehicle(
   return apiRequest<OperatorVehicle>(`/v1/operator/vehicles/${id}`, {
     method: "PATCH",
     body: request,
+  });
+}
+
+export function getFirebaseCustomToken() {
+  return apiRequest<FirebaseCustomToken>("/v1/firebase/custom-token", {
+    method: "POST",
   });
 }
 

@@ -265,6 +265,13 @@ export async function logout(): Promise<void> {
       });
     }
   } finally {
+    try {
+      const { clearFirebaseAuthSession } = await import("./config/firebase");
+      await clearFirebaseAuthSession();
+    } catch {
+      // The VietRide session must still be cleared if Firebase is unavailable.
+    }
+
     clearAuthSession();
   }
 }

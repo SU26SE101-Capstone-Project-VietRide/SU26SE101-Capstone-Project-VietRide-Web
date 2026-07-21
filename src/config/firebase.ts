@@ -1,4 +1,5 @@
 import { getApp, getApps, initializeApp, type FirebaseOptions } from "firebase/app";
+import { getAuth, signOut } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 function requireFirebaseEnv(name: string, value: string | undefined) {
@@ -34,9 +35,20 @@ export const firebaseConfig: FirebaseOptions = {
     "VITE_FIREBASE_APP_ID",
     import.meta.env.VITE_FIREBASE_APP_ID,
   ),
+  messagingSenderId:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID?.trim() || undefined,
 };
 
 export const firebaseApp =
   getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
+export const firebaseAuth = getAuth(firebaseApp);
 export const firebaseStorage = getStorage(firebaseApp);
+
+export async function clearFirebaseAuthSession() {
+  if (!firebaseAuth.currentUser) {
+    return;
+  }
+
+  await signOut(firebaseAuth);
+}

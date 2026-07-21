@@ -29,12 +29,15 @@ import {
   getAvailableVouchers,
   getBookingHealth,
   getDriverMeSchedule,
+  getFirebaseCustomToken,
   getInternalTripCargoCapacity,
   getInternalTripParcelAvailability,
   getOperatorRoute,
   getOperatorDriverSchedules,
   getOperatorInvoice,
   getOperatorInvoices,
+  getOperatorBooking,
+  getOperatorBookings,
   getOperatorLedger,
   getNotifications,
   getOperatorSubscription,
@@ -2037,6 +2040,105 @@ describe("vietride API", () => {
       2,
       "https://api.vietride.online/v1/notifications/7e7d44b8-3d84-4dd5-b0a2-1f445de7c701/read",
       expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("requests a Firebase custom token with operator authentication", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+          operatorId: "operator-1",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ data: { token: "firebase-custom-token" } }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getFirebaseCustomToken()).resolves.toEqual({
+      token: "firebase-custom-token",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/firebase/custom-token",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-admin-token",
+        }),
+      }),
+    );
+  });
+
+  it("lists operator bookings with server filters and loads booking details", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-user-1",
+          email: "staff@operator.vn",
+          displayName: "Operator Staff",
+          role: "OPERATOR_STAFF",
+          operatorId: "operator-1",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorBookings({
+      status: "CONFIRMED",
+      bookingCode: "BK-1001",
+      page: 2,
+      pageSize: 20,
+      sortBy: "createdAt",
+      sortDir: "desc",
+    });
+    await getOperatorBooking("booking-1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/bookings?status=CONFIRMED&bookingCode=BK-1001&page=2&pageSize=20&sortBy=createdAt&sortDir=desc",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/bookings/booking-1",
+      expect.objectContaining({ method: "GET" }),
     );
   });
 });

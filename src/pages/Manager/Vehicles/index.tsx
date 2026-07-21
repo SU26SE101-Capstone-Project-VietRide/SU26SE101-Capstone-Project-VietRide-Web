@@ -35,6 +35,13 @@ import {
   type VehicleType,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import {
+  uploadVehicleImages,
+  validateVehicleImageFiles,
+  VehicleImageError,
+  type VehicleImageErrorCode,
+} from "./vehicleImageUpload";
+import { VehicleImage } from "./VehicleImage";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -242,6 +249,7 @@ function parseSeatLayoutDecks(layout: OperatorVehicle["seatLayoutJson"]) {
 function toVehicleRequest(
   form: VehicleForm,
   vehicleTypes: VehicleType[],
+  imageUrls = getUniquePublicImageUrls(getImageEntries(form.imageUrls)),
 ): OperatorVehicleRequest {
   const seatLayoutJson = toSeatLayoutJson(form, vehicleTypes);
 
@@ -252,7 +260,7 @@ function toVehicleRequest(
     maxCargoWeightKg: toNumber(form.maxCargoWeightKg),
     maxCargoVolumeM3: toNumber(form.maxCargoVolumeM3),
     seatLayoutJson,
-    imageUrls: getImageEntries(form.imageUrls).filter(isPublicImageUrl),
+    imageUrls,
   };
 }
 
@@ -264,35 +272,23 @@ function getImageEntries(value: string) {
 }
 
 function isPublicImageUrl(value: string) {
-  return /^https?:\/\//i.test(value);
+  return /^https:\/\//i.test(value);
 }
 
-function hasLocalImagePreview(value: string) {
-  return getImageEntries(value).some((url) => url.startsWith("data:image/"));
-}
+function getUniquePublicImageUrls(urls: string[]) {
+  const seen = new Set<string>();
 
-function readImageFile(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
+  return urls.filter((url) => {
+    const normalizedUrl = url.trim();
+    const key = normalizedUrl.toLowerCase();
 
-      reject(new Error("Unable to read image file."));
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
+    if (!isPublicImageUrl(normalizedUrl) || seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
   });
-}
-
-async function readImageFiles(files: FileList | File[]) {
-  const imageFiles = Array.from(files).filter((file) =>
-    file.type.startsWith("image/"),
-  );
-
-  return Promise.all(imageFiles.map(readImageFile));
 }
 
 function getVehicleId(vehicle: OperatorVehicle) {
@@ -365,9 +361,11 @@ export default function VehiclesPage() {
     null,
   );
   const [vehicleForm, setVehicleForm] = useState<VehicleForm>(emptyVehicleForm);
+  const [vehicleImageFiles, setVehicleImageFiles] = useState<File[]>([]);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 8;
@@ -482,6 +480,8 @@ export default function VehiclesPage() {
 
   function openCreateModal() {
     setSelectedVehicle(null);
+    setVehicleImageFiles([]);
+    setError("");
     setVehicleForm((prev) => ({
       ...emptyVehicleForm,
       vehicleTypeId: prev.vehicleTypeId || vehicleTypes[0]?.id || "",
@@ -493,6 +493,8 @@ export default function VehiclesPage() {
     const layoutShape = getLayoutShape(vehicle);
 
     setSelectedVehicle(vehicle);
+    setVehicleImageFiles([]);
+    setError("");
     setVehicleForm({
       vehicleTypeId: vehicle.vehicleTypeId,
       licensePlate: vehicle.licensePlate,
@@ -535,16 +537,82 @@ export default function VehiclesPage() {
     }
   }
 
+  function getVehicleImageErrorMessage(uploadError: unknown) {
+    if (uploadError instanceof VehicleImageError) {
+      const translationKeys: Record<VehicleImageErrorCode, string> = {
+        INVALID_TYPE: "vehicles.invalidImageType",
+        INVALID_SIZE: "vehicles.invalidImageSize",
+        MISSING_OPERATOR_ID: "vehicles.missingOperatorId",
+        MISSING_TOKEN: "vehicles.missingFirebaseToken",
+        TOO_MANY_IMAGES: "vehicles.tooManyImages",
+      };
+
+      return t(translationKeys[uploadError.code]);
+    }
+
+    return uploadError instanceof Error
+      ? uploadError.message
+      : t("vehicles.uploadFailed");
+  }
+
+  function handleVehicleImageError(uploadError: unknown) {
+    setError(getVehicleImageErrorMessage(uploadError));
+  }
+
+  function updateVehicleImageFiles(files: File[]) {
+    setVehicleImageFiles(files);
+    setError("");
+  }
+
+  async function prepareVehicleImageUrls() {
+    const existingImageUrls = getUniquePublicImageUrls(
+      getImageEntries(vehicleForm.imageUrls),
+    );
+
+    validateVehicleImageFiles(vehicleImageFiles, existingImageUrls.length);
+
+    if (vehicleImageFiles.length === 0) {
+      return existingImageUrls;
+    }
+
+    const operatorId =
+      authUser?.operatorId ||
+      selectedVehicle?.operatorId ||
+      vehicles[0]?.operatorId ||
+      "";
+    const uploadedImageUrls = await uploadVehicleImages(
+      operatorId,
+      vehicleImageFiles,
+    );
+
+    return getUniquePublicImageUrls([
+      ...existingImageUrls,
+      ...uploadedImageUrls,
+    ]);
+  }
+
   async function handleCreateVehicle() {
-    if (hasLocalImagePreview(vehicleForm.imageUrls)) {
-      setError(t("vehicles.localImageSubmitError"));
+    if (isSaving) {
       return;
     }
 
-    await createOperatorVehicle(toVehicleRequest(vehicleForm, vehicleTypes));
-    setMessage(t("vehicles.createSuccess"));
-    setOpenReg(false);
-    await loadVehicles();
+    setIsSaving(true);
+    setError("");
+
+    try {
+      const imageUrls = await prepareVehicleImageUrls();
+      await createOperatorVehicle(
+        toVehicleRequest(vehicleForm, vehicleTypes, imageUrls),
+      );
+      setMessage(t("vehicles.createSuccess"));
+      setVehicleImageFiles([]);
+      setOpenReg(false);
+      await loadVehicles();
+    } catch (submitError) {
+      handleVehicleImageError(submitError);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function handleUpdateVehicle() {
@@ -559,18 +627,28 @@ export default function VehiclesPage() {
       return;
     }
 
-    if (hasLocalImagePreview(vehicleForm.imageUrls)) {
-      setError(t("vehicles.localImageSubmitError"));
+    if (isSaving) {
       return;
     }
 
-    await updateOperatorVehicle(
-      vehicleId,
-      toVehicleRequest(vehicleForm, vehicleTypes),
-    );
-    setMessage(t("vehicles.updateSuccess"));
-    setOpenEdit(false);
-    await loadVehicles();
+    setIsSaving(true);
+    setError("");
+
+    try {
+      const imageUrls = await prepareVehicleImageUrls();
+      await updateOperatorVehicle(
+        vehicleId,
+        toVehicleRequest(vehicleForm, vehicleTypes, imageUrls),
+      );
+      setMessage(t("vehicles.updateSuccess"));
+      setVehicleImageFiles([]);
+      setOpenEdit(false);
+      await loadVehicles();
+    } catch (submitError) {
+      handleVehicleImageError(submitError);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function vehicleStatusBadge(status: string) {
@@ -715,13 +793,14 @@ export default function VehiclesPage() {
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
                   <td className="px-5 py-4">
-                    <img
+                    <VehicleImage
                       src={getVehiclePhoto(vehicle).src}
                       alt={getVehiclePhoto(vehicle).alt}
                       width={96}
                       height={64}
-                      loading="lazy"
-                      className="h-16 w-24 rounded-lg border border-gray-200 object-cover"
+                      containerClassName="h-16 w-24 rounded-lg border border-gray-200"
+                      loadingLabel={t("vehicles.imageLoading")}
+                      errorLabel={t("vehicles.imageLoadFailed")}
                     />
                   </td>
                   <td className="px-5 py-4 text-sm font-semibold text-gray-900">
@@ -787,9 +866,13 @@ export default function VehiclesPage() {
         title={t("vehicles.registerTitle")}
         vehicleTypes={vehicleTypes}
         form={vehicleForm}
+        imageFiles={vehicleImageFiles}
         onChange={updateVehicleForm}
+        onImageFilesChange={updateVehicleImageFiles}
+        onImageError={handleVehicleImageError}
         onClose={() => setOpenReg(false)}
         onSubmit={handleCreateVehicle}
+        isSubmitting={isSaving}
         submitLabel={t("vehicles.register")}
       />
 
@@ -798,9 +881,13 @@ export default function VehiclesPage() {
         title={t("vehicles.editTitle")}
         vehicleTypes={vehicleTypes}
         form={vehicleForm}
+        imageFiles={vehicleImageFiles}
         onChange={updateVehicleForm}
+        onImageFilesChange={updateVehicleImageFiles}
+        onImageError={handleVehicleImageError}
         onClose={() => setOpenEdit(false)}
         onSubmit={handleUpdateVehicle}
+        isSubmitting={isSaving}
         submitLabel={t("vehicles.saveChanges")}
       />
 
@@ -856,18 +943,26 @@ function VehicleModal({
   title,
   vehicleTypes,
   form,
+  imageFiles,
   onChange,
+  onImageFilesChange,
+  onImageError,
   onClose,
   onSubmit,
+  isSubmitting,
   submitLabel,
 }: {
   open: boolean;
   title: string;
   vehicleTypes: VehicleType[];
   form: VehicleForm;
+  imageFiles: File[];
   onChange: (key: keyof VehicleForm, value: string) => void;
+  onImageFilesChange: (files: File[]) => void;
+  onImageError: (error: unknown) => void;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
+  isSubmitting: boolean;
   submitLabel: string;
 }) {
   const { t } = useTranslation("manager");
@@ -875,22 +970,61 @@ function VehicleModal({
   const previewDecks = createDecks(form);
   const generatedSeats = countSeats(previewDecks);
   const layoutOptions = toSeatLayoutOptions(form);
-  const selectedImages = getImageEntries(form.imageUrls);
+  const existingImages = getUniquePublicImageUrls(
+    getImageEntries(form.imageUrls),
+  );
+  const localImagePreviews = useMemo(
+    () =>
+      imageFiles.map((file) => ({
+        file,
+        src: URL.createObjectURL(file),
+      })),
+    [imageFiles],
+  );
+  const selectedImages = [
+    ...existingImages.map((src) => ({ src, file: null })),
+    ...localImagePreviews,
+  ];
 
-  async function addImageFiles(files: FileList | File[]) {
-    const dataUrls = await readImageFiles(files);
+  useEffect(
+    () => () => {
+      localImagePreviews.forEach(({ src }) => URL.revokeObjectURL(src));
+    },
+    [localImagePreviews],
+  );
 
-    if (dataUrls.length === 0) {
+  function addImageFiles(files: FileList | File[]) {
+    const nextFiles = Array.from(files);
+
+    if (nextFiles.length === 0) {
       return;
     }
 
-    onChange("imageUrls", [...selectedImages, ...dataUrls].join("\n"));
+    try {
+      validateVehicleImageFiles(
+        nextFiles,
+        existingImages.length + imageFiles.length,
+      );
+      onImageFilesChange([...imageFiles, ...nextFiles]);
+    } catch (imageError) {
+      onImageError(imageError);
+    }
   }
 
   function removeImage(index: number) {
-    onChange(
-      "imageUrls",
-      selectedImages.filter((_, currentIndex) => currentIndex !== index).join("\n"),
+    if (index < existingImages.length) {
+      onChange(
+        "imageUrls",
+        existingImages
+          .filter((_, currentIndex) => currentIndex !== index)
+          .join("\n"),
+      );
+      return;
+    }
+
+    const localIndex = index - existingImages.length;
+    onImageFilesChange(
+      imageFiles.filter((_, currentIndex) => currentIndex !== localIndex),
     );
   }
 
@@ -899,19 +1033,23 @@ function VehicleModal({
       return;
     }
 
-    void addImageFiles(event.target.files);
+    addImageFiles(event.target.files);
     event.target.value = "";
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    void addImageFiles(event.dataTransfer.files);
+    addImageFiles(event.dataTransfer.files);
   }
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        if (!isSubmitting) {
+          onClose();
+        }
+      }}
       wide
       icon={<FiTruck size={20} />}
       title={title}
@@ -920,16 +1058,28 @@ function VehicleModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            disabled={isSubmitting}
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {tc("cancel")}
           </button>
           <button
             type="button"
             onClick={onSubmit}
-            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+            disabled={isSubmitting}
+            className="inline-flex min-w-32 items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitLabel}
+            {isSubmitting && (
+              <span
+                className="h-4 w-4 animate-spin rounded-full border-2 border-white/45 border-t-white"
+                aria-hidden="true"
+              />
+            )}
+            {isSubmitting
+              ? imageFiles.length > 0
+                ? t("vehicles.uploadingImages")
+                : t("vehicles.saving")
+              : submitLabel}
           </button>
         </>
       }
@@ -1032,8 +1182,9 @@ function VehicleModal({
                 {t("vehicles.chooseImages")}
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   multiple
+                  disabled={isSubmitting}
                   className="sr-only"
                   onChange={handleFileChange}
                 />
@@ -1042,23 +1193,25 @@ function VehicleModal({
           </div>
           {selectedImages.length > 0 && (
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              {selectedImages.map((src, index) => (
+              {selectedImages.map((image, index) => (
                 <div
-                  key={`${src.slice(0, 32)}-${index}`}
+                  key={`${image.src.slice(0, 32)}-${index}`}
                   className="relative overflow-hidden rounded-lg border border-gray-200 bg-white"
                 >
-                  <img
-                    src={src}
+                  <VehicleImage
+                    src={image.src}
                     alt={t("vehicles.imagePreview", { index: index + 1 })}
                     width={240}
                     height={160}
-                    loading="lazy"
-                    className="h-28 w-full object-cover"
+                    containerClassName="h-28 w-full"
+                    loadingLabel={t("vehicles.imageLoading")}
+                    errorLabel={t("vehicles.imageLoadFailed")}
                   />
                   <button
                     type="button"
                     onClick={() => removeImage(index)}
-                    className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-gray-600 shadow-sm hover:text-red-600"
+                    disabled={isSubmitting}
+                    className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-gray-600 shadow-sm hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
                     aria-label={t("vehicles.removeImage")}
                     title={t("vehicles.removeImage")}
                   >
@@ -1068,9 +1221,6 @@ function VehicleModal({
               ))}
             </div>
           )}
-          <p className="mt-1 text-xs text-gray-500">
-            {t("vehicles.localImageWarning")}
-          </p>
         </div>
       </div>
 
@@ -1236,25 +1386,28 @@ function VehicleDetailModal({
         <div className="space-y-5">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-              <img
+              <VehicleImage
                 src={photos[0]?.src ?? vehiclePhotos[0].src}
                 alt={photos[0]?.alt ?? vehiclePhotos[0].alt}
                 width={900}
                 height={600}
-                loading="lazy"
-                className="h-64 w-full object-cover"
+                containerClassName="h-64 w-full"
+                loading="eager"
+                loadingLabel={t("vehicles.imageLoading")}
+                errorLabel={t("vehicles.imageLoadFailed")}
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {photos.slice(1, 5).map((photo) => (
-                <img
+                <VehicleImage
                   key={photo.src}
                   src={photo.src}
                   alt={photo.alt}
                   width={450}
                   height={300}
-                  loading="lazy"
-                  className="h-[122px] w-full rounded-xl border border-gray-200 object-cover"
+                  containerClassName="h-[122px] w-full rounded-xl border border-gray-200"
+                  loadingLabel={t("vehicles.imageLoading")}
+                  errorLabel={t("vehicles.imageLoadFailed")}
                 />
               ))}
             </div>
