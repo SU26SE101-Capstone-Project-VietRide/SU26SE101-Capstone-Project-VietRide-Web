@@ -94,6 +94,7 @@ import {
   updateOperatorParcelStatus,
   updateOperatorRouteGeometry,
   retryAdminInvoice,
+  retryOperatorSubscriptionPayment,
   upgradeOperatorSubscription,
   unlockAdminUser,
 } from "./vietride";
@@ -1812,6 +1813,10 @@ describe("vietride API", () => {
       },
       "33333333-3333-4333-8333-333333333333",
     );
+    await retryOperatorSubscriptionPayment(
+      "upgrade-attempt-1",
+      "44444444-4444-4444-8444-444444444444",
+    );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -1850,6 +1855,7 @@ describe("vietride API", () => {
       "https://api.vietride.online/v1/operator/subscription",
       expect.objectContaining({
         method: "GET",
+        cache: "no-store",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -1872,6 +1878,16 @@ describe("vietride API", () => {
         }),
         headers: expect.objectContaining({
           "Idempotency-Key": "33333333-3333-4333-8333-333333333333",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      7,
+      "https://api.vietride.online/v1/operator/subscription/upgrade/upgrade-attempt-1/retry-payment",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "44444444-4444-4444-8444-444444444444",
         }),
       }),
     );

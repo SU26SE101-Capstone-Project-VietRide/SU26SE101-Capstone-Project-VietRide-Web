@@ -8,15 +8,20 @@ import {
   getOperatorInvoices,
   getOperatorInvoice,
   downloadOperatorInvoice,
+  retryOperatorSubscriptionPayment,
   upgradeOperatorSubscription,
   type OperatorSubscriptionDetail,
   type OperatorInvoice,
   type OperatorInvoiceDetail,
   type SubscriptionBillingPeriod,
+  type SubscriptionPendingUpgrade,
   type SubscriptionPlan,
 } from "../../../api/vietride";
 import { formatDateOnly } from "../../../utils/date";
 import Pagination from "../../../components/Pagination";
+import { saveSubscriptionPaymentIntent } from "./subscriptionPaymentIntent";
+
+const PENDING_PAYMENT_REFRESH_INTERVAL_MS = 5_000;
 
 function formatNumber(n: number) {
   return n.toLocaleString("vi-VN");
@@ -35,6 +40,56 @@ function planLimit(plan: SubscriptionPlan, key: keyof SubscriptionPlan["limits"]
 function isPayablePlan(plan: SubscriptionPlan) {
   return plan.pricePerMonth > 0 || plan.pricePerYear > 0;
 }
+
+function getRemainingPaymentSeconds(
+  pendingUpgrade: SubscriptionPendingUpgrade | null,
+  nowMs: number,
+) {
+  if (!pendingUpgrade) return 0;
+
+  const dueAtMs = pendingUpgrade.dueAt
+    ? Date.parse(pendingUpgrade.dueAt)
+    : Number.NaN;
+  if (Number.isFinite(dueAtMs)) {
+    return Math.max(0, Math.ceil((dueAtMs - nowMs) / 1000));
+  }
+
+  return Math.max(0, Math.floor(pendingUpgrade.remainingSeconds));
+}
+
+function formatRemainingPaymentTime(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function normalizePendingPaymentDeadline(
+  subscription: OperatorSubscriptionDetail,
+) {
+  const pendingUpgrade = subscription.pendingUpgrade;
+  if (
+    !pendingUpgrade ||
+    pendingUpgrade.dueAt ||
+    pendingUpgrade.remainingSeconds <= 0
+  ) {
+    return subscription;
+  }
+
+  return {
+    ...subscription,
+    pendingUpgrade: {
+      ...pendingUpgrade,
+      dueAt: new Date(
+        Date.now() + pendingUpgrade.remainingSeconds * 1_000,
+      ).toISOString(),
+    },
+  };
+}
+
+type IdempotentAction = {
+  signature: string;
+  idempotencyKey: string;
+};
 
 function hasUnexpectedSubscriptionPeriod(
   subscription: OperatorSubscriptionDetail,
@@ -72,19 +127,44 @@ export default function ManagerPackages() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
+  const [clockMs, setClockMs] = useState(() => Date.now());
   const upgradeInFlightRef = useRef(false);
+  const upgradeIntentRef = useRef<IdempotentAction | null>(null);
+  const retryInFlightRef = useRef(false);
+  const retryIntentRef = useRef<IdempotentAction | null>(null);
 
   const currentPlan = subscription?.plan ?? null;
+  const pendingUpgrade = subscription?.pendingUpgrade ?? null;
   const hasPendingPayment =
     subscription?.status === "PENDING_PAYMENT" ||
-    Boolean(subscription?.pendingUpgrade);
+    Boolean(pendingUpgrade);
   const hasUnresolvedPendingPayment =
     subscription?.status === "PENDING_PAYMENT" &&
-    !subscription.pendingUpgrade;
+    !pendingUpgrade;
+  const pendingTargetPlanId =
+    pendingUpgrade?.targetPlan?.planId ?? pendingUpgrade?.targetPlanId ?? "";
+  const pendingTargetPlanName =
+    pendingUpgrade?.targetPlan?.name ??
+    plans.find((plan) => plan.planId === pendingTargetPlanId)?.name ??
+    "-";
+  const pendingPaymentId = pendingUpgrade?.latestPayment?.paymentId ?? "-";
+  const remainingPaymentSeconds = getRemainingPaymentSeconds(
+    pendingUpgrade,
+    clockMs,
+  );
+  const canRetryPendingPayment = Boolean(
+    pendingUpgrade &&
+      remainingPaymentSeconds > 0 &&
+      pendingUpgrade.latestPayment?.canRetry === true,
+  );
   const isCancelledSubscription = subscription?.status === "CANCELLED";
   const isExpiredSubscription = subscription?.status === "EXPIRED";
   const isInactiveSubscription =
     isCancelledSubscription || isExpiredSubscription;
+  const hasCurrentPlanEntitlement =
+    subscription?.status === "ACTIVE" ||
+    (subscription?.status === "PENDING_PAYMENT" && Boolean(currentPlan));
   const canPurchasePackage =
     subscription?.status === "ACTIVE" || isInactiveSubscription;
   const canRepurchaseCurrentPlan = Boolean(
@@ -114,9 +194,12 @@ export default function ManagerPackages() {
       getOperatorSubscription(),
       getOperatorSubscriptionPlans(),
     ]);
-    setSubscription(subscriptionResult);
+    const normalizedSubscription =
+      normalizePendingPaymentDeadline(subscriptionResult);
+
+    setSubscription(normalizedSubscription);
     setPlans(planResult);
-    return subscriptionResult;
+    return normalizedSubscription;
   }, []);
 
   useEffect(() => {
@@ -139,6 +222,67 @@ export default function ManagerPackages() {
       isCurrent = false;
     };
   }, [loadSubscriptionData, t]);
+
+  useEffect(() => {
+    if (!hasPendingPayment) return;
+
+    let isCurrent = true;
+    let isRefreshing = false;
+
+    const refreshPendingSubscription = async () => {
+      if (isRefreshing) return;
+      isRefreshing = true;
+
+      try {
+        const result = normalizePendingPaymentDeadline(
+          await getOperatorSubscription(),
+        );
+        if (!isCurrent) return;
+
+        setSubscription(result);
+        if (import.meta.env.DEV) {
+          console.info("[SubscriptionPayment] PENDING_SYNC_RESULT", {
+            status: result.status,
+            activePlanId: result.plan.planId,
+            upgradeAttemptId:
+              result.pendingUpgrade?.upgradeAttemptId ?? null,
+            paymentId:
+              result.pendingUpgrade?.latestPayment?.paymentId ?? null,
+            paymentStatus:
+              result.pendingUpgrade?.latestPayment?.status ?? null,
+          });
+        }
+      } catch (refreshError) {
+        if (isCurrent && import.meta.env.DEV) {
+          console.warn("[SubscriptionPayment] PENDING_SYNC_FAILED", {
+            message:
+              refreshError instanceof Error
+                ? refreshError.message
+                : String(refreshError),
+          });
+        }
+      } finally {
+        isRefreshing = false;
+      }
+    };
+
+    const timer = window.setInterval(
+      () => void refreshPendingSubscription(),
+      PENDING_PAYMENT_REFRESH_INTERVAL_MS,
+    );
+
+    return () => {
+      isCurrent = false;
+      window.clearInterval(timer);
+    };
+  }, [hasPendingPayment]);
+
+  useEffect(() => {
+    if (!pendingUpgrade) return;
+
+    const timer = window.setInterval(() => setClockMs(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [pendingUpgrade]);
 
   useEffect(() => {
     const hasVnPayParams = Array.from(
@@ -164,9 +308,15 @@ export default function ManagerPackages() {
 
     setSelectedPlan(plan);
     setBillingPeriod(subscription?.billingPeriod ?? "YEARLY");
+    upgradeIntentRef.current = null;
     setPurchaseOpen(true);
     setMessage("");
     setError("");
+  }
+
+  function closePurchase() {
+    upgradeIntentRef.current = null;
+    setPurchaseOpen(false);
   }
 
   async function handleUpgrade() {
@@ -191,15 +341,34 @@ export default function ManagerPackages() {
     setIsUpgrading(true);
     setError("");
 
-    try {
-      const result = await upgradeOperatorSubscription({
+    const request = {
         planId: selectedPlan.planId,
         billingPeriod,
-        paymentMethod: "VNPAY",
+        paymentMethod: "VNPAY" as const,
         returnUrl: `${window.location.origin}/payments/return`,
-      });
+    };
+    const requestSignature = JSON.stringify(request);
+    if (upgradeIntentRef.current?.signature !== requestSignature) {
+      upgradeIntentRef.current = {
+        signature: requestSignature,
+        idempotencyKey: crypto.randomUUID(),
+      };
+    }
+
+    try {
+      const result = await upgradeOperatorSubscription(
+        request,
+        upgradeIntentRef.current.idempotencyKey,
+      );
+      upgradeIntentRef.current = null;
 
       if (result.paymentRedirectUrl) {
+        saveSubscriptionPaymentIntent({
+          paymentId: result.paymentId,
+          upgradeAttemptId: result.upgradeAttemptId,
+          targetPlanId: result.pendingTargetPlan.planId,
+          targetPlanName: result.pendingTargetPlan.name,
+        });
         setMessage(t("packages.upgradePending"));
         window.location.assign(result.paymentRedirectUrl);
         return;
@@ -216,6 +385,7 @@ export default function ManagerPackages() {
           refreshedSubscription.status === "PENDING_PAYMENT" ||
           refreshedSubscription.pendingUpgrade
         ) {
+          upgradeIntentRef.current = null;
           setPurchaseOpen(false);
           setMessage(t("packages.paymentAlreadyPending"));
         } else {
@@ -227,6 +397,68 @@ export default function ManagerPackages() {
     } finally {
       upgradeInFlightRef.current = false;
       setIsUpgrading(false);
+    }
+  }
+
+  async function handleRetryPayment() {
+    if (
+      !pendingUpgrade ||
+      !canRetryPendingPayment ||
+      retryInFlightRef.current
+    ) {
+      return;
+    }
+
+    const retrySignature = `${pendingUpgrade.upgradeAttemptId}:${pendingPaymentId}`;
+    if (retryIntentRef.current?.signature !== retrySignature) {
+      retryIntentRef.current = {
+        signature: retrySignature,
+        idempotencyKey: crypto.randomUUID(),
+      };
+    }
+
+    retryInFlightRef.current = true;
+    setIsRetryingPayment(true);
+    setError("");
+
+    try {
+      const result = await retryOperatorSubscriptionPayment(
+        pendingUpgrade.upgradeAttemptId,
+        retryIntentRef.current.idempotencyKey,
+      );
+      retryIntentRef.current = null;
+
+      if (!result.paymentRedirectUrl) {
+        setError(t("packages.missingPaymentRedirect"));
+        return;
+      }
+
+      saveSubscriptionPaymentIntent({
+        paymentId: result.paymentId,
+        upgradeAttemptId: pendingUpgrade.upgradeAttemptId,
+        targetPlanId: pendingTargetPlanId,
+        targetPlanName: pendingTargetPlanName,
+      });
+      setMessage(t("packages.retryPaymentCreated"));
+      window.location.assign(result.paymentRedirectUrl);
+    } catch (err) {
+      const fallbackError =
+        err instanceof Error ? err.message : t("packages.retryPaymentFailed");
+
+      try {
+        const refreshedSubscription = await loadSubscriptionData();
+        const refreshedAttemptId =
+          refreshedSubscription.pendingUpgrade?.upgradeAttemptId;
+        if (refreshedAttemptId !== pendingUpgrade.upgradeAttemptId) {
+          retryIntentRef.current = null;
+        }
+      } catch {
+        // Keep the same key so a network retry remains idempotent.
+      }
+      setError(fallbackError);
+    } finally {
+      retryInFlightRef.current = false;
+      setIsRetryingPayment(false);
     }
   }
 
@@ -274,17 +506,15 @@ export default function ManagerPackages() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
                   {t(
-                    hasUnresolvedPendingPayment
-                      ? "packages.pendingPackage"
-                      : isCancelledSubscription
+                    isCancelledSubscription
                         ? "packages.cancelledPackage"
                         : isExpiredSubscription
                           ? "packages.expiredPackage"
-                      : "packages.currentPackage",
+                          : "packages.currentPackage",
                     { name: currentPlan.name },
                   )}
                 </h3>
-                {!hasUnresolvedPendingPayment ? (
+                {subscription.expiresAt ? (
                   <p className="mt-1 text-sm text-gray-600">
                     {t("packages.expiresOn", {
                       date: formatDateOnly(subscription.expiresAt),
@@ -302,8 +532,7 @@ export default function ManagerPackages() {
                 >
                   {subscription.status} · {subscription.billingPeriod ?? "-"}
                 </p>
-                {subscription.status === "ACTIVE" &&
-                !hasUnresolvedPendingPayment ? (
+                {hasCurrentPlanEntitlement ? (
                   <div className="mt-3 grid gap-4 text-sm sm:grid-cols-3">
                     <UsageItem
                       label={t("packages.vehiclesUsed")}
@@ -344,26 +573,58 @@ export default function ManagerPackages() {
               {t("packages.pendingPaymentOutOfSync")}
             </div>
           ) : null}
-          {subscription.pendingUpgrade ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <span>
-                {t("packages.pendingPayment", {
-                  paymentId: subscription.pendingUpgrade.paymentId,
-                })}
-              </span>
-              {subscription.pendingUpgrade.paymentRedirectUrl ? (
+          {pendingUpgrade ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-white p-4 text-sm text-amber-900">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="font-bold">
+                    {t("packages.pendingUpgradeTitle")}
+                  </p>
+                  <p className="mt-1 text-amber-800">
+                    {t("packages.activePlanDuringPayment", {
+                      name: currentPlan.name,
+                    })}
+                  </p>
+                </div>
+                {canRetryPendingPayment ? (
                 <button
                   type="button"
-                  onClick={() =>
-                    window.location.assign(
-                      subscription.pendingUpgrade?.paymentRedirectUrl ?? "",
-                    )
-                  }
-                  className="cursor-pointer rounded-lg border border-amber-300 bg-white px-3 py-2 font-medium text-amber-800 transition-colors hover:bg-amber-100"
+                    onClick={() => void handleRetryPayment()}
+                    disabled={isRetryingPayment}
+                    className="cursor-pointer rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {t("packages.continuePayment")}
+                    {isRetryingPayment
+                      ? t("packages.retryingPayment")
+                      : t("packages.retryPayment")}
                 </button>
-              ) : null}
+                ) : (
+                  <span className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                    {t("packages.retryPaymentUnavailable")}
+                  </span>
+                )}
+              </div>
+              <dl className="mt-4 grid gap-3 border-t border-amber-100 pt-4 sm:grid-cols-2 lg:grid-cols-5">
+                <PendingUpgradeItem
+                  label={t("packages.pendingTargetPlan")}
+                  value={pendingTargetPlanName}
+                />
+                <PendingUpgradeItem
+                  label={t("packages.billingPeriod")}
+                  value={t(`packages.billing.${pendingUpgrade.billingPeriod}`)}
+                />
+                <PendingUpgradeItem
+                  label={t("packages.amount")}
+                  value={`${formatNumber(pendingUpgrade.amount)} đ`}
+                />
+                <PendingUpgradeItem
+                  label={t("packages.paymentId")}
+                  value={pendingPaymentId}
+                />
+                <PendingUpgradeItem
+                  label={t("packages.remainingPaymentTime")}
+                  value={formatRemainingPaymentTime(remainingPaymentSeconds)}
+                />
+              </dl>
             </div>
           ) : null}
           {isCurrentTrialPlan ? (
@@ -507,7 +768,7 @@ export default function ManagerPackages() {
 
       <Modal
         open={purchaseOpen}
-        onClose={() => setPurchaseOpen(false)}
+        onClose={closePurchase}
         wide
         icon={<FiBox size={20} />}
         title={t("packages.purchaseTitle", {
@@ -518,8 +779,8 @@ export default function ManagerPackages() {
           <>
             <button
               type="button"
-              onClick={() => setPurchaseOpen(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              onClick={closePurchase}
+              className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
               {tc("cancel")}
             </button>
@@ -758,6 +1019,21 @@ function UsageItem({
       <p className="font-semibold text-gray-900">
         {formatNumber(used)}/{formatNumber(limit)}
       </p>
+    </div>
+  );
+}
+
+function PendingUpgradeItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <dt className="text-xs text-amber-700">{label}</dt>
+      <dd className="mt-1 break-words font-semibold text-gray-900">{value}</dd>
     </div>
   );
 }

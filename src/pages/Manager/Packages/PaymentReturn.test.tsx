@@ -1,12 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorSubscription,
   type OperatorSubscriptionDetail,
   type SubscriptionPlan,
 } from "../../../api/vietride";
 import SubscriptionPaymentReturn from "./PaymentReturn";
+import {
+  getSubscriptionPaymentIntent,
+  saveSubscriptionPaymentIntent,
+} from "./subscriptionPaymentIntent";
 
 const translate = (key: string, options?: Record<string, string>) => {
   if (options?.name) return `${key} ${options.name}`;
@@ -69,7 +73,12 @@ const subscription: OperatorSubscriptionDetail = {
 describe("SubscriptionPaymentReturn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     vi.mocked(getOperatorSubscription).mockResolvedValue(subscription);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("verifies a successful VNPay return with the backend", async () => {
@@ -104,5 +113,45 @@ describe("SubscriptionPaymentReturn", () => {
       await screen.findByText("paymentReturn.failedTitle"),
     ).toBeInTheDocument();
     expect(getOperatorSubscription).not.toHaveBeenCalled();
+  });
+
+  it("waits until the paid target plan is active before reporting success", async () => {
+    vi.useFakeTimers();
+    const starterPlan = {
+      ...plan,
+      planId: "plan-starter",
+      name: "Starter",
+    };
+    saveSubscriptionPaymentIntent({
+      paymentId: "payment-1",
+      upgradeAttemptId: "attempt-1",
+      targetPlanId: plan.planId,
+      targetPlanName: plan.name,
+    });
+    vi.mocked(getOperatorSubscription)
+      .mockResolvedValueOnce({ ...subscription, plan: starterPlan })
+      .mockResolvedValue(subscription);
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=00"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(
+      screen.queryByText("paymentReturn.successTitle"),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(screen.getByText("paymentReturn.successTitle")).toBeInTheDocument();
+    expect(getOperatorSubscription).toHaveBeenCalledTimes(2);
+    expect(getSubscriptionPaymentIntent()).toBeNull();
   });
 });

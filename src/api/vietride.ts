@@ -1,4 +1,5 @@
 import { apiBlobRequest, apiRequest, buildQuery } from "./client";
+import { createIdempotencyKey } from "./idempotency";
 
 export type PageParams = {
   page?: number;
@@ -286,6 +287,26 @@ export type SubscriptionPlan = {
   isActive: boolean;
 };
 
+export type SubscriptionPlanReference = Pick<
+  SubscriptionPlan,
+  "planId" | "name"
+>;
+
+export type SubscriptionPendingUpgrade = {
+  upgradeAttemptId: string;
+  targetPlan?: SubscriptionPlanReference | null;
+  targetPlanId?: string;
+  billingPeriod: SubscriptionBillingPeriod;
+  amount: number;
+  dueAt: string | null;
+  remainingSeconds: number;
+  latestPayment?: {
+    paymentId: string;
+    status: string;
+    canRetry: boolean;
+  } | null;
+};
+
 export type OperatorSubscriptionDetail = {
   subscriptionId: string;
   status: string;
@@ -302,7 +323,7 @@ export type OperatorSubscriptionDetail = {
     currentTripsThisMonth: number;
     lastResetAt?: string;
   };
-  pendingUpgrade?: SubscriptionUpgradeResult | null;
+  pendingUpgrade?: SubscriptionPendingUpgrade | null;
 };
 
 export type SubscriptionUpgradeRequest = {
@@ -321,7 +342,16 @@ export type SubscriptionUpgradeResult = {
   billingPeriod: SubscriptionBillingPeriod;
   paymentRedirectUrl: string | null;
   dueAt: string | null;
-  invoiceStatus: string | null;
+  activePlan: SubscriptionPlanReference;
+  pendingTargetPlan: SubscriptionPlanReference;
+};
+
+export type SubscriptionRetryPaymentResult = {
+  upgradeAttemptId: string;
+  status: string;
+  paymentId: string;
+  paymentRedirectUrl: string | null;
+  dueAt: string | null;
 };
 
 export type FinancialListParams = Pick<
@@ -2328,7 +2358,9 @@ export function incrementInternalOperatorUsage(
 }
 
 export function getOperatorSubscription() {
-  return apiRequest<OperatorSubscriptionDetail>("/v1/operator/subscription");
+  return apiRequest<OperatorSubscriptionDetail>("/v1/operator/subscription", {
+    cache: "no-store",
+  });
 }
 
 export function getOperatorSubscriptionPlans() {
@@ -2337,13 +2369,26 @@ export function getOperatorSubscriptionPlans() {
 
 export function upgradeOperatorSubscription(
   request: SubscriptionUpgradeRequest,
-  idempotencyKey = crypto.randomUUID(),
+  idempotencyKey: string = createIdempotencyKey(),
 ) {
   return apiRequest<SubscriptionUpgradeResult>("/v1/operator/subscription/upgrade", {
     method: "POST",
     body: request,
     headers: { "Idempotency-Key": idempotencyKey },
   });
+}
+
+export function retryOperatorSubscriptionPayment(
+  upgradeAttemptId: string,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<SubscriptionRetryPaymentResult>(
+    `/v1/operator/subscription/upgrade/${upgradeAttemptId}/retry-payment`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
 }
 
 export function getOperatorWallet() {
@@ -2400,7 +2445,7 @@ export function getAdminTripSettlements(
 
 export function settleAdminTripSettlement(
   settlementId: string,
-  idempotencyKey: string = crypto.randomUUID(),
+  idempotencyKey: string = createIdempotencyKey(),
 ) {
   return apiRequest<TripSettlement>(
     `/v1/admin/trip-settlements/${settlementId}/settle`,
@@ -2425,7 +2470,7 @@ export function getAdminPlatformWalletTransactions(
 
 export function adjustAdminPlatformWallet(
   request: WalletAdjustmentRequest,
-  idempotencyKey: string = crypto.randomUUID(),
+  idempotencyKey: string = createIdempotencyKey(),
 ) {
   return apiRequest<WalletTransaction>("/v1/admin/platform-wallet/adjust", {
     method: "POST",
@@ -2437,7 +2482,7 @@ export function adjustAdminPlatformWallet(
 export function adjustAdminOperatorWallet(
   operatorId: string,
   request: WalletAdjustmentRequest,
-  idempotencyKey: string = crypto.randomUUID(),
+  idempotencyKey: string = createIdempotencyKey(),
 ) {
   return apiRequest<WalletTransaction>(
     `/v1/admin/operators/${operatorId}/wallet/adjust`,
@@ -2451,7 +2496,7 @@ export function adjustAdminOperatorWallet(
 
 export function retryAdminInvoice(
   invoiceId: string,
-  idempotencyKey: string = crypto.randomUUID(),
+  idempotencyKey: string = createIdempotencyKey(),
 ) {
   return apiRequest<InvoiceRetryResult>(
     `/v1/admin/invoices/${invoiceId}/retry`,
@@ -2472,7 +2517,7 @@ export function getAdminSubscriptionPlans(
 
 export function createAdminSubscriptionPlan(
   request: AdminSubscriptionPlanRequest,
-  idempotencyKey = crypto.randomUUID(),
+  idempotencyKey = createIdempotencyKey(),
 ) {
   return apiRequest<SubscriptionPlan>("/v1/admin/subscription-plans", {
     method: "POST",
@@ -2484,7 +2529,7 @@ export function createAdminSubscriptionPlan(
 export function updateAdminSubscriptionPlan(
   planId: string,
   request: AdminSubscriptionPlanRequest,
-  idempotencyKey = crypto.randomUUID(),
+  idempotencyKey = createIdempotencyKey(),
 ) {
   return apiRequest<SubscriptionPlan>(
     `/v1/admin/subscription-plans/${planId}`,
@@ -3250,14 +3295,6 @@ export async function getAdminVouchers(params: AdminVoucherParams = {}) {
   }
 
   return response;
-}
-
-function createIdempotencyKey() {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function createAdminVoucher(request: CreateAdminVoucherRequest) {

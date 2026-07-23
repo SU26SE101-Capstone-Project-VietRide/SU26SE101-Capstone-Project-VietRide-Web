@@ -6,7 +6,11 @@ import {
   login,
   logout,
   refreshAuthSession,
+  register,
 } from "./auth";
+
+const UUID_V4_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 describe("auth", () => {
   beforeEach(() => {
@@ -47,6 +51,46 @@ describe("auth", () => {
     expect(session.user.role).toBe("OPERATOR_ADMIN");
     expect(getAuthUser()?.email).toBe("manager@vietride.vn");
     expect(getHomePathForRole(session.user.role)).toBe("/manager/dashboard");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/auth/login",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("registers with a UUID v4 idempotency key", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          statusCode: 201,
+          message: "Registered",
+          data: null,
+        }),
+        { status: 201 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await register({
+      displayName: "Nguyen Van A",
+      email: "user@vietride.vn",
+      phone: "0901234567",
+      password: "secret123",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/auth/register",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.stringMatching(UUID_V4_PATTERN),
+        }),
+      }),
+    );
   });
 
   it("calls logout with refresh token and clears the session", async () => {
@@ -75,6 +119,9 @@ describe("auth", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ refreshToken: "refresh-token" }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.stringMatching(UUID_V4_PATTERN),
+        }),
       }),
     );
     expect(getAuthUser()).toBeNull();
@@ -170,6 +217,9 @@ describe("auth", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ refreshToken: "refresh-token" }),
+        headers: expect.not.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
       }),
     );
   });

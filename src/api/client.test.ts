@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest, buildQuery } from "./client";
 
+const UUID_V4_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 describe("api client", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -61,9 +64,17 @@ describe("api client", () => {
         }),
       }),
     );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/admin/operators",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
   });
 
-  it("posts JSON bodies", async () => {
+  it("posts JSON bodies with an idempotency key", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(JSON.stringify({ data: { ok: true } }), {
         status: 201,
@@ -84,9 +95,82 @@ describe("api client", () => {
         body: JSON.stringify({ name: "VietRide" }),
         headers: expect.objectContaining({
           "Content-Type": "application/json",
+          "Idempotency-Key": expect.stringMatching(UUID_V4_PATTERN),
         }),
       }),
     );
+  });
+
+  it("preserves one operation key when a mutation is retried after 401", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "expired-access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "manager@vietride.vn",
+          displayName: "Manager",
+          phone: "0901234567",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+
+    const mutationKeys: Array<string | null> = [];
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url.endsWith("/v1/operator/routes")) {
+          mutationKeys.push(
+            new Headers(init?.headers).get("Idempotency-Key"),
+          );
+
+          if (mutationKeys.length === 1) {
+            return new Response(
+              JSON.stringify({
+                error: { message: "Access token expired." },
+              }),
+              { status: 401 },
+            );
+          }
+
+          return new Response(JSON.stringify({ data: { id: "route-1" } }), {
+            status: 201,
+          });
+        }
+
+        return new Response(
+          JSON.stringify({
+            data: {
+              accessToken: "new-access-token",
+              refreshToken: "new-refresh-token",
+              expiresInSeconds: 3600,
+              user: {
+                id: "user-1",
+                email: "manager@vietride.vn",
+                displayName: "Manager",
+                phone: "0901234567",
+                role: "OPERATOR_ADMIN",
+              },
+            },
+          }),
+          { status: 200 },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiRequest<{ id: string }>("/v1/operator/routes", {
+      method: "POST",
+      body: { name: "Ho Chi Minh - Da Lat" },
+    });
+
+    expect(mutationKeys).toHaveLength(2);
+    expect(mutationKeys[0]).toMatch(UUID_V4_PATTERN);
+    expect(mutationKeys[1]).toBe(mutationKeys[0]);
   });
 
   it("refreshes an expired token and retries the request once", async () => {

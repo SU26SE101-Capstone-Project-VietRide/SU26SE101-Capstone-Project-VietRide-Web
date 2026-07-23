@@ -1,3 +1,5 @@
+import { createIdempotencyKey } from "./api/idempotency";
+
 export type AuthRole = "SYSTEM_ADMIN" | "OPERATOR_ADMIN" | "OPERATOR_STAFF";
 
 export type AuthUser = {
@@ -238,6 +240,7 @@ export async function register(request: RegisterRequest): Promise<void> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Idempotency-Key": createIdempotencyKey(),
     },
     body: JSON.stringify(request),
   });
@@ -260,6 +263,7 @@ export async function logout(): Promise<void> {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.accessToken}`,
+          "Idempotency-Key": createIdempotencyKey(),
         },
         body: JSON.stringify({ refreshToken: session.refreshToken }),
       });

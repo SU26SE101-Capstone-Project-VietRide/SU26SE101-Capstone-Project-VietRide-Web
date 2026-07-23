@@ -12,6 +12,10 @@ import { Link, useLocation } from "react-router-dom";
 import logo from "../../../assets/Login/logo.svg";
 import { getOperatorSubscription, type OperatorSubscriptionDetail } from "../../../api/vietride";
 import LanguageSwitcher from "../../../components/LanguageSwitcher";
+import {
+  clearSubscriptionPaymentIntent,
+  getSubscriptionPaymentIntent,
+} from "./subscriptionPaymentIntent";
 
 type PaymentReturnStatus =
   | "verifying"
@@ -22,7 +26,7 @@ type PaymentReturnStatus =
   | "invalid"
   | "error";
 
-const MAX_VERIFICATION_ATTEMPTS = 10;
+const MAX_VERIFICATION_ATTEMPTS = 30;
 const VERIFICATION_INTERVAL_MS = 2_000;
 
 export default function SubscriptionPaymentReturn() {
@@ -36,6 +40,7 @@ export default function SubscriptionPaymentReturn() {
   const responseCode = query.get("vnp_ResponseCode");
   const transactionReference =
     query.get("vnp_TransactionNo") ?? query.get("vnp_TxnRef");
+  const paymentIntent = useMemo(() => getSubscriptionPaymentIntent(), []);
   const [status, setStatus] = useState<PaymentReturnStatus>(() => {
     if (!responseCode) return "invalid";
     if (responseCode === "24") return "cancelled";
@@ -56,18 +61,63 @@ export default function SubscriptionPaymentReturn() {
     setStatus("verifying");
     setError("");
 
+    if (import.meta.env.DEV) {
+      console.info("[SubscriptionPayment] RETURN_VERIFICATION_START", {
+        responseCode,
+        transactionReference,
+        paymentId: paymentIntent?.paymentId ?? null,
+        upgradeAttemptId: paymentIntent?.upgradeAttemptId ?? null,
+        targetPlanId: paymentIntent?.targetPlanId ?? null,
+      });
+    }
+
+    let lastResultStatus: string | null = null;
     for (let attempt = 1; attempt <= MAX_VERIFICATION_ATTEMPTS; attempt += 1) {
       try {
         const result = await getOperatorSubscription();
         if (verificationRunRef.current !== runId) return;
 
         setSubscription(result);
-        if (result.status === "ACTIVE" && !result.pendingUpgrade) {
+        lastResultStatus = result.status;
+        if (import.meta.env.DEV) {
+          console.info("[SubscriptionPayment] RETURN_VERIFICATION_RESULT", {
+            attempt,
+            status: result.status,
+            activePlanId: result.plan.planId,
+            upgradeAttemptId:
+              result.pendingUpgrade?.upgradeAttemptId ?? null,
+            paymentId:
+              result.pendingUpgrade?.latestPayment?.paymentId ?? null,
+            paymentStatus:
+              result.pendingUpgrade?.latestPayment?.status ?? null,
+          });
+        }
+        const targetPlanWasActivated =
+          !paymentIntent?.targetPlanId ||
+          result.plan.planId === paymentIntent.targetPlanId;
+        if (
+          result.status === "ACTIVE" &&
+          !result.pendingUpgrade &&
+          targetPlanWasActivated
+        ) {
+          clearSubscriptionPaymentIntent();
           setStatus("success");
+          if (import.meta.env.DEV) {
+            console.info("[SubscriptionPayment] RETURN_VERIFIED", {
+              attempt,
+              activePlanId: result.plan.planId,
+            });
+          }
           return;
         }
       } catch (err) {
         if (verificationRunRef.current !== runId) return;
+        if (import.meta.env.DEV) {
+          console.error("[SubscriptionPayment] RETURN_VERIFICATION_FAILED", {
+            attempt,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
         setError(err instanceof Error ? err.message : t("packages.loadFailed"));
         setStatus("error");
         return;
@@ -82,8 +132,23 @@ export default function SubscriptionPaymentReturn() {
 
     if (verificationRunRef.current === runId) {
       setStatus("processing");
+      if (import.meta.env.DEV) {
+        console.warn("[SubscriptionPayment] RETURN_STILL_PENDING", {
+          attempts: MAX_VERIFICATION_ATTEMPTS,
+          status: lastResultStatus,
+          paymentId: paymentIntent?.paymentId ?? null,
+          upgradeAttemptId: paymentIntent?.upgradeAttemptId ?? null,
+        });
+      }
     }
-  }, [t]);
+  }, [
+    paymentIntent?.paymentId,
+    paymentIntent?.targetPlanId,
+    paymentIntent?.upgradeAttemptId,
+    responseCode,
+    t,
+    transactionReference,
+  ]);
 
   useEffect(() => {
     verificationRunRef.current += 1;
@@ -97,6 +162,12 @@ export default function SubscriptionPaymentReturn() {
       verificationRunRef.current += 1;
     };
   }, [responseCode, verifyPayment]);
+
+  useEffect(() => {
+    if (responseCode && responseCode !== "00") {
+      clearSubscriptionPaymentIntent();
+    }
+  }, [responseCode]);
 
   let title = t("paymentReturn.verifyingTitle");
   let description = t("paymentReturn.verifyingDescription");

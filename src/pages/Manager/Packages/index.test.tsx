@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorInvoices,
   getOperatorSubscription,
   getOperatorSubscriptionPlans,
+  retryOperatorSubscriptionPayment,
   upgradeOperatorSubscription,
   type OperatorSubscriptionDetail,
   type SubscriptionPlan,
@@ -24,6 +25,7 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorInvoices: vi.fn(),
   getOperatorInvoice: vi.fn(),
   downloadOperatorInvoice: vi.fn(),
+  retryOperatorSubscriptionPayment: vi.fn(),
   upgradeOperatorSubscription: vi.fn(),
 }));
 
@@ -99,6 +101,10 @@ describe("ManagerPackages", () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("sends the documented VNPay upgrade payload", async () => {
     const user = userEvent.setup();
     vi.mocked(upgradeOperatorSubscription).mockResolvedValue({
@@ -110,7 +116,14 @@ describe("ManagerPackages", () => {
       billingPeriod: "YEARLY",
       paymentRedirectUrl: null,
       dueAt: null,
-      invoiceStatus: "PENDING",
+      activePlan: {
+        planId: currentPlan.planId,
+        name: currentPlan.name,
+      },
+      pendingTargetPlan: {
+        planId: plan.planId,
+        name: plan.name,
+      },
     });
 
     render(<ManagerPackages />);
@@ -120,12 +133,15 @@ describe("ManagerPackages", () => {
       screen.getByRole("button", { name: "packages.confirmPurchase" }),
     );
 
-    expect(upgradeOperatorSubscription).toHaveBeenCalledWith({
-      planId: "plan-pro",
-      billingPeriod: "YEARLY",
-      paymentMethod: "VNPAY",
-      returnUrl: "http://localhost:3000/payments/return",
-    });
+    expect(upgradeOperatorSubscription).toHaveBeenCalledWith(
+      {
+        planId: "plan-pro",
+        billingPeriod: "YEARLY",
+        paymentMethod: "VNPAY",
+        returnUrl: "http://localhost:3000/payments/return",
+      },
+      expect.any(String),
+    );
     expect(upgradeOperatorSubscription).toHaveBeenCalledTimes(1);
     expect(screen.getByText("packages.missingPaymentRedirect")).toBeInTheDocument();
   });
@@ -148,7 +164,7 @@ describe("ManagerPackages", () => {
     expect(upgradeOperatorSubscription).not.toHaveBeenCalled();
   });
 
-  it("does not present an unresolved pending plan as active", async () => {
+  it("keeps showing the entitled plan when pending payment details are unavailable", async () => {
     vi.mocked(getOperatorSubscription).mockResolvedValue({
       ...subscription,
       status: "PENDING_PAYMENT",
@@ -163,10 +179,10 @@ describe("ManagerPackages", () => {
     render(<ManagerPackages />);
 
     expect(
-      await screen.findByText("packages.pendingPackage Professional"),
+      await screen.findByText("packages.currentPackage Professional"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("packages.currentPackage Professional"),
+      screen.queryByText("packages.pendingPackage Professional"),
     ).not.toBeInTheDocument();
     expect(
       screen.getByText("packages.pendingPaymentOutOfSync"),
@@ -174,7 +190,105 @@ describe("ManagerPackages", () => {
     expect(
       screen.getByText("packages.noOtherPayablePlans"),
     ).toBeInTheDocument();
-    expect(screen.queryByText("packages.vehiclesUsed")).not.toBeInTheDocument();
+    expect(screen.getByText("packages.vehiclesUsed")).toBeInTheDocument();
+  });
+
+  it("shows the pending target plan and retries through the documented API", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorSubscription).mockResolvedValue({
+      ...subscription,
+      status: "PENDING_PAYMENT",
+      plan: currentPlan,
+      pendingUpgrade: {
+        upgradeAttemptId: "attempt-pending",
+        targetPlan: {
+          planId: plan.planId,
+          name: plan.name,
+        },
+        billingPeriod: "YEARLY",
+        amount: plan.pricePerYear,
+        dueAt: null,
+        remainingSeconds: 600,
+        latestPayment: {
+          paymentId: "payment-old",
+          status: "FAILED",
+          canRetry: true,
+        },
+      },
+    });
+    vi.mocked(getOperatorSubscriptionPlans).mockResolvedValue([
+      currentPlan,
+      plan,
+    ]);
+    vi.mocked(retryOperatorSubscriptionPayment).mockResolvedValue({
+      upgradeAttemptId: "attempt-pending",
+      status: "PENDING_PAYMENT",
+      paymentId: "payment-new",
+      paymentRedirectUrl: null,
+      dueAt: null,
+    });
+
+    render(<ManagerPackages />);
+
+    expect(
+      await screen.findByText("packages.currentPackage Starter (Free Trial)"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Professional").length).toBeGreaterThanOrEqual(2);
+
+    await user.click(
+      screen.getByRole("button", { name: "packages.retryPayment" }),
+    );
+
+    expect(retryOperatorSubscriptionPayment).toHaveBeenCalledWith(
+      "attempt-pending",
+      expect.any(String),
+    );
+    expect(
+      await screen.findByText("packages.missingPaymentRedirect"),
+    ).toBeInTheDocument();
+  });
+
+  it("refreshes a pending subscription until the backend activates the plan", async () => {
+    vi.useFakeTimers();
+    const pendingSubscription: OperatorSubscriptionDetail = {
+      ...subscription,
+      status: "PENDING_PAYMENT",
+      pendingUpgrade: {
+        upgradeAttemptId: "attempt-pending",
+        targetPlan: {
+          planId: plan.planId,
+          name: plan.name,
+        },
+        billingPeriod: "YEARLY",
+        amount: plan.pricePerYear,
+        dueAt: "2026-07-23T00:00:00Z",
+        remainingSeconds: 600,
+        latestPayment: {
+          paymentId: "payment-1",
+          status: "SUCCEEDED",
+          canRetry: false,
+        },
+      },
+    };
+    vi.mocked(getOperatorSubscription)
+      .mockResolvedValueOnce(pendingSubscription)
+      .mockResolvedValue({ ...subscription, plan });
+
+    render(<ManagerPackages />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getOperatorSubscription).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    expect(getOperatorSubscription).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByText("packages.currentPackage Professional"),
+    ).toBeInTheDocument();
   });
 
   it.each(["CANCELLED", "EXPIRED"])(
@@ -200,7 +314,14 @@ describe("ManagerPackages", () => {
         billingPeriod: "YEARLY",
         paymentRedirectUrl: null,
         dueAt: null,
-        invoiceStatus: "PENDING",
+        activePlan: {
+          planId: plan.planId,
+          name: plan.name,
+        },
+        pendingTargetPlan: {
+          planId: plan.planId,
+          name: plan.name,
+        },
       });
 
       render(<ManagerPackages />);
@@ -225,12 +346,15 @@ describe("ManagerPackages", () => {
         screen.getByRole("button", { name: "packages.confirmPurchase" }),
       );
 
-      expect(upgradeOperatorSubscription).toHaveBeenCalledWith({
-        planId: "plan-pro",
-        billingPeriod: "YEARLY",
-        paymentMethod: "VNPAY",
-        returnUrl: "http://localhost:3000/payments/return",
-      });
+      expect(upgradeOperatorSubscription).toHaveBeenCalledWith(
+        {
+          planId: "plan-pro",
+          billingPeriod: "YEARLY",
+          paymentMethod: "VNPAY",
+          returnUrl: "http://localhost:3000/payments/return",
+        },
+        expect.any(String),
+      );
     },
   );
 

@@ -1,4 +1,8 @@
 import { getAuthSession, refreshAuthSession } from "../auth";
+import {
+  addIdempotencyHeader,
+  type HttpMethod,
+} from "./idempotency";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -22,10 +26,11 @@ type ApiEnvelope<T> = {
 };
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  method?: HttpMethod;
   body?: unknown;
   authenticated?: boolean;
   headers?: Record<string, string>;
+  cache?: RequestCache;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -89,12 +94,13 @@ export async function apiRequest<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
+  const requestOptions = prepareRequestOptions(path, method, options);
   const session = getAuthSession();
   const shouldAuthenticate = options.authenticated !== false;
   const response = await sendRequest(
     path,
     method,
-    options,
+    requestOptions,
     shouldAuthenticate ? session?.accessToken : undefined,
   );
 
@@ -107,7 +113,7 @@ export async function apiRequest<T>(
       const retryResponse = await sendRequest(
         path,
         method,
-        options,
+        requestOptions,
         refreshedSession.accessToken,
       );
       const retryPayload = await parseResponse(retryResponse);
@@ -145,12 +151,13 @@ export async function apiBlobRequest(
   options: RequestOptions = {},
 ): Promise<Blob> {
   const method = options.method ?? "GET";
+  const requestOptions = prepareRequestOptions(path, method, options);
   const session = getAuthSession();
   const shouldAuthenticate = options.authenticated !== false;
   const response = await sendRequest(
     path,
     method,
-    options,
+    requestOptions,
     shouldAuthenticate ? session?.accessToken : undefined,
   );
 
@@ -161,7 +168,7 @@ export async function apiBlobRequest(
       const retryResponse = await sendRequest(
         path,
         method,
-        options,
+        requestOptions,
         refreshedSession.accessToken,
       );
 
@@ -185,6 +192,23 @@ export async function apiBlobRequest(
   }
 
   return response.blob();
+}
+
+function prepareRequestOptions(
+  path: string,
+  method: HttpMethod,
+  options: RequestOptions,
+): RequestOptions {
+  const headers = addIdempotencyHeader(path, method, options.headers);
+
+  if (headers === options.headers) {
+    return options;
+  }
+
+  return {
+    ...options,
+    headers,
+  };
 }
 
 function buildHeaders(options: RequestOptions, accessToken?: string) {
@@ -222,5 +246,6 @@ function sendRequest(
     method,
     headers: buildHeaders(options, accessToken),
     body: body as BodyInit | undefined,
+    ...(options.cache ? { cache: options.cache } : {}),
   });
 }
