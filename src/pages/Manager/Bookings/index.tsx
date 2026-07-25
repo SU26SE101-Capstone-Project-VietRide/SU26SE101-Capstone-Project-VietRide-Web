@@ -514,8 +514,6 @@ function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProp
       </div>
 
       <DetailSection title={t("bookings.bookingInfo")} columns="four">
-        <DetailItem label={t("bookings.bookingId")} value={booking.id} />
-        <DetailItem label={t("bookings.buyerUserId")} value={booking.buyerUserId} />
         <DetailItem
           label={t("bookings.createdAt")}
           value={formatDateTime(booking.createdAt)}
@@ -527,7 +525,6 @@ function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProp
       </DetailSection>
 
       <DetailSection title={t("bookings.tripInfo")} columns="four">
-        <DetailItem label={t("bookings.tripId")} value={booking.tripId} />
         <DetailItem label={t("bookings.route")} value={route} />
         <DetailItem label={t("bookings.journey")} value={journey} />
         <DetailItem

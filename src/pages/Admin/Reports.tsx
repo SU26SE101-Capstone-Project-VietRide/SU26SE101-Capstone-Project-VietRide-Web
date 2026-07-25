@@ -260,7 +260,6 @@ export default function AdminReports() {
                         <p className="text-sm font-semibold text-gray-900">
                           {row.operatorName || t("reports.unknownOperator")}
                         </p>
-                        <p className="mt-0.5 font-mono text-xs text-gray-400">{row.operatorId}</p>
                       </td>
                       <td className="px-5 py-4 text-right text-sm text-gray-700">{numberFormatter.format(row.completedBookingCount)}</td>
                       <td className="px-5 py-4 text-right text-sm text-gray-700">{numberFormatter.format(row.completedTripCount)}</td>

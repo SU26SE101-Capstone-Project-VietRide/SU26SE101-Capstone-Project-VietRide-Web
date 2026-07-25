@@ -208,36 +208,33 @@ function EmptyRow({ columns, t }: { columns: number; t: Translate }) {
 function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Translate }) {
   return (
     <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-      <th className="px-4 py-3">{t("wallet.datetime")}</th><th className="px-4 py-3">{t("wallet.type")}</th><th className="px-4 py-3">{t("wallet.descriptionCol")}</th><th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.balance")}</th><th className="px-4 py-3">{t("wallet.reference")}</th>
-    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={6} t={t} /> : items.map((item) => (
+      <th className="px-4 py-3">{t("wallet.datetime")}</th><th className="px-4 py-3">{t("wallet.type")}</th><th className="px-4 py-3">{t("wallet.descriptionCol")}</th><th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.balance")}</th>
+    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={5} t={t} /> : items.map((item) => (
       <tr key={item.transactionId} className="border-t border-gray-100">
         <td className="px-4 py-3 text-gray-600">{formatDate(item.createdAt)}</td>
         <td className="px-4 py-3"><span className="inline-flex items-center gap-1 font-semibold">{item.type === "CREDIT" ? <FiArrowDown className="text-emerald-600" /> : <FiArrowUp className="text-red-600" />}{item.type}</span></td>
         <td className="px-4 py-3 text-gray-700">{item.note || item.referenceType}</td>
         <td className={`px-4 py-3 font-semibold ${item.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>{item.type === "CREDIT" ? "+" : "-"}{formatMoney(item.amount)}</td>
         <td className="px-4 py-3">{formatMoney(item.balanceAfter)}</td>
-        <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.referenceId || "-"}</td>
       </tr>
     ))}</tbody></table>
   );
 }
-
 function SettlementTable({ items, t }: { items: TripSettlement[]; t: Translate }) {
   return (
     <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-      <th className="px-4 py-3">{t("wallet.settlementId")}</th><th className="px-4 py-3">{t("wallet.trip")}</th><th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.eligibleAt")}</th><th className="px-4 py-3">{t("wallet.statusLabel")}</th>
-    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={5} t={t} /> : items.map((item) => (
-      <tr key={item.settlementId} className="border-t border-gray-100"><td className="px-4 py-3 font-mono text-xs">{item.settlementId}</td><td className="px-4 py-3 font-mono text-xs">{item.tripId}</td><td className="px-4 py-3 font-semibold">{formatMoney(item.netAmount)}</td><td className="px-4 py-3">{formatDate(item.eligibleAt)}</td><td className="px-4 py-3"><span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">{item.status}</span></td></tr>
+      <th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.eligibleAt")}</th><th className="px-4 py-3">{t("wallet.statusLabel")}</th>
+    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={3} t={t} /> : items.map((item) => (
+      <tr key={item.settlementId} className="border-t border-gray-100"><td className="px-4 py-3 font-semibold">{formatMoney(item.netAmount)}</td><td className="px-4 py-3">{formatDate(item.eligibleAt)}</td><td className="px-4 py-3"><span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">{item.status}</span></td></tr>
     ))}</tbody></table>
   );
 }
-
 function LedgerTable({ items, t }: { items: OperatorLedgerEntry[]; t: Translate }) {
   return (
     <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-      <th className="px-4 py-3">{t("wallet.datetime")}</th><th className="px-4 py-3">{t("wallet.entryType")}</th><th className="px-4 py-3">{t("wallet.trip")}</th><th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.reference")}</th>
-    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={5} t={t} /> : items.map((item) => (
-      <tr key={item.ledgerEntryId} className="border-t border-gray-100"><td className="px-4 py-3">{formatDate(item.createdAt)}</td><td className="px-4 py-3 font-semibold">{item.entryType}</td><td className="px-4 py-3 font-mono text-xs">{item.tripId}</td><td className={`px-4 py-3 font-semibold ${item.amount < 0 ? "text-red-700" : "text-emerald-700"}`}>{formatMoney(item.amount)}</td><td className="px-4 py-3 font-mono text-xs text-gray-500">{item.referenceId}</td></tr>
+      <th className="px-4 py-3">{t("wallet.datetime")}</th><th className="px-4 py-3">{t("wallet.entryType")}</th><th className="px-4 py-3">{t("wallet.amount")}</th>
+    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={3} t={t} /> : items.map((item) => (
+      <tr key={item.ledgerEntryId} className="border-t border-gray-100"><td className="px-4 py-3">{formatDate(item.createdAt)}</td><td className="px-4 py-3 font-semibold">{item.entryType}</td><td className={`px-4 py-3 font-semibold ${item.amount < 0 ? "text-red-700" : "text-emerald-700"}`}>{formatMoney(item.amount)}</td></tr>
     ))}</tbody></table>
   );
 }

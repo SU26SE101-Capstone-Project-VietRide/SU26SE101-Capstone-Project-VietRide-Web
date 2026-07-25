@@ -22,12 +22,14 @@ import {
   exportOperatorParcelReport,
   getOperatorParcelReportSummary,
   getOperatorParcelRouteFares,
+  getOperatorRoutes,
   getParcelDetail,
   overrideOperatorParcelCapacity,
   requestOperatorParcelTransfer,
   reviewOperatorParcel,
   returnOperatorParcel,
   type OperatorParcelReportSummary,
+  type OperatorRoute,
   type ParcelDetail,
   type ParcelRouteFare,
   updateOperatorParcelStatus,
@@ -102,6 +104,7 @@ export default function ParcelsList() {
   const canOverrideCapacity = user?.role === "OPERATOR_ADMIN";
   const [summary, setSummary] = useState<OperatorParcelReportSummary | null>(null);
   const [routeFares, setRouteFares] = useState<ParcelRouteFare[]>([]);
+  const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [fromDate, setFromDate] = useState(monthStartIsoDate());
   const [toDate, setToDate] = useState(todayIsoDate());
   const [parcelId, setParcelId] = useState("");
@@ -133,16 +136,18 @@ export default function ParcelsList() {
     setError("");
 
     try {
-      const [summaryResult, fareResult] = await Promise.all([
+      const [summaryResult, fareResult, routeResult] = await Promise.all([
         getOperatorParcelReportSummary({
           from: fromDate,
           to: toDate,
         }),
         getOperatorParcelRouteFares({ page: 1, pageSize: 100 }),
+      getOperatorRoutes({ page: 1, pageSize: 100 }),
       ]);
 
       setSummary(summaryResult);
       setRouteFares(fareResult.items);
+      setRoutes(routeResult.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("parcels.loadFailed"));
     } finally {
@@ -522,11 +527,11 @@ export default function ParcelsList() {
                 <tbody>
                   {paginatedRouteFares.map((fare) => (
                     <tr
-                      key={`${fare.routeId}-${fare.sizeCategory}`}
+                      key={`${routes.find((route) => route.id === fare.routeId)?.name || "Tuyến chưa có tên"}-${fare.sizeCategory}`}
                       className="border-b border-gray-100 last:border-0"
                     >
-                      <td className="px-5 py-4 font-mono text-sm text-gray-700">
-                        {fare.routeId}
+                      <td className="px-5 py-4 text-sm font-medium text-gray-900">
+                        {routes.find((route) => route.id === fare.routeId)?.name || "Tuyến chưa có tên"}
                       </td>
                       <td className="px-5 py-4 text-sm font-semibold text-gray-900">
                         {fare.sizeCategory}

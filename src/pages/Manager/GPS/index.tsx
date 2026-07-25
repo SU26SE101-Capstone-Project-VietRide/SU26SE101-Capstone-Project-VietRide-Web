@@ -12,10 +12,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  getInternalTripRouteStops,
+  getOperatorBookings,
   getTrackingTripEta,
   getTrackingTripLatest,
   getTrackingTripTrail,
+  type OperatorBookingListItem,
   type TrackingEtaResponse,
+  type TripRouteStop,
   type TrackingLatestResponse,
   type TrackingTrailPoint,
 } from "../../../api/vietride";
@@ -140,6 +144,8 @@ export default function GPSTracking() {
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
   const [tripId, setTripId] = useState("");
   const [stopId, setStopId] = useState("");
+  const [tripOptions, setTripOptions] = useState<OperatorBookingListItem[]>([]);
+  const [routeStops, setRouteStops] = useState<TripRouteStop[]>([]);
   const [latest, setLatest] = useState<TrackingLatestResponse | null>(null);
   const [trail, setTrail] = useState<TrackingTrailPoint[]>([]);
   const [eta, setEta] = useState<TrackingEtaResponse | null>(null);
@@ -180,6 +186,41 @@ export default function GPSTracking() {
     if (v) setFocusCenter(v.position);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void getOperatorBookings({ page: 1, pageSize: 100, sortBy: "createdAt", sortDir: "desc" })
+      .then((result) => {
+        if (cancelled) return;
+        const uniqueTrips = Array.from(
+          new Map(result.items.map((booking) => [booking.tripId, booking])).values(),
+        );
+        setTripOptions(uniqueTrips);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setApiError(error instanceof Error ? error.message : t("gps.trackingLoadFailed"));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  async function selectTrip(nextTripId: string) {
+    setTripId(nextTripId);
+    setStopId("");
+    setRouteStops([]);
+    if (!nextTripId) return;
+
+    try {
+      const stops = await getInternalTripRouteStops(nextTripId);
+      setRouteStops(stops);
+    } catch {
+      setRouteStops([]);
+    }
+  }
   async function loadTripTracking() {
     if (!tripId.trim()) {
       setApiError(t("gps.tripIdRequired"));
@@ -237,7 +278,7 @@ export default function GPSTracking() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            {t("gps.title")}
+            {t("gps.title")} <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 align-middle text-xs font-semibold text-amber-800">Demo fleet</span>
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-base">
             {t("gps.subtitle")}
@@ -379,23 +420,38 @@ export default function GPSTracking() {
             <label className="mb-1 block text-xs font-medium text-gray-600">
               {t("gps.tripId")}
             </label>
-            <input
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+            <CustomSelect
+              aria-label={t("gps.tripId")}
+              className="w-full"
               value={tripId}
-              onChange={(event) => setTripId(event.target.value)}
-              placeholder="tripId"
-            />
+              onChange={(event) => void selectTrip(event.target.value)}
+            >
+              <option value="">Chọn chuyến để theo dõi</option>
+              {tripOptions.map((booking) => (
+                <option key={booking.tripId} value={booking.tripId}>
+                  {booking.trip.routeName || `${booking.trip.originName || "-"} - ${booking.trip.destinationName || "-"}`} · {booking.trip.currentDepartureAt || booking.trip.departureAt || "Chưa có giờ đi"}
+                </option>
+              ))}
+            </CustomSelect>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
               {t("gps.stopId")}
             </label>
-            <input
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+            <CustomSelect
+              aria-label={t("gps.stopId")}
+              className="w-full"
+              disabled={!tripId || routeStops.length === 0}
               value={stopId}
               onChange={(event) => setStopId(event.target.value)}
-              placeholder={t("gps.stopIdOptional")}
-            />
+            >
+              <option value="">Không tính ETA theo điểm dừng</option>
+              {routeStops.map((stop) => (
+                <option key={stop.stopId} value={stop.stopId}>
+                  {stop.orderIndex}. {stop.name || "Điểm dừng"}
+                </option>
+              ))}
+            </CustomSelect>
           </div>
           <button
             type="button"

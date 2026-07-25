@@ -119,7 +119,10 @@ export default function Payouts() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+        Dữ liệu minh họa: phần này chưa có đầy đủ API tổng hợp từ backend.
+      </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
             {t("payouts.title")}{" "}
@@ -131,7 +134,7 @@ export default function Payouts() {
             {t("payouts.subtitleLong")}
           </p>
         </div>
-        <button className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded text-sm text-gray-700 hover:bg-gray-50">
+        <button type="button" disabled title="Chưa có API xuất báo cáo" className="flex cursor-not-allowed items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
           <svg
             className="w-4 h-4"
             fill="none"
@@ -220,7 +223,7 @@ export default function Payouts() {
               className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-gray-300"
             />
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded text-sm text-gray-700 hover:bg-gray-50">
+          <button type="button" disabled title="Chức năng chờ API backend" className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
             <svg
               className="w-4 h-4"
               fill="none"
@@ -236,7 +239,7 @@ export default function Payouts() {
             </svg>
             {tc("filter")}
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded text-sm text-gray-700 hover:bg-gray-50">
+          <button type="button" disabled title="Chức năng chờ API backend" className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
             <svg
               className="w-4 h-4"
               fill="none"
@@ -252,7 +255,7 @@ export default function Payouts() {
             </svg>
             {tc("columns")}
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded text-sm text-gray-700 hover:bg-gray-50">
+          <button type="button" disabled title="Chức năng chờ API backend" className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
             <svg
               className="w-4 h-4"
               fill="none"

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import {
   FiUsers,
   FiTruck,
@@ -29,6 +30,7 @@ import {
   getAdminBookingStatsAggregate,
   type BookingStatsItem,
 } from "../../api/vietride";
+import { downloadCsv } from "../../utils/csv";
 
 type BookingChartPoint = {
   month: string;
@@ -152,6 +154,7 @@ async function fetchAdminBookingStats() {
 export default function AdminDashboard() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [bookingStatsData, setBookingStatsData] = useState(bookingStats);
   const [revenueByOperatorData, setRevenueByOperatorData] =
@@ -235,6 +238,14 @@ export default function AdminDashboard() {
     { status: tc("rejected"), count: 10, percentage: 3 },
   ];
 
+  const handleExportReport = (report: string) => {
+    downloadCsv(
+      "admin-dashboard-report.csv",
+      ["Báo cáo", "Ghi chú"],
+      [[report, "Dữ liệu minh họa; dùng trang Báo cáo để xuất dữ liệu API đầy đủ"]],
+    );
+  };
+
   const exportReports = [
     t("dashboard.exportRevenue"),
     t("dashboard.exportUsers"),
@@ -251,6 +262,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6 pb-4">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+        Dữ liệu minh họa: phần này chưa có đầy đủ API tổng hợp từ backend.
+      </div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
@@ -451,7 +465,7 @@ export default function AdminDashboard() {
               </span>
               <span className="font-bold text-amber-600">28</span>
             </div>
-            <button className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium rounded-lg text-sm transition">
+            <button type="button" onClick={() => navigate("/admin/operators?status=PENDING")} className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium rounded-lg text-sm transition">
               {t("dashboard.viewPending")}
             </button>
           </div>
@@ -476,7 +490,7 @@ export default function AdminDashboard() {
               <span className="text-gray-700">{t("dashboard.todayLabel")}</span>
               <span className="font-bold text-emerald-600">12</span>
             </div>
-            <button className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-lg text-sm transition">
+            <button type="button" onClick={() => navigate("/admin/operators?status=APPROVED")} className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-lg text-sm transition">
               {t("dashboard.viewDetails")}
             </button>
           </div>
@@ -491,6 +505,8 @@ export default function AdminDashboard() {
           {exportReports.map((report) => (
             <button
               key={report}
+              type="button"
+              onClick={() => handleExportReport(report)}
               className="py-2 px-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 text-sm font-medium transition flex items-center justify-center gap-2"
             >
               <FiDownload size={14} />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -34,10 +34,36 @@ export default function Topbar({
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const isAdmin = location.pathname.startsWith("/admin");
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
   const authUser = getAuthUser();
+  const settingsPath =
+    authUser?.role === "OPERATOR_ADMIN" ? "/manager/settings" : null;
+
+  function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = searchTerm.trim();
+    if (!query) return;
+
+    const normalized = query.toLowerCase();
+    const target = isAdmin
+      ? normalized.includes("nhà xe") || normalized.includes("operator")
+        ? "/admin/operators"
+        : normalized.includes("người dùng") || normalized.includes("user")
+          ? "/admin/users"
+          : "/admin/dashboard"
+      : normalized.includes("parcel") || normalized.includes("hàng")
+        ? "/manager/parcels"
+        : normalized.includes("booking") || normalized.includes("vé")
+          ? "/manager/bookings"
+          : normalized.includes("chuyến") || normalized.includes("trip")
+            ? "/manager/trips"
+            : "/manager/dashboard";
+
+    navigate(`${target}?search=${encodeURIComponent(query)}`);
+  }
 
   const loadNotifications = useCallback(async () => {
     setNotificationsLoading(true);
@@ -119,16 +145,19 @@ export default function Topbar({
           </button>
         </div>
 
-        <div className="hidden md:flex flex-1 max-w-md mx-4">
+        <form className="hidden md:flex flex-1 max-w-md mx-4" role="search" onSubmit={handleSearch}>
           <div className="relative w-full">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              aria-label={t("topbar.searchPlaceholder")}
               placeholder={t("topbar.searchPlaceholder")}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100 transition"
             />
           </div>
-        </div>
+        </form>
 
         <div className="flex items-center gap-3">
           <LanguageSwitcher compact />
@@ -260,12 +289,15 @@ export default function Topbar({
                   >
                     {t("profile")}
                   </Link>
-                  <button
-                    type="button"
-                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition"
-                  >
-                    {t("settings")}
-                  </button>
+                  {settingsPath && (
+                    <Link
+                      to={settingsPath}
+                      onClick={() => setShowProfile(false)}
+                      className="block w-full rounded px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-100"
+                    >
+                      {t("settings")}
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={handleLogout}

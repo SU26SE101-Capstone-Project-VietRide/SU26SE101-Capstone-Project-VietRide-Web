@@ -80,85 +80,11 @@ type TripSchedule = ScheduleForm & {
   assistantName?: string;
 };
 
-const routeSeeds: RouteOption[] = [
-  {
-    id: "route-hcm-dl",
-    name: "TP.HCM - Da Lat",
-    origin: "Mien Dong Station",
-    destination: "Da Lat Central",
-    status: "active",
-    distanceKm: 310,
-    durationMinutes: 390,
-  },
-  {
-    id: "route-hcm-nt",
-    name: "TP.HCM - Nha Trang",
-    origin: "Mien Dong Station",
-    destination: "Nha Trang South",
-    status: "active",
-    distanceKm: 430,
-    durationMinutes: 510,
-  },
-  {
-    id: "route-hcm-ct",
-    name: "TP.HCM - Can Tho",
-    origin: "An Suong Station",
-    destination: "Can Tho Center",
-    status: "inactive",
-    distanceKm: 170,
-    durationMinutes: 210,
-  },
-];
-
-const vehicleSeeds: VehicleOption[] = [
-  {
-    id: "vehicle-51b-22011",
-    plate: "51B-220.11",
-    seats: 34,
-    status: "available",
-  },
-  {
-    id: "vehicle-51b-88991",
-    plate: "51B-889.91",
-    seats: 22,
-    status: "available",
-  },
-  { id: "vehicle-51f-12009", plate: "51F-120.09", seats: 16, status: "busy" },
-];
-
-const staffSeeds: StaffOption[] = [
-  {
-    id: "driver-an",
-    name: "Nguyen Van An",
-    role: "driver",
-    status: "available",
-  },
-  {
-    id: "driver-binh",
-    name: "Tran Quoc Binh",
-    role: "driver",
-    status: "available",
-  },
-  { id: "driver-cu", name: "Le Manh Cu", role: "driver", status: "busy" },
-  {
-    id: "assistant-mai",
-    name: "Pham Thu Mai",
-    role: "assistant",
-    status: "available",
-  },
-  {
-    id: "assistant-linh",
-    name: "Do Khanh Linh",
-    role: "assistant",
-    status: "available",
-  },
-];
-
 const emptyForm: ScheduleForm = {
-  routeId: routeSeeds[0]?.id ?? "",
-  vehicleId: vehicleSeeds[0]?.id ?? "",
-  driverId: staffSeeds.find((item) => item.role === "driver")?.id ?? "",
-  assistantId: staffSeeds.find((item) => item.role === "assistant")?.id ?? "",
+  routeId: "",
+  vehicleId: "",
+  driverId: "",
+  assistantId: "",
   departureAt: "",
   arrivalEstimate: "",
   fare: "250000",
@@ -364,9 +290,9 @@ export default function TripsPage() {
   const { t: tc } = useTranslation("common");
   const authUser = getAuthUser();
   const [schedules, setSchedules] = useState<TripSchedule[]>([]);
-  const [routes, setRoutes] = useState<RouteOption[]>(routeSeeds);
-  const [vehicles, setVehicles] = useState<VehicleOption[]>(vehicleSeeds);
-  const [staff, setStaff] = useState<StaffOption[]>(staffSeeds);
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+  const [staff, setStaff] = useState<StaffOption[]>([]);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
   const [editingId, setEditingId] = useState("");
   const [message, setMessage] = useState("");

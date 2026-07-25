@@ -368,6 +368,7 @@ export default function VehiclesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const pageSize = 8;
 
   async function loadVehicles() {
@@ -376,11 +377,13 @@ export default function VehiclesPage() {
 
     try {
       const [vehicleResult, typeResult] = await Promise.all([
-        getOperatorVehicles({ page: 1, pageSize: 20, search }),
+        getOperatorVehicles({ page, pageSize, search }),
         getVehicleTypes({ page: 1, pageSize: 50 }),
       ]);
 
       setVehicles(vehicleResult.items);
+
+      setTotalItems(vehicleResult.totalItems);
       setVehicleTypes(typeResult.items);
 
       if (!vehicleForm.vehicleTypeId && typeResult.items[0]) {
@@ -406,7 +409,7 @@ export default function VehiclesPage() {
     async function loadSearchResults() {
       try {
         const [vehicleResult, typeResult] = await Promise.all([
-          getOperatorVehicles({ page: 1, pageSize: 20, search }),
+          getOperatorVehicles({ page, pageSize, search }),
           getVehicleTypes({ page: 1, pageSize: 50 }),
         ]);
 
@@ -415,6 +418,8 @@ export default function VehiclesPage() {
         }
 
         setVehicles(vehicleResult.items);
+
+        setTotalItems(vehicleResult.totalItems);
         setVehicleTypes(typeResult.items);
 
         if (typeResult.items[0]) {
@@ -447,24 +452,8 @@ export default function VehiclesPage() {
     return () => {
       ignore = true;
     };
-  }, [search]);
+  }, [page, search]);
 
-  const filtered = useMemo(
-    () =>
-      vehicles.filter(
-        (vehicle) =>
-          vehicle.licensePlate.toLowerCase().includes(search.toLowerCase()) ||
-          (vehicle.vehicleTypeName ?? "")
-            .toLowerCase()
-            .includes(search.toLowerCase()),
-      ),
-    [search, vehicles],
-  );
-
-  const paginatedVehicles = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page],
-  );
 
   const total = vehicles.length;
   const active = vehicles.filter(
@@ -788,7 +777,7 @@ export default function VehiclesPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedVehicles.map((vehicle) => (
+              {vehicles.map((vehicle) => (
                 <tr
                   key={getVehicleId(vehicle) || vehicle.licensePlate}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
@@ -857,7 +846,7 @@ export default function VehiclesPage() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          totalItems={filtered.length}
+          totalItems={totalItems}
           onPageChange={setPage}
         />
       </div>

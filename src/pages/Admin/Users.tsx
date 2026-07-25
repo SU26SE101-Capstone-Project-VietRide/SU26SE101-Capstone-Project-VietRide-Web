@@ -412,13 +412,11 @@ function UserDetailModal({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <DetailItem label={t("users.userId")} value={user.userId} />
             <DetailItem label={t("users.fullName")} value={user.displayName} />
             <DetailItem label={tc("email")} value={user.email} />
             <DetailItem label={tc("phone")} value={formatVietnamPhoneForDisplay(user.phone)} />
             <DetailItem label={t("users.role")} value={roleLabel(user.role)} />
             <DetailItem label={tc("status")} value={user.status} />
-            <DetailItem label={t("users.operatorId")} value={user.operatorId || "-"} />
             <DetailItem label={t("users.joined")} value={formatDateTime(user.createdAt)} />
             <DetailItem label={t("users.updatedAt")} value={formatDateTime(user.updatedAt)} />
           </div>

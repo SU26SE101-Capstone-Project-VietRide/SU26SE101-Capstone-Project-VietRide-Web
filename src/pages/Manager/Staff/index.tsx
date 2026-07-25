@@ -3,8 +3,6 @@ import { useTranslation } from "react-i18next";
 import {
   FiDownload,
   FiEye,
-  FiFilter,
-  FiList,
   FiMail,
   FiPlus,
   FiSearch,
@@ -28,6 +26,7 @@ import {
 } from "../../../utils/phone";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
+import { downloadCsv } from "../../../utils/csv";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -104,6 +103,7 @@ export default function StaffPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const pageSize = 8;
 
   useEffect(() => {
@@ -122,6 +122,7 @@ export default function StaffPage() {
 
         if (!cancelled) {
           setUsers(result.items);
+          setTotalItems(result.totalItems);
         }
       } catch (err) {
         if (!cancelled) {
@@ -139,7 +140,7 @@ export default function StaffPage() {
     return () => {
       cancelled = true;
     };
-  }, [search]);
+  }, [page, roleFilter, search, statusFilter]);
 
   const filtered = useMemo(
     () =>
@@ -159,11 +160,20 @@ export default function StaffPage() {
     [activeGroup, roleFilter, search, statusFilter, users],
   );
 
-  const paginatedUsers = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page],
-  );
 
+  function handleExportCsv() {
+    downloadCsv(
+      "staff.csv",
+      ["Tên", "Email", "Số điện thoại", "Vai trò", "Trạng thái"],
+      filtered.map((user) => [
+        user.displayName,
+        user.email,
+        user.phone,
+        roleLabel(user.role),
+        user.status,
+      ]),
+    );
+  }
   function roleLabel(role: AdminUserRole) {
     const roleOption = roleOptions.find((option) => option.value === role);
 
@@ -196,6 +206,7 @@ export default function StaffPage() {
       search,
     });
     setUsers(result.items);
+    setTotalItems(result.totalItems);
   }
 
   async function handleCreateUser() {
@@ -371,20 +382,7 @@ export default function StaffPage() {
             </CustomSelect>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <FiFilter size={16} />
-              {tc("filter")}
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <FiList size={16} />
-              {tc("columns")}
-            </button>
-            <button
-              type="button"
+              onClick={handleExportCsv}
               className="ml-auto inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:ml-0"
             >
               <FiDownload size={16} />
@@ -421,7 +419,7 @@ export default function StaffPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedUsers.map((user) => (
+              {filtered.map((user) => (
                 <tr
                   key={user.userId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
@@ -489,7 +487,7 @@ export default function StaffPage() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          totalItems={filtered.length}
+          totalItems={totalItems}
           onPageChange={setPage}
         />
       </div>

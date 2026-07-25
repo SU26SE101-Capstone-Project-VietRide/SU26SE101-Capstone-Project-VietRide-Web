@@ -1,7 +1,7 @@
 import { FiCamera, FiChevronRight, FiEdit2, FiHome, FiLoader } from "react-icons/fi";
-import { FaFacebook, FaTwitter, FaLinkedin, FaInstagram } from "react-icons/fa";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { getAuthSession, getAuthUser, saveAuthSession } from "../auth";
 import {
   getOperatorProfile,
@@ -158,16 +158,16 @@ export default function Profile() {
   >(null);
   const [imageMessage, setImageMessage] = useState("");
   const [profile, setProfile] = useState<ProfileState>({
-    firstName: "Nguyễn",
-    lastName: "Văn A",
-    email: "nguyenvana@vietride.com",
-    phone: "+84 901 234 567",
-    bio: "Team Manager",
-    role: "Manager",
+    firstName: "",
+    lastName: "",
+    email: currentUser?.email ?? "",
+    phone: "",
+    bio: "",
+    role: currentUser?.role ?? "",
     country: "Vietnam",
-    city: "Ho Chi Minh City",
-    postalCode: "700000",
-    taxId: "VR-123456789",
+    city: "",
+    postalCode: "",
+    taxId: "",
   });
 
   const [formData, setFormData] = useState(profile);
@@ -324,9 +324,12 @@ export default function Profile() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
-        <button className="text-gray-600 hover:text-gray-900 flex items-center gap-1">
+        <Link
+          to={currentUser?.role === "SYSTEM_ADMIN" ? "/admin/dashboard" : "/manager/dashboard"}
+          className="flex items-center gap-1 text-gray-600 hover:text-gray-900"
+        >
           <FiHome size={16} /> {t("profilePage.home")}
-        </button>
+        </Link>
         <FiChevronRight size={16} className="text-gray-400" />
         <span className="text-gray-900 font-medium">{t("profilePage.userProfile")}</span>
       </div>
@@ -363,20 +366,8 @@ export default function Profile() {
             <p className="text-gray-600 text-sm mt-1">{profile.bio}</p>
             <p className="text-gray-500 text-sm mt-1">Vietnam</p>
 
-            <div className="flex items-center gap-3 mt-4">
-              <button className="w-10 h-10 rounded-full border border-gray-300 hover:bg-gray-50 flex items-center justify-center text-gray-600">
-                <FaFacebook size={18} />
-              </button>
-              <button className="w-10 h-10 rounded-full border border-gray-300 hover:bg-gray-50 flex items-center justify-center text-gray-600">
-                <FaTwitter size={18} />
-              </button>
-              <button className="w-10 h-10 rounded-full border border-gray-300 hover:bg-gray-50 flex items-center justify-center text-gray-600">
-                <FaLinkedin size={18} />
-              </button>
-              <button className="w-10 h-10 rounded-full border border-gray-300 hover:bg-gray-50 flex items-center justify-center text-gray-600">
-                <FaInstagram size={18} />
-              </button>
-            </div>
+
+
           </div>
 
           {!isEditing && (
@@ -408,7 +399,7 @@ export default function Profile() {
         {/* Profile Form */}
         {isEditing ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
                   {t("profilePage.firstName")}
@@ -435,7 +426,7 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
                   {t("profilePage.emailAddress")}
@@ -489,7 +480,7 @@ export default function Profile() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
                 {t("profilePage.firstName")}
@@ -544,7 +535,7 @@ export default function Profile() {
 
         {isEditing ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
                   {t("profilePage.country")}
@@ -571,7 +562,7 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
                   {t("profilePage.postalCode")}
@@ -614,7 +605,7 @@ export default function Profile() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
                 {t("profilePage.country")}

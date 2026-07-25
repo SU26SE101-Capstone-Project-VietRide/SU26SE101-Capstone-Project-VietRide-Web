@@ -110,9 +110,7 @@ export default function WalletSettlement() {
 
     return records.filter(
       (record) =>
-        record.settlementId.toLowerCase().includes(query) ||
-        record.operatorId?.toLowerCase().includes(query) ||
-        record.tripId.toLowerCase().includes(query),
+        record.status.toLowerCase().includes(query),
     );
   }, [records, search]);
 
@@ -184,11 +182,11 @@ export default function WalletSettlement() {
 
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm"><thead><tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
-            <th className="px-4 py-3">{t("walletSettlement.settlementId")}</th><th className="px-4 py-3">{t("walletSettlement.operator")}</th><th className="px-4 py-3">{t("walletSettlement.trip")}</th><th className="px-4 py-3">{t("walletSettlement.amount")}</th><th className="px-4 py-3">{t("walletSettlement.eligibleAt")}</th><th className="px-4 py-3">{tc("status")}</th><th className="px-4 py-3 text-center">{tc("actions")}</th>
+            <th className="px-4 py-3">{t("walletSettlement.amount")}</th><th className="px-4 py-3">{t("walletSettlement.eligibleAt")}</th><th className="px-4 py-3">{tc("status")}</th><th className="px-4 py-3 text-center">{tc("actions")}</th>
           </tr></thead><tbody>
-            {!loading && filtered.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">{t("walletSettlement.empty")}</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-500">{t("walletSettlement.empty")}</td></tr>}
             {filtered.map((record) => <tr key={record.settlementId} className="border-b border-gray-100 hover:bg-gray-50">
-              <td className="px-4 py-3 font-mono text-xs text-gray-600">{record.settlementId}</td><td className="px-4 py-3 font-mono text-xs">{record.operatorId || "-"}</td><td className="px-4 py-3 font-mono text-xs">{record.tripId}</td><td className="px-4 py-3 font-semibold">{formatMoney(record.netAmount)}</td><td className="px-4 py-3">{formatDate(record.eligibleAt)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[record.status]}`}>{t(`walletSettlement.status.${record.status}`)}</span></td>
+              <td className="px-4 py-3 font-semibold">{formatMoney(record.netAmount)}</td><td className="px-4 py-3">{formatDate(record.eligibleAt)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[record.status]}`}>{t(`walletSettlement.status.${record.status}`)}</span></td>
               <td className="px-4 py-3 text-center"><button type="button" disabled={record.status !== "ELIGIBLE" || settlingId === record.settlementId} onClick={() => void triggerSettlement(record)} className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40" title={t("walletSettlement.manualSettle")} aria-label={t("walletSettlement.manualSettle")}><FiCheckCircle /></button></td>
             </tr>)}
           </tbody></table>

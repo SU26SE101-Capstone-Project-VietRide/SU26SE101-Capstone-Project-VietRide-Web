@@ -17,6 +17,7 @@ import Modal from "../../../components/Modal";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
+import { downloadCsv } from "../../../utils/csv";
 import { getAuthUser } from "../../../auth";
 import {
   createOperatorShuttleTrip,
@@ -79,9 +80,6 @@ type ShuttleDriver = {
 
 const tableActionClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700";
-
-const INITIAL_REQUESTS: ShuttleRequest[] = [];
-const INITIAL_VEHICLES: ShuttleVehicle[] = [];
 
 const STATUS_CLASS: Record<RequestStatus, string> = {
   pending: "bg-gray-100 text-gray-600",
@@ -220,8 +218,8 @@ export default function DispatchPanel() {
     [t],
   );
 
-  const [requests, setRequests] = useState<ShuttleRequest[]>(INITIAL_REQUESTS);
-  const [vehicles, setVehicles] = useState<ShuttleVehicle[]>(INITIAL_VEHICLES);
+  const [requests, setRequests] = useState<ShuttleRequest[]>([]);
+  const [vehicles, setVehicles] = useState<ShuttleVehicle[]>([]);
   const [drivers, setDrivers] = useState<ShuttleDriver[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -312,6 +310,21 @@ export default function DispatchPanel() {
     });
   }, [requests, query, statusFilter]);
 
+  function handleExportCsv() {
+    downloadCsv(
+      "dispatch-requests.csv",
+      ["Mã", "Khách hàng", "Chuyến", "Loại", "Địa chỉ", "Trạng thái"],
+      filtered.map((request) => [
+        request.id,
+        request.customerName,
+        request.trip,
+        request.type,
+        request.address,
+        request.status,
+      ]),
+    );
+  }
+
   const stats = useMemo(
     () => ({
       pending: requests.filter((r) => r.status === "pending").length,
@@ -335,7 +348,7 @@ export default function DispatchPanel() {
       !newRequestForm.phone ||
       !newRequestForm.trip
     ) {
-      alert(t("dispatch.fillRequired"));
+      setError(t("dispatch.fillRequired"));
       return;
     }
     const newReq: ShuttleRequest = {
@@ -357,7 +370,8 @@ export default function DispatchPanel() {
       time: "",
     });
     setOpenCreateRequest(false);
-    alert(t("dispatch.createSuccess"));
+    setError("");
+    setMessage(t("dispatch.createSuccess"));
   };
 
   const handleAssignVehicle = async () => {
@@ -407,7 +421,7 @@ export default function DispatchPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
             {t("dispatch.title")}
@@ -511,7 +525,7 @@ export default function DispatchPanel() {
               <option value="completed">{t("dispatch.statusCompleted")}</option>
               <option value="cancelled">{t("dispatch.filterCancelled")}</option>
             </CustomSelect>
-            <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+            <button type="button" onClick={handleExportCsv} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
               <FiDownload size={16} /> {tc("exportCsv")}
             </button>
           </div>
@@ -649,7 +663,7 @@ export default function DispatchPanel() {
                 key={v.id}
                 className="p-3 border border-gray-200 rounded-lg"
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm">
                       {v.plate}
@@ -688,7 +702,7 @@ export default function DispatchPanel() {
         wide
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t("dispatch.customerName")}

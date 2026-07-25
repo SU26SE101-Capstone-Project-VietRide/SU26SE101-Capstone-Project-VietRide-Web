@@ -24,6 +24,7 @@ import {
 } from "../../api/vietride";
 import CustomSelect from "../../components/CustomSelect";
 import { formatDateTime } from "../../utils/date";
+import { downloadCsv } from "../../utils/csv";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -136,6 +137,16 @@ export default function Operators() {
     [filtered, page],
   );
 
+  const handleExportCsv = () => {
+    downloadCsv(
+      "operators.csv",
+      ["Tên nhà xe", "Email", "Điện thoại", "Trạng thái"],
+      filtered.map((operator) => [
+        operator.name, operator.contactEmail, operator.contactPhone, operator.registrationStatus,
+      ]),
+    );
+  };
+
   const pendingCount = operators.filter(
     (operator) => toKnownStatus(operator.registrationStatus) === "PENDING",
   ).length;
@@ -168,7 +179,7 @@ export default function Operators() {
     }
 
     if (!rejectReason.trim()) {
-      alert(t("operators.rejectEmptyReason"));
+      setError(t("operators.rejectEmptyReason"));
       return;
     }
 
@@ -361,7 +372,7 @@ export default function Operators() {
             <option value="REJECTED">{tc("rejected")}</option>
           </CustomSelect>
 
-          <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50">
+          <button type="button" onClick={handleExportCsv} className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50">
             <FiDownload className="inline mr-2" size={16} />
             {tc("exportCsv")}
           </button>

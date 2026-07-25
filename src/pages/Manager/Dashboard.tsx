@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import {
   FiTruck,
   FiBarChart2,
@@ -30,6 +31,7 @@ import {
   type BookingStatsItem,
 } from "../../api/vietride";
 import Pagination from "../../components/Pagination";
+import { downloadCsv } from "../../utils/csv";
 
 type KPICard = {
   labelKey: string;
@@ -233,6 +235,7 @@ const recentShipments: Shipment[] = [
 export default function ManagerDashboard() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [revenueData, setRevenueData] = useState(revenueChartData);
   const [summary, setSummary] = useState({
@@ -317,6 +320,16 @@ export default function ManagerDashboard() {
       .finally(() => setIsLoading(false));
   };
 
+  const handleExportShipments = () => {
+    downloadCsv(
+      "dashboard-shipments-demo.csv",
+      ["Mã", "Tuyến", "Địa chỉ", "Tài xế", "Chi phí", "Trạng thái"],
+      recentShipments.map((shipment) => [
+        shipment.code, shipment.route, shipment.address, shipment.driver, shipment.cost, shipment.status,
+      ]),
+    );
+  };
+
   const getStatusBadge = (status: Shipment["status"]) => {
     const statusMap = {
       completed: {
@@ -350,6 +363,9 @@ export default function ManagerDashboard() {
 
   return (
     <div className="space-y-6 pb-4">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+        Dữ liệu minh họa: phần này chưa có đầy đủ API tổng hợp từ backend.
+      </div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{t("dashboard.title")}</h1>
@@ -397,7 +413,7 @@ export default function ManagerDashboard() {
             <h2 className="text-lg font-semibold text-gray-900">
               {t("dashboard.revenueChart")}
             </h2>
-            <button className="text-vr-600 hover:text-vr-700 text-sm font-medium">
+            <button type="button" onClick={() => navigate("/manager/reports")} className="text-vr-600 hover:text-vr-700 text-sm font-medium">
               {tc("viewAll")}
             </button>
           </div>
@@ -481,7 +497,7 @@ export default function ManagerDashboard() {
             <h2 className="text-lg font-semibold text-gray-900">
               {t("dashboard.parcelDetail")}
             </h2>
-            <button className="text-vr-600 hover:text-vr-700 text-sm font-medium">
+            <button type="button" onClick={() => navigate("/manager/parcels")} className="text-vr-600 hover:text-vr-700 text-sm font-medium">
               {tc("viewAll")}
             </button>
           </div>
@@ -548,7 +564,7 @@ export default function ManagerDashboard() {
           <h2 className="text-lg font-semibold text-gray-900">
             {t("dashboard.recentShipments")}
           </h2>
-          <button className="flex items-center gap-2 text-vr-600 hover:text-vr-700 text-sm font-medium">
+          <button type="button" onClick={handleExportShipments} className="flex items-center gap-2 text-vr-600 hover:text-vr-700 text-sm font-medium">
             <FiDownload size={16} />
             {tc("exportCsv")}
           </button>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiCheck, FiFileText, FiRefreshCw, FiSearch } from "react-icons/fi";
 import {
@@ -51,19 +51,9 @@ export default function RagAudit() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [totalDocuments, setTotalDocuments] = useState(0);
   const pageSize = 8;
 
-  const filtered = useMemo(
-    () =>
-      documents.filter((document) =>
-        document.title.toLowerCase().includes(search.toLowerCase()),
-      ),
-    [documents, search],
-  );
-  const paginatedDocuments = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page],
-  );
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -71,12 +61,13 @@ export default function RagAudit() {
 
     try {
       const [documentResult, feedbackResult, configResult] = await Promise.all([
-        getRagDocuments({ page: 1, pageSize: 20, sortBy: "createdAt", sortDir: "desc" }),
+        getRagDocuments({ page, pageSize, search, sortBy: "createdAt", sortDir: "desc" }),
         getRagFeedback({ page: 1, pageSize: 20, sortBy: "createdAt", sortDir: "desc" }),
         getRagRuntimeConfigs(),
       ]);
 
       setDocuments(documentResult.items);
+      setTotalDocuments(documentResult.totalItems);
       setFeedback(feedbackResult.items);
       setConfigs(normalizeRuntimeConfigs(configResult));
     } catch (err) {
@@ -84,7 +75,7 @@ export default function RagAudit() {
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [page, search, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -171,9 +162,10 @@ export default function RagAudit() {
                 {t("ragAudit.documentsHint")}
               </p>
             </div>
-            <div className="relative min-w-72">
+            <div className="relative w-full sm:w-72">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
+                aria-label={t("ragAudit.searchPlaceholder")}
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
                 value={search}
                 onChange={(event) => {
@@ -196,7 +188,7 @@ export default function RagAudit() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedDocuments.map((document) => (
+                {documents.map((document) => (
                   <tr
                     key={document.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
@@ -210,7 +202,7 @@ export default function RagAudit() {
                           </p>
                           <p className="text-xs text-gray-500">
                             {document.fileType ?? document.documentType} -{" "}
-                            {document.operatorId ?? "SYSTEM"}
+                            {document.title || "Tài liệu RAG"}
                           </p>
                           <p className="mt-1 font-mono text-[11px] text-gray-400">
                             {document.id}
@@ -252,7 +244,7 @@ export default function RagAudit() {
           <Pagination
             page={page}
             pageSize={pageSize}
-            totalItems={filtered.length}
+            totalItems={totalDocuments}
             onPageChange={setPage}
           />
         </section>
@@ -277,10 +269,10 @@ export default function RagAudit() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-gray-900">
-                      {item.comment || item.messageId}
+                      {item.comment || "Không có ghi chú"}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      {item.role ?? "-"} - {item.userId ?? "-"} -{" "}
+                      {item.role ?? "-"} -{" "}
                       {formatDateTime(item.createdAt)}
                     </p>
                   </div>

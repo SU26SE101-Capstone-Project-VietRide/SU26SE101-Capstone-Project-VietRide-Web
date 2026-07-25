@@ -1,60 +1,56 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 
-// Pages
+import { lazy, Suspense } from "react";
 
-import ManagerLayout from "./layouts/ManagerLayout";
-import AdminLayout from "./layouts/AdminLayout";
-import Profile from "./pages/Profile";
-
-// Manager Pages
-
-import TripsList from "./pages/Manager/Trips/index";
-import BookingsList from "./pages/Manager/Bookings/index";
-import ParcelsList from "./pages/Manager/Parcels/index";
-import StaffList from "./pages/Manager/Staff/index";
-import VehiclesList from "./pages/Manager/Vehicles/index";
-import RoutesList from "./pages/Manager/Routes/index";
-import GPSTracking from "./pages/Manager/GPS/index";
-import Reports from "./pages/Manager/Reports/index";
-import DispatchPanel from "./pages/Manager/Dispatch/index";
-import ManagerWallet from "./pages/Manager/Wallet/index";
-import RouteETA from "./pages/Manager/RouteETA/index";
-import ManagerVouchers from "./pages/Manager/Vouchers/index";
-import ManagerPackages from "./pages/Manager/Packages/index";
-import SubscriptionPaymentReturn from "./pages/Manager/Packages/PaymentReturn";
-import ManagerPolicies from "./pages/Manager/Policies/index";
-import ManagerSettings from "./pages/Manager/Settings/index";
-import ManagerCapacity from "./pages/Manager/Capacity/index";
-import { VehicleBuilderPage } from "./modules/vehicle-builder";
-
-// Admin Pages
-
-import Operators from "./pages/Admin/Operators";
-import Users from "./pages/Admin/Users";
-import ActivityLogs from "./pages/Admin/ActivityLogs";
-import Vouchers from "./pages/Admin/Vouchers";
-import Packages from "./pages/Admin/Packages";
-import Revenue from "./pages/Admin/Revenue";
-import AdminReports from "./pages/Admin/Reports";
-import OutboxDlq from "./pages/Admin/OutboxDlq";
-import Payouts from "./pages/Admin/Payouts";
-import AdminPolicies from "./pages/Admin/Policies";
-import AdminStations from "./pages/Admin/Stations";
-import WalletSettlement from "./pages/Admin/WalletSettlement";
-import RagAudit from "./pages/Admin/RagAudit";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import RegisterSuccess from "./pages/RegisterSuccess";
-import ForgotPassword from "./pages/ForgotPassword";
-import SetInitialPassword from "./pages/SetInitialPassword";
-import ManagerDashboard from "./pages/Manager/Dashboard";
-import AdminDashboard from "./pages/Admin/Dashboard";
-import PrivateRoute from "./components/PrivateRoute";
-
+const ManagerLayout = lazy(() => import("./layouts/ManagerLayout"));
+const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
+const Profile = lazy(() => import("./pages/Profile"));
+const TripsList = lazy(() => import("./pages/Manager/Trips/index"));
+const BookingsList = lazy(() => import("./pages/Manager/Bookings/index"));
+const ParcelsList = lazy(() => import("./pages/Manager/Parcels/index"));
+const StaffList = lazy(() => import("./pages/Manager/Staff/index"));
+const VehiclesList = lazy(() => import("./pages/Manager/Vehicles/index"));
+const RoutesList = lazy(() => import("./pages/Manager/Routes/index"));
+const GPSTracking = lazy(() => import("./pages/Manager/GPS/index"));
+const Reports = lazy(() => import("./pages/Manager/Reports/index"));
+const DispatchPanel = lazy(() => import("./pages/Manager/Dispatch/index"));
+const ManagerWallet = lazy(() => import("./pages/Manager/Wallet/index"));
+const RouteETA = lazy(() => import("./pages/Manager/RouteETA/index"));
+const ManagerVouchers = lazy(() => import("./pages/Manager/Vouchers/index"));
+const ManagerPackages = lazy(() => import("./pages/Manager/Packages/index"));
+const SubscriptionPaymentReturn = lazy(() => import("./pages/Manager/Packages/PaymentReturn"));
+const ManagerPolicies = lazy(() => import("./pages/Manager/Policies/index"));
+const ManagerSettings = lazy(() => import("./pages/Manager/Settings/index"));
+const ManagerCapacity = lazy(() => import("./pages/Manager/Capacity/index"));
+const VehicleBuilderPage = lazy(() =>
+  import("./modules/vehicle-builder").then((module) => ({ default: module.VehicleBuilderPage })),
+);
+const Operators = lazy(() => import("./pages/Admin/Operators"));
+const Users = lazy(() => import("./pages/Admin/Users"));
+const ActivityLogs = lazy(() => import("./pages/Admin/ActivityLogs"));
+const Vouchers = lazy(() => import("./pages/Admin/Vouchers"));
+const Packages = lazy(() => import("./pages/Admin/Packages"));
+const Revenue = lazy(() => import("./pages/Admin/Revenue"));
+const AdminReports = lazy(() => import("./pages/Admin/Reports"));
+const OutboxDlq = lazy(() => import("./pages/Admin/OutboxDlq"));
+const Payouts = lazy(() => import("./pages/Admin/Payouts"));
+const AdminPolicies = lazy(() => import("./pages/Admin/Policies"));
+const AdminStations = lazy(() => import("./pages/Admin/Stations"));
+const WalletSettlement = lazy(() => import("./pages/Admin/WalletSettlement"));
+const RagAudit = lazy(() => import("./pages/Admin/RagAudit"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const RegisterSuccess = lazy(() => import("./pages/RegisterSuccess"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const SetInitialPassword = lazy(() => import("./pages/SetInitialPassword"));
+const ManagerDashboard = lazy(() => import("./pages/Manager/Dashboard"));
+const AdminDashboard = lazy(() => import("./pages/Admin/Dashboard"));
+const PrivateRoute = lazy(() => import("./components/PrivateRoute"));
 export default function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={<div className="p-6 text-sm text-gray-500">Đang tải trang...</div>}>
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
@@ -133,6 +129,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
