@@ -528,5 +528,28 @@
     "gmvMonth": "GMV (month)",
     "platformCommission": "Platform commission",
     "monthlyRevenue": "Revenue by month"
+  },
+  "outboxDlq": {
+    "title": "Outbox dead-letter queue",
+    "subtitle": "Review terminal outbox delivery failures across VietRide services.",
+    "queueTitle": "Terminal events",
+    "readOnlyHint": "This view is read-only. Replay and purge actions are not available in the current API.",
+    "loadFailed": "Unable to load the dead-letter queue.",
+    "unavailableServices": "Some sources are temporarily unavailable: {{services}}. Available results are still shown.",
+    "service": "Service",
+    "eventType": "Event type",
+    "sortDirection": "Sort order",
+    "newestFirst": "Newest first",
+    "oldestFirst": "Oldest first",
+    "terminalAt": "Terminal time",
+    "createdAt": "Created at",
+    "retryCount": "Retries",
+    "lastError": "Last error",
+    "eventId": "Event ID",
+    "payload": "Event payload",
+    "detailTitle": "DLQ event details",
+    "empty": "No terminal events match the current filters.",
+    "loading": "Loading dead-letter events...",
+    "page": "Cursor page {{page}}"
   }
 }

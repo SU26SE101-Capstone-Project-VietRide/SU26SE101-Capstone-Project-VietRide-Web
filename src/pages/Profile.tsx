@@ -1,13 +1,18 @@
-import { FiEdit2, FiHome, FiChevronRight } from "react-icons/fi";
+import { FiCamera, FiChevronRight, FiEdit2, FiHome, FiLoader } from "react-icons/fi";
 import { FaFacebook, FaTwitter, FaLinkedin, FaInstagram } from "react-icons/fa";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getAuthUser } from "../auth";
+import { getAuthSession, getAuthUser, saveAuthSession } from "../auth";
 import {
   getOperatorProfile,
+  updateMyAvatar,
   updateOperatorProfile,
   type OperatorProfile,
 } from "../api/vietride";
+import {
+  FirebaseImageError,
+  uploadFirebaseImages,
+} from "../utils/firebaseImageUpload";
 
 type ProfileState = {
   firstName: string;
@@ -51,6 +56,92 @@ function isOperatorRole(role: string | undefined) {
   return role === "OPERATOR_ADMIN" || role === "OPERATOR_STAFF";
 }
 
+type ImageUploadControlProps = {
+  label: string;
+  imageUrl?: string | null;
+  initials?: string;
+  isUploading: boolean;
+  onFile: (file: File) => void;
+};
+
+function ImageUploadControl({
+  label,
+  imageUrl,
+  initials,
+  isUploading,
+  onFile,
+}: ImageUploadControlProps) {
+  const inputId = useId();
+
+  const selectFile = (files: FileList | null) => {
+    const file = files?.[0];
+    if (file) {
+      onFile(file);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-gray-700">{label}</p>
+      <label
+        htmlFor={inputId}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          selectFile(event.dataTransfer.files);
+        }}
+        className="group relative flex h-28 w-28 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-vr-300 bg-vr-50 transition hover:border-vr-500"
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={label}
+            width={112}
+            height={112}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="text-xl font-bold text-vr-700">{initials || <FiCamera />}</span>
+        )}
+        <span className="absolute inset-0 flex items-center justify-center bg-slate-900/55 text-white opacity-0 transition group-hover:opacity-100">
+          <FiCamera size={22} />
+        </span>
+        {isUploading && (
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/90 text-sm font-medium text-vr-700">
+            <FiLoader className="animate-spin" size={24} />
+            Đang tải ảnh
+          </span>
+        )}
+      </label>
+      <input
+        id={inputId}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        disabled={isUploading}
+        onChange={(event) => {
+          selectFile(event.target.files);
+          event.target.value = "";
+        }}
+      />
+      <p className="max-w-52 text-xs text-gray-500">JPG, PNG hoặc WebP, nhỏ hơn 5 MB. Có thể kéo ảnh vào đây.</p>
+    </div>
+  );
+}
+
+function imageErrorMessage(error: unknown) {
+  if (error instanceof FirebaseImageError) {
+    if (error.code === "INVALID_TYPE") {
+      return "Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.";
+    }
+    if (error.code === "INVALID_SIZE") {
+      return "Ảnh phải có dung lượng nhỏ hơn 5 MB.";
+    }
+  }
+
+  return error instanceof Error ? error.message : "Không thể tải ảnh lên.";
+}
 export default function Profile() {
   const { t } = useTranslation("common");
   const [isEditing, setIsEditing] = useState(false);
@@ -58,6 +149,14 @@ export default function Profile() {
     null,
   );
   const [error, setError] = useState("");
+  const currentUser = getAuthUser();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    currentUser?.avatarUrl ?? null,
+  );
+  const [uploadingImage, setUploadingImage] = useState<
+    "avatar" | "logo" | null
+  >(null);
+  const [imageMessage, setImageMessage] = useState("");
   const [profile, setProfile] = useState<ProfileState>({
     firstName: "Nguyễn",
     lastName: "Văn A",
@@ -108,6 +207,67 @@ export default function Profile() {
     };
   }, []);
 
+  const handleAvatarFile = async (file: File) => {
+    setUploadingImage("avatar");
+    setError("");
+    setImageMessage("");
+
+    try {
+      const [uploadedUrl] = await uploadFirebaseImages("USER_AVATAR", [file]);
+      if (!uploadedUrl) throw new Error("Firebase không trả về URL ảnh.");
+
+      const result = await updateMyAvatar(uploadedUrl);
+      setAvatarUrl(result.avatarUrl);
+      const session = getAuthSession();
+      if (session) {
+        saveAuthSession({
+          ...session,
+          user: { ...session.user, avatarUrl: result.avatarUrl ?? undefined },
+        });
+      }
+      setImageMessage("Ảnh đại diện đã được cập nhật.");
+    } catch (uploadError) {
+      setError(imageErrorMessage(uploadError));
+    } finally {
+      setUploadingImage(null);
+    }
+  };
+
+  const handleLogoFile = async (file: File) => {
+    if (currentUser?.role !== "OPERATOR_ADMIN" || !serverOperator) {
+      setError("Chỉ admin nhà xe được cập nhật logo.");
+      return;
+    }
+
+    setUploadingImage("logo");
+    setError("");
+    setImageMessage("");
+    try {
+      const [uploadedUrl] = await uploadFirebaseImages("OPERATOR_LOGO", [file]);
+      if (!uploadedUrl) throw new Error("Firebase không trả về URL logo.");
+
+      const updated = await updateOperatorProfile({
+        name: serverOperator.name,
+        contactPhone: serverOperator.contactPhone,
+        logoUrl: uploadedUrl,
+        addressStreet: serverOperator.address.street,
+        addressWard: serverOperator.address.ward,
+        addressDistrict: serverOperator.address.district,
+        addressProvince: serverOperator.address.province,
+        representativeName: serverOperator.representativeName,
+        representativePhone: serverOperator.representativePhone,
+        cancellationPolicy: serverOperator.cancellationPolicy ?? null,
+        parcelNoShowPolicy: serverOperator.parcelNoShowPolicy ?? null,
+        luggagePolicy: serverOperator.luggagePolicy ?? null,
+      });
+      setServerOperator(updated);
+      setImageMessage("Logo nhà xe đã được cập nhật.");
+    } catch (uploadError) {
+      setError(imageErrorMessage(uploadError));
+    } finally {
+      setUploadingImage(null);
+    }
+  };
   const handleEdit = () => {
     setIsEditing(true);
     setFormData(profile);
@@ -127,9 +287,9 @@ export default function Profile() {
         addressProvince: formData.city,
         representativeName: serverOperator.representativeName,
         representativePhone: serverOperator.representativePhone,
-        cancellationPolicy: serverOperator.cancellationPolicy ?? "",
-        parcelNoShowPolicy: serverOperator.parcelNoShowPolicy ?? "",
-        luggagePolicy: serverOperator.luggagePolicy ?? "",
+        cancellationPolicy: serverOperator.cancellationPolicy ?? null,
+        parcelNoShowPolicy: serverOperator.parcelNoShowPolicy ?? null,
+        luggagePolicy: serverOperator.luggagePolicy ?? null,
       });
 
       const nextProfile = toProfileState(updated);
@@ -188,9 +348,13 @@ export default function Profile() {
 
         {/* Profile Header */}
         <div className="flex items-start gap-6 pb-6 border-b border-gray-200 mb-6">
-          <div className="w-24 h-24 bg-gradient-to-br from-vr-400 to-vr-700 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-md">
-            {initials}
-          </div>
+          <ImageUploadControl
+            label="Ảnh đại diện"
+            imageUrl={avatarUrl}
+            initials={initials}
+            isUploading={uploadingImage === "avatar"}
+            onFile={handleAvatarFile}
+          />
 
           <div className="flex-1">
             <h3 className="text-2xl font-bold text-gray-900">
@@ -225,6 +389,22 @@ export default function Profile() {
           )}
         </div>
 
+        {currentUser?.role === "OPERATOR_ADMIN" && serverOperator && (
+          <div className="mb-6 border-b border-gray-200 pb-6">
+            <ImageUploadControl
+              label="Logo nhà xe"
+              imageUrl={serverOperator.logoUrl}
+              isUploading={uploadingImage === "logo"}
+              onFile={handleLogoFile}
+            />
+          </div>
+        )}
+
+        {imageMessage && (
+          <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {imageMessage}
+          </div>
+        )}
         {/* Profile Form */}
         {isEditing ? (
           <div className="space-y-4">

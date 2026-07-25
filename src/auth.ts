@@ -7,6 +7,7 @@ export type AuthUser = {
   email: string;
   displayName: string;
   phone: string;
+  avatarUrl?: string;
   role: AuthRole;
   operatorId?: string;
   status?: string;
@@ -84,6 +85,7 @@ function parseUser(value: unknown): AuthUser | null {
     email: asString(value.email),
     displayName: asString(value.displayName),
     phone: asString(value.phone),
+    avatarUrl: asString(value.avatarUrl) || undefined,
     role,
     operatorId: asString(value.operatorId) || undefined,
     status: asString(value.status) || undefined,
@@ -279,3 +281,4 @@ export async function logout(): Promise<void> {
     clearAuthSession();
   }
 }
+

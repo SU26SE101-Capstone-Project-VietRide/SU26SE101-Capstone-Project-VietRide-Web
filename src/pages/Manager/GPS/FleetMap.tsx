@@ -1,12 +1,6 @@
-import { useEffect } from "react";
-import {
-  CircleMarker,
-  MapContainer,
-  TileLayer,
-  Tooltip,
-  useMap,
-} from "react-leaflet";
-import type { LatLngExpression } from "leaflet";
+import { useMemo } from "react";
+import GoogleMapCanvas from "../../../components/GoogleMapCanvas";
+import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 
 export type FleetVehicleMapPoint = {
   id: string;
@@ -15,7 +9,7 @@ export type FleetVehicleMapPoint = {
   route: string;
   speedKmh: number | null;
   status: "moving" | "idle" | "offline";
-  position: LatLngExpression;
+  position: GoogleMapCoordinate;
 };
 
 const statusFill: Record<FleetVehicleMapPoint["status"], string> = {
@@ -27,35 +21,14 @@ const statusFill: Record<FleetVehicleMapPoint["status"], string> = {
 type FleetMapProps = {
   vehicles: FleetVehicleMapPoint[];
   selectedId: string | null;
-  focusCenter: LatLngExpression | null;
+  focusCenter: GoogleMapCoordinate | null;
   onMarkerSelect: (id: string) => void;
 };
 
-function MapFocus({ center }: { center: LatLngExpression | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!center) return;
-    map.flyTo(center, 14, { duration: 0.55 });
-  }, [center, map]);
-  return null;
-}
-
-function MapResizeFix() {
-  const map = useMap();
-  useEffect(() => {
-    const run = () => {
-      map.invalidateSize();
-    };
-    run();
-    const id = requestAnimationFrame(run);
-    window.addEventListener("resize", run);
-    return () => {
-      cancelAnimationFrame(id);
-      window.removeEventListener("resize", run);
-    };
-  }, [map]);
-  return null;
-}
+const defaultCenter: GoogleMapCoordinate = {
+  lat: 10.7769,
+  lng: 106.7009,
+};
 
 export default function FleetMap({
   vehicles,
@@ -63,50 +36,38 @@ export default function FleetMap({
   focusCenter,
   onMarkerSelect,
 }: FleetMapProps) {
-  const defaultCenter: LatLngExpression = [10.7769, 106.7009];
+  const markers = useMemo(
+    () =>
+      vehicles.map((vehicle) => ({
+        color: statusFill[vehicle.status],
+        description: [
+          vehicle.driver,
+          vehicle.route,
+          vehicle.speedKmh == null
+            ? "Không có dữ liệu tốc độ"
+            : `${vehicle.speedKmh} km/h`,
+        ],
+        fillOpacity: vehicle.status === "offline" ? 0.55 : 0.95,
+        id: vehicle.id,
+        onClick: () => onMarkerSelect(vehicle.id),
+        position: vehicle.position,
+        radiusMeters: vehicle.id === selectedId ? 360 : 240,
+        selected: vehicle.id === selectedId,
+        title: vehicle.plate,
+      })),
+    [onMarkerSelect, selectedId, vehicles],
+  );
 
   return (
-    <MapContainer
+    <GoogleMapCanvas
+      ariaLabel="Bản đồ theo dõi đội xe"
       center={defaultCenter}
-      zoom={11}
-      className="z-0 h-full min-h-[420px] w-full rounded-xl"
+      className="h-full min-h-[420px] w-full rounded-xl"
+      emptyState="Không có phương tiện phù hợp với bộ lọc."
+      focusCenter={focusCenter}
+      markers={markers}
       scrollWheelZoom
-      preferCanvas
-    >
-      <MapResizeFix />
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <MapFocus center={focusCenter} />
-      {vehicles.map((v) => {
-        const selected = v.id === selectedId;
-        const fill = statusFill[v.status];
-        return (
-          <CircleMarker
-            key={v.id}
-            center={v.position}
-            radius={selected ? 12 : 8}
-            pathOptions={{
-              color: "#ffffff",
-              weight: selected ? 3 : 2,
-              fillColor: fill,
-              fillOpacity: v.status === "offline" ? 0.55 : 0.95,
-            }}
-            eventHandlers={{
-              click: () => onMarkerSelect(v.id),
-            }}
-          >
-            <Tooltip direction="top" offset={[0, -6]} opacity={1}>
-              <div className="text-xs font-semibold text-gray-900">
-                {v.plate}
-              </div>
-              <div className="text-[11px] text-gray-600">{v.driver}</div>
-              <div className="text-[11px] text-gray-500">{v.route}</div>
-            </Tooltip>
-          </CircleMarker>
-        );
-      })}
-    </MapContainer>
+      zoom={11}
+    />
   );
 }

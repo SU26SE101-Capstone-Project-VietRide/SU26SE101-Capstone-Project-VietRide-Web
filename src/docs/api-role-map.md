@@ -19,6 +19,7 @@ This note maps the Swagger screenshots to frontend usage.
 - `PATCH /v1/admin/stations/{stationId}`: normalize platform station data.
 - `POST /v1/admin/stations/{primaryStationId}/merge`: merge a duplicate station into the canonical station. Requires `Idempotency-Key`.
 - `GET /v1/admin/reports/platform`: aggregate completed bookings, trips, delivered parcels and earned revenue in a strict UTC range.
+- `GET /v1/admin/outbox/dlq`: inspect terminal Outbox delivery failures across services with cursor pagination. This endpoint is read-only.
 
 ## Operator Admin / Manager
 
@@ -48,6 +49,12 @@ This note maps the Swagger screenshots to frontend usage.
 - `POST /v1/operator/vehicles`: create a vehicle.
 - `GET /v1/operator/vehicles/{id}`: get vehicle detail.
 - `PATCH /v1/operator/vehicles/{id}`: update a vehicle.
+- `GET /v1/operator/reports/bookings/export`: download the booking report as XLSX.
+- `GET /v1/operator/reports/parcels/export`: download the parcel report as XLSX.
+- `GET /v1/operator/reports/revenue/export`: download the revenue report as XLSX.
+- `GET /v1/operator/reports/occupancy/export`: download the seat occupancy report as XLSX.
+- `GET /v1/operator/reports/cancellation/export`: download the cancellation report as XLSX.
+- `GET /v1/operator/reports/refunds/export`: download the refund report as XLSX.
 - `GET /v1/notifications`: receive notifications for the current account. Day 39 trip incidents are sent only to active `OPERATOR_ADMIN` users of the matching operator.
 - `POST /v1/notifications/{notificationId}/read`: mark an incident or other notification as read.
 
@@ -55,6 +62,7 @@ This note maps the Swagger screenshots to frontend usage.
 
 - Day 40 admin operations are not available to `OPERATOR_STAFF`.
 - Day 39 driver operations are not available to `OPERATOR_STAFF` either. Staff can monitor the operator-facing screens already authorized by the gateway, but cannot report driver incidents or confirm arrivals on behalf of a driver.
+- Day 41 report exports are available to both operator roles. `OPERATOR_STAFF` can download the same six booking, parcel, revenue, occupancy, cancellation and refund XLSX reports listed above.
 
 ## Driver / Assistant Boundary
 
@@ -88,5 +96,10 @@ These are for backend service-to-service calls, not normal browser UI calls:
 - `POST /internal/v1/trips/{tripId}/release-seats`
 - `POST /internal/v1/trips/{tripId}/book-seats`
 - `POST /internal/v1/trips/round-trip/lock-seats`
+- `GET /internal/jobs/status`
+- `GET /internal/v1/reports/platform/bookings`
+- `GET /internal/v1/reports/platform/trips`
+- `GET /internal/v1/reports/platform/parcels`
+- `GET /internal/v1/reports/platform/revenue`
 
 Do not call these endpoints from browser code. They require internal service credentials and are not part of the three-role frontend surface.

@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
 
 @theme {
   --color-vr-50: #ecfbfb;
@@ -12,23 +11,6 @@
   --color-vr-700: #42a8a8;
   --color-vr-800: #2d8282;
   --color-vr-900: #1a5555;
-}
-
-/* Leaflet tiles + Tailwind preflight */
-.leaflet-container img.leaflet-tile {
-  max-width: none !important;
-}
-
-.leaflet-container {
-  font-family: inherit;
-}
-
-.leaflet-control-attribution {
-  font-size: 10px;
-  max-width: 50%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 :root {

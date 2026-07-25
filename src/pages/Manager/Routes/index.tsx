@@ -22,16 +22,6 @@ import {
   FiTrash2,
 } from "react-icons/fi";
 import {
-  CircleMarker,
-  MapContainer,
-  Polyline,
-  TileLayer,
-  Tooltip,
-  useMap,
-  useMapEvents,
-} from "react-leaflet";
-import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
-import {
   addRouteStop,
   createOperatorRoute,
   createOperatorStation,
@@ -60,6 +50,8 @@ import PlacePicker, {
   type PlaceSelection,
 } from "../../../components/PlacePicker";
 import CustomSelect from "../../../components/CustomSelect";
+import GoogleMapCanvas from "../../../components/GoogleMapCanvas";
+import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 import {
   decodeGooglePolyline,
   encodeGooglePolyline,
@@ -71,7 +63,10 @@ const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 const draftRouteId = "__draft_route__";
-const defaultRouteMapCenter: LatLngExpression = [10.7769, 106.7009];
+const defaultRouteMapCenter: GoogleMapCoordinate = {
+  lat: 10.7769,
+  lng: 106.7009,
+};
 const routingBaseUrl =
   import.meta.env.VITE_ROUTING_API_URL || "https://router.project-osrm.org";
 
@@ -1710,76 +1705,84 @@ function RouteDesignMap({
   emptyText: string;
 }) {
   const displayedPath = pathPoints.length > 0 ? pathPoints : points;
-  const center: LatLngExpression =
+  const center: GoogleMapCoordinate =
     displayedPath.length > 0
-      ? [
-          displayedPath.reduce((total, point) => total + point.latitude, 0) /
-            displayedPath.length,
-          displayedPath.reduce((total, point) => total + point.longitude, 0) /
-            displayedPath.length,
-        ]
+      ? {
+          lat:
+            displayedPath.reduce(
+              (total, point) => total + point.latitude,
+              0,
+            ) / displayedPath.length,
+          lng:
+            displayedPath.reduce(
+              (total, point) => total + point.longitude,
+              0,
+            ) / displayedPath.length,
+        }
       : defaultRouteMapCenter;
-  const linePositions: LatLngExpression[] = displayedPath.map((point) => [
-    point.latitude,
-    point.longitude,
-  ]);
+  const linePositions: GoogleMapCoordinate[] = displayedPath.map((point) => ({
+    lat: point.latitude,
+    lng: point.longitude,
+  }));
   const hasSavedOrDraftPath = pathPoints.length > 1;
+  const mapMarkers = [
+    ...points.map((point) => ({
+      color: point.color,
+      id: point.id,
+      position: {
+        lat: point.latitude,
+        lng: point.longitude,
+      },
+      radiusMeters: 1_200,
+      title: point.name,
+    })),
+    ...(isEditing
+      ? pathPoints.map((point, index) => ({
+          color: "#0f766e",
+          id: `geometry-${index}-${point.latitude}-${point.longitude}`,
+          position: {
+            lat: point.latitude,
+            lng: point.longitude,
+          },
+          radiusMeters: 550,
+        }))
+      : []),
+  ];
+  const mapPolylines =
+    linePositions.length > 1
+      ? [
+          {
+            color: hasSavedOrDraftPath ? "#0f766e" : "#64748b",
+            id: "route-geometry",
+            opacity: hasSavedOrDraftPath ? 1 : 0.62,
+            path: linePositions,
+            weight: hasSavedOrDraftPath ? 5 : 3,
+          },
+        ]
+      : [];
 
   return (
     <div className="mt-3 overflow-hidden rounded-xl border border-gray-200">
       <div className={`h-96 ${isEditing ? "cursor-crosshair" : ""}`}>
-        <MapContainer
-          key={`${points.map((point) => point.id).join("-") || "empty-route-map"}`}
+        <GoogleMapCanvas
+          ariaLabel="Bản đồ đường đi thực tế của tuyến"
           center={center}
-          zoom={displayedPath.length > 1 ? 8 : 13}
+          fitPoints={linePositions}
+          markers={mapMarkers}
+          onMapClick={
+            isEditing
+              ? (position) =>
+                  onAppendPoint({
+                    latitude: position.lat,
+                    longitude: position.lng,
+                  })
+              : undefined
+          }
+          polylines={mapPolylines}
           scrollWheelZoom={false}
           className="h-full w-full"
-        >
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <RouteMapBounds positions={linePositions} />
-          {isEditing && <RouteMapClickHandler onAppendPoint={onAppendPoint} />}
-          {linePositions.length > 1 && (
-            <Polyline
-              positions={linePositions}
-              pathOptions={{
-                color: hasSavedOrDraftPath ? "#0f766e" : "#64748b",
-                dashArray: hasSavedOrDraftPath ? undefined : "8 8",
-                weight: hasSavedOrDraftPath ? 5 : 3,
-              }}
-            />
-          )}
-          {points.map((point) => (
-            <CircleMarker
-              key={point.id}
-              center={[point.latitude, point.longitude]}
-              radius={8}
-              pathOptions={{
-                color: point.color,
-                fillColor: point.color,
-                fillOpacity: 0.85,
-              }}
-            >
-              <Tooltip>{point.name}</Tooltip>
-            </CircleMarker>
-          ))}
-          {isEditing &&
-            pathPoints.map((point, index) => (
-              <CircleMarker
-                key={`geometry-${index}-${point.latitude}-${point.longitude}`}
-                center={[point.latitude, point.longitude]}
-                radius={5}
-                pathOptions={{
-                  color: "#0f766e",
-                  fillColor: "#ffffff",
-                  fillOpacity: 1,
-                  weight: 2,
-                }}
-              />
-            ))}
-        </MapContainer>
+          zoom={displayedPath.length > 1 ? 8 : 13}
+        />
       </div>
       {points.length === 0 && (
         <p className="border-t border-gray-100 bg-white px-3 py-2 text-xs text-gray-500">
@@ -1788,39 +1791,6 @@ function RouteDesignMap({
       )}
     </div>
   );
-}
-
-function RouteMapBounds({ positions }: { positions: LatLngExpression[] }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (positions.length < 2) {
-      return;
-    }
-
-    map.fitBounds(positions as LatLngBoundsExpression, {
-      padding: [24, 24],
-    });
-  }, [map, positions]);
-
-  return null;
-}
-
-function RouteMapClickHandler({
-  onAppendPoint,
-}: {
-  onAppendPoint: (point: RouteCoordinate) => void;
-}) {
-  useMapEvents({
-    click(event) {
-      onAppendPoint({
-        latitude: event.latlng.lat,
-        longitude: event.latlng.lng,
-      });
-    },
-  });
-
-  return null;
 }
 
 function InlineFeedback({ message }: { message: string }) {

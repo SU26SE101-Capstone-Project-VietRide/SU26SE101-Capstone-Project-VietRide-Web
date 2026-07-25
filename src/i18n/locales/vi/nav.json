@@ -43,7 +43,8 @@
     "walletSettlement": "Ví & đối soát",
     "revenue": "Doanh thu",
     "reports": "Báo cáo",
-    "ragAudit": "RAG & audit"
+    "ragAudit": "RAG & audit",
+    "outboxDlq": "Hàng đợi lỗi"
   },
   "layout": {
     "adminDashboard": "Dashboard Quản trị",

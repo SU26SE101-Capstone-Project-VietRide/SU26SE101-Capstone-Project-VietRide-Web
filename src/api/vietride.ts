@@ -180,24 +180,38 @@ export type OperatorProfile = {
   representativePhone: string;
   registrationStatus: string;
   isActive: boolean;
-  cancellationPolicy?: string;
-  parcelNoShowPolicy?: string;
-  luggagePolicy?: string;
+  cancellationPolicy?: CancellationPolicyRule[] | null;
+  parcelNoShowPolicy?: ParcelNoShowPolicy | null;
+  luggagePolicy?: LuggagePolicy | null;
+};
+
+export type CancellationPolicyRule = {
+  hoursBeforeDeparture: number;
+  feePercent: number;
+};
+
+export type ParcelNoShowPolicy = {
+  noShowFeePercent: number;
+  additionalPaymentTimeoutMinutes: number;
+};
+
+export type LuggagePolicy = {
+  defaultLuggageKgPerSeat: number;
 };
 
 export type UpdateOperatorProfileRequest = {
   name: string;
   contactPhone: string;
-  logoUrl?: string;
+  logoUrl?: string | null;
   addressStreet: string;
   addressWard: string;
   addressDistrict: string;
   addressProvince: string;
   representativeName: string;
   representativePhone: string;
-  cancellationPolicy: string;
-  parcelNoShowPolicy: string;
-  luggagePolicy: string;
+  cancellationPolicy: CancellationPolicyRule[] | null;
+  parcelNoShowPolicy: ParcelNoShowPolicy | null;
+  luggagePolicy: LuggagePolicy | null;
 };
 
 export type RegisterOperatorRequest = Pick<
@@ -612,6 +626,48 @@ export type AdminPlatformReport = {
 export type AdminPlatformReportParams = {
   from: string;
   to: string;
+};
+
+export const OPERATOR_REPORT_EXPORT_TYPES = [
+  "bookings",
+  "parcels",
+  "revenue",
+  "occupancy",
+  "cancellation",
+  "refunds",
+] as const;
+
+export type OperatorReportExportType =
+  (typeof OPERATOR_REPORT_EXPORT_TYPES)[number];
+
+export type OperatorReportExportParams = {
+  from?: string;
+  to?: string;
+};
+
+export type AdminOutboxDlqParams = {
+  cursor?: string;
+  pageSize?: number;
+  service?: string;
+  eventType?: string;
+  sortDir?: "asc" | "desc";
+};
+
+export type AdminOutboxDlqItem = {
+  service: string;
+  eventId: string;
+  eventType: string;
+  payload: unknown;
+  retryCount: number;
+  lastError: string | null;
+  createdAt: string;
+  terminalAt: string;
+};
+
+export type AdminOutboxDlqPage = {
+  items: AdminOutboxDlqItem[];
+  nextCursor: string | null;
+  unavailableServices: string[];
 };
 
 export type AdminLocationStatus = "ACTIVE" | "INACTIVE" | "DUPLICATE" | string;
@@ -1748,8 +1804,22 @@ export type OperatorVehicleRequest = {
   imageUrls: string[];
 };
 
+export type FirebaseUploadPurpose =
+  | "VEHICLE_IMAGE"
+  | "OPERATOR_LOGO"
+  | "PARCEL_PHOTO"
+  | "INCIDENT_PHOTO"
+  | "USER_AVATAR";
+
 export type FirebaseCustomToken = {
   token: string;
+  purpose: FirebaseUploadPurpose;
+  uploadPath: string;
+};
+
+export type UserAvatarResult = {
+  userId: string;
+  avatarUrl: string | null;
 };
 
 export type VehicleType = {
@@ -2281,6 +2351,27 @@ export function getAdminActivityLogs(params: AdminActivityLogParams = {}) {
 export function getAdminPlatformReport(params: AdminPlatformReportParams) {
   return apiRequest<AdminPlatformReport>(
     `/v1/admin/reports/platform${buildQuery(params)}`,
+  );
+}
+
+export function getAdminOutboxDlq(params: AdminOutboxDlqParams = {}) {
+  return apiRequest<AdminOutboxDlqPage>(
+    `/v1/admin/outbox/dlq${buildQuery(params)}`,
+  );
+}
+
+export function exportOperatorReport(
+  reportType: OperatorReportExportType,
+  params: OperatorReportExportParams = {},
+) {
+  return apiBlobRequest(
+    `/v1/operator/reports/${reportType}/export${buildQuery(params)}`,
+    {
+      headers: {
+        Accept:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    },
   );
 }
 
@@ -3450,9 +3541,17 @@ export function updateOperatorVehicle(
   });
 }
 
-export function getFirebaseCustomToken() {
+export function getFirebaseCustomToken(purpose: FirebaseUploadPurpose) {
   return apiRequest<FirebaseCustomToken>("/v1/firebase/custom-token", {
     method: "POST",
+    body: { purpose },
+  });
+}
+
+export function updateMyAvatar(avatarUrl: string | null) {
+  return apiRequest<UserAvatarResult>("/v1/users/me/avatar", {
+    method: "PATCH",
+    body: { avatarUrl },
   });
 }
 
@@ -3895,3 +3994,4 @@ export function markNotificationRead(notificationId: string) {
     method: "POST",
   });
 }
+

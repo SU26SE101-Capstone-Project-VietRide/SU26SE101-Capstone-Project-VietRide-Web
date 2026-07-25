@@ -528,5 +528,28 @@
     "gmvMonth": "GMV (tháng)",
     "platformCommission": "Hoa hồng nền tảng",
     "monthlyRevenue": "Doanh thu theo tháng"
+  },
+  "outboxDlq": {
+    "title": "Hàng đợi lỗi Outbox",
+    "subtitle": "Rà soát các sự kiện Outbox đã hết lượt gửi lại trên toàn hệ thống VietRide.",
+    "queueTitle": "Sự kiện lỗi cuối",
+    "readOnlyHint": "Màn hình chỉ dùng để theo dõi. API hiện chưa hỗ trợ gửi lại hoặc xóa sự kiện.",
+    "loadFailed": "Không thể tải hàng đợi lỗi.",
+    "unavailableServices": "Một số nguồn đang tạm thời gián đoạn: {{services}}. Các kết quả còn lại vẫn được hiển thị.",
+    "service": "Dịch vụ",
+    "eventType": "Loại sự kiện",
+    "sortDirection": "Thứ tự",
+    "newestFirst": "Mới nhất trước",
+    "oldestFirst": "Cũ nhất trước",
+    "terminalAt": "Thời điểm dừng gửi",
+    "createdAt": "Ngày tạo",
+    "retryCount": "Số lần thử",
+    "lastError": "Lỗi gần nhất",
+    "eventId": "Mã sự kiện",
+    "payload": "Nội dung sự kiện",
+    "detailTitle": "Chi tiết sự kiện DLQ",
+    "empty": "Không có sự kiện lỗi phù hợp bộ lọc.",
+    "loading": "Đang tải sự kiện lỗi...",
+    "page": "Trang cursor {{page}}"
   }
 }

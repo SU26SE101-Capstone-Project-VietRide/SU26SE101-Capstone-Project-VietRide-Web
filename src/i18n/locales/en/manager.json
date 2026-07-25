@@ -1221,7 +1221,22 @@
     "chartTrips": "Trips",
     "routePerformanceSubtitle": "Per route this month",
     "avgPerTripRow": "Average per trip",
-    "onlineTicketRevenue": "Online ticket revenue"
+    "onlineTicketRevenue": "Online ticket revenue",
+    "exportTitle": "Download operational reports",
+    "exportSubtitle": "Export tenant-scoped data as Excel workbooks.",
+    "xlsxFile": "Excel (.xlsx)",
+    "exportRangeHint": "Dates use ICT, include both selected days and may span at most 92 days.",
+    "invalidExportRange": "Select a valid date range of no more than 92 days.",
+    "exportFailed": "Unable to download the report.",
+    "exportSuccess": "{{report}} report has been downloaded.",
+    "exportTypes": {
+      "bookings": "Bookings",
+      "parcels": "Parcels",
+      "revenue": "Revenue ledger",
+      "occupancy": "Seat occupancy",
+      "cancellation": "Booking cancellations",
+      "refunds": "Refunds"
+    }
   },
   "wallet": {
     "title": "Operator wallet",

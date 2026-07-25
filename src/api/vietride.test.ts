@@ -14,9 +14,11 @@ import {
   createOperatorVoucher,
   createParcel,
   deactivateAdminCampaign,
+  exportOperatorReport,
   exportOperatorParcelReport,
   getAdminCampaigns,
   getAdminActivityLogs,
+  getAdminOutboxDlq,
   getAdminPlatformWallet,
   getAdminPlatformReport,
   getAdminPlatformWalletTransactions,
@@ -318,6 +320,97 @@ describe("vietride API", () => {
         method: "POST",
         body: JSON.stringify({ duplicateId: "station-2" }),
         headers: expect.objectContaining({ "Idempotency-Key": "merge-key" }),
+      }),
+    );
+  });
+
+  it("calls Day 41 operator XLSX exports and the Day 43 admin DLQ facade", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL) => {
+        if (String(input).includes("/v1/admin/outbox/dlq")) {
+          return new Response(
+            JSON.stringify({
+              data: {
+                items: [],
+                nextCursor: null,
+                unavailableServices: [],
+              },
+            }),
+            { status: 200 },
+          );
+        }
+
+        return new Response("xlsx-content", {
+          status: 200,
+          headers: {
+            "Content-Type":
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          },
+        });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const reportTypes = [
+      "bookings",
+      "parcels",
+      "revenue",
+      "occupancy",
+      "cancellation",
+      "refunds",
+    ] as const;
+
+    for (const reportType of reportTypes) {
+      await exportOperatorReport(reportType, {
+        from: "2026-07-01",
+        to: "2026-07-18",
+      });
+    }
+
+    await getAdminOutboxDlq({
+      cursor: "opaque-cursor",
+      pageSize: 50,
+      service: "booking",
+      eventType: "booking.booking_confirmed",
+      sortDir: "desc",
+    });
+
+    reportTypes.forEach((reportType, index) => {
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        index + 1,
+        `https://api.vietride.online/v1/operator/reports/${reportType}/export?from=2026-07-01&to=2026-07-18`,
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Accept:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Authorization: "Bearer access-token",
+          }),
+        }),
+      );
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      7,
+      "https://api.vietride.online/v1/admin/outbox/dlq?cursor=opaque-cursor&pageSize=50&service=booking&eventType=booking.booking_confirmed&sortDir=desc",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer access-token",
+        }),
       }),
     );
   });
@@ -2083,13 +2176,14 @@ describe("vietride API", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(getFirebaseCustomToken()).resolves.toEqual({
+    await expect(getFirebaseCustomToken("VEHICLE_IMAGE")).resolves.toEqual({
       token: "firebase-custom-token",
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.vietride.online/v1/firebase/custom-token",
       expect.objectContaining({
         method: "POST",
+        body: JSON.stringify({ purpose: "VEHICLE_IMAGE" }),
         headers: expect.objectContaining({
           Authorization: "Bearer operator-admin-token",
         }),

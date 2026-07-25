@@ -170,6 +170,11 @@ const operatorStaffMenuConfig: MenuSection[] = [
     titleKey: "sections.support",
     items: [
       {
+        labelKey: "manager.reports",
+        path: "/manager/reports",
+        icon: <FiBarChart2 />,
+      },
+      {
         labelKey: "manager.wallet",
         path: "/manager/wallet",
         icon: <FiDollarSign />,
@@ -247,6 +252,11 @@ const adminMenuConfig: MenuSection[] = [
         labelKey: "admin.ragAudit",
         path: "/admin/rag-audit",
         icon: <FiDatabase />,
+      },
+      {
+        labelKey: "admin.outboxDlq",
+        path: "/admin/outbox-dlq",
+        icon: <FiAlertTriangle />,
       },
     ],
   },

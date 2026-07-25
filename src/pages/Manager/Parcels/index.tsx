@@ -97,7 +97,9 @@ export default function ParcelsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const user = getAuthUser();
-  const canMutate = user?.role === "OPERATOR_ADMIN";
+  const canOperate =
+    user?.role === "OPERATOR_ADMIN" || user?.role === "OPERATOR_STAFF";
+  const canOverrideCapacity = user?.role === "OPERATOR_ADMIN";
   const [summary, setSummary] = useState<OperatorParcelReportSummary | null>(null);
   const [routeFares, setRouteFares] = useState<ParcelRouteFare[]>([]);
   const [fromDate, setFromDate] = useState(monthStartIsoDate());
@@ -640,7 +642,7 @@ export default function ParcelsList() {
               {t("parcels.operatorActions")}
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              {canMutate
+              {canOperate
                 ? t("parcels.operatorActionsHint")
                 : t("parcels.staffReadOnlyHint")}
             </p>
@@ -681,7 +683,11 @@ export default function ParcelsList() {
             <div className="mt-4 grid gap-2">
               <button
                 type="button"
-                disabled={!canMutate || isActionLoading || !isActionableReview(selectedParcel)}
+                disabled={
+                  !canOperate ||
+                  isActionLoading ||
+                  !isActionableReview(selectedParcel)
+                }
                 onClick={() => void runAction(handleApproveReview)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -690,7 +696,11 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canMutate || isActionLoading || !isActionableReview(selectedParcel)}
+                disabled={
+                  !canOperate ||
+                  isActionLoading ||
+                  !isActionableReview(selectedParcel)
+                }
                 onClick={() => void runAction(handleRejectReview)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -700,7 +710,7 @@ export default function ParcelsList() {
               <button
                 type="button"
                 disabled={
-                  !canMutate ||
+                  !canOperate ||
                   isActionLoading ||
                   !isPendingDeliveryConfirm(selectedParcel)
                 }
@@ -713,7 +723,7 @@ export default function ParcelsList() {
               <button
                 type="button"
                 disabled={
-                  !canMutate ||
+                  !canOperate ||
                   isActionLoading ||
                   !isPendingRefundConfirmation(selectedParcel)
                 }
@@ -726,7 +736,7 @@ export default function ParcelsList() {
               <button
                 type="button"
                 disabled={
-                  !canMutate ||
+                  !canOverrideCapacity ||
                   isActionLoading ||
                   !isPendingCapacityOverride(selectedParcel)
                 }
@@ -738,7 +748,7 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canMutate || isActionLoading || !selectedParcel}
+                disabled={!canOperate || isActionLoading || !selectedParcel}
                 onClick={() => void runAction(handleRequestTransfer)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -747,7 +757,7 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canMutate || isActionLoading || !selectedParcel}
+                disabled={!canOperate || isActionLoading || !selectedParcel}
                 onClick={() => void runAction(handleReturnParcel)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -756,7 +766,7 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canMutate || isActionLoading || !selectedParcel}
+                disabled={!canOperate || isActionLoading || !selectedParcel}
                 onClick={() => void runAction(handleMarkReturned)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -765,7 +775,7 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canMutate || isActionLoading || !selectedParcel}
+                disabled={!canOperate || isActionLoading || !selectedParcel}
                 onClick={() => void runAction(handleCancelParcel)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >

@@ -11,7 +11,6 @@ import {
 } from "react-icons/fi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { LatLngExpression } from "leaflet";
 import {
   getTrackingTripEta,
   getTrackingTripLatest,
@@ -22,6 +21,7 @@ import {
 } from "../../../api/vietride";
 import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
 import CustomSelect from "../../../components/CustomSelect";
+import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 
 const fleetSeed: FleetVehicleMapPoint[] = [
   {
@@ -31,7 +31,7 @@ const fleetSeed: FleetVehicleMapPoint[] = [
     route: "HCM → Đà Lạt",
     speedKmh: 72,
     status: "moving",
-    position: [10.7769, 106.7009],
+    position: { lat: 10.7769, lng: 106.7009 },
   },
   {
     id: "2",
@@ -40,7 +40,7 @@ const fleetSeed: FleetVehicleMapPoint[] = [
     route: "HCM → Nha Trang",
     speedKmh: 0,
     status: "idle",
-    position: [10.8014, 106.652],
+    position: { lat: 10.8014, lng: 106.652 },
   },
   {
     id: "3",
@@ -49,7 +49,7 @@ const fleetSeed: FleetVehicleMapPoint[] = [
     route: "HCM → Vũng Tàu",
     speedKmh: 58,
     status: "moving",
-    position: [10.7377, 106.6297],
+    position: { lat: 10.7377, lng: 106.6297 },
   },
   {
     id: "4",
@@ -58,7 +58,7 @@ const fleetSeed: FleetVehicleMapPoint[] = [
     route: "HCM → Cần Thơ",
     speedKmh: null,
     status: "offline",
-    position: [10.8231, 106.6297],
+    position: { lat: 10.8231, lng: 106.6297 },
   },
   {
     id: "5",
@@ -67,7 +67,7 @@ const fleetSeed: FleetVehicleMapPoint[] = [
     route: "HN → Sapa",
     speedKmh: 64,
     status: "moving",
-    position: [10.714, 106.7561],
+    position: { lat: 10.714, lng: 106.7561 },
   },
   {
     id: "6",
@@ -76,7 +76,7 @@ const fleetSeed: FleetVehicleMapPoint[] = [
     route: "HCM → Đà Lạt",
     speedKmh: 0,
     status: "idle",
-    position: [10.7626, 106.6602],
+    position: { lat: 10.7626, lng: 106.6602 },
   },
   {
     id: "7",
@@ -85,7 +85,7 @@ const fleetSeed: FleetVehicleMapPoint[] = [
     route: "HCM → Đà Lạt",
     speedKmh: 81,
     status: "moving",
-    position: [10.8412, 106.8098],
+    position: { lat: 10.8412, lng: 106.8098 },
   },
   {
     id: "8",
@@ -94,7 +94,7 @@ const fleetSeed: FleetVehicleMapPoint[] = [
     route: "HCM → Nha Trang",
     speedKmh: 45,
     status: "moving",
-    position: [10.6989, 106.7721],
+    position: { lat: 10.6989, lng: 106.7721 },
   },
 ];
 
@@ -133,7 +133,7 @@ export default function GPSTracking() {
     "all" | FleetVehicleMapPoint["status"]
   >("all");
   const [selectedId, setSelectedId] = useState<string | null>(firstVehicle.id);
-  const [focusCenter, setFocusCenter] = useState<LatLngExpression | null>(
+  const [focusCenter, setFocusCenter] = useState<GoogleMapCoordinate | null>(
     firstVehicle.position,
   );
   const [mapReady, setMapReady] = useState(false);
@@ -209,10 +209,10 @@ export default function GPSTracking() {
       setEta(etaResult);
 
       if (latestResult.latest) {
-        setFocusCenter([
-          latestResult.latest.latitude,
-          latestResult.latest.longitude,
-        ]);
+        setFocusCenter({
+          lat: latestResult.latest.latitude,
+          lng: latestResult.latest.longitude,
+        });
       }
 
       setLastRefresh(new Date());

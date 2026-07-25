@@ -43,7 +43,8 @@
     "walletSettlement": "Wallet & settlement",
     "revenue": "Revenue",
     "reports": "Reports",
-    "ragAudit": "RAG & audit"
+    "ragAudit": "RAG & audit",
+    "outboxDlq": "Outbox DLQ"
   },
   "layout": {
     "adminDashboard": "Admin dashboard",

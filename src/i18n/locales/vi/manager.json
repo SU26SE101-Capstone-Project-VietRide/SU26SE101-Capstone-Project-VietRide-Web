@@ -1221,7 +1221,22 @@
     "chartTrips": "Lượt về",
     "routePerformanceSubtitle": "Từng tuyến trong tháng",
     "avgPerTripRow": "Trung bình trên chuyến",
-    "onlineTicketRevenue": "Doanh thu vé online"
+    "onlineTicketRevenue": "Doanh thu vé online",
+    "exportTitle": "Tải báo cáo vận hành",
+    "exportSubtitle": "Xuất dữ liệu thuộc phạm vi nhà xe thành tệp Excel.",
+    "xlsxFile": "Tệp Excel (.xlsx)",
+    "exportRangeHint": "Ngày được tính theo giờ Việt Nam, bao gồm cả hai ngày đã chọn và tối đa 92 ngày.",
+    "invalidExportRange": "Hãy chọn khoảng ngày hợp lệ và không vượt quá 92 ngày.",
+    "exportFailed": "Không thể tải báo cáo.",
+    "exportSuccess": "Đã tải báo cáo {{report}}.",
+    "exportTypes": {
+      "bookings": "Booking",
+      "parcels": "Bưu phẩm",
+      "revenue": "Sổ doanh thu",
+      "occupancy": "Tỷ lệ lấp đầy ghế",
+      "cancellation": "Booking đã hủy",
+      "refunds": "Hoàn tiền"
+    }
   },
   "wallet": {
     "title": "Ví quản lý nhà xe",

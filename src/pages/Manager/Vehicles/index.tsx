@@ -544,6 +544,7 @@ export default function VehiclesPage() {
         INVALID_SIZE: "vehicles.invalidImageSize",
         MISSING_OPERATOR_ID: "vehicles.missingOperatorId",
         MISSING_TOKEN: "vehicles.missingFirebaseToken",
+        MISSING_UPLOAD_PATH: "vehicles.uploadFailed",
         TOO_MANY_IMAGES: "vehicles.tooManyImages",
       };
 

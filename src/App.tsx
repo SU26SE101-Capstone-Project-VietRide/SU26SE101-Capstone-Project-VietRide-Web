@@ -37,6 +37,7 @@ import Vouchers from "./pages/Admin/Vouchers";
 import Packages from "./pages/Admin/Packages";
 import Revenue from "./pages/Admin/Revenue";
 import AdminReports from "./pages/Admin/Reports";
+import OutboxDlq from "./pages/Admin/OutboxDlq";
 import Payouts from "./pages/Admin/Payouts";
 import AdminPolicies from "./pages/Admin/Policies";
 import AdminStations from "./pages/Admin/Stations";
@@ -92,6 +93,7 @@ export default function App() {
             <Route path="profile" element={<Profile />} />
             <Route path="vouchers" element={<ManagerVouchers />} />
             <Route path="wallet" element={<ManagerWallet />} />
+            <Route path="reports" element={<Reports />} />
             <Route
               element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
             >
@@ -100,7 +102,6 @@ export default function App() {
               <Route path="capacity" element={<ManagerCapacity />} />
               <Route path="packages" element={<ManagerPackages />} />
               <Route path="policies" element={<ManagerPolicies />} />
-              <Route path="reports" element={<Reports />} />
               <Route path="settings" element={<ManagerSettings />} />
             </Route>
           </Route>
@@ -119,6 +120,7 @@ export default function App() {
             <Route path="packages" element={<Packages />} />
             <Route path="revenue" element={<Revenue />} />
             <Route path="reports" element={<AdminReports />} />
+            <Route path="outbox-dlq" element={<OutboxDlq />} />
             <Route path="payouts" element={<Payouts />} />
             <Route path="wallet-settlement" element={<WalletSettlement />} />
             <Route path="rag-audit" element={<RagAudit />} />
