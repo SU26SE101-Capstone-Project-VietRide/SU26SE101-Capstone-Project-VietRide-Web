@@ -53,6 +53,11 @@ const operatorAdminMenuConfig: MenuSection[] = [
         icon: <FiNavigation />,
       },
       {
+        labelKey: "manager.routeExtensions",
+        path: "/manager/route-extensions",
+        icon: <FiNavigation />,
+      },
+      {
         labelKey: "manager.vehicles",
         path: "/manager/vehicles",
         icon: <FiTruck />,
@@ -114,6 +119,11 @@ const operatorAdminMenuConfig: MenuSection[] = [
         path: "/manager/settings",
         icon: <FiSettings />,
       },
+      {
+        labelKey: "manager.assistant",
+        path: "/manager/assistant",
+        icon: <FiDatabase />,
+      },
     ],
   },
 ];
@@ -136,6 +146,11 @@ const operatorStaffMenuConfig: MenuSection[] = [
       {
         labelKey: "manager.routes",
         path: "/manager/routes",
+        icon: <FiNavigation />,
+      },
+      {
+        labelKey: "manager.routeExtensions",
+        path: "/manager/route-extensions",
         icon: <FiNavigation />,
       },
       {
@@ -179,6 +194,11 @@ const operatorStaffMenuConfig: MenuSection[] = [
         path: "/manager/wallet",
         icon: <FiDollarSign />,
       },
+      {
+        labelKey: "manager.assistant",
+        path: "/manager/assistant",
+        icon: <FiDatabase />,
+      },
     ],
   },
 ];
@@ -200,6 +220,11 @@ const adminMenuConfig: MenuSection[] = [
       {
         labelKey: "admin.stations",
         path: "/admin/stations",
+        icon: <FiMapPin />,
+      },
+      {
+        labelKey: "admin.locations",
+        path: "/admin/locations",
         icon: <FiMapPin />,
       },
       { labelKey: "admin.users", path: "/admin/users", icon: <FiBookOpen /> },
@@ -257,6 +282,11 @@ const adminMenuConfig: MenuSection[] = [
         labelKey: "admin.outboxDlq",
         path: "/admin/outbox-dlq",
         icon: <FiAlertTriangle />,
+      },
+      {
+        labelKey: "admin.assistant",
+        path: "/admin/assistant",
+        icon: <FiDatabase />,
       },
     ],
   },

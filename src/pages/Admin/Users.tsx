@@ -1,19 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiEye,
   FiLock,
+  FiPlus,
   FiRefreshCw,
   FiSearch,
   FiUnlock,
   FiUser,
 } from "react-icons/fi";
 import {
+  createAdminUser,
+  getAdminOperatorUsers,
   getAdminUsers,
   lockAdminUser,
   unlockAdminUser,
   type AdminUser,
   type AdminUserRole,
+  type CreateAdminUserRequest,
 } from "../../api/vietride";
 import { getAuthUser } from "../../auth";
 import CustomSelect from "../../components/CustomSelect";
@@ -45,6 +49,7 @@ export default function Users() {
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [operatorUsersOnly, setOperatorUsersOnly] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [page, setPage] = useState(1);
@@ -52,6 +57,13 @@ export default function Users() {
   const [isLoading, setIsLoading] = useState(false);
   const [actionUserId, setActionUserId] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateAdminUserRequest>({
+    email: "",
+    displayName: "",
+    role: "SYSTEM_ADMIN",
+  });
   const [message, setMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -65,7 +77,8 @@ export default function Users() {
       setMessage(null);
 
       try {
-        const result = await getAdminUsers({
+        const listUsers = operatorUsersOnly ? getAdminOperatorUsers : getAdminUsers;
+        const result = await listUsers({
           page,
           pageSize,
           search: searchTerm.trim() || undefined,
@@ -100,7 +113,7 @@ export default function Users() {
       ignore = true;
       window.clearTimeout(timer);
     };
-  }, [includeDeleted, page, reloadKey, role, searchTerm, status, t]);
+  }, [includeDeleted, operatorUsersOnly, page, reloadKey, role, searchTerm, status, t]);
 
   const roleLabel = (userRole: AdminUserRole) => {
     const labels: Record<string, string> = {
@@ -152,6 +165,49 @@ export default function Users() {
     }
   }
 
+  async function submitCreate(event: FormEvent) {
+    event.preventDefault();
+    const email = createForm.email.trim();
+    const displayName = createForm.displayName.trim();
+    if (!email || !displayName) {
+      setMessage({ tone: "error", text: tc("required") });
+      return;
+    }
+
+    setIsCreating(true);
+    setMessage(null);
+    try {
+      const created = await createAdminUser({
+        email,
+        displayName,
+        role: "SYSTEM_ADMIN",
+      });
+      setCreateOpen(false);
+      setCreateForm({ email: "", displayName: "", role: "SYSTEM_ADMIN" });
+      setMessage({
+        tone: "success",
+        text: t("users.createSuccess", {
+          name: created.displayName || displayName,
+          defaultValue: `Đã tạo tài khoản admin ${created.displayName || displayName}.`,
+        }),
+      });
+      setPage(1);
+      setReloadKey((value) => value + 1);
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : t("users.createFailed", {
+                defaultValue: "Không thể tạo tài khoản admin.",
+              }),
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -159,14 +215,24 @@ export default function Users() {
           <h1 className="text-3xl font-bold text-gray-900">{t("users.title")}</h1>
           <p className="mt-1 text-gray-600">{t("users.subtitle")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setReloadKey((value) => value + 1)}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          <FiRefreshCw />
-          {tc("refresh")}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setReloadKey((value) => value + 1)}
+            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <FiRefreshCw />
+            {tc("refresh")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-vr-600"
+          >
+            <FiPlus />
+            {t("users.createAdminUser")}
+          </button>
+        </div>
       </header>
 
       {message && (
@@ -182,7 +248,7 @@ export default function Users() {
       )}
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div className="grid gap-3 border-b border-gray-100 p-4 md:grid-cols-[minmax(260px,1fr)_220px_200px_auto]">
+        <div className="grid gap-3 border-b border-gray-100 p-4 md:grid-cols-[minmax(260px,1fr)_220px_200px_auto_auto]">
           <div className="relative">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -235,6 +301,20 @@ export default function Users() {
               className="h-4 w-4 cursor-pointer accent-vr-500"
             />
             {t("users.includeDeleted")}
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={operatorUsersOnly}
+              onChange={(event) => {
+                setOperatorUsersOnly(event.target.checked);
+                setPage(1);
+              }}
+              className="h-4 w-4 cursor-pointer accent-vr-500"
+            />
+            {t("users.operatorUsersOnly", {
+              defaultValue: "Chỉ tài khoản nhà xe",
+            })}
           </label>
         </div>
 
@@ -357,6 +437,74 @@ export default function Users() {
         roleLabel={roleLabel}
         onClose={() => setSelected(null)}
       />
+
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        icon={<FiPlus />}
+        title={t("users.createAdminUser")}
+        subtitle={t("users.createAdminHint", {
+          defaultValue:
+            "Tài khoản SYSTEM_ADMIN nhận email thiết lập mật khẩu lần đầu.",
+        })}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setCreateOpen(false)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700"
+            >
+              {tc("cancel")}
+            </button>
+            <button
+              type="submit"
+              form="create-admin-user-form"
+              disabled={isCreating}
+              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {isCreating ? tc("processing") : t("users.createAdminUser")}
+            </button>
+          </>
+        }
+      >
+        <form
+          id="create-admin-user-form"
+          className="space-y-4"
+          onSubmit={(event) => void submitCreate(event)}
+        >
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-600">
+              {t("users.fullName")}
+            </span>
+            <input
+              value={createForm.displayName}
+              onChange={(event) =>
+                setCreateForm({ ...createForm, displayName: event.target.value })
+              }
+              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-vr-500"
+              maxLength={255}
+              required
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-600">
+              {tc("email")}
+            </span>
+            <input
+              type="email"
+              value={createForm.email}
+              onChange={(event) =>
+                setCreateForm({ ...createForm, email: event.target.value })
+              }
+              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-vr-500"
+              required
+            />
+          </label>
+          <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
+            {t("users.role")}: <strong>SYSTEM_ADMIN</strong>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

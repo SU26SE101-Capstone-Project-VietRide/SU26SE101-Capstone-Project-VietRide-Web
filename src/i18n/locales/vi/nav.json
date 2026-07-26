@@ -16,6 +16,7 @@
     "trips": "Chuyến",
     "routeEta": "Đổi lộ trình & cập nhật ETA",
     "routes": "Tuyến & điểm dừng",
+    "routeExtensions": "Giá tuyến & tuyến thay thế",
     "vehicles": "Phương tiện",
     "staff": "Nhân sự",
     "capacity": "Sức chứa & ghế",
@@ -28,12 +29,14 @@
     "policies": "Policy",
     "reports": "Doanh thu",
     "wallet": "Ví quản lý",
-    "settings": "Cấu hình"
+    "settings": "Cấu hình",
+    "assistant": "Trợ lý nghiệp vụ"
   },
   "admin": {
     "dashboard": "Dashboard",
     "operators": "Nhà xe",
     "stations": "Bến nền tảng",
+    "locations": "Tỉnh & thành phố",
     "users": "Người dùng",
     "activityLogs": "Nhật ký hoạt động",
     "vouchers": "Voucher",
@@ -44,7 +47,8 @@
     "revenue": "Doanh thu",
     "reports": "Báo cáo",
     "ragAudit": "RAG & audit",
-    "outboxDlq": "Hàng đợi lỗi"
+    "outboxDlq": "Hàng đợi lỗi",
+    "assistant": "Trợ lý nghiệp vụ"
   },
   "layout": {
     "adminDashboard": "Dashboard Quản trị",

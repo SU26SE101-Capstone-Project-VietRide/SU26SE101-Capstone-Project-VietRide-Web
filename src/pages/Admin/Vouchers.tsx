@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiEdit2, FiPlus, FiPower, FiRefreshCw, FiTag, FiTrash2 } from "react-icons/fi";
+import { FiEdit2, FiEye, FiPlus, FiPower, FiRefreshCw, FiTag, FiTrash2 } from "react-icons/fi";
 import {
   activateAdminCampaign,
   createAdminCampaign,
@@ -8,12 +8,14 @@ import {
   deleteAdminVoucher,
   deactivateAdminCampaign,
   getAdminOperators,
+  getAdminVoucherConsents,
   getAdminCampaigns,
   getAdminVouchers,
   updateAdminCampaign,
   updateAdminVoucher,
   type AdminCampaign,
   type AdminCampaignRequest,
+  type AdminVoucherConsent,
   type AdminOperator,
   type AdminVoucher,
   type CreateAdminVoucherRequest,
@@ -302,6 +304,9 @@ export default function Vouchers() {
   const [createOpen, setCreateOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState<AdminVoucher | null>(null);
+  const [consentVoucher, setConsentVoucher] = useState<AdminVoucher | null>(null);
+  const [consents, setConsents] = useState<AdminVoucherConsent[]>([]);
+  const [consentsLoading, setConsentsLoading] = useState(false);
   const [deletingVoucher, setDeletingVoucher] = useState<AdminVoucher | null>(null);
   const [editingCampaign, setEditingCampaign] = useState<AdminCampaign | null>(
     null,
@@ -398,6 +403,23 @@ export default function Vouchers() {
     setCreateOpen(true);
     setMessage("");
     setError("");
+  }
+
+  async function openConsentModal(voucher: AdminVoucher) {
+    setConsentVoucher(voucher);
+    setConsents([]);
+    setConsentsLoading(true);
+    setError("");
+    try {
+      const result = await getAdminVoucherConsents(voucher.id);
+      setConsents(result.items);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("vouchers.loadFailed"),
+      );
+    } finally {
+      setConsentsLoading(false);
+    }
   }
 
   function openCreateCampaignModal() {
@@ -817,6 +839,15 @@ export default function Vouchers() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
+                            onClick={() => void openConsentModal(voucher)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-vr-100 text-vr-600 hover:bg-vr-50"
+                            aria-label={t("vouchers.viewConsents", { defaultValue: "Xem consent" })}
+                            title={t("vouchers.viewConsents", { defaultValue: "Xem consent" })}
+                          >
+                            <FiEye size={16} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => openEditModal(voucher)}
                             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
                             aria-label={tc("edit")}
@@ -954,6 +985,88 @@ export default function Vouchers() {
           />
         </div>
       </section>
+
+      <Modal
+        open={consentVoucher !== null}
+        onClose={() => setConsentVoucher(null)}
+        wide
+        icon={<FiEye size={20} />}
+        title={t("vouchers.consentsTitle", {
+          defaultValue: `Consent của voucher ${consentVoucher?.code ?? ""}`,
+        })}
+        subtitle={t("vouchers.consentsSubtitle", {
+          defaultValue:
+            "Theo dõi phản hồi tài trợ của từng nhà xe cho platform voucher.",
+        })}
+        footer={
+          <button
+            type="button"
+            onClick={() => setConsentVoucher(null)}
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700"
+          >
+            {tc("close")}
+          </button>
+        }
+      >
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+                <th className="px-4 py-3">Operator ID</th>
+                <th className="px-4 py-3">{tc("status")}</th>
+                <th className="px-4 py-3">
+                  {t("vouchers.requestedAt", { defaultValue: "Yêu cầu lúc" })}
+                </th>
+                <th className="px-4 py-3">
+                  {t("vouchers.respondedAt", { defaultValue: "Phản hồi lúc" })}
+                </th>
+                <th className="px-4 py-3">
+                  {t("vouchers.rejectReason", { defaultValue: "Lý do từ chối" })}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {consents.map((consent) => (
+                <tr key={consent.id} className="border-t border-gray-100">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-700">
+                    {consent.operatorId}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {consent.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {formatDisplayDate(consent.requestedAt)}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {consent.respondedAt
+                      ? formatDisplayDate(consent.respondedAt)
+                      : "-"}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {consent.rejectReason ?? "-"}
+                  </td>
+                </tr>
+              ))}
+              {!consentsLoading && consents.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
+                    {t("vouchers.noConsents", { defaultValue: "Chưa có consent." })}
+                  </td>
+                </tr>
+              )}
+              {consentsLoading && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
+                    {tc("loading")}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
 
       <Modal
         open={createOpen}

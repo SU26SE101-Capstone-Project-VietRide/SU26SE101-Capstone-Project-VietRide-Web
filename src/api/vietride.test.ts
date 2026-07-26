@@ -84,6 +84,7 @@ import {
   resetPassword,
   reviewOperatorParcel,
   returnOperatorParcel,
+  disruptOperatorTripNoSubstitution,
   reweighAssistantParcel,
   searchPublicTrips,
   settleAdminTripSettlement,
@@ -96,6 +97,7 @@ import {
   updateOperatorParcelStatus,
   updateOperatorRouteGeometry,
   retryAdminInvoice,
+  substituteOperatorTripVehicle,
   retryOperatorSubscriptionPayment,
   upgradeOperatorSubscription,
   unlockAdminUser,
@@ -446,12 +448,11 @@ describe("vietride API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await createAdminLocation({
-      name: "Mien Dong",
-      address: "292 Dinh Bo Linh",
-      city: "Ho Chi Minh City",
-      province: "Ho Chi Minh City",
-      latitude: 10.1,
-      longitude: 106.1,
+      code: "HCM",
+      name: "Ho Chi Minh City",
+      type: "MUNICIPALITY",
+      sortOrder: 1,
+      isActive: true,
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -459,12 +460,11 @@ describe("vietride API", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          name: "Mien Dong",
-          address: "292 Dinh Bo Linh",
-          city: "Ho Chi Minh City",
-          province: "Ho Chi Minh City",
-          latitude: 10.1,
-          longitude: 106.1,
+          code: "HCM",
+          name: "Ho Chi Minh City",
+          type: "MUNICIPALITY",
+          sortOrder: 1,
+          isActive: true,
         }),
       }),
     );
@@ -704,9 +704,7 @@ describe("vietride API", () => {
 
     await getAdminLocations({ page: 1, pageSize: 20, search: "HCM" });
     await updateAdminLocation("location-1", {
-      name: "Ho Chi Minh",
-      latitude: 10.8,
-      longitude: 106.7,
+      name: "Ho Chi Minh City",
     });
     await getOperatorStop("stop-1");
     await getOperatorRoute("route-1");
@@ -733,11 +731,7 @@ describe("vietride API", () => {
       2,
       "https://api.vietride.online/v1/admin/locations/location-1",
       expect.objectContaining({
-        body: JSON.stringify({
-          name: "Ho Chi Minh",
-          latitude: 10.8,
-          longitude: 106.7,
-        }),
+        body: JSON.stringify({ name: "Ho Chi Minh City" }),
         method: "PATCH",
       }),
     );
@@ -1296,7 +1290,7 @@ describe("vietride API", () => {
       applicableRouteIds: null,
     });
     await deleteAdminVoucher("voucher-1");
-    await getAdminVoucherConsents("voucher-1", { page: 1, pageSize: 20 });
+    await getAdminVoucherConsents("voucher-1");
     await getAdminCampaigns();
     await activateAdminCampaign("campaign-1");
     await deactivateAdminCampaign("campaign-1");
@@ -1334,7 +1328,7 @@ describe("vietride API", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       4,
-      "https://api.vietride.online/v1/admin/vouchers/voucher-1/consents?page=1&pageSize=20",
+      "https://api.vietride.online/v1/admin/vouchers/voucher-1/consents",
       expect.objectContaining({
         method: "GET",
       }),
@@ -2249,6 +2243,67 @@ describe("vietride API", () => {
       2,
       "https://api.vietride.online/v1/operator/bookings/booking-1",
       expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("sends required idempotency keys for operator trip terminal operations", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-admin-1",
+          email: "admin@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+          operatorId: "operator-1",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ data: { tripId: "trip-1", status: "DISRUPTED" } }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await substituteOperatorTripVehicle(
+      "trip-1",
+      {
+        newVehicleId: "vehicle-2",
+        newDriverUserId: "driver-2",
+        reason: "Vehicle breakdown",
+      },
+      "substitute-key",
+    );
+    await disruptOperatorTripNoSubstitution(
+      "trip-1",
+      { reason: "No replacement vehicle" },
+      "disrupt-key",
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/trips/trip-1/substitute-vehicle",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "substitute-key",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/trips/trip-1/disrupt-no-substitution",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "disrupt-key",
+        }),
+      }),
     );
   });
 });

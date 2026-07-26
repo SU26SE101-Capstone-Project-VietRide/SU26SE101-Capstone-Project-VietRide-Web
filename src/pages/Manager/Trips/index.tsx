@@ -15,6 +15,7 @@ import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
 import { getAuthUser } from "../../../auth";
 import { formatDateTime } from "../../../utils/date";
+import TripOperationsPanel from "./TripOperationsPanel";
 import {
   activateOperatorDriverSchedule,
   createOperatorDriverSchedule,
@@ -649,6 +650,8 @@ export default function TripsPage() {
           }
         />
       </div>
+
+      <TripOperationsPanel />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {canManageSchedules ? (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiCheck, FiFileText, FiRefreshCw, FiSearch } from "react-icons/fi";
+import { FiCheck, FiFileText, FiRefreshCw, FiSearch, FiUploadCloud } from "react-icons/fi";
 import {
   approveRagDocument,
   getRagDocuments,
@@ -13,6 +13,8 @@ import {
 } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
+import { RagConfigModal } from "./RagConfigModal";
+import { RagDocumentUploadModal } from "./RagDocumentUploadModal";
 
 const statusClass: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700",
@@ -46,6 +48,8 @@ export default function RagAudit() {
   const [documents, setDocuments] = useState<RagDocument[]>([]);
   const [feedback, setFeedback] = useState<RagFeedback[]>([]);
   const [configs, setConfigs] = useState<RagRuntimeConfig[]>([]);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [selectedConfigKey, setSelectedConfigKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -130,14 +134,24 @@ export default function RagAudit() {
           </h1>
           <p className="mt-1 text-sm text-gray-600">{t("ragAudit.subtitle")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadData()}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
-          <FiRefreshCw size={16} />
-          {tc("refresh")}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <FiRefreshCw size={16} />
+            {tc("refresh")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setUploadOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+          >
+            <FiUploadCloud size={16} />
+            {t("ragAudit.uploadDocument", { defaultValue: "Tải tài liệu" })}
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -308,10 +322,12 @@ export default function RagAudit() {
           </button>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {configs.slice(0, 6).map((config) => (
-            <div
+          {configs.map((config) => (
+            <button
+              type="button"
               key={config.key}
-              className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
+              onClick={() => setSelectedConfigKey(config.key)}
+              className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-left transition hover:border-vr-200 hover:bg-vr-50"
             >
               <p className="font-mono text-xs font-semibold text-gray-900">
                 {config.key}
@@ -319,10 +335,35 @@ export default function RagAudit() {
               <p className="mt-1 line-clamp-2 text-xs text-gray-500">
                 {formatConfigValue(config.value)}
               </p>
-            </div>
+            </button>
           ))}
         </div>
       </section>
+
+      <RagDocumentUploadModal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={(document) => {
+          setDocuments((current) => [document, ...current]);
+          setTotalDocuments((current) => current + 1);
+          setMessage(
+            t("ragAudit.uploadSuccess", {
+              defaultValue: "Đã tải tài liệu lên knowledge base.",
+            }),
+          );
+        }}
+      />
+      <RagConfigModal
+        configKey={selectedConfigKey}
+        onClose={() => setSelectedConfigKey(null)}
+        onSaved={(updated) =>
+          setConfigs((current) =>
+            current.map((config) =>
+              config.key === updated.key ? updated : config,
+            ),
+          )
+        }
+      />
     </div>
   );
 }

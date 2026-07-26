@@ -194,6 +194,98 @@ export async function apiBlobRequest(
   return response.blob();
 }
 
+export type ApiSseEvent = {
+  event: string;
+  data: unknown;
+};
+
+export async function apiSseRequest(
+  path: string,
+  options: RequestOptions,
+  onEvent: (event: ApiSseEvent) => void,
+): Promise<void> {
+  const method = options.method ?? "GET";
+  const requestOptions = prepareRequestOptions(path, method, options);
+  const session = getAuthSession();
+  const shouldAuthenticate = options.authenticated !== false;
+  let response = await sendRequest(
+    path,
+    method,
+    requestOptions,
+    shouldAuthenticate ? session?.accessToken : undefined,
+  );
+
+  if (response.status === 401 && shouldAuthenticate && session?.refreshToken) {
+    const refreshedSession = await refreshAuthSession();
+    if (refreshedSession?.accessToken) {
+      response = await sendRequest(
+        path,
+        method,
+        requestOptions,
+        refreshedSession.accessToken,
+      );
+    }
+  }
+
+  if (!response.ok) {
+    const payload = await parseResponse(response);
+    throw new Error(parseErrorMessage(payload, `Request failed: ${response.status}`));
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let eventName = "message";
+  let dataLines: string[] = [];
+
+  const dispatch = () => {
+    if (dataLines.length === 0) {
+      eventName = "message";
+      return;
+    }
+
+    const rawData = dataLines.join("\n");
+    let data: unknown = rawData;
+    try {
+      data = JSON.parse(rawData) as unknown;
+    } catch {
+      // Plain-text SSE data is valid and should be forwarded unchanged.
+    }
+    onEvent({ event: eventName, data });
+    eventName = "message";
+    dataLines = [];
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const lines = buffer.split(/\r?\n/);
+    buffer = done ? "" : (lines.pop() ?? "");
+
+    for (const line of lines) {
+      if (line === "") {
+        dispatch();
+      } else if (line.startsWith("event:")) {
+        eventName = line.slice(6).trim() || "message";
+      } else if (line.startsWith("data:")) {
+        dataLines.push(line.slice(5).trimStart());
+      }
+    }
+
+    if (done) {
+      if (buffer) {
+        dataLines.push(buffer.startsWith("data:") ? buffer.slice(5).trimStart() : buffer);
+      }
+      dispatch();
+      break;
+    }
+  }
+}
+
 function prepareRequestOptions(
   path: string,
   method: HttpMethod,

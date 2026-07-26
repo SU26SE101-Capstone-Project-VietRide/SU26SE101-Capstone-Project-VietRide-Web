@@ -1,21 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
   FiDollarSign,
+  FiPlus,
   FiRefreshCw,
   FiSearch,
 } from "react-icons/fi";
 import {
+  adjustAdminOperatorWallet,
+  adjustAdminPlatformWallet,
   getAdminPlatformWallet,
   getAdminPlatformWalletTransactions,
   getAdminTripSettlements,
   settleAdminTripSettlement,
   type PlatformWallet,
   type TripSettlement,
+  type WalletTransactionType,
   type WalletTransaction,
 } from "../../../api/vietride";
+import CustomSelect from "../../../components/CustomSelect";
+import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
+import InvoiceRetryCard from "./InvoiceRetryCard";
 
 const pageSize = 10;
 
@@ -57,6 +64,15 @@ export default function WalletSettlement() {
   const [settlingId, setSettlingId] = useState("");
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [adjustForm, setAdjustForm] = useState<{
+    target: "PLATFORM" | "OPERATOR";
+    operatorId: string;
+    type: WalletTransactionType;
+    amount: string;
+    note: string;
+  }>({ target: "PLATFORM", operatorId: "", type: "CREDIT", amount: "", note: "" });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -153,6 +169,59 @@ export default function WalletSettlement() {
     }
   }
 
+  async function submitAdjustment(event: FormEvent) {
+    event.preventDefault();
+    const amount = Number(adjustForm.amount);
+    const operatorId = adjustForm.operatorId.trim();
+    const note = adjustForm.note.trim();
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      !note ||
+      (adjustForm.target === "OPERATOR" && !operatorId)
+    ) {
+      setError(
+        t("walletSettlement.adjustInvalid", {
+          defaultValue:
+            "Số tiền phải lớn hơn 0, ghi chú là bắt buộc và điều chỉnh ví nhà xe cần operator ID.",
+        }),
+      );
+      return;
+    }
+
+    setAdjusting(true);
+    setError("");
+    setMessage("");
+    try {
+      const request = { type: adjustForm.type, amount, note };
+      if (adjustForm.target === "PLATFORM") {
+        await adjustAdminPlatformWallet(request);
+      } else {
+        await adjustAdminOperatorWallet(operatorId, request);
+      }
+      setAdjustOpen(false);
+      setAdjustForm({
+        target: "PLATFORM",
+        operatorId: "",
+        type: "CREDIT",
+        amount: "",
+        note: "",
+      });
+      setMessage(
+        t("walletSettlement.adjustSuccess", {
+          defaultValue: "Đã ghi nhận điều chỉnh ví.",
+        }),
+      );
+      await loadData();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("walletSettlement.actionFailed"),
+      );
+    } finally {
+      setAdjusting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -160,9 +229,15 @@ export default function WalletSettlement() {
           <h1 className="text-3xl font-bold text-gray-900">{t("walletSettlement.title")}</h1>
           <p className="mt-1 text-sm text-gray-600">{t("walletSettlement.apiSubtitle")}</p>
         </div>
-        <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60">
-          <FiRefreshCw className={loading ? "animate-spin" : ""} /> {tc("refresh")}
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60">
+            <FiRefreshCw className={loading ? "animate-spin" : ""} /> {tc("refresh")}
+          </button>
+          <button type="button" onClick={() => setAdjustOpen(true)} className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600">
+            <FiPlus />
+            {t("walletSettlement.adjust", { defaultValue: "Điều chỉnh ví" })}
+          </button>
+        </div>
       </div>
 
       {message && <div role="status" className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-800">{message}</div>}
@@ -173,6 +248,8 @@ export default function WalletSettlement() {
         <Metric label={t("walletSettlement.pageSettlementTotal")} value={formatMoney(totals.amount)} />
         <Metric label={t("walletSettlement.eligible")} value={String(totals.eligible)} />
       </div>
+
+      <InvoiceRetryCard />
 
       <section className="rounded-lg border border-gray-200 bg-white p-4">
         <div className="relative max-w-md">
@@ -198,6 +275,100 @@ export default function WalletSettlement() {
         <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900"><FiDollarSign className="text-vr-600" />{t("walletSettlement.latestTransactions")}</h2>
         <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600"><th className="px-4 py-3">{t("walletSettlement.createdAt")}</th><th className="px-4 py-3">{t("walletSettlement.type")}</th><th className="px-4 py-3">{t("walletSettlement.amount")}</th><th className="px-4 py-3">{t("walletSettlement.balanceAfter")}</th><th className="px-4 py-3">{t("walletSettlement.reference")}</th></tr></thead><tbody>{transactions.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">{t("walletSettlement.empty")}</td></tr> : transactions.map((item) => <tr key={item.transactionId} className="border-t border-gray-100"><td className="px-4 py-3">{formatDate(item.createdAt)}</td><td className="px-4 py-3 font-semibold">{item.type}</td><td className="px-4 py-3">{formatMoney(item.amount)}</td><td className="px-4 py-3">{formatMoney(item.balanceAfter)}</td><td className="px-4 py-3 font-mono text-xs">{item.referenceType}</td></tr>)}</tbody></table></div>
       </section>
+
+      <Modal
+        open={adjustOpen}
+        onClose={() => setAdjustOpen(false)}
+        icon={<FiDollarSign />}
+        title={t("walletSettlement.adjust", { defaultValue: "Điều chỉnh ví" })}
+        subtitle={t("walletSettlement.adjustHint", {
+          defaultValue:
+            "Mọi điều chỉnh đều được ghi ledger và yêu cầu ghi chú kiểm toán.",
+        })}
+        footer={
+          <>
+            <button type="button" onClick={() => setAdjustOpen(false)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">
+              {tc("cancel")}
+            </button>
+            <button type="submit" form="wallet-adjust-form" disabled={adjusting} className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+              {adjusting ? tc("processing") : tc("confirm")}
+            </button>
+          </>
+        }
+      >
+        <form id="wallet-adjust-form" className="space-y-4" onSubmit={(event) => void submitAdjustment(event)}>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-600">
+              {t("walletSettlement.target", { defaultValue: "Ví đích" })}
+            </span>
+            <CustomSelect
+              value={adjustForm.target}
+              onChange={(event) =>
+                setAdjustForm({
+                  ...adjustForm,
+                  target: event.target.value as typeof adjustForm.target,
+                })
+              }
+              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+            >
+              <option value="PLATFORM">PLATFORM</option>
+              <option value="OPERATOR">OPERATOR</option>
+            </CustomSelect>
+          </label>
+          {adjustForm.target === "OPERATOR" && (
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-gray-600">Operator ID</span>
+              <input
+                value={adjustForm.operatorId}
+                onChange={(event) => setAdjustForm({ ...adjustForm, operatorId: event.target.value })}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                required
+              />
+            </label>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label>
+              <span className="mb-1 block text-xs font-semibold text-gray-600">{t("walletSettlement.type")}</span>
+              <CustomSelect
+                value={adjustForm.type}
+                onChange={(event) =>
+                  setAdjustForm({
+                    ...adjustForm,
+                    type: event.target.value as WalletTransactionType,
+                  })
+                }
+                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+              >
+                <option value="CREDIT">CREDIT</option>
+                <option value="DEBIT">DEBIT</option>
+              </CustomSelect>
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-semibold text-gray-600">{t("walletSettlement.amount")}</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={adjustForm.amount}
+                onChange={(event) => setAdjustForm({ ...adjustForm, amount: event.target.value })}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                required
+              />
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-600">
+              {t("walletSettlement.note", { defaultValue: "Ghi chú kiểm toán" })}
+            </span>
+            <textarea
+              value={adjustForm.note}
+              onChange={(event) => setAdjustForm({ ...adjustForm, note: event.target.value })}
+              className="min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+              required
+            />
+          </label>
+        </form>
+      </Modal>
     </div>
   );
 }

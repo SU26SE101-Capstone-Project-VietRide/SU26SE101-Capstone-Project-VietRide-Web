@@ -9,8 +9,11 @@ import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
   FiDollarSign,
+  FiEdit2,
   FiPackage,
+  FiPlus,
   FiRefreshCw,
+  FiSave,
   FiSearch,
   FiTruck,
   FiXCircle,
@@ -19,6 +22,7 @@ import {
   cancelOperatorParcel,
   confirmOperatorParcelDelivery,
   confirmOperatorParcelRefund,
+  createOperatorParcelRouteFare,
   exportOperatorParcelReport,
   getOperatorParcelReportSummary,
   getOperatorParcelRouteFares,
@@ -32,11 +36,14 @@ import {
   type OperatorRoute,
   type ParcelDetail,
   type ParcelRouteFare,
+  type ParcelSizeCategory,
+  updateOperatorParcelRouteFare,
   updateOperatorParcelStatus,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
+import CustomSelect from "../../../components/CustomSelect";
 import { DetailItem } from "../../../components/DetailLayout";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
@@ -56,6 +63,19 @@ function monthStartIsoDate() {
     .slice(0, 10);
 }
 
+function currentLocalDateTime() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 16);
+}
+
+function toLocalDateTime(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
 function formatMoney(value = 0) {
   return value.toLocaleString("vi-VN");
 }
@@ -102,6 +122,7 @@ export default function ParcelsList() {
   const canOperate =
     user?.role === "OPERATOR_ADMIN" || user?.role === "OPERATOR_STAFF";
   const canOverrideCapacity = user?.role === "OPERATOR_ADMIN";
+  const canManageRouteFares = user?.role === "OPERATOR_ADMIN";
   const [summary, setSummary] = useState<OperatorParcelReportSummary | null>(null);
   const [routeFares, setRouteFares] = useState<ParcelRouteFare[]>([]);
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
@@ -118,6 +139,15 @@ export default function ParcelsList() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [farePage, setFarePage] = useState(1);
+  const [fareRouteId, setFareRouteId] = useState("");
+  const [fareSizeCategory, setFareSizeCategory] = useState<ParcelSizeCategory>("SMALL");
+  const [farePrice, setFarePrice] = useState("");
+  const [fareEffectiveFrom, setFareEffectiveFrom] = useState(currentLocalDateTime);
+  const [fareEffectiveUntil, setFareEffectiveUntil] = useState("");
+  const [editingFare, setEditingFare] = useState<ParcelRouteFare | null>(null);
+  const [isFareSaving, setIsFareSaving] = useState(false);
+  const [fareMessage, setFareMessage] = useState("");
+  const [fareError, setFareError] = useState("");
   const pageSize = 8;
 
   const pendingActionCount = useMemo(
@@ -142,7 +172,7 @@ export default function ParcelsList() {
           to: toDate,
         }),
         getOperatorParcelRouteFares({ page: 1, pageSize: 100 }),
-      getOperatorRoutes({ page: 1, pageSize: 100 }),
+        getOperatorRoutes({ page: 1, pageSize: 100 }),
       ]);
 
       setSummary(summaryResult);
@@ -155,6 +185,75 @@ export default function ParcelsList() {
     }
   }, [fromDate, t, toDate]);
 
+  function resetFareForm() {
+    setEditingFare(null);
+    setFareRouteId("");
+    setFareSizeCategory("SMALL");
+    setFarePrice("");
+    setFareEffectiveFrom(currentLocalDateTime());
+    setFareEffectiveUntil("");
+    setFareError("");
+    setFareMessage("");
+  }
+
+  function handleEditFare(fare: ParcelRouteFare) {
+    setEditingFare(fare);
+    setFareRouteId(fare.routeId);
+    setFareSizeCategory(fare.sizeCategory);
+    setFarePrice(String(fare.priceVnd));
+    setFareEffectiveFrom(toLocalDateTime(fare.effectiveFrom));
+    setFareEffectiveUntil(toLocalDateTime(fare.effectiveUntil));
+    setFareError("");
+    setFareMessage("");
+  }
+
+  async function handleSaveFare() {
+    if (!fareRouteId || !farePrice || !fareEffectiveFrom) {
+      setFareError(t("parcels.fareRequired"));
+      return;
+    }
+
+    setIsFareSaving(true);
+    setFareError("");
+    setFareMessage("");
+    try {
+      const effectiveUntil = fareEffectiveUntil
+        ? new Date(fareEffectiveUntil).toISOString()
+        : undefined;
+      const payload = {
+        priceVnd: Number(farePrice),
+        effectiveFrom: new Date(fareEffectiveFrom).toISOString(),
+        effectiveUntil,
+      };
+
+      if (editingFare) {
+        await updateOperatorParcelRouteFare(
+          editingFare.routeId,
+          editingFare.sizeCategory,
+          payload,
+        );
+      } else {
+        await createOperatorParcelRouteFare({
+          routeId: fareRouteId,
+          sizeCategory: fareSizeCategory,
+          ...payload,
+        });
+      }
+
+      const result = await getOperatorParcelRouteFares({ page: 1, pageSize: 100 });
+      setRouteFares(result.items);
+      setFareMessage(t(editingFare ? "parcels.fareUpdated" : "parcels.fareCreated"));
+      setEditingFare(null);
+      setFareRouteId("");
+      setFarePrice("");
+      setFareEffectiveUntil("");
+      setFareEffectiveFrom(currentLocalDateTime());
+    } catch (err) {
+      setFareError(err instanceof Error ? err.message : t("parcels.fareSaveFailed"));
+    } finally {
+      setIsFareSaving(false);
+    }
+  }
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadData();
@@ -514,6 +613,24 @@ export default function ParcelsList() {
                 {t("parcels.routeFaresHint")}
               </p>
             </div>
+            {canManageRouteFares && (
+              <div className="border-b border-gray-100 bg-gray-50/60 p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div><h3 className="font-bold text-gray-900">{editingFare ? t("parcels.editFare") : t("parcels.createFare")}</h3><p className="text-sm text-gray-500">{t("parcels.fareFormHint")}</p></div>
+                  {editingFare && <button type="button" onClick={resetFareForm} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold">{t("parcels.cancelEdit")}</button>}
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <label><span className={labelClass}>{t("parcels.route")}</span><CustomSelect value={fareRouteId} disabled={Boolean(editingFare)} onChange={(event) => setFareRouteId(event.target.value)} className={inputClass}><option value="">{t("parcels.selectRoute")}</option>{routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</CustomSelect></label>
+                  <label><span className={labelClass}>{t("parcels.sizeCategory")}</span><CustomSelect value={fareSizeCategory} disabled={Boolean(editingFare)} onChange={(event) => setFareSizeCategory(event.target.value)} className={inputClass}>{["SMALL", "MEDIUM", "LARGE", "EXTRA_LARGE"].map((size) => <option key={size} value={size}>{size}</option>)}</CustomSelect></label>
+                  <label><span className={labelClass}>{t("parcels.fee")}</span><CurrencyInput value={farePrice} onChange={(event) => setFarePrice(event.target.value)} className={inputClass} placeholder="50.000" /></label>
+                  <label><span className={labelClass}>{t("parcels.effectiveFrom")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveFrom} onChange={(event) => setFareEffectiveFrom(event.target.value)} className={inputClass} /></label>
+                  <label><span className={labelClass}>{t("parcels.effectiveUntil")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveUntil} onChange={(event) => setFareEffectiveUntil(event.target.value)} className={inputClass} /></label>
+                  <div className="flex items-end"><button type="button" disabled={isFareSaving} onClick={() => void handleSaveFare()} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{editingFare ? <FiSave /> : <FiPlus />}{editingFare ? t("parcels.updateFare") : t("parcels.addFare")}</button></div>
+                </div>
+                {fareError && <p className="mt-3 text-sm font-medium text-red-600">{fareError}</p>}
+                {fareMessage && <p className="mt-3 text-sm font-medium text-emerald-700">{fareMessage}</p>}
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px]">
                 <thead>
@@ -532,6 +649,7 @@ export default function ParcelsList() {
                     >
                       <td className="px-5 py-4 text-sm font-medium text-gray-900">
                         {routes.find((route) => route.id === fare.routeId)?.name || "Tuyến chưa có tên"}
+                        {canManageRouteFares && (<button type="button" onClick={() => handleEditFare(fare)} className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:text-vr-700" aria-label={t("parcels.editFare")} title={t("parcels.editFare")}><FiEdit2 size={15} /></button>)}
                       </td>
                       <td className="px-5 py-4 text-sm font-semibold text-gray-900">
                         {fare.sizeCategory}

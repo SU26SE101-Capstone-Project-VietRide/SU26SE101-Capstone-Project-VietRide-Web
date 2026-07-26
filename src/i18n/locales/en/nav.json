@@ -16,6 +16,7 @@
     "trips": "Trips",
     "routeEta": "Route change & ETA",
     "routes": "Routes & stops",
+    "routeExtensions": "Route fares & alternatives",
     "vehicles": "Vehicles",
     "staff": "Staff",
     "capacity": "Capacity & seats",
@@ -28,12 +29,14 @@
     "policies": "Policies",
     "reports": "Revenue",
     "wallet": "Wallet",
-    "settings": "Settings"
+    "settings": "Settings",
+    "assistant": "Knowledge assistant"
   },
   "admin": {
     "dashboard": "Dashboard",
     "operators": "Operators",
     "stations": "Platform stations",
+    "locations": "Provinces & cities",
     "users": "Users",
     "activityLogs": "Activity logs",
     "vouchers": "Vouchers",
@@ -44,7 +47,8 @@
     "revenue": "Revenue",
     "reports": "Reports",
     "ragAudit": "RAG & audit",
-    "outboxDlq": "Outbox DLQ"
+    "outboxDlq": "Outbox DLQ",
+    "assistant": "Knowledge assistant"
   },
   "layout": {
     "adminDashboard": "Admin dashboard",

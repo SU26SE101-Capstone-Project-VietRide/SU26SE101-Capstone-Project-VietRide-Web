@@ -1,4 +1,4 @@
-import { apiBlobRequest, apiRequest, buildQuery } from "./client";
+import { apiBlobRequest, apiRequest, apiSseRequest, buildQuery } from "./client";
 import { createIdempotencyKey } from "./idempotency";
 
 export type PageParams = {
@@ -670,34 +670,26 @@ export type AdminOutboxDlqPage = {
   unavailableServices: string[];
 };
 
-export type AdminLocationStatus = "ACTIVE" | "INACTIVE" | "DUPLICATE" | string;
-
 export type AdminLocation = {
   id: string;
+  code: string;
   name: string;
-  address?: string;
-  city?: string;
-  province?: string;
-  latitude: number;
-  longitude: number;
-  linkedOperators?: number;
-  duplicateOf?: string | null;
-  status?: AdminLocationStatus;
-  isActive?: boolean;
+  type: "PROVINCE" | "MUNICIPALITY" | string;
+  sortOrder: number;
+  isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
 
 export type AdminLocationRequest = {
+  code: string;
   name: string;
-  address?: string;
-  city?: string;
-  province?: string;
-  latitude: number;
-  longitude: number;
-  status?: AdminLocationStatus;
-  duplicateOf?: string | null;
+  type: "PROVINCE" | "MUNICIPALITY";
+  sortOrder?: number;
+  isActive?: boolean;
 };
+
+export type UpdateAdminLocationRequest = Partial<AdminLocationRequest>;
 
 export type OperatorStationRequest = {
   stationId?: string;
@@ -825,7 +817,7 @@ export type FareTemplateRequest = {
   stopId: string;
   fareFromThisStop: number;
   effectiveFrom: string;
-  effectiveUntil: string;
+  effectiveUntil?: string;
 };
 
 export type OperatorVoucher = {
@@ -891,6 +883,22 @@ export type OperatorVoucherConsent = {
   requestedAt?: string;
   respondedAt?: string;
   respondedByUserId?: string;
+};
+
+export type AdminVoucherConsent = {
+  id: string;
+  operatorId: string;
+  voucherId: string;
+  status: string;
+  requestedAt: string;
+  respondedAt: string | null;
+  respondedByUserId: string | null;
+  rejectReason: string | null;
+};
+
+export type AdminVoucherConsentResult = {
+  voucherId: string;
+  items: AdminVoucherConsent[];
 };
 
 export type PromotionVoucher = {
@@ -1195,6 +1203,30 @@ export type RagChatRequest = {
   conversationId?: string | null;
   operatorId?: string | null;
 };
+
+export type RagChatTokenEvent = {
+  type: "token";
+  content: string;
+};
+
+export type RagChatDoneEvent = {
+  type: "done";
+  conversationId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  citedChunkIds: string[];
+};
+
+export type RagChatErrorEvent = {
+  type: "error";
+  code: string;
+  message: string;
+};
+
+export type RagChatEvent =
+  | RagChatTokenEvent
+  | RagChatDoneEvent
+  | RagChatErrorEvent;
 
 export type RagFeedbackRequest = {
   rating: -1 | 1;
@@ -2250,7 +2282,9 @@ export function getAdminOperatorUsers(params: AdminUserParams = {}) {
   );
 }
 
-export async function getAdminLocations(params: PageParams = {}) {
+export async function getAdminLocations(
+  params: Omit<PageParams, "status"> & { isActive?: boolean } = {},
+) {
   const response = await apiRequest<PagedResult<AdminLocation> | AdminLocation[]>(
     `/v1/admin/locations${buildQuery(params)}`,
   );
@@ -2279,7 +2313,7 @@ export function createAdminLocation(request: AdminLocationRequest) {
 
 export function updateAdminLocation(
   id: string,
-  request: AdminLocationRequest,
+  request: UpdateAdminLocationRequest,
 ) {
   return apiRequest<AdminLocation>(`/v1/admin/locations/${id}`, {
     method: "PATCH",
@@ -3359,12 +3393,9 @@ export function getAdminBookingStatsAggregate(params: BookingStatsParams = {}) {
   );
 }
 
-export function getAdminVoucherConsents(
-  voucherId: string,
-  params: PageParams & { status?: string } = {},
-) {
-  return apiRequest<PagedResult<OperatorVoucherConsent>>(
-    `/v1/admin/vouchers/${voucherId}/consents${buildQuery(params)}`,
+export function getAdminVoucherConsents(voucherId: string) {
+  return apiRequest<AdminVoucherConsentResult>(
+    `/v1/admin/vouchers/${voucherId}/consents`,
   );
 }
 
@@ -3685,6 +3716,58 @@ export function chatWithRag(request: RagChatRequest) {
   });
 }
 
+export function streamRagChat(
+  request: RagChatRequest,
+  onEvent: (event: RagChatEvent) => void,
+) {
+  return apiSseRequest(
+    "/v1/rag/chat",
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        Accept: "text/event-stream",
+      },
+    },
+    ({ event, data }) => {
+      if (typeof data !== "object" || data === null) {
+        return;
+      }
+      const record = data as Record<string, unknown>;
+      if (event === "token" && typeof record.content === "string") {
+        onEvent({ type: "token", content: record.content });
+        return;
+      }
+      if (
+        event === "done" &&
+        typeof record.conversationId === "string" &&
+        typeof record.userMessageId === "string" &&
+        typeof record.assistantMessageId === "string"
+      ) {
+        onEvent({
+          type: "done",
+          conversationId: record.conversationId,
+          userMessageId: record.userMessageId,
+          assistantMessageId: record.assistantMessageId,
+          citedChunkIds: Array.isArray(record.citedChunkIds)
+            ? record.citedChunkIds.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [],
+        });
+        return;
+      }
+      if (
+        event === "error" &&
+        typeof record.code === "string" &&
+        typeof record.message === "string"
+      ) {
+        onEvent({ type: "error", code: record.code, message: record.message });
+      }
+    },
+  );
+}
+
 export function createRagFeedback(
   messageId: string,
   request: RagFeedbackRequest,
@@ -3966,20 +4049,30 @@ export function getOperatorTripCargoCapacity(tripId: string) {
 export function substituteOperatorTripVehicle(
   tripId: string,
   request: SubstituteVehicleRequest,
+  idempotencyKey: string = createIdempotencyKey(),
 ) {
   return apiRequest<TripOperationResult>(
     `/v1/operator/trips/${tripId}/substitute-vehicle`,
-    { method: "POST", body: request },
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
   );
 }
 
 export function disruptOperatorTripNoSubstitution(
   tripId: string,
   request: TripDisruptionRequest,
+  idempotencyKey: string = createIdempotencyKey(),
 ) {
   return apiRequest<TripOperationResult>(
     `/v1/operator/trips/${tripId}/disrupt-no-substitution`,
-    { method: "POST", body: request },
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
   );
 }
 
