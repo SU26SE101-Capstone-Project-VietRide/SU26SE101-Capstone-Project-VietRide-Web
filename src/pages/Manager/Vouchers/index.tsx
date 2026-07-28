@@ -214,7 +214,7 @@ export default function ManagerVouchers() {
       setConsents(consentResult.items);
       setRoutes(routeResult.items);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load vouchers");
+      setError(err instanceof Error ? err.message : "Không thể tải danh sách mã giảm giá.");
     } finally {
       setIsLoading(false);
     }
@@ -246,7 +246,7 @@ export default function ManagerVouchers() {
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error ? err.message : "Failed to load vouchers",
+            err instanceof Error ? err.message : "Không thể tải danh sách mã giảm giá.",
           );
         }
       } finally {
@@ -716,7 +716,7 @@ function VoucherTable({
                   <p className="text-sm font-semibold text-gray-900">
                     {voucher.name}
                   </p>
-                  <p className="text-xs text-gray-500">{voucher.type}</p>
+                  <p className="text-xs text-gray-500">{tc(`voucherTypes.${voucher.type}`, { defaultValue: voucher.type })}</p>
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-700">
                   {voucher.type === "PERCENT_OFF"
@@ -830,6 +830,7 @@ function ConsentTable({
   onReject: (consent: OperatorVoucherConsent) => void;
 }) {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [page, setPage] = useState(1);
   const pageSize = 8;
   const totalPages = Math.max(1, Math.ceil(consents.length / pageSize));
@@ -858,9 +859,9 @@ function ConsentTable({
           }}
         >
           <option value="">{t("vouchers.all")}</option>
-          <option value="PENDING">PENDING</option>
-          <option value="ACCEPTED">ACCEPTED</option>
-          <option value="REJECTED">REJECTED</option>
+          <option value="PENDING">Chờ xử lý</option>
+          <option value="ACCEPTED">Đã chấp nhận</option>
+          <option value="REJECTED">Đã từ chối</option>
         </CustomSelect>
       </div>
 
@@ -869,7 +870,7 @@ function ConsentTable({
           <table className="w-full min-w-[980px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3">Voucher</th>
+                <th className="px-5 py-3">Mã giảm giá</th>
                 <th className="px-5 py-3">{t("vouchers.value")}</th>
                 <th className="px-5 py-3">{t("vouchers.minOrder")}</th>
                 <th className="px-5 py-3">{t("vouchers.validity")}</th>
@@ -891,7 +892,7 @@ function ConsentTable({
                         {consent.voucherCode}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {consent.voucherType}
+                        {tc(`voucherTypes.${consent.voucherType}`, { defaultValue: consent.voucherType })}
                       </p>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-700">
@@ -909,7 +910,7 @@ function ConsentTable({
                       </p>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-700">
-                      {consent.status}
+                      {tc(`voucherConsentStatuses.${consent.status}`, { defaultValue: consent.status })}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
@@ -1199,8 +1200,8 @@ function VoucherModal({
               disabled={isEditing}
               onChange={(event) => onChange("fundingType", event.target.value)}
             >
-              <option value="OPERATOR_FUNDED">OPERATOR_FUNDED</option>
-              <option value="VIETRIDE_FUNDED">VIETRIDE_FUNDED</option>
+              <option value="OPERATOR_FUNDED">Nhà xe tài trợ</option>
+              <option value="VIETRIDE_FUNDED">VietRide tài trợ</option>
             </CustomSelect>
           </div>
         </div>

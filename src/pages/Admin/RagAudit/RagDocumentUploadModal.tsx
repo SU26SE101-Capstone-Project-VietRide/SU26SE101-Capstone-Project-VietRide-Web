@@ -90,10 +90,10 @@ export function RagDocumentUploadModal({
       wide
       icon={<FiUploadCloud />}
       title={t("ragAudit.uploadDocument", {
-        defaultValue: "Tải tài liệu knowledge base",
+        defaultValue: "Tải tài liệu tham khảo cho trợ lý AI",
       })}
       subtitle={t("ragAudit.uploadHint", {
-        defaultValue: "Hỗ trợ TXT/Markdown, tối đa theo cấu hình RAG runtime.",
+        defaultValue: "Hỗ trợ tệp TXT hoặc Markdown; dung lượng tối đa theo cấu hình hệ thống.",
       })}
       footer={
         <>
@@ -162,9 +162,9 @@ export function RagDocumentUploadModal({
             onChange={(event) => setAccessLevel(event.target.value)}
             className={inputClass}
           >
-            <option value="PUBLIC">PUBLIC</option>
-            <option value="OPERATOR">OPERATOR</option>
-            <option value="ADMIN">ADMIN</option>
+            <option value="PUBLIC">Công khai</option>
+            <option value="OPERATOR">Nhà xe</option>
+            <option value="ADMIN">Quản trị viên</option>
           </CustomSelect>
         </label>
         <label>
@@ -176,9 +176,9 @@ export function RagDocumentUploadModal({
             onChange={(event) => setCategory(event.target.value)}
             className={inputClass}
           >
-            <option value="CUSTOMER_SUPPORT">CUSTOMER_SUPPORT</option>
-            <option value="OPERATOR_POLICY">OPERATOR_POLICY</option>
-            <option value="PLATFORM_ADMIN">PLATFORM_ADMIN</option>
+            <option value="CUSTOMER_SUPPORT">Hỗ trợ khách hàng</option>
+            <option value="OPERATOR_POLICY">Chính sách nhà xe</option>
+            <option value="PLATFORM_ADMIN">Quản trị nền tảng</option>
           </CustomSelect>
         </label>
         <label>
@@ -190,11 +190,11 @@ export function RagDocumentUploadModal({
             onChange={(event) => setDocumentType(event.target.value)}
             className={inputClass}
           >
-            <option value="FAQ">FAQ</option>
-            <option value="POLICY">POLICY</option>
-            <option value="SOP">SOP</option>
-            <option value="GUIDE">GUIDE</option>
-            <option value="TERMS">TERMS</option>
+            <option value="FAQ">Câu hỏi thường gặp (FAQ)</option>
+            <option value="POLICY">Chính sách</option>
+            <option value="SOP">Quy trình vận hành (SOP)</option>
+            <option value="GUIDE">Hướng dẫn</option>
+            <option value="TERMS">Điều khoản</option>
           </CustomSelect>
         </label>
         <label>

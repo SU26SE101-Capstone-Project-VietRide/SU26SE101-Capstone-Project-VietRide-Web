@@ -53,11 +53,6 @@ const operatorAdminMenuConfig: MenuSection[] = [
         icon: <FiNavigation />,
       },
       {
-        labelKey: "manager.routeExtensions",
-        path: "/manager/route-extensions",
-        icon: <FiNavigation />,
-      },
-      {
         labelKey: "manager.vehicles",
         path: "/manager/vehicles",
         icon: <FiTruck />,
@@ -149,11 +144,6 @@ const operatorStaffMenuConfig: MenuSection[] = [
         icon: <FiNavigation />,
       },
       {
-        labelKey: "manager.routeExtensions",
-        path: "/manager/route-extensions",
-        icon: <FiNavigation />,
-      },
-      {
         labelKey: "manager.vehicles",
         path: "/manager/vehicles",
         icon: <FiTruck />,
@@ -229,11 +219,6 @@ const adminMenuConfig: MenuSection[] = [
       },
       { labelKey: "admin.users", path: "/admin/users", icon: <FiBookOpen /> },
       {
-        labelKey: "admin.activityLogs",
-        path: "/admin/activity-logs",
-        icon: <FiFileText />,
-      },
-      {
         labelKey: "admin.vouchers",
         path: "/admin/vouchers",
         icon: <FiPackage />,
@@ -247,11 +232,6 @@ const adminMenuConfig: MenuSection[] = [
         labelKey: "admin.policies",
         path: "/admin/policies",
         icon: <FiFileText />,
-      },
-      {
-        labelKey: "admin.payouts",
-        path: "/admin/payouts",
-        icon: <FiDollarSign />,
       },
       {
         labelKey: "admin.walletSettlement",

@@ -381,9 +381,9 @@ export default function Packages() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Toggle label="Parcel" checked={form.enableParcel} onChange={(value) => updateForm("enableParcel", value)} />
-            <Toggle label="Shuttle" checked={form.enableShuttle} onChange={(value) => updateForm("enableShuttle", value)} />
-            <Toggle label="RAG" checked={form.enableRag} onChange={(value) => updateForm("enableRag", value)} />
+            <Toggle label="Hàng hóa" checked={form.enableParcel} onChange={(value) => updateForm("enableParcel", value)} />
+            <Toggle label="Xe trung chuyển" checked={form.enableShuttle} onChange={(value) => updateForm("enableShuttle", value)} />
+            <Toggle label="Trợ lý AI" checked={form.enableRag} onChange={(value) => updateForm("enableRag", value)} />
             <Toggle label={t("packages.activatePackage")} checked={form.isActive} onChange={(value) => updateForm("isActive", value)} />
           </div>
         </div>

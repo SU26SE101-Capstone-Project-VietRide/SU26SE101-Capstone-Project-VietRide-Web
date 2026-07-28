@@ -283,7 +283,7 @@ export default function DispatchPanel() {
         driverId: current.driverId || nextDrivers[0]?.id || "",
       }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load shuttle requests");
+      setError(err instanceof Error ? err.message : "Không thể tải danh sách yêu cầu xe trung chuyển.");
     } finally {
       setIsLoading(false);
     }
@@ -410,7 +410,7 @@ export default function DispatchPanel() {
       );
       await loadDispatchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to assign shuttle");
+      setError(err instanceof Error ? err.message : "Không thể phân công xe trung chuyển.");
     }
   };
 

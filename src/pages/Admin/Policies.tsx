@@ -23,7 +23,11 @@ const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
-function activeBadge(policy: Pick<Policy, "active">, activeLabel: string, inactiveLabel: string) {
+function activeBadge(
+  policy: Pick<Policy, "active">,
+  activeLabel: string,
+  inactiveLabel: string,
+) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
@@ -152,7 +156,7 @@ export default function AdminPolicies() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-vr-600">System Admin</p>
+          <p className="text-sm font-semibold text-vr-600">Quản trị viên hệ thống</p>
           <h1 className="mt-1 text-3xl font-bold text-gray-900">
             {t("policies.title")}
           </h1>
@@ -208,121 +212,103 @@ export default function AdminPolicies() {
         </button>
       </div>
 
-      <div className="rounded-xl border border-vr-200 bg-vr-50 px-4 py-3">
-        <p className="text-sm text-vr-900">
-          {activeTab === "for_operator"
-            ? t("policies.operatorInfo")
-            : t("policies.userInfo")}
-        </p>
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px] text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <th className="px-5 py-3">
-                {tc("title")}
-              </th>
-              <th className="px-5 py-3">
-                {t("policies.type")}
-              </th>
-              <th className="px-5 py-3">
-                {t("policies.version")}
-              </th>
-              <th className="px-5 py-3">
-                {t("policies.updatedAt")}
-              </th>
-              <th className="px-5 py-3">
-                {tc("status")}
-              </th>
-              <th className="px-5 py-3 text-right">
-                {tc("actions")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedPolicies.map((policy) => (
-              <tr
-                key={policy.id}
-                className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
-              >
-                <td className="px-5 py-4">
-                  <div>
-                    <p className="font-semibold text-gray-900">{policy.title}</p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {policy.description}
-                    </p>
-                  </div>
-                </td>
-                <td className="px-5 py-4">
-                  <span className="inline-flex rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">
-                    {policy.category}
-                  </span>
-                </td>
-                <td className="px-5 py-4 text-gray-600">v{policy.version}</td>
-                <td className="px-5 py-4 text-gray-600">
-                  {formatDateOnly(policy.updatedAt)}
-                </td>
-                <td className="px-5 py-4">
-                  {activeBadge(policy, tc("active"), tc("inactive"))}
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleViewDetail(policy)}
-                      title={tc("details")}
-                      aria-label={tc("details")}
-                      className="table-action-button"
-                    >
-                      <FiEye size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleActive(policy.id)}
-                      title={
-                        policy.active
-                          ? t("policies.turnOff")
-                          : t("policies.turnOn")
-                      }
-                      aria-label={
-                        policy.active
-                          ? t("policies.turnOff")
-                          : t("policies.turnOn")
-                      }
-                      className="table-action-button"
-                    >
-                      {policy.active ? (
-                        <FiCheck size={16} />
-                      ) : (
-                        <FiX size={16} />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(policy)}
-                      title={tc("edit")}
-                      aria-label={tc("edit")}
-                      className="table-action-button"
-                    >
-                      <FiEdit2 size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(policy.id)}
-                      title={tc("delete")}
-                      aria-label={tc("delete")}
-                      className="table-action-button"
-                    >
-                      <FiTrash2 size={16} />
-                    </button>
-                  </div>
-                </td>
+          <table className="w-full min-w-[920px] text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="px-5 py-3">{tc("title")}</th>
+                <th className="px-5 py-3">{t("policies.type")}</th>
+                <th className="px-5 py-3">{t("policies.version")}</th>
+                <th className="px-5 py-3">{t("policies.updatedAt")}</th>
+                <th className="px-5 py-3">{tc("status")}</th>
+                <th className="px-5 py-3 text-right">{tc("actions")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {paginatedPolicies.map((policy) => (
+                <tr
+                  key={policy.id}
+                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
+                >
+                  <td className="px-5 py-4">
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {policy.title}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {policy.description}
+                      </p>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4">
+                    <span className="inline-flex rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">
+                      {policy.category}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 text-gray-600">v{policy.version}</td>
+                  <td className="px-5 py-4 text-gray-600">
+                    {formatDateOnly(policy.updatedAt)}
+                  </td>
+                  <td className="px-5 py-4">
+                    {activeBadge(policy, tc("active"), tc("inactive"))}
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleViewDetail(policy)}
+                        title={tc("details")}
+                        aria-label={tc("details")}
+                        className="table-action-button"
+                      >
+                        <FiEye size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleActive(policy.id)}
+                        title={
+                          policy.active
+                            ? t("policies.turnOff")
+                            : t("policies.turnOn")
+                        }
+                        aria-label={
+                          policy.active
+                            ? t("policies.turnOff")
+                            : t("policies.turnOn")
+                        }
+                        className="table-action-button"
+                      >
+                        {policy.active ? (
+                          <FiCheck size={16} />
+                        ) : (
+                          <FiX size={16} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(policy)}
+                        title={tc("edit")}
+                        aria-label={tc("edit")}
+                        className="table-action-button"
+                      >
+                        <FiEdit2 size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(policy.id)}
+                        title={tc("delete")}
+                        aria-label={tc("delete")}
+                        className="table-action-button"
+                      >
+                        <FiTrash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <Pagination
           page={page}
@@ -349,9 +335,7 @@ export default function AdminPolicies() {
       >
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>
-              {t("policies.policyTitle")} *
-            </label>
+            <label className={labelClass}>{t("policies.policyTitle")} *</label>
             <input
               type="text"
               placeholder={t("policies.titlePlaceholder")}
@@ -400,7 +384,9 @@ export default function AdminPolicies() {
           </div>
 
           <div>
-            <label className={labelClass}>{t("policies.policyContent")} *</label>
+            <label className={labelClass}>
+              {t("policies.policyContent")} *
+            </label>
             <textarea
               placeholder={t("policies.contentPlaceholder")}
               className={`${inputClass} resize-none font-mono text-xs`}
@@ -425,7 +411,7 @@ export default function AdminPolicies() {
               }}
               className="flex-1 rounded-lg border border-gray-200 bg-white py-2 font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
-                {tc("cancel")}
+              {tc("cancel")}
             </button>
             <button
               type="button"
@@ -472,7 +458,7 @@ function PolicyDetailModal({
       wide
       icon={<FiShield size={20} />}
       title={t("policies.detailTitle", {
-        defaultValue: "Chi tiết Policy",
+        defaultValue: "Chi tiết chính sách",
       })}
       subtitle={policy?.title}
       footer={
@@ -498,10 +484,18 @@ function PolicyDetailModal({
     >
       {policy && (
         <div className="space-y-5">
-          <DetailSection title={t("policies.policyInfo", { defaultValue: "Thông tin policy" })} columns="three">
+          <DetailSection
+            title={t("policies.policyInfo", {
+              defaultValue: "Thông tin chính sách",
+            })}
+            columns="three"
+          >
             <DetailItem label={tc("title")} value={policy.title} />
             <DetailItem label={tc("category")} value={policy.category} />
-            <DetailItem label={t("policies.version")} value={`v${policy.version}`} />
+            <DetailItem
+              label={t("policies.version")}
+              value={`v${policy.version}`}
+            />
             <DetailItem
               label={t("policies.updatedAt")}
               value={formatDateOnly(policy.updatedAt)}
@@ -520,9 +514,17 @@ function PolicyDetailModal({
             />
           </DetailSection>
 
-          <DetailSection title={t("policies.summary", { defaultValue: "Tóm tắt" })}>
-            <DetailItem label={t("policies.shortDescription")} value={policy.description} />
-            <DetailItem label={t("policies.createdBy", { defaultValue: "Người tạo" })} value={policy.createdBy} />
+          <DetailSection
+            title={t("policies.summary", { defaultValue: "Tóm tắt" })}
+          >
+            <DetailItem
+              label={t("policies.shortDescription")}
+              value={policy.description}
+            />
+            <DetailItem
+              label={t("policies.createdBy", { defaultValue: "Người tạo" })}
+              value={policy.createdBy}
+            />
           </DetailSection>
 
           <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">

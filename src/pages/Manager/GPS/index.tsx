@@ -278,7 +278,7 @@ export default function GPSTracking() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            {t("gps.title")} <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 align-middle text-xs font-semibold text-amber-800">Demo fleet</span>
+            {t("gps.title")} <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 align-middle text-xs font-semibold text-amber-800">Đội xe minh họa</span>
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-base">
             {t("gps.subtitle")}
@@ -445,7 +445,7 @@ export default function GPSTracking() {
               value={stopId}
               onChange={(event) => setStopId(event.target.value)}
             >
-              <option value="">Không tính ETA theo điểm dừng</option>
+              <option value="">Không tính giờ đến dự kiến theo điểm dừng</option>
               {routeStops.map((stop) => (
                 <option key={stop.stopId} value={stop.stopId}>
                   {stop.orderIndex}. {stop.name || "Điểm dừng"}

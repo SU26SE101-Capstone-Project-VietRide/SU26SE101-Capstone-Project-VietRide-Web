@@ -211,7 +211,7 @@
     "stationLocationRequired": "Could not detect city/province from the address. Select a clearer place.",
     "stationAttached": "Station has been attached to this operator.",
     "stationCreatedAndAttached": "New station has been created and attached to this operator.",
-    "stopRequired": "Stop name and address are required.",
+    "stopRequired": "Stop name is required.",
     "coordinatesRequired": "Latitude and longitude are required.",
     "stopCreated": "Stop has been created.",
     "stopUpdated": "Stop has been updated.",
@@ -239,6 +239,10 @@
     "stationName": "Station name",
     "city": "City",
     "province": "Province",
+    "searchLocation": "Search location",
+    "selectSearchLocation": "Select the passenger search area",
+    "searchLocationHint": "This station will appear when passengers search for trips in this area.",
+    "searchLocationRequired": "Select a search location for the station.",
     "selectStation": "Select station",
     "searchStations": "Search stations",
     "attachStation": "Attach station",
@@ -265,7 +269,8 @@
     "selectDestinationStation": "Select destination station",
     "origin": "Origin",
     "destination": "Destination",
-    "returnRouteId": "Return route ID",
+    "returnRouteId": "Return route",
+    "noReturnRoute": "No linked return route",
     "baseFare": "Base fare",
     "durationMinutes": "Duration",
     "hours": "hours",
@@ -1459,3 +1464,5 @@
     "periodNamePlaceholder": "e.g. Lunar New Year, Apr 30 – May 1"
   }
 }
+
+

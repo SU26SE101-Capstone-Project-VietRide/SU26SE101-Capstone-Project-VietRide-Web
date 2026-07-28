@@ -339,8 +339,20 @@ export default function Users() {
 
                 return (
                   <tr key={user.userId} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-5 py-4 text-sm font-semibold text-gray-900">
-                      {user.displayName || "-"}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={user.avatarUrl || fallbackAvatarUrl}
+                          alt={user.displayName || user.email}
+                          width={40}
+                          height={40}
+                          loading="lazy"
+                          className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover"
+                        />
+                        <span className="text-sm font-semibold text-gray-900">
+                          {user.displayName || "-"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600">{user.email}</td>
                     <td className="px-5 py-4 text-sm text-gray-600">
@@ -360,7 +372,7 @@ export default function Users() {
                               : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {user.status || "-"}
+                        {user.status ? tc(`enumLabels.${user.status}`, { defaultValue: user.status }) : "-"}
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -501,7 +513,7 @@ export default function Users() {
             />
           </label>
           <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
-            {t("users.role")}: <strong>SYSTEM_ADMIN</strong>
+            {t("users.role")}: <strong>{t("users.systemAdmin")}</strong>
           </div>
         </form>
       </Modal>
@@ -564,7 +576,7 @@ function UserDetailModal({
             <DetailItem label={tc("email")} value={user.email} />
             <DetailItem label={tc("phone")} value={formatVietnamPhoneForDisplay(user.phone)} />
             <DetailItem label={t("users.role")} value={roleLabel(user.role)} />
-            <DetailItem label={tc("status")} value={user.status} />
+            <DetailItem label={tc("status")} value={tc(`enumLabels.${user.status}`, { defaultValue: user.status })} />
             <DetailItem label={t("users.joined")} value={formatDateTime(user.createdAt)} />
             <DetailItem label={t("users.updatedAt")} value={formatDateTime(user.updatedAt)} />
           </div>

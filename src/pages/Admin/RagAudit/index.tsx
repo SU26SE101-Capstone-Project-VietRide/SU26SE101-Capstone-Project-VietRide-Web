@@ -215,8 +215,8 @@ export default function RagAudit() {
                             {document.title}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {document.fileType ?? document.documentType} -{" "}
-                            {document.title || "Tài liệu RAG"}
+                            {tc(`enumLabels.${document.fileType ?? document.documentType}`, { defaultValue: document.fileType ?? document.documentType })} -{" "}
+                            {document.title || "Tài liệu cho trợ lý AI"}
                           </p>
                           <p className="mt-1 font-mono text-[11px] text-gray-400">
                             {document.id}
@@ -225,7 +225,7 @@ export default function RagAudit() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {document.accessLevel}
+                      {tc(`enumLabels.${document.accessLevel}`, { defaultValue: document.accessLevel })}
                     </td>
                     <td className="px-4 py-3">
                       <span

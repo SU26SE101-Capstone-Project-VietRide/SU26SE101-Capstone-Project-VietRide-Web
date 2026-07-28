@@ -5,30 +5,54 @@ import {
   FiGitMerge,
   FiMapPin,
   FiPower,
+  FiPlus,
   FiRefreshCw,
   FiSave,
   FiSearch,
+  FiX,
 } from "react-icons/fi";
 import {
+  getAdminLocations,
   getAdminStations,
   mergeAdminStations,
   updateAdminStation,
-  type Station,
+  type AdminLocation,
+  type AdminStation,
 } from "../../../api/vietride";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
-import PlacePicker, { type PlaceSelection } from "../../../components/PlacePicker";
+import PlacePicker, {
+  type PlaceSelection,
+} from "../../../components/PlacePicker";
 import { formatDateTime } from "../../../utils/date";
+
+const operatingDayKeys = [
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+  "sun",
+] as const;
+
+type OperatingDayKey = (typeof operatingDayKeys)[number];
+type OperatingDaySchedule = { enabled: boolean; open: string; close: string };
+type OperatingHoursForm = Record<OperatingDayKey, OperatingDaySchedule>;
 
 type StationForm = {
   name: string;
   addressStreet: string;
+  locationId: string;
   city: string;
   province: string;
   latitude: string;
   longitude: string;
   contactPhone: string;
   contactEmail: string;
+  operatingHours: OperatingHoursForm;
+  facilities: string[];
   supportsShuttle: boolean;
 };
 
@@ -43,17 +67,93 @@ const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
 const iconButtonClass =
   "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 
-function toForm(station: Station): StationForm {
+const facilityOptions = [
+  "waiting_room",
+  "parking",
+  "ticket_counter",
+  "restroom",
+  "food_court",
+  "luggage_storage",
+  "wifi",
+  "charging_station",
+] as const;
+
+function emptyOperatingHours(): OperatingHoursForm {
+  return Object.fromEntries(
+    operatingDayKeys.map((day) => [
+      day,
+      { enabled: false, open: "06:00", close: "22:00" },
+    ]),
+  ) as OperatingHoursForm;
+}
+
+function parseJsonValue(value: unknown): unknown {
+  if (typeof value !== "string" || !value.trim()) return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function splitTimeRange(value: unknown) {
+  if (typeof value !== "string") return null;
+  const match = /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$/.exec(
+    value.trim(),
+  );
+  return match ? { open: `${match[1]}:${match[2]}`, close: `${match[3]}:${match[4]}` } : null;
+}
+
+function toOperatingHoursForm(value: unknown): OperatingHoursForm {
+  const schedule = emptyOperatingHours();
+  const parsed = parseJsonValue(value);
+  if (!isRecord(parsed)) return schedule;
+
+  const sharedOpen = typeof parsed.open === "string" ? parsed.open : "";
+  const sharedClose = typeof parsed.close === "string" ? parsed.close : "";
+  if (sharedOpen && sharedClose) {
+    operatingDayKeys.forEach((day) => {
+      schedule[day] = { enabled: true, open: sharedOpen, close: sharedClose };
+    });
+    return schedule;
+  }
+
+  operatingDayKeys.forEach((day) => {
+    const range = splitTimeRange(parsed[day]);
+    if (range) {
+      schedule[day] = { enabled: true, ...range };
+    }
+  });
+  return schedule;
+}
+
+function toFacilities(value: unknown) {
+  const parsed = parseJsonValue(value);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(
+    (facility): facility is string =>
+      typeof facility === "string" && Boolean(facility.trim()),
+  );
+}
+
+function toForm(station: AdminStation): StationForm {
   return {
-    name: station.name ?? "",
-    addressStreet: station.addressStreet ?? station.address ?? "",
-    city: station.city ?? "",
-    province: station.province ?? "",
-    latitude: String(station.latitude ?? ""),
-    longitude: String(station.longitude ?? ""),
+    name: station.name,
+    addressStreet: station.addressStreet ?? "",
+    locationId: station.locationId ?? "",
+    city: station.city,
+    province: station.province,
+    latitude: String(station.latitude),
+    longitude: String(station.longitude),
     contactPhone: station.contactPhone ?? "",
     contactEmail: station.contactEmail ?? "",
-    supportsShuttle: station.supportsShuttle ?? false,
+    operatingHours: toOperatingHoursForm(station.operatingHours),
+    facilities: toFacilities(station.facilities),
+    supportsShuttle: station.supportsShuttle,
   };
 }
 
@@ -71,11 +171,13 @@ function isValidCoordinate(latitude: number, longitude: number) {
 export default function AdminStations() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
-  const [stations, setStations] = useState<Station[]>([]);
+  const [stations, setStations] = useState<AdminStation[]>([]);
+  const [locations, setLocations] = useState<AdminLocation[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStationId, setSelectedStationId] = useState("");
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [form, setForm] = useState<StationForm | null>(null);
+  const [customFacility, setCustomFacility] = useState("");
   const [alert, setAlert] = useState<AlertState | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -90,35 +192,47 @@ export default function AdminStations() {
       setIsLoading(true);
 
       try {
-        const result = await getAdminStations({
-          page: 1,
-          pageSize: 100,
-          sortBy: "updatedAt",
-          sortDir: "desc",
-        });
+        const [result, locationResult] = await Promise.all([
+          getAdminStations({
+            page: 1,
+            pageSize: 100,
+            sortBy: "updatedAt",
+            sortDir: "desc",
+          }),
+          getAdminLocations({
+            page: 1,
+            pageSize: 100,
+            sortBy: "sortOrder",
+            sortDir: "asc",
+          }),
+        ]);
 
         if (ignore) {
           return;
         }
 
         setStations(result.items);
+        setLocations(locationResult.items);
         setSelectedStationId((currentId) => {
           const selected =
             result.items.find((station) => station.id === currentId) ??
             result.items[0];
           setForm(selected ? toForm(selected) : null);
           setMergeTargetId(
-            result.items.find((station) => station.id !== selected?.id)?.id ?? "",
+            result.items.find((station) => station.id !== selected?.id)?.id ??
+              "",
           );
           return selected?.id ?? "";
         });
       } catch (error) {
         if (!ignore) {
           setStations([]);
+          setLocations([]);
           setForm(null);
           setAlert({
             tone: "error",
-            message: error instanceof Error ? error.message : t("stations.loadFailed"),
+            message:
+              error instanceof Error ? error.message : t("stations.loadFailed"),
           });
         }
       } finally {
@@ -141,7 +255,13 @@ export default function AdminStations() {
     }
 
     return stations.filter((station) =>
-      [station.name, station.addressStreet, station.address, station.city, station.province]
+      [
+        station.name,
+        station.slug,
+        station.addressStreet,
+        station.city,
+        station.province,
+      ]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(query)),
     );
@@ -151,8 +271,12 @@ export default function AdminStations() {
     (page - 1) * pageSize,
     page * pageSize,
   );
-  const selectedStation = stations.find((station) => station.id === selectedStationId);
-  const activeCount = stations.filter((station) => station.isActive !== false).length;
+  const selectedStation = stations.find(
+    (station) => station.id === selectedStationId,
+  );
+  const activeCount = stations.filter(
+    (station) => station.isActive !== false,
+  ).length;
   const inactiveCount = stations.length - activeCount;
 
   const selectedPlace = useMemo<PlaceSelection | null>(() => {
@@ -177,10 +301,11 @@ export default function AdminStations() {
     };
   }, [form, selectedStationId]);
 
-  function selectStation(station: Station) {
+  function selectStation(station: AdminStation) {
     setSelectedStationId(station.id);
     setForm(toForm(station));
     setMergeTargetId(stations.find((item) => item.id !== station.id)?.id ?? "");
+    setCustomFacility("");
     setAlert(null);
   }
 
@@ -200,6 +325,69 @@ export default function AdminStations() {
     );
   }
 
+  function updateOperatingDay(
+    day: OperatingDayKey,
+    updates: Partial<OperatingDaySchedule>,
+  ) {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            operatingHours: {
+              ...current.operatingHours,
+              [day]: { ...current.operatingHours[day], ...updates },
+            },
+          }
+        : current,
+    );
+  }
+
+  function toggleFacility(facility: string) {
+    setForm((current) => {
+      if (!current) return current;
+      const selected = current.facilities.some(
+        (item) => item.toLowerCase() === facility.toLowerCase(),
+      );
+      return {
+        ...current,
+        facilities: selected
+          ? current.facilities.filter(
+              (item) => item.toLowerCase() !== facility.toLowerCase(),
+            )
+          : [...current.facilities, facility],
+      };
+    });
+  }
+
+  function addCustomFacility() {
+    const facility = customFacility.trim();
+    if (!facility) return;
+
+    setForm((current) => {
+      if (
+        !current ||
+        current.facilities.some(
+          (item) => item.toLowerCase() === facility.toLowerCase(),
+        )
+      ) {
+        return current;
+      }
+      return { ...current, facilities: [...current.facilities, facility] };
+    });
+    setCustomFacility("");
+  }
+
+  function removeFacility(facility: string) {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            facilities: current.facilities.filter((item) => item !== facility),
+          }
+        : current,
+    );
+  }
+
   async function saveStation() {
     if (!selectedStation || !form) {
       return;
@@ -207,7 +395,12 @@ export default function AdminStations() {
 
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
-    if (!form.name.trim() || !form.addressStreet.trim() || !form.province.trim()) {
+    if (
+      !form.name.trim() ||
+      !form.addressStreet.trim() ||
+      !form.city.trim() ||
+      !form.province.trim()
+    ) {
       setAlert({ tone: "error", message: t("stations.requiredFields") });
       return;
     }
@@ -216,22 +409,49 @@ export default function AdminStations() {
       return;
     }
 
+    const enabledDays = operatingDayKeys.filter(
+      (day) => form.operatingHours[day].enabled,
+    );
+    if (
+      enabledDays.some(
+        (day) =>
+          !form.operatingHours[day].open || !form.operatingHours[day].close,
+      )
+    ) {
+      setAlert({ tone: "error", message: t("stations.invalidOperatingHours") });
+      return;
+    }
+    const operatingHours = enabledDays.length
+      ? Object.fromEntries(
+          enabledDays.map((day) => [
+            day,
+            `${form.operatingHours[day].open}-${form.operatingHours[day].close}`,
+          ]),
+        )
+      : null;
+    const facilities = form.facilities.length ? form.facilities : null;
+
     setIsSaving(true);
     setAlert(null);
     try {
       const updated = await updateAdminStation(selectedStation.id, {
         name: form.name.trim(),
         addressStreet: form.addressStreet.trim(),
+        locationId: form.locationId || null,
         city: form.city.trim(),
         province: form.province.trim(),
         latitude,
         longitude,
-        contactPhone: form.contactPhone.trim() || undefined,
-        contactEmail: form.contactEmail.trim() || undefined,
+        contactPhone: form.contactPhone.trim() || null,
+        contactEmail: form.contactEmail.trim() || null,
+        operatingHours,
+        facilities,
         supportsShuttle: form.supportsShuttle,
       });
       setStations((current) =>
-        current.map((station) => (station.id === updated.id ? updated : station)),
+        current.map((station) =>
+          station.id === updated.id ? updated : station,
+        ),
       );
       setForm(toForm(updated));
       setAlert({
@@ -241,14 +461,15 @@ export default function AdminStations() {
     } catch (error) {
       setAlert({
         tone: "error",
-        message: error instanceof Error ? error.message : t("stations.saveFailed"),
+        message:
+          error instanceof Error ? error.message : t("stations.saveFailed"),
       });
     } finally {
       setIsSaving(false);
     }
   }
 
-  async function toggleStation(station: Station) {
+  async function toggleStation(station: AdminStation) {
     setIsSaving(true);
     setAlert(null);
     try {
@@ -271,7 +492,8 @@ export default function AdminStations() {
     } catch (error) {
       setAlert({
         tone: "error",
-        message: error instanceof Error ? error.message : t("stations.saveFailed"),
+        message:
+          error instanceof Error ? error.message : t("stations.saveFailed"),
       });
     } finally {
       setIsSaving(false);
@@ -292,7 +514,14 @@ export default function AdminStations() {
       setAlert({ tone: "error", message: t("stations.mergeIntoSelf") });
       return;
     }
-    if (!window.confirm(t("stations.mergeConfirm", { source: selectedStation.name, target: target.name }))) {
+    if (
+      !window.confirm(
+        t("stations.mergeConfirm", {
+          source: selectedStation.name,
+          target: target.name,
+        }),
+      )
+    ) {
       return;
     }
 
@@ -318,7 +547,8 @@ export default function AdminStations() {
     } catch (error) {
       setAlert({
         tone: "error",
-        message: error instanceof Error ? error.message : t("stations.mergeFailed"),
+        message:
+          error instanceof Error ? error.message : t("stations.mergeFailed"),
       });
     } finally {
       setIsSaving(false);
@@ -329,8 +559,12 @@ export default function AdminStations() {
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t("stations.title")}</h1>
-          <p className="mt-1 max-w-3xl text-sm text-gray-600">{t("stations.subtitle")}</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("stations.title")}
+          </h1>
+          <p className="mt-1 max-w-3xl text-sm text-gray-600">
+            {t("stations.subtitle")}
+          </p>
         </div>
         <button
           type="button"
@@ -345,15 +579,25 @@ export default function AdminStations() {
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <p className="text-sm text-gray-600">{t("stations.totalStations")}</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{stations.length}</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">
+            {stations.length}
+          </p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-600">{t("stations.activeStations")}</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">{activeCount}</p>
+          <p className="text-sm text-gray-600">
+            {t("stations.activeStations")}
+          </p>
+          <p className="mt-1 text-2xl font-bold text-emerald-600">
+            {activeCount}
+          </p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-600">{t("stations.inactiveStations")}</p>
-          <p className="mt-1 text-2xl font-bold text-slate-700">{inactiveCount}</p>
+          <p className="text-sm text-gray-600">
+            {t("stations.inactiveStations")}
+          </p>
+          <p className="mt-1 text-2xl font-bold text-slate-700">
+            {inactiveCount}
+          </p>
         </div>
       </section>
 
@@ -361,8 +605,12 @@ export default function AdminStations() {
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">{t("stations.registry")}</h2>
-              <p className="mt-1 text-sm text-gray-500">{t("stations.registryHint")}</p>
+              <h2 className="text-lg font-bold text-gray-900">
+                {t("stations.registry")}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("stations.registryHint")}
+              </p>
             </div>
             <div className="relative min-w-72">
               <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -391,18 +639,26 @@ export default function AdminStations() {
               </thead>
               <tbody>
                 {paginatedStations.map((station) => (
-                  <tr key={station.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr
+                    key={station.id}
+                    className="border-b border-gray-100 hover:bg-gray-50"
+                  >
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900">{station.name}</p>
+                      <p className="font-semibold text-gray-900">
+                        {station.name}
+                      </p>
+
                       <p className="mt-1 text-xs text-gray-500">
-                        {station.addressStreet ?? station.address ?? "-"}
+                        {station.addressStreet ?? "-"}
                       </p>
                       <p className="mt-1 text-xs text-gray-400">
                         {formatDateTime(station.updatedAt)}
                       </p>
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {[station.city, station.province].filter(Boolean).join(" / ") || "-"}
+                      {[station.city, station.province]
+                        .filter(Boolean)
+                        .join(" / ") || "-"}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
                       {station.supportsShuttle ? tc("yes") : tc("no")}
@@ -415,7 +671,9 @@ export default function AdminStations() {
                             : "bg-emerald-50 text-emerald-700"
                         }`}
                       >
-                        {station.isActive === false ? tc("inactive") : tc("active")}
+                        {station.isActive === false
+                          ? tc("inactive")
+                          : tc("active")}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -443,8 +701,16 @@ export default function AdminStations() {
                           disabled={isSaving}
                           className={`${iconButtonClass} text-rose-600 hover:bg-rose-50`}
                           onClick={() => void toggleStation(station)}
-                          title={station.isActive === false ? tc("enable") : tc("disable")}
-                          aria-label={station.isActive === false ? tc("enable") : tc("disable")}
+                          title={
+                            station.isActive === false
+                              ? tc("enable")
+                              : tc("disable")
+                          }
+                          aria-label={
+                            station.isActive === false
+                              ? tc("enable")
+                              : tc("disable")
+                          }
                         >
                           <FiPower />
                         </button>
@@ -454,14 +720,20 @@ export default function AdminStations() {
                 ))}
                 {!isLoading && paginatedStations.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-sm text-gray-500">
+                    <td
+                      colSpan={5}
+                      className="px-4 py-12 text-center text-sm text-gray-500"
+                    >
                       {t("stations.empty")}
                     </td>
                   </tr>
                 )}
                 {isLoading && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-sm text-gray-500">
+                    <td
+                      colSpan={5}
+                      className="px-4 py-12 text-center text-sm text-gray-500"
+                    >
                       {t("stations.loading")}
                     </td>
                   </tr>
@@ -481,10 +753,16 @@ export default function AdminStations() {
           <aside className="space-y-5">
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-vr-50 p-2 text-vr-700"><FiMapPin /></div>
+                <div className="rounded-lg bg-vr-50 p-2 text-vr-700">
+                  <FiMapPin />
+                </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">{t("stations.normalizeTitle")}</h2>
-                  <p className="mt-1 text-sm text-gray-500">{t("stations.normalizeHint")}</p>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    {t("stations.normalizeTitle")}
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {t("stations.normalizeHint")}
+                  </p>
                 </div>
               </div>
 
@@ -496,28 +774,203 @@ export default function AdminStations() {
                   onSelect={applyPlace}
                 />
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="sm:col-span-2">
+                    <span className={labelClass}>{t("stations.location")}</span>
+                    <CustomSelect
+                      className={inputClass}
+                      value={form.locationId}
+                      onChange={(event) =>
+                        setForm({ ...form, locationId: event.target.value })
+                      }
+                    >
+                      <option value="">{t("stations.noLocation")}</option>
+                      {locations.map((location) => (
+                        <option key={location.id} value={location.id}>
+                          {location.code} - {location.name}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                  </label>
                   <label>
                     <span className={labelClass}>{t("stations.cityOnly")}</span>
-                    <input className={inputClass} value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} />
+                    <input
+                      className={inputClass}
+                      value={form.city}
+                      onChange={(event) =>
+                        setForm({ ...form, city: event.target.value })
+                      }
+                    />
                   </label>
                   <label>
                     <span className={labelClass}>{t("stations.province")}</span>
-                    <input className={inputClass} value={form.province} onChange={(event) => setForm({ ...form, province: event.target.value })} />
+                    <input
+                      className={inputClass}
+                      value={form.province}
+                      onChange={(event) =>
+                        setForm({ ...form, province: event.target.value })
+                      }
+                    />
                   </label>
                   <label>
                     <span className={labelClass}>{tc("phone")}</span>
-                    <input className={inputClass} value={form.contactPhone} onChange={(event) => setForm({ ...form, contactPhone: event.target.value })} />
+                    <input
+                      className={inputClass}
+                      value={form.contactPhone}
+                      onChange={(event) =>
+                        setForm({ ...form, contactPhone: event.target.value })
+                      }
+                    />
                   </label>
                   <label>
                     <span className={labelClass}>{tc("email")}</span>
-                    <input className={inputClass} value={form.contactEmail} onChange={(event) => setForm({ ...form, contactEmail: event.target.value })} />
+                    <input
+                      className={inputClass}
+                      value={form.contactEmail}
+                      onChange={(event) =>
+                        setForm({ ...form, contactEmail: event.target.value })
+                      }
+                    />
                   </label>
                 </div>
+                <section className="rounded-lg border border-gray-200 p-4">
+                  <h3 className="text-sm font-bold text-gray-900">
+                    {t("stations.operatingHours")}
+                  </h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {t("stations.operatingHoursHint")}
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {operatingDayKeys.map((day) => {
+                      const schedule = form.operatingHours[day];
+                      return (
+                        <div
+                          key={day}
+                          className="grid items-center gap-3 sm:grid-cols-[92px_minmax(0,1fr)_16px_minmax(0,1fr)]"
+                        >
+                          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={schedule.enabled}
+                              onChange={(event) =>
+                                updateOperatingDay(day, {
+                                  enabled: event.target.checked,
+                                })
+                              }
+                              className="h-4 w-4 accent-vr-500"
+                            />
+                            {t(`stations.days.${day}`)}
+                          </label>
+                          <CustomDateTimeInput
+                            type="time"
+                            value={schedule.open}
+                            disabled={!schedule.enabled}
+                            onChange={(event) =>
+                              updateOperatingDay(day, { open: event.target.value })
+                            }
+                            className={inputClass}
+                          />
+                          <span className="text-center text-gray-400">–</span>
+                          <CustomDateTimeInput
+                            type="time"
+                            value={schedule.close}
+                            disabled={!schedule.enabled}
+                            onChange={(event) =>
+                              updateOperatingDay(day, { close: event.target.value })
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-gray-200 p-4">
+                  <h3 className="text-sm font-bold text-gray-900">
+                    {t("stations.facilities")}
+                  </h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {t("stations.facilitiesHint")}
+                  </p>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {facilityOptions.map((facility) => (
+                      <label
+                        key={facility}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={form.facilities.some(
+                            (item) =>
+                              item.toLowerCase() === facility.toLowerCase(),
+                          )}
+                          onChange={() => toggleFacility(facility)}
+                          className="h-4 w-4 accent-vr-500"
+                        />
+                        {t(`stations.facilityOptions.${facility}`)}
+                      </label>
+                    ))}
+                  </div>
+
+                  {form.facilities
+                    .filter(
+                      (facility) =>
+                        !facilityOptions.some(
+                          (option) =>
+                            option.toLowerCase() === facility.toLowerCase(),
+                        ),
+                    )
+                    .map((facility) => (
+                      <span
+                        key={facility}
+                        className="mr-2 mt-3 inline-flex items-center gap-1 rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-700"
+                      >
+                        {facility}
+                        <button
+                          type="button"
+                          onClick={() => removeFacility(facility)}
+                          aria-label={t("stations.removeFacility", { facility })}
+                          className="rounded-full p-0.5 hover:bg-vr-100"
+                        >
+                          <FiX />
+                        </button>
+                      </span>
+                    ))}
+
+                  <div className="mt-4 flex gap-2">
+                    <input
+                      className={inputClass}
+                      value={customFacility}
+                      onChange={(event) => setCustomFacility(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addCustomFacility();
+                        }
+                      }}
+                      placeholder={t("stations.customFacilityPlaceholder")}
+                    />
+                    <button
+                      type="button"
+                      onClick={addCustomFacility}
+                      disabled={!customFacility.trim()}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-vr-200 bg-vr-50 px-3 py-2 text-sm font-semibold text-vr-700 disabled:opacity-50"
+                    >
+                      <FiPlus />
+                      {t("stations.addFacility")}
+                    </button>
+                  </div>
+                </section>
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
                   <input
                     type="checkbox"
                     checked={form.supportsShuttle}
-                    onChange={(event) => setForm({ ...form, supportsShuttle: event.target.checked })}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        supportsShuttle: event.target.checked,
+                      })
+                    }
                     className="h-4 w-4 cursor-pointer accent-vr-500"
                   />
                   {t("stations.supportsShuttle")}
@@ -535,18 +988,28 @@ export default function AdminStations() {
               </button>
 
               {alert && (
-                <div className={`mt-3 rounded-lg border px-3 py-2.5 text-sm ${alert.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                <div
+                  className={`mt-3 rounded-lg border px-3 py-2.5 text-sm ${alert.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}
+                >
                   {alert.message}
                 </div>
               )}
             </div>
 
             <div className="rounded-lg border border-gray-200 bg-white p-5">
-              <h2 className="text-lg font-bold text-gray-900">{t("stations.mergeTitle")}</h2>
-              <p className="mt-1 text-sm text-gray-500">{t("stations.mergeHint")}</p>
+              <h2 className="text-lg font-bold text-gray-900">
+                {t("stations.mergeTitle")}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("stations.mergeHint")}
+              </p>
               <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm">
-                <p className="text-xs font-semibold text-slate-500">{t("stations.mergeSource")}</p>
-                <p className="mt-1 font-semibold text-slate-900">{selectedStation.name}</p>
+                <p className="text-xs font-semibold text-slate-500">
+                  {t("stations.mergeSource")}
+                </p>
+                <p className="mt-1 font-semibold text-slate-900">
+                  {selectedStation.name}
+                </p>
               </div>
               <label className="mt-4 block">
                 <span className={labelClass}>{t("stations.mergeTarget")}</span>
@@ -555,11 +1018,13 @@ export default function AdminStations() {
                   value={mergeTargetId}
                   onChange={(event) => setMergeTargetId(event.target.value)}
                 >
-                  {stations.filter((station) => station.id !== selectedStation.id).map((station) => (
-                    <option key={station.id} value={station.id}>
-                      {station.name} - {station.province}
-                    </option>
-                  ))}
+                  {stations
+                    .filter((station) => station.id !== selectedStation.id)
+                    .map((station) => (
+                      <option key={station.id} value={station.id}>
+                        {station.name} - {station.province}
+                      </option>
+                    ))}
                 </CustomSelect>
               </label>
               <button
@@ -571,7 +1036,9 @@ export default function AdminStations() {
                 <FiGitMerge />
                 {t("stations.merge")}
               </button>
-              <p className="mt-3 text-xs text-slate-500">{t("stations.mergeRule")}</p>
+              <p className="mt-3 text-xs text-slate-500">
+                {t("stations.mergeRule")}
+              </p>
             </div>
           </aside>
         )}

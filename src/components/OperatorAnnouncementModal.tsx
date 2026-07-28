@@ -119,12 +119,12 @@ export default function OperatorAnnouncementModal({
 
         {scope === "TRIP" && (
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">Trip ID</span>
+            <span className="mb-1 block text-sm font-medium text-gray-700">Mã chuyến</span>
             <input
               value={tripId}
               onChange={(event) => setTripId(event.target.value)}
               className={inputClass}
-              placeholder="Nhập tripId cần thông báo"
+              placeholder="Nhập mã chuyến cần thông báo"
             />
           </label>
         )}

@@ -156,13 +156,13 @@ const cargoStatusData = [
   { name: "HCM - Nha Trang", value: 195 },
   { name: "HCM - Vũng Tàu", value: 165 },
   { name: "HCM - Cần Thơ", value: 142 },
-  { name: "Nôi khác", value: 98 },
+  { name: "Tuyến khác", value: 98 },
 ];
 
 const distributionData = [
   { name: "Đang vận chuyển", value: 45, color: "#3b82f6" },
-  { name: "Có giao", value: 35, color: "#10b981" },
-  { name: "Chưa giao", value: 15, color: "#f59e0b" },
+  { name: "Đã giao", value: 35, color: "#10b981" },
+  { name: "Chờ giao", value: 15, color: "#f59e0b" },
   { name: "Hoãn lại", value: 5, color: "#ef4444" },
 ];
 
@@ -191,7 +191,7 @@ const recentShipments: Shipment[] = [
     route: "HCM - Da Lat",
     address: "Người gửi: Văn An",
     driver: "Nguyễn Văn An",
-    cost: "320.00",
+    cost: "320.000",
     status: "completed",
   },
   {
@@ -200,7 +200,7 @@ const recentShipments: Shipment[] = [
     route: "HCM - Nha Trang",
     address: "Người gửi: Thái Giang",
     driver: "Trần Minh Quân",
-    cost: "320.00",
+    cost: "320.000",
     status: "completed",
   },
   {
@@ -209,7 +209,7 @@ const recentShipments: Shipment[] = [
     route: "HCM - Vũng Tàu",
     address: "Người gửi: Lê Hoàng Phúc",
     driver: "Phạm Bảo Anh",
-    cost: "220.00",
+    cost: "220.000",
     status: "in_transit",
   },
   {
@@ -218,7 +218,7 @@ const recentShipments: Shipment[] = [
     route: "HCM - Cần Thơ",
     address: "Người gửi: Mạnh Quý Linh",
     driver: "Vũ Tú Phương",
-    cost: "320.00",
+    cost: "320.000",
     status: "in_transit",
   },
   {
@@ -227,7 +227,7 @@ const recentShipments: Shipment[] = [
     route: "HCM - Cần Thơ",
     address: "Người gửi: Trần Quốc Anh",
     driver: "Bùi Quốc Dân",
-    cost: "320.00",
+    cost: "320.000",
     status: "pending",
   },
 ];
@@ -364,7 +364,7 @@ export default function ManagerDashboard() {
   return (
     <div className="space-y-6 pb-4">
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
-        Dữ liệu minh họa: phần này chưa có đầy đủ API tổng hợp từ backend.
+        Một số số liệu dưới đây là dữ liệu minh họa vì hệ thống chưa có đủ dữ liệu tổng hợp.
       </div>
       <div className="flex items-center justify-between">
         <div>
@@ -606,7 +606,7 @@ export default function ManagerDashboard() {
                   <td className="px-4 py-3 text-sm text-gray-600">{shipment.address}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{shipment.driver}</td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {shipment.cost}k
+                    {shipment.cost} ₫
                   </td>
                   <td className="px-4 py-3">{getStatusBadge(shipment.status)}</td>
                   <td className="px-4 py-3 text-center">

@@ -530,7 +530,7 @@ export default function ManagerPackages() {
                         : "text-vr-700"
                   }`}
                 >
-                  {subscription.status} · {subscription.billingPeriod ?? "-"}
+                  {tc(`enumLabels.${subscription.status}`, { defaultValue: subscription.status })} · {subscription.billingPeriod ? tc(`enumLabels.${subscription.billingPeriod}`, { defaultValue: subscription.billingPeriod }) : "-"}
                 </p>
                 {hasCurrentPlanEntitlement ? (
                   <div className="mt-3 grid gap-4 text-sm sm:grid-cols-3">
@@ -702,7 +702,7 @@ export default function ManagerPackages() {
                 <p className="text-3xl font-bold text-vr-600">
                   {formatPrice(plan, billingPeriod)}
                 </p>
-                <p className="mt-1 text-sm text-gray-500">{billingPeriod}</p>
+                <p className="mt-1 text-sm text-gray-500">{tc(`enumLabels.${billingPeriod}`, { defaultValue: billingPeriod })}</p>
               </div>
 
               <div className="mb-6 space-y-3">
@@ -867,6 +867,7 @@ export default function ManagerPackages() {
 
 function OperatorInvoiceSection() {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [invoices, setInvoices] = useState<OperatorInvoice[]>([]);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -949,7 +950,7 @@ function OperatorInvoiceSection() {
       {error && <div role="alert" className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       <div className="overflow-x-auto">
         <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600"><th className="px-4 py-3">{t("packages.invoiceNumber")}</th><th className="px-4 py-3">{t("packages.period")}</th><th className="px-4 py-3">{t("packages.amount")}</th><th className="px-4 py-3">{t("packages.invoiceStatus")}</th><th className="px-4 py-3">PDF</th><th className="px-4 py-3 text-center">{t("packages.action")}</th></tr></thead>
-          <tbody>{!loading && invoices.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-500">{t("packages.noInvoices")}</td></tr> : invoices.map((invoice) => <tr key={invoice.invoiceId} className="border-t border-gray-100"><td className="px-4 py-3 font-semibold">{invoice.invoiceNumber}</td><td className="px-4 py-3 text-gray-600">{formatDateOnly(invoice.periodFrom)} - {formatDateOnly(invoice.periodTo)}</td><td className="px-4 py-3 font-semibold">{formatNumber(invoice.amount)} đ</td><td className="px-4 py-3">{invoice.status}</td><td className="px-4 py-3">{invoice.pdfGenerationStatus}</td><td className="px-4 py-3"><div className="flex justify-center gap-2"><button type="button" disabled={detailLoadingId === invoice.invoiceId} onClick={() => void openInvoiceDetail(invoice.invoiceId)} className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40" title={t("packages.viewInvoice")} aria-label={t("packages.viewInvoice")}><FiEye /></button><button type="button" disabled={invoice.status !== "ISSUED" || invoice.pdfGenerationStatus !== "COMPLETED" || downloadingId === invoice.invoiceId} onClick={() => void downloadInvoice(invoice.invoiceId)} className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40" title={t("packages.downloadInvoice")} aria-label={t("packages.downloadInvoice")}><FiDownload /></button></div></td></tr>)}</tbody>
+          <tbody>{!loading && invoices.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-500">{t("packages.noInvoices")}</td></tr> : invoices.map((invoice) => <tr key={invoice.invoiceId} className="border-t border-gray-100"><td className="px-4 py-3 font-semibold">{invoice.invoiceNumber}</td><td className="px-4 py-3 text-gray-600">{formatDateOnly(invoice.periodFrom)} - {formatDateOnly(invoice.periodTo)}</td><td className="px-4 py-3 font-semibold">{formatNumber(invoice.amount)} đ</td><td className="px-4 py-3">{tc(`enumLabels.${invoice.status}`, { defaultValue: invoice.status })}</td><td className="px-4 py-3">{tc(`enumLabels.${invoice.pdfGenerationStatus}`, { defaultValue: invoice.pdfGenerationStatus })}</td><td className="px-4 py-3"><div className="flex justify-center gap-2"><button type="button" disabled={detailLoadingId === invoice.invoiceId} onClick={() => void openInvoiceDetail(invoice.invoiceId)} className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40" title={t("packages.viewInvoice")} aria-label={t("packages.viewInvoice")}><FiEye /></button><button type="button" disabled={invoice.status !== "ISSUED" || invoice.pdfGenerationStatus !== "COMPLETED" || downloadingId === invoice.invoiceId} onClick={() => void downloadInvoice(invoice.invoiceId)} className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40" title={t("packages.downloadInvoice")} aria-label={t("packages.downloadInvoice")}><FiDownload /></button></div></td></tr>)}</tbody>
         </table>
       </div>
       <Pagination page={page} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} />
@@ -974,6 +975,7 @@ function OperatorInvoiceSection() {
 
 function InvoiceDetailContent({ detail }: { detail: OperatorInvoiceDetail }) {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const buyer = detail.buyerSnapshot;
   const address = [buyer.addressStreet, buyer.addressWard, buyer.addressDistrict, buyer.addressProvince]
     .filter(Boolean)
@@ -983,10 +985,10 @@ function InvoiceDetailContent({ detail }: { detail: OperatorInvoiceDetail }) {
     <div className="space-y-5">
       <section className="grid gap-4 sm:grid-cols-2">
         <InfoItem label={t("packages.invoiceNumber")} value={detail.invoiceNumber} />
-        <InfoItem label={t("packages.invoiceStatus")} value={detail.status} />
+        <InfoItem label={t("packages.invoiceStatus")} value={tc(`enumLabels.${detail.status}`, { defaultValue: detail.status })} />
         <InfoItem label={t("packages.packageColumn")} value={detail.planName} />
         <InfoItem label={t("packages.amount")} value={`${formatNumber(detail.amount)} đ`} />
-        <InfoItem label={t("packages.billingPeriod")} value={detail.billingPeriod} />
+        <InfoItem label={t("packages.billingPeriod")} value={tc(`enumLabels.${detail.billingPeriod}`, { defaultValue: detail.billingPeriod })} />
         <InfoItem label={t("packages.period")} value={`${formatDateOnly(detail.periodFrom)} - ${formatDateOnly(detail.periodTo)}`} />
       </section>
       <section className="border-t border-gray-200 pt-5">

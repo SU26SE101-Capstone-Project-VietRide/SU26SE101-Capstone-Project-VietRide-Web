@@ -12,7 +12,6 @@ const ParcelsList = lazy(() => import("./pages/Manager/Parcels/index"));
 const StaffList = lazy(() => import("./pages/Manager/Staff/index"));
 const VehiclesList = lazy(() => import("./pages/Manager/Vehicles/index"));
 const RoutesList = lazy(() => import("./pages/Manager/Routes/index"));
-const RouteExtensions = lazy(() => import("./pages/Manager/RouteExtensions/index"));
 const GPSTracking = lazy(() => import("./pages/Manager/GPS/index"));
 const Reports = lazy(() => import("./pages/Manager/Reports/index"));
 const DispatchPanel = lazy(() => import("./pages/Manager/Dispatch/index"));
@@ -29,13 +28,11 @@ const VehicleBuilderPage = lazy(() =>
 );
 const Operators = lazy(() => import("./pages/Admin/Operators"));
 const Users = lazy(() => import("./pages/Admin/Users"));
-const ActivityLogs = lazy(() => import("./pages/Admin/ActivityLogs"));
 const Vouchers = lazy(() => import("./pages/Admin/Vouchers"));
 const Packages = lazy(() => import("./pages/Admin/Packages"));
 const Revenue = lazy(() => import("./pages/Admin/Revenue"));
 const AdminReports = lazy(() => import("./pages/Admin/Reports"));
 const OutboxDlq = lazy(() => import("./pages/Admin/OutboxDlq"));
-const Payouts = lazy(() => import("./pages/Admin/Payouts"));
 const AdminPolicies = lazy(() => import("./pages/Admin/Policies"));
 const AdminStations = lazy(() => import("./pages/Admin/Stations"));
 const AdminLocations = lazy(() => import("./pages/Admin/Locations"));
@@ -84,7 +81,10 @@ export default function App() {
             <Route path="trips" element={<TripsList />} />
             <Route path="route-eta" element={<RouteETA />} />
             <Route path="routes" element={<RoutesList />} />
-            <Route path="route-extensions" element={<RouteExtensions />} />
+            <Route
+              path="route-extensions"
+              element={<Navigate to="/manager/route-eta" replace />}
+            />
             <Route path="vehicles" element={<VehiclesList />} />
             <Route path="bookings" element={<BookingsList />} />
             <Route path="parcels" element={<ParcelsList />} />
@@ -117,13 +117,17 @@ export default function App() {
             <Route path="stations" element={<AdminStations />} />
             <Route path="locations" element={<AdminLocations />} />
             <Route path="users" element={<Users />} />
-            <Route path="activity-logs" element={<ActivityLogs />} />
             <Route path="vouchers" element={<Vouchers />} />
             <Route path="packages" element={<Packages />} />
             <Route path="revenue" element={<Revenue />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="outbox-dlq" element={<OutboxDlq />} />
-            <Route path="payouts" element={<Payouts />} />
+            <Route
+              path="payouts"
+              element={
+                <Navigate to="/admin/wallet-settlement?tab=settlements&filter=needs-attention" replace />
+              }
+            />
             <Route path="wallet-settlement" element={<WalletSettlement />} />
             <Route path="rag-audit" element={<RagAudit />} />
             <Route path="assistant" element={<RagAssistant />} />

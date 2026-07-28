@@ -50,23 +50,23 @@ const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 const vehiclePhotos = [
   {
     src: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=900&q=80",
-    alt: "Modern coach bus exterior",
+    alt: "Ngoại thất xe khách hiện đại",
   },
   {
     src: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=900&q=80",
-    alt: "Passenger coach on road",
+    alt: "Xe khách đang di chuyển trên đường",
   },
   {
     src: "https://images.unsplash.com/photo-1494515843206-f3117d3f51b7?auto=format&fit=crop&w=900&q=80",
-    alt: "Bus cabin seats",
+    alt: "Ghế ngồi trong khoang xe khách",
   },
   {
     src: "https://images.unsplash.com/photo-1509749837427-ac94a2553d0e?auto=format&fit=crop&w=900&q=80",
-    alt: "Coach bus side view",
+    alt: "Góc nhìn bên hông xe khách",
   },
   {
     src: "https://images.unsplash.com/photo-1571019613914-85f342c6a11e?auto=format&fit=crop&w=900&q=80",
-    alt: "Bus passenger interior",
+    alt: "Nội thất xe khách",
   },
 ];
 
@@ -397,7 +397,7 @@ export default function VehiclesPage() {
         }));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load vehicles");
+      setError(err instanceof Error ? err.message : "Không thể tải danh sách xe.");
     } finally {
       setIsLoading(false);
     }
@@ -437,7 +437,7 @@ export default function VehiclesPage() {
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error ? err.message : "Failed to load vehicles",
+            err instanceof Error ? err.message : "Không thể tải danh sách xe.",
           );
         }
       } finally {
@@ -1428,7 +1428,7 @@ function VehicleDetailModal({
               label={t("vehicles.deckCount")}
               value={String(layout?.decks ?? decks.length)}
             />
-            <DetailItem label={tc("status")} value={vehicle.status} />
+            <DetailItem label={tc("status")} value={tc(`enumLabels.${vehicle.status}`, { defaultValue: vehicle.status })} />
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -1485,7 +1485,7 @@ function VehicleDetailModal({
                               ? "border-gray-200 bg-gray-100 text-gray-400"
                               : "border-vr-200 bg-vr-50 text-vr-700"
                           }`}
-                          title={`row ${seat.row}, col ${seat.col}, type ${seat.type}`}
+                          title={`Hàng ${seat.row}, cột ${seat.col}, loại ${seat.type}`}
                         >
                           <FaChair size={16} />
                           <span>{seat.seatNumber}</span>

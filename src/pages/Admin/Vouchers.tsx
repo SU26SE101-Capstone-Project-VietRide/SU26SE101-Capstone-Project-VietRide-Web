@@ -841,8 +841,8 @@ export default function Vouchers() {
                             type="button"
                             onClick={() => void openConsentModal(voucher)}
                             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-vr-100 text-vr-600 hover:bg-vr-50"
-                            aria-label={t("vouchers.viewConsents", { defaultValue: "Xem consent" })}
-                            title={t("vouchers.viewConsents", { defaultValue: "Xem consent" })}
+                            aria-label={t("vouchers.viewConsents", { defaultValue: "Xem phản hồi của nhà xe" })}
+                            title={t("vouchers.viewConsents", { defaultValue: "Xem phản hồi của nhà xe" })}
                           >
                             <FiEye size={16} />
                           </button>
@@ -992,11 +992,11 @@ export default function Vouchers() {
         wide
         icon={<FiEye size={20} />}
         title={t("vouchers.consentsTitle", {
-          defaultValue: `Consent của voucher ${consentVoucher?.code ?? ""}`,
+          defaultValue: `Phản hồi cho mã giảm giá ${consentVoucher?.code ?? ""}`,
         })}
         subtitle={t("vouchers.consentsSubtitle", {
           defaultValue:
-            "Theo dõi phản hồi tài trợ của từng nhà xe cho platform voucher.",
+            "Theo dõi quyết định chấp thuận hoặc từ chối của từng nhà xe.",
         })}
         footer={
           <button
@@ -1012,7 +1012,7 @@ export default function Vouchers() {
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                <th className="px-4 py-3">Operator ID</th>
+                <th className="px-4 py-3">Mã nhà xe</th>
                 <th className="px-4 py-3">{tc("status")}</th>
                 <th className="px-4 py-3">
                   {t("vouchers.requestedAt", { defaultValue: "Yêu cầu lúc" })}
@@ -1033,7 +1033,7 @@ export default function Vouchers() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                      {consent.status}
+                      {tc(`voucherConsentStatuses.${consent.status}`, { defaultValue: consent.status })}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
@@ -1052,7 +1052,7 @@ export default function Vouchers() {
               {!consentsLoading && consents.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
-                    {t("vouchers.noConsents", { defaultValue: "Chưa có consent." })}
+                    {t("vouchers.noConsents", { defaultValue: "Chưa có phản hồi từ nhà xe." })}
                   </td>
                 </tr>
               )}

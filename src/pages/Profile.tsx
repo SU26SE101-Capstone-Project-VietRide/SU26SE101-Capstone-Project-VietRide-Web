@@ -195,7 +195,7 @@ export default function Profile() {
         setFormData(nextProfile);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load profile");
+          setError(err instanceof Error ? err.message : "Không thể tải hồ sơ.");
         }
       }
     }
@@ -214,7 +214,7 @@ export default function Profile() {
 
     try {
       const [uploadedUrl] = await uploadFirebaseImages("USER_AVATAR", [file]);
-      if (!uploadedUrl) throw new Error("Firebase không trả về URL ảnh.");
+      if (!uploadedUrl) throw new Error("Hệ thống không nhận được đường dẫn ảnh sau khi tải lên.");
 
       const result = await updateMyAvatar(uploadedUrl);
       setAvatarUrl(result.avatarUrl);
@@ -244,7 +244,7 @@ export default function Profile() {
     setImageMessage("");
     try {
       const [uploadedUrl] = await uploadFirebaseImages("OPERATOR_LOGO", [file]);
-      if (!uploadedUrl) throw new Error("Firebase không trả về URL logo.");
+      if (!uploadedUrl) throw new Error("Hệ thống không nhận được đường dẫn logo sau khi tải lên.");
 
       const updated = await updateOperatorProfile({
         name: serverOperator.name,
@@ -364,7 +364,7 @@ export default function Profile() {
               {profile.firstName} {profile.lastName}
             </h3>
             <p className="text-gray-600 text-sm mt-1">{profile.bio}</p>
-            <p className="text-gray-500 text-sm mt-1">Vietnam</p>
+            <p className="text-gray-500 text-sm mt-1">Việt Nam</p>
 
 
 
@@ -383,7 +383,7 @@ export default function Profile() {
         {currentUser?.role === "OPERATOR_ADMIN" && serverOperator && (
           <div className="mb-6 border-b border-gray-200 pb-6">
             <ImageUploadControl
-              label="Logo nhà xe"
+              label="Biểu trưng (logo) nhà xe"
               imageUrl={serverOperator.logoUrl}
               isUploading={uploadingImage === "logo"}
               onFile={handleLogoFile}

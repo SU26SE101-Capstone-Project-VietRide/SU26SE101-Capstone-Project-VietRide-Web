@@ -100,13 +100,13 @@ export default function RagAssistant() {
         },
       );
       if (!doneEvent) {
-        setError("Luồng RAG kết thúc mà không có event done.");
+        setError("Trợ lý AI đã dừng trước khi hoàn tất câu trả lời.");
       }
     } catch (streamError) {
       setError(
         streamError instanceof Error
           ? streamError.message
-          : "Không thể kết nối RAG.",
+          : "Không thể kết nối với trợ lý AI.",
       );
     } finally {
       setStreaming(false);
@@ -149,7 +149,7 @@ export default function RagAssistant() {
       {canScopeOperator && (
         <label className="block max-w-xl">
           <span className="mb-1 block text-xs font-semibold text-gray-600">
-            Operator ID scope (không bắt buộc)
+            Giới hạn theo mã nhà xe (không bắt buộc)
           </span>
           <input
             value={operatorId}
@@ -159,7 +159,7 @@ export default function RagAssistant() {
               setMessages([]);
             }}
             className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-vr-500"
-            placeholder="UUID nhà xe"
+            placeholder="Mã nhà xe"
           />
         </label>
       )}

@@ -71,16 +71,24 @@ export type AdminOperator = {
   contactPhone: string;
   businessRegistrationNumber: string;
   taxCode: string;
+  logoUrl?: string | null;
+  address?: {
+    street?: string;
+    ward?: string;
+    district?: string;
+    province?: string;
+  };
   addressStreet?: string;
   addressWard?: string;
   addressDistrict?: string;
   addressProvince?: string;
   representativeName?: string;
-  representativePosition?: string;
   representativePhone?: string;
-  representativeEmail?: string;
   registrationStatus: OperatorStatus;
   isActive?: boolean;
+  cancellationPolicy?: CancellationPolicyRule[] | null;
+  parcelNoShowPolicy?: ParcelNoShowPolicy | null;
+  luggagePolicy?: LuggagePolicy | null;
   createdAt?: string;
   approvedAt?: string | null;
 };
@@ -96,9 +104,7 @@ export type CreateAdminOperatorRequest = {
   addressDistrict: string;
   addressProvince: string;
   representativeName: string;
-  representativePosition: string;
   representativePhone: string;
-  representativeEmail: string;
 };
 
 export type AdminOperatorActionResult = {
@@ -251,6 +257,7 @@ export type OperatorUser = {
   email: string;
   displayName: string;
   phone?: string;
+  avatarUrl?: string | null;
   role: AdminUserRole;
   status: string;
   operatorId: string;
@@ -570,6 +577,26 @@ export type Station = {
   updatedAt?: string;
 };
 
+export type AdminStation = {
+  id: string;
+  name: string;
+  slug: string;
+  addressStreet?: string | null;
+  locationId?: string | null;
+  city: string;
+  province: string;
+  latitude: number;
+  longitude: number;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  operatingHours?: unknown;
+  facilities?: unknown;
+  supportsShuttle: boolean;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type StationSearchParams = {
   q?: string;
   city?: string;
@@ -582,9 +609,10 @@ export type AdminStationParams = PageParams & {
 
 export type AdminStationRequest = Partial<
   Pick<
-    Station,
+    AdminStation,
     | "name"
     | "addressStreet"
+    | "locationId"
     | "city"
     | "province"
     | "latitude"
@@ -599,7 +627,7 @@ export type AdminStationRequest = Partial<
 >;
 
 export type AdminStationMergeResult = {
-  primaryStation: Station;
+  primaryStation: AdminStation;
   duplicateStationId: string;
   relinkedCounts: {
     operatorMappings: number;
@@ -721,6 +749,8 @@ export type OperatorStationRequest = {
   operatingHours?: string;
   facilities?: string;
   supportsShuttle?: boolean;
+  locationId?: string;
+  locationCode?: string;
 };
 
 export type OperatorStation = OperatorStationRequest & {
@@ -737,11 +767,12 @@ export type OperatorStop = {
   id: string;
   operatorId: string;
   name: string;
-  description: string;
+  description: string | null;
   latitude: number;
   longitude: number;
-  address: string;
-  googlePlaceId: string;
+  address: string | null;
+  googlePlaceId: string | null;
+  locationId?: string | null;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -751,9 +782,11 @@ export type OperatorStopRequest = {
   name: string;
   latitude: number;
   longitude: number;
-  description: string;
-  address: string;
-  googlePlaceId: string;
+  description?: string;
+  address?: string;
+  googlePlaceId?: string | null;
+  locationId?: string;
+  locationCode?: string;
 };
 
 export type AdminStopParams = PageParams & {
@@ -787,7 +820,7 @@ export type OperatorRouteRequest = {
   name: string;
   originStationId: string;
   destinationStationId: string;
-  returnRouteId?: string;
+  returnRouteId?: string | null;
   baseFare: number;
   totalDistanceKm: number;
   estimatedDurationMinutes: number;
@@ -2723,19 +2756,19 @@ export function searchStations(params: StationSearchParams) {
 }
 
 export function getPublicLocations(params: StationSearchParams = {}) {
-  return apiRequest<Station[]>(`/v1/locations${buildQuery(params)}`, {
+  return apiRequest<AdminLocation[]>(`/v1/locations${buildQuery(params)}`, {
     authenticated: false,
   });
 }
 
 export function getAdminStations(params: AdminStationParams = {}) {
-  return apiRequest<PagedResult<Station>>(
+  return apiRequest<PagedResult<AdminStation>>(
     `/v1/admin/stations${buildQuery(params)}`,
   );
 }
 
 export function getAdminStation(id: string) {
-  return apiRequest<Station>(`/v1/admin/stations/${id}`);
+  return apiRequest<AdminStation>(`/v1/admin/stations/${id}`);
 }
 
 export function updateAdminStation(
@@ -2743,7 +2776,7 @@ export function updateAdminStation(
   request: AdminStationRequest,
   idempotencyKey = createIdempotencyKey(),
 ) {
-  return apiRequest<Station>(`/v1/admin/stations/${id}`, {
+  return apiRequest<AdminStation>(`/v1/admin/stations/${id}`, {
     method: "PATCH",
     body: request,
     headers: {
@@ -4153,4 +4186,5 @@ export function sendOperatorNotification(
     },
   );
 }
+
 

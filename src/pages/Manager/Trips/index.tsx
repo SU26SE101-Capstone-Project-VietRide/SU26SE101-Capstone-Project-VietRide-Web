@@ -372,7 +372,7 @@ export default function TripsPage() {
         }));
       } catch (err) {
         if (!ignore) {
-          setError(err instanceof Error ? err.message : "Failed to load trip resources");
+          setError(err instanceof Error ? err.message : "Không thể tải tuyến, xe và nhân sự cho chuyến.");
         }
       } finally {
         if (!ignore) {
@@ -404,7 +404,7 @@ export default function TripsPage() {
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error ? err.message : "Failed to load schedules",
+            err instanceof Error ? err.message : "Không thể tải lịch chuyến.",
           );
         }
       }
@@ -561,7 +561,7 @@ export default function TripsPage() {
         status === "open" ? t("trips.scheduleOpened") : t("trips.scheduleSaved"),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create schedule");
+      setError(err instanceof Error ? err.message : "Không thể tạo lịch chuyến.");
     } finally {
       setIsSaving(false);
     }

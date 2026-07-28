@@ -1,57 +1,54 @@
 {
   "sections": {
-    "menu": "MENU",
-    "support": "SUPPORT"
+    "menu": "TRÌNH ĐƠN",
+    "support": "HỖ TRỢ"
   },
   "roles": {
     "manager": "Quản lý nhà xe",
     "admin": "Quản trị hệ thống",
     "SYSTEM_ADMIN": "Quản trị hệ thống",
-    "OPERATOR_ADMIN": "Admin nhà xe",
+    "OPERATOR_ADMIN": "Quản trị viên nhà xe",
     "OPERATOR_STAFF": "Nhân sự vận hành"
   },
   "closeMenu": "Đóng menu",
   "manager": {
-    "dashboard": "Dashboard",
+    "dashboard": "Tổng quan",
     "trips": "Chuyến",
-    "routeEta": "Đổi lộ trình & cập nhật ETA",
+    "routeEta": "Điều chỉnh lộ trình & giờ đến dự kiến",
     "routes": "Tuyến & điểm dừng",
-    "routeExtensions": "Giá tuyến & tuyến thay thế",
     "vehicles": "Phương tiện",
     "staff": "Nhân sự",
     "capacity": "Sức chứa & ghế",
     "bookings": "Đặt vé",
     "parcels": "Hàng hóa",
-    "gps": "GPS Tracking",
-    "dispatch": "Điều phối (Dispatch)",
-    "vouchers": "Voucher",
+    "gps": "Theo dõi GPS",
+    "dispatch": "Điều phối chuyến",
+    "vouchers": "Mã giảm giá",
     "packages": "Gói dịch vụ",
-    "policies": "Policy",
+    "policies": "Chính sách",
     "reports": "Doanh thu",
-    "wallet": "Ví quản lý",
+    "wallet": "Ví nhà xe",
     "settings": "Cấu hình",
     "assistant": "Trợ lý nghiệp vụ"
   },
   "admin": {
-    "dashboard": "Dashboard",
+    "dashboard": "Tổng quan",
     "operators": "Nhà xe",
     "stations": "Bến nền tảng",
     "locations": "Tỉnh & thành phố",
     "users": "Người dùng",
-    "activityLogs": "Nhật ký hoạt động",
-    "vouchers": "Voucher",
+    "vouchers": "Mã giảm giá",
     "packages": "Gói dịch vụ",
-    "policies": "Policy",
-    "payouts": "Phê duyệt Payout",
-    "walletSettlement": "Ví & đối soát",
+    "policies": "Chính sách",
+    "walletSettlement": "Ví & đối soát nhà xe",
     "revenue": "Doanh thu",
     "reports": "Báo cáo",
-    "ragAudit": "RAG & audit",
+    "ragAudit": "Tài liệu AI & kiểm tra hội thoại",
     "outboxDlq": "Hàng đợi lỗi",
     "assistant": "Trợ lý nghiệp vụ"
   },
   "layout": {
-    "adminDashboard": "Dashboard Quản trị",
-    "managerDashboard": "Dashboard Quản lý"
+    "adminDashboard": "Tổng quan quản trị",
+    "managerDashboard": "Tổng quan nhà xe"
   }
 }

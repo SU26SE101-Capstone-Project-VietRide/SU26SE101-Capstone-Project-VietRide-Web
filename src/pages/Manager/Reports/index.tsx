@@ -76,7 +76,7 @@ const routeEfficiencyData: RouteEfficiency[] = [
 const revenueDistribution: RevenueCategory[] = [
   { category: "Vé khách online", amount: 1800, percent: 64 },
   { category: "Vé tại quầy", amount: 560, percent: 18 },
-  { category: "Hàng hóa kỳ gửi", amount: 410, percent: 14 },
+  { category: "Hàng hóa", amount: 410, percent: 14 },
   { category: "Dịch vụ khác", amount: 145, percent: 4 },
 ];
 

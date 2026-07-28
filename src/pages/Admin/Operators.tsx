@@ -50,9 +50,7 @@ const emptyOperatorForm: CreateAdminOperatorRequest = {
   addressDistrict: "",
   addressProvince: "",
   representativeName: "",
-  representativePosition: "",
   representativePhone: "",
-  representativeEmail: "",
 };
 
 function toKnownStatus(status: string): OperatorStatus {
@@ -61,6 +59,25 @@ function toKnownStatus(status: string): OperatorStatus {
   }
 
   return "PENDING";
+}
+
+function getOperatorAddress(operator: AdminOperator) {
+  return {
+    street: operator.address?.street ?? operator.addressStreet,
+    ward: operator.address?.ward ?? operator.addressWard,
+    district: operator.address?.district ?? operator.addressDistrict,
+    province: operator.address?.province ?? operator.addressProvince,
+  };
+}
+
+function formatCancellationPolicy(operator: AdminOperator) {
+  if (!operator.cancellationPolicy?.length) {
+    return undefined;
+  }
+
+  return operator.cancellationPolicy
+    .map((rule) => `${rule.hoursBeforeDeparture}h: ${rule.feePercent}%`)
+    .join(", ");
 }
 
 export default function Operators() {
@@ -107,7 +124,7 @@ export default function Operators() {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err.message : "Failed to load operators",
+            err instanceof Error ? err.message : "Không thể tải danh sách nhà xe.",
           );
         }
       } finally {
@@ -493,6 +510,16 @@ export default function Operators() {
       >
         {selectedOperator && (
           <div className="space-y-5">
+            {selectedOperator.logoUrl && (
+              <img
+                src={selectedOperator.logoUrl}
+                alt={t("operators.logoAlt", { name: selectedOperator.name })}
+                width={96}
+                height={96}
+                loading="lazy"
+                className="h-24 w-24 rounded-lg border border-gray-200 object-contain"
+              />
+            )}
             <DetailSection title={t("operators.profile")} columns="three">
               <DetailItem
                 label={t("operators.operatorName")}
@@ -531,25 +558,25 @@ export default function Operators() {
             <DetailSection title={t("operators.address")}>
               <DetailItem
                 label={t("operators.street")}
-                value={selectedOperator.addressStreet}
+                value={getOperatorAddress(selectedOperator).street}
               />
               <DetailItem
                 label={t("operators.ward")}
-                value={selectedOperator.addressWard}
+                value={getOperatorAddress(selectedOperator).ward}
               />
               <DetailItem
                 label={t("operators.district")}
-                value={selectedOperator.addressDistrict}
+                value={getOperatorAddress(selectedOperator).district}
               />
               <DetailItem
                 label={t("operators.province")}
-                value={selectedOperator.addressProvince}
+                value={getOperatorAddress(selectedOperator).province}
               />
             </DetailSection>
 
             <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                {t("operators.representativeFlow")}
+                {t("operators.representativeInfo")}
               </h3>
               <div className="grid gap-3 sm:grid-cols-2">
                 <DetailItem
@@ -557,16 +584,8 @@ export default function Operators() {
                   value={selectedOperator.representativeName}
                 />
                 <DetailItem
-                  label={t("operators.position")}
-                  value={selectedOperator.representativePosition}
-                />
-                <DetailItem
                   label={t("operators.representativePhone")}
                   value={selectedOperator.representativePhone}
-                />
-                <DetailItem
-                  label={t("operators.representativeEmail")}
-                  value={selectedOperator.representativeEmail}
                 />
               </div>
             </section>
@@ -681,9 +700,6 @@ export default function Operators() {
         }
       >
         <div className="space-y-6">
-          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            {t("operators.onboardInfo")}
-          </div>
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
               {t("operators.businessInfo")}
@@ -807,17 +823,6 @@ export default function Operators() {
                 />
               </div>
               <div>
-                <label className={labelClass}>{t("operators.position")}</label>
-                <input
-                  className={inputClass}
-                  value={operatorForm.representativePosition}
-                  onChange={(e) =>
-                    updateOperatorForm("representativePosition", e.target.value)
-                  }
-                  placeholder={t("operators.positionPlaceholder")}
-                />
-              </div>
-              <div>
                 <label className={labelClass}>
                   {tc("email")} <span className="text-red-500">*</span>
                 </label>
@@ -841,19 +846,6 @@ export default function Operators() {
                     updateOperatorForm("representativePhone", e.target.value)
                   }
                   placeholder="0901 234 567"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className={labelClass}>
-                  {t("operators.representativeEmail")}
-                </label>
-                <input
-                  className={inputClass}
-                  value={operatorForm.representativeEmail}
-                  onChange={(e) =>
-                    updateOperatorForm("representativeEmail", e.target.value)
-                  }
-                  placeholder="representative@congty.vn"
                 />
               </div>
             </div>

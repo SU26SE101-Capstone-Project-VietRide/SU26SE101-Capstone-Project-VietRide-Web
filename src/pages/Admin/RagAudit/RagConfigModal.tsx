@@ -176,7 +176,7 @@ export function RagConfigModal({
       title={configKey ?? ""}
       subtitle={t("ragAudit.configDetailHint", {
         defaultValue:
-          "Chỉnh giá trị runtime và xem lịch sử thay đổi có audit trail.",
+          "Chỉnh cấu hình vận hành và xem đầy đủ lịch sử thay đổi.",
       })}
       footer={
         <>
@@ -264,8 +264,8 @@ export function RagConfigModal({
                       onClick={() => void rollback(item)}
                       disabled={saving}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                      aria-label="Rollback"
-                      title="Rollback"
+                      aria-label="Khôi phục phiên bản"
+                      title="Khôi phục phiên bản"
                     >
                       <FiRotateCcw />
                     </button>

@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { FiCalendar, FiChevronLeft, FiChevronRight, FiClock } from "react-icons/fi";
+import { useTranslation } from "react-i18next";
 
 type DateTimeChangeEvent = {
   target: {
@@ -22,8 +23,6 @@ type CustomDateTimeInputProps = {
   disabled?: boolean;
   placeholder?: string;
 };
-
-const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -89,6 +88,7 @@ export default function CustomDateTimeInput({
   disabled = false,
   placeholder,
 }: CustomDateTimeInputProps) {
+  const { t, i18n } = useTranslation("common");
   const isControlled = value !== undefined;
   const initialValue = value ?? defaultValue ?? "";
   const [internalValue, setInternalValue] = useState(initialValue);
@@ -104,7 +104,11 @@ export default function CustomDateTimeInput({
   );
   const rootRef = useRef<HTMLDivElement>(null);
   const monthDays = useMemo(() => getMonthDays(cursor), [cursor]);
-  const monthLabel = new Intl.DateTimeFormat(undefined, {
+  const weekDays = useMemo(
+    () => ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map((day) => t(`dateTimePicker.weekdays.${day}`)),
+    [t],
+  );
+  const monthLabel = new Intl.DateTimeFormat(i18n?.resolvedLanguage || i18n?.language, {
     month: "long",
     year: "numeric",
   }).format(cursor);
@@ -189,7 +193,7 @@ export default function CustomDateTimeInput({
         className={`${className} flex min-h-11 w-full items-center justify-between gap-3 text-left transition focus:border-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100`}
       >
         <span className={selectedValue ? "text-gray-900" : "text-gray-400"}>
-          {displayValue(selectedValue, type) || placeholder || "Select date"}
+          {displayValue(selectedValue, type) || placeholder || t("dateTimePicker.selectDate")}
         </span>
         {isTimeOnly ? (
           <FiClock className="shrink-0 text-vr-800" size={17} />
@@ -224,7 +228,7 @@ export default function CustomDateTimeInput({
                     )
                   }
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 hover:bg-vr-50 hover:text-vr-900"
-                  aria-label="Previous month"
+                  aria-label={t("dateTimePicker.previousMonth")}
                 >
                   <FiChevronLeft size={18} />
                 </button>
@@ -237,7 +241,7 @@ export default function CustomDateTimeInput({
                     )
                   }
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 hover:bg-vr-50 hover:text-vr-900"
-                  aria-label="Next month"
+                  aria-label={t("dateTimePicker.nextMonth")}
                 >
                   <FiChevronRight size={18} />
                 </button>
@@ -286,13 +290,13 @@ export default function CustomDateTimeInput({
             >
               <div className="grid grid-cols-2 gap-3">
                 <TimeColumn
-                  label="Hour"
+                  label={t("dateTimePicker.hour")}
                   value={selectedTime.hour}
                   max={23}
                   onChange={(hour) => commitTime(hour, selectedTime.minute)}
                 />
                 <TimeColumn
-                  label="Minute"
+                  label={t("dateTimePicker.minute")}
                   value={selectedTime.minute}
                   max={59}
                   step={5}
@@ -305,7 +309,7 @@ export default function CustomDateTimeInput({
                   onClick={() => setIsOpen(false)}
                   className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-vr-950 hover:bg-vr-600"
                 >
-                  Done
+                  {t("dateTimePicker.done")}
                 </button>
               </div>
             </div>

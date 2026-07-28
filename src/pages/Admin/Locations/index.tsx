@@ -343,7 +343,7 @@ export default function AdminLocations() {
                     </p>
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700">
-                    {location.type}
+                    {tc(`enumLabels.${location.type}`, { defaultValue: location.type })}
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700">
                     {location.sortOrder}
@@ -484,8 +484,8 @@ export default function AdminLocations() {
                 }
                 className={inputClass}
               >
-                <option value="PROVINCE">PROVINCE</option>
-                <option value="MUNICIPALITY">MUNICIPALITY</option>
+                <option value="PROVINCE">Tỉnh</option>
+                <option value="MUNICIPALITY">Thành phố trực thuộc trung ương</option>
               </CustomSelect>
             </label>
             <label className="sm:col-span-2">

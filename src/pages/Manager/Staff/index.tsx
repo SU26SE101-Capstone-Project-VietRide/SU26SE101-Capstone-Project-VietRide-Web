@@ -126,7 +126,7 @@ export default function StaffPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load staff");
+          setError(err instanceof Error ? err.message : "Không thể tải danh sách nhân sự.");
         }
       } finally {
         if (!cancelled) {
@@ -376,7 +376,7 @@ export default function StaffPage() {
                 ...new Set(users.map((user) => user.status).filter(Boolean)),
               ].map((status) => (
                 <option key={status} value={status}>
-                  {status}
+                  {tc(`enumLabels.${status}`, { defaultValue: status })}
                 </option>
               ))}
             </CustomSelect>
@@ -424,8 +424,20 @@ export default function StaffPage() {
                   key={user.userId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                    {user.displayName}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={user.avatarUrl || staffAvatarUrl}
+                        alt={user.displayName || user.email}
+                        width={40}
+                        height={40}
+                        loading="lazy"
+                        className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover"
+                      />
+                      <span className="text-sm font-semibold text-gray-900">
+                        {user.displayName || "-"}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {user.email}
@@ -447,7 +459,7 @@ export default function StaffPage() {
                           : "bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {user.status}
+                      {tc(`enumLabels.${user.status}`, { defaultValue: user.status })}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center text-sm">
@@ -535,7 +547,7 @@ export default function StaffPage() {
                   onChange={(e) =>
                     updateUserForm("displayName", e.target.value)
                   }
-                  placeholder="Nguyen Van A"
+                  placeholder="Nguyễn Văn A"
                 />
               </div>
               <div>
@@ -663,8 +675,8 @@ function StaffDetailModal({
         <div className="space-y-5">
           <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center">
             <img
-              src={staffAvatarUrl}
-              alt={user.displayName}
+              src={user.avatarUrl || staffAvatarUrl}
+              alt={user.displayName || user.email}
               width={72}
               height={72}
               loading="lazy"
@@ -694,7 +706,7 @@ function StaffDetailModal({
               value={formatVietnamPhoneForDisplay(user.phone)}
             />
             <DetailItem label={t("staff.role")} value={roleLabel(user.role)} />
-            <DetailItem label={tc("status")} value={user.status} />
+            <DetailItem label={tc("status")} value={tc(`enumLabels.${user.status}`, { defaultValue: user.status })} />
             <DetailItem
               label={t("staff.createdAt")}
               value={formatDateTime(user.createdAt)}

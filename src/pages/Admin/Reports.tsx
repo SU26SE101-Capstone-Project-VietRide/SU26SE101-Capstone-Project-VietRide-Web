@@ -26,6 +26,8 @@ type ReportFilters = {
   to: string;
 };
 
+const MAX_REPORT_RANGE_DAYS = 366;
+
 function createInitialFilters(): ReportFilters {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -103,10 +105,21 @@ export default function AdminReports() {
 
   const operatorRows = report?.byOperator ?? [];
   const paginatedRows = operatorRows.slice((page - 1) * pageSize, page * pageSize);
+  const isUpstreamUnavailable = error.toLowerCase().includes("platform report source") ||
+    error.toLowerCase().includes("upstream");
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    if (!draftFilters.from || !draftFilters.to || draftFilters.from > draftFilters.to) {
+    const fromDate = new Date(`${draftFilters.from}T00:00:00Z`);
+    const toDate = new Date(`${draftFilters.to}T00:00:00Z`);
+    const rangeDays = (toDate.getTime() - fromDate.getTime()) / 86_400_000;
+
+    if (
+      !draftFilters.from ||
+      !draftFilters.to ||
+      draftFilters.from > draftFilters.to ||
+      rangeDays > MAX_REPORT_RANGE_DAYS
+    ) {
       setError(t("reports.invalidDateRange"));
       return;
     }
@@ -208,16 +221,39 @@ export default function AdminReports() {
       </form>
 
       {error && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
+        <section
+          role="alert"
+          className="rounded-lg border border-rose-200 bg-rose-50 px-5 py-4 text-rose-800"
+        >
+          <h2 className="text-sm font-bold">
+            {isUpstreamUnavailable
+              ? t("reports.upstreamUnavailableTitle")
+              : t("reports.loadFailed")}
+          </h2>
+          <p className="mt-1 text-sm">
+            {isUpstreamUnavailable
+              ? t("reports.upstreamUnavailableHint")
+              : error}
+          </p>
+          {isUpstreamUnavailable && (
+            <p className="mt-2 text-xs text-rose-700">{error}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => setReloadKey((value) => value + 1)}
+            className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+          >
+            <FiRefreshCw />
+            {t("reports.retry")}
+          </button>
+        </section>
       )}
 
       {isLoading ? (
         <div className="rounded-lg border border-gray-200 bg-white px-5 py-16 text-center text-sm text-gray-500">
           {t("reports.loading")}
         </div>
-      ) : (
+      ) : error ? null : (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {metrics.map((metric) => (

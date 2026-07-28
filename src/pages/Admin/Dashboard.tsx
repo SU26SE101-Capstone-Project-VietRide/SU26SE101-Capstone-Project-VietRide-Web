@@ -242,7 +242,7 @@ export default function AdminDashboard() {
     downloadCsv(
       "admin-dashboard-report.csv",
       ["Báo cáo", "Ghi chú"],
-      [[report, "Dữ liệu minh họa; dùng trang Báo cáo để xuất dữ liệu API đầy đủ"]],
+      [[report, "Dữ liệu minh họa; mở trang Báo cáo để xem dữ liệu đầy đủ từ hệ thống"]],
     );
   };
 
@@ -263,7 +263,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6 pb-4">
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
-        Dữ liệu minh họa: phần này chưa có đầy đủ API tổng hợp từ backend.
+        Một số số liệu dưới đây là dữ liệu minh họa vì hệ thống chưa có đủ dữ liệu tổng hợp.
       </div>
       <div className="flex items-center justify-between">
         <div>

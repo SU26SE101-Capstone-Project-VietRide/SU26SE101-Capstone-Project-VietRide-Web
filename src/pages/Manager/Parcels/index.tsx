@@ -686,7 +686,7 @@ export default function ParcelsList() {
               <input
                 className={inputClass}
                 value={parcelId}
-                placeholder="parcelId"
+                placeholder="Mã đơn hàng"
                 onChange={(event) => setParcelId(event.target.value)}
               />
               <button
