@@ -45,7 +45,10 @@ function formatMoney(value: number) {
 }
 
 function normalizeStatus(status?: string | null) {
-  return (status || "unknown").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return (status || "unknown")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 }
 
 function statusClass(status?: string | null) {
@@ -71,16 +74,18 @@ function statusClass(status?: string | null) {
 function routeLabel(booking: Pick<OperatorBookingListItem, "trip">) {
   if (booking.trip.routeName) return booking.trip.routeName;
 
-  const endpoints = [booking.trip.originName, booking.trip.destinationName].filter(
-    Boolean,
-  );
+  const endpoints = [
+    booking.trip.originName,
+    booking.trip.destinationName,
+  ].filter(Boolean);
   return endpoints.length > 0 ? endpoints.join(" - ") : "-";
 }
 
 function journeyLabel(booking: Pick<OperatorBookingListItem, "trip">) {
-  const endpoints = [booking.trip.originName, booking.trip.destinationName].filter(
-    Boolean,
-  );
+  const endpoints = [
+    booking.trip.originName,
+    booking.trip.destinationName,
+  ].filter(Boolean);
   return endpoints.length > 0 ? endpoints.join(" → ") : "-";
 }
 
@@ -183,8 +188,13 @@ export default function BookingsList() {
 
   const metrics = useMemo(() => {
     const items = stats?.items ?? [];
-    const sum = (key: "totalBookings" | "totalRevenue" | "totalCompleted" | "totalCancellations") =>
-      items.reduce((total, item) => total + (item[key] ?? 0), 0);
+    const sum = (
+      key:
+        | "totalBookings"
+        | "totalRevenue"
+        | "totalCompleted"
+        | "totalCancellations",
+    ) => items.reduce((total, item) => total + (item[key] ?? 0), 0);
 
     return {
       totalBookings:
@@ -281,11 +291,6 @@ export default function BookingsList() {
         />
       </div>
 
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        <p className="font-semibold">{t("bookings.monitorNoticeTitle")}</p>
-        <p className="mt-1">{t("bookings.monitorNotice")}</p>
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -363,7 +368,8 @@ export default function BookingsList() {
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700">
                     {formatDateTime(
-                      booking.trip.currentDepartureAt ?? booking.trip.departureAt,
+                      booking.trip.currentDepartureAt ??
+                        booking.trip.departureAt,
                     )}
                   </td>
                   <td className="px-5 py-4 text-sm font-medium text-gray-900">
@@ -391,7 +397,10 @@ export default function BookingsList() {
               ))}
               {isLoading && bookingsPage.items.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-sm text-gray-500">
+                  <td
+                    colSpan={9}
+                    className="px-5 py-10 text-center text-sm text-gray-500"
+                  >
                     <span className="inline-flex items-center gap-2">
                       <FiRefreshCw className="animate-spin" />
                       {t("bookings.loading")}
@@ -401,7 +410,10 @@ export default function BookingsList() {
               )}
               {!isLoading && bookingsPage.items.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-sm text-gray-500">
+                  <td
+                    colSpan={9}
+                    className="px-5 py-10 text-center text-sm text-gray-500"
+                  >
                     {t("bookings.noResults")}
                   </td>
                 </tr>
@@ -445,7 +457,10 @@ export default function BookingsList() {
           </div>
         )}
         {selectedBooking && !isDetailLoading && (
-          <BookingDetailContent booking={selectedBooking} statusBadge={statusBadge} />
+          <BookingDetailContent
+            booking={selectedBooking}
+            statusBadge={statusBadge}
+          />
         )}
       </Modal>
     </div>
@@ -460,7 +475,13 @@ type MetricCardProps = {
   danger?: boolean;
 };
 
-function MetricCard({ icon, label, value, badge, danger = false }: MetricCardProps) {
+function MetricCard({
+  icon,
+  label,
+  value,
+  badge,
+  danger = false,
+}: MetricCardProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex justify-between gap-4">
@@ -469,7 +490,9 @@ function MetricCard({ icon, label, value, badge, danger = false }: MetricCardPro
           <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
           <span
             className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-              danger ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"
+              danger
+                ? "bg-red-50 text-red-800"
+                : "bg-emerald-50 text-emerald-800"
             }`}
           >
             {badge}
@@ -488,7 +511,10 @@ type BookingDetailContentProps = {
   statusBadge: (status?: string | null) => React.ReactNode;
 };
 
-function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProps) {
+function BookingDetailContent({
+  booking,
+  statusBadge,
+}: BookingDetailContentProps) {
   const { t } = useTranslation("manager");
   const route = routeLabel(booking);
   const journey = journeyLabel(booking);
@@ -502,7 +528,10 @@ function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProp
           label={t("bookings.bookingCode")}
           value={booking.bookingCode || "-"}
         />
-        <DetailItem label={t("bookings.status")} value={statusBadge(booking.status)} />
+        <DetailItem
+          label={t("bookings.status")}
+          value={statusBadge(booking.status)}
+        />
         <DetailItem
           label={t("bookings.amount")}
           value={formatMoney(booking.totalAmount)}
@@ -576,8 +605,12 @@ function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProp
                     <td className="px-4 py-3 text-gray-700">
                       {seat.seatNumber || "-"}
                     </td>
-                    <td className="px-4 py-3">{statusBadge(seat.ticketStatus)}</td>
-                    <td className="px-4 py-3">{statusBadge(seat.boardingStatus)}</td>
+                    <td className="px-4 py-3">
+                      {statusBadge(seat.ticketStatus)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {statusBadge(seat.boardingStatus)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -591,7 +624,9 @@ function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProp
           {t("bookings.statusTimeline")}
         </h3>
         {timeline.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-500">{t("bookings.noTimeline")}</p>
+          <p className="mt-3 text-sm text-gray-500">
+            {t("bookings.noTimeline")}
+          </p>
         ) : (
           <div className="mt-3 space-y-3">
             {timeline.map((entry, index) => (
@@ -616,7 +651,9 @@ function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProp
         )}
         {booking.cancellationReason && (
           <div className="mt-3 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-800">
-            <span className="font-semibold">{t("bookings.cancellationReason")}:</span>{" "}
+            <span className="font-semibold">
+              {t("bookings.cancellationReason")}:
+            </span>{" "}
             {booking.cancellationReason}
           </div>
         )}

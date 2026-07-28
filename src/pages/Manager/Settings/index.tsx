@@ -224,7 +224,9 @@ export default function ManagerSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">{t("settings.title")}</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {t("settings.title")}
+        </h1>
         <p className="mt-1 text-sm text-gray-600">{t("settings.subtitle")}</p>
       </div>
 
@@ -249,10 +251,6 @@ export default function ManagerSettings() {
       <div className="rounded-lg border border-gray-200 bg-white p-6">
         {tab === "pricing" && (
           <div className="space-y-6">
-            <div className="rounded-lg border border-vr-200 bg-vr-50 p-4">
-              <p className="text-sm text-vr-900">{t("settings.pricingInfo")}</p>
-            </div>
-
             <div>
               <h3 className="mb-4 text-base font-semibold text-gray-800">
                 {t("settings.holidaySurcharge")}
@@ -384,11 +382,7 @@ export default function ManagerSettings() {
                                 title={period.active ? tc("off") : tc("on")}
                                 className="rounded-lg p-2 text-gray-600 hover:bg-gray-100"
                               >
-                                {period.active ? (
-                                  <FiCheck />
-                                ) : (
-                                  <FiX />
-                                )}
+                                {period.active ? <FiCheck /> : <FiX />}
                               </button>
                               <button
                                 type="button"
@@ -495,10 +489,7 @@ export default function ManagerSettings() {
                   className={inputClass}
                   value={config.maxTicketsPerBooking}
                   onChange={(e) =>
-                    updateConfig(
-                      "maxTicketsPerBooking",
-                      Number(e.target.value),
-                    )
+                    updateConfig("maxTicketsPerBooking", Number(e.target.value))
                   }
                 />
               </Field>
@@ -629,7 +620,9 @@ export default function ManagerSettings() {
       >
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>{t("settings.periodNameLabel")}</label>
+            <label className={labelClass}>
+              {t("settings.periodNameLabel")}
+            </label>
             <input
               type="text"
               placeholder={t("settings.periodNamePlaceholder")}

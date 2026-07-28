@@ -142,7 +142,10 @@ export default function Operators() {
       "operators.csv",
       ["Tên nhà xe", "Email", "Điện thoại", "Trạng thái"],
       filtered.map((operator) => [
-        operator.name, operator.contactEmail, operator.contactPhone, operator.registrationStatus,
+        operator.name,
+        operator.contactEmail,
+        operator.contactPhone,
+        operator.registrationStatus,
       ]),
     );
   };
@@ -209,7 +212,9 @@ export default function Operators() {
   const handleCreateOperator = async () => {
     await createAdminOperator(operatorForm);
     await reloadOperators();
-    setMessage(t("operators.createdPendingMessage", { name: operatorForm.name }));
+    setMessage(
+      t("operators.createdPendingMessage", { name: operatorForm.name }),
+    );
     setOperatorForm(emptyOperatorForm);
     setOpenOnboard(false);
   };
@@ -272,45 +277,6 @@ export default function Operators() {
         </button>
       </div>
 
-      <section className="rounded-xl border border-vr-100 bg-vr-50/60 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-vr-800">
-              {t("operators.registrationFlowTitle")}
-            </p>
-            <p className="mt-1 text-sm text-vr-700">
-              {t("operators.registrationFlowSubtitle")}
-            </p>
-          </div>
-          <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[560px]">
-            <div className="rounded-lg border border-vr-100 bg-white px-3 py-2">
-              <p className="font-semibold text-gray-900">
-                {t("operators.flowStepApply")}
-              </p>
-              <p className="text-xs text-gray-500">
-                {t("operators.flowStepApplyHint")}
-              </p>
-            </div>
-            <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
-              <p className="font-semibold text-gray-900">
-                {t("operators.flowStepReview")}
-              </p>
-              <p className="text-xs text-gray-500">
-                {t("operators.flowStepReviewHint")}
-              </p>
-            </div>
-            <div className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
-              <p className="font-semibold text-gray-900">
-                {t("operators.flowStepActivate")}
-              </p>
-              <p className="text-xs text-gray-500">
-                {t("operators.flowStepActivateHint")}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {pendingCount > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-center justify-between">
@@ -372,7 +338,11 @@ export default function Operators() {
             <option value="REJECTED">{tc("rejected")}</option>
           </CustomSelect>
 
-          <button type="button" onClick={handleExportCsv} className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50"
+          >
             <FiDownload className="inline mr-2" size={16} />
             {tc("exportCsv")}
           </button>
@@ -421,10 +391,7 @@ export default function Operators() {
                   >
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       OP-
-                      {String((page - 1) * pageSize + idx + 1).padStart(
-                        3,
-                        "0",
-                      )}
+                      {String((page - 1) * pageSize + idx + 1).padStart(3, "0")}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                       {operator.name}
@@ -551,14 +518,14 @@ export default function Operators() {
                 label={tc("status")}
                 value={getStatusBadge(selectedOperator.registrationStatus)}
               />
-                <DetailItem
-                  label={t("operators.createdAt")}
-                  value={formatDateTime(selectedOperator.createdAt)}
-                />
-                <DetailItem
-                  label={t("operators.approvedAt")}
-                  value={formatDateTime(selectedOperator.approvedAt)}
-                />
+              <DetailItem
+                label={t("operators.createdAt")}
+                value={formatDateTime(selectedOperator.createdAt)}
+              />
+              <DetailItem
+                label={t("operators.approvedAt")}
+                value={formatDateTime(selectedOperator.approvedAt)}
+              />
             </DetailSection>
 
             <DetailSection title={t("operators.address")}>

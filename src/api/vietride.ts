@@ -43,6 +43,20 @@ export type NotificationParams = {
   sortDir?: "asc" | "desc";
 };
 
+export type OperatorNotificationScope = "TRIP" | "OPERATOR";
+
+export type SendOperatorNotificationRequest = {
+  scope: OperatorNotificationScope;
+  tripId?: string;
+  title: string;
+  body: string;
+};
+
+export type SendOperatorNotificationResult = {
+  announcementId: string;
+  recipientCount: number;
+};
+
 export type OperatorStatus =
   | "PENDING"
   | "APPROVED"
@@ -1092,11 +1106,45 @@ export type OperatorParcelReportSummary = {
   source?: string;
 };
 
+export type OperatorParcelListParams = Pick<
+  PageParams,
+  "page" | "pageSize" | "status"
+> & {
+  tripId?: string;
+  pendingActionType?: string;
+};
+
+export type OperatorParcelListItem = {
+  parcelId: string;
+  parcelCode: string;
+  status: string;
+  pendingActionType?: string | null;
+  tripId?: string | null;
+  tripCode?: string | null;
+  routeName?: string | null;
+  senderName?: string | null;
+  senderPhone?: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  sizeCategory?: string | null;
+  estimatedWeightKg?: number | null;
+  estimatedVolumeM3?: number | null;
+  actualWeightKg?: number | null;
+  actualVolumeM3?: number | null;
+  chargeableWeightKg?: number | null;
+  depositAmount?: number | null;
+  balanceAmount?: number | null;
+  refundAmount?: number | null;
+  forfeitureAmount?: number | null;
+  operatorActionDeadline?: string | null;
+  photoUrl?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type OperatorParcelReviewRequest = {
   decision: "APPROVED" | "REJECTED";
-  depositAmount?: number | null;
   reason?: string | null;
-  paymentMethod?: PaymentMethod | null;
 };
 
 export type OperatorParcelTransferRequest = {
@@ -3066,6 +3114,11 @@ export function getOperatorParcelReportSummary(
   );
 }
 
+export function getOperatorParcels(params: OperatorParcelListParams = {}) {
+  return apiRequest<PagedResult<OperatorParcelListItem>>(
+    `/v1/operator/parcels${buildQuery(params)}`,
+  );
+}
 export function exportOperatorParcelReport(
   params: OperatorParcelReportExportParams = {},
 ) {
@@ -4086,5 +4139,18 @@ export function markNotificationRead(notificationId: string) {
   return apiRequest<null>(`/v1/notifications/${notificationId}/read`, {
     method: "POST",
   });
+}
+export function sendOperatorNotification(
+  request: SendOperatorNotificationRequest,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<SendOperatorNotificationResult>(
+    "/v1/operator/notifications",
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
 }
 

@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiX, FiFileText } from "react-icons/fi";
+import {
+  FiPlus,
+  FiEdit2,
+  FiTrash2,
+  FiCheck,
+  FiX,
+  FiFileText,
+} from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
 import {
@@ -123,7 +130,9 @@ export default function ManagerPolicies() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t("policies.title")}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("policies.title")}
+          </h1>
           <p className="mt-1 text-gray-600">{t("policies.subtitle")}</p>
         </div>
         <button
@@ -139,15 +148,13 @@ export default function ManagerPolicies() {
         </button>
       </div>
 
-      <div className="rounded-lg border border-vr-200 bg-vr-50 p-4">
-        <p className="text-sm text-vr-900">{t("policies.info")}</p>
-      </div>
-
       {sortedPolicies.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 py-12 text-center">
           <FiFileText size={48} className="mx-auto mb-4 text-gray-400" />
           <p className="text-gray-600">{t("policies.empty")}</p>
-          <p className="mt-1 text-sm text-gray-500">{t("policies.emptyHint")}</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {t("policies.emptyHint")}
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -179,7 +186,9 @@ export default function ManagerPolicies() {
                 <tr key={policy.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <div>
-                      <p className="font-medium text-gray-900">{policy.title}</p>
+                      <p className="font-medium text-gray-900">
+                        {policy.title}
+                      </p>
                       <p className="mt-1 text-xs text-gray-600">
                         {policy.description}
                       </p>
@@ -291,7 +300,9 @@ export default function ManagerPolicies() {
           </div>
 
           <div>
-            <label className={labelClass}>{t("policies.shortDescription")}</label>
+            <label className={labelClass}>
+              {t("policies.shortDescription")}
+            </label>
             <input
               type="text"
               placeholder={t("policies.shortDescPlaceholder")}
@@ -327,7 +338,9 @@ export default function ManagerPolicies() {
                 setFormData({ ...formData, content: e.target.value })
               }
             />
-            <p className="mt-1 text-xs text-gray-500">{t("policies.contentHint")}</p>
+            <p className="mt-1 text-xs text-gray-500">
+              {t("policies.contentHint")}
+            </p>
           </div>
 
           <div className="flex gap-3 pt-4">

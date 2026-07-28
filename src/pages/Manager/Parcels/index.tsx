@@ -47,6 +47,7 @@ import CustomSelect from "../../../components/CustomSelect";
 import { DetailItem } from "../../../components/DetailLayout";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
+import ParcelQueue from "./ParcelQueue";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -130,7 +131,6 @@ export default function ParcelsList() {
   const [toDate, setToDate] = useState(todayIsoDate());
   const [parcelId, setParcelId] = useState("");
   const [selectedParcel, setSelectedParcel] = useState<ParcelDetail | null>(null);
-  const [manualFee, setManualFee] = useState("50000");
   const [targetTripId, setTargetTripId] = useState("");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
@@ -293,17 +293,9 @@ export default function ParcelsList() {
       return;
     }
 
-    const depositAmount = Number(manualFee);
-    if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
-      setError(t("parcels.reviewInvalidFee"));
-      return;
-    }
-
     await reviewOperatorParcel(selectedParcel.parcelId, {
       decision: "APPROVED",
-      depositAmount,
       reason: reason.trim() || null,
-      paymentMethod: "VNPAY",
     });
     setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
     setMessage(t("parcels.reviewApproveSuccess"));
@@ -571,7 +563,9 @@ export default function ParcelsList() {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.7fr)]">
+      <ParcelQueue />
+
+      <div className="grid gap-6">
         <main className="space-y-6">
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -680,7 +674,7 @@ export default function ParcelsList() {
           </section>
         </main>
 
-        <aside className="space-y-6">
+        <aside className="hidden">
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold text-gray-900">
               {t("parcels.lookupTitle")}
@@ -771,13 +765,6 @@ export default function ParcelsList() {
             </p>
 
             <div className="mt-4 space-y-3">
-              <Field
-                label={t("parcels.manualFee")}
-                value={manualFee}
-                type="number"
-                currency
-                onChange={setManualFee}
-              />
               <Field
                 label={t("parcels.targetTripId")}
                 value={targetTripId}
@@ -988,3 +975,4 @@ function Field({
 function Info({ label, value }: { label: string; value: ReactNode }) {
   return <DetailItem label={label} value={value} />;
 }
+

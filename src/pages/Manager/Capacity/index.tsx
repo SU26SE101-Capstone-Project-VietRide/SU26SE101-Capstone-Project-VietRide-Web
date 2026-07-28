@@ -1,317 +1,133 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiCheck, FiLock, FiSave, FiSlash } from "react-icons/fi";
+import { getOperatorVehicles, updateOperatorVehicle, type OperatorVehicle, type SeatLayoutJson } from "../../../api/vietride";
+import { getAuthUser } from "../../../auth";
 
 type SeatStatus = "AVAILABLE" | "BOOKED" | "UNAVAILABLE";
-
-type SeatAvailability = {
-  seatNumber: string;
-  status: SeatStatus;
-  reason?: string;
-};
-
+type SeatAvailability = { seatNumber: string; status: SeatStatus; reason?: string };
 type TripCapacity = {
-  id: string;
-  code: string;
-  routeName: string;
-  vehiclePlate: string;
-  departureTime: string;
-  maxCargoWeightKg: number;
-  maxCargoVolumeM3: number;
-  bookedCargoWeightKg: number;
-  bookedCargoVolumeM3: number;
-  seats: SeatAvailability[];
+  id: string; code: string; routeName: string; vehiclePlate: string; departureTime: string;
+  maxCargoWeightKg: number; maxCargoVolumeM3: number; bookedCargoWeightKg: number;
+  bookedCargoVolumeM3: number; seats: SeatAvailability[];
 };
+type AlertState = { tone: "success" | "error"; message: string };
 
-type AlertState = {
-  tone: "success" | "error";
-  message: string;
-};
-
-const initialTrips: TripCapacity[] = [
-  {
-    id: "trip-sgn-dlt-0700",
-    code: "TRP-0700-SGN-DLT",
-    routeName: "Ho Chi Minh City - Da Lat",
-    vehiclePlate: "51B-220.11",
-    departureTime: "2026-07-02 07:00",
-    maxCargoWeightKg: 380,
-    maxCargoVolumeM3: 8.5,
-    bookedCargoWeightKg: 214,
-    bookedCargoVolumeM3: 4.6,
-    seats: [
-      { seatNumber: "A1", status: "BOOKED" },
-      { seatNumber: "A2", status: "AVAILABLE" },
-      { seatNumber: "A3", status: "AVAILABLE" },
-      {
-        seatNumber: "A4",
-        status: "UNAVAILABLE",
-        reason: "Seat belt maintenance",
-      },
-      { seatNumber: "B1", status: "AVAILABLE" },
-      { seatNumber: "B2", status: "BOOKED" },
-      { seatNumber: "B3", status: "AVAILABLE" },
-      { seatNumber: "B4", status: "AVAILABLE" },
-      { seatNumber: "C1", status: "AVAILABLE" },
-      { seatNumber: "C2", status: "AVAILABLE" },
-      { seatNumber: "C3", status: "BOOKED" },
-      { seatNumber: "C4", status: "AVAILABLE" },
-    ],
-  },
-  {
-    id: "trip-sgn-vtg-0930",
-    code: "TRP-0930-SGN-VTG",
-    routeName: "Ho Chi Minh City - Vung Tau",
-    vehiclePlate: "51B-889.91",
-    departureTime: "2026-07-02 09:30",
-    maxCargoWeightKg: 260,
-    maxCargoVolumeM3: 5.2,
-    bookedCargoWeightKg: 146,
-    bookedCargoVolumeM3: 2.8,
-    seats: [
-      { seatNumber: "A1", status: "AVAILABLE" },
-      { seatNumber: "A2", status: "AVAILABLE" },
-      { seatNumber: "A3", status: "BOOKED" },
-      { seatNumber: "A4", status: "AVAILABLE" },
-      {
-        seatNumber: "B1",
-        status: "UNAVAILABLE",
-        reason: "Reserved for accessibility support",
-      },
-      { seatNumber: "B2", status: "AVAILABLE" },
-      { seatNumber: "B3", status: "BOOKED" },
-      { seatNumber: "B4", status: "AVAILABLE" },
-    ],
-  },
-  {
-    id: "trip-hni-hpg-1400",
-    code: "TRP-1400-HNI-HPG",
-    routeName: "Ha Noi - Hai Phong",
-    vehiclePlate: "29F-120.09",
-    departureTime: "2026-07-02 14:00",
-    maxCargoWeightKg: 320,
-    maxCargoVolumeM3: 6.4,
-    bookedCargoWeightKg: 88,
-    bookedCargoVolumeM3: 1.7,
-    seats: [
-      { seatNumber: "A1", status: "AVAILABLE" },
-      { seatNumber: "A2", status: "AVAILABLE" },
-      { seatNumber: "A3", status: "AVAILABLE" },
-      { seatNumber: "A4", status: "AVAILABLE" },
-      { seatNumber: "B1", status: "BOOKED" },
-      { seatNumber: "B2", status: "AVAILABLE" },
-      { seatNumber: "B3", status: "AVAILABLE" },
-      { seatNumber: "B4", status: "UNAVAILABLE", reason: "Window repair" },
-    ],
-  },
-];
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
-
+const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
 const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
+const primaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-lg bg-vr-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-300";
+const vehicleId = (vehicle: OperatorVehicle) => vehicle.id ?? vehicle.vehicleId ?? "";
 
-const primaryButtonClass =
-  "inline-flex items-center justify-center gap-2 rounded-lg bg-vr-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-300";
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(
-    value,
-  );
+function parseLayout(vehicle: OperatorVehicle): SeatLayoutJson | null {
+  if (!vehicle.seatLayoutJson) return null;
+  if (typeof vehicle.seatLayoutJson !== "string") return vehicle.seatLayoutJson;
+  try { return JSON.parse(vehicle.seatLayoutJson) as SeatLayoutJson; } catch { return null; }
 }
-
+function toCapacity(vehicle: OperatorVehicle): TripCapacity {
+  const layout = parseLayout(vehicle);
+  return {
+    id: vehicleId(vehicle), code: vehicle.licensePlate,
+    routeName: vehicle.vehicleTypeName ?? vehicle.vehicleTypeCode ?? "Phương tiện nhà xe",
+    vehiclePlate: `${vehicle.totalSeats} ghế`, departureTime: vehicle.status,
+    maxCargoWeightKg: vehicle.maxCargoWeightKg ?? 0, maxCargoVolumeM3: vehicle.maxCargoVolumeM3 ?? 0,
+    bookedCargoWeightKg: 0, bookedCargoVolumeM3: 0,
+    seats: (layout?.seats ?? []).map((seat) => ({
+      seatNumber: seat.seatNumber, status: seat.disabled ? "UNAVAILABLE" : "AVAILABLE",
+      reason: typeof seat.metadata?.disableReason === "string" ? seat.metadata.disableReason : undefined,
+    })),
+  };
+}
+function formatNumber(value: number) { return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(value); }
 function seatClass(status: SeatStatus, selected: boolean) {
-  const selectedClass = selected ? "ring-2 ring-vr-500 ring-offset-2" : "";
-
-  if (status === "BOOKED") {
-    return `${selectedClass} border-rose-200 bg-rose-50 text-rose-700`;
-  }
-
-  if (status === "UNAVAILABLE") {
-    return `${selectedClass} border-slate-200 bg-slate-100 text-slate-500`;
-  }
-
-  return `${selectedClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100`;
+  const ring = selected ? "ring-2 ring-vr-500 ring-offset-2" : "";
+  if (status === "BOOKED") return `${ring} border-rose-200 bg-rose-50 text-rose-700`;
+  if (status === "UNAVAILABLE") return `${ring} border-slate-200 bg-slate-100 text-slate-500`;
+  return `${ring} border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100`;
 }
 
 export default function CapacityPage() {
   const { t } = useTranslation("manager");
-  const [trips, setTrips] = useState<TripCapacity[]>(initialTrips);
-  const [selectedTripId, setSelectedTripId] = useState(
-    initialTrips[0]?.id ?? "",
-  );
-  const [selectedSeatNumber, setSelectedSeatNumber] = useState(
-    initialTrips[0]?.seats[0]?.seatNumber ?? "",
-  );
-  const [weightInput, setWeightInput] = useState(
-    String(initialTrips[0]?.maxCargoWeightKg ?? ""),
-  );
-  const [volumeInput, setVolumeInput] = useState(
-    String(initialTrips[0]?.maxCargoVolumeM3 ?? ""),
-  );
+  const canEdit = getAuthUser()?.role === "OPERATOR_ADMIN";
+  const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
+  const [trips, setTrips] = useState<TripCapacity[]>([]);
+  const [selectedTripId, setSelectedTripId] = useState("");
+  const [selectedSeatNumber, setSelectedSeatNumber] = useState("");
+  const [weightInput, setWeightInput] = useState("");
+  const [volumeInput, setVolumeInput] = useState("");
   const [reason, setReason] = useState("");
   const [alert, setAlert] = useState<AlertState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const selectedTrip = useMemo(
-    () => trips.find((trip) => trip.id === selectedTripId) ?? trips[0],
-    [selectedTripId, trips],
-  );
+  useEffect(() => {
+    let ignore = false;
+    void getOperatorVehicles({ page: 1, pageSize: 100 }).then((result) => {
+      if (ignore) return;
+      const mapped = result.items.map(toCapacity);
+      setVehicles(result.items); setTrips(mapped);
+      const first = mapped[0];
+      if (first) {
+        setSelectedTripId(first.id); setSelectedSeatNumber(first.seats[0]?.seatNumber ?? "");
+        setWeightInput(String(first.maxCargoWeightKg)); setVolumeInput(String(first.maxCargoVolumeM3));
+      }
+    }).catch((error: unknown) => {
+      if (!ignore) setAlert({ tone: "error", message: error instanceof Error ? error.message : "Không thể tải dữ liệu sức chứa." });
+    }).finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
+  }, []);
 
-  const selectedSeat = selectedTrip?.seats.find(
-    (seat) => seat.seatNumber === selectedSeatNumber,
-  );
+  const selectedTrip = useMemo(() => trips.find((trip) => trip.id === selectedTripId) ?? trips[0], [selectedTripId, trips]);
+  const selectedSeat = selectedTrip?.seats.find((seat) => seat.seatNumber === selectedSeatNumber);
+  const availableSeats = selectedTrip?.seats.filter((seat) => seat.status === "AVAILABLE").length ?? 0;
+  const disabledSeats = selectedTrip?.seats.filter((seat) => seat.status === "UNAVAILABLE").length ?? 0;
+  const cargoWeightPct = 0;
+  const cargoVolumePct = 0;
 
-  const availableSeats =
-    selectedTrip?.seats.filter((seat) => seat.status === "AVAILABLE").length ??
-    0;
-  const disabledSeats =
-    selectedTrip?.seats.filter((seat) => seat.status === "UNAVAILABLE")
-      .length ?? 0;
-  const cargoWeightPct = selectedTrip
-    ? Math.min(
-        (selectedTrip.bookedCargoWeightKg / selectedTrip.maxCargoWeightKg) *
-          100,
-        100,
-      )
-    : 0;
-  const cargoVolumePct = selectedTrip
-    ? Math.min(
-        (selectedTrip.bookedCargoVolumeM3 / selectedTrip.maxCargoVolumeM3) *
-          100,
-        100,
-      )
-    : 0;
+  function selectTrip(id: string) {
+    const item = trips.find((trip) => trip.id === id); if (!item) return;
+    setSelectedTripId(id); setSelectedSeatNumber(item.seats[0]?.seatNumber ?? "");
+    setWeightInput(String(item.maxCargoWeightKg)); setVolumeInput(String(item.maxCargoVolumeM3)); setReason(""); setAlert(null);
+  }
 
-  const selectTrip = (tripId: string) => {
-    const trip = trips.find((item) => item.id === tripId);
-    if (!trip) {
-      return;
-    }
+  async function persist(next: TripCapacity, successMessage: string) {
+    const vehicle = vehicles.find((item) => vehicleId(item) === next.id);
+    const layout = vehicle ? parseLayout(vehicle) : null;
+    if (!vehicle || !layout) { setAlert({ tone: "error", message: "Phương tiện chưa có sơ đồ ghế hợp lệ." }); return; }
+    setSaving(true); setAlert(null);
+    try {
+      const updated = await updateOperatorVehicle(next.id, {
+        vehicleTypeId: vehicle.vehicleTypeId, licensePlate: vehicle.licensePlate,
+        totalSeats: layout.seats.length, maxCargoWeightKg: next.maxCargoWeightKg,
+        maxCargoVolumeM3: next.maxCargoVolumeM3, imageUrls: vehicle.imageUrls ?? [],
+        seatLayoutJson: { ...layout, seats: layout.seats.map((seat) => {
+          const state = next.seats.find((item) => item.seatNumber === seat.seatNumber);
+          return { ...seat, disabled: state?.status === "UNAVAILABLE", metadata: state?.reason ? { ...seat.metadata, disableReason: state.reason } : seat.metadata };
+        }) },
+      });
+      setVehicles((items) => items.map((item) => vehicleId(item) === next.id ? updated : item));
+      setTrips((items) => items.map((item) => item.id === next.id ? toCapacity(updated) : item));
+      setAlert({ tone: "success", message: successMessage });
+    } catch (error) { setAlert({ tone: "error", message: error instanceof Error ? error.message : "Không thể cập nhật phương tiện." }); }
+    finally { setSaving(false); }
+  }
 
-    setSelectedTripId(trip.id);
-    setSelectedSeatNumber(trip.seats[0]?.seatNumber ?? "");
-    setWeightInput(String(trip.maxCargoWeightKg));
-    setVolumeInput(String(trip.maxCargoVolumeM3));
-    setReason("");
-    setAlert(null);
-  };
-
-  const saveCapacity = () => {
-    if (!selectedTrip) {
-      return;
-    }
-
-    const nextWeight = Number(weightInput);
-    const nextVolume = Number(volumeInput);
-
-    if (
-      !Number.isFinite(nextWeight) ||
-      !Number.isFinite(nextVolume) ||
-      nextWeight <= 0 ||
-      nextVolume <= 0
-    ) {
-      setAlert({ tone: "error", message: t("capacity.invalidCapacity") });
-      return;
-    }
-
-    if (
-      nextWeight < selectedTrip.bookedCargoWeightKg ||
-      nextVolume < selectedTrip.bookedCargoVolumeM3
-    ) {
-      setAlert({ tone: "error", message: t("capacity.capacityBelowBooked") });
-      return;
-    }
-
-    setTrips((currentTrips) =>
-      currentTrips.map((trip) =>
-        trip.id === selectedTrip.id
-          ? {
-              ...trip,
-              maxCargoWeightKg: nextWeight,
-              maxCargoVolumeM3: nextVolume,
-            }
-          : trip,
-      ),
-    );
-    setAlert({
-      tone: "success",
-      message: t("capacity.capacityUpdated", { trip: selectedTrip.code }),
-    });
-  };
-
-  const disableSeat = () => {
-    if (!selectedTrip || !selectedSeat) {
-      setAlert({ tone: "error", message: t("capacity.selectSeatRequired") });
-      return;
-    }
-
-    if (selectedSeat.status === "BOOKED") {
-      setAlert({ tone: "error", message: t("capacity.seatBooked") });
-      return;
-    }
-
-    if (selectedSeat.status === "UNAVAILABLE") {
-      setAlert({ tone: "error", message: t("capacity.seatAlreadyDisabled") });
-      return;
-    }
-
-    if (!reason.trim()) {
-      setAlert({ tone: "error", message: t("capacity.reasonRequired") });
-      return;
-    }
-
-    setTrips((currentTrips) =>
-      currentTrips.map((trip) =>
-        trip.id === selectedTrip.id
-          ? {
-              ...trip,
-              seats: trip.seats.map((seat) =>
-                seat.seatNumber === selectedSeat.seatNumber
-                  ? { ...seat, status: "UNAVAILABLE", reason: reason.trim() }
-                  : seat,
-              ),
-            }
-          : trip,
-      ),
-    );
-    setAlert({
-      tone: "success",
-      message: t("capacity.seatDisabled", { seat: selectedSeat.seatNumber }),
-    });
-  };
-
-  const enableSeat = () => {
-    if (!selectedTrip || !selectedSeat) {
-      setAlert({ tone: "error", message: t("capacity.selectSeatRequired") });
-      return;
-    }
-
-    if (selectedSeat.status !== "UNAVAILABLE") {
-      setAlert({ tone: "error", message: t("capacity.seatNotDisabled") });
-      return;
-    }
-
-    setTrips((currentTrips) =>
-      currentTrips.map((trip) =>
-        trip.id === selectedTrip.id
-          ? {
-              ...trip,
-              seats: trip.seats.map((seat) =>
-                seat.seatNumber === selectedSeat.seatNumber
-                  ? { seatNumber: seat.seatNumber, status: "AVAILABLE" }
-                  : seat,
-              ),
-            }
-          : trip,
-      ),
-    );
-    setReason("");
-    setAlert({
-      tone: "success",
-      message: t("capacity.seatEnabled", { seat: selectedSeat.seatNumber }),
-    });
-  };
-
+  async function saveCapacity() {
+    if (!selectedTrip || !canEdit) return;
+    const nextWeight = Number(weightInput); const nextVolume = Number(volumeInput);
+    if (!Number.isFinite(nextWeight) || !Number.isFinite(nextVolume) || nextWeight < 0 || nextVolume < 0) { setAlert({ tone: "error", message: t("capacity.invalidCapacity") }); return; }
+    await persist({ ...selectedTrip, maxCargoWeightKg: nextWeight, maxCargoVolumeM3: nextVolume }, `Đã cập nhật sức chứa cho xe ${selectedTrip.code}.`);
+  }
+  async function disableSeat() {
+    if (!selectedTrip || !selectedSeat || !canEdit) return;
+    if (!reason.trim()) { setAlert({ tone: "error", message: t("capacity.reasonRequired") }); return; }
+    const next = { ...selectedTrip, seats: selectedTrip.seats.map((seat) => seat.seatNumber === selectedSeat.seatNumber ? { ...seat, status: "UNAVAILABLE" as const, reason: reason.trim() } : seat) };
+    await persist(next, t("capacity.seatDisabled", { seat: selectedSeat.seatNumber }));
+  }
+  async function enableSeat() {
+    if (!selectedTrip || !selectedSeat || !canEdit) return;
+    const next = { ...selectedTrip, seats: selectedTrip.seats.map((seat) => seat.seatNumber === selectedSeat.seatNumber ? { seatNumber: seat.seatNumber, status: "AVAILABLE" as const } : seat) };
+    setReason(""); await persist(next, t("capacity.seatEnabled", { seat: selectedSeat.seatNumber }));
+  }
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -337,8 +153,17 @@ export default function CapacityPage() {
               {t("capacity.activeTrips")}
             </h2>
             <div className="mt-4 space-y-2">
-              {trips.map((trip) => (
-                <button
+              {loading && (
+                <p className="py-6 text-center text-sm text-slate-500">
+                  Đang tải dữ liệu...
+                </p>
+              )}
+              {!loading && trips.length === 0 && (
+                <p className="py-6 text-center text-sm text-slate-500">
+                  Chưa có phương tiện.
+                </p>
+              )}
+              {trips.map((trip) => (                <button
                   key={trip.id}
                   type="button"
                   onClick={() => selectTrip(trip.id)}
@@ -502,6 +327,7 @@ export default function CapacityPage() {
                   type="button"
                   className={`${primaryButtonClass} mt-6 w-full`}
                   onClick={saveCapacity}
+                  disabled={!canEdit || saving}
                 >
                   <FiSave />
                   {t("capacity.saveCapacity")}
@@ -583,6 +409,7 @@ export default function CapacityPage() {
                       type="button"
                       className={primaryButtonClass}
                       onClick={disableSeat}
+                      disabled={!canEdit || saving}
                     >
                       <FiSlash />
                       {t("capacity.disableSeat")}
@@ -591,6 +418,7 @@ export default function CapacityPage() {
                       type="button"
                       className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       onClick={enableSeat}
+                      disabled={!canEdit || saving}
                     >
                       <FiCheck />
                       {t("capacity.enableSeat")}

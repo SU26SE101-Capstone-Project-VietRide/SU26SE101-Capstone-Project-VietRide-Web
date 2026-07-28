@@ -8,8 +8,10 @@ import {
   FiLogOut,
   FiRefreshCw,
   FiSearch,
+  FiSend,
 } from "react-icons/fi";
 import LanguageSwitcher from "./LanguageSwitcher";
+import OperatorAnnouncementModal from "./OperatorAnnouncementModal";
 import { getAuthUser, logout } from "../auth";
 import {
   getNotifications,
@@ -35,10 +37,14 @@ export default function Topbar({
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   const isAdmin = location.pathname.startsWith("/admin");
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
   const authUser = getAuthUser();
+  const canSendOperatorNotification =
+    authUser?.role === "OPERATOR_ADMIN" ||
+    authUser?.role === "OPERATOR_STAFF";
   const settingsPath =
     authUser?.role === "OPERATOR_ADMIN" ? "/manager/settings" : null;
 
@@ -208,6 +214,20 @@ export default function Topbar({
                     />
                   </button>
                 </div>
+                {canSendOperatorNotification && (
+                  <div className="border-b border-gray-100 p-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNotifications(false);
+                        setShowAnnouncement(true);
+                      }}
+                      className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-vr-200 bg-vr-50 px-3 py-2 text-sm font-semibold text-vr-800 hover:bg-vr-100"
+                    >
+                      <FiSend /> Gửi thông báo vận hành
+                    </button>
+                  </div>
+                )}
                 <div className="max-h-96 overflow-y-auto p-2">
                   {notificationsError && (
                     <p className="m-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -311,6 +331,10 @@ export default function Topbar({
           </div>
         </div>
       </div>
+      <OperatorAnnouncementModal
+        open={showAnnouncement}
+        onClose={() => setShowAnnouncement(false)}
+      />
     </header>
   );
 }
@@ -327,3 +351,4 @@ function formatNotificationDate(value: string, language?: string) {
     minute: "2-digit",
   }).format(date);
 }
+

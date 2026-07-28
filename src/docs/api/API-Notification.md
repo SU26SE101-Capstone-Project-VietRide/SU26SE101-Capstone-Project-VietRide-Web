@@ -1,6 +1,8 @@
-# VietRide Notification API Documentation
+# Tài liệu API Notification — VietRide
 
 Tài liệu này được rà soát từ source code hiện tại của Notification service, Gateway route table, DTO Zod, guard xác thực, Prisma schema và shared `ApiResponse` filter/interceptor. Chỉ mô tả hành vi có trong code.
+
+> Cập nhật lần cuối: **2026-07-28** — đã đồng bộ toàn bộ kết quả T1–T9/Phase 10: Unicode, event coverage, recipient policy, Parcel Settlement v2, idempotency, retry/DLQ, FCM/email recovery, bảo mật log và real-stack E2E.
 
 ## Table of Contents
 
@@ -10,8 +12,13 @@ Tài liệu này được rà soát từ source code hiện tại của Notifica
 4. [Quy Ước Chung](#quy-ước-chung)
 5. [Tổng Quan Endpoint](#tổng-quan-endpoint)
 6. [Chi Tiết Endpoint](#chi-tiết-endpoint)
-7. [Lưu Ý Flow Và Hành Vi Đặc Biệt](#lưu-ý-flow-và-hành-vi-đặc-biệt)
-8. [Rà Soát Lại Với Code](#rà-soát-lại-với-code)
+7. [Event, Routing Key và Chính Sách Người Nhận](#event-routing-key-và-chính-sách-người-nhận)
+8. [Luồng Push và Payload Mobile](#luồng-push-và-payload-mobile)
+9. [Độ Tin Cậy Delivery và Idempotency](#độ-tin-cậy-delivery-và-idempotency)
+10. [Tích Hợp FE/Mobile](#tích-hợp-femobile)
+11. [Verification T1–T9](#verification-t1t9)
+12. [Lưu Ý Flow Và Hành Vi Đặc Biệt](#lưu-ý-flow-và-hành-vi-đặc-biệt)
+13. [Rà Soát Lại Với Code](#rà-soát-lại-với-code)
 
 ## Base URL
 
@@ -143,12 +150,16 @@ TRIP_DISRUPTED | STOP_DISABLED | VEHICLE_SUBSTITUTED | VEHICLE_SWAPPED |
 PARCEL_LOADED | PARCEL_IN_TRANSIT | PARCEL_DELIVERED_PENDING_CONFIRM |
 PARCEL_REJECTED | PARCEL_RETURNED | WALLET_CREDITED | WALLET_DEBITED |
 INCIDENT_REPORTED | OFF_ROUTE_ALERT | TRIP_DELAYED_ALERT | CARGO_NEAR_FULL_ALERT |
-PARCEL_REVIEW_REQUESTED | VOUCHER_CONSENT_REQUESTED | VOUCHER_CONSENT_ACCEPTED |
-VOUCHER_CONSENT_REJECTED | SUBSCRIPTION_LIMIT_EXCEEDED |
+PARCEL_REVIEW_REQUESTED | PARCEL_REVIEW_APPROVED | PARCEL_FINAL_PAYMENT_REQUIRED |
+PARCEL_SETTLEMENT_RECOVERED | VOUCHER_CONSENT_REQUESTED | VOUCHER_CONSENT_ACCEPTED |
+VOUCHER_CONSENT_REJECTED | SUBSCRIPTION_LIMIT_EXCEEDED | SUBSCRIPTION_USAGE_WARNING |
 SUBSCRIPTION_TRIAL_EXPIRING | SUBSCRIPTION_EXPIRED | SUBSCRIPTION_APPROVED |
 SUBSCRIPTION_PAYMENT_PENDING_WARN | SUBSCRIPTION_PAYMENT_AUTO_REVERTED |
-DRIVER_SCHEDULE_EDITED | PAYOUT_PROCESSED | PAYOUT_FAILED |
-OPERATOR_APPROVED | OPERATOR_SUSPENDED
+INVOICE_ISSUED | DRIVER_SCHEDULE_EDITED | PAYOUT_PROCESSED | PAYOUT_FAILED |
+OPERATOR_APPROVED | OPERATOR_SUSPENDED | OPERATOR_REGISTRATION_SUBMITTED |
+TRIP_ASSIGNED | TRIP_ASSIGNMENT_REMOVED | OPERATOR_ANNOUNCEMENT |
+SHUTTLE_ASSIGNED | SHUTTLE_UNFULFILLED | SHUTTLE_WARNING |
+DRIVER_STOP_DEPARTED_WITH_PENDING
 ```
 
 ```text
@@ -158,8 +169,8 @@ OPERATOR_SUBSCRIPTION_NOTICE | INVOICE_NOTICE
 ```
 
 ```text
-EmailDeliveryStatus = PENDING | SENT | FAILED | RETRYING
-NotificationDeliveryStatus = PENDING | SENT | FAILED | RETRYING
+EmailDeliveryStatus = PENDING | SENDING | SENT | FAILED | RETRYING
+NotificationDeliveryStatus = PENDING | SENT | FAILED | RETRYING | VALIDATED
 DevicePlatform = IOS | ANDROID | WEB
 ```
 
@@ -171,9 +182,10 @@ DevicePlatform = IOS | ANDROID | WEB
 | GET | N/A | `/ready` | Không | Readiness probe Prisma/Redis/RabbitMQ |
 | GET | `/v1/notifications` | `/v1/notifications` | User JWT | Lấy danh sách notification của user hiện tại |
 | POST | `/v1/notifications/:notificationId/read` | `/v1/notifications/:notificationId/read` | User JWT | Mark notification của user hiện tại là đã đọc |
+| POST | `/v1/operator/notifications` | `/v1/operator/notifications` | User JWT: `OPERATOR_ADMIN`, `OPERATOR_STAFF` | Gửi thông báo điều hành đến crew của một chuyến hoặc toàn operator |
 | POST | N/A | `/internal/v1/emails` | Internal JWT | Enqueue email delivery nội bộ |
 
-Không có controller route HTTP để tạo notification. Notification được tạo từ service/consumer nội bộ, không expose REST create trong controller hiện tại.
+Không có endpoint công khai để tạo một notification tùy ý cho bất kỳ user nào. Ngoài endpoint thông báo điều hành có kiểm soát role/scope, notification được tạo bởi service/consumer nội bộ.
 
 ## Chi Tiết Endpoint
 
@@ -433,8 +445,8 @@ HTTP `200`
         "id": "7e7d44b8-3d84-4dd5-b0a2-1f445de7c701",
         "userId": "11111111-1111-4111-8111-111111111111",
         "type": "BOOKING_CONFIRMED",
-        "title": "Dat ve thanh cong",
-        "body": "Ve #VR-1024 da duoc xac nhan.",
+        "title": "Đặt vé thành công",
+        "body": "Vé #VR-1024 đã được xác nhận.",
         "data": {
           "bookingId": "22222222-2222-4222-8222-222222222222",
           "bookingCode": "VR-1024"
@@ -937,7 +949,7 @@ POST http://localhost:3002/internal/v1/emails
 
 **Mô tả**
 
-Endpoint nội bộ để enqueue email delivery qua Notification service. Endpoint render template trước, tạo row `email_deliveries` với status mặc định `PENDING`, rồi enqueue worker email.
+Endpoint nội bộ để enqueue email delivery qua Notification service. Endpoint kiểm tra `Idempotency-Key` UUID v4, render template, tạo hoặc lấy lại row `email_deliveries` theo durable dedupe key, rồi enqueue worker email bằng job ID xác định.
 
 Gateway route table hiện không expose `/internal/v1/emails`; gọi trực tiếp service hoặc qua mạng nội bộ.
 
@@ -946,6 +958,7 @@ Gateway route table hiện không expose `/internal/v1/emails`; gọi trực ti�
 | Header | Bắt buộc | Giá trị | Ghi chú |
 |---|---:|---|---|
 | `X-Internal-Auth` | Có | `Bearer <internal_jwt>` | HS256 internal JWT |
+| `Idempotency-Key` | Có | UUID v4 | Retry cùng thao tác phải giữ nguyên key; key khác tạo thao tác mới |
 | `Content-Type` | Có | `application/json` | JSON body |
 | `x-request-id` | Không | string | Trace id |
 
@@ -975,6 +988,7 @@ Không có.
 | Field | Kiểu | Bắt buộc | Validation |
 |---|---|---:|---|
 | `notificationId` | string/null | Không | Nếu có: UUID; cho phép `null` |
+| `dedupeKey` | string | Không | Trim, 1–200 ký tự. Nếu bỏ trống, controller dùng `http-email:<Idempotency-Key>` |
 | `toEmail` | string | Có | Email hợp lệ |
 | `templateKey` | enum | Có | Một trong `EmailTemplateKey` |
 | `templateData` | object record | Có | `z.record(z.unknown())`; phải là object JSON |
@@ -983,11 +997,11 @@ Template renderer yêu cầu thêm field trong `templateData` theo `templateKey`
 
 | `templateKey` | Field bắt buộc theo renderer | Field optional/default |
 |---|---|---|
-| `AUTH_OTP` | `otpCode` hoặc `code` | `ttlMinutes` default `"10"`; `purpose` default `"xac thuc"` |
+| `AUTH_OTP` | `otpCode` hoặc `code` | `ttlMinutes` default `"10"`; `purpose` default `"xác thực"` |
 | `SET_INITIAL_PASSWORD` | `setPasswordUrl` hoặc `setInitialPasswordUrl` | Không có |
-| `PARCEL_DELIVERY_LINK` | `deliveryUrl` | `parcelCode` default `"kien hang"` |
-| `OPERATOR_SUBSCRIPTION_NOTICE` | `message` | `title` default `"Thong bao goi dich vu VietRide"`; `actionUrl` optional |
-| `INVOICE_NOTICE` | Không có | `invoiceNumber` default `"hoa don moi"`; `amountVnd`; `invoiceUrl` |
+| `PARCEL_DELIVERY_LINK` | `deliveryUrl` | `parcelCode` default `"kiện hàng"` |
+| `OPERATOR_SUBSCRIPTION_NOTICE` | `message` | `title` default `"Thông báo gói dịch vụ VietRide"`; `actionUrl` optional |
+| `INVOICE_NOTICE` | Không có | `invoiceNumber` default `"hóa đơn mới"`; `amountVnd`; `invoiceUrl` |
 
 Lưu ý: thiếu field bắt buộc của renderer hiện ném `Error` thường và trở thành HTTP `500 INTERNAL_ERROR`, không phải `400`.
 
@@ -1080,6 +1094,13 @@ HTTP `401` khi internal token sai/hết hạn/không có `sub`:
 }
 ```
 
+HTTP `422` khi thiếu hoặc gửi sai định dạng `Idempotency-Key`:
+
+| Trường hợp | `error.code` | `error.message`/ý nghĩa |
+|---|---|---|
+| Thiếu hoặc chỉ có khoảng trắng | `IDEMPOTENCY_KEY_REQUIRED` | Bắt buộc gửi header `Idempotency-Key` |
+| Không phải UUID v4 | `VALIDATION_ERROR` | `Idempotency-Key must be a UUID v4` |
+
 HTTP `500` khi renderer thiếu field bắt buộc hoặc lỗi hệ thống. Với lỗi thiếu field template, renderer ném `Error` nên `message` là chuỗi lỗi cụ thể như ví dụ dưới:
 
 ```json
@@ -1104,6 +1125,7 @@ HTTP `500` khi renderer thiếu field bắt buộc hoặc lỗi hệ thống. V�
 ```bash
 curl -i -X POST "http://localhost:3002/internal/v1/emails" \
   -H "X-Internal-Auth: Bearer $INTERNAL_TOKEN" \
+  -H "Idempotency-Key: 11111111-1111-4111-8111-111111111111" \
   -H "Content-Type: application/json" \
   -H "x-request-id: req-internal-email-001" \
   --data '{
@@ -1125,6 +1147,7 @@ const res = await fetch("http://localhost:3002/internal/v1/emails", {
   method: "POST",
   headers: {
     "X-Internal-Auth": `Bearer ${internalToken}`,
+    "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
     "Content-Type": "application/json",
     "x-request-id": "req-internal-email-001"
   },
@@ -1164,6 +1187,7 @@ const { data } = await axios.post(
   {
     headers: {
       "X-Internal-Auth": `Bearer ${internalToken}`,
+      "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
       "x-request-id": "req-internal-email-001"
     }
   }
@@ -1174,20 +1198,235 @@ console.log(data);
 
 **Lưu ý đặc biệt**
 
-Endpoint này không có idempotency key trong controller/service. Gọi lại cùng body sẽ tạo email delivery mới nếu DB/queue xử lý thành công.
+Endpoint bắt buộc `Idempotency-Key` UUID v4. Nếu body không truyền `dedupeKey`, controller dùng `http-email:<Idempotency-Key>`; retry cùng key nhận lại cùng delivery và không tạo email audit trùng. `PENDING`, `RETRYING` hoặc `SENDING` không chắc chắn sẽ được enqueue/reconcile lại; `SENT` không gửi lại.
+
+### 6. Gửi thông báo điều hành
+
+**Method + URL**
+
+```http
+POST https://api.vietride.online/v1/operator/notifications
+POST http://localhost:3000/v1/operator/notifications
+```
+
+Gateway yêu cầu User JWT có role `OPERATOR_ADMIN` hoặc `OPERATOR_STAFF` và vẫn forward bearer token xuống Notification service để service kiểm tra lại claim. Endpoint không dành cho passenger, driver hoặc assistant.
+
+**Headers bắt buộc**
+
+| Header | Giá trị | Mô tả |
+|---|---|---|
+| `Authorization` | `Bearer <access_token>` | User JWT của operator admin/staff. Claim `operatorId` phải có giá trị UUID. |
+| `Idempotency-Key` | UUID v4 | Bắt buộc; cùng actor và key sẽ nhận lại kết quả trước đó trong 24 giờ. |
+| `Content-Type` | `application/json` | Bắt buộc khi gửi body. |
+
+**Request body**
+
+```json
+{
+  "scope": "TRIP",
+  "tripId": "8e45aabb-9b59-455f-a255-a897c2d18d21",
+  "title": "Điều chỉnh giờ tập trung",
+  "body": "Vui lòng có mặt trước giờ xuất bến 15 phút."
+}
+```
+
+| Field | Kiểu | Bắt buộc | Quy tắc |
+|---|---|---:|---|
+| `scope` | `TRIP` hoặc `OPERATOR` | Có | `TRIP`: gửi cho crew hiện tại của một chuyến. `OPERATOR`: gửi cho toàn bộ driver/assistant active của operator. |
+| `tripId` | UUID | Có điều kiện | Bắt buộc khi `scope=TRIP`; không được gửi khi `scope=OPERATOR`. |
+| `title` | string | Có | Trim, từ 1 đến 120 ký tự. |
+| `body` | string | Có | Trim, từ 1 đến 500 ký tự. |
+
+**Response thành công — `202 Accepted`**
+
+```json
+{
+  "success": true,
+  "statusCode": 202,
+  "data": {
+    "announcementId": "14a28c5a-0435-4189-818c-af5259c9958b",
+    "recipientCount": 2
+  },
+  "meta": {
+    "traceId": "req-operator-announcement-001",
+    "timestamp": "2026-07-11T14:55:00.000Z"
+  }
+}
+```
+
+Khi `scope=TRIP`, Notification gọi internal Trip API để lấy crew snapshot, đồng thời kiểm tra chuyến thuộc caller operator. Khi `scope=OPERATOR`, Notification gọi Identity internal API để lấy các user active có role `DRIVER` hoặc `ASSISTANT` của caller operator. Không có recipient hợp lệ trả `422 NOTIFICATION_RECIPIENTS_NOT_FOUND`.
+
+Các lỗi chính: `400 VALIDATION_FAILED` khi body không hợp lệ; `400 IDEMPOTENCY_KEY_MISMATCH` khi tái sử dụng key với body khác; `403 FORBIDDEN` khi role/operator scope không hợp lệ; `404 TRIP_NOT_FOUND` khi trip không tồn tại hoặc không thuộc operator; `409 IDEMPOTENCY_REQUEST_IN_PROGRESS` khi cùng key đang được xử lý; `422 IDEMPOTENCY_KEY_REQUIRED` khi thiếu key; `422 VALIDATION_ERROR` khi key không phải UUID v4; `422 NOTIFICATION_RECIPIENTS_NOT_FOUND` khi không tìm thấy crew active.
+
+## Event, Routing Key và Chính Sách Người Nhận
+
+RabbitMQ dùng topic exchange `vietride.events`. Routing key chuẩn là `<service>.<aggregate>.<verb_past>`. Mọi notification tạo từ event có durable dedupe theo routing key, message/event identity, người nhận và `NotificationType`.
+
+### Các event v1 quan trọng
+
+| Routing key | Người nhận | `NotificationType`/hành vi chính |
+|---|---|---|
+| `identity.operator.registration_submitted` | Tất cả System Admin active | `OPERATOR_REGISTRATION_SUBMITTED` |
+| `identity.operator.approved` / `identity.operator.suspended` | Operator Admin active của nhà xe | `OPERATOR_APPROVED` / `OPERATOR_SUSPENDED` |
+| `identity.subscription.usage_warning` | Operator Admin active của nhà xe | `SUBSCRIPTION_USAGE_WARNING`; producer phát một lần khi crossing 80% theo resource/kỳ |
+| `identity.otp.requested` | Email được chỉ định | Chỉ tạo email OTP durable, không tạo in-app notification |
+| `payment.wallet.credited` / `payment.wallet.debited` | `userId` trong event | `WALLET_CREDITED` / `WALLET_DEBITED` |
+| `booking.voucher.consent_requested` | Operator Admin active của nhà xe | `VOUCHER_CONSENT_REQUESTED` |
+| `trip.trip.route_changed` | Crew hiện tại và hành khách thuộc booking bị ảnh hưởng | `TRIP_ROUTE_CHANGED`; không broadcast cho toàn bộ hành khách ngoài danh sách affected |
+| `trip.trip.schedule_changed` | Crew hiện tại | `TRIP_SCHEDULE_CHANGED`; passenger notification đi qua các Booking event riêng |
+| `trip.trip.delayed` | Hành khách bị ảnh hưởng và Operator Admin phù hợp | `TRIP_DELAYED` |
+| `parcel.parcel.review_requested` | Operator Admin của nhà xe | `PARCEL_REVIEW_REQUESTED` |
+| `parcel.parcel.review_approved` | Người gửi | `PARCEL_REVIEW_APPROVED` |
+| `parcel.parcel.final_payment_requested` | Người gửi | `PARCEL_FINAL_PAYMENT_REQUIRED` |
+| `parcel.parcel.settlement_recovered` | Người gửi | `PARCEL_SETTLEMENT_RECOVERED` |
+| `parcel.parcel.cancelled` | Người gửi theo policy review-timeout | `PARCEL_REJECTED` |
+| `parcel.parcel.auto_rejected` | Người gửi theo policy check-in/final-payment timeout | `PARCEL_REJECTED`; payload giữ reason, số cọc bị giữ và refund nếu có |
+
+Các Parcel event còn lại (`created`, `loaded`, `unloaded`, delivery, transfer, return, pending operator action) dùng snapshot Parcel và policy riêng theo từng routing key; không fan-out mặc định đồng thời cho sender và registered recipient.
+
+Không có Notification event `rag.document.approved`; RAG `ingest_requested` là work item nội bộ của RAG, không phải thông báo người dùng.
+
+### Fail-closed recipient resolution
+
+Notification resolve người nhận qua internal API của Booking, Trip, Parcel và Identity. Timeout, `401/403`, `5xx`, response sai ADR envelope hoặc payload malformed đều được xem là dependency failure và message được retry; không được biến thành danh sách người nhận rỗng hợp lệ. Parcel terminal row vẫn phải resolve được snapshot.
+
+## Luồng Push và Payload Mobile
+
+### Event Trip assignment/crew
+
+| Routing key | Producer | Người nhận | Hành vi Notification |
+|---|---|---|---|
+| `trip.trip.assigned` | Trip generation | `driverUserId`, `assistantUserId` nếu có | Tạo notification `TRIP_ASSIGNED` cho từng crew member. |
+| `trip.trip.crew_changed` | API đổi crew | Crew mới và crew bị gỡ | Crew mới nhận `TRIP_ASSIGNED`; crew bị gỡ nhận `TRIP_ASSIGNMENT_REMOVED`; crew không đổi không nhận lại notification. |
+
+Payload `trip.trip.assigned`:
+
+```json
+{
+  "tripId": "uuid",
+  "operatorId": "uuid",
+  "driverUserId": "uuid",
+  "assistantUserId": "uuid hoặc null",
+  "routeName": "Sài Gòn - Đà Lạt",
+  "vehiclePlateNumber": "51B-123.45",
+  "departureDateTime": "2026-07-12T01:00:00+00:00"
+}
+```
+
+Payload `trip.trip.crew_changed` dùng cùng snapshot và có thêm `oldDriverUserId`, `oldAssistantUserId`. Consumer dùng routing key + RabbitMQ message ID làm idempotency identity; notification mỗi recipient có dedupe key riêng.
+
+Mỗi push FCM có notification title/body và object `data` chỉ chứa string. Mobile dùng `data.type` để route màn hình:
+
+| Điều kiện | `data.type` |
+|---|---|
+| `TRIP_ASSIGNED` | `TRIP_ASSIGNED` |
+| Các notification trip/stop/vehicle còn lại | `TRIP_UPDATE` |
+| Notification parcel | `PARCEL_UPDATE` |
+| Các loại còn lại, gồm announcement | `NOTIFICATION` |
+
+`data.notificationType` luôn giữ NotificationType chi tiết để FE/mobile hiển thị nội dung hoặc xử lý nghiệp vụ đặc thù. Các key `notificationId`, `type`, `notificationType` là key hệ thống.
+
+Ví dụ payload mà mobile nhận:
+
+```json
+{
+  "notification": {
+    "title": "Phân công chuyến mới",
+    "body": "Bạn được phân công chuyến Sài Gòn - Đà Lạt (51B-123.45)."
+  },
+  "data": {
+    "notificationId": "uuid",
+    "type": "TRIP_ASSIGNED",
+    "notificationType": "TRIP_ASSIGNED",
+    "tripId": "uuid",
+    "operatorId": "uuid",
+    "routeName": "Sài Gòn - Đà Lạt",
+    "vehiclePlateNumber": "51B-123.45",
+    "departureDateTime": "2026-07-12T01:00:00+00:00"
+  }
+}
+```
+
+## Độ Tin Cậy Delivery và Idempotency
+
+| Thành phần | Hành vi hiện tại |
+|---|---|
+| RabbitMQ consumer | Durable processed marker + processing lock; chỉ mark processed sau khi DB/BullMQ thành công hoặc chủ đích drop payload malformed. Cùng message ID nhưng payload khác bị từ chối. |
+| Retry/DLQ | Transient failure đi qua delayed retry có giới hạn. Khi hết retry, original message chỉ được ACK sau khi broker confirm publish vào DLQ. |
+| In-app notification | Unique `dedupe_key` đảm bảo replay không tạo row trùng cho cùng event/người nhận/type. |
+| DB → BullMQ recovery | Nếu DB persist thành công nhưng queue add thất bại, replay/reconciliation enqueue lại job xác định từ cùng DB row. |
+| FCM | Job ID xác định theo notification; kiểm tra token blacklist ngay trước mỗi lần gửi; token invalid được deactivate; delivery audit dùng `PENDING/RETRYING/SENT/FAILED/VALIDATED`. |
+| Email | Durable dedupe key; trạng thái `PENDING → SENDING → SENT/RETRYING/FAILED`; lease `SENDING` stale được reclaim. CAS dùng timestamp PostgreSQL đầy đủ microsecond để worker cũ không ghi đè lease mới. |
+| Unicode | Toàn bộ title/body/email subject/text/HTML do hệ thống sinh dùng tiếng Việt đầy đủ dấu. Placeholder động được giữ nguyên; nội dung operator nhập không bị tự sửa. |
+| Bảo mật | Sentry `sendDefaultPii=false`; log/Sentry scrub JWT, FCM token, email, signed URL và raw payload nhạy cảm. |
+
+Không backfill notification lịch sử. Khi triển khai schema/event mới, môi trường được clear/reset theo quyết định dự án.
+
+## Tích Hợp FE/Mobile
+
+### Đăng ký FCM token
+
+Đây là API của Identity nhưng là điều kiện để mobile nhận push từ Notification service:
+
+```http
+POST /v1/auth/device-token
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "fcmToken": "token do Firebase Messaging cấp",
+  "platform": "ANDROID"
+}
+```
+
+`platform` nhận `ANDROID`, `IOS` hoặc `WEB`. Mobile gọi API này sau login, sau khi Firebase token đổi và sau khi user cấp notification permission. Khi logout hoặc user tắt nhận thông báo, gọi `DELETE /v1/auth/device-token` theo API Identity.
+
+### Hành vi FE/mobile nên thực hiện
+
+1. Khi app foreground hoặc user mở push, đọc `data.notificationId` và gọi `GET /v1/notifications` để lấy lịch sử/in-app state chính xác.
+2. Route theo `data.type`: `TRIP_ASSIGNED` mở chi tiết chuyến; `TRIP_UPDATE` mở chuyến; `PARCEL_UPDATE` mở kiện hàng; `NOTIFICATION` mở inbox thông báo.
+3. Dùng `data.notificationType` khi cần phân biệt chi tiết, ví dụ `TRIP_ASSIGNMENT_REMOVED` để gỡ chuyến khỏi danh sách công việc local.
+4. Khi user đọc notification trong inbox, gọi `POST /v1/notifications/{notificationId}/read`; endpoint thành công trả `204 No Content`.
+5. Không xem FCM là source of truth: app có thể bị mất push khi offline, vì vậy inbox `GET /v1/notifications` luôn là nguồn hiển thị chính.
+
+## Verification T1–T9
+
+Lệnh real-stack chọn lọc:
+
+```bash
+npm run e2e:notification-v1
+```
+
+Matrix này khởi tạo PostgreSQL, Redis, RabbitMQ, Notification, Gateway và dependency fixture cô lập; kiểm tra crash/redelivery, durable idempotency, passenger route/delay, crew/operator fan-out, Parcel review/timeout/recovery, producer mới, retry → DLQ, DB → queue recovery và Unicode qua Gateway.
+
+Verification chuẩn:
+
+```bash
+npx nx run notification:lint
+npx nx run notification:test -- --runInBand
+npx nx run notification:test:e2e -- --runInBand
+npx nx run notification:build
+npx nx run notification-e2e:e2e
+npx nx run gateway-e2e:e2e
+git diff --check
+```
+
+Kết quả nghiệm thu ngày 2026-07-28: lint `0` error; unit `233/233`; component E2E `22/22`; Gateway E2E cô lập `2/2`; build và real-stack Notification v1 matrix đều pass.
 
 ## Lưu Ý Flow Và Hành Vi Đặc Biệt
 
-1. Notification in-app không được tạo bằng REST endpoint public. `NotificationsService.createNotification()` được dùng bởi consumer/service nội bộ và enqueue FCM nếu row mới được tạo.
+1. Notification in-app không được tạo bằng REST endpoint public tùy ý. `NotificationsService.createNotification()` được dùng bởi consumer/service nội bộ; `POST /v1/operator/notifications` là ngoại lệ có kiểm soát role, operator scope và Idempotency-Key. FCM job luôn được enqueue sau khi lấy notification, kể cả khi dedupe key trả về row đã tồn tại.
 2. `POST /v1/notifications/:notificationId/read` chống IDOR bằng `findFirst({ id, userId })`; notification không thuộc user hiện tại trả 404 như không tồn tại.
 3. `PATCH /v1/notifications/:id` không tồn tại trong controller hiện tại.
 4. Token user hết hạn hoặc invalid:
    - Qua Gateway: thường nhận `401 AUTH_TOKEN_INVALID`.
    - Gọi trực tiếp service: nhận `401 UNAUTHORIZED`.
    FE/mobile nên refresh token bằng Identity service rồi retry request gốc.
-5. Gateway route `/v1/notifications` không yêu cầu role cụ thể, nhưng phone gate ở Gateway có thể chặn role `PASSENGER` nếu claim `hasPhone` không phải `true`.
+5. Gateway route `/v1/notifications` không yêu cầu role cụ thể, nhưng phone gate ở Gateway có thể chặn role `PASSENGER` nếu claim `hasPhone` không phải `true`. Route `/v1/operator/notifications` chỉ cho `OPERATOR_ADMIN` và `OPERATOR_STAFF`.
 6. Service có Swagger trực tiếp ở `/docs`; Gateway aggregator ở `/docs`.
-7. Internal email enqueue chỉ tạo delivery `PENDING`; gửi thật do worker nền xử lý SendGrid.
+7. Internal email enqueue bắt buộc `Idempotency-Key` UUID v4, tạo/lấy lại delivery durable rồi worker nền xử lý SendGrid.
+8. Dependency recipient lookup lỗi phải retry/fail closed; FE không nên suy luận rằng không có notification chỉ vì một dependency tạm thời unavailable.
+9. Không backfill nội dung notification lịch sử; Unicode đầy đủ áp dụng cho notification mới được tạo sau thay đổi.
 
 ## Rà Soát Lại Với Code
 
@@ -1195,12 +1434,17 @@ Endpoint này không có idempotency key trong controller/service. Gọi lại c
 
 | Hạng mục | File đã kiểm tra | Kết luận |
 |---|---|---|
-| Gateway route | `apps/gateway/src/config/routes.ts` | Chỉ expose `/v1/notifications` và `/api-specs/notification` cho Notification qua Gateway |
-| Notification module | `apps/notification/src/app/app.module.ts`, `apps/notification/src/notifications/notifications.module.ts` | Controller được đăng ký: `HealthController`, `ReadyController`, `NotificationsController`, `InternalEmailsController` |
-| Controller HTTP | `notifications.controller.ts`, `internal-emails.controller.ts`, `health.controller.ts`, `ready.controller.ts` | Endpoint thật đúng như bảng tổng quan |
-| DTO/Zod | `list-notifications-query.dto.ts`, `notification-param.dto.ts`, `create-email-send.dto.ts` | Validation/default đã ghi theo schema |
+| Gateway route | `apps/gateway/src/config/routes.ts` | Expose `/v1/notifications`, `/v1/operator/notifications` và `/api-specs/notification` cho Notification qua Gateway |
+| Notification module | `apps/notification/src/app/app.module.ts`, `apps/notification/src/notifications/notifications.module.ts` | Controller được đăng ký: `HealthController`, `ReadyController`, `NotificationsController`, `OperatorNotificationsController`, `InternalEmailsController` |
+| Controller HTTP | `notifications.controller.ts`, `operator-notifications.controller.ts`, `internal-emails.controller.ts`, `health.controller.ts`, `ready.controller.ts` | Endpoint thật đúng như bảng tổng quan |
+| DTO/Zod | `list-notifications-query.dto.ts`, `notification-param.dto.ts`, `create-email-send.dto.ts`, `create-operator-announcement.dto.ts` | Validation/default đã ghi theo schema |
 | Auth | `user-jwt-auth.guard.ts`, `user-jwt.verifier.ts`, `internal-jwt-auth.guard.ts` | Header/token/issuer/audience/claim đã ghi theo code |
 | Response envelope | `ApiResponseInterceptor`, `ApiResponseExceptionFilter`, `ZodValidationPipe` | Success/error shape và validation fields đã ghi theo code |
-| DB enum/response fields | `apps/notification/prisma/schema.prisma`, `notifications.service.ts` | Enum và response DTO đã ghi theo code |
+| DB enum/response fields | `apps/notification/prisma/schema.prisma`, `notifications.service.ts` | Đồng bộ đầy đủ Notification type v1, `EmailDeliveryStatus.SENDING` và `NotificationDeliveryStatus.VALIDATED` |
+| Event registry/consumer | `libs/shared/contracts/src/events/**`, `*-events.constants.ts`, `*-events.consumer.ts` | Đồng bộ producer facts, routing key, Zod payload, durable idempotency và recipient policy T1–T8 |
+| Push/email worker | `fcm-push.worker.ts`, `email-send.worker.ts`, `notifications.repository.ts` | FCM blacklist/deactivate, DB→queue recovery, email lease reclaim và microsecond-safe CAS |
+| Retry/DLQ | `libs/shared/nest-rabbitmq/src/rabbitmq.consumer.ts` | Delayed retry giới hạn; chỉ ACK original sau broker-confirmed DLQ publish |
+| Bảo mật/observability | `notification-logger.ts`, `notification-sentry*.ts`, `main.ts` | Pino + Sentry, không gửi PII mặc định và scrub dữ liệu nhạy cảm |
+| Real-stack acceptance | `scripts/run-notification-idempotency-e2e.mjs`, `infra/docker/docker-compose.notification-idempotency-e2e.yml` | Bao phủ crash/redelivery, recipient fan-out, Parcel, producer mới, DLQ, recovery và Gateway Unicode |
 
 ⚠️ TODO: cần xác nhận thêm exact production exposure cho direct Notification service và exact runtime `429` message từ `@nestjs/throttler`; source hiện chỉ cho biết rate limit và status/code mapping.

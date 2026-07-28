@@ -53,6 +53,7 @@ import {
   getOperatorVoucherConsents,
   getOperatorVouchers,
   getOperatorParcelReportSummary,
+  getOperatorParcels,
   getParcelAvailableTrips,
   getPromotions,
   getPublicLocations,
@@ -69,6 +70,7 @@ import {
   lockInternalRoundTripSeats,
   lockAdminUser,
   markNotificationRead,
+  sendOperatorNotification,
   mergeAdminStations,
   downloadOperatorInvoice,
   adjustAdminOperatorWallet,
@@ -1476,8 +1478,7 @@ describe("vietride API", () => {
       "parcel-1",
       {
         decision: "APPROVED",
-        depositAmount: 50000,
-        paymentMethod: "VNPAY",
+        reason: "Approved against route fare snapshot",
       },
       "review-idem-1",
     );
@@ -2307,3 +2308,91 @@ describe("vietride API", () => {
     );
   });
 });
+
+describe("operator parcel queues", () => {
+  it("builds the operator parcel queue query", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: { id: "user-1", email: "manager@operator.vn", displayName: "Operator Manager", role: "OPERATOR_ADMIN" },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ data: { items: [], page: 2, pageSize: 20, totalItems: 0, totalPages: 0, hasPreviousPage: true, hasNextPage: false } }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorParcels({
+      status: "PENDING_OPERATOR_ACTION",
+      pendingActionType: "CAPACITY_EXCEEDED",
+      tripId: "trip-1",
+      page: 2,
+      pageSize: 20,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/parcels?status=PENDING_OPERATOR_ACTION&pendingActionType=CAPACITY_EXCEEDED&tripId=trip-1&page=2&pageSize=20",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+});
+describe("operator notification announcements", () => {
+  it("sends a trip announcement with an idempotency key", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "staff@operator.vn",
+          displayName: "Operator Staff",
+          role: "OPERATOR_STAFF",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: { announcementId: "announcement-1", recipientCount: 12 },
+        }),
+        { status: 202 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendOperatorNotification(
+      {
+        scope: "TRIP",
+        tripId: "trip-1",
+        title: "Departure updated",
+        body: "The trip will leave 15 minutes later.",
+      },
+      "announcement-key",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/notifications",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          scope: "TRIP",
+          tripId: "trip-1",
+          title: "Departure updated",
+          body: "The trip will leave 15 minutes later.",
+        }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "announcement-key",
+        }),
+      }),
+    );
+  });
+});
+
