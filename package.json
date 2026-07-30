@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed:operator-users": "node scripts/seed-operator-users.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.88.0",

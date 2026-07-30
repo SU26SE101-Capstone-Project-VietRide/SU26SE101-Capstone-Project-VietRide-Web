@@ -293,7 +293,9 @@ export default function ManagerReports() {
         </div>
 
         <div className="px-5 pb-5">
-          <p className="text-xs text-gray-500">{t("reports.exportRangeHint")}</p>
+          <p className="text-xs text-gray-500">
+            {t("reports.exportRangeHint")}
+          </p>
           {exportError && (
             <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {exportError}

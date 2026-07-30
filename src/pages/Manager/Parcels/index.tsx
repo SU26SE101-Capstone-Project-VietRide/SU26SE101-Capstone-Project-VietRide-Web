@@ -20,7 +20,6 @@ import {
 } from "react-icons/fi";
 import {
   cancelOperatorParcel,
-  confirmOperatorParcelDelivery,
   confirmOperatorParcelRefund,
   createOperatorParcelRouteFare,
   exportOperatorParcelReport,
@@ -30,7 +29,6 @@ import {
   getParcelDetail,
   overrideOperatorParcelCapacity,
   requestOperatorParcelTransfer,
-  reviewOperatorParcel,
   returnOperatorParcel,
   type OperatorParcelReportSummary,
   type OperatorRoute,
@@ -89,14 +87,6 @@ function normalizeStatus(status?: string) {
   return status?.replaceAll("_", " ") || "-";
 }
 
-function isActionableReview(parcel: ParcelDetail | null) {
-  return parcel?.status === "PENDING_OPERATOR_REVIEW";
-}
-
-function isPendingDeliveryConfirm(parcel: ParcelDetail | null) {
-  return parcel?.status === "DELIVERED_PENDING_CONFIRM";
-}
-
 function pendingActionOf(parcel: ParcelDetail | null) {
   return parcel?.pendingActionType ?? "";
 }
@@ -116,12 +106,27 @@ function isPendingCapacityOverride(parcel: ParcelDetail | null) {
   );
 }
 
+function canRequestTransfer(parcel: ParcelDetail | null) {
+  return isPendingCapacityOverride(parcel) || parcel?.status === "TRANSFER_ESCALATED";
+}
+
+function canReturnParcel(parcel: ParcelDetail | null) {
+  return parcel?.status === "DELIVERY_REJECTED";
+}
+
+function canMarkReturned(parcel: ParcelDetail | null) {
+  return parcel?.status === "RETURN_INITIATED";
+}
+
+function canCancelException(parcel: ParcelDetail | null) {
+  return parcel?.status === "PENDING_OPERATOR_ACTION";
+}
+
 export default function ParcelsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const user = getAuthUser();
-  const canOperate =
-    user?.role === "OPERATOR_ADMIN" || user?.role === "OPERATOR_STAFF";
+  const canOperate = user?.role === "OPERATOR_ADMIN";
   const canOverrideCapacity = user?.role === "OPERATOR_ADMIN";
   const canManageRouteFares = user?.role === "OPERATOR_ADMIN";
   const [summary, setSummary] = useState<OperatorParcelReportSummary | null>(null);
@@ -133,7 +138,6 @@ export default function ParcelsList() {
   const [selectedParcel, setSelectedParcel] = useState<ParcelDetail | null>(null);
   const [targetTripId, setTargetTripId] = useState("");
   const [reason, setReason] = useState("");
-  const [note, setNote] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -150,12 +154,7 @@ export default function ParcelsList() {
   const [fareError, setFareError] = useState("");
   const pageSize = 8;
 
-  const pendingActionCount = useMemo(
-    () =>
-      (summary?.totalRejected ?? 0) +
-      (selectedParcel?.status === "PENDING_OPERATOR_REVIEW" ? 1 : 0),
-    [selectedParcel, summary],
-  );
+  const pendingActionCount = useMemo(() => summary?.totalRejected ?? 0, [summary]);
   const paginatedRouteFares = useMemo(
     () => routeFares.slice((farePage - 1) * pageSize, farePage * pageSize),
     [farePage, routeFares],
@@ -287,20 +286,6 @@ export default function ParcelsList() {
     setMessage(t("parcels.detailLoaded"));
   }
 
-  async function handleApproveReview() {
-    if (!selectedParcel || !isActionableReview(selectedParcel)) {
-      setError(t("parcels.reviewEmpty"));
-      return;
-    }
-
-    await reviewOperatorParcel(selectedParcel.parcelId, {
-      decision: "APPROVED",
-      reason: reason.trim() || null,
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.reviewApproveSuccess"));
-  }
-
   async function handleExportReport() {
     const report = await exportOperatorParcelReport({
       from: fromDate,
@@ -414,43 +399,6 @@ export default function ParcelsList() {
     });
     setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
     setMessage(t("parcels.statusReturnedSuccess"));
-  }
-
-  async function handleRejectReview() {
-    if (!selectedParcel || !isActionableReview(selectedParcel)) {
-      setError(t("parcels.reviewEmpty"));
-      return;
-    }
-
-    if (!reason.trim()) {
-      setError(t("parcels.reviewReasonRequired"));
-      return;
-    }
-
-    await reviewOperatorParcel(selectedParcel.parcelId, {
-      decision: "REJECTED",
-      reason: reason.trim(),
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.reviewRejectSuccess"));
-  }
-
-  async function handleConfirmDelivery() {
-    if (!selectedParcel || !isPendingDeliveryConfirm(selectedParcel)) {
-      setError(t("parcels.deliveryNotPending"));
-      return;
-    }
-
-    if (!note.trim()) {
-      setError(t("parcels.deliveryNoteRequired"));
-      return;
-    }
-
-    await confirmOperatorParcelDelivery(selectedParcel.parcelId, {
-      note: note.trim(),
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.deliverySuccess"));
   }
 
   async function handleCancelParcel() {
@@ -779,57 +727,9 @@ export default function ParcelsList() {
                   placeholder={t("parcels.decisionReasonPlaceholder")}
                 />
               </div>
-              <div>
-                <label className={labelClass}>{t("parcels.deliveryNotes")}</label>
-                <textarea
-                  className={`${inputClass} min-h-[72px]`}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder={t("parcels.deliveryNotesPlaceholder")}
-                />
-              </div>
             </div>
 
             <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                disabled={
-                  !canOperate ||
-                  isActionLoading ||
-                  !isActionableReview(selectedParcel)
-                }
-                onClick={() => void runAction(handleApproveReview)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiCheckCircle size={16} />
-                {t("parcels.approve")}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  !canOperate ||
-                  isActionLoading ||
-                  !isActionableReview(selectedParcel)
-                }
-                onClick={() => void runAction(handleRejectReview)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiXCircle size={16} />
-                {t("parcels.reject")}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  !canOperate ||
-                  isActionLoading ||
-                  !isPendingDeliveryConfirm(selectedParcel)
-                }
-                onClick={() => void runAction(handleConfirmDelivery)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiPackage size={16} />
-                {t("parcels.confirmDelivery")}
-              </button>
               <button
                 type="button"
                 disabled={
@@ -858,7 +758,7 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canOperate || isActionLoading || !selectedParcel}
+                disabled={!canOperate || isActionLoading || !canRequestTransfer(selectedParcel)}
                 onClick={() => void runAction(handleRequestTransfer)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -867,7 +767,7 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canOperate || isActionLoading || !selectedParcel}
+                disabled={!canOperate || isActionLoading || !canReturnParcel(selectedParcel)}
                 onClick={() => void runAction(handleReturnParcel)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -876,7 +776,7 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canOperate || isActionLoading || !selectedParcel}
+                disabled={!canOperate || isActionLoading || !canMarkReturned(selectedParcel)}
                 onClick={() => void runAction(handleMarkReturned)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -885,7 +785,7 @@ export default function ParcelsList() {
               </button>
               <button
                 type="button"
-                disabled={!canOperate || isActionLoading || !selectedParcel}
+                disabled={!canOperate || isActionLoading || !canCancelException(selectedParcel)}
                 onClick={() => void runAction(handleCancelParcel)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >

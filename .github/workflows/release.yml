@@ -30,7 +30,7 @@ jobs:
     outputs:
       new_tag: ${{ steps.tag.outputs.new_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           # Tag đúng commit mà CI đã kiểm, không phải commit mới nhất trên main:

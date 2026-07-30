@@ -105,7 +105,9 @@ function splitTimeRange(value: unknown) {
   const match = /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$/.exec(
     value.trim(),
   );
-  return match ? { open: `${match[1]}:${match[2]}`, close: `${match[3]}:${match[4]}` } : null;
+  return match
+    ? { open: `${match[1]}:${match[2]}`, close: `${match[3]}:${match[4]}` }
+    : null;
 }
 
 function toOperatingHoursForm(value: unknown): OperatingHoursForm {
@@ -865,7 +867,9 @@ export default function AdminStations() {
                             value={schedule.open}
                             disabled={!schedule.enabled}
                             onChange={(event) =>
-                              updateOperatingDay(day, { open: event.target.value })
+                              updateOperatingDay(day, {
+                                open: event.target.value,
+                              })
                             }
                             className={inputClass}
                           />
@@ -875,7 +879,9 @@ export default function AdminStations() {
                             value={schedule.close}
                             disabled={!schedule.enabled}
                             onChange={(event) =>
-                              updateOperatingDay(day, { close: event.target.value })
+                              updateOperatingDay(day, {
+                                close: event.target.value,
+                              })
                             }
                             className={inputClass}
                           />
@@ -929,7 +935,9 @@ export default function AdminStations() {
                         <button
                           type="button"
                           onClick={() => removeFacility(facility)}
-                          aria-label={t("stations.removeFacility", { facility })}
+                          aria-label={t("stations.removeFacility", {
+                            facility,
+                          })}
                           className="rounded-full p-0.5 hover:bg-vr-100"
                         >
                           <FiX />
@@ -941,7 +949,9 @@ export default function AdminStations() {
                     <input
                       className={inputClass}
                       value={customFacility}
-                      onChange={(event) => setCustomFacility(event.target.value)}
+                      onChange={(event) =>
+                        setCustomFacility(event.target.value)
+                      }
                       onKeyDown={(event) => {
                         if (event.key === "Enter") {
                           event.preventDefault();

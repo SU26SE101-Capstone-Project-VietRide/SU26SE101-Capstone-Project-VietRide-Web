@@ -70,15 +70,6 @@ function getOperatorAddress(operator: AdminOperator) {
   };
 }
 
-function formatCancellationPolicy(operator: AdminOperator) {
-  if (!operator.cancellationPolicy?.length) {
-    return undefined;
-  }
-
-  return operator.cancellationPolicy
-    .map((rule) => `${rule.hoursBeforeDeparture}h: ${rule.feePercent}%`)
-    .join(", ");
-}
 
 export default function Operators() {
   const { t } = useTranslation("admin");

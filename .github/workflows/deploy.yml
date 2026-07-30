@@ -67,7 +67,7 @@ jobs:
 
       # BẮT BUỘC: scp-action đóng gói file từ workspace của runner. Không checkout
       # thì workspace rỗng và nó chết với "tar: empty archive".
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # scp-action thường tự tạo thư mục đích, nhưng lần deploy đầu tiên mà nó
       # không tạo thì scp fail. Bước này rẻ và idempotent nên cứ chạy cho chắc.

@@ -1,18 +1,36 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  uploadFirebaseImages: vi.fn(),
+  getDownloadURL: vi.fn(),
+  getFirebaseCustomToken: vi.fn(),
+  ref: vi.fn(),
+  setPersistence: vi.fn(),
+  signInWithCustomToken: vi.fn(),
+  signOut: vi.fn(),
+  uploadBytes: vi.fn(),
 }));
 
-vi.mock("../../../utils/firebaseImageUpload", async (importOriginal) => {
-  const original = await importOriginal<
-    typeof import("../../../utils/firebaseImageUpload")
-  >();
-  return {
-    ...original,
-    uploadFirebaseImages: mocks.uploadFirebaseImages,
-  };
-});
+vi.mock("firebase/auth", () => ({
+  inMemoryPersistence: { type: "NONE" },
+  setPersistence: mocks.setPersistence,
+  signInWithCustomToken: mocks.signInWithCustomToken,
+  signOut: mocks.signOut,
+}));
+
+vi.mock("firebase/storage", () => ({
+  getDownloadURL: mocks.getDownloadURL,
+  ref: mocks.ref,
+  uploadBytes: mocks.uploadBytes,
+}));
+
+vi.mock("../../../api/vietride", () => ({
+  getFirebaseCustomToken: mocks.getFirebaseCustomToken,
+}));
+
+vi.mock("../../../config/firebase", () => ({
+  firebaseAuth: { currentUser: null },
+  firebaseStorage: {},
+}));
 
 import {
   MAX_VEHICLE_IMAGE_SIZE_BYTES,
@@ -22,21 +40,38 @@ import {
 } from "./vehicleImageUpload";
 
 describe("vehicleImageUpload", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getFirebaseCustomToken.mockResolvedValue({
+      token: "custom-token",
+      uploadPath: "vehicles/operator-1/",
+    });
+    mocks.setPersistence.mockResolvedValue(undefined);
+    mocks.signInWithCustomToken.mockResolvedValue({ user: {} });
+    mocks.signOut.mockResolvedValue(undefined);
+    mocks.ref.mockImplementation((_storage: unknown, path: string) => ({ path }));
+    mocks.uploadBytes.mockImplementation(async (imageRef: unknown) => ({
+      ref: imageRef,
+    }));
+    mocks.getDownloadURL.mockResolvedValue(
+      "https://firebasestorage.googleapis.com/vehicle.jpg",
+    );
+  });
+
   it("uploads vehicle images with the required Firebase purpose", async () => {
     const file = new File(["vehicle"], "vehicle.jpg", {
       type: "image/jpeg",
     });
-    mocks.uploadFirebaseImages.mockResolvedValue([
-      "https://firebasestorage.googleapis.com/vehicle.jpg",
-    ]);
 
     await expect(uploadVehicleImages("operator-1", [file])).resolves.toEqual([
       "https://firebasestorage.googleapis.com/vehicle.jpg",
     ]);
-    expect(mocks.uploadFirebaseImages).toHaveBeenCalledWith(
-      "VEHICLE_IMAGE",
-      [file],
+    expect(mocks.getFirebaseCustomToken).toHaveBeenCalledWith("VEHICLE_IMAGE");
+    expect(mocks.ref).toHaveBeenCalledWith(
+      {},
+      expect.stringMatching(/^vehicles\/operator-1\/[0-9a-f-]+\.jpg$/),
     );
+    expect(mocks.signOut).toHaveBeenCalledOnce();
   });
 
   it("rejects unsupported, empty, exact-5-MiB, and excess files", () => {
