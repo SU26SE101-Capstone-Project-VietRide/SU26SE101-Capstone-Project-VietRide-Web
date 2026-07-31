@@ -4,10 +4,13 @@ import {
   activateAdminCampaign,
   activateOperatorDriverSchedule,
   approveRagDocument,
+  batchUpdateOperatorParcelRouteFares,
   chatWithRag,
   confirmOperatorParcelRefund,
   createAdminSubscriptionPlan,
   createAdminLocation,
+  createAdminPolicy,
+  deleteAdminPolicy,
   deleteAdminVoucher,
   createAdminUser,
   createOperatorDriverSchedule,
@@ -17,11 +20,14 @@ import {
   exportOperatorReport,
   exportOperatorParcelReport,
   getAdminCampaigns,
+  getAdminDashboardSummary,
   getAdminActivityLogs,
   getAdminOutboxDlq,
   getAdminPlatformWallet,
   getAdminPlatformReport,
   getAdminPlatformWalletTransactions,
+  getAdminPolicies,
+  getAdminRevenueAnalytics,
   getAdminTripSettlements,
   getAdminLocations,
   getAdminSubscriptionPlans,
@@ -53,7 +59,11 @@ import {
   getOperatorVoucherConsents,
   getOperatorVouchers,
   getOperatorParcelReportSummary,
+  getOperatorParcelStats,
   getOperatorParcels,
+  getOperatorPolicies,
+  getOperatorRevenueAnalytics,
+  getOperatorTrips,
   getParcelAvailableTrips,
   getPromotions,
   getPublicLocations,
@@ -91,6 +101,7 @@ import {
   searchPublicTrips,
   settleAdminTripSettlement,
   updateAdminLocation,
+  updateAdminPolicy,
   updateAdminStation,
   updateAdminSubscriptionPlan,
   updateAdminVoucher,
@@ -2396,3 +2407,167 @@ describe("operator notification announcements", () => {
   });
 });
 
+
+describe("UI gaps API contracts", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+  });
+
+  it("calls dashboard, revenue, trip, and operator revenue endpoints with required filters", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: { items: [] } }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getAdminDashboardSummary({ from: "2026-01-01", to: "2026-12-31" });
+    await getAdminRevenueAnalytics({
+      from: "2026-01-01",
+      to: "2026-12-31",
+      groupBy: "month",
+      top: 5,
+    });
+    await getOperatorRevenueAnalytics("2026-07");
+    await getOperatorTrips({
+      status: "IN_PROGRESS",
+      page: 2,
+      pageSize: 20,
+      sortBy: "departureTime",
+      sortDir: "desc",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/admin/dashboard/summary?from=2026-01-01&to=2026-12-31",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/admin/revenue/analytics?from=2026-01-01&to=2026-12-31&groupBy=month&top=5",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/operator/revenue/analytics?month=2026-07",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/v1/operator/trips?status=IN_PROGRESS&page=2&pageSize=20&sortBy=departureTime&sortDir=desc",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("uses the parcel fare batch endpoint and parcel statistics filters", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: { items: [] } }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = {
+      effectiveFrom: "2026-07-01T00:00:00Z",
+      effectiveUntil: null,
+      items: [
+        {
+          sizeCategory: "SMALL" as const,
+          priceVnd: 50000,
+        },
+      ],
+    };
+    await batchUpdateOperatorParcelRouteFares(
+      "route-1",
+      request,
+      "parcel-fare-key",
+    );
+    await getOperatorParcelStats({
+      groupBy: "status",
+      from: "2026-07-01",
+      to: "2026-07-31",
+      limit: 10,
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/parcel-route-fares/route-1/batch",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(request),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "parcel-fare-key",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/parcel-stats?groupBy=status&from=2026-07-01&to=2026-07-31&limit=10",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("calls admin and operator policy APIs without internal endpoints", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: { items: [] } }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const createRequest = {
+      title: "Cancellation policy",
+      description: "Refund rules",
+      category: "CANCELLATION",
+      content: "Policy content",
+      policyType: "FOR_OPERATOR" as const,
+      active: true,
+    };
+    await getAdminPolicies({ policyType: "FOR_OPERATOR", page: 1, pageSize: 10 });
+    await createAdminPolicy(createRequest);
+    await updateAdminPolicy("policy-1", { title: "Updated policy", version: 1 });
+    await deleteAdminPolicy("policy-1");
+    await getOperatorPolicies({ page: 2, pageSize: 10 });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/admin/policies?policyType=FOR_OPERATOR&page=1&pageSize=10",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/admin/policies",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(createRequest),
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/admin/policies/policy-1",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/v1/admin/policies/policy-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "https://api.vietride.online/v1/operator/policies?page=2&pageSize=10",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+});

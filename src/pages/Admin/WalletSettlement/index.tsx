@@ -8,6 +8,8 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   FiAlertTriangle,
+  FiArrowDown,
+  FiArrowUp,
   FiCheckCircle,
   FiClock,
   FiDollarSign,
@@ -203,6 +205,8 @@ export default function WalletSettlement() {
         record.settlementId,
         record.tripId,
         record.operatorId,
+        record.operator?.name,
+        record.settledBy?.displayName,
         record.status,
         record.settlementMethod,
         record.activeFailureCode,
@@ -466,8 +470,31 @@ export default function WalletSettlement() {
                       <td className="px-4 py-3 font-mono text-xs">
                         {record.settlementId}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs">
-                        {record.operatorId ?? "-"}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {record.operator?.logoUrl ? (
+                            <img
+                              src={record.operator.logoUrl}
+                              alt=""
+                              width={32}
+                              height={32}
+                              loading="lazy"
+                              className="h-8 w-8 rounded-lg object-cover"
+                            />
+                          ) : null}
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {record.operator?.name ??
+                                record.operatorId ??
+                                "-"}
+                            </p>
+                            {record.operator?.name && record.operatorId ? (
+                              <p className="font-mono text-xs text-gray-500">
+                                {record.operatorId}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">
                         {record.tripId}
@@ -486,11 +513,18 @@ export default function WalletSettlement() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {record.settlementMethod
-                          ? t(
-                              `walletSettlement.methods.${record.settlementMethod}`,
-                            )
-                          : "-"}
+                        <p>
+                          {record.settlementMethod
+                            ? t(
+                                `walletSettlement.methods.${record.settlementMethod}`,
+                              )
+                            : "-"}
+                        </p>
+                        {record.settledBy ? (
+                          <p className="mt-1 text-xs text-gray-500">
+                            {t("walletSettlement.settledBy")}: {record.settledBy.displayName}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         {record.activeFailureCode ? (
@@ -537,67 +571,23 @@ export default function WalletSettlement() {
       )}
 
       {activeTab === "transactions" && (
-        <section className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-            <FiDollarSign className="text-vr-600" />
-            {t("walletSettlement.latestTransactions")}
-          </h2>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                  <th className="px-4 py-3">
-                    {t("walletSettlement.createdAt")}
-                  </th>
-                  <th className="px-4 py-3">
-                    {t("walletSettlement.type")}
-                  </th>
-                  <th className="px-4 py-3">
-                    {t("walletSettlement.amount")}
-                  </th>
-                  <th className="px-4 py-3">
-                    {t("walletSettlement.balanceAfter")}
-                  </th>
-                  <th className="px-4 py-3">
-                    {t("walletSettlement.reference")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-8 text-center text-gray-500"
-                    >
-                      {t("walletSettlement.empty")}
-                    </td>
-                  </tr>
-                ) : (
-                  transactions.map((item) => (
-                    <tr
-                      key={item.transactionId}
-                      className="border-t border-gray-100"
-                    >
-                      <td className="px-4 py-3">
-                        {formatDate(item.createdAt)}
-                      </td>
-                      <td className="px-4 py-3 font-semibold">{item.type}</td>
-                      <td className="px-4 py-3">
-                        {formatMoney(item.amount)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {formatMoney(item.balanceAfter)}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs">
-                        {item.referenceType}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        <section className="space-y-6">
+          <WalletTransactionGroup
+            icon={<FiArrowDown className="text-emerald-600" />}
+            title={t("walletSettlement.moneyIn")}
+            items={transactions.filter((item) => item.type === "CREDIT")}
+            tone="credit"
+            emptyLabel={t("walletSettlement.noCredits")}
+            t={t}
+          />
+          <WalletTransactionGroup
+            icon={<FiArrowUp className="text-red-600" />}
+            title={t("walletSettlement.moneyOut")}
+            items={transactions.filter((item) => item.type === "DEBIT")}
+            tone="debit"
+            emptyLabel={t("walletSettlement.noDebits")}
+            t={t}
+          />
         </section>
       )}
 
@@ -899,6 +889,90 @@ function FlowStep({
         {label}
       </div>
       <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+function WalletTransactionGroup({
+  icon,
+  title,
+  items,
+  tone,
+  emptyLabel,
+  t,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  items: WalletTransaction[];
+  tone: "credit" | "debit";
+  emptyLabel: string;
+  t: Translate;
+}) {
+  const amountClass = tone === "credit" ? "text-emerald-700" : "text-red-700";
+  const sign = tone === "credit" ? "+" : "-";
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+        {icon}
+        {title}
+      </h2>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[900px] text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+              <th className="px-4 py-3">{t("walletSettlement.createdAt")}</th>
+              <th className="px-4 py-3">{t("walletSettlement.amount")}</th>
+              <th className="px-4 py-3">
+                {t("walletSettlement.balanceBefore")}
+              </th>
+              <th className="px-4 py-3">
+                {t("walletSettlement.balanceAfter")}
+              </th>
+              <th className="px-4 py-3">{t("walletSettlement.reference")}</th>
+              <th className="px-4 py-3">{t("walletSettlement.actor")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  {emptyLabel}
+                </td>
+              </tr>
+            ) : (
+              items.map((item) => (
+                <tr key={item.transactionId} className="border-t border-gray-100">
+                  <td className="px-4 py-3">{formatDate(item.createdAt)}</td>
+                  <td className={`px-4 py-3 font-semibold ${amountClass}`}>
+                    {sign}
+                    {formatMoney(item.amount)}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {formatMoney(item.balanceBefore)}
+                  </td>
+                  <td className="px-4 py-3 font-semibold">
+                    {formatMoney(item.balanceAfter)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-mono text-xs">{item.referenceType}</p>
+                    {item.note ? (
+                      <p className="mt-1 text-xs text-gray-500">{item.note}</p>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3">
+                    {item.actorType === "SYSTEM"
+                      ? t("walletSettlement.systemActor")
+                      : (item.actor?.displayName ?? "-")}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -26,3 +26,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Claude Code: CLAUDE.md + .claude/skills/ + .claude/settings.json commit chung cả team,
+# riêng settings.local.json là allowlist permission của từng máy.
+.claude/settings.local.json

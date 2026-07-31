@@ -206,19 +206,89 @@ function EmptyRow({ columns, t }: { columns: number; t: Translate }) {
 }
 
 function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Translate }) {
-  const { t: tc } = useTranslation("common");
+  const credits = items.filter((item) => item.type === "CREDIT");
+  const debits = items.filter((item) => item.type === "DEBIT");
+
   return (
-    <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-      <th className="px-4 py-3">{t("wallet.datetime")}</th><th className="px-4 py-3">{t("wallet.type")}</th><th className="px-4 py-3">{t("wallet.descriptionCol")}</th><th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.balance")}</th>
-    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={5} t={t} /> : items.map((item) => (
-      <tr key={item.transactionId} className="border-t border-gray-100">
-        <td className="px-4 py-3 text-gray-600">{formatDate(item.createdAt)}</td>
-        <td className="px-4 py-3"><span className="inline-flex items-center gap-1 font-semibold">{item.type === "CREDIT" ? <FiArrowDown className="text-emerald-600" /> : <FiArrowUp className="text-red-600" />}{tc(`enumLabels.${item.type}`, { defaultValue: item.type })}</span></td>
-        <td className="px-4 py-3 text-gray-700">{item.note || item.referenceType}</td>
-        <td className={`px-4 py-3 font-semibold ${item.type === "CREDIT" ? "text-emerald-700" : "text-red-700"}`}>{item.type === "CREDIT" ? "+" : "-"}{formatMoney(item.amount)}</td>
-        <td className="px-4 py-3">{formatMoney(item.balanceAfter)}</td>
-      </tr>
-    ))}</tbody></table>
+    <div className="space-y-6 p-4">
+      <WalletTransactionGroup
+        icon={<FiArrowDown className="text-emerald-600" />}
+        title={t("wallet.moneyIn")}
+        items={credits}
+        tone="credit"
+        emptyLabel={t("wallet.noCredits")}
+        t={t}
+      />
+      <WalletTransactionGroup
+        icon={<FiArrowUp className="text-red-600" />}
+        title={t("wallet.moneyOut")}
+        items={debits}
+        tone="debit"
+        emptyLabel={t("wallet.noDebits")}
+        t={t}
+      />
+    </div>
+  );
+}
+
+function WalletTransactionGroup({
+  icon,
+  title,
+  items,
+  tone,
+  emptyLabel,
+  t,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  items: WalletTransaction[];
+  tone: "credit" | "debit";
+  emptyLabel: string;
+  t: Translate;
+}) {
+  const amountClass = tone === "credit" ? "text-emerald-700" : "text-red-700";
+  const sign = tone === "credit" ? "+" : "-";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200">
+      <h3 className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-800">
+        {icon}
+        {title}
+      </h3>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+            <th className="px-4 py-3">{t("wallet.datetime")}</th>
+            <th className="px-4 py-3">{t("wallet.descriptionCol")}</th>
+            <th className="px-4 py-3">{t("wallet.amount")}</th>
+            <th className="px-4 py-3">{t("wallet.balanceBefore")}</th>
+            <th className="px-4 py-3">{t("wallet.balance")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                {emptyLabel}
+              </td>
+            </tr>
+          ) : (
+            items.map((item) => (
+              <tr key={item.transactionId} className="border-t border-gray-100">
+                <td className="px-4 py-3 text-gray-600">{formatDate(item.createdAt)}</td>
+                <td className="px-4 py-3 text-gray-700">{item.note || item.referenceType}</td>
+                <td className={`px-4 py-3 font-semibold ${amountClass}`}>
+                  {sign}
+                  {formatMoney(item.amount)}
+                </td>
+                <td className="px-4 py-3 text-gray-600">{formatMoney(item.balanceBefore)}</td>
+                <td className="px-4 py-3 font-semibold">{formatMoney(item.balanceAfter)}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 function SettlementTable({ items, t }: { items: TripSettlement[]; t: Translate }) {

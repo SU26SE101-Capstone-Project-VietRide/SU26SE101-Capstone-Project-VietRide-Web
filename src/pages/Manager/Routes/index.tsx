@@ -58,6 +58,7 @@ import {
   decodeGooglePolyline,
   encodeGooglePolyline,
   estimateCoachDurationMinutes,
+  parseGoogleDurationSeconds,
   type RouteCoordinate,
 } from "./polyline";
 
@@ -69,8 +70,8 @@ const defaultRouteMapCenter: GoogleMapCoordinate = {
   lat: 10.7769,
   lng: 106.7009,
 };
-const routingBaseUrl =
-  import.meta.env.VITE_ROUTING_API_URL || "https://router.project-osrm.org";
+const googleRoutesEndpoint =
+  "https://routes.googleapis.com/directions/v2:computeRoutes";
 
 const emptyStopForm: OperatorStopRequest = {
   name: "",
@@ -163,12 +164,40 @@ async function requestRoadGeometry(
   points: RouteCoordinate[],
   errorMessage: string,
 ) {
-  const coordinates = points
-    .map((point) => `${point.longitude},${point.latitude}`)
-    .join(";");
-  const response = await fetch(
-    `${routingBaseUrl}/route/v1/driving/${coordinates}?overview=full&geometries=polyline&steps=false`,
-  );
+  const apiKey = import.meta.env.VITE_GOOGLE_ROUTES_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error(errorMessage);
+  }
+
+  const toWaypoint = (point: RouteCoordinate) => ({
+    location: {
+      latLng: {
+        latitude: point.latitude,
+        longitude: point.longitude,
+      },
+    },
+  });
+  const response = await fetch(googleRoutesEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask":
+        "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
+    },
+    body: JSON.stringify({
+      origin: toWaypoint(points[0]),
+      destination: toWaypoint(points[points.length - 1]),
+      intermediates: points.slice(1, -1).map(toWaypoint),
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE_OPTIMAL",
+      computeAlternativeRoutes: false,
+      polylineQuality: "HIGH_QUALITY",
+      polylineEncoding: "ENCODED_POLYLINE",
+      languageCode: "vi",
+      units: "METRIC",
+    }),
+  });
   const body: unknown = await response.json();
 
   if (!response.ok || !isRecord(body) || !Array.isArray(body.routes)) {
@@ -178,20 +207,26 @@ async function requestRoadGeometry(
   const firstRoute = body.routes[0];
   if (
     !isRecord(firstRoute) ||
-    typeof firstRoute.geometry !== "string" ||
-    typeof firstRoute.distance !== "number" ||
-    typeof firstRoute.duration !== "number"
+    typeof firstRoute.distanceMeters !== "number" ||
+    typeof firstRoute.duration !== "string"
   ) {
     throw new Error(errorMessage);
   }
 
+  const polyline = firstRoute.polyline;
+  if (!isRecord(polyline) || typeof polyline.encodedPolyline !== "string") {
+    throw new Error(errorMessage);
+  }
+
+  const durationSeconds = parseGoogleDurationSeconds(firstRoute.duration);
+  if (durationSeconds <= 0) {
+    throw new Error(errorMessage);
+  }
+
   return {
-    points: decodeGooglePolyline(firstRoute.geometry),
-    totalDistanceKm: Number((firstRoute.distance / 1000).toFixed(1)),
-    estimatedDurationMinutes: estimateCoachDurationMinutes(
-      firstRoute.distance / 1000,
-      firstRoute.duration,
-    ),
+    points: decodeGooglePolyline(polyline.encodedPolyline),
+    totalDistanceKm: Number((firstRoute.distanceMeters / 1000).toFixed(1)),
+    estimatedDurationMinutes: Math.max(1, Math.round(durationSeconds / 60)),
   };
 }
 

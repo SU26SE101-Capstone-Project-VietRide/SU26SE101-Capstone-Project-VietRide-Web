@@ -28,6 +28,9 @@ import {
 } from "recharts";
 import {
   getAdminBookingStatsAggregate,
+  getAdminDashboardSummary,
+  getAdminRevenueAnalytics,
+  type AdminDashboardSummary,
   type BookingStatsItem,
 } from "../../api/vietride";
 import { downloadCsv } from "../../utils/csv";
@@ -46,29 +49,6 @@ type OperatorRevenuePoint = {
   bookings: number;
   rawRevenue?: number;
 };
-
-const revenueByOperator: OperatorRevenuePoint[] = [
-  { operator: "Phương Trang", revenue: 12500, bookings: 3240 },
-  { operator: "Mai Linh", revenue: 10800, bookings: 2890 },
-  { operator: "Kumho", revenue: 9200, bookings: 2450 },
-  { operator: "Thaco", revenue: 8100, bookings: 2160 },
-  { operator: "Khác", revenue: 5200, bookings: 1390 },
-];
-
-const bookingStats: BookingChartPoint[] = [
-  { month: "T1", revenue: 2400, bookings: 15200, cancelled: 1850 },
-  { month: "T2", revenue: 2210, bookings: 14880, cancelled: 1920 },
-  { month: "T3", revenue: 2290, bookings: 15450, cancelled: 1890 },
-  { month: "T4", revenue: 2000, bookings: 14200, cancelled: 1650 },
-  { month: "T5", revenue: 2181, bookings: 15890, cancelled: 2050 },
-  { month: "T6", revenue: 2500, bookings: 17240, cancelled: 2100 },
-  { month: "T7", revenue: 2100, bookings: 16100, cancelled: 1980 },
-  { month: "T8", revenue: 2300, bookings: 16890, cancelled: 2200 },
-  { month: "T9", revenue: 2400, bookings: 17500, cancelled: 2350 },
-  { month: "T10", revenue: 2800, bookings: 19240, cancelled: 2400 },
-  { month: "T11", revenue: 3100, bookings: 21500, cancelled: 2650 },
-  { month: "T12", revenue: 3400, bookings: 23800, cancelled: 2900 },
-];
 
 function toDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -115,13 +95,6 @@ function formatCompactNumber(value: number) {
   return value.toLocaleString("vi-VN");
 }
 
-function sumStats(items: BookingStatsItem[], key: keyof BookingStatsItem) {
-  return items.reduce((total, item) => {
-    const value = item[key];
-    return total + (typeof value === "number" ? value : 0);
-  }, 0);
-}
-
 function mapMonthlyStats(items: BookingStatsItem[]) {
   return items.map((item) => ({
     month: monthLabel(item.date),
@@ -156,13 +129,10 @@ export default function AdminDashboard() {
   const { t: tc } = useTranslation("common");
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [bookingStatsData, setBookingStatsData] = useState(bookingStats);
-  const [revenueByOperatorData, setRevenueByOperatorData] =
-    useState(revenueByOperator);
-  const [summary, setSummary] = useState({
-    totalRevenue: 45_800_000_000,
-    totalBookings: 245_600,
-  });
+  const [bookingStatsData, setBookingStatsData] = useState<BookingChartPoint[]>([]);
+  const [revenueByOperatorData, setRevenueByOperatorData] = useState<OperatorRevenuePoint[]>([]);
+  const [dashboardSummary, setDashboardSummary] = useState<AdminDashboardSummary | null>(null);
+  const [loadError, setLoadError] = useState("");
 
   const applyBookingStats = ({
     monthlyStats,
@@ -170,12 +140,6 @@ export default function AdminDashboard() {
   }: Awaited<ReturnType<typeof fetchAdminBookingStats>>) => {
     if (monthlyStats.items.length > 0) {
       setBookingStatsData(mapMonthlyStats(monthlyStats.items));
-      setSummary({
-        totalRevenue:
-          monthlyStats.totalRevenue ?? sumStats(monthlyStats.items, "totalRevenue"),
-        totalBookings:
-          monthlyStats.totalBookings ?? sumStats(monthlyStats.items, "totalBookings"),
-      });
     }
 
     if (operatorStats.items.length > 0) {
@@ -183,61 +147,84 @@ export default function AdminDashboard() {
     }
   };
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadDashboard = async () => {
+    setIsLoading(true);
+    setLoadError("");
+    const { from, to } = currentYearRange();
+    try {
+      const [stats, dashboard, revenue] = await Promise.all([
+        fetchAdminBookingStats(),
+        getAdminDashboardSummary({ from, to }),
+        getAdminRevenueAnalytics({ from, to, groupBy: "month", top: 10 }),
+      ]);
+      applyBookingStats(stats);
+      setDashboardSummary(dashboard);
+      setRevenueByOperatorData(
+        revenue.topOperators.map((item) => ({
+          operator: item.operatorName,
+          revenue: item.revenueVnd / 1_000_000,
+          bookings: 0,
+          rawRevenue: item.revenueVnd,
+        })),
+      );
+    } catch (requestError) {
+      setLoadError(
+        requestError instanceof Error ? requestError.message : "Không thể tải dữ liệu dashboard.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    void fetchAdminBookingStats().then((stats) => {
-      if (isMounted) {
-        applyBookingStats(stats);
-      }
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void loadDashboard();
     });
 
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
   }, []);
-
+  const metrics = dashboardSummary;
   const adminKPIs = [
     {
       label: t("dashboard.totalRevenue"),
-      value: formatCompactMoney(summary.totalRevenue),
-      change: "+24.5%",
+      value: metrics ? formatCompactMoney(metrics.totalRevenue.currentValue) : "-",
+      change: metrics ? `${metrics.totalRevenue.changePercent.toFixed(1)}%` : "-",
       icon: <FiDollarSign className="w-6 h-6" />,
     },
     {
       label: t("dashboard.activeOperators"),
-      value: "342",
-      change: "+18%",
+      value: metrics ? formatCompactNumber(metrics.activeOperators.currentValue) : "-",
+      change: metrics ? `${metrics.activeOperators.changePercent.toFixed(1)}%` : "-",
       icon: <FiTruck className="w-6 h-6" />,
     },
     {
       label: t("dashboard.activeUsers"),
-      value: "182.5K",
-      change: "+22.5%",
+      value: metrics ? formatCompactNumber(metrics.activeUsers.currentValue) : "-",
+      change: metrics ? `${metrics.activeUsers.changePercent.toFixed(1)}%` : "-",
       icon: <FiUsers className="w-6 h-6" />,
     },
     {
       label: t("dashboard.monthlyBookings"),
-      value: formatCompactNumber(summary.totalBookings),
-      change: "+16.3%",
+      value: metrics ? formatCompactNumber(metrics.bookings.currentValue) : "-",
+      change: metrics ? `${metrics.bookings.changePercent.toFixed(1)}%` : "-",
       icon: <FiBarChart2 className="w-6 h-6" />,
     },
   ];
 
-  const userDistribution = [
-    { name: t("dashboard.passenger"), value: 165000, color: "#3b82f6" },
-    { name: t("dashboard.driver"), value: 8500, color: "#8b5cf6" },
-    { name: t("dashboard.operatorAdmin"), value: 342, color: "#10b981" },
-    { name: t("dashboard.systemAdmin"), value: 12, color: "#f59e0b" },
-  ];
+  const userDistribution = (metrics?.userDistribution ?? []).map((item, index) => ({
+    name: item.role,
+    value: item.count,
+    color: ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b"][index % 4],
+  }));
 
-  const operatorStatus = [
-    { status: tc("active"), count: 285, percentage: 83 },
-    { status: tc("pending"), count: 28, percentage: 8 },
-    { status: tc("suspended"), count: 19, percentage: 6 },
-    { status: tc("rejected"), count: 10, percentage: 3 },
-  ];
-
+  const operatorStatus = (metrics?.operatorStatusDistribution ?? []).map((item) => ({
+    status: item.status,
+    count: item.count,
+    percentage: item.percent,
+  }));
   const handleExportReport = (report: string) => {
     downloadCsv(
       "admin-dashboard-report.csv",
@@ -253,18 +240,19 @@ export default function AdminDashboard() {
     t("dashboard.exportBookings"),
   ];
 
+
   const handleRefresh = () => {
-    setIsLoading(true);
-    void fetchAdminBookingStats()
-      .then(applyBookingStats)
-      .finally(() => setIsLoading(false));
+    void loadDashboard();
   };
+
 
   return (
     <div className="space-y-6 pb-4">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
-        Một số số liệu dưới đây là dữ liệu minh họa vì hệ thống chưa có đủ dữ liệu tổng hợp.
-      </div>
+      {loadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {loadError}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
@@ -518,3 +506,10 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+
+
+
+
+
+

@@ -33,11 +33,15 @@ export type GoogleLatLngBoundsInstance = {
 };
 
 type GoogleMapOptions = {
+  cameraControl?: boolean;
   center: GoogleMapCoordinate;
   clickableIcons?: boolean;
   fullscreenControl?: boolean;
   gestureHandling?: "auto" | "cooperative" | "greedy" | "none";
   mapTypeControl?: boolean;
+  renderingType?: "RASTER" | "VECTOR";
+  rotateControl?: boolean;
+  scaleControl?: boolean;
   streetViewControl?: boolean;
   zoom: number;
   zoomControl?: boolean;
@@ -93,6 +97,10 @@ export type GoogleMapsLibrary = {
   ) => GoogleMapInstance;
   Polyline: new (options: GooglePolylineOptions) => GooglePolylineInstance;
 };
+
+type GoogleMapsRenderingLibrary = Omit<GoogleMapsLibrary, "LatLngBounds">;
+
+type GoogleMapsCoreLibrary = Pick<GoogleMapsLibrary, "LatLngBounds">;
 
 export type GoogleAddressComponent = {
   longText?: string;
@@ -196,14 +204,19 @@ function hasCallableProperty(value: unknown, property: string) {
   return typeof Reflect.get(value, property) === "function";
 }
 
-function hasMapsLibraryShape(value: unknown): value is GoogleMapsLibrary {
+function hasMapsLibraryShape(
+  value: unknown,
+): value is GoogleMapsRenderingLibrary {
   return (
     hasCallableProperty(value, "Map") &&
     hasCallableProperty(value, "Circle") &&
     hasCallableProperty(value, "Polyline") &&
-    hasCallableProperty(value, "LatLngBounds") &&
     hasCallableProperty(value, "InfoWindow")
   );
+}
+
+function hasCoreLibraryShape(value: unknown): value is GoogleMapsCoreLibrary {
+  return hasCallableProperty(value, "LatLngBounds");
 }
 
 function hasPlacesLibraryShape(value: unknown): value is GooglePlacesLibrary {
@@ -268,13 +281,12 @@ function loadGoogleMapsBootstrap() {
     existingScript?.remove();
 
     const params = new URLSearchParams({
-      auth_referrer_policy: "origin",
       callback: GOOGLE_MAPS_CALLBACK,
       key: apiKey,
       language: "vi",
       loading: "async",
       region: "VN",
-      v: "weekly",
+      v: "quarterly",
     });
     const script = document.createElement("script");
     script.id = GOOGLE_MAPS_SCRIPT_ID;
@@ -295,13 +307,19 @@ function loadGoogleMapsBootstrap() {
 
 export async function loadGoogleMapsLibrary() {
   const maps = await loadGoogleMapsBootstrap();
-  const library = await maps.importLibrary("maps");
+  const [library, coreLibrary] = await Promise.all([
+    maps.importLibrary("maps"),
+    maps.importLibrary("core"),
+  ]);
 
-  if (!hasMapsLibraryShape(library)) {
+  if (!hasMapsLibraryShape(library) || !hasCoreLibraryShape(coreLibrary)) {
     throw new Error("Google Maps trả về thư viện bản đồ không hợp lệ.");
   }
 
-  return library;
+  return {
+    ...library,
+    LatLngBounds: coreLibrary.LatLngBounds,
+  };
 }
 
 export async function loadGooglePlacesLibrary() {

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run typecheck)",
+      "Bash(npm run lint)",
+      "Bash(npm run lint -- :*)",
+      "Bash(npm test)",
+      "Bash(npm test -- :*)",
+      "Bash(npm run build)",
+      "Bash(npx tsc :*)",
+      "Bash(npx eslint :*)",
+      "Bash(npx vitest run :*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(node .claude/skills/i18n-sync/check-i18n.mjs:*)",
+      "Bash(node -e ' *)",
+      "Bash(xargs wc -l)",
+      "Edit(/.claude/skills/api-endpoint/**)",
+      "Edit(/.claude/skills/verify/**)",
+      "Edit(/.claude/skills/crud-page/**)",
+      "Edit(/.claude/skills/i18n-sync/**)"
+    ]
+  }
+}

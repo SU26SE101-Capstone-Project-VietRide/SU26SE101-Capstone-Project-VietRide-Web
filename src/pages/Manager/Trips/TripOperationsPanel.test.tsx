@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   disruptOperatorTripNoSubstitution,
   getOperatorTripCargoCapacity,
+  getOperatorTrips,
   getOperatorUsers,
   getOperatorVehicles,
   substituteOperatorTripVehicle,
@@ -21,6 +22,7 @@ vi.mock("../../../auth", () => ({
 vi.mock("../../../api/vietride", () => ({
   disruptOperatorTripNoSubstitution: vi.fn(),
   getOperatorTripCargoCapacity: vi.fn(),
+  getOperatorTrips: vi.fn(),
   getOperatorUsers: vi.fn(),
   getOperatorVehicles: vi.fn(),
   substituteOperatorTripVehicle: vi.fn(),
@@ -67,7 +69,36 @@ describe("TripOperationsPanel", () => {
       hasNextPage: false,
       hasPreviousPage: false,
     });
-    vi.mocked(getOperatorTripCargoCapacity).mockResolvedValue({
+    vi.mocked(getOperatorTrips).mockResolvedValue({
+      items: [
+        {
+          tripId: "trip-1",
+          status: "SCHEDULED",
+          route: {
+            routeId: "route-1",
+            name: "Hồ Chí Minh - Đà Lạt",
+            originName: "Hồ Chí Minh",
+            destinationName: "Đà Lạt",
+          },
+          vehicle: {
+            vehicleId: "vehicle-1",
+            licensePlate: "51B-123.45",
+            status: "ACTIVE",
+          },
+          driver: null,
+          assistant: null,
+          departureAt: "2026-08-01T08:00:00+07:00",
+          arrivalEstimate: "2026-08-01T15:00:00+07:00",
+          canSubstituteVehicle: true,
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });    vi.mocked(getOperatorTripCargoCapacity).mockResolvedValue({
       tripId: "trip-1",
       maxCargoWeightKg: 500,
       reservedWeightKg: 100,
@@ -91,9 +122,12 @@ describe("TripOperationsPanel", () => {
     const user = userEvent.setup();
     render(<TripOperationsPanel />);
 
-    await user.type(
-      screen.getByPlaceholderText("tripOperations.tripPlaceholder"),
-      "trip-1",
+    await waitFor(() => expect(getOperatorTrips).toHaveBeenCalled());
+    await user.click(screen.getByLabelText("tripOperations.tripSelect"));
+    await user.click(
+      screen.getByRole("option", {
+        name: /Hồ Chí Minh - Đà Lạt · 51B-123\.45/,
+      }),
     );
     await user.click(
       screen.getByRole("button", { name: "tripOperations.loadCapacity" }),
@@ -108,9 +142,12 @@ describe("TripOperationsPanel", () => {
     render(<TripOperationsPanel />);
 
     await waitFor(() => expect(getOperatorVehicles).toHaveBeenCalled());
-    await user.type(
-      screen.getByPlaceholderText("tripOperations.tripPlaceholder"),
-      "trip-1",
+    await waitFor(() => expect(getOperatorTrips).toHaveBeenCalled());
+    await user.click(screen.getByLabelText("tripOperations.tripSelect"));
+    await user.click(
+      screen.getByRole("option", {
+        name: /Hồ Chí Minh - Đà Lạt · 51B-123\.45/,
+      }),
     );
     await user.click(screen.getByLabelText("tripOperations.vehicle"));
     await user.click(screen.getByRole("option", { name: "51B-999.99" }));
@@ -129,3 +166,5 @@ describe("TripOperationsPanel", () => {
     });
   });
 });
+
+

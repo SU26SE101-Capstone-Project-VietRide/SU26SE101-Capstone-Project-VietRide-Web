@@ -21,6 +21,16 @@ export function estimateCoachDurationMinutes(
   return Math.max(1, distanceBasedMinutes, roadBasedMinutes);
 }
 
+export function parseGoogleDurationSeconds(duration: string) {
+  const match = /^(\d+(?:\.\d+)?)s$/.exec(duration.trim());
+  if (!match) {
+    return 0;
+  }
+
+  const seconds = Number(match[1]);
+  return Number.isFinite(seconds) ? seconds : 0;
+}
+
 function encodeValue(value: number) {
   let shifted = value < 0 ? ~(value << 1) : value << 1;
   let encoded = "";

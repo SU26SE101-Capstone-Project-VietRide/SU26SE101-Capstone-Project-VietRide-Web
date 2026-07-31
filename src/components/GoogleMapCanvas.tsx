@@ -99,6 +99,7 @@ export default function GoogleMapCanvas({
   zoom,
 }: GoogleMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<ReadyMap | null>(null);
   const mapClickListenerRef = useRef<GoogleMapsEventListener | null>(null);
   const initialCenterRef = useRef(center);
   const initialZoomRef = useRef(zoom);
@@ -115,24 +116,60 @@ export default function GoogleMapCanvas({
 
   useEffect(() => {
     let active = true;
+    let initializationFrame: number | null = null;
 
     void loadGoogleMapsLibrary()
       .then((library) => {
-        if (!active || !containerRef.current) {
+        if (!active) {
           return;
         }
 
-        const instance = new library.Map(containerRef.current, {
-          center: initialCenterRef.current,
-          clickableIcons: true,
-          fullscreenControl: false,
-          gestureHandling: scrollWheelZoom ? "cooperative" : "none",
-          mapTypeControl: false,
-          streetViewControl: false,
-          zoom: initialZoomRef.current,
-          zoomControl: true,
+        initializationFrame = window.requestAnimationFrame(() => {
+          const container = containerRef.current;
+          if (
+            !active ||
+            !(container instanceof HTMLElement) ||
+            !container.isConnected
+          ) {
+            return;
+          }
+
+          if (mapInstanceRef.current) {
+            setReadyMap(mapInstanceRef.current);
+            return;
+          }
+
+          try {
+            const instance = new library.Map(container, {
+              cameraControl: false,
+              center: initialCenterRef.current,
+              clickableIcons: true,
+              fullscreenControl: false,
+              gestureHandling: scrollWheelZoom ? "cooperative" : "none",
+              mapTypeControl: false,
+              renderingType: "RASTER",
+              rotateControl: false,
+              scaleControl: false,
+              streetViewControl: false,
+              zoom: initialZoomRef.current,
+              zoomControl: true,
+            });
+            const nextReadyMap = { instance, library };
+            mapInstanceRef.current = nextReadyMap;
+
+            if (active) {
+              setReadyMap(nextReadyMap);
+            }
+          } catch (mapError: unknown) {
+            if (active) {
+              setError(
+                mapError instanceof Error
+                  ? mapError.message
+                  : "Không thể khởi tạo bản đồ Google.",
+              );
+            }
+          }
         });
-        setReadyMap({ instance, library });
       })
       .catch((loadError: unknown) => {
         if (!active) {
@@ -148,6 +185,9 @@ export default function GoogleMapCanvas({
 
     return () => {
       active = false;
+      if (initializationFrame !== null) {
+        window.cancelAnimationFrame(initializationFrame);
+      }
       mapClickListenerRef.current?.remove();
       mapClickListenerRef.current = null;
     };
@@ -249,7 +289,7 @@ export default function GoogleMapCanvas({
     });
 
     return () => {
-      listeners.forEach((listener) => listener.remove());
+      listeners.forEach((listener) => listener?.remove());
       infoWindow.close();
       clearCircles(circles);
     };

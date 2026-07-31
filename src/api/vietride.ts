@@ -417,6 +417,13 @@ export type WalletTransaction = {
   referenceId: string | null;
   note: string | null;
   createdAt: string;
+  actorType?: "USER" | "SYSTEM";
+  actor?: {
+    userId: string;
+    displayName: string;
+    email: string;
+    role: string;
+  } | null;
 };
 
 export type WalletTransactionParams = FinancialListParams & {
@@ -443,6 +450,18 @@ export type TripSettlement = {
   failureCount?: number;
   activeFailureCode?: string | null;
   severity?: "HIGH" | "WARNING" | null;
+  operator?: {
+    operatorId: string;
+    name: string;
+    logoUrl: string | null;
+    contactPhone: string | null;
+  } | null;
+  settledBy?: {
+    userId: string;
+    displayName: string;
+    email: string;
+    role: string;
+  } | null;
 };
 
 export type OperatorTripSettlementParams = FinancialListParams & {
@@ -1173,6 +1192,21 @@ export type OperatorParcelListItem = {
   photoUrl?: string | null;
   createdAt: string;
   updatedAt?: string;
+  trip?: {
+    tripId: string;
+    status: string;
+    departureAt: string | null;
+    arrivalEstimate: string | null;
+    vehicle?: { vehicleId: string; licensePlate: string } | null;
+  } | null;
+  route?: {
+    routeId: string;
+    routeName: string;
+    originStationName: string;
+    destinationStationName: string;
+  } | null;
+  sender?: { userId?: string | null; name: string; phone: string } | null;
+  recipient?: { userId?: string | null; name: string; phone: string } | null;
 };
 
 export type OperatorParcelReviewRequest = {
@@ -1246,6 +1280,43 @@ export type AssistantParcelReweighRequest = {
   paymentMethod: PaymentMethod;
 };
 
+export type BatchParcelRouteFareRequest = {
+  effectiveFrom: string;
+  effectiveUntil?: string | null;
+  items: Array<{
+    sizeCategory: ParcelSizeCategory;
+    priceVnd: number;
+  }>;
+};
+
+export type BatchParcelRouteFareResult = {
+  routeId: string;
+  items: Array<{
+    sizeCategory: ParcelSizeCategory;
+    priceVnd: number;
+    effectiveFrom: string;
+    effectiveUntil: string | null;
+    created: boolean;
+  }>;
+};
+
+export type OperatorParcelStatsParams = {
+  from?: string;
+  to?: string;
+  groupBy: "status" | "route";
+  limit?: number;
+};
+
+export type OperatorParcelStats = {
+  items: Array<{
+    key?: string;
+    count?: number;
+    routeId?: string;
+    routeName?: string;
+    parcelCount?: number;
+  }>;
+  totalParcels: number;
+};
 export type RagRole =
   | "PASSENGER"
   | "SYSTEM_ADMIN"
@@ -1750,6 +1821,7 @@ export type OperatorBookingListItem = {
   seatCount: number;
   totalAmount: number;
   createdAt: string;
+  buyer?: OperatorBookingBuyer | null;
 };
 
 export type OperatorBookingSeat = {
@@ -1788,6 +1860,7 @@ export type OperatorBookingDetail = {
   createdAt: string;
   seats?: OperatorBookingSeat[] | null;
   statusTimeline?: OperatorBookingStatusTimeline[] | null;
+  buyer?: OperatorBookingBuyer | null;
 };
 
 export type BookingStatsItem = {
@@ -1817,6 +1890,139 @@ export type BookingStatsAggregate = {
   byStatus?: Record<string, number>;
 };
 
+export type OperatorBookingBuyer = {
+  userId: string;
+  displayName: string;
+  phone: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+};
+
+export type MetricValue = {
+  currentValue: number;
+  previousValue: number;
+  changePercent: number;
+  trend: "UP" | "DOWN" | "FLAT";
+};
+
+export type ReportPeriod = {
+  from: string;
+  to: string;
+  timezone: string;
+};
+
+export type AdminDashboardSummary = {
+  period: ReportPeriod;
+  totalRevenue: MetricValue;
+  activeOperators: MetricValue;
+  activeUsers: MetricValue;
+  bookings: MetricValue;
+  userDistribution: Array<{ role: string; count: number }>;
+  operatorStatusDistribution: Array<{
+    status: string;
+    count: number;
+    percent: number;
+  }>;
+};
+
+export type AdminRevenueAnalytics = {
+  period: ReportPeriod;
+  summary: {
+    grossRevenueVnd: MetricValue;
+    platformRevenueVnd: MetricValue;
+    paidToOperatorsVnd: MetricValue;
+  };
+  monthly: Array<{
+    month: string;
+    grossRevenueVnd: number;
+    paidToOperatorsVnd: number;
+    platformRevenueVnd: number;
+  }>;
+  topOperators: Array<{
+    rank: number;
+    operatorId: string;
+    operatorName: string;
+    logoUrl: string | null;
+    revenueVnd: number;
+    vehicleCount: number;
+  }>;
+};
+
+export type OperatorRevenueAnalytics = {
+  period: ReportPeriod & { month: string };
+  summary: {
+    totalRevenueVnd: MetricValue;
+    ticketRevenueVnd: MetricValue;
+    parcelRevenueVnd: MetricValue;
+    averageRevenuePerTripVnd: MetricValue;
+  };
+  monthly: Array<{
+    month: string;
+    revenueVnd: number;
+    ticketRevenueVnd: number;
+    parcelRevenueVnd: number;
+    tripCount: number;
+  }>;
+  routePerformance: Array<{
+    routeId: string;
+    routeName: string;
+    originName: string;
+    destinationName: string;
+    tripCount: number;
+    completedTripCount: number;
+    bookingCount: number;
+    parcelCount: number;
+    revenueVnd: number;
+    completionRatePercent: number;
+  }>;
+};
+
+export type OperatorTripListParams = PageParams & {
+  from?: string;
+  to?: string;
+};
+
+export type OperatorTripListItem = {
+  tripId: string;
+  status: string;
+  route: { routeId: string; name: string; originName: string; destinationName: string };
+  vehicle: { vehicleId: string; licensePlate: string; status: string };
+  driver: { userId: string; displayName: string; phone: string | null } | null;
+  assistant: { userId: string; displayName: string; phone: string | null } | null;
+  departureAt: string;
+  arrivalEstimate: string | null;
+  canSubstituteVehicle: boolean;
+};
+
+export type PolicyAudience = "FOR_OPERATOR" | "FOR_USER";
+
+export type PolicyItem = {
+  id: string;
+  operatorId?: string | null;
+  title: string;
+  description: string;
+  content: string;
+  policyType: PolicyAudience;
+  category: string;
+  version: number;
+  active: boolean;
+  createdBy?: { userId: string; displayName: string; email: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PolicyListParams = PageParams & {
+  policyType?: PolicyAudience;
+  category?: string;
+  active?: boolean;
+};
+
+export type CreatePolicyRequest = Pick<
+  PolicyItem,
+  "title" | "description" | "content" | "policyType" | "category" | "active"
+>;
+
+export type UpdatePolicyRequest = Partial<CreatePolicyRequest> & { version: number };
 export type AlternativeRoute = {
   id: string;
   routeId: string;
@@ -4186,5 +4392,118 @@ export function sendOperatorNotification(
     },
   );
 }
+export function getAdminDashboardSummary(params: { from?: string; to?: string } = {}) {
+  return apiRequest<AdminDashboardSummary>(
+    `/v1/admin/dashboard/summary${buildQuery(params)}`,
+  );
+}
+
+export function getAdminRevenueAnalytics(params: { from: string; to: string; groupBy: "month"; top?: number }) {
+  return apiRequest<AdminRevenueAnalytics>(
+    `/v1/admin/revenue/analytics${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorRevenueAnalytics(month: string) {
+  return apiRequest<OperatorRevenueAnalytics>(
+    `/v1/operator/revenue/analytics${buildQuery({ month })}`,
+  );
+}
+
+export function getOperatorTrips(params: OperatorTripListParams = {}) {
+  return apiRequest<PagedResult<OperatorTripListItem>>(
+    `/v1/operator/trips${buildQuery(params)}`,
+  );
+}
+
+export function batchUpdateOperatorParcelRouteFares(
+  routeId: string,
+  request: BatchParcelRouteFareRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<BatchParcelRouteFareResult>(
+    `/v1/operator/parcel-route-fares/${routeId}/batch`,
+    {
+      method: "PUT",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+export function getOperatorParcelStats(params: OperatorParcelStatsParams) {
+  return apiRequest<OperatorParcelStats>(
+    `/v1/operator/parcel-stats${buildQuery(params)}`,
+  );
+}
+
+function getPolicies(basePath: string, params: PolicyListParams = {}) {
+  return apiRequest<PagedResult<PolicyItem>>(`${basePath}${buildQuery(params)}`);
+}
+
+function getPolicy(basePath: string, policyId: string) {
+  return apiRequest<PolicyItem>(`${basePath}/${policyId}`);
+}
+
+function createPolicy(
+  basePath: string,
+  request: CreatePolicyRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<PolicyItem>(basePath, {
+    method: "POST",
+    body: request,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+function updatePolicy(
+  basePath: string,
+  policyId: string,
+  request: UpdatePolicyRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<PolicyItem>(`${basePath}/${policyId}`, {
+    method: "PATCH",
+    body: request,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+function deletePolicy(
+  basePath: string,
+  policyId: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<void>(`${basePath}/${policyId}`, {
+    method: "DELETE",
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+export const getAdminPolicies = (params: PolicyListParams = {}) =>
+  getPolicies("/v1/admin/policies", params);
+export const getAdminPolicy = (policyId: string) =>
+  getPolicy("/v1/admin/policies", policyId);
+export const createAdminPolicy = (request: CreatePolicyRequest) =>
+  createPolicy("/v1/admin/policies", request);
+export const updateAdminPolicy = (policyId: string, request: UpdatePolicyRequest) =>
+  updatePolicy("/v1/admin/policies", policyId, request);
+export const deleteAdminPolicy = (policyId: string) =>
+  deletePolicy("/v1/admin/policies", policyId);
+
+export const getOperatorPolicies = (params: PolicyListParams = {}) =>
+  getPolicies("/v1/operator/policies", params);
+export const getOperatorPolicy = (policyId: string) =>
+  getPolicy("/v1/operator/policies", policyId);
+export const createOperatorPolicy = (request: CreatePolicyRequest) =>
+  createPolicy("/v1/operator/policies", request);
+export const updateOperatorPolicy = (
+  policyId: string,
+  request: UpdatePolicyRequest,
+) => updatePolicy("/v1/operator/policies", policyId, request);
+export const deleteOperatorPolicy = (policyId: string) =>
+  deletePolicy("/v1/operator/policies", policyId);
+
 
 

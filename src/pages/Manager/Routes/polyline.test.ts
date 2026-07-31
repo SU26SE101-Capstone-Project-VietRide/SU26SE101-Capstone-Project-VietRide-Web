@@ -3,6 +3,7 @@ import {
   decodeGooglePolyline,
   encodeGooglePolyline,
   estimateCoachDurationMinutes,
+  parseGoogleDurationSeconds,
 } from "./polyline";
 
 describe("Google encoded polyline", () => {
@@ -35,5 +36,13 @@ describe("Google encoded polyline", () => {
 
   it("keeps a slower duration returned by the road router", () => {
     expect(estimateCoachDurationMinutes(100, 12_000)).toBe(200);
+  });
+
+  it("parses the protobuf duration returned by Google Routes", () => {
+    expect(parseGoogleDurationSeconds("543.5s")).toBe(543.5);
+  });
+
+  it("rejects an invalid Google Routes duration", () => {
+    expect(parseGoogleDurationSeconds("9 minutes")).toBe(0);
   });
 });

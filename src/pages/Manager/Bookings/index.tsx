@@ -553,6 +553,12 @@ function BookingDetailContent({
         />
       </DetailSection>
 
+      <DetailSection title="Thông tin người mua" columns="four">
+        <DetailItem label="Họ tên" value={booking.buyer?.displayName || "-"} />
+        <DetailItem label="Số điện thoại" value={booking.buyer?.phone || "-"} />
+        <DetailItem label="Email" value={booking.buyer?.email || "-"} />
+        <DetailItem label="Mã người dùng" value={booking.buyer?.userId || "-"} />
+      </DetailSection>
       <DetailSection title={t("bookings.tripInfo")} columns="four">
         <DetailItem label={t("bookings.route")} value={route} />
         <DetailItem label={t("bookings.journey")} value={journey} />
@@ -661,3 +667,4 @@ function BookingDetailContent({
     </div>
   );
 }
+

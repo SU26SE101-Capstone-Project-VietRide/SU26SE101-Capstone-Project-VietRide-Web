@@ -1,11 +1,13 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FiArrowDown,
   FiArrowUp,
-  FiCalendar,
   FiDownload,
   FiFileText,
   FiLoader,
+  FiMinus,
+  FiRefreshCw,
 } from "react-icons/fi";
 import {
   BarChart,
@@ -25,67 +27,16 @@ import {
 } from "recharts";
 import {
   exportOperatorReport,
+  getOperatorRevenueAnalytics,
   OPERATOR_REPORT_EXPORT_TYPES,
+  type MetricValue,
+  type OperatorRevenueAnalytics,
   type OperatorReportExportType,
 } from "../../../api/vietride";
+import CustomSelect from "../../../components/CustomSelect";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Pagination from "../../../components/Pagination";
 import { formatDateInputValue } from "../../../utils/date";
-
-type RevenueData = {
-  month: string;
-  revenue: number;
-  trips: number;
-};
-
-type RouteEfficiency = {
-  name: string;
-  efficiency: number;
-};
-
-type RevenueCategory = {
-  category: string;
-  amount: number;
-  percent: number;
-};
-
-const monthlyData: RevenueData[] = [
-  { month: "Jan", revenue: 1200, trips: 210 },
-  { month: "Feb", revenue: 1300, trips: 200 },
-  { month: "Mar", revenue: 1400, trips: 220 },
-  { month: "Apr", revenue: 1350, trips: 215 },
-  { month: "May", revenue: 1600, trips: 280 },
-  { month: "Jun", revenue: 1700, trips: 300 },
-  { month: "Jul", revenue: 1800, trips: 310 },
-  { month: "Aug", revenue: 1750, trips: 290 },
-  { month: "Sep", revenue: 1900, trips: 320 },
-  { month: "Oct", revenue: 2100, trips: 340 },
-  { month: "Nov", revenue: 2200, trips: 360 },
-  { month: "Dec", revenue: 2300, trips: 380 },
-];
-
-const routeEfficiencyData: RouteEfficiency[] = [
-  { name: "Hà Nội - HCM", efficiency: 92 },
-  { name: "HCM - TP.HCM", efficiency: 85 },
-  { name: "Hải Phòng", efficiency: 88 },
-  { name: "Vũng Tàu", efficiency: 78 },
-  { name: "Cần Thơ", efficiency: 72 },
-  { name: "Sóc Trăng", efficiency: 80 },
-];
-
-const revenueDistribution: RevenueCategory[] = [
-  { category: "Vé khách online", amount: 1800, percent: 64 },
-  { category: "Vé tại quầy", amount: 560, percent: 18 },
-  { category: "Hàng hóa", amount: 410, percent: 14 },
-  { category: "Dịch vụ khác", amount: 145, percent: 4 },
-];
-
-const CATEGORY_KEYS = [
-  "onlineTickets",
-  "counterTickets",
-  "parcels",
-  "otherServices",
-] as const;
 
 type ExportRange = {
   from: string;
@@ -116,10 +67,98 @@ function isValidExportRange({ from, to }: ExportRange) {
   );
 }
 
+function currentMonthValue() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function monthOptions() {
+  const options: { value: string; label: string }[] = [];
+  const now = new Date();
+
+  for (let offset = 0; offset < 12; offset += 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    const value = date.toISOString().slice(0, 7);
+    options.push({
+      value,
+      label: `${date.getMonth() + 1}/${date.getFullYear()}`,
+    });
+  }
+
+  return options;
+}
+
+function monthLabel(value: string) {
+  const [, month] = value.split("-");
+  return month ? `T${Number(month)}` : value;
+}
+
+function formatCompactMoney(value: number) {
+  const abs = Math.abs(value);
+
+  if (abs >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
+  }
+
+  if (abs >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+
+  return value.toLocaleString("vi-VN");
+}
+
+function TrendBadge({ metric }: { metric: MetricValue }) {
+  const isUp = metric.trend === "UP";
+  const isDown = metric.trend === "DOWN";
+  const Icon = isUp ? FiArrowUp : isDown ? FiArrowDown : FiMinus;
+  const colorClass = isUp
+    ? "text-green-600"
+    : isDown
+      ? "text-red-600"
+      : "text-gray-500";
+
+  return (
+    <p className={`mt-2 flex items-center gap-1 text-xs ${colorClass}`}>
+      <Icon size={12} />
+      {metric.changePercent > 0 ? "+" : ""}
+      {metric.changePercent.toFixed(1)}%
+    </p>
+  );
+}
+
+function TrendStatusBadge({ trend }: { trend: MetricValue["trend"] }) {
+  const { t } = useTranslation("manager");
+  const isUp = trend === "UP";
+  const isDown = trend === "DOWN";
+  const label = isUp
+    ? t("reports.increased")
+    : isDown
+      ? t("reports.decreased")
+      : t("reports.flat");
+  const colorClass = isUp
+    ? "bg-green-100 text-green-700"
+    : isDown
+      ? "bg-red-100 text-red-700"
+      : "bg-gray-100 text-gray-600";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${colorClass}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function ManagerReports() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [page, setPage] = useState(1);
+  const [month, setMonth] = useState(currentMonthValue);
+  const [analytics, setAnalytics] = useState<OperatorRevenueAnalytics | null>(
+    null,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [exportRange, setExportRange] = useState<ExportRange>(
     createInitialExportRange,
   );
@@ -128,37 +167,72 @@ export default function ManagerReports() {
   const [exportError, setExportError] = useState("");
   const [exportMessage, setExportMessage] = useState("");
   const pageSize = 8;
+  const months = useMemo(() => monthOptions(), []);
 
-  const stats = useMemo(() => {
-    const totalRevenue = monthlyData.reduce((sum, d) => sum + d.revenue, 0);
-    const avgPerTrip = Math.round(
-      totalRevenue / monthlyData.reduce((sum, d) => sum + d.trips, 0),
-    );
-    const currentMonthRevenue = monthlyData[monthlyData.length - 1].revenue;
-    const prevMonthRevenue = monthlyData[monthlyData.length - 2].revenue;
-    const monthChangePercent = Math.round(
-      ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100,
-    );
+  const loadAnalytics = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError("");
+    try {
+      setAnalytics(await getOperatorRevenueAnalytics(month));
+    } catch (error) {
+      setAnalytics(null);
+      setLoadError(
+        error instanceof Error ? error.message : t("reports.loadFailed"),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [month, t]);
 
-    const onlineRevenue = revenueDistribution[0].amount;
-    const counterRevenue = revenueDistribution[1].amount;
-    const parcelRevenue = revenueDistribution[2].amount;
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void loadAnalytics();
+    });
 
-    return {
-      totalRevenue: (totalRevenue / 100).toFixed(1),
-      avgPerTrip,
-      monthChangePercent,
-      onlineRevenue: (onlineRevenue / 100).toFixed(2),
-      counterRevenue: (counterRevenue / 100).toFixed(2),
-      parcelRevenue: (parcelRevenue / 100).toFixed(2),
+    return () => {
+      cancelled = true;
     };
-  }, []);
+  }, [loadAnalytics]);
 
-  const revenueChartData = revenueDistribution.map((item, idx) => ({
-    name: t(`reports.${CATEGORY_KEYS[idx]}`),
-    revenue: item.amount,
-    percent: item.percent,
-  }));
+  const monthlyChartData = useMemo(
+    () =>
+      (analytics?.monthly ?? []).map((item) => ({
+        month: monthLabel(item.month),
+        revenue: Math.round(item.revenueVnd / 1_000_000),
+        trips: item.tripCount,
+      })),
+    [analytics],
+  );
+
+  const routeChartData = useMemo(
+    () =>
+      (analytics?.routePerformance ?? []).map((item) => ({
+        name: item.routeName,
+        efficiency: item.completionRatePercent,
+      })),
+    [analytics],
+  );
+
+  const distribution = useMemo(() => {
+    if (!analytics) return [];
+    const ticket = analytics.summary.ticketRevenueVnd.currentValue;
+    const parcel = analytics.summary.parcelRevenueVnd.currentValue;
+    const total = ticket + parcel;
+
+    return [
+      {
+        label: t("reports.ticketRevenue"),
+        amount: ticket,
+        percent: total > 0 ? (ticket / total) * 100 : 0,
+      },
+      {
+        label: t("reports.parcelRevenue"),
+        amount: parcel,
+        percent: total > 0 ? (parcel / total) * 100 : 0,
+      },
+    ];
+  }, [analytics, t]);
 
   async function handleExport(reportType: OperatorReportExportType) {
     setExportError("");
@@ -200,9 +274,35 @@ export default function ManagerReports() {
     }
   }
 
+  const summary = analytics?.summary;
+  const detailRows = summary
+    ? [
+        {
+          key: "totalRevenue",
+          label: t("reports.totalRevenue"),
+          value: formatCompactMoney(summary.totalRevenueVnd.currentValue),
+          metric: summary.totalRevenueVnd,
+        },
+        {
+          key: "avgPerTrip",
+          label: t("reports.avgPerTripRow"),
+          value: formatCompactMoney(
+            summary.averageRevenuePerTripVnd.currentValue,
+          ),
+          metric: summary.averageRevenuePerTripVnd,
+        },
+        {
+          key: "ticketRevenue",
+          label: t("reports.onlineTicketRevenue"),
+          value: formatCompactMoney(summary.ticketRevenueVnd.currentValue),
+          metric: summary.ticketRevenueVnd,
+        },
+      ]
+    : [];
+
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
             {t("reports.title")}
@@ -211,7 +311,38 @@ export default function ManagerReports() {
             {t("reports.subtitleDetail")}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <CustomSelect
+            value={month}
+            onChange={(event) => setMonth(event.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
+          >
+            {months.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </CustomSelect>
+          <button
+            type="button"
+            onClick={() => void loadAnalytics()}
+            disabled={isLoading}
+            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FiRefreshCw className={isLoading ? "animate-spin" : ""} />
+            {tc("refresh")}
+          </button>
+        </div>
       </div>
+
+      {loadError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {loadError}
+        </div>
+      )}
 
       <section className="rounded-lg border border-gray-200 bg-white">
         <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 lg:flex-row lg:items-end lg:justify-between">
@@ -315,12 +446,11 @@ export default function ManagerReports() {
             {t("reports.monthRevenue")}
           </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">
-            d{stats.totalRevenue}B
+            {isLoading || !summary
+              ? "-"
+              : formatCompactMoney(summary.totalRevenueVnd.currentValue)}
           </p>
-          <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-            <FiArrowUp size={12} /> {stats.monthChangePercent > 0 ? "↑" : "↓"}{" "}
-            {Math.abs(stats.monthChangePercent)}%
-          </p>
+          {summary && <TrendBadge metric={summary.totalRevenueVnd} />}
         </div>
 
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
@@ -328,9 +458,13 @@ export default function ManagerReports() {
             {t("reports.avgPerTrip")}
           </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">
-            d{stats.avgPerTrip}M
+            {isLoading || !summary
+              ? "-"
+              : formatCompactMoney(
+                  summary.averageRevenuePerTripVnd.currentValue,
+                )}
           </p>
-          <p className="text-xs text-green-600 mt-2">4.2%</p>
+          {summary && <TrendBadge metric={summary.averageRevenuePerTripVnd} />}
         </div>
 
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
@@ -338,9 +472,11 @@ export default function ManagerReports() {
             {t("reports.ticketRevenueShort")}
           </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">
-            d{stats.onlineRevenue}B
+            {isLoading || !summary
+              ? "-"
+              : formatCompactMoney(summary.ticketRevenueVnd.currentValue)}
           </p>
-          <p className="text-xs text-green-600 mt-2">12.1%</p>
+          {summary && <TrendBadge metric={summary.ticketRevenueVnd} />}
         </div>
 
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
@@ -348,9 +484,11 @@ export default function ManagerReports() {
             {t("reports.parcelRevenue")}
           </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">
-            d{stats.parcelRevenue}M
+            {isLoading || !summary
+              ? "-"
+              : formatCompactMoney(summary.parcelRevenueVnd.currentValue)}
           </p>
-          <p className="text-xs text-green-600 mt-2">22.7%</p>
+          {summary && <TrendBadge metric={summary.parcelRevenueVnd} />}
         </div>
       </div>
 
@@ -364,57 +502,57 @@ export default function ManagerReports() {
               {t("reports.revenueChartSubtitle")}
             </p>
           </div>
-          <button className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-            <FiCalendar size={14} /> {tc("month")}
-          </button>
         </div>
 
-        <ResponsiveContainer width="100%" height={350}>
-          <BarChart
-            data={monthlyData}
-            margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="month"
-              stroke="#9ca3af"
-              style={{ fontSize: "12px" }}
-            />
-            <YAxis stroke="#9ca3af" style={{ fontSize: "12px" }} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-              }}
-              formatter={(value) =>
-                typeof value === "number" ? value : (value ?? "")
-              }
-            />
-            <Legend />
-            <Bar
-              dataKey="revenue"
-              name={t("reports.chartRevenue")}
-              fill="#3b82f6"
-              radius={[6, 6, 0, 0]}
-            />
-            <Line
-              type="monotone"
-              dataKey="trips"
-              name={t("reports.chartTrips")}
-              stroke="#10b981"
-              strokeWidth={2}
-              dot={{ fill: "#10b981", r: 4 }}
-              yAxisId="right"
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              stroke="#9ca3af"
-              style={{ fontSize: "12px" }}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+        {monthlyChartData.length === 0 ? (
+          <div className="flex h-[350px] items-center justify-center text-sm text-gray-500">
+            {isLoading ? tc("loading") : t("reports.noData")}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart
+              data={monthlyChartData}
+              margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey="month"
+                stroke="#9ca3af"
+                style={{ fontSize: "12px" }}
+              />
+              <YAxis stroke="#9ca3af" style={{ fontSize: "12px" }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#f9fafb",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
+                }}
+              />
+              <Legend />
+              <Bar
+                dataKey="revenue"
+                name={t("reports.chartRevenue")}
+                fill="#3b82f6"
+                radius={[6, 6, 0, 0]}
+              />
+              <Line
+                type="monotone"
+                dataKey="trips"
+                name={t("reports.chartTrips")}
+                stroke="#10b981"
+                strokeWidth={2}
+                dot={{ fill: "#10b981", r: 4 }}
+                yAxisId="right"
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                stroke="#9ca3af"
+                style={{ fontSize: "12px" }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -428,36 +566,42 @@ export default function ManagerReports() {
             </p>
           </div>
 
-          <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={routeEfficiencyData}>
-              <PolarGrid stroke="#e5e7eb" />
-              <PolarAngleAxis
-                dataKey="name"
-                stroke="#9ca3af"
-                style={{ fontSize: "11px" }}
-              />
-              <PolarRadiusAxis
-                angle={90}
-                domain={[0, 100]}
-                stroke="#9ca3af"
-                style={{ fontSize: "11px" }}
-              />
-              <Radar
-                name={t("reports.efficiency")}
-                dataKey="efficiency"
-                stroke="#6366f1"
-                fill="#6366f1"
-                fillOpacity={0.6}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                }}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
+          {routeChartData.length === 0 ? (
+            <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
+              {isLoading ? tc("loading") : t("reports.noData")}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <RadarChart data={routeChartData}>
+                <PolarGrid stroke="#e5e7eb" />
+                <PolarAngleAxis
+                  dataKey="name"
+                  stroke="#9ca3af"
+                  style={{ fontSize: "11px" }}
+                />
+                <PolarRadiusAxis
+                  angle={90}
+                  domain={[0, 100]}
+                  stroke="#9ca3af"
+                  style={{ fontSize: "11px" }}
+                />
+                <Radar
+                  name={t("reports.efficiency")}
+                  dataKey="efficiency"
+                  stroke="#6366f1"
+                  fill="#6366f1"
+                  fillOpacity={0.6}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#f9fafb",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                  }}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -471,48 +615,50 @@ export default function ManagerReports() {
           </div>
 
           <div className="space-y-6">
-            {revenueChartData.map((item, idx) => (
-              <div key={idx}>
+            {distribution.map((item, idx) => (
+              <div key={item.label}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">
-                    {item.name}
+                    {item.label}
                   </span>
                   <span className="text-sm font-bold text-gray-900">
-                    d{item.revenue}M{" "}
-                    <span className="text-gray-500">· {item.percent}%</span>
+                    {formatCompactMoney(item.amount)}{" "}
+                    <span className="text-gray-500">
+                      · {item.percent.toFixed(1)}%
+                    </span>
                   </span>
                 </div>
                 <div className="w-full h-8 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className={`h-full flex items-center justify-end px-3 text-white text-xs font-semibold rounded-full transition-all ${
-                      idx === 0
-                        ? "bg-blue-500"
-                        : idx === 1
-                          ? "bg-blue-400"
-                          : idx === 2
-                            ? "bg-blue-300"
-                            : "bg-blue-200"
+                      idx === 0 ? "bg-blue-500" : "bg-blue-300"
                     }`}
-                    style={{ width: `${item.percent * 3}%` }}
+                    style={{ width: `${item.percent}%` }}
                   >
-                    {item.percent > 10 && `${item.percent}%`}
+                    {item.percent > 10 && `${item.percent.toFixed(0)}%`}
                   </div>
                 </div>
               </div>
             ))}
+            {distribution.length === 0 && (
+              <p className="text-sm text-gray-500">
+                {isLoading ? tc("loading") : t("reports.noData")}
+              </p>
+            )}
           </div>
 
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">
-                {t("reports.totalRevenue")}
-              </span>
-              <span className="text-lg font-bold text-gray-900">
-                d{revenueChartData.reduce((sum, item) => sum + item.revenue, 0)}
-                M
-              </span>
+          {summary && (
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">
+                  {t("reports.totalRevenue")}
+                </span>
+                <span className="text-lg font-bold text-gray-900">
+                  {formatCompactMoney(summary.totalRevenueVnd.currentValue)}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -540,57 +686,46 @@ export default function ManagerReports() {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-700">
-                  {t("reports.totalRevenue")}
-                </td>
-                <td className="px-4 py-3 text-gray-900">
-                  d{stats.totalRevenue}B
-                </td>
-                <td className="px-4 py-3 text-green-600 font-medium">
-                  +{stats.monthChangePercent}%
-                </td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-                    {t("reports.increased")}
-                  </span>
-                </td>
-              </tr>
-              <tr className="border-b border-gray-200 hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-700">
-                  {t("reports.avgPerTripRow")}
-                </td>
-                <td className="px-4 py-3 text-gray-900">
-                  d{stats.avgPerTrip}M
-                </td>
-                <td className="px-4 py-3 text-green-600 font-medium">+4.2%</td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-                    {t("reports.increased")}
-                  </span>
-                </td>
-              </tr>
-              <tr className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-700">
-                  {t("reports.onlineTicketRevenue")}
-                </td>
-                <td className="px-4 py-3 text-gray-900">
-                  d{stats.onlineRevenue}B
-                </td>
-                <td className="px-4 py-3 text-green-600 font-medium">+12.1%</td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-                    {t("reports.increased")}
-                  </span>
-                </td>
-              </tr>
+              {detailRows.map((row) => (
+                <tr
+                  key={row.key}
+                  className="border-b border-gray-200 last:border-0 hover:bg-gray-50"
+                >
+                  <td className="px-4 py-3 font-medium text-gray-700">
+                    {row.label}
+                  </td>
+                  <td className="px-4 py-3 text-gray-900">{row.value}</td>
+                  <td
+                    className={`px-4 py-3 font-medium ${
+                      row.metric.trend === "UP"
+                        ? "text-green-600"
+                        : row.metric.trend === "DOWN"
+                          ? "text-red-600"
+                          : "text-gray-500"
+                    }`}
+                  >
+                    {row.metric.changePercent > 0 ? "+" : ""}
+                    {row.metric.changePercent.toFixed(1)}%
+                  </td>
+                  <td className="px-4 py-3">
+                    <TrendStatusBadge trend={row.metric.trend} />
+                  </td>
+                </tr>
+              ))}
+              {detailRows.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-gray-500">
+                    {isLoading ? tc("loading") : t("reports.noData")}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
         <Pagination
           page={page}
           pageSize={pageSize}
-          totalItems={3}
+          totalItems={detailRows.length}
           onPageChange={setPage}
         />
       </div>

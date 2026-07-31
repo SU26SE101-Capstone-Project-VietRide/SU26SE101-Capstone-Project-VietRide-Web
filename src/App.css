@@ -273,6 +273,10 @@ input[type="week"]::-webkit-calendar-picker-indicator:hover {
   background: rgba(34, 211, 238, 0.12);
 }
 
+table thead th {
+  white-space: nowrap;
+}
+
 .table-action-button,
 tbody td button[title] {
   display: inline-flex;

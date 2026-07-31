@@ -481,8 +481,13 @@
     "pageSettlementTotal": "Settlements on this page",
     "eligibleAt": "Eligible at",
     "latestTransactions": "Latest platform wallet transactions",
+    "moneyIn": "Money in",
+    "moneyOut": "Money out",
+    "noCredits": "No money-in transactions yet.",
+    "noDebits": "No money-out transactions yet.",
     "createdAt": "Created at",
     "type": "Transaction type",
+    "balanceBefore": "Balance before",
     "balanceAfter": "Balance after",
     "reference": "Reference",
     "empty": "No data available.",
@@ -509,7 +514,10 @@
       "SETTLED": "Settled",
       "CANCELLED": "Cancelled",
       "FAILED": "Failed"
-    }
+    },
+    "settledBy": "Settled by",
+    "actor": "Actor",
+    "systemActor": "System"
   },
   "ragAudit": {
     "title": "RAG knowledge base and conversation audit",

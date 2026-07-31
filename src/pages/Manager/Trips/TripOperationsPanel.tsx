@@ -1,18 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiAlertTriangle, FiRefreshCw, FiRepeat, FiTruck } from "react-icons/fi";
+import {
+  FiAlertTriangle,
+  FiRefreshCw,
+  FiRepeat,
+  FiSearch,
+  FiTruck,
+} from "react-icons/fi";
 import {
   disruptOperatorTripNoSubstitution,
   getOperatorTripCargoCapacity,
+  getOperatorTrips,
   getOperatorUsers,
   getOperatorVehicles,
   substituteOperatorTripVehicle,
   type CargoCapacity,
   type OperatorUser,
   type OperatorVehicle,
+  type OperatorTripListItem,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
 import CustomSelect from "../../../components/CustomSelect";
+import { formatDateTime } from "../../../utils/date";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -25,10 +34,18 @@ function userId(user: OperatorUser) {
   return user.userId || user.id || "";
 }
 
+function tripLabel(trip: OperatorTripListItem) {
+  return `${trip.route.name} · ${trip.vehicle.licensePlate} · ${formatDateTime(trip.departureAt)}`;
+}
+
 export default function TripOperationsPanel() {
   const { t } = useTranslation("manager");
   const canMutate = getAuthUser()?.role === "OPERATOR_ADMIN";
   const [tripId, setTripId] = useState("");
+  const [trips, setTrips] = useState<OperatorTripListItem[]>([]);
+  const [tripSearch, setTripSearch] = useState("");
+  const [tripStatus, setTripStatus] = useState("");
+  const [isTripsLoading, setIsTripsLoading] = useState(false);
   const [capacity, setCapacity] = useState<CargoCapacity | null>(null);
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [users, setUsers] = useState<OperatorUser[]>([]);
@@ -50,6 +67,38 @@ export default function TripOperationsPanel() {
     [users],
   );
 
+  async function loadTrips() {
+    if (!canMutate) return;
+
+    setIsTripsLoading(true);
+    setError("");
+    try {
+      const result = await getOperatorTrips({
+        page: 1,
+        pageSize: 100,
+        search: tripSearch.trim() || undefined,
+        status: tripStatus || undefined,
+        sortBy: "departureAt",
+        sortDir: "asc",
+      });
+      setTrips(result.items);
+      if (result.items.length === 1) {
+        setTripId(result.items[0].tripId);
+      }
+    } catch (loadError) {
+      setTrips([]);
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : t("tripOperations.tripsFailed", {
+              defaultValue: "Không thể tải danh sách chuyến.",
+            }),
+      );
+    } finally {
+      setIsTripsLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!canMutate) return;
 
@@ -57,11 +106,17 @@ export default function TripOperationsPanel() {
     void Promise.all([
       getOperatorVehicles({ page: 1, pageSize: 100 }),
       getOperatorUsers({ page: 1, pageSize: 100 }),
-    ])
-      .then(([vehicleResult, userResult]) => {
+      getOperatorTrips({
+        page: 1,
+        pageSize: 100,
+        sortBy: "departureAt",
+        sortDir: "asc",
+      }),])
+      .then(([vehicleResult, userResult, tripResult]) => {
         if (!ignore) {
           setVehicles(vehicleResult.items);
           setUsers(userResult.items);
+          setTrips(tripResult.items);
         }
       })
       .catch((loadError: unknown) => {
@@ -231,18 +286,93 @@ export default function TripOperationsPanel() {
         )}
       </div>
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-        <input
-          value={tripId}
-          onChange={(event) => {
-            setTripId(event.target.value);
-            setCapacity(null);
-          }}
-          className={inputClass}
-          placeholder={t("tripOperations.tripPlaceholder", {
-            defaultValue: "UUID chuyến",
-          })}
-        />
+      {canMutate && (
+        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
+          <label className="relative block">
+            <span className="sr-only">
+              {t("tripOperations.searchTrips", { defaultValue: "Tìm chuyến" })}
+            </span>
+            <FiSearch className="pointer-events-none absolute left-3 top-3.5 text-gray-400" />
+            <input
+              value={tripSearch}
+              onChange={(event) => setTripSearch(event.target.value)}
+              className={`${inputClass} pl-9`}
+              placeholder={t("tripOperations.searchPlaceholder", {
+                defaultValue: "Tìm theo tuyến, biển số hoặc mã chuyến",
+              })}
+            />
+          </label>
+          <CustomSelect
+            value={tripStatus}
+            onChange={(event) => setTripStatus(event.target.value)}
+            className={inputClass}
+            aria-label={t("tripOperations.statusFilter", {
+              defaultValue: "Lọc trạng thái chuyến",
+            })}
+          >
+            <option value="">Tất cả trạng thái</option>
+            {[
+              "SCHEDULED",
+              "BOARDING",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "CANCELLED",
+              "DISRUPTED",
+            ].map((status) => (
+              <option key={status} value={status}>
+                {status.replaceAll("_", " ")}
+              </option>
+            ))}
+          </CustomSelect>
+          <button
+            type="button"
+            disabled={isTripsLoading}
+            onClick={() => void loadTrips()}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2.5 text-sm font-semibold text-vr-700 disabled:opacity-60"
+          >
+            <FiRefreshCw className={isTripsLoading ? "animate-spin" : ""} />
+            {t("tripOperations.search", { defaultValue: "Tìm chuyến" })}
+          </button>
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+        {canMutate ? (
+          <CustomSelect
+            value={tripId}
+            onChange={(event) => {
+              setTripId(event.target.value);
+              setCapacity(null);
+            }}
+            className={inputClass}
+            aria-label={t("tripOperations.tripSelect", {
+              defaultValue: "Chọn chuyến",
+            })}
+          >
+            <option value="">
+              {isTripsLoading
+                ? t("tripOperations.loadingTrips", { defaultValue: "Đang tải chuyến..." })
+                : t("tripOperations.selectTrip", { defaultValue: "Chọn chuyến vận hành" })}
+            </option>
+            {trips.map((trip) => (
+              <option key={trip.tripId} value={trip.tripId}>
+                {tripLabel(trip)}
+              </option>
+            ))}
+          </CustomSelect>
+        ) : (
+          <input
+            value={tripId}
+            onChange={(event) => {
+              setTripId(event.target.value);
+              setCapacity(null);
+            }}
+            className={inputClass}
+            placeholder={t("tripOperations.tripPlaceholder", {
+              defaultValue: "UUID chuyến",
+            })}
+          />
+        )}
         <button
           type="button"
           disabled={isLoading}
@@ -412,3 +542,6 @@ function CapacityMetric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+
+

@@ -19,24 +19,18 @@ import {
   FiXCircle,
 } from "react-icons/fi";
 import {
-  cancelOperatorParcel,
-  confirmOperatorParcelRefund,
-  createOperatorParcelRouteFare,
+  batchUpdateOperatorParcelRouteFares,
   exportOperatorParcelReport,
   getOperatorParcelReportSummary,
   getOperatorParcelRouteFares,
+  getOperatorParcelStats,
   getOperatorRoutes,
-  getParcelDetail,
-  overrideOperatorParcelCapacity,
-  requestOperatorParcelTransfer,
-  returnOperatorParcel,
   type OperatorParcelReportSummary,
+  type OperatorParcelStats,
   type OperatorRoute,
-  type ParcelDetail,
   type ParcelRouteFare,
   type ParcelSizeCategory,
   updateOperatorParcelRouteFare,
-  updateOperatorParcelStatus,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
 import CurrencyInput from "../../../components/CurrencyInput";
@@ -50,6 +44,21 @@ import ParcelQueue from "./ParcelQueue";
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
+const parcelSizeCategories: ParcelSizeCategory[] = [
+  "SMALL",
+  "MEDIUM",
+  "LARGE",
+  "EXTRA_LARGE",
+];
+
+function createEmptyFarePrices(): Record<ParcelSizeCategory, string> {
+  return {
+    SMALL: "",
+    MEDIUM: "",
+    LARGE: "",
+    EXTRA_LARGE: "",
+  };
+}
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -87,57 +96,18 @@ function normalizeStatus(status?: string) {
   return status?.replaceAll("_", " ") || "-";
 }
 
-function pendingActionOf(parcel: ParcelDetail | null) {
-  return parcel?.pendingActionType ?? "";
-}
-
-function isPendingRefundConfirmation(parcel: ParcelDetail | null) {
-  return (
-    parcel?.status === "PENDING_OPERATOR_ACTION" &&
-    pendingActionOf(parcel) === "REFUND_CONFIRMATION"
-  );
-}
-
-function isPendingCapacityOverride(parcel: ParcelDetail | null) {
-  const pendingAction = pendingActionOf(parcel);
-  return (
-    parcel?.status === "PENDING_OPERATOR_ACTION" &&
-    (pendingAction === "CAPACITY_EXCEEDED" || pendingAction === "RESERVE_FAILED")
-  );
-}
-
-function canRequestTransfer(parcel: ParcelDetail | null) {
-  return isPendingCapacityOverride(parcel) || parcel?.status === "TRANSFER_ESCALATED";
-}
-
-function canReturnParcel(parcel: ParcelDetail | null) {
-  return parcel?.status === "DELIVERY_REJECTED";
-}
-
-function canMarkReturned(parcel: ParcelDetail | null) {
-  return parcel?.status === "RETURN_INITIATED";
-}
-
-function canCancelException(parcel: ParcelDetail | null) {
-  return parcel?.status === "PENDING_OPERATOR_ACTION";
-}
-
 export default function ParcelsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const user = getAuthUser();
-  const canOperate = user?.role === "OPERATOR_ADMIN";
-  const canOverrideCapacity = user?.role === "OPERATOR_ADMIN";
   const canManageRouteFares = user?.role === "OPERATOR_ADMIN";
   const [summary, setSummary] = useState<OperatorParcelReportSummary | null>(null);
   const [routeFares, setRouteFares] = useState<ParcelRouteFare[]>([]);
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
+  const [statusStats, setStatusStats] = useState<OperatorParcelStats | null>(null);
+  const [routeStats, setRouteStats] = useState<OperatorParcelStats | null>(null);
   const [fromDate, setFromDate] = useState(monthStartIsoDate());
   const [toDate, setToDate] = useState(todayIsoDate());
-  const [parcelId, setParcelId] = useState("");
-  const [selectedParcel, setSelectedParcel] = useState<ParcelDetail | null>(null);
-  const [targetTripId, setTargetTripId] = useState("");
-  const [reason, setReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -146,6 +116,7 @@ export default function ParcelsList() {
   const [fareRouteId, setFareRouteId] = useState("");
   const [fareSizeCategory, setFareSizeCategory] = useState<ParcelSizeCategory>("SMALL");
   const [farePrice, setFarePrice] = useState("");
+  const [farePrices, setFarePrices] = useState(createEmptyFarePrices);
   const [fareEffectiveFrom, setFareEffectiveFrom] = useState(currentLocalDateTime);
   const [fareEffectiveUntil, setFareEffectiveUntil] = useState("");
   const [editingFare, setEditingFare] = useState<ParcelRouteFare | null>(null);
@@ -165,30 +136,50 @@ export default function ParcelsList() {
     setError("");
 
     try {
-      const [summaryResult, fareResult, routeResult] = await Promise.all([
+      const [
+        summaryResult,
+        fareResult,
+        routeResult,
+        statusStatsResult,
+        routeStatsResult,
+      ] = await Promise.all([
         getOperatorParcelReportSummary({
           from: fromDate,
           to: toDate,
         }),
         getOperatorParcelRouteFares({ page: 1, pageSize: 100 }),
         getOperatorRoutes({ page: 1, pageSize: 100 }),
+        canManageRouteFares
+          ? getOperatorParcelStats({ from: fromDate, to: toDate, groupBy: "status" })
+          : Promise.resolve(null),
+        canManageRouteFares
+          ? getOperatorParcelStats({
+              from: fromDate,
+              to: toDate,
+              groupBy: "route",
+              limit: 5,
+            })
+          : Promise.resolve(null),
       ]);
 
       setSummary(summaryResult);
       setRouteFares(fareResult.items);
       setRoutes(routeResult.items);
+      setStatusStats(statusStatsResult);
+      setRouteStats(routeStatsResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("parcels.loadFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [fromDate, t, toDate]);
+  }, [canManageRouteFares, fromDate, t, toDate]);
 
   function resetFareForm() {
     setEditingFare(null);
     setFareRouteId("");
     setFareSizeCategory("SMALL");
     setFarePrice("");
+    setFarePrices(createEmptyFarePrices());
     setFareEffectiveFrom(currentLocalDateTime());
     setFareEffectiveUntil("");
     setFareError("");
@@ -207,8 +198,22 @@ export default function ParcelsList() {
   }
 
   async function handleSaveFare() {
-    if (!fareRouteId || !farePrice || !fareEffectiveFrom) {
-      setFareError(t("parcels.fareRequired"));
+    const batchItems = parcelSizeCategories.map((sizeCategory) => ({
+      sizeCategory,
+      priceVnd: Number(farePrices[sizeCategory]),
+    }));
+    const hasInvalidBatchPrice = batchItems.some(
+      (item) => !Number.isFinite(item.priceVnd) || item.priceVnd <= 0,
+    );
+
+    if (
+      !fareRouteId ||
+      !fareEffectiveFrom ||
+      (editingFare
+        ? !farePrice || Number(farePrice) <= 0
+        : hasInvalidBatchPrice)
+    ) {
+      setFareError(t(editingFare ? "parcels.fareRequired" : "parcels.batchFareRequired"));
       return;
     }
 
@@ -218,33 +223,34 @@ export default function ParcelsList() {
     try {
       const effectiveUntil = fareEffectiveUntil
         ? new Date(fareEffectiveUntil).toISOString()
-        : undefined;
-      const payload = {
-        priceVnd: Number(farePrice),
-        effectiveFrom: new Date(fareEffectiveFrom).toISOString(),
-        effectiveUntil,
-      };
+        : null;
+      const effectiveFrom = new Date(fareEffectiveFrom).toISOString();
 
       if (editingFare) {
         await updateOperatorParcelRouteFare(
           editingFare.routeId,
           editingFare.sizeCategory,
-          payload,
+          {
+            priceVnd: Number(farePrice),
+            effectiveFrom,
+            effectiveUntil,
+          },
         );
       } else {
-        await createOperatorParcelRouteFare({
-          routeId: fareRouteId,
-          sizeCategory: fareSizeCategory,
-          ...payload,
+        await batchUpdateOperatorParcelRouteFares(fareRouteId, {
+          effectiveFrom,
+          effectiveUntil,
+          items: batchItems,
         });
       }
 
       const result = await getOperatorParcelRouteFares({ page: 1, pageSize: 100 });
       setRouteFares(result.items);
-      setFareMessage(t(editingFare ? "parcels.fareUpdated" : "parcels.fareCreated"));
+      setFareMessage(t(editingFare ? "parcels.fareUpdated" : "parcels.batchFareCreated"));
       setEditingFare(null);
       setFareRouteId("");
       setFarePrice("");
+      setFarePrices(createEmptyFarePrices());
       setFareEffectiveUntil("");
       setFareEffectiveFrom(currentLocalDateTime());
     } catch (err) {
@@ -275,17 +281,6 @@ export default function ParcelsList() {
     }
   }
 
-  async function handleLookupParcel() {
-    if (!parcelId.trim()) {
-      setError(t("parcels.parcelIdRequired"));
-      return;
-    }
-
-    const detail = await getParcelDetail(parcelId.trim());
-    setSelectedParcel(detail);
-    setMessage(t("parcels.detailLoaded"));
-  }
-
   async function handleExportReport() {
     const report = await exportOperatorParcelReport({
       from: fromDate,
@@ -302,122 +297,6 @@ export default function ParcelsList() {
     anchor.remove();
     URL.revokeObjectURL(url);
     setMessage(t("parcels.exportSuccess"));
-  }
-
-  async function handleConfirmRefund() {
-    if (!selectedParcel || !isPendingRefundConfirmation(selectedParcel)) {
-      setError(t("parcels.refundNotPending"));
-      return;
-    }
-
-    if (!reason.trim()) {
-      setError(t("parcels.refundReasonRequired"));
-      return;
-    }
-
-    await confirmOperatorParcelRefund(selectedParcel.parcelId, {
-      reason: reason.trim(),
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.refundConfirmSuccess"));
-  }
-
-  async function handleOverrideCapacity() {
-    if (!selectedParcel || !isPendingCapacityOverride(selectedParcel)) {
-      setError(t("parcels.capacityOverrideNotPending"));
-      return;
-    }
-
-    if (!reason.trim()) {
-      setError(t("parcels.capacityOverrideReasonRequired"));
-      return;
-    }
-
-    await overrideOperatorParcelCapacity(selectedParcel.parcelId, {
-      reason: reason.trim(),
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.capacityOverrideSuccess"));
-  }
-
-  async function handleRequestTransfer() {
-    if (!selectedParcel) {
-      setError(t("parcels.reviewEmpty"));
-      return;
-    }
-
-    if (!targetTripId.trim()) {
-      setError(t("parcels.transferTripRequired"));
-      return;
-    }
-
-    if (!reason.trim()) {
-      setError(t("parcels.transferReasonRequired"));
-      return;
-    }
-
-    await requestOperatorParcelTransfer(selectedParcel.parcelId, {
-      targetTripId: targetTripId.trim(),
-      reason: reason.trim(),
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.transferRequestSuccess"));
-  }
-
-  async function handleReturnParcel() {
-    if (!selectedParcel) {
-      setError(t("parcels.reviewEmpty"));
-      return;
-    }
-
-    if (!reason.trim()) {
-      setError(t("parcels.returnReasonRequired"));
-      return;
-    }
-
-    await returnOperatorParcel(selectedParcel.parcelId, {
-      returnReason: reason.trim(),
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.returnSuccess"));
-  }
-
-  async function handleMarkReturned() {
-    if (!selectedParcel) {
-      setError(t("parcels.reviewEmpty"));
-      return;
-    }
-
-    if (!reason.trim()) {
-      setError(t("parcels.returnReasonRequired"));
-      return;
-    }
-
-    await updateOperatorParcelStatus(selectedParcel.parcelId, {
-      targetStatus: "RETURNED",
-      reason: reason.trim(),
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.statusReturnedSuccess"));
-  }
-
-  async function handleCancelParcel() {
-    if (!selectedParcel) {
-      setError(t("parcels.reviewEmpty"));
-      return;
-    }
-
-    if (!reason.trim()) {
-      setError(t("parcels.cancelReasonRequired"));
-      return;
-    }
-
-    await cancelOperatorParcel(selectedParcel.parcelId, {
-      reason: reason.trim(),
-      refundChoice: null,
-    });
-    setSelectedParcel(await getParcelDetail(selectedParcel.parcelId));
-    setMessage(t("parcels.cancelSuccess"));
   }
 
   return (
@@ -513,9 +392,8 @@ export default function ParcelsList() {
 
       <ParcelQueue />
 
-      <div className="grid gap-6">
-        <main className="space-y-6">
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <main className="space-y-6">
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
@@ -546,6 +424,66 @@ export default function ParcelsList() {
             </div>
           </section>
 
+          {canManageRouteFares && (
+            <section className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-gray-900">
+                  {t("parcels.statusStats")}
+                </h2>
+                <p className="mb-4 text-sm text-gray-500">
+                  {t("parcels.statusStatsHint")}
+                </p>
+                <div className="space-y-2">
+                  {statusStats?.items.map((item) => (
+                    <div
+                      key={item.key ?? "unknown"}
+                      className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium text-gray-700">
+                        {normalizeStatus(item.key)}
+                      </span>
+                      <span className="font-bold text-gray-900">{item.count ?? 0}</span>
+                    </div>
+                  ))}
+                  {!isLoading && !statusStats?.items.length && (
+                    <p className="py-4 text-center text-sm text-gray-500">
+                      {t("parcels.noStats")}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-gray-900">
+                  {t("parcels.routeStats")}
+                </h2>
+                <p className="mb-4 text-sm text-gray-500">
+                  {t("parcels.routeStatsHint")}
+                </p>
+                <div className="space-y-2">
+                  {routeStats?.items.map((item) => (
+                    <div
+                      key={item.routeId ?? item.routeName ?? "unknown"}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm"
+                    >
+                      <span className="truncate font-medium text-gray-700">
+                        {item.routeName ?? item.routeId ?? "-"}
+                      </span>
+                      <span className="shrink-0 font-bold text-gray-900">
+                        {item.parcelCount ?? item.count ?? 0}
+                      </span>
+                    </div>
+                  ))}
+                  {!isLoading && !routeStats?.items.length && (
+                    <p className="py-4 text-center text-sm text-gray-500">
+                      {t("parcels.noStats")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-100 p-5">
               <h2 className="text-lg font-bold text-gray-900">
@@ -562,14 +500,104 @@ export default function ParcelsList() {
                   {editingFare && <button type="button" onClick={resetFareForm} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold">{t("parcels.cancelEdit")}</button>}
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  <label><span className={labelClass}>{t("parcels.route")}</span><CustomSelect value={fareRouteId} disabled={Boolean(editingFare)} onChange={(event) => setFareRouteId(event.target.value)} className={inputClass}><option value="">{t("parcels.selectRoute")}</option>{routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</CustomSelect></label>
-                  <label><span className={labelClass}>{t("parcels.sizeCategory")}</span><CustomSelect value={fareSizeCategory} disabled={Boolean(editingFare)} onChange={(event) => setFareSizeCategory(event.target.value)} className={inputClass}>{["SMALL", "MEDIUM", "LARGE", "EXTRA_LARGE"].map((size) => <option key={size} value={size}>{size}</option>)}</CustomSelect></label>
-                  <label><span className={labelClass}>{t("parcels.fee")}</span><CurrencyInput value={farePrice} onChange={(event) => setFarePrice(event.target.value)} className={inputClass} placeholder="50.000" /></label>
-                  <label><span className={labelClass}>{t("parcels.effectiveFrom")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveFrom} onChange={(event) => setFareEffectiveFrom(event.target.value)} className={inputClass} /></label>
-                  <label><span className={labelClass}>{t("parcels.effectiveUntil")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveUntil} onChange={(event) => setFareEffectiveUntil(event.target.value)} className={inputClass} /></label>
-                  <div className="flex items-end"><button type="button" disabled={isFareSaving} onClick={() => void handleSaveFare()} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{editingFare ? <FiSave /> : <FiPlus />}{editingFare ? t("parcels.updateFare") : t("parcels.addFare")}</button></div>
+                  <label>
+                    <span className={labelClass}>{t("parcels.route")}</span>
+                    <CustomSelect
+                      value={fareRouteId}
+                      disabled={Boolean(editingFare)}
+                      onChange={(event) => setFareRouteId(event.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">{t("parcels.selectRoute")}</option>
+                      {routes.map((route) => (
+                        <option key={route.id} value={route.id}>
+                          {route.name}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                  </label>
+                  {editingFare && (
+                    <>
+                      <label>
+                        <span className={labelClass}>{t("parcels.sizeCategory")}</span>
+                        <CustomSelect
+                          value={fareSizeCategory}
+                          disabled
+                          onChange={(event) =>
+                            setFareSizeCategory(event.target.value as ParcelSizeCategory)
+                          }
+                          className={inputClass}
+                        >
+                          {parcelSizeCategories.map((size) => (
+                            <option key={size} value={size}>
+                              {t(`parcels.sizeCategories.${size}`)}
+                            </option>
+                          ))}
+                        </CustomSelect>
+                      </label>
+                      <label>
+                        <span className={labelClass}>{t("parcels.fee")}</span>
+                        <CurrencyInput
+                          value={farePrice}
+                          onChange={(event) => setFarePrice(event.target.value)}
+                          className={inputClass}
+                          placeholder="50.000"
+                        />
+                      </label>
+                    </>
+                  )}
+                  <label>
+                    <span className={labelClass}>{t("parcels.effectiveFrom")}</span>
+                    <CustomDateTimeInput
+                      type="datetime-local"
+                      value={fareEffectiveFrom}
+                      onChange={(event) => setFareEffectiveFrom(event.target.value)}
+                      className={inputClass}
+                    />
+                  </label>
+                  <label>
+                    <span className={labelClass}>{t("parcels.effectiveUntil")}</span>
+                    <CustomDateTimeInput
+                      type="datetime-local"
+                      value={fareEffectiveUntil}
+                      onChange={(event) => setFareEffectiveUntil(event.target.value)}
+                      className={inputClass}
+                    />
+                  </label>
                 </div>
-                {fareError && <p className="mt-3 text-sm font-medium text-red-600">{fareError}</p>}
+                {!editingFare && (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {parcelSizeCategories.map((sizeCategory) => (
+                      <label key={sizeCategory}>
+                        <span className={labelClass}>
+                          {t(`parcels.sizeCategories.${sizeCategory}`)}
+                        </span>
+                        <CurrencyInput
+                          value={farePrices[sizeCategory]}
+                          onChange={(event) =>
+                            setFarePrices((current) => ({
+                              ...current,
+                              [sizeCategory]: event.target.value,
+                            }))
+                          }
+                          className={inputClass}
+                          placeholder="0"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={isFareSaving}
+                    onClick={() => void handleSaveFare()}
+                    className="inline-flex min-w-44 items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {editingFare ? <FiSave /> : <FiPlus />}
+                    {editingFare ? t("parcels.updateFare") : t("parcels.addFareBatch")}
+                  </button>
+                </div>                {fareError && <p className="mt-3 text-sm font-medium text-red-600">{fareError}</p>}
                 {fareMessage && <p className="mt-3 text-sm font-medium text-emerald-700">{fareMessage}</p>}
               </div>
             )}
@@ -586,7 +614,7 @@ export default function ParcelsList() {
                 <tbody>
                   {paginatedRouteFares.map((fare) => (
                     <tr
-                      key={`${routes.find((route) => route.id === fare.routeId)?.name || "Tuyến chưa có tên"}-${fare.sizeCategory}`}
+                      key={`${fare.routeId}-${fare.sizeCategory}-${fare.effectiveFrom}`}
                       className="border-b border-gray-100 last:border-0"
                     >
                       <td className="px-5 py-4 text-sm font-medium text-gray-900">
@@ -594,7 +622,7 @@ export default function ParcelsList() {
                         {canManageRouteFares && (<button type="button" onClick={() => handleEditFare(fare)} className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:text-vr-700" aria-label={t("parcels.editFare")} title={t("parcels.editFare")}><FiEdit2 size={15} /></button>)}
                       </td>
                       <td className="px-5 py-4 text-sm font-semibold text-gray-900">
-                        {fare.sizeCategory}
+                        {t(`parcels.sizeCategories.${fare.sizeCategory}`)}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-700">
                         {formatMoney(fare.priceVnd)} VND
@@ -620,182 +648,7 @@ export default function ParcelsList() {
               onPageChange={setFarePage}
             />
           </section>
-        </main>
-
-        <aside className="hidden">
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900">
-              {t("parcels.lookupTitle")}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {t("parcels.lookupHint")}
-            </p>
-            <div className="mt-4 flex gap-2">
-              <input
-                className={inputClass}
-                value={parcelId}
-                placeholder="Mã đơn hàng"
-                onChange={(event) => setParcelId(event.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => void runAction(handleLookupParcel)}
-                className="inline-flex items-center justify-center rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-              >
-                <FiSearch size={16} />
-              </button>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900">
-              {t("parcels.detailTitle")}
-            </h2>
-            {selectedParcel ? (
-              <div className="mt-4 space-y-3">
-                <Info label={t("parcels.orderCode")} value={selectedParcel.parcelCode} />
-                <Info
-                  label={tc("status")}
-                  value={normalizeStatus(selectedParcel.status)}
-                />
-                <Info
-                  label={t("parcels.pendingActionType")}
-                  value={
-                    pendingActionOf(selectedParcel)
-                      ? t(`parcels.pendingActions.${pendingActionOf(selectedParcel)}`, {
-                          defaultValue: normalizeStatus(pendingActionOf(selectedParcel)),
-                        })
-                      : "-"
-                  }
-                />
-                <Info
-                  label={t("parcels.recipient")}
-                  value={selectedParcel.recipientName}
-                />
-                <Info
-                  label={t("parcels.weightKg")}
-                  value={`${selectedParcel.estimatedWeightKg} kg`}
-                />
-                <Info
-                  label={t("parcels.fee")}
-                  value={`${formatMoney(selectedParcel.depositAmount)} VND`}
-                />
-                <Info
-                  label={t("parcels.refundAmount")}
-                  value={
-                    selectedParcel.refundAmount == null
-                      ? "-"
-                      : `${formatMoney(selectedParcel.refundAmount)} VND`
-                  }
-                />
-                <Info
-                  label={t("parcels.route")}
-                  value={`${selectedParcel.originStationName ?? "-"} → ${
-                    selectedParcel.destinationStationName ?? "-"
-                  }`}
-                />
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-gray-500">
-                {t("parcels.reviewEmpty")}
-              </p>
-            )}
-          </section>
-
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900">
-              {t("parcels.operatorActions")}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {canOperate
-                ? t("parcels.operatorActionsHint")
-                : t("parcels.staffReadOnlyHint")}
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <Field
-                label={t("parcels.targetTripId")}
-                value={targetTripId}
-                onChange={setTargetTripId}
-              />
-              <div>
-                <label className={labelClass}>{t("parcels.decisionReason")}</label>
-                <textarea
-                  className={`${inputClass} min-h-[88px]`}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder={t("parcels.decisionReasonPlaceholder")}
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                disabled={
-                  !canOperate ||
-                  isActionLoading ||
-                  !isPendingRefundConfirmation(selectedParcel)
-                }
-                onClick={() => void runAction(handleConfirmRefund)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiDollarSign size={16} />
-                {t("parcels.confirmRefund")}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  !canOverrideCapacity ||
-                  isActionLoading ||
-                  !isPendingCapacityOverride(selectedParcel)
-                }
-                onClick={() => void runAction(handleOverrideCapacity)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-800 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiTruck size={16} />
-                {t("parcels.overrideCapacity")}
-              </button>
-              <button
-                type="button"
-                disabled={!canOperate || isActionLoading || !canRequestTransfer(selectedParcel)}
-                onClick={() => void runAction(handleRequestTransfer)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiTruck size={16} />
-                {t("parcels.requestTransfer")}
-              </button>
-              <button
-                type="button"
-                disabled={!canOperate || isActionLoading || !canReturnParcel(selectedParcel)}
-                onClick={() => void runAction(handleReturnParcel)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-purple-200 px-4 py-2 text-sm font-semibold text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiPackage size={16} />
-                {t("parcels.returnParcel")}
-              </button>
-              <button
-                type="button"
-                disabled={!canOperate || isActionLoading || !canMarkReturned(selectedParcel)}
-                onClick={() => void runAction(handleMarkReturned)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiCheckCircle size={16} />
-                {t("parcels.markReturned")}
-              </button>
-              <button
-                type="button"
-                disabled={!canOperate || isActionLoading || !canCancelException(selectedParcel)}
-                onClick={() => void runAction(handleCancelParcel)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiDollarSign size={16} />
-                {t("parcels.cancelParcel")}
-              </button>
-            </div>
-          </section>
-        </aside>
-      </div>
+      </main>
     </div>
   );
 }
@@ -875,4 +728,6 @@ function Field({
 function Info({ label, value }: { label: string; value: ReactNode }) {
   return <DetailItem label={label} value={value} />;
 }
+
+
 

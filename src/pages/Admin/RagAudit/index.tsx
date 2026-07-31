@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiCheck, FiFileText, FiRefreshCw, FiSearch, FiUploadCloud } from "react-icons/fi";
+import {
+  FiCheck,
+  FiFileText,
+  FiRefreshCw,
+  FiSearch,
+  FiUploadCloud,
+} from "react-icons/fi";
 import {
   approveRagDocument,
   getRagDocuments,
   getRagFeedback,
   getRagRuntimeConfigs,
-  reloadRagRuntimeConfigs,
   type RagDocument,
   type RagFeedback,
   type RagRuntimeConfig,
@@ -30,14 +35,6 @@ function feedbackTone(rating: number) {
     : "bg-rose-50 text-rose-700";
 }
 
-function formatConfigValue(value: unknown) {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return JSON.stringify(value);
-}
-
 function normalizeRuntimeConfigs(value: unknown): RagRuntimeConfig[] {
   return Array.isArray(value) ? value : [];
 }
@@ -47,9 +44,11 @@ export default function RagAudit() {
   const { t: tc } = useTranslation("common");
   const [documents, setDocuments] = useState<RagDocument[]>([]);
   const [feedback, setFeedback] = useState<RagFeedback[]>([]);
-  const [configs, setConfigs] = useState<RagRuntimeConfig[]>([]);
+  const [, setConfigs] = useState<RagRuntimeConfig[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [selectedConfigKey, setSelectedConfigKey] = useState<string | null>(null);
+  const [selectedConfigKey, setSelectedConfigKey] = useState<string | null>(
+    null,
+  );
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -58,15 +57,25 @@ export default function RagAudit() {
   const [totalDocuments, setTotalDocuments] = useState(0);
   const pageSize = 8;
 
-
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
     try {
       const [documentResult, feedbackResult, configResult] = await Promise.all([
-        getRagDocuments({ page, pageSize, search, sortBy: "createdAt", sortDir: "desc" }),
-        getRagFeedback({ page: 1, pageSize: 20, sortBy: "createdAt", sortDir: "desc" }),
+        getRagDocuments({
+          page,
+          pageSize,
+          search,
+          sortBy: "createdAt",
+          sortDir: "desc",
+        }),
+        getRagFeedback({
+          page: 1,
+          pageSize: 20,
+          sortBy: "createdAt",
+          sortDir: "desc",
+        }),
         getRagRuntimeConfigs(),
       ]);
 
@@ -107,19 +116,6 @@ export default function RagAudit() {
         ),
       );
       setMessage(t("ragAudit.statusUpdated", { title: approved.title || id }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("ragAudit.actionFailed"));
-    }
-  }
-
-  async function handleReloadConfigs() {
-    setError("");
-    setMessage("");
-
-    try {
-      await reloadRagRuntimeConfigs();
-      setConfigs(normalizeRuntimeConfigs(await getRagRuntimeConfigs()));
-      setMessage(t("ragAudit.configReloaded"));
     } catch (err) {
       setError(err instanceof Error ? err.message : t("ragAudit.actionFailed"));
     }
@@ -215,8 +211,14 @@ export default function RagAudit() {
                             {document.title}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {tc(`enumLabels.${document.fileType ?? document.documentType}`, { defaultValue: document.fileType ?? document.documentType })} -{" "}
-                            {document.title || "Tài liệu cho trợ lý AI"}
+                            {tc(
+                              `enumLabels.${document.fileType ?? document.documentType}`,
+                              {
+                                defaultValue:
+                                  document.fileType ?? document.documentType,
+                              },
+                            )}{" "}
+                            - {document.title || "Tài liệu cho trợ lý AI"}
                           </p>
                           <p className="mt-1 font-mono text-[11px] text-gray-400">
                             {document.id}
@@ -225,12 +227,15 @@ export default function RagAudit() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {tc(`enumLabels.${document.accessLevel}`, { defaultValue: document.accessLevel })}
+                      {tc(`enumLabels.${document.accessLevel}`, {
+                        defaultValue: document.accessLevel,
+                      })}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          statusClass[document.status] ?? "bg-gray-100 text-gray-600"
+                          statusClass[document.status] ??
+                          "bg-gray-100 text-gray-600"
                         }`}
                       >
                         {t(`ragAudit.status.${document.status}`, {
@@ -242,7 +247,9 @@ export default function RagAudit() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50"
-                          onClick={() => void handleApproveDocument(document.id)}
+                          onClick={() =>
+                            void handleApproveDocument(document.id)
+                          }
                           title={tc("approve")}
                           aria-label={tc("approve")}
                         >
@@ -267,13 +274,17 @@ export default function RagAudit() {
           <h2 className="text-lg font-bold text-gray-900">
             {t("ragAudit.conversationAudit")}
           </h2>
-          <p className="mt-1 text-sm text-gray-500">{t("ragAudit.auditHint")}</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {t("ragAudit.auditHint")}
+          </p>
           <div className="mt-4 space-y-3">
             {isLoading && (
               <p className="text-sm text-gray-500">{t("ragAudit.loading")}</p>
             )}
             {!isLoading && feedback.length === 0 && (
-              <p className="text-sm text-gray-500">{t("ragAudit.noFeedback")}</p>
+              <p className="text-sm text-gray-500">
+                {t("ragAudit.noFeedback")}
+              </p>
             )}
             {feedback.map((item) => (
               <div
@@ -286,8 +297,7 @@ export default function RagAudit() {
                       {item.comment || "Không có ghi chú"}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      {item.role ?? "-"} -{" "}
-                      {formatDateTime(item.createdAt)}
+                      {item.role ?? "-"} - {formatDateTime(item.createdAt)}
                     </p>
                   </div>
                   <span
@@ -301,44 +311,6 @@ export default function RagAudit() {
           </div>
         </section>
       </div>
-
-      <section className="rounded-lg border border-gray-200 bg-white p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">
-              {t("ragAudit.runtimeConfig")}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {t("ragAudit.runtimeConfigHint")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleReloadConfigs()}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <FiRefreshCw size={16} />
-            {t("ragAudit.reloadConfig")}
-          </button>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {configs.map((config) => (
-            <button
-              type="button"
-              key={config.key}
-              onClick={() => setSelectedConfigKey(config.key)}
-              className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-left transition hover:border-vr-200 hover:bg-vr-50"
-            >
-              <p className="font-mono text-xs font-semibold text-gray-900">
-                {config.key}
-              </p>
-              <p className="mt-1 line-clamp-2 text-xs text-gray-500">
-                {formatConfigValue(config.value)}
-              </p>
-            </button>
-          ))}
-        </div>
-      </section>
 
       <RagDocumentUploadModal
         open={uploadOpen}

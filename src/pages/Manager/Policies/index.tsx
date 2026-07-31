@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiPlus,
@@ -6,33 +6,29 @@ import {
   FiTrash2,
   FiCheck,
   FiX,
-  FiFileText,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
-import {
-  operatorPolicies as mockOperatorPolicies,
-  type OperatorPolicy,
-} from "../../../data/mockData";
 import { formatDateOnly } from "../../../utils/date";
+import {
+  createOperatorPolicy,
+  deleteOperatorPolicy,
+  getOperatorPolicies,
+  updateOperatorPolicy,
+  type PolicyItem,
+} from "../../../api/vietride";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
-const CURRENT_OPERATOR_ID = "op1";
-
 export default function ManagerPolicies() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [policies, setPolicies] = useState<OperatorPolicy[]>(
-    mockOperatorPolicies.filter((p) => p.operatorId === CURRENT_OPERATOR_ID),
-  );
+  const [policies, setPolicies] = useState<PolicyItem[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [selectedPolicy, setSelectedPolicy] = useState<OperatorPolicy | null>(
-    null,
-  );
+  const [selectedPolicy, setSelectedPolicy] = useState<PolicyItem | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -40,28 +36,47 @@ export default function ManagerPolicies() {
     category: "",
   });
   const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const pageSize = 8;
 
-  const sortedPolicies = useMemo(
-    () =>
-      [...policies].sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      ),
-    [policies],
-  );
+  const loadPolicies = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await getOperatorPolicies({ page, pageSize });
+      setPolicies(result.items);
+      setTotalItems(result.totalItems);
+    } catch (reason) {
+      setPolicies([]);
+      setTotalItems(0);
+      setError(reason instanceof Error ? reason.message : "Không thể tải danh sách policy.");
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
 
-  const paginatedPolicies = useMemo(
-    () => sortedPolicies.slice((page - 1) * pageSize, page * pageSize),
-    [page, sortedPolicies],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void loadPolicies();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadPolicies]);
+
+  const paginatedPolicies = policies;
 
   const resetForm = () => {
     setFormData({ title: "", description: "", content: "", category: "" });
     setSelectedPolicy(null);
   };
 
-  const handleEdit = (policy: OperatorPolicy) => {
+  const handleEdit = (policy: PolicyItem) => {
     setSelectedPolicy(policy);
     setFormData({
       title: policy.title,
@@ -72,58 +87,56 @@ export default function ManagerPolicies() {
     setEditOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm(t("policies.confirmDelete"))) {
-      setPolicies((prev) => prev.filter((p) => p.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm(t("policies.confirmDelete"))) return;
+    setError("");
+    try {
+      await deleteOperatorPolicy(id);
+      await loadPolicies();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể xóa policy.");
     }
   };
 
-  const handleToggleActive = (id: string) => {
-    setPolicies((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              active: !p.active,
-              updatedAt: new Date().toISOString().split("T")[0],
-            }
-          : p,
-      ),
-    );
+  const handleToggleActive = async (policy: PolicyItem) => {
+    setError("");
+    try {
+      await updateOperatorPolicy(policy.id, {
+        active: !policy.active,
+        version: policy.version,
+      });
+      await loadPolicies();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể cập nhật trạng thái policy.");
+    }
   };
 
-  const handleSave = () => {
-    const now = new Date().toISOString().split("T")[0];
-
-    if (selectedPolicy) {
-      setPolicies((prev) =>
-        prev.map((p) =>
-          p.id === selectedPolicy.id
-            ? {
-                ...p,
-                ...formData,
-                version: p.version + 1,
-                updatedAt: now,
-              }
-            : p,
-        ),
-      );
-    } else {
-      const newPolicy: OperatorPolicy = {
-        id: `oppol${Date.now()}`,
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const request = {
         ...formData,
-        operatorId: CURRENT_OPERATOR_ID,
-        version: 1,
-        active: true,
-        createdAt: now,
-        updatedAt: now,
+        policyType: selectedPolicy?.policyType ?? ("FOR_USER" as const),
+        active: selectedPolicy?.active ?? true,
       };
-      setPolicies((prev) => [...prev, newPolicy]);
+      if (selectedPolicy) {
+        await updateOperatorPolicy(selectedPolicy.id, {
+          ...request,
+          version: selectedPolicy.version,
+        });
+      } else {
+        await createOperatorPolicy(request);
+      }
+      setEditOpen(false);
+      setCreateOpen(false);
+      resetForm();
+      await loadPolicies();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể lưu policy.");
+    } finally {
+      setSaving(false);
     }
-
-    setEditOpen(false);
-    setCreateOpen(false);
-    resetForm();
   };
 
   return (
@@ -148,16 +161,12 @@ export default function ManagerPolicies() {
         </button>
       </div>
 
-      {sortedPolicies.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 py-12 text-center">
-          <FiFileText size={48} className="mx-auto mb-4 text-gray-400" />
-          <p className="text-gray-600">{t("policies.empty")}</p>
-          <p className="mt-1 text-sm text-gray-500">
-            {t("policies.emptyHint")}
-          </p>
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
         </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+      )}
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
@@ -182,6 +191,20 @@ export default function ManagerPolicies() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
+              {!loading && paginatedPolicies.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                    {t("policies.empty")}
+                  </td>
+                </tr>
+              )}
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                    {tc("loading")}
+                  </td>
+                </tr>
+              )}
               {paginatedPolicies.map((policy) => (
                 <tr key={policy.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
@@ -228,7 +251,7 @@ export default function ManagerPolicies() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => handleToggleActive(policy.id)}
+                        onClick={() => void handleToggleActive(policy)}
                         title={policy.active ? tc("off") : tc("on")}
                         aria-label={policy.active ? tc("off") : tc("on")}
                         className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
@@ -250,7 +273,7 @@ export default function ManagerPolicies() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(policy.id)}
+                        onClick={() => void handleDelete(policy.id)}
                         title={tc("delete")}
                         aria-label={tc("delete")}
                         className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-red-100 hover:text-red-600"
@@ -266,11 +289,10 @@ export default function ManagerPolicies() {
           <Pagination
             page={page}
             pageSize={pageSize}
-            totalItems={sortedPolicies.length}
+            totalItems={totalItems}
             onPageChange={setPage}
           />
-        </div>
-      )}
+      </div>
 
       <Modal
         open={createOpen || editOpen}
@@ -357,10 +379,11 @@ export default function ManagerPolicies() {
             </button>
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() => void handleSave()}
+              disabled={saving}
               className="flex-1 rounded-lg bg-vr-500 py-2 font-medium text-white transition-colors hover:bg-vr-600"
             >
-              {selectedPolicy ? tc("update") : tc("create")}
+              {saving ? "Đang lưu..." : selectedPolicy ? tc("update") : tc("create")}
             </button>
           </div>
         </div>
@@ -368,3 +391,9 @@ export default function ManagerPolicies() {
     </div>
   );
 }
+
+
+
+
+
+

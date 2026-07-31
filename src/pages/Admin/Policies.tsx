@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiCheck,
@@ -12,12 +12,34 @@ import {
 } from "react-icons/fi";
 import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
-import { policies as mockPolicies, type Policy } from "../../data/mockData";
 import CustomSelect from "../../components/CustomSelect";
 import { formatDateOnly } from "../../utils/date";
 import { DetailItem, DetailSection } from "../../components/DetailLayout";
+import {
+  createAdminPolicy,
+  deleteAdminPolicy,
+  getAdminPolicies,
+  updateAdminPolicy,
+  type PolicyItem,
+} from "../../api/vietride";
 
 type PolicyTab = "for_operator" | "for_user";
+type Policy = Omit<PolicyItem, "policyType" | "createdBy"> & {
+  policyType: PolicyTab;
+  createdBy: string;
+};
+
+function toPolicy(policy: PolicyItem): Policy {
+  return {
+    ...policy,
+    policyType: policy.policyType === "FOR_OPERATOR" ? "for_operator" : "for_user",
+    createdBy: policy.createdBy?.displayName ?? policy.createdBy?.email ?? "-",
+  };
+}
+
+function toPolicyAudience(tab: PolicyTab) {
+  return tab === "for_operator" ? ("FOR_OPERATOR" as const) : ("FOR_USER" as const);
+}
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -45,13 +67,18 @@ function activeBadge(
 export default function AdminPolicies() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
-  const [policies, setPolicies] = useState<Policy[]>(mockPolicies);
+  const [policies, setPolicies] = useState<Policy[]>([]);
   const [activeTab, setActiveTab] = useState<PolicyTab>("for_operator");
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
   const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [tabCounts, setTabCounts] = useState({ operator: 0, user: 0 });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const pageSize = 8;
   const [formData, setFormData] = useState({
     title: "",
@@ -60,21 +87,43 @@ export default function AdminPolicies() {
     category: "",
   });
 
-  const operatorPolicies = useMemo(
-    () => policies.filter((p) => p.policyType === "for_operator"),
-    [policies],
-  );
-  const userPolicies = useMemo(
-    () => policies.filter((p) => p.policyType === "for_user"),
-    [policies],
-  );
+  const loadPolicies = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const audience = toPolicyAudience(activeTab);
+      const [current, operatorResult, userResult] = await Promise.all([
+        getAdminPolicies({ page, pageSize, policyType: audience }),
+        getAdminPolicies({ page: 1, pageSize: 1, policyType: "FOR_OPERATOR" }),
+        getAdminPolicies({ page: 1, pageSize: 1, policyType: "FOR_USER" }),
+      ]);
+      setPolicies(current.items.map(toPolicy));
+      setTotalItems(current.totalItems);
+      setTabCounts({
+        operator: operatorResult.totalItems,
+        user: userResult.totalItems,
+      });
+    } catch (reason) {
+      setPolicies([]);
+      setTotalItems(0);
+      setError(reason instanceof Error ? reason.message : "Không thể tải danh sách policy.");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, page]);
 
-  const currentPolicies =
-    activeTab === "for_operator" ? operatorPolicies : userPolicies;
-  const paginatedPolicies = useMemo(
-    () => currentPolicies.slice((page - 1) * pageSize, page * pageSize),
-    [currentPolicies, page],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void loadPolicies();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadPolicies]);
+
+  const paginatedPolicies = policies;
 
   const resetForm = () => {
     setFormData({ title: "", description: "", content: "", category: "" });
@@ -97,59 +146,56 @@ export default function AdminPolicies() {
     setDetailOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm(t("policies.confirmDelete"))) {
-      setPolicies((prev) => prev.filter((p) => p.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm(t("policies.confirmDelete"))) return;
+    setError("");
+    try {
+      await deleteAdminPolicy(id);
+      await loadPolicies();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể xóa policy.");
     }
   };
 
-  const handleToggleActive = (id: string) => {
-    setPolicies((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              active: !p.active,
-              updatedAt: new Date().toISOString().split("T")[0],
-            }
-          : p,
-      ),
-    );
+  const handleToggleActive = async (policy: Policy) => {
+    setError("");
+    try {
+      await updateAdminPolicy(policy.id, {
+        active: !policy.active,
+        version: policy.version,
+      });
+      await loadPolicies();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể cập nhật trạng thái policy.");
+    }
   };
 
-  const handleSave = () => {
-    const now = new Date().toISOString().split("T")[0];
-
-    if (selectedPolicy) {
-      setPolicies((prev) =>
-        prev.map((p) =>
-          p.id === selectedPolicy.id
-            ? {
-                ...p,
-                ...formData,
-                version: p.version + 1,
-                updatedAt: now,
-              }
-            : p,
-        ),
-      );
-    } else {
-      const newPolicy: Policy = {
-        id: `pol${Date.now()}`,
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const request = {
         ...formData,
-        policyType: activeTab,
-        version: 1,
-        active: true,
-        createdBy: "admin",
-        createdAt: now,
-        updatedAt: now,
+        policyType: toPolicyAudience(activeTab),
+        active: selectedPolicy?.active ?? true,
       };
-      setPolicies((prev) => [...prev, newPolicy]);
+      if (selectedPolicy) {
+        await updateAdminPolicy(selectedPolicy.id, {
+          ...request,
+          version: selectedPolicy.version,
+        });
+      } else {
+        await createAdminPolicy(request);
+      }
+      setEditOpen(false);
+      setCreateOpen(false);
+      resetForm();
+      await loadPolicies();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể lưu policy.");
+    } finally {
+      setSaving(false);
     }
-
-    setEditOpen(false);
-    setCreateOpen(false);
-    resetForm();
   };
 
   return (
@@ -177,6 +223,11 @@ export default function AdminPolicies() {
         </button>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
       <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:grid-cols-2">
         <button
           type="button"
@@ -192,7 +243,7 @@ export default function AdminPolicies() {
         >
           {t("policies.tabOperator")}
           <span className="ml-2 inline-flex rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-700">
-            {operatorPolicies.length}
+            {tabCounts.operator}
           </span>
         </button>
         <button
@@ -209,7 +260,7 @@ export default function AdminPolicies() {
         >
           {t("policies.tabUser")}
           <span className="ml-2 inline-flex rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-700">
-            {userPolicies.length}
+            {tabCounts.user}
           </span>
         </button>
       </div>
@@ -228,6 +279,20 @@ export default function AdminPolicies() {
               </tr>
             </thead>
             <tbody>
+              {!loading && paginatedPolicies.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-500">
+                    Chưa có policy trong nhóm này.
+                  </td>
+                </tr>
+              )}
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-500">
+                    Đang tải policy...
+                  </td>
+                </tr>
+              )}
               {paginatedPolicies.map((policy) => (
                 <tr
                   key={policy.id}
@@ -268,7 +333,7 @@ export default function AdminPolicies() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleToggleActive(policy.id)}
+                        onClick={() => void handleToggleActive(policy)}
                         title={
                           policy.active
                             ? t("policies.turnOff")
@@ -298,7 +363,7 @@ export default function AdminPolicies() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(policy.id)}
+                        onClick={() => void handleDelete(policy.id)}
                         title={tc("delete")}
                         aria-label={tc("delete")}
                         className="table-action-button"
@@ -315,7 +380,7 @@ export default function AdminPolicies() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          totalItems={currentPolicies.length}
+          totalItems={totalItems}
           onPageChange={setPage}
         />
       </div>
@@ -417,10 +482,11 @@ export default function AdminPolicies() {
             </button>
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() => void handleSave()}
+              disabled={saving}
               className="flex-1 rounded-lg bg-vr-500 py-2 font-medium text-white hover:bg-vr-600 transition-colors"
             >
-              {selectedPolicy ? tc("update") : tc("create")}
+              {saving ? "Đang lưu..." : selectedPolicy ? tc("update") : tc("create")}
             </button>
           </div>
         </div>
@@ -542,3 +608,10 @@ function PolicyDetailModal({
     </Modal>
   );
 }
+
+
+
+
+
+
+
