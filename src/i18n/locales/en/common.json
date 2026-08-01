@@ -177,6 +177,9 @@
     "country": "Country",
     "cityState": "City/State",
     "postalCode": "Postal code",
-    "taxId": "Tax ID"
+    "taxId": "Tax ID",
+    "operatorStatus": "Operator status",
+    "businessRegistrationNumber": "Business registration number",
+    "operatorFieldReadOnlyHint": "Managed by the system — not editable here."
   }
 }

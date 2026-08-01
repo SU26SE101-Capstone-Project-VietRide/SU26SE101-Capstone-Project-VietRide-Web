@@ -24,9 +24,7 @@ type TopbarProps = {
   userName?: string;
 };
 
-export default function Topbar({
-  onMenuToggle,
-}: TopbarProps) {
+export default function Topbar({ onMenuToggle }: TopbarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation("common");
@@ -43,8 +41,7 @@ export default function Topbar({
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
   const authUser = getAuthUser();
   const canSendOperatorNotification =
-    authUser?.role === "OPERATOR_ADMIN" ||
-    authUser?.role === "OPERATOR_STAFF";
+    authUser?.role === "OPERATOR_ADMIN" || authUser?.role === "OPERATOR_STAFF";
   const settingsPath =
     authUser?.role === "OPERATOR_ADMIN" ? "/manager/settings" : null;
 
@@ -95,7 +92,9 @@ export default function Topbar({
       setUnreadNotifications(unread.totalItems);
     } catch (error) {
       setNotificationsError(
-        error instanceof Error ? error.message : t("topbar.notificationLoadFailed"),
+        error instanceof Error
+          ? error.message
+          : t("topbar.notificationLoadFailed"),
       );
     } finally {
       setNotificationsLoading(false);
@@ -127,7 +126,9 @@ export default function Topbar({
       setUnreadNotifications((current) => Math.max(0, current - 1));
     } catch (error) {
       setNotificationsError(
-        error instanceof Error ? error.message : t("topbar.notificationReadFailed"),
+        error instanceof Error
+          ? error.message
+          : t("topbar.notificationReadFailed"),
       );
     }
   }
@@ -150,20 +151,6 @@ export default function Topbar({
             <FiMenu size={20} />
           </button>
         </div>
-
-        <form className="hidden md:flex flex-1 max-w-md mx-4" role="search" onSubmit={handleSearch}>
-          <div className="relative w-full">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              aria-label={t("topbar.searchPlaceholder")}
-              placeholder={t("topbar.searchPlaceholder")}
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100 transition"
-            />
-          </div>
-        </form>
 
         <div className="flex items-center gap-3">
           <LanguageSwitcher compact />
@@ -351,4 +338,3 @@ function formatNotificationDate(value: string, language?: string) {
     minute: "2-digit",
   }).format(date);
 }
-

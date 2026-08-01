@@ -135,6 +135,7 @@ export default function WalletSettlement() {
   const [totalItems, setTotalItems] = useState(0);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
+  const [confirmStep, setConfirmStep] = useState(false);
   const [adjustForm, setAdjustForm] = useState<{
     target: "PLATFORM" | "OPERATOR";
     operatorId: string;
@@ -276,20 +277,47 @@ export default function WalletSettlement() {
     }
   }
 
-  async function submitAdjustment(event: FormEvent) {
+  function closeAdjustModal() {
+    setAdjustOpen(false);
+    setConfirmStep(false);
+    setAdjustForm({
+      target: "PLATFORM",
+      operatorId: "",
+      type: "CREDIT",
+      amount: "",
+      note: "",
+    });
+  }
+
+  function handleAdjustFormSubmit(event: FormEvent) {
     event.preventDefault();
+
+    if (!confirmStep) {
+      const amount = Number(adjustForm.amount);
+      const operatorId = adjustForm.operatorId.trim();
+      const note = adjustForm.note.trim();
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        !note ||
+        (adjustForm.target === "OPERATOR" && !operatorId)
+      ) {
+        setError(t("walletSettlement.adjustInvalid"));
+        return;
+      }
+
+      setError("");
+      setConfirmStep(true);
+      return;
+    }
+
+    void submitAdjustment();
+  }
+
+  async function submitAdjustment() {
     const amount = Number(adjustForm.amount);
     const operatorId = adjustForm.operatorId.trim();
     const note = adjustForm.note.trim();
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      !note ||
-      (adjustForm.target === "OPERATOR" && !operatorId)
-    ) {
-      setError(t("walletSettlement.adjustInvalid"));
-      return;
-    }
 
     setAdjusting(true);
     setError("");
@@ -301,14 +329,7 @@ export default function WalletSettlement() {
       } else {
         await adjustAdminOperatorWallet(operatorId, request);
       }
-      setAdjustOpen(false);
-      setAdjustForm({
-        target: "PLATFORM",
-        operatorId: "",
-        type: "CREDIT",
-        amount: "",
-        note: "",
-      });
+      closeAdjustModal();
       setMessage(t("walletSettlement.adjustSuccess"));
       await loadData();
     } catch (err) {
@@ -620,18 +641,28 @@ export default function WalletSettlement() {
 
       <Modal
         open={adjustOpen}
-        onClose={() => setAdjustOpen(false)}
+        onClose={closeAdjustModal}
         icon={<FiDollarSign />}
-        title={t("walletSettlement.adjust")}
-        subtitle={t("walletSettlement.adjustHint")}
+        title={
+          confirmStep
+            ? t("walletSettlement.confirmStepTitle")
+            : t("walletSettlement.adjust")
+        }
+        subtitle={
+          confirmStep
+            ? t("walletSettlement.confirmStepHint")
+            : t("walletSettlement.adjustHint")
+        }
         footer={
           <>
             <button
               type="button"
-              onClick={() => setAdjustOpen(false)}
+              onClick={
+                confirmStep ? () => setConfirmStep(false) : closeAdjustModal
+              }
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700"
             >
-              {tc("cancel")}
+              {confirmStep ? t("walletSettlement.confirmBack") : tc("cancel")}
             </button>
             <button
               type="submit"
@@ -639,7 +670,11 @@ export default function WalletSettlement() {
               disabled={adjusting}
               className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {adjusting ? tc("processing") : tc("confirm")}
+              {adjusting
+                ? tc("processing")
+                : confirmStep
+                  ? t("walletSettlement.confirmSubmit")
+                  : t("walletSettlement.continueButton")}
             </button>
           </>
         }
@@ -647,97 +682,149 @@ export default function WalletSettlement() {
         <form
           id="wallet-adjust-form"
           className="space-y-4"
-          onSubmit={(event) => void submitAdjustment(event)}
+          onSubmit={handleAdjustFormSubmit}
         >
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gray-600">
-              {t("walletSettlement.target")}
-            </span>
-            <CustomSelect
-              value={adjustForm.target}
-              onChange={(event) =>
-                setAdjustForm({
-                  ...adjustForm,
-                  target: event.target.value as typeof adjustForm.target,
-                })
-              }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-            >
-              <option value="PLATFORM">
-                {t("walletSettlement.targets.PLATFORM")}
-              </option>
-              <option value="OPERATOR">
-                {t("walletSettlement.targets.OPERATOR")}
-              </option>
-            </CustomSelect>
-          </label>
-          {adjustForm.target === "OPERATOR" && (
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-gray-600">
-                {t("walletSettlement.operatorId")}
-              </span>
-              <input
-                value={adjustForm.operatorId}
-                onChange={(event) =>
-                  setAdjustForm({
-                    ...adjustForm,
-                    operatorId: event.target.value,
-                  })
-                }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-                required
-              />
-            </label>
+          {confirmStep ? (
+            <dl className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-gray-600">
+                  {t("walletSettlement.target")}
+                </dt>
+                <dd className="font-semibold text-gray-900">
+                  {t(`walletSettlement.targets.${adjustForm.target}`)}
+                </dd>
+              </div>
+              {adjustForm.target === "OPERATOR" && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-600">
+                    {t("walletSettlement.operatorId")}
+                  </dt>
+                  <dd className="font-mono text-xs font-semibold text-gray-900">
+                    {adjustForm.operatorId.trim()}
+                  </dd>
+                </div>
+              )}
+              <div className="flex justify-between gap-4">
+                <dt className="text-gray-600">{t("walletSettlement.type")}</dt>
+                <dd className="font-semibold text-gray-900">
+                  {adjustForm.type === "CREDIT"
+                    ? "Ghi có (tiền vào)"
+                    : "Ghi nợ (tiền ra)"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-gray-600">
+                  {t("walletSettlement.amount")}
+                </dt>
+                <dd className="text-lg font-bold text-gray-900">
+                  {formatMoney(Number(adjustForm.amount))}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="shrink-0 text-gray-600">
+                  {t("walletSettlement.note")}
+                </dt>
+                <dd className="text-right text-gray-900">
+                  {adjustForm.note.trim()}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-gray-600">
+                  {t("walletSettlement.target")}
+                </span>
+                <CustomSelect
+                  value={adjustForm.target}
+                  onChange={(event) =>
+                    setAdjustForm({
+                      ...adjustForm,
+                      target: event.target.value as typeof adjustForm.target,
+                    })
+                  }
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                >
+                  <option value="PLATFORM">
+                    {t("walletSettlement.targets.PLATFORM")}
+                  </option>
+                  <option value="OPERATOR">
+                    {t("walletSettlement.targets.OPERATOR")}
+                  </option>
+                </CustomSelect>
+              </label>
+              {adjustForm.target === "OPERATOR" && (
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-gray-600">
+                    {t("walletSettlement.operatorId")}
+                  </span>
+                  <input
+                    value={adjustForm.operatorId}
+                    onChange={(event) =>
+                      setAdjustForm({
+                        ...adjustForm,
+                        operatorId: event.target.value,
+                      })
+                    }
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                    required
+                  />
+                </label>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label>
+                  <span className="mb-1 block text-xs font-semibold text-gray-600">
+                    {t("walletSettlement.type")}
+                  </span>
+                  <CustomSelect
+                    value={adjustForm.type}
+                    onChange={(event) =>
+                      setAdjustForm({
+                        ...adjustForm,
+                        type: event.target.value as WalletTransactionType,
+                      })
+                    }
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                  >
+                    <option value="CREDIT">Ghi có (tiền vào)</option>
+                    <option value="DEBIT">Ghi nợ (tiền ra)</option>
+                  </CustomSelect>
+                </label>
+                <label>
+                  <span className="mb-1 block text-xs font-semibold text-gray-600">
+                    {t("walletSettlement.amount")}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={adjustForm.amount}
+                    onChange={(event) =>
+                      setAdjustForm({
+                        ...adjustForm,
+                        amount: event.target.value,
+                      })
+                    }
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                    required
+                  />
+                </label>
+              </div>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-gray-600">
+                  {t("walletSettlement.note")}
+                </span>
+                <textarea
+                  value={adjustForm.note}
+                  onChange={(event) =>
+                    setAdjustForm({ ...adjustForm, note: event.target.value })
+                  }
+                  className="min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
+                  required
+                />
+              </label>
+            </>
           )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label>
-              <span className="mb-1 block text-xs font-semibold text-gray-600">
-                {t("walletSettlement.type")}
-              </span>
-              <CustomSelect
-                value={adjustForm.type}
-                onChange={(event) =>
-                  setAdjustForm({
-                    ...adjustForm,
-                    type: event.target.value as WalletTransactionType,
-                  })
-                }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-              >
-                <option value="CREDIT">Ghi có (tiền vào)</option>
-                <option value="DEBIT">Ghi nợ (tiền ra)</option>
-              </CustomSelect>
-            </label>
-            <label>
-              <span className="mb-1 block text-xs font-semibold text-gray-600">
-                {t("walletSettlement.amount")}
-              </span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={adjustForm.amount}
-                onChange={(event) =>
-                  setAdjustForm({ ...adjustForm, amount: event.target.value })
-                }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-                required
-              />
-            </label>
-          </div>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gray-600">
-              {t("walletSettlement.note")}
-            </span>
-            <textarea
-              value={adjustForm.note}
-              onChange={(event) =>
-                setAdjustForm({ ...adjustForm, note: event.target.value })
-              }
-              className="min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-              required
-            />
-          </label>
         </form>
       </Modal>
     </div>

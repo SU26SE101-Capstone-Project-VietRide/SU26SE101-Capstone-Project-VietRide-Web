@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertCircle,
+  FiAlertTriangle,
   FiCheckCircle,
   FiClock,
   FiMoreVertical,
@@ -65,7 +66,7 @@ export default function RouteETAPage() {
   const [search, setSearch] = useState("");
   const [selectedRequest, setSelectedRequest] =
     useState<RouteETARequest | null>(null);
-  const [requests, setRequests] = useState<RouteETARequest[]>(mockRequests);
+  const [requests] = useState<RouteETARequest[]>(mockRequests);
 
   const pending = requests.filter((r) => r.status === "pending").length;
   const approved = requests.filter((r) => r.status === "approved").length;
@@ -85,28 +86,6 @@ export default function RouteETAPage() {
     );
   });
 
-  const handleApprove = () => {
-    if (selectedRequest) {
-      setRequests((prev) =>
-        prev.map((r) =>
-          r.id === selectedRequest.id ? { ...r, status: "approved" } : r,
-        ),
-      );
-      setSelectedRequest(null);
-    }
-  };
-
-  const handleReject = () => {
-    if (selectedRequest) {
-      setRequests((prev) =>
-        prev.map((r) =>
-          r.id === selectedRequest.id ? { ...r, status: "rejected" } : r,
-        ),
-      );
-      setSelectedRequest(null);
-    }
-  };
-
   const statusLabel = (status: RouteETARequest["status"]) => {
     if (status === "pending") return tc("pending");
     if (status === "approved") return tc("approved");
@@ -121,6 +100,14 @@ export default function RouteETAPage() {
           {t("routeEta.title")}
         </h1>
         <p className="text-sm text-gray-600 mt-1">{t("routeEta.subtitle")}</p>
+      </div>
+
+      <div
+        className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+        role="status"
+      >
+        <FiAlertTriangle className="mt-0.5 shrink-0" size={18} />
+        <span>{t("routeEta.demoBanner")}</span>
       </div>
 
       {/* KPI Cards */}
@@ -332,14 +319,18 @@ export default function RouteETAPage() {
 
             <div className="border-t pt-4 flex gap-2">
               <button
-                onClick={handleApprove}
-                className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+                type="button"
+                disabled
+                title={t("routeEta.actionDisabledTooltip")}
+                className="flex-1 cursor-not-allowed px-4 py-2 bg-gray-100 text-gray-400 font-medium rounded-lg"
               >
                 {t("routeEta.approveAndSend")}
               </button>
               <button
-                onClick={handleReject}
-                className="flex-1 px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition"
+                type="button"
+                disabled
+                title={t("routeEta.actionDisabledTooltip")}
+                className="flex-1 cursor-not-allowed px-4 py-2 border border-gray-200 text-gray-400 font-medium rounded-lg"
               >
                 {t("routeEta.rejectedMark")}
               </button>

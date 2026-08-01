@@ -275,6 +275,14 @@ export default function GPSTracking() {
 
   return (
     <div className="flex flex-col gap-5 pb-2">
+      <div
+        className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+        role="status"
+      >
+        <FiAlertTriangle className="mt-0.5 shrink-0" size={18} />
+        <span>{t("gps.demoBanner")}</span>
+      </div>
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
@@ -415,6 +423,14 @@ export default function GPSTracking() {
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-3">
+          <h2 className="text-base font-semibold text-gray-900">
+            {t("gps.realTrackingTitle")}
+          </h2>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {t("gps.realTrackingHint")}
+          </p>
+        </div>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">

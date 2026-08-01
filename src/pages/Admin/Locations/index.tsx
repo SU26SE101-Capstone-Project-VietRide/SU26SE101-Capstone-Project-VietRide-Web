@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiEdit2,
-  FiMap,
+  FiEye,
+  FiMapPin,
   FiPlus,
   FiPower,
-  FiRefreshCw,
   FiSearch,
 } from "react-icons/fi";
 import {
@@ -90,8 +90,10 @@ export default function AdminLocations() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<AdminLocation | null>(null);
+  const [viewing, setViewing] = useState<AdminLocation | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<LocationForm>(emptyForm);
+  const [formError, setFormError] = useState("");
   const [message, setMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -119,9 +121,7 @@ export default function AdminLocations() {
         text:
           error instanceof Error
             ? error.message
-            : t("locations.loadFailed", {
-                defaultValue: "Không thể tải danh mục địa phương.",
-              }),
+            : t("locations.loadFailed"),
       });
     } finally {
       setLoading(false);
@@ -138,12 +138,19 @@ export default function AdminLocations() {
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
+    setFormError("");
     setFormOpen(true);
   }
 
+  function openDetail(location: AdminLocation) {
+    setViewing(location);
+  }
+
   function openEdit(location: AdminLocation) {
+    setViewing(null);
     setEditing(location);
     setForm(toForm(location));
+    setFormError("");
     setFormOpen(true);
   }
 
@@ -151,17 +158,12 @@ export default function AdminLocations() {
     event.preventDefault();
     const request = toRequest(form);
     if (!request) {
-      setMessage({
-        tone: "error",
-        text: t("locations.invalidForm", {
-          defaultValue:
-            "Mã chỉ gồm chữ, số, _ hoặc -; tên là bắt buộc và thứ tự phải là số nguyên không âm.",
-        }),
-      });
+      setFormError(t("locations.invalidForm"));
       return;
     }
 
     setSaving(true);
+    setFormError("");
     setMessage(null);
     try {
       if (editing) {
@@ -172,21 +174,13 @@ export default function AdminLocations() {
       setFormOpen(false);
       setMessage({
         tone: "success",
-        text: t("locations.saved", {
-          defaultValue: "Đã lưu địa phương.",
-        }),
+        text: t("locations.saved"),
       });
       setReloadKey((value) => value + 1);
     } catch (error) {
-      setMessage({
-        tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : t("locations.saveFailed", {
-                defaultValue: "Không thể lưu địa phương.",
-              }),
-      });
+      setFormError(
+        error instanceof Error ? error.message : t("locations.saveFailed"),
+      );
     } finally {
       setSaving(false);
     }
@@ -196,12 +190,8 @@ export default function AdminLocations() {
     if (
       !window.confirm(
         location.isActive
-          ? t("locations.deactivateConfirm", {
-              defaultValue: `Ngừng sử dụng ${location.name}?`,
-            })
-          : t("locations.activateConfirm", {
-              defaultValue: `Kích hoạt lại ${location.name}?`,
-            }),
+          ? t("locations.deactivateConfirm", { name: location.name })
+          : t("locations.activateConfirm", { name: location.name }),
       )
     ) {
       return;
@@ -222,9 +212,7 @@ export default function AdminLocations() {
         text:
           error instanceof Error
             ? error.message
-            : t("locations.saveFailed", {
-                defaultValue: "Không thể cập nhật địa phương.",
-              }),
+            : t("locations.saveFailed"),
       });
     } finally {
       setSaving(false);
@@ -233,36 +221,21 @@ export default function AdminLocations() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            {t("locations.title", { defaultValue: "Danh mục địa phương" })}
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            {t("locations.subtitle", {
-              defaultValue:
-                "Quản lý tỉnh và thành phố dùng chung cho station, stop và tìm kiếm chuyến.",
-            })}
+          <h1 className="text-3xl font-bold text-gray-900">{t("locations.title")}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-gray-600">
+            {t("locations.subtitle")}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setReloadKey((value) => value + 1)}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <FiRefreshCw />
-            {tc("refresh")}
-          </button>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-vr-600"
-          >
-            <FiPlus />
-            {t("locations.create", { defaultValue: "Thêm địa phương" })}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-600"
+        >
+          <FiPlus />
+          {t("locations.create")}
+        </button>
       </header>
 
       {message && (
@@ -288,13 +261,13 @@ export default function AdminLocations() {
                 setPage(1);
               }}
               className={`${inputClass} pl-10`}
-              placeholder={t("locations.search", {
-                defaultValue: "Tìm theo mã hoặc tên...",
-              })}
+              placeholder={t("locations.search")}
+              aria-label={t("locations.searchLabel")}
             />
           </div>
           <CustomSelect
             value={status}
+            aria-label={t("locations.filterStatus")}
             onChange={(event) => {
               setStatus(event.target.value);
               setPage(1);
@@ -308,21 +281,12 @@ export default function AdminLocations() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px]">
+          <table className="w-full min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                <th className="px-5 py-3">
-                  {t("locations.code", { defaultValue: "Mã" })}
-                </th>
-                <th className="px-5 py-3">
-                  {t("locations.name", { defaultValue: "Tên" })}
-                </th>
-                <th className="px-5 py-3">
-                  {t("locations.type", { defaultValue: "Loại" })}
-                </th>
-                <th className="px-5 py-3">
-                  {t("locations.sortOrder", { defaultValue: "Thứ tự" })}
-                </th>
+                <th className="px-5 py-3">{t("locations.code")}</th>
+                <th className="px-5 py-3">{t("locations.name")}</th>
+                <th className="px-5 py-3">{t("locations.sortOrder")}</th>
                 <th className="px-5 py-3">{tc("status")}</th>
                 <th className="px-5 py-3 text-center">{tc("actions")}</th>
               </tr>
@@ -337,13 +301,18 @@ export default function AdminLocations() {
                     {location.code}
                   </td>
                   <td className="px-5 py-4">
-                    <p className="font-semibold text-gray-900">{location.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => openDetail(location)}
+                      className="text-left font-semibold text-gray-900 transition hover:text-vr-700"
+                    >
+                      {location.name}
+                    </button>
                     <p className="mt-1 text-xs text-gray-400">
-                      {formatDateTime(location.updatedAt)}
+                      {t("locations.updatedAt", {
+                        value: formatDateTime(location.updatedAt),
+                      })}
                     </p>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {tc(`enumLabels.${location.type}`, { defaultValue: location.type })}
                   </td>
                   <td className="px-5 py-4 text-sm text-gray-700">
                     {location.sortOrder}
@@ -361,6 +330,15 @@ export default function AdminLocations() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openDetail(location)}
+                        className={`${actionButtonClass} text-slate-600`}
+                        aria-label={t("locations.viewDetails")}
+                        title={t("locations.viewDetails")}
+                      >
+                        <FiEye />
+                      </button>
                       <button
                         type="button"
                         onClick={() => openEdit(location)}
@@ -395,19 +373,17 @@ export default function AdminLocations() {
               {!loading && items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-5 py-12 text-center text-sm text-gray-500"
                   >
-                    {t("locations.empty", {
-                      defaultValue: "Không có địa phương phù hợp.",
-                    })}
+                    {t("locations.empty")}
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-5 py-12 text-center text-sm text-gray-500"
                   >
                     {tc("loading")}
@@ -426,20 +402,104 @@ export default function AdminLocations() {
       </section>
 
       <Modal
+        open={viewing !== null}
+        onClose={() => setViewing(null)}
+        icon={<FiMapPin />}
+        title={viewing?.name ?? ""}
+        subtitle={t("locations.detailSubtitle")}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setViewing(null)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              {tc("close")}
+            </button>
+            {viewing && (
+              <button
+                type="button"
+                onClick={() => openEdit(viewing)}
+                className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-600"
+              >
+                <FiEdit2 />
+                {t("locations.edit")}
+              </button>
+            )}
+          </>
+        }
+      >
+        {viewing && (
+          <div className="space-y-5">
+            <div className="flex flex-col gap-4 rounded-xl border border-vr-100 bg-vr-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white font-mono text-sm font-bold text-vr-700 shadow-sm">
+                  {viewing.code}
+                </span>
+                <div>
+                  <p className="font-semibold text-gray-900">{viewing.name}</p>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    {t("locations.detailHint")}
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                  viewing.isActive
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-slate-200 text-slate-600"
+                }`}
+              >
+                {viewing.isActive ? tc("active") : tc("inactive")}
+              </span>
+            </div>
+
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
+                <dt className="text-xs font-medium text-gray-500">{t("locations.code")}</dt>
+                <dd className="mt-1 font-mono font-semibold text-gray-900">{viewing.code}</dd>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
+                <dt className="text-xs font-medium text-gray-500">{t("locations.sortOrder")}</dt>
+                <dd className="mt-1 font-semibold text-gray-900">{viewing.sortOrder}</dd>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
+                <dt className="text-xs font-medium text-gray-500">{t("locations.createdAt")}</dt>
+                <dd className="mt-1 text-sm font-medium text-gray-900">
+                  {formatDateTime(viewing.createdAt)}
+                </dd>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
+                <dt className="text-xs font-medium text-gray-500">{t("locations.lastUpdated")}</dt>
+                <dd className="mt-1 text-sm font-medium text-gray-900">
+                  {formatDateTime(viewing.updatedAt)}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         open={formOpen}
-        onClose={() => setFormOpen(false)}
-        icon={<FiMap />}
-        title={
-          editing
-            ? t("locations.edit", { defaultValue: "Sửa địa phương" })
-            : t("locations.create", { defaultValue: "Thêm địa phương" })
+        onClose={() => {
+          setFormOpen(false);
+          setFormError("");
+        }}
+        icon={<FiMapPin />}
+        title={editing ? t("locations.edit") : t("locations.create")}
+        subtitle={
+          editing ? t("locations.editSubtitle") : t("locations.createSubtitle")
         }
         footer={
           <>
             <button
               type="button"
-              onClick={() => setFormOpen(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700"
+              onClick={() => {
+                setFormOpen(false);
+                setFormError("");
+              }}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               {tc("cancel")}
             </button>
@@ -447,65 +507,84 @@ export default function AdminLocations() {
               type="submit"
               form="location-form"
               disabled={saving}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {tc("save")}
+              {saving
+                ? t("locations.saving")
+                : editing
+                  ? t("locations.saveChanges")
+                  : t("locations.createSubmit")}
             </button>
           </>
         }
       >
-        <form id="location-form" onSubmit={(event) => void submitForm(event)}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label>
-              <span className={labelClass}>
-                {t("locations.code", { defaultValue: "Mã" })}
-              </span>
-              <input
-                value={form.code}
-                onChange={(event) =>
-                  setForm({ ...form, code: event.target.value })
-                }
-                className={inputClass}
-                maxLength={20}
-                required
-              />
-            </label>
-            <label>
-              <span className={labelClass}>
-                {t("locations.type", { defaultValue: "Loại" })}
-              </span>
-              <CustomSelect
-                value={form.type}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    type: event.target.value as LocationForm["type"],
-                  })
-                }
-                className={inputClass}
-              >
-                <option value="PROVINCE">Tỉnh</option>
-                <option value="MUNICIPALITY">Thành phố trực thuộc trung ương</option>
-              </CustomSelect>
-            </label>
+        <form
+          id="location-form"
+          className="space-y-5"
+          onSubmit={(event) => void submitForm(event)}
+        >
+          <div className="flex gap-3 rounded-xl border border-vr-100 bg-vr-50/60 p-4">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-vr-700 shadow-sm">
+              <FiMapPin />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                {t("locations.formHintTitle")}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-gray-600">
+                {t("locations.formHint")}
+              </p>
+            </div>
+          </div>
+
+          {formError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+            >
+              {formError}
+            </div>
+          )}
+
+          <div className="grid gap-5 sm:grid-cols-2">
             <label className="sm:col-span-2">
-              <span className={labelClass}>
-                {t("locations.name", { defaultValue: "Tên" })}
-              </span>
+              <span className={labelClass}>{t("locations.name")}</span>
               <input
                 value={form.name}
                 onChange={(event) =>
                   setForm({ ...form, name: event.target.value })
                 }
                 className={inputClass}
+                placeholder={t("locations.namePlaceholder")}
                 maxLength={100}
+                autoFocus
                 required
               />
-            </label>
-            <label>
-              <span className={labelClass}>
-                {t("locations.sortOrder", { defaultValue: "Thứ tự" })}
+              <span className="mt-1.5 block text-xs text-gray-500">
+                {t("locations.nameHint")}
               </span>
+            </label>
+
+            <label>
+              <span className={labelClass}>{t("locations.code")}</span>
+              <input
+                value={form.code}
+                onChange={(event) =>
+                  setForm({ ...form, code: event.target.value.toUpperCase() })
+                }
+                className={inputClass}
+                placeholder={t("locations.codePlaceholder")}
+                pattern="[A-Za-z0-9_-]+"
+                maxLength={20}
+                required
+              />
+              <span className="mt-1.5 block text-xs text-gray-500">
+                {t("locations.codeHint")}
+              </span>
+            </label>
+
+            <label>
+              <span className={labelClass}>{t("locations.sortOrder")}</span>
               <input
                 type="number"
                 min={0}
@@ -516,17 +595,28 @@ export default function AdminLocations() {
                 }
                 className={inputClass}
               />
+              <span className="mt-1.5 block text-xs text-gray-500">
+                {t("locations.sortOrderHint")}
+              </span>
             </label>
-            <label className="flex items-end gap-2 pb-2 text-sm text-gray-700">
+
+            <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-gray-200 bg-slate-50 p-4 sm:col-span-2">
+              <div>
+                <span className="block text-sm font-semibold text-gray-900">
+                  {t("locations.availableNow")}
+                </span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  {t("locations.availableNowHint")}
+                </span>
+              </div>
               <input
                 type="checkbox"
                 checked={form.isActive}
                 onChange={(event) =>
                   setForm({ ...form, isActive: event.target.checked })
                 }
-                className="h-4 w-4 accent-vr-500"
+                className="h-5 w-5 shrink-0 accent-vr-500"
               />
-              {tc("active")}
             </label>
           </div>
         </form>

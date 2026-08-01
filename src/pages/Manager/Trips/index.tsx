@@ -666,6 +666,16 @@ export default function TripsPage() {
               subtitle={t("trips.createScheduleSubtitle")}
             />
 
+            {editingSchedule && (
+              <div
+                className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+                role="status"
+              >
+                <FiAlertCircle className="mt-0.5 shrink-0" size={18} />
+                <span>{t("trips.editScheduleDemoNotice")}</span>
+              </div>
+            )}
+
             <div className="grid gap-4 md:grid-cols-2">
               <Select
                 label={t("trips.route")}

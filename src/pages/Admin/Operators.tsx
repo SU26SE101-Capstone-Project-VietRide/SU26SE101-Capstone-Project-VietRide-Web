@@ -86,11 +86,13 @@ export default function Operators() {
   const [openDetail, setOpenDetail] = useState(false);
   const [openApprove, setOpenApprove] = useState(false);
   const [openReject, setOpenReject] = useState(false);
+  const [openSuspend, setOpenSuspend] = useState(false);
   const [selectedOperator, setSelectedOperator] =
     useState<AdminOperator | null>(null);
   const [operatorForm, setOperatorForm] =
     useState<CreateAdminOperatorRequest>(emptyOperatorForm);
   const [rejectReason, setRejectReason] = useState("");
+  const [suspendReason, setSuspendReason] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
@@ -207,14 +209,37 @@ export default function Operators() {
     setSelectedOperator(null);
   };
 
-  const handleSuspend = async (operator: AdminOperator) => {
-    const reason = prompt("Suspend reason");
-    if (!reason?.trim()) {
+  const openSuspendModal = (operator: AdminOperator) => {
+    setSelectedOperator(operator);
+    setSuspendReason("");
+    setError("");
+    setOpenSuspend(true);
+  };
+
+  const handleSuspend = async () => {
+    if (!selectedOperator) {
       return;
     }
 
-    await suspendAdminOperator(operator.operatorId, reason.trim());
-    await reloadOperators();
+    if (!suspendReason.trim()) {
+      setError(t("operators.suspendEmptyReason"));
+      return;
+    }
+
+    try {
+      await suspendAdminOperator(selectedOperator.operatorId, suspendReason.trim());
+      await reloadOperators();
+      setMessage(
+        t("operators.suspendedAlert", { name: selectedOperator.name }),
+      );
+      setOpenSuspend(false);
+      setSuspendReason("");
+      setSelectedOperator(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("operators.suspendFailed"),
+      );
+    }
   };
 
   const handleCreateOperator = async () => {
@@ -376,10 +401,10 @@ export default function Operators() {
                   {tc("email")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Business No.
+                  {t("operators.businessRegistrationNumber")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                  Tax Code
+                  {t("operators.taxCode")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {tc("status")}
@@ -454,7 +479,7 @@ export default function Operators() {
                         )}
                         {status === "APPROVED" && (
                           <button
-                            onClick={() => handleSuspend(operator)}
+                            onClick={() => openSuspendModal(operator)}
                             className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition"
                             title={tc("suspended")}
                           >
@@ -657,6 +682,53 @@ export default function Operators() {
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder={t("operators.rejectReasonPlaceholder")}
+                className={inputClass + " min-h-25"}
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={openSuspend}
+        onClose={() => setOpenSuspend(false)}
+        icon={<FiX size={20} />}
+        title={t("operators.suspendTitle")}
+        footer={
+          <>
+            <button
+              onClick={() => setOpenSuspend(false)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {tc("cancel")}
+            </button>
+            <button
+              onClick={() => void handleSuspend()}
+              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+            >
+              {t("operators.suspendConfirm")}
+            </button>
+          </>
+        }
+      >
+        {selectedOperator && (
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-sm text-amber-900">
+                {t("operators.suspendConfirmMsg", {
+                  name: selectedOperator.name,
+                })}
+              </p>
+            </div>
+            <div>
+              <label className={labelClass}>
+                {t("operators.suspendReason")}{" "}
+                <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                placeholder={t("operators.suspendReasonPlaceholder")}
                 className={inputClass + " min-h-25"}
               />
             </div>

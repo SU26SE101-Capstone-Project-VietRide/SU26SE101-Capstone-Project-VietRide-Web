@@ -9,6 +9,7 @@ import {
   FiTrash2,
   FiCheck,
   FiX,
+  FiAlertTriangle,
 } from "react-icons/fi";
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
@@ -228,6 +229,14 @@ export default function ManagerSettings() {
           {t("settings.title")}
         </h1>
         <p className="mt-1 text-sm text-gray-600">{t("settings.subtitle")}</p>
+      </div>
+
+      <div
+        className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+        role="status"
+      >
+        <FiAlertTriangle className="mt-0.5 shrink-0" size={18} />
+        <span>{t("settings.demoBanner")}</span>
       </div>
 
       <div className="flex flex-wrap gap-1">

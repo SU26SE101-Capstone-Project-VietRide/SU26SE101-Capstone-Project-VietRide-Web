@@ -320,6 +320,9 @@ export default function CapacityPage() {
                         style={{ width: `${cargoVolumePct}%` }}
                       />
                     </div>
+                    <p className="mt-2 text-xs text-amber-700">
+                      {t("capacity.hardcodedNotice")}
+                    </p>
                   </div>
                 </div>
 

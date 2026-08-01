@@ -63,7 +63,8 @@ type AlertState = {
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
-const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
+const labelClass =
+  "mb-1.5 block whitespace-nowrap text-xs font-semibold text-slate-600";
 const iconButtonClass =
   "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -628,10 +629,17 @@ export default function AdminStations() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
+          <div>
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[28%]" />
+                <col className="w-[24%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[24%]" />
+              </colgroup>
               <thead>
-                <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
+                <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold whitespace-nowrap text-gray-600">
                   <th className="px-4 py-3">{t("stations.stationName")}</th>
                   <th className="px-4 py-3">{t("stations.city")}</th>
                   <th className="px-4 py-3">{t("stations.shuttle")}</th>
@@ -650,9 +658,6 @@ export default function AdminStations() {
                         {station.name}
                       </p>
 
-                      <p className="mt-1 text-xs text-gray-500">
-                        {station.addressStreet ?? "-"}
-                      </p>
                       <p className="mt-1 text-xs text-gray-400">
                         {formatDateTime(station.updatedAt)}
                       </p>
@@ -662,12 +667,12 @@ export default function AdminStations() {
                         .filter(Boolean)
                         .join(" / ") || "-"}
                     </td>
-                    <td className="px-4 py-3 text-gray-700">
+                    <td className="whitespace-nowrap px-4 py-3 text-gray-700">
                       {station.supportsShuttle ? tc("yes") : tc("no")}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${
                           station.isActive === false
                             ? "bg-slate-100 text-slate-600"
                             : "bg-emerald-50 text-emerald-700"
@@ -762,9 +767,6 @@ export default function AdminStations() {
                   <h2 className="text-lg font-bold text-gray-900">
                     {t("stations.normalizeTitle")}
                   </h2>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {t("stations.normalizeHint")}
-                  </p>
                 </div>
               </div>
 

@@ -1,23 +1,19 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiEye,
   FiLock,
-  FiPlus,
-  FiRefreshCw,
   FiSearch,
   FiUnlock,
   FiUser,
 } from "react-icons/fi";
 import {
-  createAdminUser,
   getAdminOperatorUsers,
   getAdminUsers,
   lockAdminUser,
   unlockAdminUser,
   type AdminUser,
   type AdminUserRole,
-  type CreateAdminUserRequest,
 } from "../../api/vietride";
 import { getAuthUser } from "../../auth";
 import CustomSelect from "../../components/CustomSelect";
@@ -31,7 +27,7 @@ const fallbackAvatarUrl =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='32' fill='%23ecfeff'/%3E%3Ccircle cx='64' cy='48' r='22' fill='%235bc7ca'/%3E%3Cpath d='M28 106c5-24 19-36 36-36s31 12 36 36' fill='%231e8f93'/%3E%3C/svg%3E";
 
 const actionButtonClass =
-  "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
 
 function isActiveStatus(status: string) {
   return status.toUpperCase() === "ACTIVE";
@@ -56,14 +52,6 @@ export default function Users() {
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [actionUserId, setActionUserId] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateAdminUserRequest>({
-    email: "",
-    displayName: "",
-    role: "SYSTEM_ADMIN",
-  });
   const [message, setMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -113,7 +101,7 @@ export default function Users() {
       ignore = true;
       window.clearTimeout(timer);
     };
-  }, [includeDeleted, operatorUsersOnly, page, reloadKey, role, searchTerm, status, t]);
+  }, [includeDeleted, operatorUsersOnly, page, role, searchTerm, status, t]);
 
   const roleLabel = (userRole: AdminUserRole) => {
     const labels: Record<string, string> = {
@@ -165,73 +153,12 @@ export default function Users() {
     }
   }
 
-  async function submitCreate(event: FormEvent) {
-    event.preventDefault();
-    const email = createForm.email.trim();
-    const displayName = createForm.displayName.trim();
-    if (!email || !displayName) {
-      setMessage({ tone: "error", text: tc("required") });
-      return;
-    }
-
-    setIsCreating(true);
-    setMessage(null);
-    try {
-      const created = await createAdminUser({
-        email,
-        displayName,
-        role: "SYSTEM_ADMIN",
-      });
-      setCreateOpen(false);
-      setCreateForm({ email: "", displayName: "", role: "SYSTEM_ADMIN" });
-      setMessage({
-        tone: "success",
-        text: t("users.createSuccess", {
-          name: created.displayName || displayName,
-          defaultValue: `Đã tạo tài khoản admin ${created.displayName || displayName}.`,
-        }),
-      });
-      setPage(1);
-      setReloadKey((value) => value + 1);
-    } catch (error) {
-      setMessage({
-        tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : t("users.createFailed", {
-                defaultValue: "Không thể tạo tài khoản admin.",
-              }),
-      });
-    } finally {
-      setIsCreating(false);
-    }
-  }
-
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <header>
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{t("users.title")}</h1>
           <p className="mt-1 text-gray-600">{t("users.subtitle")}</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setReloadKey((value) => value + 1)}
-            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <FiRefreshCw />
-            {tc("refresh")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-vr-600"
-          >
-            <FiPlus />
-            {t("users.createAdminUser")}
-          </button>
         </div>
       </header>
 
@@ -318,17 +245,26 @@ export default function Users() {
           </label>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px]">
+        <div className="overflow-hidden">
+          <table className="w-full table-fixed">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700">
-                <th className="px-5 py-3">{t("users.fullName")}</th>
-                <th className="px-5 py-3">{tc("email")}</th>
-                <th className="px-5 py-3">{tc("phone")}</th>
-                <th className="px-5 py-3">{t("users.role")}</th>
-                <th className="px-5 py-3">{t("users.joined")}</th>
-                <th className="px-5 py-3">{tc("status")}</th>
-                <th className="px-5 py-3 text-center">{tc("actions")}</th>
+            <colgroup>
+              <col className="w-[17%]" />
+              <col className="w-[21%]" />
+              <col className="w-[11%]" />
+              <col className="w-[13%]" />
+              <col className="w-[15%]" />
+              <col className="w-[14%]" />
+              <col className="w-[9%]" />
+            </colgroup>
+              <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold whitespace-nowrap text-gray-700">
+                <th className="px-4 py-3">{t("users.fullName")}</th>
+                <th className="px-4 py-3">{tc("email")}</th>
+                <th className="px-4 py-3">{tc("phone")}</th>
+                <th className="px-4 py-3">{t("users.role")}</th>
+                <th className="px-4 py-3">{t("users.joined")}</th>
+                <th className="px-4 py-3">{tc("status")}</th>
+                <th className="px-2 py-3 text-center">{tc("actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -337,10 +273,11 @@ export default function Users() {
                   user.userId !== currentUserId &&
                   (isActiveStatus(user.status) || isLockedStatus(user.status));
 
+                const userRoleLabel = roleLabel(user.role);
                 return (
                   <tr key={user.userId} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
+                    <td className="min-w-0 px-4 py-4">
+                      <div className="flex min-w-0 items-center gap-3">
                         <img
                           src={user.avatarUrl || fallbackAvatarUrl}
                           alt={user.displayName || user.email}
@@ -349,22 +286,36 @@ export default function Users() {
                           loading="lazy"
                           className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover"
                         />
-                        <span className="text-sm font-semibold text-gray-900">
+                        <span
+                          className="truncate text-sm font-semibold text-gray-900"
+                          title={user.displayName || undefined}
+                        >
                           {user.displayName || "-"}
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-sm text-gray-600">{user.email}</td>
-                    <td className="px-5 py-4 text-sm text-gray-600">
+                    <td className="min-w-0 px-4 py-4 text-sm text-gray-600">
+                      <span
+                        className="block w-full max-w-[220px] truncate"
+                        title={user.email}
+                      >
+                        {user.email}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-sm whitespace-nowrap text-gray-600">
                       {formatVietnamPhoneForDisplay(user.phone)}
                     </td>
-                    <td className="px-5 py-4 text-sm text-gray-700">{roleLabel(user.role)}</td>
-                    <td className="px-5 py-4 text-sm text-gray-600">
+                    <td className="min-w-0 px-4 py-4 text-sm text-gray-700">
+                      <span className="block truncate" title={userRoleLabel}>
+                        {userRoleLabel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-sm whitespace-nowrap text-gray-600">
                       {formatDateTime(user.createdAt)}
                     </td>
-                    <td className="px-5 py-4 text-sm">
+                    <td className="px-4 py-4 text-sm whitespace-nowrap">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${
                           isActiveStatus(user.status)
                             ? "bg-emerald-50 text-emerald-700"
                             : isLockedStatus(user.status)
@@ -375,8 +326,8 @@ export default function Users() {
                         {user.status ? tc(`enumLabels.${user.status}`, { defaultValue: user.status }) : "-"}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-2 py-4">
+                      <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"
                           onClick={() => setSelected(user)}
@@ -450,73 +401,6 @@ export default function Users() {
         onClose={() => setSelected(null)}
       />
 
-      <Modal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        icon={<FiPlus />}
-        title={t("users.createAdminUser")}
-        subtitle={t("users.createAdminHint", {
-          defaultValue:
-            "Tài khoản SYSTEM_ADMIN nhận email thiết lập mật khẩu lần đầu.",
-        })}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setCreateOpen(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="submit"
-              form="create-admin-user-form"
-              disabled={isCreating}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {isCreating ? tc("processing") : t("users.createAdminUser")}
-            </button>
-          </>
-        }
-      >
-        <form
-          id="create-admin-user-form"
-          className="space-y-4"
-          onSubmit={(event) => void submitCreate(event)}
-        >
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gray-600">
-              {t("users.fullName")}
-            </span>
-            <input
-              value={createForm.displayName}
-              onChange={(event) =>
-                setCreateForm({ ...createForm, displayName: event.target.value })
-              }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-vr-500"
-              maxLength={255}
-              required
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-gray-600">
-              {tc("email")}
-            </span>
-            <input
-              type="email"
-              value={createForm.email}
-              onChange={(event) =>
-                setCreateForm({ ...createForm, email: event.target.value })
-              }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-vr-500"
-              required
-            />
-          </label>
-          <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
-            {t("users.role")}: <strong>{t("users.systemAdmin")}</strong>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }

@@ -12,7 +12,6 @@ vi.mock("../../auth", () => ({
 }));
 
 vi.mock("../../api/vietride", () => ({
-  createAdminUser: vi.fn(),
   getAdminOperatorUsers: vi.fn(),
   getAdminUsers: vi.fn(),
   lockAdminUser: vi.fn(),
@@ -22,7 +21,7 @@ vi.mock("../../api/vietride", () => ({
 const user = {
   userId: "user-1",
   id: "user-1",
-  email: "passenger@example.com",
+  email: "passenger.with.a.very.long.email.address@example.com",
   phone: "0901234567",
   displayName: "Nguyễn Văn A",
   avatarUrl: "https://cdn.example.com/users/user-1.jpg",
@@ -52,5 +51,33 @@ describe("Admin Users", () => {
     expect(
       await screen.findByRole("img", { name: user.displayName }),
     ).toHaveAttribute("src", user.avatarUrl);
+  });
+
+  it("keeps key user data on one line and truncates long emails visually", async () => {
+    render(<Users />);
+
+    const email = await screen.findByText(user.email);
+    expect(email).toHaveClass("truncate", "max-w-[220px]");
+    expect(email).toHaveAttribute("title", user.email);
+
+    expect(screen.getByText(user.displayName)).toHaveClass("truncate");
+    expect(screen.getByText("users.customer")).toHaveClass("truncate");
+
+    const table = email.closest("table");
+    expect(table).toHaveClass("table-fixed");
+    expect(table?.parentElement).toHaveClass("overflow-hidden");
+
+    const joinedCell = screen.getByText(/01-07-2026/).closest("td");
+    expect(joinedCell).toHaveClass("whitespace-nowrap");
+  });
+
+  it("does not show refresh or admin-account creation actions", async () => {
+    render(<Users />);
+    await screen.findByText(user.displayName);
+
+    expect(screen.queryByRole("button", { name: "refresh" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "users.createAdminUser" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -16,6 +16,7 @@ import {
   FiFileText,
   FiGrid,
   FiDatabase,
+  FiCreditCard,
 } from "react-icons/fi";
 import logo from "../assets/Login/logo.svg";
 import { AiOutlineLogout } from "react-icons/ai";
@@ -87,7 +88,7 @@ const operatorAdminMenuConfig: MenuSection[] = [
       {
         labelKey: "manager.packages",
         path: "/manager/packages",
-        icon: <FiPackage />,
+        icon: <FiCreditCard />,
       },
       {
         labelKey: "manager.policies",

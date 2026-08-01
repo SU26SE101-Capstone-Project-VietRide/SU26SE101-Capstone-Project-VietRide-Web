@@ -150,6 +150,7 @@ export default function Profile() {
   );
   const [error, setError] = useState("");
   const currentUser = getAuthUser();
+  const isOperator = isOperatorRole(currentUser?.role);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     currentUser?.avatarUrl ?? null,
   );
@@ -363,7 +364,9 @@ export default function Profile() {
             <h3 className="text-2xl font-bold text-gray-900">
               {profile.firstName} {profile.lastName}
             </h3>
-            <p className="text-gray-600 text-sm mt-1">{profile.bio}</p>
+            <p className="text-gray-600 text-sm mt-1">
+              {isOperator ? t(`enumLabels.${profile.bio}`) : profile.bio}
+            </p>
             <p className="text-gray-500 text-sm mt-1">Việt Nam</p>
 
 
@@ -454,14 +457,29 @@ export default function Profile() {
             </div>
 
             <div>
-              <label className="text-xs text-gray-600 font-semibold">{t("profilePage.bio")}</label>
-              <textarea
-                name="bio"
-                value={formData.bio}
-                onChange={handleChange}
-                rows={3}
-                className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
-              />
+              <label className="text-xs text-gray-600 font-semibold">
+                {isOperator
+                  ? t("profilePage.operatorStatus")
+                  : t("profilePage.bio")}
+              </label>
+              {isOperator ? (
+                <>
+                  <p className="w-full mt-2 px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-700">
+                    {t(`enumLabels.${formData.bio}`)}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {t("profilePage.operatorFieldReadOnlyHint")}
+                  </p>
+                </>
+              ) : (
+                <textarea
+                  name="bio"
+                  value={formData.bio}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
+                />
+              )}
             </div>
 
             <div className="flex gap-2 pt-4">
@@ -511,9 +529,13 @@ export default function Profile() {
             </div>
             <div className="col-span-2">
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                {t("profilePage.bio")}
+                {isOperator
+                  ? t("profilePage.operatorStatus")
+                  : t("profilePage.bio")}
               </p>
-              <p className="text-gray-900 mt-2 font-medium">{profile.bio}</p>
+              <p className="text-gray-900 mt-2 font-medium">
+                {isOperator ? t(`enumLabels.${profile.bio}`) : profile.bio}
+              </p>
             </div>
           </div>
         )}
@@ -565,15 +587,28 @@ export default function Profile() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  {t("profilePage.postalCode")}
+                  {isOperator
+                    ? t("profilePage.businessRegistrationNumber")
+                    : t("profilePage.postalCode")}
                 </label>
-                <input
-                  type="text"
-                  name="postalCode"
-                  value={formData.postalCode}
-                  onChange={handleChange}
-                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
-                />
+                {isOperator ? (
+                  <>
+                    <p className="w-full mt-2 px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-700">
+                      {formData.postalCode}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {t("profilePage.operatorFieldReadOnlyHint")}
+                    </p>
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    name="postalCode"
+                    value={formData.postalCode}
+                    onChange={handleChange}
+                    className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
+                  />
+                )}
               </div>
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
@@ -622,7 +657,9 @@ export default function Profile() {
             </div>
             <div>
               <p className="text-xs text-gray-600 font-semibold uppercase">
-                {t("profilePage.postalCode")}
+                {isOperator
+                  ? t("profilePage.businessRegistrationNumber")
+                  : t("profilePage.postalCode")}
               </p>
               <p className="text-gray-900 mt-2 font-medium">
                 {profile.postalCode}

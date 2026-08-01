@@ -177,6 +177,9 @@
     "country": "Quốc gia",
     "cityState": "Thành phố/Tỉnh",
     "postalCode": "Mã bưu điện",
-    "taxId": "Mã số thuế"
+    "taxId": "Mã số thuế",
+    "operatorStatus": "Trạng thái nhà xe",
+    "businessRegistrationNumber": "Số đăng ký kinh doanh",
+    "operatorFieldReadOnlyHint": "Thông tin do hệ thống quản lý, không chỉnh sửa được ở đây."
   }
 }

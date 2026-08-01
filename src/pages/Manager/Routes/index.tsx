@@ -113,6 +113,7 @@ type FeedbackScope =
   | "route"
   | "routeStop"
   | "geometry";
+type RoutesTab = Exclude<FeedbackScope, "global">;
 
 function toNumber(value: string) {
   const next = Number(value);
@@ -327,6 +328,7 @@ export default function RoutesPage() {
   const [routePathPoints, setRoutePathPoints] = useState<RouteCoordinate[]>([]);
   const [isEditingGeometry, setIsEditingGeometry] = useState(false);
   const [isGeometryDirty, setIsGeometryDirty] = useState(false);
+  const [activeTab, setActiveTab] = useState<RoutesTab>("station");
   const lastEstimatedRoutePairRef = useRef("");
 
   const selectedRoute = useMemo(
@@ -1170,8 +1172,35 @@ export default function RoutesPage() {
         />
       </div>
 
+      <div className="flex flex-wrap gap-1 border-b border-gray-200">
+        {(
+          [
+            { id: "station", icon: <FiSearch size={15} />, label: t("routes.stationManagement") },
+            { id: "stop", icon: <FiMapPin size={15} />, label: t("routes.stopManagement") },
+            { id: "route", icon: <FiGitBranch size={15} />, label: t("routes.routeManagement") },
+            { id: "routeStop", icon: <FiShuffle size={15} />, label: t("routes.stopOrderManagement") },
+            { id: "geometry", icon: <FiNavigation size={15} />, label: t("routes.geometryTitle") },
+          ] as const
+        ).map((tabItem) => (
+          <button
+            key={tabItem.id}
+            type="button"
+            onClick={() => setActiveTab(tabItem.id)}
+            className={`flex items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-semibold transition ${
+              activeTab === tabItem.id
+                ? "border-vr-500 text-vr-700"
+                : "border-transparent text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {tabItem.icon}
+            {tabItem.label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <main className="space-y-5">
+          {activeTab === "station" && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
               icon={<FiSearch />}
@@ -1271,7 +1300,9 @@ export default function RoutesPage() {
               message={messageScope === "station" ? message : ""}
             />
           </section>
+          )}
 
+          {activeTab === "stop" && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
               icon={<FiMapPin />}
@@ -1320,7 +1351,9 @@ export default function RoutesPage() {
             )}
             <InlineFeedback message={messageScope === "stop" ? message : ""} />
           </section>
+          )}
 
+          {activeTab === "route" && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
               icon={<FiGitBranch />}
@@ -1447,7 +1480,9 @@ export default function RoutesPage() {
             </div>
             <InlineFeedback message={messageScope === "route" ? message : ""} />
           </section>
+          )}
 
+          {activeTab === "routeStop" && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
               icon={<FiShuffle />}
@@ -1540,7 +1575,9 @@ export default function RoutesPage() {
               message={messageScope === "routeStop" ? message : ""}
             />
           </section>
+          )}
 
+          {activeTab === "geometry" && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <SectionHeader
@@ -1635,6 +1672,7 @@ export default function RoutesPage() {
               message={messageScope === "geometry" ? message : ""}
             />
           </section>
+          )}
         </main>
 
         <aside className="space-y-5">

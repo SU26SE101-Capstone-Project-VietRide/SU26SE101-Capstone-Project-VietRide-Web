@@ -212,14 +212,18 @@ export default function StaffPage() {
   async function handleCreateUser() {
     setError("");
     setMessage("");
-    await createOperatorUser({
-      ...userForm,
-      phone: normalizeVietnamPhoneForApi(userForm.phone),
-    });
-    await reloadUsers();
-    setUserForm(emptyUserForm);
-    setOpenAdd(false);
-    setMessage(t("staff.createInitialPasswordSuccess"));
+    try {
+      await createOperatorUser({
+        ...userForm,
+        phone: normalizeVietnamPhoneForApi(userForm.phone),
+      });
+      await reloadUsers();
+      setUserForm(emptyUserForm);
+      setOpenAdd(false);
+      setMessage(t("staff.createInitialPasswordSuccess"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("staff.createUserFailed"));
+    }
   }
 
   async function handleResendInitialPassword(user: OperatorUser) {
@@ -232,8 +236,14 @@ export default function StaffPage() {
 
     setError("");
     setMessage("");
-    await resendInitialPassword(userId);
-    setMessage(t("staff.resendInitialPasswordSuccess", { email: user.email }));
+    try {
+      await resendInitialPassword(userId);
+      setMessage(t("staff.resendInitialPasswordSuccess", { email: user.email }));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("staff.resendInitialPasswordFailed"),
+      );
+    }
   }
 
   function handleOpenDetail(user: OperatorUser) {

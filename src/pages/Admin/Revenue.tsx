@@ -8,7 +8,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
 } from "recharts";
 import {
   getAdminRevenueAnalytics,
@@ -23,29 +22,68 @@ const formatMoney = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const formatChange = (metric?: MetricValue) => {
-  if (!metric) return "-";
-  const prefix = metric.changePercent > 0 ? "+" : "";
-  return `${prefix}${metric.changePercent.toLocaleString("vi-VN")}%`;
+const formatCompactMoney = (value: number) => {
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toLocaleString("vi-VN", {
+      maximumFractionDigits: 1,
+    })}B`;
+  }
+
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toLocaleString("vi-VN", {
+      maximumFractionDigits: 1,
+    })}M`;
+  }
+
+  return value.toLocaleString("vi-VN");
 };
 
-const KPI = ({ title, metric }: { title: string; metric?: MetricValue }) => (
+function monthNumber(value: string) {
+  const month = Number(value.slice(5, 7));
+  return Number.isNaN(month) ? value : String(month);
+}
+const formatChange = (metric: MetricValue | undefined, newLabel: string) => {
+  if (!metric) return "-";
+  if (metric.previousValue === 0 && metric.currentValue > 0) return `↑ ${newLabel}`;
+  if (metric.trend === "DOWN") return `↓ ${metric.changePercent.toLocaleString("vi-VN")}%`;
+  if (metric.trend === "FLAT") return `— ${metric.changePercent.toLocaleString("vi-VN")}%`;
+  return `↑ ${metric.changePercent.toLocaleString("vi-VN")}%`;
+};
+
+const trendClassName = (trend?: MetricValue["trend"]) => {
+  if (trend === "DOWN") return "text-red-600";
+  if (trend === "FLAT") return "text-gray-500";
+  return trend === "UP" ? "text-green-600" : "text-gray-400";
+};
+
+type KPIProps = {
+  title: string;
+  metric?: MetricValue;
+  previousLabel: string;
+  newLabel: string;
+};
+
+const KPI = ({ title, metric, previousLabel, newLabel }: KPIProps) => (
   <div className="rounded-lg border border-gray-200 bg-white p-4">
     <p className="text-sm text-gray-600">{title}</p>
     <div className="mt-1 flex items-end justify-between gap-3">
       <p className="text-2xl font-bold text-gray-900">
         {metric ? formatMoney(metric.currentValue) : "-"}
       </p>
-      <span
-        className={`text-sm font-semibold ${
-          metric?.trend === "DOWN" ? "text-red-600" : "text-green-600"
-        }`}
-      >
-        {formatChange(metric)}
+      <span className={`text-sm font-semibold ${trendClassName(metric?.trend)}`}>
+        {formatChange(metric, newLabel)}
       </span>
     </div>
+    <p className="mt-2 text-xs text-gray-500">
+      {previousLabel}: {metric ? formatMoney(metric.previousValue) : "-"}
+    </p>
   </div>
 );
+
+function formatDateValue(value: string) {
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}
 
 function currentYearRange() {
   const year = new Date().getFullYear();
@@ -93,9 +131,22 @@ export default function Revenue() {
 
   const chartData = analytics?.monthly.map((item) => ({
     month: item.month,
+    gross: item.grossRevenueVnd,
     paid: item.paidToOperatorsVnd,
     platform: item.platformRevenueVnd,
   })) ?? [];
+  const totalInPeriod = analytics?.summary.grossRevenueVnd.currentValue ?? 0;
+  const platformRevenue = analytics?.summary.platformRevenueVnd.currentValue ?? 0;
+  const platformShare =
+    totalInPeriod > 0 ? Math.round((platformRevenue / totalInPeriod) * 100) : 0;
+  const peakMonth = chartData.reduce<(typeof chartData)[number] | null>(
+    (peak, item) => (!peak || item.gross > peak.gross ? item : peak),
+    null,
+  );
+  const peakMonthLabel =
+    peakMonth && peakMonth.gross > 0
+      ? t("revenue.monthValue", { month: monthNumber(peakMonth.month) })
+      : "—";
 
   return (
     <div className="space-y-6">
@@ -105,53 +156,181 @@ export default function Revenue() {
             {t("revenue.title")} <span className="ml-3 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">{tc("adminBadge")}</span>
           </h1>
           <p className="mt-1 text-gray-600">{t("revenue.subtitle")}</p>
+          {analytics && (
+            <p className="mt-1 text-sm text-gray-500">
+              {t("revenue.period", {
+                from: formatDateValue(analytics.period.from),
+                to: formatDateValue(analytics.period.to),
+                timezone: analytics.period.timezone,
+              })}
+            </p>
+          )}
         </div>
         <button type="button" onClick={() => void loadData()} disabled={loading} className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60">
-          {loading ? "Đang tải..." : "Làm mới"}
+          {loading ? t("revenue.loadingRefresh") : t("revenue.refresh")}
         </button>
       </div>
 
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <KPI title="Tổng doanh thu" metric={analytics?.summary.grossRevenueVnd} />
-        <KPI title={t("revenue.commission")} metric={analytics?.summary.platformRevenueVnd} />
-        <KPI title={t("revenue.paidToOperators")} metric={analytics?.summary.paidToOperatorsVnd} />
+        <KPI
+          title={t("revenue.grossRevenue")}
+          metric={analytics?.summary.grossRevenueVnd}
+          previousLabel={t("revenue.previousPeriod")}
+          newLabel={t("revenue.newGrowth")}
+        />
+        <KPI
+          title={t("revenue.commission")}
+          metric={analytics?.summary.platformRevenueVnd}
+          previousLabel={t("revenue.previousPeriod")}
+          newLabel={t("revenue.newGrowth")}
+        />
+        <KPI
+          title={t("revenue.paidToOperators")}
+          metric={analytics?.summary.paidToOperatorsVnd}
+          previousLabel={t("revenue.previousPeriod")}
+          newLabel={t("revenue.newGrowth")}
+        />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="mb-4 font-semibold">{t("revenue.monthlyChart")}</h3>
-        {loading ? (
-          <div className="flex h-80 items-center justify-center text-gray-500">Đang tải dữ liệu...</div>
-        ) : chartData.length === 0 ? (
-          <div className="flex h-80 items-center justify-center text-gray-500">Không có dữ liệu trong khoảng thời gian này.</div>
-        ) : (
-          <div className="h-80 w-full">
-            <ResponsiveContainer>
-              <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fill: "#6b7280" }} />
-                <YAxis tickFormatter={(value: number) => `${Math.round(value / 1_000_000)}M`} />
-                <Tooltip formatter={(value) => formatMoney(Number(value ?? 0))} />
-                <Legend />
-                <Bar dataKey="paid" fill="#2563eb" name={t("revenue.paidLegend")} />
-                <Bar dataKey="platform" fill="#10b981" name={t("revenue.commissionLegend")} />
-              </BarChart>
-            </ResponsiveContainer>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-900">{t("revenue.monthlyChart")}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t("revenue.chartHint")}</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-medium">
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-emerald-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                {t("revenue.commissionLegend")}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-blue-700">
+                <span className="h-2 w-2 rounded-full bg-blue-600" />
+                {t("revenue.paidLegend")}
+              </span>
+            </div>
           </div>
-        )}
+
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                {t("revenue.totalInPeriod")}
+              </p>
+              <p className="mt-1 text-lg font-bold text-slate-900">
+                {formatCompactMoney(totalInPeriod)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                {t("revenue.peakMonth")}
+              </p>
+              <p className="mt-1 text-lg font-bold text-slate-900">{peakMonthLabel}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                {t("revenue.platformShare")}
+              </p>
+              <p className="mt-1 text-lg font-bold text-emerald-600">{platformShare}%</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 pb-5 pt-6 sm:px-6">
+          {loading ? (
+            <div className="flex h-80 items-center justify-center text-gray-500">{t("revenue.loading")}</div>
+          ) : chartData.length === 0 ? (
+            <div className="flex h-80 items-center justify-center text-gray-500">{t("revenue.noData")}</div>
+          ) : (
+            <div className="h-80 w-full">
+              <ResponsiveContainer>
+                <BarChart
+                  data={chartData}
+                  barCategoryGap="34%"
+                  margin={{ top: 8, right: 12, left: 4, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="paidRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2563eb" />
+                      <stop offset="100%" stopColor="#60a5fa" />
+                    </linearGradient>
+                    <linearGradient id="platformRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#059669" />
+                      <stop offset="100%" stopColor="#34d399" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#64748b", fontSize: 12 }}
+                    tickFormatter={(value: string) => `T${monthNumber(value)}`}
+                    dy={8}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#94a3b8", fontSize: 12 }}
+                    tickFormatter={formatCompactMoney}
+                    width={64}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "#f8fafc" }}
+                    formatter={(value) => formatMoney(Number(value ?? 0))}
+                    labelFormatter={(value) =>
+                      t("revenue.monthValue", { month: monthNumber(String(value)) })
+                    }
+                    contentStyle={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "12px",
+                      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                    }}
+                  />
+                  <Bar
+                    stackId="revenue"
+                    dataKey="paid"
+                    fill="url(#paidRevenueGradient)"
+                    name={t("revenue.paidLegend")}
+                    maxBarSize={52}
+                    radius={[6, 6, 0, 0]}
+                  />
+                  <Bar
+                    stackId="revenue"
+                    dataKey="platform"
+                    fill="url(#platformRevenueGradient)"
+                    name={t("revenue.commissionLegend")}
+                    maxBarSize={52}
+                    radius={[8, 8, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-6">
         <h4 className="mb-3 font-semibold">{t("revenue.topOperators")}</h4>
         {!loading && (analytics?.topOperators.length ?? 0) === 0 ? (
-          <p className="text-sm text-gray-500">Chưa có nhà xe phát sinh doanh thu.</p>
+          <p className="text-sm text-gray-500">{t("revenue.noOperators")}</p>
         ) : (
           <div className="divide-y divide-gray-100">
             {analytics?.topOperators.map((operator) => (
               <div key={operator.operatorId} className="flex items-center justify-between gap-4 py-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-vr-50 font-semibold text-vr-600">{operator.rank}</div>
+                  {operator.logoUrl && (
+                    <img
+                      src={operator.logoUrl}
+                      alt={t("revenue.operatorLogoAlt", { name: operator.operatorName })}
+                      width={40}
+                      height={40}
+                      loading="lazy"
+                      className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                    />
+                  )}
                   <div className="min-w-0">
                     <div className="truncate font-semibold">{operator.operatorName ?? operator.operatorId}</div>
                     <div className="text-xs text-gray-500">{operator.vehicleCount.toLocaleString("vi-VN")} {t("revenue.vehicles")}</div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiEye } from "react-icons/fi";
+import { FiAlertTriangle, FiEye } from "react-icons/fi";
 import { DetailItem } from "../../components/DetailLayout";
 import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
@@ -79,7 +79,7 @@ const INITIAL_BATCHES: PayoutBatch[] = [
 export default function Payouts() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
-  const [batches, setBatches] = useState<PayoutBatch[]>(INITIAL_BATCHES);
+  const [batches] = useState<PayoutBatch[]>(INITIAL_BATCHES);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -110,17 +110,14 @@ export default function Payouts() {
     setSelectedIdx(null);
   }
 
-  function updateStatus(i: number, status: PayoutBatch["status"]) {
-    setBatches((prev) =>
-      prev.map((b, idx) => (idx === i ? { ...b, status } : b)),
-    );
-    closeBatch();
-  }
-
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
-        Một số số liệu dưới đây là dữ liệu minh họa vì hệ thống chưa có đủ dữ liệu tổng hợp.
+      <div
+        className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+        role="status"
+      >
+        <FiAlertTriangle className="mt-0.5 shrink-0" size={18} />
+        <span>{t("payouts.demoBanner")}</span>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -404,20 +401,26 @@ export default function Payouts() {
             </div>
             <div className="mt-4 flex gap-2 border-t pt-4">
               <button
-                onClick={() => updateStatus(selectedIdx, "approved")}
-                className="px-4 py-2 bg-gray-900 text-white rounded text-sm hover:bg-gray-800"
+                type="button"
+                disabled
+                title={t("payouts.actionDisabledTooltip")}
+                className="cursor-not-allowed px-4 py-2 bg-gray-100 text-gray-400 rounded text-sm"
               >
                 {t("payouts.approve")}
               </button>
               <button
-                onClick={() => updateStatus(selectedIdx, "transferred")}
-                className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                type="button"
+                disabled
+                title={t("payouts.actionDisabledTooltip")}
+                className="cursor-not-allowed px-4 py-2 bg-gray-100 text-gray-400 rounded text-sm"
               >
                 {t("payouts.transfer")}
               </button>
               <button
-                onClick={() => updateStatus(selectedIdx, "rejected")}
-                className="px-4 py-2 bg-white border border-gray-200 rounded text-sm text-gray-700 hover:bg-gray-50"
+                type="button"
+                disabled
+                title={t("payouts.actionDisabledTooltip")}
+                className="cursor-not-allowed px-4 py-2 border border-gray-200 rounded text-sm text-gray-400"
               >
                 {t("payouts.reject")}
               </button>
