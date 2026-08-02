@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -7,7 +7,6 @@ import {
   FiUser,
   FiLogOut,
   FiRefreshCw,
-  FiSearch,
   FiSend,
 } from "react-icons/fi";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -34,7 +33,6 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
   const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   const isAdmin = location.pathname.startsWith("/admin");
@@ -44,29 +42,6 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
     authUser?.role === "OPERATOR_ADMIN" || authUser?.role === "OPERATOR_STAFF";
   const settingsPath =
     authUser?.role === "OPERATOR_ADMIN" ? "/manager/settings" : null;
-
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const query = searchTerm.trim();
-    if (!query) return;
-
-    const normalized = query.toLowerCase();
-    const target = isAdmin
-      ? normalized.includes("nhà xe") || normalized.includes("operator")
-        ? "/admin/operators"
-        : normalized.includes("người dùng") || normalized.includes("user")
-          ? "/admin/users"
-          : "/admin/dashboard"
-      : normalized.includes("parcel") || normalized.includes("hàng")
-        ? "/manager/parcels"
-        : normalized.includes("booking") || normalized.includes("vé")
-          ? "/manager/bookings"
-          : normalized.includes("chuyến") || normalized.includes("trip")
-            ? "/manager/trips"
-            : "/manager/dashboard";
-
-    navigate(`${target}?search=${encodeURIComponent(query)}`);
-  }
 
   const loadNotifications = useCallback(async () => {
     setNotificationsLoading(true);

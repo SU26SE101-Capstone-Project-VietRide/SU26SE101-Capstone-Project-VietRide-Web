@@ -1,0 +1,1 @@
+npx tsc -b --force && npm run lint

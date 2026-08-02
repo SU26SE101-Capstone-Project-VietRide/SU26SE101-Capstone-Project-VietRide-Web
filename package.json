@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "seed:operator-users": "node scripts/seed-operator-users.mjs"
+    "seed:operator-users": "node scripts/seed-operator-users.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@react-three/drei": "^9.88.0",
@@ -49,6 +50,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
