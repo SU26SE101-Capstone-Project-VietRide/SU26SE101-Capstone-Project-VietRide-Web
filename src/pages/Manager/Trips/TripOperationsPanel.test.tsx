@@ -158,12 +158,19 @@ describe("TripOperationsPanel", () => {
       screen.getByRole("button", { name: "tripOperations.substitute" }),
     );
 
-    expect(substituteOperatorTripVehicle).toHaveBeenCalledWith("trip-1", {
-      newVehicleId: "vehicle-2",
-      newDriverUserId: "driver-2",
-      newAssistantUserId: undefined,
-      reason: "Breakdown",
-    });
+    expect(substituteOperatorTripVehicle).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        replacementVehicleId: "vehicle-2",
+        estimatedRecoveryDepartureAt: expect.any(String),
+        reason: "Breakdown",
+        notifyPassengers: true,
+        replacementCrew: {
+          driverId: "driver-2",
+          assistantId: null,
+        },
+      }),
+    );
   });
 });
 

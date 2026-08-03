@@ -21,7 +21,10 @@
       "Edit(/.claude/skills/api-endpoint/**)",
       "Edit(/.claude/skills/verify/**)",
       "Edit(/.claude/skills/crud-page/**)",
-      "Edit(/.claude/skills/i18n-sync/**)"
+      "Edit(/.claude/skills/i18n-sync/**)",
+      "Bash(npx eslint *)",
+      "WebFetch(domain:log.vietride.online)",
+      "Bash(awk 'NR==652,0{if\\(NR>652 && /^  \\\\},?$/\\){print NR\": \"$0; exit} print NR\": \"$0}' src/i18n/locales/vi/manager.json)"
     ]
   }
 }

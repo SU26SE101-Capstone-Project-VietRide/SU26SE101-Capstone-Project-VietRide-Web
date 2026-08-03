@@ -2285,8 +2285,13 @@ describe("vietride API", () => {
     await substituteOperatorTripVehicle(
       "trip-1",
       {
-        newVehicleId: "vehicle-2",
-        newDriverUserId: "driver-2",
+        replacementVehicleId: "vehicle-2",
+        estimatedRecoveryDepartureAt: "2026-08-02T04:30:00.000Z",
+        notifyPassengers: true,
+        replacementCrew: {
+          driverId: "driver-2",
+          assistantId: null,
+        },
         reason: "Vehicle breakdown",
       },
       "substitute-key",
@@ -2302,6 +2307,16 @@ describe("vietride API", () => {
       "https://api.vietride.online/v1/operator/trips/trip-1/substitute-vehicle",
       expect.objectContaining({
         method: "POST",
+        body: JSON.stringify({
+          replacementVehicleId: "vehicle-2",
+          estimatedRecoveryDepartureAt: "2026-08-02T04:30:00.000Z",
+          notifyPassengers: true,
+          replacementCrew: {
+            driverId: "driver-2",
+            assistantId: null,
+          },
+          reason: "Vehicle breakdown",
+        }),
         headers: expect.objectContaining({
           "Idempotency-Key": "substitute-key",
         }),

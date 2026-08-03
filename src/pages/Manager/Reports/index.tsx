@@ -10,14 +10,13 @@ import {
   FiRefreshCw,
 } from "react-icons/fi";
 import {
-  BarChart,
+  Area,
   Bar,
-  Line,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   RadarChart,
   PolarGrid,
@@ -492,8 +491,8 @@ export default function ManagerReports() {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-gray-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
               {t("reports.revenueTrips")}
@@ -502,6 +501,21 @@ export default function ManagerReports() {
               {t("reports.revenueChartSubtitle")}
             </p>
           </div>
+
+          <div
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs"
+            aria-label={t("reports.revenueTrips")}
+          >
+            <span className="inline-flex items-center gap-2 font-medium text-gray-700">
+              <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
+              {t("reports.chartRevenue")}
+              <span className="font-normal text-gray-400">M VND</span>
+            </span>
+            <span className="inline-flex items-center gap-2 font-medium text-gray-700">
+              <span className="h-2.5 w-2.5 rounded-sm bg-sky-500" />
+              {t("reports.chartTrips")}
+            </span>
+          </div>
         </div>
 
         {monthlyChartData.length === 0 ? (
@@ -509,52 +523,112 @@ export default function ManagerReports() {
             {isLoading ? tc("loading") : t("reports.noData")}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart
-              data={monthlyChartData}
-              margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis
-                dataKey="month"
-                stroke="#9ca3af"
-                style={{ fontSize: "12px" }}
-              />
-              <YAxis stroke="#9ca3af" style={{ fontSize: "12px" }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                }}
-              />
-              <Legend />
-              <Bar
-                dataKey="revenue"
-                name={t("reports.chartRevenue")}
-                fill="#3b82f6"
-                radius={[6, 6, 0, 0]}
-              />
-              <Line
-                type="monotone"
-                dataKey="trips"
-                name={t("reports.chartTrips")}
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ fill: "#10b981", r: 4 }}
-                yAxisId="right"
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                stroke="#9ca3af"
-                style={{ fontSize: "12px" }}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="px-3 pb-4 pt-6 sm:px-5">
+            <ResponsiveContainer width="100%" height={350}>
+              <ComposedChart
+                data={monthlyChartData}
+                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient
+                    id="operatorRevenueArea"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.3} />
+                    <stop
+                      offset="100%"
+                      stopColor="#14b8a6"
+                      stopOpacity={0.02}
+                    />
+                  </linearGradient>
+                  <linearGradient
+                    id="operatorTripBars"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor="#38bdf8" />
+                    <stop offset="100%" stopColor="#0ea5e9" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  vertical={false}
+                  stroke="#e2e8f0"
+                  strokeDasharray="4 6"
+                />
+                <XAxis
+                  dataKey="month"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  dy={10}
+                />
+                <YAxis
+                  yAxisId="revenue"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  tickFormatter={(value) => `${value}M`}
+                  width={48}
+                />
+                <YAxis
+                  yAxisId="trips"
+                  orientation="right"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  allowDecimals={false}
+                  width={38}
+                />
+                <Tooltip
+                  cursor={{ stroke: "#94a3b8", strokeDasharray: "4 4" }}
+                  contentStyle={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                    padding: "10px 12px",
+                  }}
+                  labelStyle={{
+                    color: "#0f172a",
+                    fontWeight: 600,
+                    marginBottom: "6px",
+                  }}
+                  itemStyle={{ fontSize: "12px", padding: "2px 0" }}
+                />
+                <Area
+                  yAxisId="revenue"
+                  type="monotone"
+                  dataKey="revenue"
+                  name={t("reports.chartRevenue")}
+                  unit=" M VND"
+                  stroke="#0f9f94"
+                  strokeWidth={3}
+                  fill="url(#operatorRevenueArea)"
+                  activeDot={{
+                    r: 5,
+                    fill: "#0f9f94",
+                    stroke: "#ffffff",
+                    strokeWidth: 2,
+                  }}
+                />
+                <Bar
+                  yAxisId="trips"
+                  dataKey="trips"
+                  name={t("reports.chartTrips")}
+                  fill="url(#operatorTripBars)"
+                  radius={[6, 6, 2, 2]}
+                  barSize={20}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <div className="mb-6">

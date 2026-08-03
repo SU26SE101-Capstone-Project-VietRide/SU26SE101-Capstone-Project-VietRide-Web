@@ -11,6 +11,7 @@ import {
   FiMapPin,
   FiTruck,
   FiRefreshCw,
+  FiX,
 } from "react-icons/fi";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
@@ -18,17 +19,22 @@ import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
 import { downloadCsv } from "../../../utils/csv";
+import { addRecentShuttleTrip } from "../../../utils/shuttleTrackingHistory";
 import { getAuthUser } from "../../../auth";
 import {
   createOperatorShuttleTrip,
   getOperatorShuttleRequests,
   getOperatorUsers,
   getOperatorVehicles,
+  getShuttleTripEta,
+  getShuttleTripLatest,
   type AdminUserRole,
   type OperatorUser,
   type OperatorVehicle,
   type ShuttleBookingGroup,
   type ShuttleRequestGroup,
+  type ShuttleTrackingEta,
+  type ShuttleTrackingLatest,
 } from "../../../api/vietride";
 
 type RequestType = "Đón" | "Trả";
@@ -69,6 +75,16 @@ type ShuttleVehicle = {
   capacity: number;
   status: VehicleStatus;
   currentPickups?: number;
+};
+
+type TrackedShuttleTrip = {
+  shuttleTripId: string;
+  mainTripId: string;
+  createdAt: string;
+  isRefreshing: boolean;
+  error?: string;
+  latest?: ShuttleTrackingLatest | null;
+  eta?: ShuttleTrackingEta | null;
 };
 
 type ShuttleDriver = {
@@ -256,6 +272,10 @@ export default function DispatchPanel() {
     notes: "",
   });
 
+  const [trackedShuttleTrips, setTrackedShuttleTrips] = useState<
+    TrackedShuttleTrip[]
+  >([]);
+
   const loadDispatchData = useCallback(async () => {
     setIsLoading(true);
     setError("");
@@ -374,6 +394,49 @@ export default function DispatchPanel() {
     setMessage(t("dispatch.createSuccess"));
   };
 
+  const refreshShuttleTracking = useCallback(async (shuttleTripId: string) => {
+    setTrackedShuttleTrips((current) =>
+      current.map((item) =>
+        item.shuttleTripId === shuttleTripId
+          ? { ...item, isRefreshing: true, error: undefined }
+          : item,
+      ),
+    );
+
+    try {
+      const [latest, eta] = await Promise.all([
+        getShuttleTripLatest(shuttleTripId),
+        getShuttleTripEta(shuttleTripId),
+      ]);
+      setTrackedShuttleTrips((current) =>
+        current.map((item) =>
+          item.shuttleTripId === shuttleTripId
+            ? { ...item, latest, eta, isRefreshing: false }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setTrackedShuttleTrips((current) =>
+        current.map((item) =>
+          item.shuttleTripId === shuttleTripId
+            ? {
+                ...item,
+                isRefreshing: false,
+                error:
+                  err instanceof Error ? err.message : t("dispatch.trackingFailed"),
+              }
+            : item,
+        ),
+      );
+    }
+  }, [t]);
+
+  const removeShuttleTracking = useCallback((shuttleTripId: string) => {
+    setTrackedShuttleTrips((current) =>
+      current.filter((item) => item.shuttleTripId !== shuttleTripId),
+    );
+  }, []);
+
   const handleAssignVehicle = async () => {
     if (
       !selectedRequest ||
@@ -408,7 +471,23 @@ export default function DispatchPanel() {
       setMessage(
         `${t("dispatch.assignSuccess")} ${result.shuttleTripId} (${result.assignedPassengerCount})`,
       );
+      const createdAt = new Date().toISOString();
+      setTrackedShuttleTrips((current) => [
+        {
+          shuttleTripId: result.shuttleTripId,
+          mainTripId: result.mainTripId,
+          createdAt,
+          isRefreshing: false,
+        },
+        ...current,
+      ]);
+      addRecentShuttleTrip({
+        shuttleTripId: result.shuttleTripId,
+        mainTripId: result.mainTripId,
+        createdAt,
+      });
       await loadDispatchData();
+      await refreshShuttleTracking(result.shuttleTripId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể phân công xe trung chuyển.");
     }
@@ -692,6 +771,110 @@ export default function DispatchPanel() {
               </p>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <h3 className="text-lg font-semibold text-gray-900">
+          {t("dispatch.shuttleTracking")}
+        </h3>
+        <p className="mt-1 text-sm text-gray-500">
+          {t("dispatch.shuttleTrackingHint")}
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {trackedShuttleTrips.map((item) => (
+            <div
+              key={item.shuttleTripId}
+              className="rounded-lg border border-gray-200 p-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-xs text-gray-500">
+                    {item.shuttleTripId}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-gray-500">
+                    {t("dispatch.trip")}: {item.mainTripId}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void refreshShuttleTracking(item.shuttleTripId)}
+                    disabled={item.isRefreshing}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    title={t("dispatch.refreshTracking")}
+                    aria-label={t("dispatch.refreshTracking")}
+                  >
+                    <FiRefreshCw
+                      size={14}
+                      className={item.isRefreshing ? "animate-spin" : ""}
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeShuttleTracking(item.shuttleTripId)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
+                    title={t("dispatch.removeTracking")}
+                    aria-label={t("dispatch.removeTracking")}
+                  >
+                    <FiX size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {item.error && (
+                <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
+                  {item.error}
+                </p>
+              )}
+
+              <div className="mt-3 space-y-2">
+                <div className="rounded-lg bg-gray-50 px-3 py-2">
+                  <p className="text-xs font-medium text-gray-500">
+                    {t("dispatch.latestLocation")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">
+                    {item.latest
+                      ? `${item.latest.latitude}, ${item.latest.longitude}`
+                      : t("dispatch.noLocationYet")}
+                  </p>
+                  {item.latest && (
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {t("dispatch.recordedAt", {
+                        time: formatTime(item.latest.recordedAt),
+                      })}
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-lg bg-gray-50 px-3 py-2">
+                  <p className="text-xs font-medium text-gray-500">
+                    {t("dispatch.nextPickup")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">
+                    {item.eta
+                      ? t("dispatch.etaValue", {
+                          minutes: item.eta.etaMinutes,
+                          distance: item.eta.distanceMeters,
+                        })
+                      : t("dispatch.noEtaYet")}
+                  </p>
+                  {item.eta && (
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {t("dispatch.pickupOrderValue", {
+                        order: item.eta.nextPickupOrder,
+                      })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          {trackedShuttleTrips.length === 0 && (
+            <p className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-sm text-gray-500 sm:col-span-2 xl:col-span-3">
+              {t("dispatch.shuttleTrackingEmpty")}
+            </p>
+          )}
         </div>
       </div>
 

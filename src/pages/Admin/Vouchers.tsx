@@ -727,8 +727,20 @@ export default function Vouchers() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="w-full min-w-[980px]">
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table className="w-full table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
+              <colgroup>
+                <col className="w-[8%]" />
+                <col className="w-[13%]" />
+                <col className="w-[8%]" />
+                <col className="w-[9%]" />
+                <col className="w-[14%]" />
+                <col className="w-[7%]" />
+                <col className="w-[11%]" />
+                <col className="w-[10%]" />
+                <col className="w-[9%]" />
+                <col className="w-[11%]" />
+              </colgroup>
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
@@ -774,42 +786,62 @@ export default function Vouchers() {
 
                   return (
                     <tr key={voucher.id} className="border-t border-gray-200">
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <span className="font-mono font-semibold text-vr-600">
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                        <span
+                          className="block truncate font-mono font-semibold text-vr-600"
+                          title={voucher.code}
+                        >
                           {voucher.code}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-gray-900">{voucher.name}</p>
-                        <p className="text-xs text-gray-500">
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                        <p
+                          className="truncate font-medium text-gray-900"
+                          title={voucher.name}
+                        >
+                          {voucher.name}
+                        </p>
+                        <p
+                          className="truncate text-xs text-gray-500"
+                          title={voucher.description}
+                        >
                           {voucher.description}
                         </p>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <span className="text-lg font-bold text-gray-900">
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                        <span className="block truncate text-base font-bold text-gray-900">
                           {discountTypeOf(voucher) === "percent"
                             ? `${discount}%`
                             : `${formatNumber(discount)}₫`}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <span className="text-sm text-gray-600">
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                        <span
+                          className="block truncate text-sm text-gray-600"
+                          title={getApplicableLabel(applicableToOf(voucher))}
+                        >
                           {getApplicableLabel(applicableToOf(voucher))}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <p className="text-sm font-medium text-gray-900">
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                        <p
+                          className="truncate text-sm font-medium text-gray-900"
+                          title={getFundingLabel(voucher.fundingType)}
+                        >
                           {getFundingLabel(voucher.fundingType)}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p
+                          className="truncate text-xs text-gray-500"
+                          title={getOperatorScopeLabel(voucher)}
+                        >
                           {getOperatorScopeLabel(voucher)}
                         </p>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4">
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
                         {formatNumber(quantity)}
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <div className="w-20">
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                        <div className="w-full max-w-20">
                           <div className="h-2 overflow-hidden rounded-full bg-gray-200">
                             <div
                               className="h-2 rounded-full bg-vr-500"
@@ -821,10 +853,12 @@ export default function Vouchers() {
                           </p>
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm">
-                        {expiryDate}
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-sm">
+                        <span className="block truncate" title={expiryDate}>
+                          {expiryDate}
+                        </span>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4">
+                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
                         <span
                           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
                             activeOf(voucher)
@@ -835,12 +869,12 @@ export default function Vouchers() {
                           {activeOf(voucher) ? tc("active") : tc("inactive")}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <div className="flex justify-end gap-2">
+                      <td className="whitespace-nowrap px-2 py-4">
+                        <div className="flex justify-end gap-1">
                           <button
                             type="button"
                             onClick={() => void openConsentModal(voucher)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-vr-100 text-vr-600 hover:bg-vr-50"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-vr-100 text-vr-600 hover:bg-vr-50"
                             aria-label={t("vouchers.viewConsents", { defaultValue: "Xem phản hồi của nhà xe" })}
                             title={t("vouchers.viewConsents", { defaultValue: "Xem phản hồi của nhà xe" })}
                           >
@@ -849,7 +883,7 @@ export default function Vouchers() {
                           <button
                             type="button"
                             onClick={() => openEditModal(voucher)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
                             aria-label={tc("edit")}
                             title={tc("edit")}
                           >
@@ -858,7 +892,7 @@ export default function Vouchers() {
                           <button
                             type="button"
                             onClick={() => setDeletingVoucher(voucher)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 text-red-500 hover:bg-red-50"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 text-red-500 hover:bg-red-50"
                             aria-label={tc("delete")}
                             title={tc("delete")}
                           >

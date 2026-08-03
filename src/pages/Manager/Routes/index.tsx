@@ -8,6 +8,8 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FiArrowLeft,
+  FiArrowRight,
   FiCheckCircle,
   FiCornerUpLeft,
   FiEdit2,
@@ -1130,6 +1132,61 @@ export default function RoutesPage() {
     showMessage("routeStop", t("routes.routeStopRemoved"));
   }
 
+  const workflowSteps: Array<{
+    id: RoutesTab;
+    icon: ReactNode;
+    title: string;
+    description: string;
+    complete: boolean;
+  }> = [
+    {
+      id: "station",
+      icon: <FiSearch size={18} />,
+      title: t("routes.workflowStationTitle"),
+      description: t("routes.workflowStationDescription"),
+      complete: stations.length >= 2,
+    },
+    {
+      id: "stop",
+      icon: <FiMapPin size={18} />,
+      title: t("routes.workflowStopTitle"),
+      description: t("routes.workflowStopDescription"),
+      complete: stops.length > 0,
+    },
+    {
+      id: "route",
+      icon: <FiGitBranch size={18} />,
+      title: t("routes.workflowRouteTitle"),
+      description: t("routes.workflowRouteDescription"),
+      complete: Boolean(selectedRouteId),
+    },
+    {
+      id: "routeStop",
+      icon: <FiShuffle size={18} />,
+      title: t("routes.workflowOrderTitle"),
+      description: t("routes.workflowOrderDescription"),
+      complete: currentRouteStops.length > 0,
+    },
+    {
+      id: "geometry",
+      icon: <FiNavigation size={18} />,
+      title: t("routes.workflowGeometryTitle"),
+      description: t("routes.workflowGeometryDescription"),
+      complete: Boolean(selectedRoute?.pathPolyline) && !isGeometryDirty,
+    },
+  ];
+  const activeStepIndex = workflowSteps.findIndex(
+    (step) => step.id === activeTab,
+  );
+  const activeStep = workflowSteps[activeStepIndex];
+  const previousStep = workflowSteps[activeStepIndex - 1];
+  const nextStep = workflowSteps[activeStepIndex + 1];
+  const completedStepCount = workflowSteps.filter(
+    (step) => step.complete,
+  ).length;
+  const workflowProgress =
+    (completedStepCount / workflowSteps.length) * 100;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1162,41 +1219,112 @@ export default function RoutesPage() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard label={t("routes.stations")} value={stations.length} />
-        <MetricCard label={t("routes.routes")} value={routes.length} />
-        <MetricCard label={t("routes.stops")} value={stops.length} />
-        <MetricCard
-          label={t("routes.routeStopOrders")}
-          value={routeStopDrafts.length}
-        />
-      </div>
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-bold tracking-[0.18em] text-vr-600 uppercase">
+              {t("routes.workflowEyebrow")}
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-gray-900">
+              {t("routes.workflowTitle")}
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
+              {t("routes.workflowSubtitle")}
+            </p>
+          </div>
+          <div className="min-w-48 rounded-xl bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">
+              <span>{t("routes.workflowProgressLabel")}</span>
+              <span className="text-vr-700">
+                {t("routes.workflowProgress", {
+                  completed: completedStepCount,
+                  total: workflowSteps.length,
+                })}
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-vr-500 transition-all"
+                style={{ width: workflowProgress + "%" }}
+              />
+            </div>
+          </div>
+        </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-gray-200">
-        {(
-          [
-            { id: "station", icon: <FiSearch size={15} />, label: t("routes.stationManagement") },
-            { id: "stop", icon: <FiMapPin size={15} />, label: t("routes.stopManagement") },
-            { id: "route", icon: <FiGitBranch size={15} />, label: t("routes.routeManagement") },
-            { id: "routeStop", icon: <FiShuffle size={15} />, label: t("routes.stopOrderManagement") },
-            { id: "geometry", icon: <FiNavigation size={15} />, label: t("routes.geometryTitle") },
-          ] as const
-        ).map((tabItem) => (
-          <button
-            key={tabItem.id}
-            type="button"
-            onClick={() => setActiveTab(tabItem.id)}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-semibold transition ${
-              activeTab === tabItem.id
-                ? "border-vr-500 text-vr-700"
-                : "border-transparent text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            {tabItem.icon}
-            {tabItem.label}
-          </button>
-        ))}
-      </div>
+        <div className="grid gap-2 p-4 md:grid-cols-2 xl:grid-cols-5">
+          {workflowSteps.map((step, index) => {
+            const isActive = step.id === activeTab;
+            const statusLabel = isActive
+              ? t("routes.workflowInProgress")
+              : step.complete
+                ? t("routes.workflowCompleted")
+                : t("routes.workflowPending");
+
+            return (
+              <button
+                key={step.id}
+                type="button"
+                aria-current={isActive ? "step" : undefined}
+                onClick={() => setActiveTab(step.id)}
+                className={
+                  isActive
+                    ? "group rounded-xl border border-vr-300 bg-vr-50 p-4 text-left shadow-sm transition"
+                    : step.complete
+                      ? "group rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-left transition hover:border-emerald-300"
+                      : "group rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:border-vr-200 hover:bg-gray-50"
+                }
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className={
+                      isActive
+                        ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-500 text-white"
+                        : step.complete
+                          ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
+                          : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 group-hover:bg-vr-50 group-hover:text-vr-700"
+                    }
+                  >
+                    {step.complete && !isActive ? (
+                      <FiCheckCircle size={18} />
+                    ) : (
+                      step.icon
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-bold tracking-wide text-gray-400 uppercase">
+                      {t("routes.workflowStepNumber", { number: index + 1 })}
+                    </span>
+                    <span className="mt-0.5 block text-sm font-bold text-gray-900">
+                      {step.title}
+                    </span>
+                  </span>
+                </div>
+                <span className="mt-3 block text-xs leading-5 text-gray-500">
+                  {step.description}
+                </span>
+                <span
+                  className={
+                    isActive
+                      ? "mt-3 inline-flex rounded-full bg-vr-100 px-2.5 py-1 text-[11px] font-semibold text-vr-700"
+                      : step.complete
+                        ? "mt-3 inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"
+                        : "mt-3 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-500"
+                  }
+                >
+                  {statusLabel}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-gray-100 bg-gray-50/70 px-5 py-3 text-sm text-gray-600">
+          <span><strong className="text-gray-900">{stations.length}</strong> {t("routes.stations")}</span>
+          <span><strong className="text-gray-900">{stops.length}</strong> {t("routes.stops")}</span>
+          <span><strong className="text-gray-900">{routes.length}</strong> {t("routes.routes")}</span>
+          <span><strong className="text-gray-900">{routeStopDrafts.length}</strong> {t("routes.routeStopOrders")}</span>
+        </div>
+      </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <main className="space-y-5">
@@ -1673,9 +1801,93 @@ export default function RoutesPage() {
             />
           </section>
           )}
+          <nav
+            aria-label={t("routes.workflowNavigation")}
+            className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+          >
+            <button
+              type="button"
+              disabled={!previousStep}
+              onClick={() => previousStep && setActiveTab(previousStep.id)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <FiArrowLeft size={16} />
+              {t("routes.workflowPrevious")}
+            </button>
+
+            <div className="text-center">
+              <p className="text-xs font-semibold text-gray-400 uppercase">
+                {t("routes.workflowStepPosition", {
+                  current: activeStepIndex + 1,
+                  total: workflowSteps.length,
+                })}
+              </p>
+              <p className="mt-0.5 text-sm font-bold text-gray-900">
+                {activeStep.title}
+              </p>
+            </div>
+
+            {nextStep ? (
+              <button
+                type="button"
+                onClick={() => setActiveTab(nextStep.id)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-vr-600"
+              >
+                {t("routes.workflowContinue", { step: nextStep.title })}
+                <FiArrowRight size={16} />
+              </button>
+            ) : (
+              <span className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
+                <FiCheckCircle size={16} />
+                {t("routes.workflowLastStep")}
+              </span>
+            )}
+          </nav>
         </main>
 
         <aside className="space-y-5">
+          <Panel
+            title={t("routes.workflowSummaryTitle")}
+            icon={<FiGitBranch />}
+          >
+            <div className="rounded-lg bg-vr-50 px-3 py-3">
+              <p className="text-xs font-semibold text-vr-600">
+                {selectedRouteId
+                  ? t("routes.workflowSelectedRoute")
+                  : t("routes.workflowDraftRoute")}
+              </p>
+              <p className="mt-1 font-bold text-gray-900">{activeRouteName}</p>
+            </div>
+            <dl className="mt-4 space-y-3 text-sm">
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-gray-500">{t("routes.originStationId")}</dt>
+                <dd className="text-right font-semibold text-gray-900">
+                  {selectedOriginStation?.name ?? t("routes.workflowNotSelected")}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-gray-500">{t("routes.destinationStationId")}</dt>
+                <dd className="text-right font-semibold text-gray-900">
+                  {selectedDestinationStation?.name ?? t("routes.workflowNotSelected")}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-gray-500">{t("routes.stops")}</dt>
+                <dd className="font-semibold text-gray-900">
+                  {currentRouteStops.length}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-gray-500">{t("routes.geometryTitle")}</dt>
+                <dd className="text-right font-semibold text-gray-900">
+                  {selectedRoute?.pathPolyline
+                    ? t("routes.geometrySavedStatus")
+                    : t("routes.geometryMissing")}
+                </dd>
+              </div>
+            </dl>
+          </Panel>
+
           <Panel title={t("routes.scopeRules")} icon={<FiCheckCircle />}>
             <ul className="space-y-2 text-sm text-gray-600">
               <li>{t("routes.ruleOperatorScope")}</li>
@@ -1755,15 +1967,6 @@ export default function RoutesPage() {
       {isLoading && (
         <p className="text-sm text-gray-500">{t("routes.loading")}</p>
       )}
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
     </div>
   );
 }

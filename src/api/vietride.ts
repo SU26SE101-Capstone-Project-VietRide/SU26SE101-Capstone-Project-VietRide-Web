@@ -2394,10 +2394,14 @@ export type RouteGeometryRequest = {
 };
 
 export type SubstituteVehicleRequest = {
-  newVehicleId: string;
-  newDriverUserId?: string;
-  newAssistantUserId?: string;
-  reason: string;
+  replacementVehicleId: string;
+  estimatedRecoveryDepartureAt: string;
+  reason?: string | null;
+  notifyPassengers: boolean;
+  replacementCrew: {
+    driverId: string;
+    assistantId?: string | null;
+  };
 };
 
 export type TripDisruptionRequest = {
@@ -2405,9 +2409,17 @@ export type TripDisruptionRequest = {
 };
 
 export type TripOperationResult = {
-  tripId: string;
+  tripId?: string;
+  substitutionId?: string;
   oldTripId?: string;
+  oldTripStatus?: string | null;
   newTripId?: string;
+  newTripStatus?: string | null;
+  newTripDepartureDateTime?: string;
+  transferStatus?: string | null;
+  affectedBookingCount?: number;
+  affectedPassengerCount?: number;
+  pendingSeatAssignmentCount?: number;
   stopId?: string;
   status?: string;
   vehicleId?: string;

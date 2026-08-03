@@ -34,6 +34,7 @@ import {
   getOperatorVehicles,
   type BookingStatsItem,
   type OperatorParcelListItem,
+  type OperatorRevenueAnalytics,
   type OperatorVehicle,
 } from "../../api/vietride";
 import { getAuthUser } from "../../auth";
@@ -43,21 +44,33 @@ import { downloadCsv } from "../../utils/csv";
 type KPICard = {
   labelKey: string;
   value: string;
+  helper: string;
   change?: string;
   trend: "up" | "down" | "neutral";
   icon: ReactNode;
+  iconClassName: string;
 };
 
 type RevenueChartPoint = {
+  monthKey: string;
   month: string;
   revenue: number;
-  orders: number;
+  bookings: number;
 };
 
-type ParcelChartPoint = {
+type ParcelStatusPoint = {
+  key: string;
+  value: number;
+  color: string;
+};
+
+type ParcelRoutePoint = {
+  routeId?: string;
   name: string;
   value: number;
-  color?: string;
+  sharePercent: number;
+  tripCount?: number;
+  completionRatePercent?: number;
 };
 
 type Shipment = {
@@ -71,15 +84,22 @@ type Shipment = {
 };
 
 type DashboardSummary = {
-  totalRevenue: number;
-  totalBookings: number;
+  revenue: {
+    currentMonth: number | null;
+    previousMonth: number | null;
+    yearToDate: number | null;
+  };
+  bookings: {
+    currentMonth: number | null;
+    previousMonth: number | null;
+    yearToDate: number | null;
+  };
   fleet: number | null;
   activeTrips: number | null;
-  revenueChange?: number;
 };
 
 const parcelStatusColors = [
-  "#3b82f6",
+  "#2563eb",
   "#10b981",
   "#f59e0b",
   "#ef4444",
@@ -87,33 +107,49 @@ const parcelStatusColors = [
 ];
 
 function toDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function currentYearRange() {
   const now = new Date();
   return {
     from: toDateInput(new Date(now.getFullYear(), 0, 1)),
-    to: toDateInput(new Date(now.getFullYear(), 11, 31)),
+    to: toDateInput(now),
   };
 }
 
 function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+  return toDateInput(new Date()).slice(0, 7);
 }
 
-function monthLabel(dateValue?: string) {
+function previousMonth() {
+  const now = new Date();
+  return toDateInput(new Date(now.getFullYear(), now.getMonth() - 1, 1)).slice(
+    0,
+    7,
+  );
+}
+
+function getMonthKey(dateValue?: string) {
   if (!dateValue) {
-    return "N/A";
+    return "";
   }
 
-  const parsed = new Date(dateValue.length === 7 ? `${dateValue}-01` : dateValue);
-  const month = parsed.getMonth() + 1;
-  return Number.isNaN(month) ? dateValue : `T${month}`;
+  const matchedMonth = dateValue.match(/^(\d{4}-\d{2})/);
+  if (matchedMonth) {
+    return matchedMonth[1];
+  }
+
+  const parsed = new Date(dateValue);
+  return Number.isNaN(parsed.getTime()) ? dateValue : toDateInput(parsed).slice(0, 7);
 }
 
-function asHundredMillion(value = 0) {
-  return Math.round(value / 100_000_000);
+function monthLabel(monthKey: string) {
+  const month = Number(monthKey.slice(5, 7));
+  return Number.isFinite(month) && month > 0 ? `T${month}` : monthKey;
 }
 
 function formatCompactMoney(value: number) {
@@ -143,29 +179,61 @@ function sumStats(items: BookingStatsItem[], key: keyof BookingStatsItem) {
   }, 0);
 }
 
-function mapBookingStats(items: BookingStatsItem[]): RevenueChartPoint[] {
-  const monthlyStats = new Map<string, { revenue: number; orders: number }>();
+function aggregateBookingStats(items: BookingStatsItem[]) {
+  const monthlyStats = new Map<string, { revenue: number; bookings: number }>();
 
   for (const item of items) {
-    const month = monthLabel(item.date);
-    const current = monthlyStats.get(month) ?? { revenue: 0, orders: 0 };
+    const monthKey = getMonthKey(item.date);
+    if (!monthKey) {
+      continue;
+    }
+
+    const current = monthlyStats.get(monthKey) ?? { revenue: 0, bookings: 0 };
     current.revenue += item.totalRevenue ?? 0;
-    current.orders += item.totalBookings ?? 0;
-    monthlyStats.set(month, current);
+    current.bookings += item.totalBookings ?? 0;
+    monthlyStats.set(monthKey, current);
+  }
+
+  return monthlyStats;
+}
+
+function mapDashboardChart(
+  bookingItems: BookingStatsItem[],
+  revenueItems: OperatorRevenueAnalytics["monthly"] = [],
+): RevenueChartPoint[] {
+  const monthlyStats = aggregateBookingStats(bookingItems);
+
+  for (const item of revenueItems) {
+    const monthKey = getMonthKey(item.month);
+    if (!monthKey) {
+      continue;
+    }
+
+    const current = monthlyStats.get(monthKey) ?? { revenue: 0, bookings: 0 };
+    current.revenue = item.ticketRevenueVnd;
+    monthlyStats.set(monthKey, current);
   }
 
   return Array.from(monthlyStats.entries())
-    .map(([month, value]) => ({
-      month,
-      revenue: asHundredMillion(value.revenue),
-      orders: value.orders,
+    .map(([monthKey, value]) => ({
+      monthKey,
+      month: monthLabel(monthKey),
+      revenue: value.revenue,
+      bookings: value.bookings,
     }))
-    .sort((a, b) => {
-      const aMonth = Number(a.month.slice(1));
-      const bMonth = Number(b.month.slice(1));
-      return (Number.isFinite(aMonth) ? aMonth : 13) -
-        (Number.isFinite(bMonth) ? bMonth : 13);
-    });
+    .sort((first, second) => first.monthKey.localeCompare(second.monthKey));
+}
+
+function percentageChange(current: number | null, previous: number | null) {
+  if (current === null || previous === null || previous === 0) {
+    return undefined;
+  }
+
+  return ((current - previous) / previous) * 100;
+}
+
+function compactRouteName(name: string) {
+  return name.length > 24 ? `${name.slice(0, 22)}…` : name;
 }
 
 function mapShipment(parcel: OperatorParcelListItem): Shipment {
@@ -197,12 +265,21 @@ export default function ManagerDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueChartPoint[]>([]);
-  const [parcelStatusData, setParcelStatusData] = useState<ParcelChartPoint[]>([]);
-  const [parcelRouteData, setParcelRouteData] = useState<ParcelChartPoint[]>([]);
+  const [parcelStatusData, setParcelStatusData] = useState<ParcelStatusPoint[]>([]);
+  const [parcelRouteData, setParcelRouteData] = useState<ParcelRoutePoint[]>([]);
+  const [parcelRouteTotal, setParcelRouteTotal] = useState(0);
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [summary, setSummary] = useState<DashboardSummary>({
-    totalRevenue: 0,
-    totalBookings: 0,
+    revenue: {
+      currentMonth: null,
+      previousMonth: null,
+      yearToDate: null,
+    },
+    bookings: {
+      currentMonth: null,
+      previousMonth: null,
+      yearToDate: null,
+    },
     fleet: null,
     activeTrips: null,
   });
@@ -237,23 +314,52 @@ export default function ManagerDashboard() {
     setIsLoading(true);
     setLoadErrors([]);
 
+    let bookingItems: BookingStatsItem[] = [];
+    let routePerformance: OperatorRevenueAnalytics["routePerformance"] = [];
+
     try {
       const bookingStats = await getOperatorBookingStats({
         ...currentYearRange(),
         groupBy: "date",
       });
-      setRevenueData(mapBookingStats(bookingStats.items));
+      bookingItems = bookingStats.items;
+      const monthlyStats = aggregateBookingStats(bookingItems);
+      const thisMonthStats = monthlyStats.get(currentMonth());
+      const lastMonthStats = monthlyStats.get(previousMonth());
+
+      setRevenueData(mapDashboardChart(bookingItems));
       setSummary((current) => ({
         ...current,
-        totalRevenue:
-          bookingStats.totalRevenue ??
-          sumStats(bookingStats.items, "totalRevenue"),
-        totalBookings:
-          bookingStats.totalBookings ??
-          sumStats(bookingStats.items, "totalBookings"),
+        revenue: {
+          currentMonth: thisMonthStats?.revenue ?? 0,
+          previousMonth: lastMonthStats?.revenue ?? 0,
+          yearToDate:
+            bookingStats.totalRevenue ??
+            sumStats(bookingStats.items, "totalRevenue"),
+        },
+        bookings: {
+          currentMonth: thisMonthStats?.bookings ?? 0,
+          previousMonth: lastMonthStats?.bookings ?? 0,
+          yearToDate:
+            bookingStats.totalBookings ??
+            sumStats(bookingStats.items, "totalBookings"),
+        },
       }));
     } catch (error) {
       setRevenueData([]);
+      setSummary((current) => ({
+        ...current,
+        revenue: {
+          currentMonth: null,
+          previousMonth: null,
+          yearToDate: null,
+        },
+        bookings: {
+          currentMonth: null,
+          previousMonth: null,
+          yearToDate: null,
+        },
+      }));
       appendError("Booking", error);
     }
 
@@ -272,23 +378,37 @@ export default function ManagerDashboard() {
 
       try {
         const analytics = await getOperatorRevenueAnalytics(currentMonth());
-        setRevenueData(
-          analytics.monthly.map((item) => ({
-            month: monthLabel(item.month),
-            revenue: asHundredMillion(item.revenueVnd),
-            orders: item.tripCount,
-          })),
-        );
+        routePerformance = analytics.routePerformance;
+        setRevenueData(mapDashboardChart(bookingItems, analytics.monthly));
         setSummary((current) => ({
           ...current,
-          totalRevenue: analytics.summary.totalRevenueVnd.currentValue,
-          revenueChange: analytics.summary.totalRevenueVnd.changePercent,
+          revenue: {
+            ...current.revenue,
+            currentMonth: analytics.summary.ticketRevenueVnd.currentValue,
+            previousMonth: analytics.summary.ticketRevenueVnd.previousValue,
+          },
         }));
-        setParcelRouteData(
-          analytics.routePerformance
-            .slice(0, 5)
-            .map((item) => ({ name: item.routeName, value: item.parcelCount })),
+
+        const analyticsParcelTotal = routePerformance.reduce(
+          (total, item) => total + item.parcelCount,
+          0,
         );
+        if (analyticsParcelTotal > 0) {
+          setParcelRouteTotal(analyticsParcelTotal);
+          setParcelRouteData(
+            [...routePerformance]
+              .sort((first, second) => second.parcelCount - first.parcelCount)
+              .slice(0, 5)
+              .map((item) => ({
+                routeId: item.routeId,
+                name: item.routeName,
+                value: item.parcelCount,
+                sharePercent: (item.parcelCount / analyticsParcelTotal) * 100,
+                tripCount: item.tripCount,
+                completionRatePercent: item.completionRatePercent,
+              })),
+          );
+        }
       } catch (error) {
         appendError("Doanh thu", error);
       }
@@ -318,7 +438,7 @@ export default function ManagerDashboard() {
         });
         setParcelStatusData(
           statusStats.items.map((item, index) => ({
-            name: item.key ?? "Không xác định",
+            key: item.key ?? "UNKNOWN",
             value: item.count ?? 0,
             color: parcelStatusColors[index % parcelStatusColors.length],
           })),
@@ -335,11 +455,32 @@ export default function ManagerDashboard() {
           groupBy: "route",
           limit: 5,
         });
+        const total = routeStats.totalParcels;
+        setParcelRouteTotal(total);
         setParcelRouteData(
-          routeStats.items.map((item) => ({
-            name: item.routeName ?? item.key ?? "Không xác định",
-            value: item.parcelCount ?? item.count ?? 0,
-          })),
+          [...routeStats.items]
+            .sort(
+              (first, second) =>
+                (second.parcelCount ?? second.count ?? 0) -
+                (first.parcelCount ?? first.count ?? 0),
+            )
+            .slice(0, 5)
+            .map((item) => {
+              const name = item.routeName ?? item.key ?? "Không xác định";
+              const value = item.parcelCount ?? item.count ?? 0;
+              const analyticsRoute = routePerformance.find(
+                (route) =>
+                  route.routeId === item.routeId || route.routeName === name,
+              );
+              return {
+                routeId: item.routeId,
+                name,
+                value,
+                sharePercent: total > 0 ? (value / total) * 100 : 0,
+                tripCount: analyticsRoute?.tripCount,
+                completionRatePercent: analyticsRoute?.completionRatePercent,
+              };
+            }),
         );
       } catch (error) {
         appendError("Thống kê tuyến parcel", error);
@@ -347,6 +488,7 @@ export default function ManagerDashboard() {
     } else {
       setParcelStatusData([]);
       setParcelRouteData([]);
+      setParcelRouteTotal(0);
       setSummary((current) => ({ ...current, activeTrips: null }));
     }
 
@@ -375,34 +517,83 @@ export default function ManagerDashboard() {
     };
   }, [loadShipments]);
 
-  const kpis: KPICard[] = useMemo(
-    () => [
+  const kpis: KPICard[] = useMemo(() => {
+    const buildChange = (current: number | null, previous: number | null) => {
+      if (current !== null && current > 0 && previous === 0) {
+        return {
+          change: t("dashboard.newVsLastMonth"),
+          trend: "up" as const,
+        };
+      }
+
+      const changeValue = percentageChange(current, previous);
+      if (changeValue === undefined) {
+        return { trend: "neutral" as const };
+      }
+
+      return {
+        change: `${changeValue > 0 ? "+" : ""}${changeValue.toFixed(1)}%`,
+        trend:
+          changeValue === 0
+            ? ("neutral" as const)
+            : changeValue > 0
+              ? ("up" as const)
+              : ("down" as const),
+      };
+    };
+
+    const revenueChange = buildChange(
+      summary.revenue.currentMonth,
+      summary.revenue.previousMonth,
+    );
+    const bookingChange = buildChange(
+      summary.bookings.currentMonth,
+      summary.bookings.previousMonth,
+    );
+    const year = new Date().getFullYear();
+
+    return [
       {
         labelKey: "dashboard.revenue",
-        value: formatCompactMoney(summary.totalRevenue),
-        change:
-          summary.revenueChange === undefined
-            ? undefined
-            : `${summary.revenueChange > 0 ? "+" : ""}${summary.revenueChange.toFixed(1)}%`,
-        trend:
-          summary.revenueChange === undefined || summary.revenueChange === 0
-            ? "neutral"
-            : summary.revenueChange > 0
-              ? "up"
-              : "down",
-        icon: <FiBarChart2 className="h-6 w-6" />,
+        value:
+          summary.revenue.currentMonth === null
+            ? "-"
+            : formatCompactMoney(summary.revenue.currentMonth),
+        helper:
+          summary.revenue.yearToDate === null
+            ? t("dashboard.unavailable")
+            : t("dashboard.yearToDateValue", {
+                year,
+                value: formatCompactMoney(summary.revenue.yearToDate),
+              }),
+        ...revenueChange,
+        icon: <FiBarChart2 className="h-5 w-5" />,
+        iconClassName: "bg-sky-50 text-sky-600",
       },
       {
         labelKey: "dashboard.bookings",
-        value: formatCompactNumber(summary.totalBookings),
-        trend: "neutral",
-        icon: <FiPackage className="h-6 w-6" />,
+        value:
+          summary.bookings.currentMonth === null
+            ? "-"
+            : formatCompactNumber(summary.bookings.currentMonth),
+        helper:
+          summary.bookings.yearToDate === null
+            ? t("dashboard.unavailable")
+            : t("dashboard.yearToDateValue", {
+                year,
+                value: formatCompactNumber(summary.bookings.yearToDate),
+              }),
+        ...bookingChange,
+        icon: <FiPackage className="h-5 w-5" />,
+        iconClassName: "bg-violet-50 text-violet-600",
       },
       {
         labelKey: "dashboard.fleet",
         value: summary.fleet === null ? "-" : formatCompactNumber(summary.fleet),
+        helper: t("dashboard.fleetHelper"),
         trend: "neutral",
-        icon: <FiTruck className="h-6 w-6" />,
+        icon: <FiTruck className="h-5 w-5" />,
+        iconClassName: "bg-amber-50 text-amber-600",
       },
       {
         labelKey: "dashboard.activeTrips",
@@ -410,11 +601,17 @@ export default function ManagerDashboard() {
           summary.activeTrips === null
             ? "-"
             : formatCompactNumber(summary.activeTrips),
+        helper: t("dashboard.activeTripsHelper"),
         trend: "neutral",
-        icon: <FiTrendingUp className="h-6 w-6" />,
+        icon: <FiTrendingUp className="h-5 w-5" />,
+        iconClassName: "bg-emerald-50 text-emerald-600",
       },
-    ],
-    [summary],
+    ];
+  }, [summary, t]);
+
+  const parcelStatusTotal = useMemo(
+    () => parcelStatusData.reduce((total, item) => total + item.value, 0),
+    [parcelStatusData],
   );
 
   const handleRefresh = async () => {
@@ -476,7 +673,7 @@ export default function ManagerDashboard() {
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
           role="alert"
         >
-          <p className="font-medium">Một số dữ liệu chưa tải được:</p>
+          <p className="font-medium">{t("dashboard.someDataFailed")}</p>
           <p className="mt-1">{loadErrors.join(" | ")}</p>
         </div>
       )}
@@ -486,14 +683,19 @@ export default function ManagerDashboard() {
           className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800"
           role="status"
         >
-          Tài khoản nhân viên chỉ xem số liệu được BE cấp quyền. Doanh thu, thống kê parcel và danh sách chuyến tổng hợp dành cho Admin nhà xe.
+          {t("dashboard.staffScopeNotice")}
         </div>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{t("dashboard.title")}</h1>
-          <p className="mt-1 text-gray-600">{t("dashboard.date")}</p>
+          <p className="mt-1 text-gray-600">
+            {t("dashboard.periodContext", {
+              month: new Date().getMonth() + 1,
+              year: new Date().getFullYear(),
+            })}
+          </p>
         </div>
         <button
           type="button"
@@ -508,42 +710,53 @@ export default function ManagerDashboard() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
-          <div
+          <article
             key={kpi.labelKey}
-            className="rounded-lg border border-gray-200 bg-white p-4 transition hover:shadow-md"
+            aria-label={t(kpi.labelKey)}
+            className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
           >
-            <div className="mb-3 flex items-start justify-between">
-              <div className="text-vr-600">{kpi.icon}</div>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className={`rounded-xl p-2.5 ${kpi.iconClassName}`}>
+                {kpi.icon}
+              </div>
               {kpi.change && (
                 <span
-                  className={`text-xs font-semibold ${
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                     kpi.trend === "up"
-                      ? "text-emerald-600"
+                      ? "bg-emerald-50 text-emerald-700"
                       : kpi.trend === "down"
-                        ? "text-red-600"
-                        : "text-gray-600"
+                        ? "bg-red-50 text-red-700"
+                        : "bg-gray-100 text-gray-600"
                   }`}
                 >
                   {kpi.change}
                 </span>
               )}
             </div>
-            <p className="mb-1 text-xs text-gray-600">{t(kpi.labelKey)}</p>
-            <p className="text-2xl font-bold text-gray-900">{kpi.value}</p>
-          </div>
+            <p className="text-sm font-medium text-gray-600">{t(kpi.labelKey)}</p>
+            <p className="mt-1 text-3xl font-bold tracking-tight text-gray-950">
+              {kpi.value}
+            </p>
+            <p className="mt-2 text-xs text-gray-500">{kpi.helper}</p>
+          </article>
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {t("dashboard.revenueChart")}
-            </h2>
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t("dashboard.revenueChart")}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("dashboard.revenueChartHint")}
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => navigate("/manager/reports")}
-              className="cursor-pointer text-sm font-medium text-vr-600 hover:text-vr-700"
+              className="cursor-pointer text-left text-sm font-medium text-vr-600 hover:text-vr-700"
             >
               {tc("viewAll")}
             </button>
@@ -551,25 +764,60 @@ export default function ManagerDashboard() {
           {revenueData.length === 0 ? (
             renderEmpty(isLoading ? "Đang tải dữ liệu..." : "Chưa có dữ liệu doanh thu.")
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" />
-                <Tooltip />
-                <Legend />
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart
+                data={revenueData}
+                margin={{ top: 8, right: 12, left: 4, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
+                />
+                <YAxis
+                  yAxisId="bookings"
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
+                />
+                <YAxis
+                  yAxisId="revenue"
+                  orientation="right"
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={formatCompactMoney}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
+                />
+                <Tooltip
+                  cursor={{ stroke: "#cbd5e1", strokeDasharray: "4 4" }}
+                  contentStyle={{
+                    borderRadius: 12,
+                    borderColor: "#e5e7eb",
+                    boxShadow: "0 10px 25px rgba(15, 23, 42, 0.08)",
+                  }}
+                />
+                <Legend iconType="circle" />
                 <Line
+                  yAxisId="revenue"
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  name={`${t("dashboard.chartRevenue")} (100 triệu đ)`}
+                  stroke="#0284c7"
+                  strokeWidth={3}
+                  dot={{ r: 3, fill: "#ffffff", strokeWidth: 2 }}
+                  activeDot={{ r: 5 }}
+                  name={`${t("dashboard.chartRevenue")} (VND)`}
                 />
                 <Line
+                  yAxisId="bookings"
                   type="monotone"
-                  dataKey="orders"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
+                  dataKey="bookings"
+                  stroke="#7c3aed"
+                  strokeWidth={3}
+                  dot={{ r: 3, fill: "#ffffff", strokeWidth: 2 }}
+                  activeDot={{ r: 5 }}
                   name={t("dashboard.chartBookings")}
                 />
               </LineChart>
@@ -577,10 +825,22 @@ export default function ManagerDashboard() {
           )}
         </section>
 
-        <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">
-            {t("dashboard.parcelStatus")}
-          </h2>
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t("dashboard.parcelStatus")}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("dashboard.yearToDate")}
+              </p>
+            </div>
+            {parcelStatusTotal > 0 && (
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                {parcelStatusTotal} {t("dashboard.parcelsUnit")}
+              </span>
+            )}
+          </div>
           {parcelStatusData.length === 0 ? (
             renderEmpty(
               isOperatorAdmin
@@ -591,32 +851,43 @@ export default function ManagerDashboard() {
             )
           ) : (
             <>
-              <ResponsiveContainer width="100%" height={230}>
-                <PieChart>
-                  <Pie
-                    data={parcelStatusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    dataKey="value"
-                  >
-                    {parcelStatusData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={parcelStatusData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={58}
+                      outerRadius={84}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {parcelStatusData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <strong className="text-2xl text-gray-950">{parcelStatusTotal}</strong>
+                  <span className="text-xs text-gray-500">
+                    {t("dashboard.parcelStatusTotal")}
+                  </span>
+                </div>
+              </div>
               <div className="space-y-2 text-sm">
                 {parcelStatusData.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between gap-2">
+                  <div key={item.key} className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-gray-700">
                       <span
-                        className="h-3 w-3 rounded-full"
+                        className="h-2.5 w-2.5 rounded-full"
                         style={{ backgroundColor: item.color }}
                       />
-                      {item.name.replaceAll("_", " ")}
+                      {tc(`enumLabels.${item.key}`, {
+                        defaultValue: item.key.replaceAll("_", " "),
+                      })}
                     </span>
                     <strong>{item.value}</strong>
                   </div>
@@ -628,18 +899,24 @@ export default function ManagerDashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {t("dashboard.parcelDetail")}
-            </h2>
-            <button
-              type="button"
-              onClick={() => navigate("/manager/parcels")}
-              className="cursor-pointer text-sm font-medium text-vr-600 hover:text-vr-700"
-            >
-              {tc("viewAll")}
-            </button>
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t("dashboard.parcelDetail")}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("dashboard.parcelRouteHint")}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                {t("dashboard.parcelRouteTotal", { count: parcelRouteTotal })}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                {t("dashboard.topRoutes", { count: parcelRouteData.length })}
+              </span>
+            </div>
           </div>
           {parcelRouteData.length === 0 ? (
             renderEmpty(
@@ -650,23 +927,103 @@ export default function ManagerDashboard() {
                 : "Không có quyền xem thống kê này.",
             )
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart
-                data={parcelRouteData}
-                layout="vertical"
-                margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis type="number" stroke="#9ca3af" />
-                <YAxis dataKey="name" type="category" stroke="#9ca3af" width={95} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#3b82f6" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(240px,0.6fr)]">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={parcelRouteData}
+                  layout="vertical"
+                  margin={{ top: 4, right: 24, left: 20, bottom: 4 }}
+                >
+                  <defs>
+                    <linearGradient id="parcelRouteBar" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#0284c7" />
+                      <stop offset="100%" stopColor="#38bdf8" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="4 4"
+                    stroke="#e5e7eb"
+                    horizontal={false}
+                  />
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                  />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    axisLine={false}
+                    tickLine={false}
+                    width={145}
+                    tickFormatter={compactRouteName}
+                    tick={{ fill: "#374151", fontSize: 12 }}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "#f8fafc" }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      borderColor: "#e5e7eb",
+                      boxShadow: "0 10px 25px rgba(15, 23, 42, 0.08)",
+                    }}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name={t("dashboard.parcelsUnit")}
+                    fill="url(#parcelRouteBar)"
+                    radius={[0, 8, 8, 0]}
+                    maxBarSize={28}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-slate-50/70 px-4">
+                {parcelRouteData.map((route, index) => (
+                  <div key={route.routeId ?? route.name} className="py-3.5">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-xs font-bold text-sky-700 shadow-sm">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="truncate text-sm font-semibold text-gray-900">
+                            {route.name}
+                          </p>
+                          <span className="shrink-0 text-sm font-bold text-gray-950">
+                            {route.value}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                          <span>
+                            {t("dashboard.shareOfTotal", {
+                              percent: route.sharePercent.toFixed(1),
+                            })}
+                          </span>
+                          {route.tripCount !== undefined && (
+                            <span>
+                              {t("dashboard.tripCount", { count: route.tripCount })}
+                            </span>
+                          )}
+                          {route.completionRatePercent !== undefined && (
+                            <span>
+                              {t("dashboard.completionRate", {
+                                percent: route.completionRatePercent.toFixed(1),
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </section>
 
-        <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-gray-900">
             {t("dashboard.fleetStatus")}
           </h2>
@@ -700,7 +1057,7 @@ export default function ManagerDashboard() {
         </section>
       </div>
 
-      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-gray-900">
             {t("dashboard.recentShipments")}

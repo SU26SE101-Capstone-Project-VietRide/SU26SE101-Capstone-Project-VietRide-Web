@@ -11,6 +11,7 @@ import {
 } from "react-icons/fi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { Socket } from "socket.io-client";
 import {
   getInternalTripRouteStops,
   getOperatorBookings,
@@ -26,6 +27,15 @@ import {
 import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
 import CustomSelect from "../../../components/CustomSelect";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
+import {
+  createTrackingSocket,
+  joinTripTracking,
+  type TrackingEtaUpdateEvent,
+  type TrackingLatestLocation,
+  type TripStatusChangedEvent,
+} from "../../../lib/trackingSocket";
+
+type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
 
 const fleetSeed: FleetVehicleMapPoint[] = [
   {
@@ -152,7 +162,10 @@ export default function GPSTracking() {
   const [apiMessage, setApiMessage] = useState("");
   const [apiError, setApiError] = useState("");
   const [isApiLoading, setIsApiLoading] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("idle");
+  const [delayInfo, setDelayInfo] = useState<TripStatusChangedEvent | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setMapReady(true));
@@ -212,6 +225,7 @@ export default function GPSTracking() {
     setTripId(nextTripId);
     setStopId("");
     setRouteStops([]);
+    setDelayInfo(null);
     if (!nextTripId) return;
 
     try {
@@ -266,6 +280,68 @@ export default function GPSTracking() {
   }
 
   useEffect(() => {
+    let cancelled = false;
+    const nextStatus: RealtimeStatus = tripId.trim() ? "connecting" : "idle";
+    const statusTimer = window.setTimeout(() => {
+      if (!cancelled) setRealtimeStatus(nextStatus);
+    }, 0);
+
+    if (!tripId.trim()) {
+      return () => {
+        cancelled = true;
+        window.clearTimeout(statusTimer);
+      };
+    }
+
+    const socket = createTrackingSocket();
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      void joinTripTracking(socket, tripId.trim()).then((ack) => {
+        if (cancelled) return;
+        if (ack.success) {
+          setRealtimeStatus("connected");
+        } else {
+          setRealtimeStatus("error");
+          setApiError(t("gps.realtimeJoinFailed"));
+        }
+      });
+    });
+
+    socket.on("connect_error", () => {
+      if (!cancelled) setRealtimeStatus("error");
+    });
+
+    socket.on("disconnect", () => {
+      if (!cancelled) setRealtimeStatus("error");
+    });
+
+    socket.on("gps:update", (event: TrackingLatestLocation) => {
+      if (cancelled) return;
+      setLatest({ latest: event });
+      setFocusCenter({ lat: event.latitude, lng: event.longitude });
+      setLastRefresh(new Date());
+    });
+
+    socket.on("eta:update", (event: TrackingEtaUpdateEvent) => {
+      if (cancelled) return;
+      setEta({ eta: event });
+    });
+
+    socket.on("trip:statusChanged", (event: TripStatusChangedEvent) => {
+      if (cancelled) return;
+      setDelayInfo(event.status === "DELAYED" ? event : null);
+    });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(statusTimer);
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [tripId, t]);
+
+  useEffect(() => {
     if (!selectedId || !listRef.current) return;
     const el = listRef.current.querySelector(
       `[data-vehicle-id="${selectedId}"]`,
@@ -286,7 +362,7 @@ export default function GPSTracking() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            {t("gps.title")} <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 align-middle text-xs font-semibold text-amber-800">Đội xe minh họa</span>
+            {t("gps.title")} <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 align-middle text-xs font-semibold text-amber-800">{t("gps.demoBadge")}</span>
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-base">
             {t("gps.subtitle")}
@@ -423,14 +499,59 @@ export default function GPSTracking() {
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="mb-3">
-          <h2 className="text-base font-semibold text-gray-900">
-            {t("gps.realTrackingTitle")}
-          </h2>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {t("gps.realTrackingHint")}
-          </p>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              {t("gps.realTrackingTitle")}
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500">
+              {t("gps.realTrackingHint")}
+            </p>
+          </div>
+          {tripId && (
+            <span
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                realtimeStatus === "connected"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : realtimeStatus === "connecting"
+                    ? "bg-amber-50 text-amber-700"
+                    : realtimeStatus === "error"
+                      ? "bg-red-50 text-red-700"
+                      : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  realtimeStatus === "connected"
+                    ? "bg-emerald-500"
+                    : realtimeStatus === "connecting"
+                      ? "animate-pulse bg-amber-500"
+                      : realtimeStatus === "error"
+                        ? "bg-red-500"
+                        : "bg-gray-400"
+                }`}
+              />
+              {realtimeStatus === "connected"
+                ? t("gps.realtimeConnected")
+                : realtimeStatus === "connecting"
+                  ? t("gps.realtimeConnecting")
+                  : realtimeStatus === "error"
+                    ? t("gps.realtimeDisconnected")
+                    : ""}
+            </span>
+          )}
         </div>
+        {delayInfo && (
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {t("gps.delayedBanner", {
+              minutes: delayInfo.delayMinutes,
+              time: new Date(delayInfo.updatedAt).toLocaleTimeString("vi-VN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            })}
+          </div>
+        )}
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">

@@ -20,6 +20,7 @@ import {
   type OperatorTripListItem,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import { formatDateTime } from "../../../utils/date";
 
@@ -38,6 +39,17 @@ function tripLabel(trip: OperatorTripListItem) {
   return `${trip.route.name} · ${trip.vehicle.licensePlate} · ${formatDateTime(trip.departureAt)}`;
 }
 
+function toDatetimeLocalValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function getDefaultRecoveryDeparture() {
+  const recoveryDeparture = new Date(Date.now() + 30 * 60_000);
+  recoveryDeparture.setSeconds(0, 0);
+  return toDatetimeLocalValue(recoveryDeparture);
+}
+
 export default function TripOperationsPanel() {
   const { t } = useTranslation("manager");
   const canMutate = getAuthUser()?.role === "OPERATOR_ADMIN";
@@ -53,18 +65,44 @@ export default function TripOperationsPanel() {
   const [newDriverUserId, setNewDriverUserId] = useState("");
   const [newAssistantUserId, setNewAssistantUserId] = useState("");
   const [reason, setReason] = useState("");
+  const [estimatedRecoveryDepartureAt, setEstimatedRecoveryDepartureAt] =
+    useState(getDefaultRecoveryDeparture);
+  const [notifyPassengers, setNotifyPassengers] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const drivers = useMemo(
-    () => users.filter((user) => user.role === "DRIVER"),
+    () =>
+      users.filter(
+        (user) =>
+          user.role === "DRIVER" &&
+          (user.status === "ACTIVE" || user.status === "APPROVED"),
+      ),
     [users],
   );
   const assistants = useMemo(
-    () => users.filter((user) => user.role === "ASSISTANT"),
+    () =>
+      users.filter(
+        (user) =>
+          user.role === "ASSISTANT" &&
+          (user.status === "ACTIVE" || user.status === "APPROVED"),
+      ),
     [users],
+  );
+  const selectedTrip = useMemo(
+    () => trips.find((trip) => trip.tripId === tripId),
+    [tripId, trips],
+  );
+  const replacementVehicles = useMemo(
+    () =>
+      vehicles.filter(
+        (vehicle) =>
+          (vehicle.status === "ACTIVE" || vehicle.status === "AVAILABLE") &&
+          vehicleId(vehicle) !== selectedTrip?.vehicle.vehicleId,
+      ),
+    [selectedTrip, vehicles],
   );
 
   async function loadTrips() {
@@ -167,10 +205,29 @@ export default function TripOperationsPanel() {
   }
 
   async function substituteVehicle() {
-    if (!tripId.trim() || !newVehicleId || !newDriverUserId || !reason.trim()) {
+    if (
+      !tripId.trim() ||
+      !newVehicleId ||
+      !newDriverUserId ||
+      !estimatedRecoveryDepartureAt ||
+      !reason.trim()
+    ) {
       setError(
         t("tripOperations.substituteRequired", {
           defaultValue: "Mã chuyến, xe, tài xế và lý do là bắt buộc.",
+        }),
+      );
+      return;
+    }
+
+    const recoveryDeparture = new Date(estimatedRecoveryDepartureAt);
+    if (
+      Number.isNaN(recoveryDeparture.getTime()) ||
+      recoveryDeparture.getTime() <= Date.now()
+    ) {
+      setError(
+        t("tripOperations.recoveryDepartureFuture", {
+          defaultValue: "Giờ khởi hành lại phải ở tương lai.",
         }),
       );
       return;
@@ -191,10 +248,14 @@ export default function TripOperationsPanel() {
     setMessage("");
     try {
       const result = await substituteOperatorTripVehicle(tripId.trim(), {
-        newVehicleId,
-        newDriverUserId,
-        newAssistantUserId: newAssistantUserId || undefined,
+        replacementVehicleId: newVehicleId,
+        estimatedRecoveryDepartureAt: recoveryDeparture.toISOString(),
         reason: reason.trim(),
+        notifyPassengers,
+        replacementCrew: {
+          driverId: newDriverUserId,
+          assistantId: newAssistantUserId || null,
+        },
       });
       setMessage(
         t("tripOperations.substituteSuccess", {
@@ -269,13 +330,13 @@ export default function TripOperationsPanel() {
           <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
             <FiTruck className="text-vr-700" />
             {t("tripOperations.title", {
-              defaultValue: "Vận hành chuyến đã phát sinh",
+              defaultValue: "Xử lý sự cố chuyến đang vận hành",
             })}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             {t("tripOperations.subtitle", {
               defaultValue:
-                "Tra cứu tải hàng cho cả hai role; thay xe hoặc kết thúc chuyến chỉ dành cho quản trị nhà xe.",
+                "Dùng cho chuyến đã được tạo khi cần kiểm tra tải hàng, thay xe hoặc kết thúc chuyến do sự cố. Đây không phải khu vực tạo lịch chuyến.",
             })}
           </p>
         </div>
@@ -284,6 +345,18 @@ export default function TripOperationsPanel() {
             {t("tripOperations.readOnly", { defaultValue: "Chỉ xem" })}
           </span>
         )}
+      </div>
+
+      <div
+        className="mt-4 rounded-xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-950"
+        role="note"
+      >
+        <p className="font-semibold">{t("tripOperations.scopeTitle")}</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sky-900">
+          <li>{t("tripOperations.scopeExistingTrip")}</li>
+          <li>{t("tripOperations.scopeSubstitute")}</li>
+          <li>{t("tripOperations.scopeDisrupt")}</li>
+        </ul>
       </div>
 
       {canMutate && (
@@ -432,7 +505,7 @@ export default function TripOperationsPanel() {
                 <option value="">
                   {t("tripOperations.selectVehicle", { defaultValue: "Chọn xe" })}
                 </option>
-                {vehicles.map((vehicle) => (
+                {replacementVehicles.map((vehicle) => (
                   <option key={vehicleId(vehicle)} value={vehicleId(vehicle)}>
                     {vehicle.licensePlate}
                   </option>
@@ -494,11 +567,48 @@ export default function TripOperationsPanel() {
                 maxLength={500}
               />
             </label>
+            <label>
+              <span className="mb-1.5 block text-sm font-semibold text-gray-700">
+                {t("tripOperations.recoveryDeparture")}
+              </span>
+              <CustomDateTimeInput
+                value={estimatedRecoveryDepartureAt}
+                onChange={(event) =>
+                  setEstimatedRecoveryDepartureAt(event.target.value)
+                }
+                className={inputClass}
+                type="datetime-local"
+                aria-label={t("tripOperations.recoveryDeparture")}
+              />
+            </label>
           </div>
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+            <input
+              type="checkbox"
+              checked={notifyPassengers}
+              onChange={(event) => setNotifyPassengers(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-gray-800">
+                {t("tripOperations.notifyPassengers")}
+              </span>
+              <span className="mt-0.5 block text-xs text-gray-500">
+                {t("tripOperations.notifyPassengersHint")}
+              </span>
+            </span>
+          </label>
+          {selectedTrip?.canSubstituteVehicle === false && (
+            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {t("tripOperations.substituteUnavailable")}
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
-              disabled={isMutating}
+              disabled={
+                isMutating || selectedTrip?.canSubstituteVehicle === false
+              }
               onClick={() => void substituteVehicle()}
               className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >

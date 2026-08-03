@@ -13,6 +13,7 @@ const StaffList = lazy(() => import("./pages/Manager/Staff/index"));
 const VehiclesList = lazy(() => import("./pages/Manager/Vehicles/index"));
 const RoutesList = lazy(() => import("./pages/Manager/Routes/index"));
 const GPSTracking = lazy(() => import("./pages/Manager/GPS/index"));
+const ShuttleTracking = lazy(() => import("./pages/Manager/ShuttleTracking/index"));
 const Reports = lazy(() => import("./pages/Manager/Reports/index"));
 const DispatchPanel = lazy(() => import("./pages/Manager/Dispatch/index"));
 const ManagerWallet = lazy(() => import("./pages/Manager/Wallet/index"));
@@ -89,6 +90,7 @@ export default function App() {
             <Route path="bookings" element={<BookingsList />} />
             <Route path="parcels" element={<ParcelsList />} />
             <Route path="gps" element={<GPSTracking />} />
+            <Route path="shuttle-tracking" element={<ShuttleTracking />} />
             <Route path="dispatch" element={<DispatchPanel />} />
             <Route path="profile" element={<Profile />} />
             <Route path="vouchers" element={<ManagerVouchers />} />

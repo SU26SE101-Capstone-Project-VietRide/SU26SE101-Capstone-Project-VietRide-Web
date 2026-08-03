@@ -17,6 +17,7 @@ import {
   FiGrid,
   FiDatabase,
   FiCreditCard,
+  FiRadio,
 } from "react-icons/fi";
 import logo from "../assets/Login/logo.svg";
 import { AiOutlineLogout } from "react-icons/ai";
@@ -75,6 +76,11 @@ const operatorAdminMenuConfig: MenuSection[] = [
         icon: <FiPackage />,
       },
       { labelKey: "manager.gps", path: "/manager/gps", icon: <FiMapPin /> },
+      {
+        labelKey: "manager.shuttleTracking",
+        path: "/manager/shuttle-tracking",
+        icon: <FiRadio />,
+      },
       {
         labelKey: "manager.dispatch",
         path: "/manager/dispatch",
@@ -160,6 +166,11 @@ const operatorStaffMenuConfig: MenuSection[] = [
         icon: <FiPackage />,
       },
       { labelKey: "manager.gps", path: "/manager/gps", icon: <FiMapPin /> },
+      {
+        labelKey: "manager.shuttleTracking",
+        path: "/manager/shuttle-tracking",
+        icon: <FiRadio />,
+      },
       {
         labelKey: "manager.dispatch",
         path: "/manager/dispatch",

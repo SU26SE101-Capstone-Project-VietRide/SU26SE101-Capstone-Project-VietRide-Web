@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertCircle,
@@ -260,7 +266,9 @@ function toTripSchedule(
 }
 
 function toTripScheduleFromApi(schedule: OperatorDriverSchedule): TripSchedule {
-  const routeOption = schedule.route ? toRouteOption(schedule.route) : undefined;
+  const routeOption = schedule.route
+    ? toRouteOption(schedule.route)
+    : undefined;
   const departureAt = toScheduleDateTime(
     schedule.validFrom ?? schedule.effectiveFrom,
     schedule.departureTime,
@@ -301,6 +309,7 @@ export default function TripsPage() {
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [page, setPage] = useState(1);
+  const scheduleFormRef = useRef<HTMLElement | null>(null);
   const pageSize = 8;
   const canManageSchedules = authUser?.role === "OPERATOR_ADMIN";
 
@@ -372,7 +381,11 @@ export default function TripsPage() {
         }));
       } catch (err) {
         if (!ignore) {
-          setError(err instanceof Error ? err.message : "Không thể tải tuyến, xe và nhân sự cho chuyến.");
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Không thể tải tuyến, xe và nhân sự cho chuyến.",
+          );
         }
       } finally {
         if (!ignore) {
@@ -544,7 +557,9 @@ export default function TripsPage() {
         isActive: status === "open",
       });
       const activeSchedule =
-        status === "open" ? await activateOperatorDriverSchedule(saved.id) : saved;
+        status === "open"
+          ? await activateOperatorDriverSchedule(saved.id)
+          : saved;
 
       setSchedules((current) => [
         toTripSchedule(activeSchedule, form, status),
@@ -558,10 +573,14 @@ export default function TripsPage() {
         assistantId: assistants[0]?.id ?? "",
       });
       setMessage(
-        status === "open" ? t("trips.scheduleOpened") : t("trips.scheduleSaved"),
+        status === "open"
+          ? t("trips.scheduleOpened")
+          : t("trips.scheduleSaved"),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể tạo lịch chuyến.");
+      setError(
+        err instanceof Error ? err.message : "Không thể tạo lịch chuyến.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -585,6 +604,13 @@ export default function TripsPage() {
     setEditingId(schedule.id);
     setMessage("");
     setError("");
+    requestAnimationFrame(() => {
+      scheduleFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      scheduleFormRef.current?.focus({ preventScroll: true });
+    });
   }
 
   function resetForm() {
@@ -639,9 +665,8 @@ export default function TripsPage() {
         />
         <MetricCard
           label={t("trips.availableDrivers")}
-          value={
-            drivers.filter((driver) => driver.status === "available").length
-          }
+          value={drivers.filter((driver) => driver.status === "active").length}
+          helper={t("trips.activeDriversHelper")}
         />
         <MetricCard
           label={t("trips.openSchedules")}
@@ -655,7 +680,16 @@ export default function TripsPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {canManageSchedules ? (
-          <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <section
+            ref={scheduleFormRef}
+            tabIndex={-1}
+            aria-label={
+              editingSchedule
+                ? t("trips.editScheduleTitle", { code: editingSchedule.code })
+                : t("trips.createScheduleTitle")
+            }
+            className="scroll-mt-6 space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm outline-none focus:ring-2 focus:ring-vr-200"
+          >
             <SectionHeader
               icon={<FiCalendar />}
               title={
@@ -666,15 +700,14 @@ export default function TripsPage() {
               subtitle={t("trips.createScheduleSubtitle")}
             />
 
-            {editingSchedule && (
+            {editingSchedule ? (
               <div
-                className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+                className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-800"
                 role="status"
               >
-                <FiAlertCircle className="mt-0.5 shrink-0" size={18} />
-                <span>{t("trips.editScheduleDemoNotice")}</span>
+                {t("trips.editScheduleFocusNotice")}
               </div>
-            )}
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-2">
               <Select
@@ -936,11 +969,20 @@ export default function TripsPage() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: number }) {
+function MetricCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: number;
+  helper?: string;
+}) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <p className="text-sm text-gray-500">{label}</p>
       <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
+      {helper ? <p className="mt-2 text-xs text-gray-500">{helper}</p> : null}
     </div>
   );
 }

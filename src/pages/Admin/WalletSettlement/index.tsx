@@ -220,8 +220,7 @@ export default function WalletSettlement() {
       amount: records.reduce((sum, record) => sum + record.netAmount, 0),
       eligible: records.filter((record) => record.status === "ELIGIBLE").length,
       attention: records.filter(
-        (record) =>
-          (record.failureCount ?? 0) > 0 || Boolean(record.severity),
+        (record) => (record.failureCount ?? 0) > 0 || Boolean(record.severity),
       ).length,
       byStatus: {
         PENDING_HOLD: records.filter(
@@ -442,17 +441,11 @@ export default function WalletSettlement() {
             </div>
 
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-sm">
+              <table className="w-full min-w-[820px] text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                    <th className="px-4 py-3">
-                      {t("walletSettlement.settlementId")}
-                    </th>
+                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold whitespace-nowrap text-gray-600">
                     <th className="px-4 py-3">
                       {t("walletSettlement.operator")}
-                    </th>
-                    <th className="px-4 py-3">
-                      {t("walletSettlement.trip")}
                     </th>
                     <th className="px-4 py-3">
                       {t("walletSettlement.amount")}
@@ -464,19 +457,15 @@ export default function WalletSettlement() {
                     <th className="px-4 py-3">
                       {t("walletSettlement.method")}
                     </th>
-                    <th className="px-4 py-3">
-                      {t("walletSettlement.issue")}
-                    </th>
-                    <th className="px-4 py-3 text-center">
-                      {tc("actions")}
-                    </th>
+                    <th className="px-4 py-3">{t("walletSettlement.issue")}</th>
+                    <th className="px-4 py-3 text-center">{tc("actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!loading && filteredRecords.length === 0 && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={7}
                         className="px-4 py-10 text-center text-gray-500"
                       >
                         {t("walletSettlement.empty")}
@@ -488,10 +477,7 @@ export default function WalletSettlement() {
                       key={record.settlementId}
                       className="border-b border-gray-100 hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3 font-mono text-xs">
-                        {record.settlementId}
-                      </td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex items-center gap-2">
                           {record.operator?.logoUrl ? (
                             <img
@@ -503,37 +489,25 @@ export default function WalletSettlement() {
                               className="h-8 w-8 rounded-lg object-cover"
                             />
                           ) : null}
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {record.operator?.name ??
-                                record.operatorId ??
-                                "-"}
-                            </p>
-                            {record.operator?.name && record.operatorId ? (
-                              <p className="font-mono text-xs text-gray-500">
-                                {record.operatorId}
-                              </p>
-                            ) : null}
-                          </div>
+                          <p className="font-medium text-gray-900">
+                            {record.operator?.name ?? record.operatorId ?? "-"}
+                          </p>
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs">
-                        {record.tripId}
-                      </td>
-                      <td className="px-4 py-3 font-semibold">
+                      <td className="whitespace-nowrap px-4 py-3 font-semibold">
                         {formatMoney(record.netAmount)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         {formatDate(record.eligibleAt)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[record.status]}`}
+                          className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[record.status]}`}
                         >
                           {t(`walletSettlement.status.${record.status}`)}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         <p>
                           {record.settlementMethod
                             ? t(
@@ -543,14 +517,15 @@ export default function WalletSettlement() {
                         </p>
                         {record.settledBy ? (
                           <p className="mt-1 text-xs text-gray-500">
-                            {t("walletSettlement.settledBy")}: {record.settledBy.displayName}
+                            {t("walletSettlement.settledBy")}:{" "}
+                            {record.settledBy.displayName}
                           </p>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         {record.activeFailureCode ? (
-                          <div className="flex items-start gap-2 text-amber-700">
-                            <FiAlertTriangle className="mt-0.5 shrink-0" />
+                          <div className="flex items-center gap-2 text-amber-700">
+                            <FiAlertTriangle className="shrink-0" />
                             <span>
                               {record.activeFailureCode}
                               {(record.failureCount ?? 0) > 0 &&
@@ -561,7 +536,7 @@ export default function WalletSettlement() {
                           "-"
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="whitespace-nowrap px-4 py-3 text-center">
                         <button
                           type="button"
                           disabled={
@@ -1031,7 +1006,10 @@ function WalletTransactionGroup({
               </tr>
             ) : (
               items.map((item) => (
-                <tr key={item.transactionId} className="border-t border-gray-100">
+                <tr
+                  key={item.transactionId}
+                  className="border-t border-gray-100"
+                >
                   <td className="px-4 py-3">{formatDate(item.createdAt)}</td>
                   <td className={`px-4 py-3 font-semibold ${amountClass}`}>
                     {sign}
@@ -1045,9 +1023,6 @@ function WalletTransactionGroup({
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-mono text-xs">{item.referenceType}</p>
-                    {item.note ? (
-                      <p className="mt-1 text-xs text-gray-500">{item.note}</p>
-                    ) : null}
                   </td>
                   <td className="px-4 py-3">
                     {item.actorType === "SYSTEM"

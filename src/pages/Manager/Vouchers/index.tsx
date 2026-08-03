@@ -859,9 +859,9 @@ function ConsentTable({
           }}
         >
           <option value="">{t("vouchers.all")}</option>
-          <option value="PENDING">Chờ xử lý</option>
-          <option value="ACCEPTED">Đã chấp nhận</option>
-          <option value="REJECTED">Đã từ chối</option>
+          <option value="PENDING">{tc("voucherConsentStatuses.PENDING")}</option>
+          <option value="ACCEPTED">{tc("voucherConsentStatuses.ACCEPTED")}</option>
+          <option value="REJECTED">{tc("voucherConsentStatuses.REJECTED")}</option>
         </CustomSelect>
       </div>
 
@@ -870,7 +870,7 @@ function ConsentTable({
           <table className="w-full min-w-[980px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3">Mã giảm giá</th>
+                <th className="px-5 py-3">{t("vouchers.voucherCode")}</th>
                 <th className="px-5 py-3">{t("vouchers.value")}</th>
                 <th className="px-5 py-3">{t("vouchers.minOrder")}</th>
                 <th className="px-5 py-3">{t("vouchers.validity")}</th>
@@ -1200,8 +1200,8 @@ function VoucherModal({
               disabled={isEditing}
               onChange={(event) => onChange("fundingType", event.target.value)}
             >
-              <option value="OPERATOR_FUNDED">Nhà xe tài trợ</option>
-              <option value="VIETRIDE_FUNDED">VietRide tài trợ</option>
+              <option value="OPERATOR_FUNDED">{t("vouchers.fundingTypes.OPERATOR_FUNDED")}</option>
+              <option value="VIETRIDE_FUNDED">{t("vouchers.fundingTypes.VIETRIDE_FUNDED")}</option>
             </CustomSelect>
           </div>
         </div>

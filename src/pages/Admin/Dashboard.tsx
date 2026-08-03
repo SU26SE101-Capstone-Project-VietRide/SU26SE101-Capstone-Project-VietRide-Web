@@ -266,11 +266,18 @@ export default function AdminDashboard() {
     SUSPENDED: t("dashboard.statusSuspended"),
     REJECTED: t("dashboard.statusRejected"),
   };
+  const statusColors: Record<string, string> = {
+    APPROVED: "#10b981",
+    PENDING: "#f59e0b",
+    SUSPENDED: "#ef4444",
+    REJECTED: "#6b7280",
+  };
   const operatorStatus = (metrics?.operatorStatusDistribution ?? []).map((item) => ({
     key: item.status,
     status: statusLabels[item.status] ?? item.status,
     count: item.count,
     percentage: item.percent,
+    color: statusColors[item.status] ?? "#94a3b8",
   }));
   const pendingOperators =
     metrics?.operatorStatusDistribution.find((item) => item.status === "PENDING")?.count ?? 0;
@@ -492,31 +499,41 @@ export default function AdminDashboard() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             {t("dashboard.operatorStatus")}
           </h2>
-          <div className="space-y-3">
-            {operatorStatus.map((item) => (
-              <div
-                key={item.key}
-                className="flex items-center justify-between"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-700">
-                      {item.status}
-                    </span>
-                    <span className="text-xs font-semibold text-gray-600">
+          {operatorStatus.length === 0 ? (
+            <div className="flex h-16 items-center justify-center text-sm text-gray-500">
+              {t("dashboard.noChartData")}
+            </div>
+          ) : (
+            <>
+              <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
+                {operatorStatus.map((item) => (
+                  <div
+                    key={item.key}
+                    className="h-full first:rounded-l-full last:rounded-r-full"
+                    style={{
+                      width: `${item.percentage}%`,
+                      backgroundColor: item.color,
+                    }}
+                    title={`${item.status}: ${item.count}`}
+                  />
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+                {operatorStatus.map((item) => (
+                  <div key={item.key} className="flex items-center gap-1.5 text-sm">
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-gray-600">{item.status}</span>
+                    <span className="font-semibold text-gray-900">
                       {item.count}
                     </span>
                   </div>
-                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-vr-500"
-                      style={{ width: `${item.percentage}%` }}
-                    />
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 

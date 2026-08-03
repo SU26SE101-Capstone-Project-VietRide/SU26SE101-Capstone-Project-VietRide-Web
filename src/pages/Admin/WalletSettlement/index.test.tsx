@@ -87,7 +87,7 @@ describe("Admin WalletSettlement", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText(settlement.settlementId)).toBeInTheDocument();
+    expect(await screen.findByText(settlement.operatorId)).toBeInTheDocument();
     expect(getAdminTripSettlements).toHaveBeenCalledWith(
       expect.objectContaining({ stuckOnly: true }),
     );
@@ -105,7 +105,7 @@ describe("Admin WalletSettlement", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText(settlement.settlementId);
+    await screen.findByText(settlement.operatorId);
     await user.click(
       screen.getByRole("button", {
         name: "walletSettlement.manualSettle",
