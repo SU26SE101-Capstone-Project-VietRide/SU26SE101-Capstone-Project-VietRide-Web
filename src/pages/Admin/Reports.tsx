@@ -16,7 +16,6 @@ import CustomDateTimeInput from "../../components/CustomDateTimeInput";
 import Pagination from "../../components/Pagination";
 import {
   formatDateInputValue,
-  formatDateTime,
   toExclusiveUtcDayEnd,
   toUtcDayStart,
 } from "../../utils/date";
@@ -40,7 +39,8 @@ function createInitialFilters(): ReportFilters {
 export default function AdminReports() {
   const { t, i18n } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
-  const [draftFilters, setDraftFilters] = useState<ReportFilters>(createInitialFilters);
+  const [draftFilters, setDraftFilters] =
+    useState<ReportFilters>(createInitialFilters);
   const [filters, setFilters] = useState<ReportFilters>(createInitialFilters);
   const [report, setReport] = useState<AdminPlatformReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +73,9 @@ export default function AdminReports() {
         if (!ignore) {
           setReport(null);
           setError(
-            loadError instanceof Error ? loadError.message : t("reports.loadFailed"),
+            loadError instanceof Error
+              ? loadError.message
+              : t("reports.loadFailed"),
           );
         }
       } finally {
@@ -104,8 +106,12 @@ export default function AdminReports() {
   );
 
   const operatorRows = report?.byOperator ?? [];
-  const paginatedRows = operatorRows.slice((page - 1) * pageSize, page * pageSize);
-  const isUpstreamUnavailable = error.toLowerCase().includes("platform report source") ||
+  const paginatedRows = operatorRows.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
+  const isUpstreamUnavailable =
+    error.toLowerCase().includes("platform report source") ||
     error.toLowerCase().includes("upstream");
 
   function applyFilters(event: FormEvent) {
@@ -167,13 +173,10 @@ export default function AdminReports() {
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t("reports.title")}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("reports.title")}
+          </h1>
           <p className="mt-1 text-gray-600">{t("reports.subtitle")}</p>
-          {report && (
-            <p className="mt-2 text-xs text-gray-500">
-              {t("reports.generatedAt", { date: formatDateTime(report.generatedAt) })}
-            </p>
-          )}
         </div>
         <button
           type="button"
@@ -190,23 +193,33 @@ export default function AdminReports() {
         className="grid gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:grid-cols-[220px_220px_auto] sm:items-end"
       >
         <label>
-          <span className="mb-1.5 block text-xs font-semibold text-gray-600">{tc("from")}</span>
+          <span className="mb-1.5 block text-xs font-semibold text-gray-600">
+            {tc("from")}
+          </span>
           <CustomDateTimeInput
             type="date"
             value={draftFilters.from}
             onChange={(event) =>
-              setDraftFilters((current) => ({ ...current, from: event.target.value }))
+              setDraftFilters((current) => ({
+                ...current,
+                from: event.target.value,
+              }))
             }
             className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
           />
         </label>
         <label>
-          <span className="mb-1.5 block text-xs font-semibold text-gray-600">{tc("to")}</span>
+          <span className="mb-1.5 block text-xs font-semibold text-gray-600">
+            {tc("to")}
+          </span>
           <CustomDateTimeInput
             type="date"
             value={draftFilters.to}
             onChange={(event) =>
-              setDraftFilters((current) => ({ ...current, to: event.target.value }))
+              setDraftFilters((current) => ({
+                ...current,
+                to: event.target.value,
+              }))
             }
             className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
           />
@@ -257,11 +270,16 @@ export default function AdminReports() {
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {metrics.map((metric) => (
-              <div key={metric.label} className="rounded-lg border border-gray-200 bg-white p-5">
+              <div
+                key={metric.label}
+                className="rounded-lg border border-gray-200 bg-white p-5"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm text-gray-600">{metric.label}</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900">{metric.value}</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900">
+                      {metric.value}
+                    </p>
                   </div>
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
                     {metric.icon}
@@ -273,41 +291,75 @@ export default function AdminReports() {
 
           <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <div className="border-b border-gray-100 px-5 py-4">
-              <h2 className="text-lg font-bold text-gray-900">{t("reports.byOperator")}</h2>
-              <p className="mt-1 text-sm text-gray-500">{t("reports.byOperatorHint")}</p>
+              <h2 className="text-lg font-bold text-gray-900">
+                {t("reports.byOperator")}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("reports.byOperatorHint")}
+              </p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1050px]">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700">
                     <th className="px-5 py-3">{t("reports.operator")}</th>
-                    <th className="px-5 py-3 text-right">{t("reports.completedBookings")}</th>
-                    <th className="px-5 py-3 text-right">{t("reports.completedTrips")}</th>
-                    <th className="px-5 py-3 text-right">{t("reports.deliveredParcels")}</th>
-                    <th className="px-5 py-3 text-right">{t("reports.bookingRevenue")}</th>
-                    <th className="px-5 py-3 text-right">{t("reports.parcelRevenue")}</th>
-                    <th className="px-5 py-3 text-right">{t("reports.netRevenue")}</th>
+                    <th className="px-5 py-3 text-right">
+                      {t("reports.completedBookings")}
+                    </th>
+                    <th className="px-5 py-3 text-right">
+                      {t("reports.completedTrips")}
+                    </th>
+                    <th className="px-5 py-3 text-right">
+                      {t("reports.deliveredParcels")}
+                    </th>
+                    <th className="px-5 py-3 text-right">
+                      {t("reports.bookingRevenue")}
+                    </th>
+                    <th className="px-5 py-3 text-right">
+                      {t("reports.parcelRevenue")}
+                    </th>
+                    <th className="px-5 py-3 text-right">
+                      {t("reports.netRevenue")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedRows.map((row) => (
-                    <tr key={row.operatorId} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr
+                      key={row.operatorId}
+                      className="border-b border-gray-100 hover:bg-gray-50"
+                    >
                       <td className="px-5 py-4">
                         <p className="text-sm font-semibold text-gray-900">
                           {row.operatorName || t("reports.unknownOperator")}
                         </p>
                       </td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">{numberFormatter.format(row.completedBookingCount)}</td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">{numberFormatter.format(row.completedTripCount)}</td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">{numberFormatter.format(row.deliveredParcelCount)}</td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">{currencyFormatter.format(row.bookingRevenueVnd)}</td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">{currencyFormatter.format(row.parcelRevenueVnd)}</td>
-                      <td className="px-5 py-4 text-right text-sm font-semibold text-gray-900">{currencyFormatter.format(row.netRevenueVnd)}</td>
+                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                        {numberFormatter.format(row.completedBookingCount)}
+                      </td>
+                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                        {numberFormatter.format(row.completedTripCount)}
+                      </td>
+                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                        {numberFormatter.format(row.deliveredParcelCount)}
+                      </td>
+                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                        {currencyFormatter.format(row.bookingRevenueVnd)}
+                      </td>
+                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                        {currencyFormatter.format(row.parcelRevenueVnd)}
+                      </td>
+                      <td className="px-5 py-4 text-right text-sm font-semibold text-gray-900">
+                        {currencyFormatter.format(row.netRevenueVnd)}
+                      </td>
                     </tr>
                   ))}
                   {operatorRows.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
+                      <td
+                        colSpan={7}
+                        className="px-5 py-12 text-center text-sm text-gray-500"
+                      >
                         {t("reports.empty")}
                       </td>
                     </tr>
