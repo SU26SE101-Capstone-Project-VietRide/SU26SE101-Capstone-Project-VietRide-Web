@@ -10,15 +10,19 @@ import {
 } from "../../../api/vietride";
 import AdminLocations from "./index";
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, values?: Record<string, unknown>) =>
-      values ? `${key} ${Object.values(values).join(" ")}` : key,
-  }),
-}));
+vi.mock("react-i18next", () => {
+  const t = (key: string, values?: Record<string, unknown>) =>
+    values ? `${key} ${Object.values(values).join(" ")}` : key;
+
+  return { useTranslation: () => ({ t }) };
+});
 
 vi.mock("../../../components/Pagination", () => ({
-  default: () => null,
+  default: ({ onPageChange }: { onPageChange: (page: number) => void }) => (
+    <button type="button" data-testid="pagination" onClick={() => onPageChange(2)}>
+      pagination-page-2
+    </button>
+  ),
 }));
 
 vi.mock("../../../api/vietride", () => ({
@@ -58,7 +62,9 @@ describe("Admin Locations", () => {
     const user = userEvent.setup();
     render(<AdminLocations />);
 
-    expect(await screen.findByRole("button", { name: location.name })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: location.name }, { timeout: 5_000 }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("MUNICIPALITY")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "refresh" })).not.toBeInTheDocument();
 
@@ -75,7 +81,7 @@ describe("Admin Locations", () => {
     const user = userEvent.setup();
     render(<AdminLocations />);
 
-    await screen.findByRole("button", { name: location.name });
+    await screen.findByRole("button", { name: location.name }, { timeout: 5_000 });
     await user.click(screen.getByRole("button", { name: "locations.create" }));
 
     const dialog = screen.getByRole("dialog");
@@ -102,5 +108,33 @@ describe("Admin Locations", () => {
     });
     expect(updateAdminLocation).not.toHaveBeenCalled();
     expect(deleteAdminLocation).not.toHaveBeenCalled();
+  });
+
+  it("keeps pagination visible while only the table body is loading", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAdminLocations)
+      .mockResolvedValueOnce({
+        items: [location],
+        page: 1,
+        pageSize: 12,
+        totalItems: 24,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPreviousPage: false,
+      })
+      .mockImplementationOnce(() => new Promise<never>(() => undefined));
+
+    render(<AdminLocations />);
+    await screen.findByRole("button", { name: location.name }, { timeout: 5_000 });
+
+    await user.click(screen.getByTestId("pagination"));
+
+    expect(screen.getByTestId("pagination")).toBeInTheDocument();
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: location.name })).not.toBeInTheDocument();
+    expect(screen.getByRole("table").parentElement).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
   });
 });

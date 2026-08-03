@@ -1433,11 +1433,11 @@
     "trip": "Chuyến",
     "eligibleAt": "Đủ điều kiện lúc",
     "statusLabel": "Trạng thái",
-    "entryType": "Loại bút toán",
+    "entryType": "Loại giao dịch",
     "tabs": {
-      "transactions": "Giao dịch ví",
-      "settlements": "Đối soát chuyến",
-      "ledger": "Sổ cái doanh thu"
+      "transactions": "Lịch sử giao dịch",
+      "settlements": "Doanh thu hàng tuần",
+      "ledger": "Lịch sử doanh thu"
     },
     "subtitle": "Quản lý số dư, nạp tiền và lịch sử giao dịch.",
     "topup": "Nạp tiền",

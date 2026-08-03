@@ -100,7 +100,10 @@ export default function Payouts() {
       b.operator.toLowerCase().includes(search.toLowerCase()) ||
       b.id.toLowerCase().includes(search.toLowerCase()),
   );
-  const paginatedBatches = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedBatches = filtered.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
 
   function openBatch(i: number) {
     setSelectedIdx(i);
@@ -131,7 +134,12 @@ export default function Payouts() {
             {t("payouts.subtitleLong")}
           </p>
         </div>
-        <button type="button" disabled title="Chức năng xuất báo cáo chưa khả dụng" className="flex cursor-not-allowed items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
+        <button
+          type="button"
+          disabled
+          title="Chức năng xuất báo cáo chưa khả dụng"
+          className="flex cursor-not-allowed items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400"
+        >
           <svg
             className="w-4 h-4"
             fill="none"
@@ -220,7 +228,12 @@ export default function Payouts() {
               className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-gray-300"
             />
           </div>
-          <button type="button" disabled title="Chức năng đang được phát triển" className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
+          <button
+            type="button"
+            disabled
+            title="Chức năng đang được phát triển"
+            className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400"
+          >
             <svg
               className="w-4 h-4"
               fill="none"
@@ -236,7 +249,12 @@ export default function Payouts() {
             </svg>
             {tc("filter")}
           </button>
-          <button type="button" disabled title="Chức năng đang được phát triển" className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
+          <button
+            type="button"
+            disabled
+            title="Chức năng đang được phát triển"
+            className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400"
+          >
             <svg
               className="w-4 h-4"
               fill="none"
@@ -252,7 +270,12 @@ export default function Payouts() {
             </svg>
             {tc("columns")}
           </button>
-          <button type="button" disabled title="Chức năng đang được phát triển" className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
+          <button
+            type="button"
+            disabled
+            title="Chức năng đang được phát triển"
+            className="flex cursor-not-allowed items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400"
+          >
             <svg
               className="w-4 h-4"
               fill="none"

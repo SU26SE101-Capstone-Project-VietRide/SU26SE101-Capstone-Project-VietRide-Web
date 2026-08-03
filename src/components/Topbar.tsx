@@ -151,7 +151,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
             </button>
 
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+              <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
                 <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                   <div>
                     <h3 className="font-semibold text-gray-900">
@@ -248,7 +248,11 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
           <div className="relative">
             <button
               type="button"
-              onClick={() => setShowProfile(!showProfile)}
+              onClick={() => {
+                const nextOpen = !showProfile;
+                setShowProfile(nextOpen);
+                setShowNotifications(false);
+              }}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition p-2 hover:bg-gray-100 rounded-lg"
             >
               <FiUser size={20} />
@@ -256,10 +260,13 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
             </button>
 
             {showProfile && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+              <div className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
                 <div className="p-4 border-b border-gray-200">
                   <p className="font-semibold text-gray-900">{t("account")}</p>
-                  <p className="text-xs text-gray-500">
+                  <p
+                    className="mt-1 break-all text-xs leading-5 text-gray-500"
+                    title={authUser?.email || "manager@vietride.vn"}
+                  >
                     {authUser?.email || "manager@vietride.vn"}
                   </p>
                 </div>

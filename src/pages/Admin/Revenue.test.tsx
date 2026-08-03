@@ -1,10 +1,12 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getAdminRevenueAnalytics,
   type AdminRevenueAnalytics,
 } from "../../api/vietride";
+import { downloadRevenueCsv } from "./revenueCsv";
 import Revenue from "./Revenue";
 
 vi.mock("react-i18next", () => ({
@@ -32,6 +34,10 @@ vi.mock("recharts", () => {
 
 vi.mock("../../api/vietride", () => ({
   getAdminRevenueAnalytics: vi.fn(),
+}));
+
+vi.mock("./revenueCsv", () => ({
+  downloadRevenueCsv: vi.fn(),
 }));
 
 describe("Admin Revenue", () => {
@@ -71,6 +77,7 @@ describe("Admin Revenue", () => {
   });
 
   it("renders the complete analytics period, chart highlights and operator logo", async () => {
+    const user = userEvent.setup();
     render(<Revenue />);
 
     expect(
@@ -85,7 +92,7 @@ describe("Admin Revenue", () => {
       groupBy: "month",
       top: 10,
     });
-    expect(screen.getAllByText("↑ revenue.newGrowth")).toHaveLength(2);
+    expect(screen.getAllByText("revenue.newGrowth")).toHaveLength(2);
     expect(screen.getByText("— 0%")).toHaveClass("text-gray-500");
     expect(screen.getAllByText(/revenue.previousPeriod:/)).toHaveLength(3);
     expect(screen.getByText("137,6M")).toBeInTheDocument();
@@ -96,5 +103,11 @@ describe("Admin Revenue", () => {
     expect(
       screen.getByRole("img", { name: "revenue.operatorLogoAlt Nhà xe A" }),
     ).toHaveAttribute("src", analytics.topOperators[0].logoUrl);
+
+    await user.click(screen.getByRole("button", { name: "revenue.exportCsv" }));
+    expect(downloadRevenueCsv).toHaveBeenCalledWith(
+      analytics,
+      expect.objectContaining({ timezone: "revenue.csvTimezone" }),
+    );
   });
 });

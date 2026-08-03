@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createAdminVoucher,
   getAdminCampaigns,
   getAdminOperators,
   getAdminVouchers,
@@ -80,5 +82,50 @@ describe("Admin Vouchers table", () => {
     expect(container).not.toHaveClass("overflow-x-auto");
     expect(voucherName).toHaveClass("truncate");
     expect(voucherName.closest("td")).toHaveClass("whitespace-nowrap");
+  });
+
+  it("shows one VND discount field for fixed vouchers and mirrors both BE fields", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createAdminVoucher).mockResolvedValue({
+      id: "voucher-fixed",
+      code: "FIXED75",
+      name: "Fixed discount",
+      type: "FIXED_AMOUNT",
+      value: 75_000,
+      maxDiscountAmount: 75_000,
+    });
+
+    render(<Vouchers />);
+    await screen.findByText("Gói Premium - Giảm 100K");
+    await user.click(screen.getByRole("button", { name: "vouchers.create" }));
+    await user.click(
+      screen.getByRole("button", { name: "vouchers.percentDiscount" }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "vouchers.fixedDiscount" }),
+    );
+
+    expect(screen.queryByText("vouchers.maxDiscountAmount")).not.toBeInTheDocument();
+    const fixedDiscountLabel = screen.getByText("vouchers.fixedDiscountValue");
+    const fixedDiscountInput = fixedDiscountLabel.parentElement?.querySelector("input");
+    expect(fixedDiscountInput).not.toBeNull();
+    await user.clear(fixedDiscountInput as HTMLInputElement);
+    await user.type(fixedDiscountInput as HTMLInputElement, "75000");
+
+    const minimumOrderField = screen.getByText("vouchers.minOrder").parentElement;
+    const perAccountField = screen.getByText("vouchers.maxUsagePerUser").parentElement;
+    expect(minimumOrderField?.parentElement).toBe(perAccountField?.parentElement);
+
+    await user.click(screen.getByRole("button", { name: "vouchers.saveButton" }));
+
+    await waitFor(() => {
+      expect(createAdminVoucher).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "FIXED_AMOUNT",
+          value: 75_000,
+          maxDiscountAmount: 75_000,
+        }),
+      );
+    });
   });
 });

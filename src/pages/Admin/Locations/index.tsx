@@ -47,8 +47,7 @@ function toForm(location: AdminLocation): LocationForm {
   return {
     code: location.code,
     name: location.name,
-    type:
-      location.type === "MUNICIPALITY" ? "MUNICIPALITY" : "PROVINCE",
+    type: location.type === "MUNICIPALITY" ? "MUNICIPALITY" : "PROVINCE",
     sortOrder: String(location.sortOrder),
     isActive: location.isActive,
   };
@@ -119,9 +118,7 @@ export default function AdminLocations() {
       setMessage({
         tone: "error",
         text:
-          error instanceof Error
-            ? error.message
-            : t("locations.loadFailed"),
+          error instanceof Error ? error.message : t("locations.loadFailed"),
       });
     } finally {
       setLoading(false);
@@ -210,9 +207,7 @@ export default function AdminLocations() {
       setMessage({
         tone: "error",
         text:
-          error instanceof Error
-            ? error.message
-            : t("locations.saveFailed"),
+          error instanceof Error ? error.message : t("locations.saveFailed"),
       });
     } finally {
       setSaving(false);
@@ -223,7 +218,9 @@ export default function AdminLocations() {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t("locations.title")}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("locations.title")}
+          </h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
             {t("locations.subtitle")}
           </p>
@@ -280,7 +277,7 @@ export default function AdminLocations() {
           </CustomSelect>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" aria-busy={loading}>
           <table className="w-full min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
@@ -292,84 +289,85 @@ export default function AdminLocations() {
               </tr>
             </thead>
             <tbody>
-              {items.map((location) => (
-                <tr
-                  key={location.id}
-                  className="border-b border-gray-100 hover:bg-gray-50"
-                >
-                  <td className="px-5 py-4 font-mono text-sm font-semibold text-vr-700">
-                    {location.code}
-                  </td>
-                  <td className="px-5 py-4">
-                    <button
-                      type="button"
-                      onClick={() => openDetail(location)}
-                      className="text-left font-semibold text-gray-900 transition hover:text-vr-700"
-                    >
-                      {location.name}
-                    </button>
-                    <p className="mt-1 text-xs text-gray-400">
-                      {t("locations.updatedAt", {
-                        value: formatDateTime(location.updatedAt),
-                      })}
-                    </p>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {location.sortOrder}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        location.isActive
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {location.isActive ? tc("active") : tc("inactive")}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex justify-center gap-2">
+              {!loading &&
+                items.map((location) => (
+                  <tr
+                    key={location.id}
+                    className="border-b border-gray-100 hover:bg-gray-50"
+                  >
+                    <td className="px-5 py-4 font-mono text-sm font-semibold text-vr-700">
+                      {location.code}
+                    </td>
+                    <td className="px-5 py-4">
                       <button
                         type="button"
                         onClick={() => openDetail(location)}
-                        className={`${actionButtonClass} text-slate-600`}
-                        aria-label={t("locations.viewDetails")}
-                        title={t("locations.viewDetails")}
+                        className="text-left font-semibold text-gray-900 transition hover:text-vr-700"
                       >
-                        <FiEye />
+                        {location.name}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => openEdit(location)}
-                        className={`${actionButtonClass} text-vr-700`}
-                        aria-label={tc("edit")}
-                        title={tc("edit")}
-                      >
-                        <FiEdit2 />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void toggleActive(location)}
-                        disabled={saving}
-                        className={`${actionButtonClass} ${
+                      <p className="mt-1 text-xs text-gray-400">
+                        {t("locations.updatedAt", {
+                          value: formatDateTime(location.updatedAt),
+                        })}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-700">
+                      {location.sortOrder}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                           location.isActive
-                            ? "text-rose-600"
-                            : "text-emerald-600"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-slate-100 text-slate-600"
                         }`}
-                        aria-label={
-                          location.isActive ? tc("disable") : tc("enable")
-                        }
-                        title={
-                          location.isActive ? tc("disable") : tc("enable")
-                        }
                       >
-                        <FiPower />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {location.isActive ? tc("active") : tc("inactive")}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openDetail(location)}
+                          className={`${actionButtonClass} text-slate-600`}
+                          aria-label={t("locations.viewDetails")}
+                          title={t("locations.viewDetails")}
+                        >
+                          <FiEye />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(location)}
+                          className={`${actionButtonClass} text-vr-700`}
+                          aria-label={tc("edit")}
+                          title={tc("edit")}
+                        >
+                          <FiEdit2 />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void toggleActive(location)}
+                          disabled={saving}
+                          className={`${actionButtonClass} ${
+                            location.isActive
+                              ? "text-rose-600"
+                              : "text-emerald-600"
+                          }`}
+                          aria-label={
+                            location.isActive ? tc("disable") : tc("enable")
+                          }
+                          title={
+                            location.isActive ? tc("disable") : tc("enable")
+                          }
+                        >
+                          <FiPower />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               {!loading && items.length === 0 && (
                 <tr>
                   <td
@@ -397,7 +395,10 @@ export default function AdminLocations() {
           page={page}
           pageSize={pageSize}
           totalItems={totalItems}
-          onPageChange={setPage}
+          onPageChange={(nextPage) => {
+            setLoading(true);
+            setPage(nextPage);
+          }}
         />
       </section>
 
@@ -456,21 +457,33 @@ export default function AdminLocations() {
 
             <dl className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
-                <dt className="text-xs font-medium text-gray-500">{t("locations.code")}</dt>
-                <dd className="mt-1 font-mono font-semibold text-gray-900">{viewing.code}</dd>
+                <dt className="text-xs font-medium text-gray-500">
+                  {t("locations.code")}
+                </dt>
+                <dd className="mt-1 font-mono font-semibold text-gray-900">
+                  {viewing.code}
+                </dd>
               </div>
               <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
-                <dt className="text-xs font-medium text-gray-500">{t("locations.sortOrder")}</dt>
-                <dd className="mt-1 font-semibold text-gray-900">{viewing.sortOrder}</dd>
+                <dt className="text-xs font-medium text-gray-500">
+                  {t("locations.sortOrder")}
+                </dt>
+                <dd className="mt-1 font-semibold text-gray-900">
+                  {viewing.sortOrder}
+                </dd>
               </div>
               <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
-                <dt className="text-xs font-medium text-gray-500">{t("locations.createdAt")}</dt>
+                <dt className="text-xs font-medium text-gray-500">
+                  {t("locations.createdAt")}
+                </dt>
                 <dd className="mt-1 text-sm font-medium text-gray-900">
                   {formatDateTime(viewing.createdAt)}
                 </dd>
               </div>
               <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
-                <dt className="text-xs font-medium text-gray-500">{t("locations.lastUpdated")}</dt>
+                <dt className="text-xs font-medium text-gray-500">
+                  {t("locations.lastUpdated")}
+                </dt>
                 <dd className="mt-1 text-sm font-medium text-gray-900">
                   {formatDateTime(viewing.updatedAt)}
                 </dd>
@@ -523,20 +536,6 @@ export default function AdminLocations() {
           className="space-y-5"
           onSubmit={(event) => void submitForm(event)}
         >
-          <div className="flex gap-3 rounded-xl border border-vr-100 bg-vr-50/60 p-4">
-            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-vr-700 shadow-sm">
-              <FiMapPin />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                {t("locations.formHintTitle")}
-              </p>
-              <p className="mt-1 text-sm leading-5 text-gray-600">
-                {t("locations.formHint")}
-              </p>
-            </div>
-          </div>
-
           {formError && (
             <div
               role="alert"

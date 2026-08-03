@@ -74,6 +74,7 @@ export default function Packages() {
   const [form, setForm] = useState<AdminSubscriptionPlanRequest>(emptyForm);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -122,7 +123,7 @@ export default function Packages() {
     setSelectedPlan(null);
     setForm(emptyForm);
     setModalOpen(true);
-    setError("");
+    setFormError("");
     setMessage("");
   }
 
@@ -130,8 +131,14 @@ export default function Packages() {
     setSelectedPlan(plan);
     setForm(planToRequest(plan));
     setModalOpen(true);
-    setError("");
+    setFormError("");
     setMessage("");
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setSelectedPlan(null);
+    setFormError("");
   }
 
   function updateForm<K extends keyof AdminSubscriptionPlanRequest>(
@@ -142,14 +149,43 @@ export default function Packages() {
   }
 
   async function savePlan() {
+    const resourceLimits = [
+      form.maxVehicles,
+      form.maxDrivers,
+      form.maxAssistants,
+      form.maxOperatorUsers,
+      form.maxRoutes,
+      form.maxTripsPerMonth,
+    ];
+
+    if (!form.name.trim()) {
+      setFormError(t("packages.nameRequired"));
+      return;
+    }
+
+    if (form.pricePerMonth < 0 || form.pricePerYear < 0) {
+      setFormError(t("packages.priceNonNegative"));
+      return;
+    }
+
+    if (resourceLimits.some((value) => !Number.isInteger(value) || value <= 0)) {
+      setFormError(t("packages.limitsPositive"));
+      return;
+    }
+
     setIsSaving(true);
-    setError("");
+    setFormError("");
+    const request = {
+      ...form,
+      name: form.name.trim(),
+      description: form.description.trim(),
+    };
 
     try {
       if (selectedPlan) {
-        await updateAdminSubscriptionPlan(selectedPlan.planId, form);
+        await updateAdminSubscriptionPlan(selectedPlan.planId, request);
       } else {
-        await createAdminSubscriptionPlan(form);
+        await createAdminSubscriptionPlan(request);
       }
 
       setMessage(
@@ -157,11 +193,10 @@ export default function Packages() {
           action: selectedPlan ? tc("update") : tc("create"),
         }),
       );
-      setModalOpen(false);
-      setSelectedPlan(null);
+      closeModal();
       await loadPlans();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("packages.saveFailed"));
+    } catch {
+      setFormError(t("packages.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -178,6 +213,32 @@ export default function Packages() {
     } catch (err) {
       setError(err instanceof Error ? err.message : t("packages.saveFailed"));
     }
+  }
+
+  const moduleFeatures: Array<{
+    key: keyof SubscriptionPlan["modules"];
+    label: string;
+    description: string;
+  }> = [
+    {
+      key: "enableParcel",
+      label: t("packages.parcelModule"),
+      description: t("packages.parcelModuleHint"),
+    },
+    {
+      key: "enableShuttle",
+      label: t("packages.shuttleModule"),
+      description: t("packages.shuttleModuleHint"),
+    },
+    {
+      key: "enableRag",
+      label: t("packages.ragModule"),
+      description: t("packages.ragModuleHint"),
+    },
+  ];
+
+  if (isLoading && plans.length === 0 && !error) {
+    return <PackagesPageSkeleton loadingLabel={t("packages.loading")} />;
   }
 
   return (
@@ -208,12 +269,6 @@ export default function Packages() {
           {error}
         </div>
       )}
-
-      {isLoading ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
-          {t("packages.loading")}
-        </div>
-      ) : null}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {plans.map((plan) => (
@@ -267,17 +322,26 @@ export default function Packages() {
               <Limit label={t("packages.maxTripsLabel")} value={plan.limits.maxTripsPerMonth} />
             </div>
 
-            <div className="mb-6 flex flex-wrap gap-2 text-xs">
-              {Object.entries(plan.modules).map(([key, enabled]) => (
-                <span
-                  key={key}
-                  className={`rounded-full px-2 py-1 font-semibold ${
-                    enabled ? "bg-vr-50 text-vr-700" : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  {key}
-                </span>
-              ))}
+            <div className="mb-6">
+              <p className="mb-2 text-xs font-medium text-gray-600">
+                {t("packages.features")}
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {moduleFeatures.map((feature) => {
+                  const enabled = plan.modules[feature.key];
+                  return (
+                    <span
+                      key={feature.key}
+                      className={`rounded-full px-2 py-1 font-semibold ${
+                        enabled ? "bg-vr-50 text-vr-700" : "bg-gray-100 text-gray-500"
+                      }`}
+                      title={feature.description}
+                    >
+                      {feature.label}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="flex items-center gap-2 border-t border-gray-200 pt-4">
@@ -306,10 +370,7 @@ export default function Packages() {
 
       <Modal
         open={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          setSelectedPlan(null);
-        }}
+        onClose={closeModal}
         wide
         icon={<FiBox size={20} />}
         title={
@@ -324,7 +385,7 @@ export default function Packages() {
           <>
             <button
               type="button"
-              onClick={() => setModalOpen(false)}
+              onClick={closeModal}
               className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
               {tc("cancel")}
@@ -343,6 +404,15 @@ export default function Packages() {
         }
       >
         <div className="space-y-4">
+          {formError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+            >
+              {formError}
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInput
               label={t("packages.packageName")}
@@ -366,6 +436,7 @@ export default function Packages() {
             <textarea
               className={`${inputClass} min-h-[80px]`}
               value={form.description}
+              placeholder={t("packages.descriptionPlaceholder")}
               onChange={(event) => updateForm("description", event.target.value)}
               rows={3}
             />
@@ -380,11 +451,15 @@ export default function Packages() {
             <NumberField label={t("packages.maxTripsLabel")} value={form.maxTripsPerMonth} onChange={(value) => updateForm("maxTripsPerMonth", value)} />
           </div>
 
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{t("packages.modulesTitle")}</p>
+            <p className="mt-1 text-xs text-gray-500">{t("packages.modulesHint")}</p>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Toggle label="Hàng hóa" checked={form.enableParcel} onChange={(value) => updateForm("enableParcel", value)} />
-            <Toggle label="Xe trung chuyển" checked={form.enableShuttle} onChange={(value) => updateForm("enableShuttle", value)} />
-            <Toggle label="Trợ lý AI" checked={form.enableRag} onChange={(value) => updateForm("enableRag", value)} />
-            <Toggle label={t("packages.activatePackage")} checked={form.isActive} onChange={(value) => updateForm("isActive", value)} />
+            <Toggle label={t("packages.parcelModule")} description={t("packages.parcelModuleHint")} checked={form.enableParcel} onChange={(value) => updateForm("enableParcel", value)} />
+            <Toggle label={t("packages.shuttleModule")} description={t("packages.shuttleModuleHint")} checked={form.enableShuttle} onChange={(value) => updateForm("enableShuttle", value)} />
+            <Toggle label={t("packages.ragModule")} description={t("packages.ragModuleHint")} checked={form.enableRag} onChange={(value) => updateForm("enableRag", value)} />
+            <Toggle label={t("packages.activatePackage")} description={t("packages.activatePackageHint")} checked={form.isActive} onChange={(value) => updateForm("isActive", value)} />
           </div>
         </div>
       </Modal>
@@ -467,22 +542,68 @@ function CurrencyField({
 
 function Toggle({
   label,
+  description,
   checked,
   onChange,
 }: {
   label: string;
+  description: string;
   checked: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50/80 p-4 text-sm font-semibold text-gray-800">
-      {label}
+    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-gray-800">{label}</span>
+        <span className="mt-1 block text-xs font-normal leading-5 text-gray-500">{description}</span>
+      </span>
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 text-vr-600 focus:ring-vr-500"
       />
     </label>
+  );
+}
+
+
+function PackageSkeletonBlock({ className }: { className: string }) {
+  return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />;
+}
+
+function PackagesPageSkeleton({ loadingLabel }: { loadingLabel: string }) {
+  return (
+    <div className="space-y-6" role="status" aria-label={loadingLabel} data-testid="packages-page-skeleton">
+      <div className="flex items-center justify-between gap-4">
+        <div className="w-full max-w-3xl space-y-2">
+          <PackageSkeletonBlock className="h-9 w-72" />
+          <PackageSkeletonBlock className="h-5 w-full" />
+        </div>
+        <PackageSkeletonBlock className="h-10 w-36 shrink-0" />
+      </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }, (_, index) => (
+          <div key={index} className="space-y-5 rounded-lg border border-gray-200 bg-white p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="w-2/3 space-y-2">
+                <PackageSkeletonBlock className="h-3 w-24" />
+                <PackageSkeletonBlock className="h-7 w-full" />
+              </div>
+              <PackageSkeletonBlock className="h-6 w-20" />
+            </div>
+            <PackageSkeletonBlock className="h-12 w-full" />
+            <PackageSkeletonBlock className="h-20 w-full" />
+            <div className="grid grid-cols-2 gap-3">
+              <PackageSkeletonBlock className="h-10 w-full" />
+              <PackageSkeletonBlock className="h-10 w-full" />
+              <PackageSkeletonBlock className="h-10 w-full" />
+              <PackageSkeletonBlock className="h-10 w-full" />
+            </div>
+            <PackageSkeletonBlock className="h-8 w-full" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -11,9 +11,7 @@ import {
   FiArrowDown,
   FiArrowUp,
   FiCheckCircle,
-  FiClock,
   FiDollarSign,
-  FiList,
   FiPlus,
   FiRefreshCw,
   FiSearch,
@@ -68,6 +66,10 @@ type SettlementView = (typeof settlementViews)[number];
 
 function formatMoney(value: number) {
   return `${value.toLocaleString("vi-VN")} đ`;
+}
+
+function canSettleManually(status: TripSettlementStatus) {
+  return status === "PENDING_HOLD" || status === "ELIGIBLE";
 }
 
 function formatDate(value: string | null) {
@@ -126,11 +128,15 @@ export default function WalletSettlement() {
   );
   const [records, setRecords] = useState<TripSettlement[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [transactionPage, setTransactionPage] = useState(1);
+  const [transactionTotalItems, setTransactionTotalItems] = useState(0);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [settlingId, setSettlingId] = useState("");
+  const [settlementToConfirm, setSettlementToConfirm] =
+    useState<TripSettlement | null>(null);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -166,8 +172,8 @@ export default function WalletSettlement() {
             ...settlementFilters(settlementView),
           }),
           getAdminPlatformWalletTransactions({
-            page: 1,
-            pageSize: 10,
+            page: transactionPage,
+            pageSize,
             sortBy: "createdAt",
             sortDir: "desc",
           }),
@@ -177,6 +183,7 @@ export default function WalletSettlement() {
       setRecords(settlementResult.items);
       setTotalItems(settlementResult.totalItems);
       setTransactions(transactionResult.items);
+      setTransactionTotalItems(transactionResult.totalItems);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : t("walletSettlement.loadFailed"),
@@ -184,7 +191,7 @@ export default function WalletSettlement() {
     } finally {
       setLoading(false);
     }
-  }, [page, settlementView, t]);
+  }, [page, settlementView, t, transactionPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,6 +243,15 @@ export default function WalletSettlement() {
     [records],
   );
 
+  const settlementViewCounts: Record<SettlementView, number> = {
+    ALL: totalItems,
+    NEEDS_ATTENTION: totals.attention,
+    PENDING_HOLD: totals.byStatus.PENDING_HOLD,
+    ELIGIBLE: totals.byStatus.ELIGIBLE,
+    SETTLED: totals.byStatus.SETTLED,
+    CANCELLED: totals.byStatus.CANCELLED,
+  };
+
   function selectTab(tab: FinanceTab) {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
@@ -252,7 +268,7 @@ export default function WalletSettlement() {
   }
 
   async function triggerSettlement(record: TripSettlement) {
-    if (record.status !== "ELIGIBLE") {
+    if (!canSettleManually(record.status)) {
       setMessage(t("walletSettlement.notEligible"));
       return;
     }
@@ -266,6 +282,7 @@ export default function WalletSettlement() {
       setMessage(
         t("walletSettlement.settledMessage", { id: record.settlementId }),
       );
+      setSettlementToConfirm(null);
       await loadData();
     } catch (err) {
       setError(
@@ -424,7 +441,16 @@ export default function WalletSettlement() {
                     : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                 }`}
               >
-                {t(`walletSettlement.filters.${view}`)}
+                <span>{t(`walletSettlement.filters.${view}`)}</span>
+                <span
+                  className={`ml-1.5 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
+                    settlementView === view
+                      ? "bg-vr-100 text-vr-800"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {settlementViewCounts[view]}
+                </span>
               </button>
             ))}
           </div>
@@ -448,7 +474,7 @@ export default function WalletSettlement() {
                       {t("walletSettlement.operator")}
                     </th>
                     <th className="px-4 py-3">
-                      {t("walletSettlement.amount")}
+                      {t("walletSettlement.settlementAmount")}
                     </th>
                     <th className="px-4 py-3">
                       {t("walletSettlement.eligibleAt")}
@@ -540,15 +566,14 @@ export default function WalletSettlement() {
                         <button
                           type="button"
                           disabled={
-                            record.status !== "ELIGIBLE" ||
+                            !canSettleManually(record.status) ||
                             settlingId === record.settlementId
                           }
-                          onClick={() => void triggerSettlement(record)}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
-                          title={t("walletSettlement.manualSettle")}
-                          aria-label={t("walletSettlement.manualSettle")}
+                          onClick={() => setSettlementToConfirm(record)}
+                          className="inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <FiCheckCircle />
+                          {t("walletSettlement.manualSettle")}
                         </button>
                       </td>
                     </tr>
@@ -567,24 +592,13 @@ export default function WalletSettlement() {
       )}
 
       {activeTab === "transactions" && (
-        <section className="space-y-6">
-          <WalletTransactionGroup
-            icon={<FiArrowDown className="text-emerald-600" />}
-            title={t("walletSettlement.moneyIn")}
-            items={transactions.filter((item) => item.type === "CREDIT")}
-            tone="credit"
-            emptyLabel={t("walletSettlement.noCredits")}
-            t={t}
-          />
-          <WalletTransactionGroup
-            icon={<FiArrowUp className="text-red-600" />}
-            title={t("walletSettlement.moneyOut")}
-            items={transactions.filter((item) => item.type === "DEBIT")}
-            tone="debit"
-            emptyLabel={t("walletSettlement.noDebits")}
-            t={t}
-          />
-        </section>
+        <WalletTransactionTable
+          items={transactions}
+          page={transactionPage}
+          totalItems={transactionTotalItems}
+          onPageChange={setTransactionPage}
+          t={t}
+        />
       )}
 
       {activeTab === "operations" && (
@@ -613,6 +627,61 @@ export default function WalletSettlement() {
           <InvoiceRetryCard />
         </div>
       )}
+
+      <Modal
+        open={Boolean(settlementToConfirm)}
+        onClose={() => setSettlementToConfirm(null)}
+        icon={<FiDollarSign />}
+        title={t("walletSettlement.manualSettle")}
+        subtitle={t("walletSettlement.manualSettleHint")}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setSettlementToConfirm(null)}
+              disabled={Boolean(settlingId)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            >
+              {tc("cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (settlementToConfirm) {
+                  void triggerSettlement(settlementToConfirm);
+                }
+              }}
+              disabled={Boolean(settlingId)}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {settlingId
+                ? tc("processing")
+                : t("walletSettlement.confirmManualSettle")}
+            </button>
+          </>
+        }
+      >
+        {settlementToConfirm && (
+          <dl className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-gray-600">{t("walletSettlement.operator")}</dt>
+              <dd className="text-right font-semibold text-gray-900">
+                {settlementToConfirm.operator?.name ??
+                  settlementToConfirm.operatorId ??
+                  "-"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-gray-600">
+                {t("walletSettlement.settlementAmount")}
+              </dt>
+              <dd className="text-lg font-bold text-emerald-700">
+                {formatMoney(settlementToConfirm.netAmount)}
+              </dd>
+            </div>
+          </dl>
+        )}
+      </Modal>
 
       <Modal
         open={adjustOpen}
@@ -850,48 +919,6 @@ function OverviewTab({
         />
       </div>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {t("walletSettlement.flowTitle")}
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              {t("walletSettlement.flowHint")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onOpenSettlements}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <FiList />
-            {t("walletSettlement.openNeedsAttention")}
-          </button>
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-4">
-          <FlowStep
-            icon={<FiClock />}
-            label={t("walletSettlement.status.PENDING_HOLD")}
-            value={totals.byStatus.PENDING_HOLD}
-          />
-          <FlowStep
-            icon={<FiCheckCircle />}
-            label={t("walletSettlement.status.ELIGIBLE")}
-            value={totals.byStatus.ELIGIBLE}
-          />
-          <FlowStep
-            icon={<FiDollarSign />}
-            label={t("walletSettlement.status.SETTLED")}
-            value={totals.byStatus.SETTLED}
-          />
-          <FlowStep
-            icon={<FiAlertTriangle />}
-            label={t("walletSettlement.status.CANCELLED")}
-            value={totals.byStatus.CANCELLED}
-          />
-        </div>
-      </section>
     </div>
   );
 }
@@ -935,106 +962,114 @@ function Metric({
   );
 }
 
-function FlowStep({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="rounded-lg bg-gray-50 p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-        <span className="text-vr-600">{icon}</span>
-        {label}
-      </div>
-      <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
-    </div>
-  );
-}
-
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-function WalletTransactionGroup({
-  icon,
-  title,
+function WalletTransactionTable({
   items,
-  tone,
-  emptyLabel,
+  page,
+  totalItems,
+  onPageChange,
   t,
 }: {
-  icon: React.ReactNode;
-  title: string;
   items: WalletTransaction[];
-  tone: "credit" | "debit";
-  emptyLabel: string;
+  page: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
   t: Translate;
 }) {
-  const amountClass = tone === "credit" ? "text-emerald-700" : "text-red-700";
-  const sign = tone === "credit" ? "+" : "-";
-
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-        {icon}
-        {title}
-      </h2>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[900px] text-sm">
-          <thead>
-            <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3">{t("walletSettlement.createdAt")}</th>
-              <th className="px-4 py-3">{t("walletSettlement.amount")}</th>
-              <th className="px-4 py-3">
-                {t("walletSettlement.balanceBefore")}
-              </th>
-              <th className="px-4 py-3">
-                {t("walletSettlement.balanceAfter")}
-              </th>
-              <th className="px-4 py-3">{t("walletSettlement.reference")}</th>
-              <th className="px-4 py-3">{t("walletSettlement.actor")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                  {emptyLabel}
-                </td>
+    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="p-4">
+        <h2 className="text-lg font-semibold text-gray-900">
+          {t("walletSettlement.latestTransactions")}
+        </h2>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+                <th className="px-4 py-3">{t("walletSettlement.createdAt")}</th>
+                <th className="px-4 py-3">{t("walletSettlement.cashFlow")}</th>
+                <th className="px-4 py-3">{t("walletSettlement.amount")}</th>
+                <th className="px-4 py-3">
+                  {t("walletSettlement.balanceBefore")}
+                </th>
+                <th className="px-4 py-3">
+                  {t("walletSettlement.balanceAfter")}
+                </th>
+                <th className="px-4 py-3">{t("walletSettlement.reference")}</th>
+                <th className="px-4 py-3">{t("walletSettlement.actor")}</th>
               </tr>
-            ) : (
-              items.map((item) => (
-                <tr
-                  key={item.transactionId}
-                  className="border-t border-gray-100"
-                >
-                  <td className="px-4 py-3">{formatDate(item.createdAt)}</td>
-                  <td className={`px-4 py-3 font-semibold ${amountClass}`}>
-                    {sign}
-                    {formatMoney(item.amount)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {formatMoney(item.balanceBefore)}
-                  </td>
-                  <td className="px-4 py-3 font-semibold">
-                    {formatMoney(item.balanceAfter)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="font-mono text-xs">{item.referenceType}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    {item.actorType === "SYSTEM"
-                      ? t("walletSettlement.systemActor")
-                      : (item.actor?.displayName ?? "-")}
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                    {t("walletSettlement.empty")}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                items.map((item) => {
+                  const isCredit = item.type === "CREDIT";
+
+                  return (
+                    <tr key={item.transactionId} className="border-t border-gray-100">
+                      <td className="whitespace-nowrap px-4 py-3">
+                        {formatDate(item.createdAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center gap-2 font-semibold ${
+                            isCredit ? "text-emerald-700" : "text-red-700"
+                          }`}
+                        >
+                          {isCredit ? <FiArrowDown /> : <FiArrowUp />}
+                          {t(
+                            isCredit
+                              ? "walletSettlement.moneyIn"
+                              : "walletSettlement.moneyOut",
+                          )}
+                        </span>
+                      </td>
+                      <td
+                        className={`whitespace-nowrap px-4 py-3 font-semibold ${
+                          isCredit ? "text-emerald-700" : "text-red-700"
+                        }`}
+                      >
+                        {isCredit ? "+" : "-"}
+                        {formatMoney(item.amount)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+                        {formatMoney(item.balanceBefore)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 font-semibold">
+                        {formatMoney(item.balanceAfter)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-sm text-gray-700">
+                          {t(`walletSettlement.references.${item.referenceType}`, {
+                            defaultValue: item.referenceType,
+                          })}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.actorType === "SYSTEM"
+                          ? t("walletSettlement.systemActor")
+                          : (item.actor?.displayName ?? "-")}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        onPageChange={onPageChange}
+      />
+    </section>
   );
 }

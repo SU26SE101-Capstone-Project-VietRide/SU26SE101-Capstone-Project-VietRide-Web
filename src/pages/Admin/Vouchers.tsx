@@ -98,6 +98,12 @@ function toNumber(value: string) {
   return Number.isFinite(next) ? next : 0;
 }
 
+function maxDiscountAmountOf(form: VoucherForm) {
+  return form.discountType === "FIXED_AMOUNT"
+    ? toNumber(form.discount)
+    : toNumber(form.maxDiscountAmount);
+}
+
 function voucherServicesOf(voucher: AdminVoucher) {
   return voucher.applicableServices ?? [];
 }
@@ -225,7 +231,7 @@ function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
     type: form.discountType,
     value: toNumber(form.discount),
     minOrderAmount: toNumber(form.minOrderValue),
-    maxDiscountAmount: toNumber(form.maxDiscountAmount),
+    maxDiscountAmount: maxDiscountAmountOf(form),
     totalUsageLimit: toNumber(form.quantity),
     perUserLimit: toNumber(form.maxUsagePerUser),
     validFrom: new Date().toISOString(),
@@ -245,7 +251,7 @@ function toUpdateRequest(form: VoucherForm): UpdateAdminVoucherRequest {
     name: form.name.trim(),
     value: toNumber(form.discount),
     minOrderAmount: toNumber(form.minOrderValue),
-    maxDiscountAmount: toNumber(form.maxDiscountAmount),
+    maxDiscountAmount: maxDiscountAmountOf(form),
     totalUsageLimit: toNumber(form.quantity),
     perUserLimit: toNumber(form.maxUsagePerUser),
     validUntil: toEndOfDayIso(form.expiryDate),
@@ -463,7 +469,7 @@ export default function Vouchers() {
       return;
     }
 
-    if (toNumber(form.maxDiscountAmount) <= 0) {
+    if (maxDiscountAmountOf(form) <= 0) {
       setError(t("vouchers.invalidMaxDiscountAmount"));
       return;
     }
@@ -1195,7 +1201,11 @@ export default function Vouchers() {
               </CustomSelect>
             </div>
             <Field
-              label={t("vouchers.discountValue")}
+              label={
+                form.discountType === "FIXED_AMOUNT"
+                  ? t("vouchers.fixedDiscountValue")
+                  : t("vouchers.discountValue")
+              }
               value={form.discount}
               type="number"
               currency={form.discountType === "FIXED_AMOUNT"}
@@ -1204,15 +1214,23 @@ export default function Vouchers() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label={t("vouchers.maxDiscountAmount")}
-              value={form.maxDiscountAmount}
-              type="number"
-              currency
-              onChange={(value) => updateForm("maxDiscountAmount", value)}
-              required
-            />
+          <div
+            className={
+              form.discountType === "PERCENT_OFF"
+                ? "grid gap-4 sm:grid-cols-2"
+                : "grid gap-4"
+            }
+          >
+            {form.discountType === "PERCENT_OFF" && (
+              <Field
+                label={t("vouchers.maxDiscountAmount")}
+                value={form.maxDiscountAmount}
+                type="number"
+                currency
+                onChange={(value) => updateForm("maxDiscountAmount", value)}
+                required
+              />
+            )}
             <div>
               <label className={labelClass}>{t("vouchers.applicable")}</label>
               <CustomSelect
@@ -1225,12 +1243,21 @@ export default function Vouchers() {
                 <option value="parcels">{t("vouchers.parcelsOnly")}</option>
               </CustomSelect>
             </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label={t("vouchers.minOrder")}
               value={form.minOrderValue}
               type="number"
               currency
               onChange={(value) => updateForm("minOrderValue", value)}
+            />
+            <Field
+              label={t("vouchers.maxUsagePerUser")}
+              value={form.maxUsagePerUser}
+              type="number"
+              onChange={(value) => updateForm("maxUsagePerUser", value)}
             />
           </div>
 
@@ -1313,13 +1340,6 @@ export default function Vouchers() {
               required
             />
           </div>
-
-          <Field
-            label={t("vouchers.maxUsagePerUser")}
-            value={form.maxUsagePerUser}
-            type="number"
-            onChange={(value) => updateForm("maxUsagePerUser", value)}
-          />
 
           <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
             <input

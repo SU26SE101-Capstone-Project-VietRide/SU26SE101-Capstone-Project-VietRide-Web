@@ -13,8 +13,6 @@ import {
 } from "react-icons/fi";
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -37,6 +35,7 @@ import {
 } from "../../api/vietride";
 import { downloadCsv } from "../../utils/csv";
 
+import { downloadRevenueCsv } from "./revenueCsv";
 type BookingChartPoint = {
   month: string;
   revenue: number;
@@ -65,18 +64,8 @@ function monthLabel(dateValue?: string) {
   return Number.isNaN(month) ? dateValue : `T${month}`;
 }
 
-
-
-function formatCompactMoney(value: number) {
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(1)}B`;
-  }
-
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-
-  return value.toLocaleString("vi-VN");
+function formatVnd(value: number) {
+  return `${value.toLocaleString("vi-VN")} VND`;
 }
 
 function formatCompactNumber(value: number) {
@@ -127,9 +116,19 @@ function formatDateValue(value: string) {
   return `${day}/${month}/${year}`;
 }
 
-function metricTrend(metric: MetricValue, newLabel: string) {
+type MetricTrend = { label: string; className: string; hint?: string };
+
+function metricTrend(
+  metric: MetricValue,
+  newLabel: string,
+  newHint: string,
+): MetricTrend {
   if (metric.previousValue === 0 && metric.currentValue > 0) {
-    return { label: `↑ ${newLabel}`, className: "text-emerald-600" };
+    return {
+      label: newLabel,
+      className: "text-emerald-600",
+      hint: newHint,
+    };
   }
 
   if (metric.trend === "DOWN") {
@@ -157,9 +156,16 @@ export default function AdminDashboard() {
   const { t: tc } = useTranslation("common");
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [bookingStatsData, setBookingStatsData] = useState<BookingChartPoint[]>([]);
-  const [revenueByOperatorData, setRevenueByOperatorData] = useState<OperatorRevenuePoint[]>([]);
-  const [dashboardSummary, setDashboardSummary] = useState<AdminDashboardSummary | null>(null);
+  const [bookingStatsData, setBookingStatsData] = useState<BookingChartPoint[]>(
+    [],
+  );
+  const [revenueByOperatorData, setRevenueByOperatorData] = useState<
+    OperatorRevenuePoint[]
+  >([]);
+  const [dashboardSummary, setDashboardSummary] =
+    useState<AdminDashboardSummary | null>(null);
+  const [revenueAnalytics, setRevenueAnalytics] =
+    useState<AdminRevenueAnalytics | null>(null);
   const [loadError, setLoadError] = useState("");
 
   const loadDashboard = async () => {
@@ -172,8 +178,11 @@ export default function AdminDashboard() {
         getAdminDashboardSummary({ from, to }),
         getAdminRevenueAnalytics({ from, to, groupBy: "month", top: 10 }),
       ]);
-      setBookingStatsData(mapDashboardChart(bookingStats.items, revenue.monthly));
+      setBookingStatsData(
+        mapDashboardChart(bookingStats.items, revenue.monthly),
+      );
       setDashboardSummary(dashboard);
+      setRevenueAnalytics(revenue);
       setRevenueByOperatorData(
         revenue.topOperators.map((item) => ({
           operator: item.operatorName,
@@ -182,7 +191,9 @@ export default function AdminDashboard() {
       );
     } catch (requestError) {
       setLoadError(
-        requestError instanceof Error ? requestError.message : "Không thể tải dữ liệu dashboard.",
+        requestError instanceof Error
+          ? requestError.message
+          : "Không thể tải dữ liệu dashboard.",
       );
     } finally {
       setIsLoading(false);
@@ -210,30 +221,68 @@ export default function AdminDashboard() {
   const adminKPIs = [
     {
       label: t("dashboard.totalRevenue"),
-      value: metrics ? formatCompactMoney(metrics.totalRevenue.currentValue) : "-",
-      previous: metrics ? formatCompactMoney(metrics.totalRevenue.previousValue) : "-",
-      trend: metrics ? metricTrend(metrics.totalRevenue, t("dashboard.newGrowth")) : null,
+      value: metrics
+        ? formatVnd(metrics.totalRevenue.currentValue)
+        : "-",
+      previous: metrics
+        ? formatVnd(metrics.totalRevenue.previousValue)
+        : "-",
+      trend: metrics
+        ? metricTrend(
+            metrics.totalRevenue,
+            t("dashboard.newGrowth"),
+            t("dashboard.newGrowthHint"),
+          )
+        : null,
       icon: <FiDollarSign className="w-6 h-6" />,
     },
     {
       label: t("dashboard.activeOperators"),
-      value: metrics ? formatCompactNumber(metrics.activeOperators.currentValue) : "-",
-      previous: metrics ? formatCompactNumber(metrics.activeOperators.previousValue) : "-",
-      trend: metrics ? metricTrend(metrics.activeOperators, t("dashboard.newGrowth")) : null,
+      value: metrics
+        ? formatCompactNumber(metrics.activeOperators.currentValue)
+        : "-",
+      previous: metrics
+        ? formatCompactNumber(metrics.activeOperators.previousValue)
+        : "-",
+      trend: metrics
+        ? metricTrend(
+            metrics.activeOperators,
+            t("dashboard.newGrowth"),
+            t("dashboard.newGrowthHint"),
+          )
+        : null,
       icon: <FiTruck className="w-6 h-6" />,
     },
     {
       label: t("dashboard.activeUsers"),
-      value: metrics ? formatCompactNumber(metrics.activeUsers.currentValue) : "-",
-      previous: metrics ? formatCompactNumber(metrics.activeUsers.previousValue) : "-",
-      trend: metrics ? metricTrend(metrics.activeUsers, t("dashboard.newGrowth")) : null,
+      value: metrics
+        ? formatCompactNumber(metrics.activeUsers.currentValue)
+        : "-",
+      previous: metrics
+        ? formatCompactNumber(metrics.activeUsers.previousValue)
+        : "-",
+      trend: metrics
+        ? metricTrend(
+            metrics.activeUsers,
+            t("dashboard.newGrowth"),
+            t("dashboard.newGrowthHint"),
+          )
+        : null,
       icon: <FiUsers className="w-6 h-6" />,
     },
     {
       label: t("dashboard.periodBookings"),
       value: metrics ? formatCompactNumber(metrics.bookings.currentValue) : "-",
-      previous: metrics ? formatCompactNumber(metrics.bookings.previousValue) : "-",
-      trend: metrics ? metricTrend(metrics.bookings, t("dashboard.newGrowth")) : null,
+      previous: metrics
+        ? formatCompactNumber(metrics.bookings.previousValue)
+        : "-",
+      trend: metrics
+        ? metricTrend(
+            metrics.bookings,
+            t("dashboard.newGrowth"),
+            t("dashboard.newGrowthHint"),
+          )
+        : null,
       icon: <FiBarChart2 className="w-6 h-6" />,
     },
   ];
@@ -254,60 +303,66 @@ export default function AdminDashboard() {
     "#ef4444",
     "#06b6d4",
   ];
-  const userDistribution = (metrics?.userDistribution ?? []).map((item, index) => ({
-    name: roleLabels[item.role] ?? item.role,
-    value: item.count,
-    color: distributionColors[index % distributionColors.length],
-  }));
+  const userDistribution = (metrics?.userDistribution ?? []).map(
+    (item, index) => ({
+      name: roleLabels[item.role] ?? item.role,
+      value: item.count,
+      color: distributionColors[index % distributionColors.length],
+    }),
+  );
 
-  const statusLabels: Record<string, string> = {
-    APPROVED: t("dashboard.statusApproved"),
-    PENDING: t("dashboard.statusPending"),
-    SUSPENDED: t("dashboard.statusSuspended"),
-    REJECTED: t("dashboard.statusRejected"),
-  };
-  const statusColors: Record<string, string> = {
-    APPROVED: "#10b981",
-    PENDING: "#f59e0b",
-    SUSPENDED: "#ef4444",
-    REJECTED: "#6b7280",
-  };
-  const operatorStatus = (metrics?.operatorStatusDistribution ?? []).map((item) => ({
-    key: item.status,
-    status: statusLabels[item.status] ?? item.status,
-    count: item.count,
-    percentage: item.percent,
-    color: statusColors[item.status] ?? "#94a3b8",
-  }));
   const pendingOperators =
-    metrics?.operatorStatusDistribution.find((item) => item.status === "PENDING")?.count ?? 0;
+    metrics?.operatorStatusDistribution.find(
+      (item) => item.status === "PENDING",
+    )?.count ?? 0;
   const approvedOperators =
-    metrics?.operatorStatusDistribution.find((item) => item.status === "APPROVED")?.count ?? 0;
-  const handleExportReport = (report: string) => {
+    metrics?.operatorStatusDistribution.find(
+      (item) => item.status === "APPROVED",
+    )?.count ?? 0;
+  const handleExportReport = (report: { key: string; label: string }) => {
+    if (report.key === "revenue" && revenueAnalytics) {
+      downloadRevenueCsv(revenueAnalytics, {
+        periodFrom: t("revenue.csvPeriodFrom"),
+        periodTo: t("revenue.csvPeriodTo"),
+        timezone: t("revenue.csvTimezone"),
+        month: t("revenue.csvMonth"),
+        grossRevenue: t("revenue.csvGrossRevenue"),
+        paidToOperators: t("revenue.csvPaidToOperators"),
+        platformRevenue: t("revenue.csvPlatformRevenue"),
+      });
+      return;
+    }
+
     downloadCsv(
       "admin-dashboard-report.csv",
       ["Báo cáo", "Ghi chú"],
-      [[report, "Dữ liệu minh họa; mở trang Báo cáo để xem dữ liệu đầy đủ từ hệ thống"]],
+      [
+        [
+          report.label,
+          "Dữ liệu minh họa; mở trang Báo cáo để xem dữ liệu đầy đủ từ hệ thống",
+        ],
+      ],
     );
   };
 
   const exportReports = [
-    t("dashboard.exportRevenue"),
-    t("dashboard.exportUsers"),
-    t("dashboard.exportOperators"),
-    t("dashboard.exportBookings"),
+    { key: "revenue", label: t("dashboard.exportRevenue") },
+    { key: "users", label: t("dashboard.exportUsers") },
+    { key: "operators", label: t("dashboard.exportOperators") },
+    { key: "bookings", label: t("dashboard.exportBookings") },
   ];
-
 
   const handleRefresh = () => {
     void loadDashboard();
   };
 
-
   return (
     <div className="space-y-6 pb-4">
       {loadError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+        <div
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+        >
           {loadError}
         </div>
       )}
@@ -317,6 +372,9 @@ export default function AdminDashboard() {
             {t("dashboard.title")}
           </h1>
           <p className="text-gray-600 mt-1">{period}</p>
+          <p className="mt-1 text-xs text-gray-500">
+            {t("dashboard.comparisonNote")}
+          </p>
         </div>
         <button
           onClick={handleRefresh}
@@ -338,15 +396,13 @@ export default function AdminDashboard() {
               <div className="text-vr-600">{kpi.icon}</div>
               <span
                 className={`text-xs font-semibold ${kpi.trend?.className ?? "text-gray-400"}`}
+                title={kpi.trend?.hint}
               >
                 {kpi.trend?.label ?? "-"}
               </span>
             </div>
             <p className="text-gray-600 text-xs mb-1">{kpi.label}</p>
             <p className="text-2xl font-bold text-gray-900">{kpi.value}</p>
-            <p className="mt-1 text-xs text-gray-500">
-              {t("dashboard.previousValue", { value: kpi.previous })}
-            </p>
           </div>
         ))}
       </div>
@@ -366,17 +422,33 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={bookingStatsData}>
+              <BarChart
+                data={bookingStatsData}
+                margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="month" stroke="#9ca3af" />
-                <YAxis yAxisId="left" stroke="#9ca3af" allowDecimals={false} />
                 <YAxis
-                  yAxisId="right"
+                  yAxisId="bookings"
+                  stroke="#8b5cf6"
+                  allowDecimals={false}
+                  tickFormatter={formatCompactNumber}
+                  width={45}
+                />
+                <YAxis
+                  yAxisId="revenue"
                   orientation="right"
-                  stroke="#9ca3af"
-                  tickFormatter={formatCompactMoney}
+                  stroke="#3b82f6"
+                  tickFormatter={formatVnd}
+                  width={115}
                 />
                 <Tooltip
+                  formatter={(value, name) => [
+                    name === t("dashboard.revenueLegend")
+                      ? formatVnd(Number(value ?? 0))
+                      : formatCompactNumber(Number(value ?? 0)),
+                    name,
+                  ]}
                   contentStyle={{
                     backgroundColor: "#fff",
                     border: "1px solid #e5e7eb",
@@ -384,23 +456,21 @@ export default function AdminDashboard() {
                   }}
                 />
                 <Legend />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
+                <Bar
+                  yAxisId="revenue"
                   dataKey="revenue"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
+                  fill="#3b82f6"
+                  radius={[6, 6, 0, 0]}
                   name={t("dashboard.revenueLegend")}
                 />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
+                <Bar
+                  yAxisId="bookings"
                   dataKey="bookings"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
+                  fill="#8b5cf6"
+                  radius={[6, 6, 0, 0]}
                   name={t("dashboard.bookingLegend")}
                 />
-              </LineChart>
+              </BarChart>
             </ResponsiveContainer>
           )}
         </div>
@@ -449,92 +519,45 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {t("dashboard.revenueByOperator")}
-          </h2>
-          {isLoading ? (
-            <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-              {t("dashboard.loadingChart")}
-            </div>
-          ) : revenueByOperatorData.length === 0 ? (
-            <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-              {t("dashboard.noOperatorRevenue")}
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart
-                data={revenueByOperatorData}
-                layout="vertical"
-                margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  type="number"
-                  stroke="#9ca3af"
-                  tickFormatter={formatCompactMoney}
-                />
-                <YAxis
-                  dataKey="operator"
-                  type="category"
-                  stroke="#9ca3af"
-                  width={115}
-                />
-                <Tooltip
-                  formatter={(value) => formatCompactMoney(Number(value ?? 0))}
-                  contentStyle={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {t("dashboard.operatorStatus")}
-          </h2>
-          {operatorStatus.length === 0 ? (
-            <div className="flex h-16 items-center justify-center text-sm text-gray-500">
-              {t("dashboard.noChartData")}
-            </div>
-          ) : (
-            <>
-              <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
-                {operatorStatus.map((item) => (
-                  <div
-                    key={item.key}
-                    className="h-full first:rounded-l-full last:rounded-r-full"
-                    style={{
-                      width: `${item.percentage}%`,
-                      backgroundColor: item.color,
-                    }}
-                    title={`${item.status}: ${item.count}`}
-                  />
-                ))}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-                {operatorStatus.map((item) => (
-                  <div key={item.key} className="flex items-center gap-1.5 text-sm">
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="text-gray-600">{item.status}</span>
-                    <span className="font-semibold text-gray-900">
-                      {item.count}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {t("dashboard.revenueByOperator")}
+        </h2>
+        {isLoading ? (
+          <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
+            {t("dashboard.loadingChart")}
+          </div>
+        ) : revenueByOperatorData.length === 0 ? (
+          <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
+            {t("dashboard.noOperatorRevenue")}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart
+              data={revenueByOperatorData}
+              layout="vertical"
+              margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis type="number" stroke="#9ca3af" tickFormatter={formatVnd} />
+              <YAxis
+                dataKey="operator"
+                type="category"
+                stroke="#9ca3af"
+                width={115}
+              />
+              <Tooltip
+                formatter={(value) => formatVnd(Number(value ?? 0))}
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
+                }}
+              />
+              <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 8, 8, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -557,9 +580,15 @@ export default function AdminDashboard() {
               <span className="text-gray-700">
                 {t("dashboard.pendingOperators")}
               </span>
-              <span className="font-bold text-amber-600">{pendingOperators}</span>
+              <span className="font-bold text-amber-600">
+                {pendingOperators}
+              </span>
             </div>
-            <button type="button" onClick={() => navigate("/admin/operators?status=PENDING")} className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium rounded-lg text-sm transition">
+            <button
+              type="button"
+              onClick={() => navigate("/admin/operators?status=PENDING")}
+              className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium rounded-lg text-sm transition"
+            >
               {t("dashboard.viewPending")}
             </button>
           </div>
@@ -581,10 +610,18 @@ export default function AdminDashboard() {
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-700">{t("dashboard.approvedLabel")}</span>
-              <span className="font-bold text-emerald-600">{approvedOperators}</span>
+              <span className="text-gray-700">
+                {t("dashboard.approvedLabel")}
+              </span>
+              <span className="font-bold text-emerald-600">
+                {approvedOperators}
+              </span>
             </div>
-            <button type="button" onClick={() => navigate("/admin/operators?status=APPROVED")} className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-lg text-sm transition">
+            <button
+              type="button"
+              onClick={() => navigate("/admin/operators?status=APPROVED")}
+              className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium rounded-lg text-sm transition"
+            >
               {t("dashboard.viewDetails")}
             </button>
           </div>
@@ -598,13 +635,14 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {exportReports.map((report) => (
             <button
-              key={report}
+              key={report.key}
               type="button"
               onClick={() => handleExportReport(report)}
-              className="py-2 px-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 text-sm font-medium transition flex items-center justify-center gap-2"
+              disabled={report.key === "revenue" && !revenueAnalytics}
+              className="py-2 px-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 text-sm font-medium transition flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <FiDownload size={14} />
-              {report}
+              {report.label}
             </button>
           ))}
         </div>
@@ -612,10 +650,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
-
-
-
-
-
-

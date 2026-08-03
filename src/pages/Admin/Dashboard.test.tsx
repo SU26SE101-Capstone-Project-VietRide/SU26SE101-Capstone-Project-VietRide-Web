@@ -25,11 +25,9 @@ vi.mock("recharts", () => {
   const Container = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   return {
     ResponsiveContainer: Container,
-    LineChart: Container,
     BarChart: Container,
     PieChart: Container,
     Pie: Container,
-    Line: () => null,
     Bar: () => null,
     Cell: () => null,
     XAxis: () => null,
@@ -126,8 +124,11 @@ describe("Admin Dashboard", () => {
     expect(within(approvedCard as HTMLElement).getByText("8")).toBeInTheDocument();
 
     expect(screen.queryByText("28")).not.toBeInTheDocument();
+    expect(screen.getByText("2.850.000 VND")).toBeInTheDocument();
     expect(screen.getByText("dashboard.noOperatorRevenue")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.operatorStatus")).not.toBeInTheDocument();
     expect(screen.getByText("dashboard.operatorStaff")).toBeInTheDocument();
     expect(screen.getByText("↓ -25.0%")).toHaveClass("text-red-600");
   });
 });
+

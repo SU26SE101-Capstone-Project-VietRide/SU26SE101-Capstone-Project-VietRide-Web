@@ -50,7 +50,7 @@ export default function Users() {
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [actionUserId, setActionUserId] = useState("");
   const [message, setMessage] = useState<{
     tone: "success" | "error";
@@ -153,6 +153,7 @@ export default function Users() {
     }
   }
 
+
   return (
     <div className="space-y-6">
       <header>
@@ -245,9 +246,8 @@ export default function Users() {
           </label>
         </div>
 
-        <div className="overflow-hidden">
+        <div className="overflow-hidden" aria-busy={isLoading}>
           <table className="w-full table-fixed">
-            <thead>
             <colgroup>
               <col className="w-[17%]" />
               <col className="w-[21%]" />
@@ -255,8 +255,9 @@ export default function Users() {
               <col className="w-[13%]" />
               <col className="w-[15%]" />
               <col className="w-[14%]" />
-              <col className="w-[9%]" />
+              <col className="w-[88px]" />
             </colgroup>
+            <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold whitespace-nowrap text-gray-700">
                 <th className="px-4 py-3">{t("users.fullName")}</th>
                 <th className="px-4 py-3">{tc("email")}</th>
@@ -264,18 +265,20 @@ export default function Users() {
                 <th className="px-4 py-3">{t("users.role")}</th>
                 <th className="px-4 py-3">{t("users.joined")}</th>
                 <th className="px-4 py-3">{tc("status")}</th>
-                <th className="px-2 py-3 text-center">{tc("actions")}</th>
+                <th className="sticky right-0 z-10 bg-gray-50 px-2 py-3 text-center">
+                  {tc("actions")}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => {
+              {!isLoading && users.map((user) => {
                 const canToggle =
                   user.userId !== currentUserId &&
                   (isActiveStatus(user.status) || isLockedStatus(user.status));
 
                 const userRoleLabel = roleLabel(user.role);
                 return (
-                  <tr key={user.userId} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={user.userId} className="group border-b border-gray-100 hover:bg-gray-50">
                     <td className="min-w-0 px-4 py-4">
                       <div className="flex min-w-0 items-center gap-3">
                         <img
@@ -326,8 +329,8 @@ export default function Users() {
                         {user.status ? tc(`enumLabels.${user.status}`, { defaultValue: user.status }) : "-"}
                       </span>
                     </td>
-                    <td className="px-2 py-4">
-                      <div className="flex items-center justify-center gap-1">
+                    <td className="sticky right-0 bg-white px-2 py-4 group-hover:bg-gray-50">
+                      <div className="mx-auto grid w-[68px] grid-cols-2 gap-1">
                         <button
                           type="button"
                           onClick={() => setSelected(user)}
@@ -363,6 +366,9 @@ export default function Users() {
                             {isLockedStatus(user.status) ? <FiUnlock /> : <FiLock />}
                           </button>
                         )}
+                        {!isActiveStatus(user.status) && !isLockedStatus(user.status) && (
+                          <span aria-hidden="true" className="h-8 w-8" />
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -375,13 +381,7 @@ export default function Users() {
                   </td>
                 </tr>
               )}
-              {isLoading && (
-                <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
-                    {t("users.loading")}
-                  </td>
-                </tr>
-              )}
+              {isLoading && <UserTableSkeletonRows />}
             </tbody>
           </table>
         </div>
@@ -390,7 +390,10 @@ export default function Users() {
           page={page}
           pageSize={pageSize}
           totalItems={totalItems}
-          onPageChange={setPage}
+          onPageChange={(nextPage) => {
+            setIsLoading(true);
+            setPage(nextPage);
+          }}
         />
       </section>
 
@@ -455,11 +458,8 @@ function UserDetailModal({
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <DetailItem label={t("users.fullName")} value={user.displayName} />
-            <DetailItem label={tc("email")} value={user.email} />
+          <div className="grid gap-3 sm:grid-cols-2">
             <DetailItem label={tc("phone")} value={formatVietnamPhoneForDisplay(user.phone)} />
-            <DetailItem label={t("users.role")} value={roleLabel(user.role)} />
             <DetailItem label={tc("status")} value={tc(`enumLabels.${user.status}`, { defaultValue: user.status })} />
             <DetailItem label={t("users.joined")} value={formatDateTime(user.createdAt)} />
             <DetailItem label={t("users.updatedAt")} value={formatDateTime(user.updatedAt)} />
@@ -469,3 +469,37 @@ function UserDetailModal({
     </Modal>
   );
 }
+
+
+function SkeletonBlock({ className }: { className: string }) {
+  return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />;
+}
+
+function UserTableSkeletonRows() {
+  return (
+    <>
+      {Array.from({ length: 5 }, (_, index) => (
+        <tr
+          key={index}
+          className="border-b border-gray-100"
+          aria-hidden="true"
+          data-testid={index === 0 ? "users-table-skeleton" : undefined}
+        >
+          <td className="px-4 py-4"><SkeletonBlock className="h-10 w-full" /></td>
+          <td className="px-4 py-4"><SkeletonBlock className="h-4 w-full" /></td>
+          <td className="px-4 py-4"><SkeletonBlock className="h-4 w-full" /></td>
+          <td className="px-4 py-4"><SkeletonBlock className="h-4 w-full" /></td>
+          <td className="px-4 py-4"><SkeletonBlock className="h-4 w-full" /></td>
+          <td className="px-4 py-4"><SkeletonBlock className="h-6 w-20" /></td>
+          <td className="sticky right-0 bg-white px-2 py-4">
+            <div className="mx-auto flex w-[68px] gap-1">
+              <SkeletonBlock className="h-8 w-8" />
+              <SkeletonBlock className="h-8 w-8" />
+            </div>
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
+

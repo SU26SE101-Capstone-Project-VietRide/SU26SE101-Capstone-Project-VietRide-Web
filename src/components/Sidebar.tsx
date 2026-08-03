@@ -270,11 +270,7 @@ const adminMenuConfig: MenuSection[] = [
         path: "/admin/rag-audit",
         icon: <FiDatabase />,
       },
-      {
-        labelKey: "admin.outboxDlq",
-        path: "/admin/outbox-dlq",
-        icon: <FiAlertTriangle />,
-      },
+
       {
         labelKey: "admin.assistant",
         path: "/admin/assistant",

@@ -757,7 +757,7 @@ export default function AdminStations() {
         </div>
 
         {selectedStation && form && (
-          <aside className="space-y-5">
+          <aside className="space-y-5 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start xl:overflow-y-auto xl:pr-1">
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-vr-50 p-2 text-vr-700">
