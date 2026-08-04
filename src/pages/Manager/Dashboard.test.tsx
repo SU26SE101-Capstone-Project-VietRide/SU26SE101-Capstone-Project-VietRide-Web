@@ -231,9 +231,9 @@ describe("Manager Dashboard", () => {
     const revenueCard = await screen.findByRole("article", {
       name: "dashboard.revenue",
     });
-    expect(within(revenueCard).getByText("4.0M")).toBeInTheDocument();
+    expect(within(revenueCard).getByText("4.000.000 ₫")).toBeInTheDocument();
     expect(
-      within(revenueCard).getByText("dashboard.yearToDateValue 2026 11.0M"),
+      within(revenueCard).getByText("dashboard.yearToDateValue 2026 11.000.000 ₫"),
     ).toBeInTheDocument();
     expect(within(revenueCard).getByText("-50.0%")).toBeInTheDocument();
 
