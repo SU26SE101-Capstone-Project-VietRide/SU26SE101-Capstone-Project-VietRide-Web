@@ -80,7 +80,24 @@ describe("Admin Dashboard", () => {
         platformRevenueVnd: 137_600_000,
       },
     ],
-    topOperators: [],
+    topOperators: [
+      {
+        rank: 1,
+        operatorId: "operator-1",
+        operatorName: "Phương Linh Express",
+        logoUrl: null,
+        revenueVnd: 450_000,
+        vehicleCount: 8,
+      },
+      {
+        rank: 2,
+        operatorId: "operator-2",
+        operatorName: "Vân Tuyến Express",
+        logoUrl: null,
+        revenueVnd: 400_000,
+        vehicleCount: 6,
+      },
+    ],
   } satisfies AdminRevenueAnalytics;
 
   beforeEach(() => {
@@ -124,11 +141,15 @@ describe("Admin Dashboard", () => {
     expect(within(approvedCard as HTMLElement).getByText("8")).toBeInTheDocument();
 
     expect(screen.queryByText("28")).not.toBeInTheDocument();
-    expect(screen.getByText("2.850.000 VND")).toBeInTheDocument();
-    expect(screen.getByText("dashboard.noOperatorRevenue")).toBeInTheDocument();
+    expect(screen.getByText("2.850.000 ₫")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.noOperatorRevenue")).not.toBeInTheDocument();
+    expect(screen.getByText("850.000 ₫")).toBeInTheDocument();
+    expect(screen.getByText("450.000 ₫")).toBeInTheDocument();
+    expect(screen.getByText("400.000 ₫")).toBeInTheDocument();
+    expect(screen.getByText("Phương Linh Express")).toBeInTheDocument();
+    expect(screen.getByText("Vân Tuyến Express")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.operatorStatus")).not.toBeInTheDocument();
     expect(screen.getByText("dashboard.operatorStaff")).toBeInTheDocument();
     expect(screen.getByText("↓ -25.0%")).toHaveClass("text-red-600");
   });
 });
-

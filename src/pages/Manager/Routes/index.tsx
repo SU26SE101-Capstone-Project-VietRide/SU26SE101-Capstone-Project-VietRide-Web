@@ -50,6 +50,7 @@ import {
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
 import CurrencyInput from "../../../components/CurrencyInput";
+import Modal from "../../../components/Modal";
 import PlacePicker, {
   type PlaceSelection,
 } from "../../../components/PlacePicker";
@@ -309,6 +310,7 @@ export default function RoutesPage() {
   const [stationPlaceDraft, setStationPlaceDraft] =
     useState<PlaceSelection | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState("");
+  const [stationSupportsShuttle, setStationSupportsShuttle] = useState(false);
   const [stationRouteRole, setStationRouteRole] =
     useState<StationRouteRole>("");
   const [routeStopDrafts, setRouteStopDrafts] = useState<RouteStopDraft[]>([]);
@@ -331,6 +333,8 @@ export default function RoutesPage() {
   const [isEditingGeometry, setIsEditingGeometry] = useState(false);
   const [isGeometryDirty, setIsGeometryDirty] = useState(false);
   const [activeTab, setActiveTab] = useState<RoutesTab>("station");
+  const [routeStopPendingRemoval, setRouteStopPendingRemoval] =
+    useState<RouteStopDraft | null>(null);
   const lastEstimatedRoutePairRef = useRef("");
 
   const selectedRoute = useMemo(
@@ -738,6 +742,7 @@ export default function RoutesPage() {
   async function applyStationPlace(place: PlaceSelection) {
     setStationPlaceDraft(place);
     setSelectedStationId("");
+    setStationSupportsShuttle(false);
 
     const result = await searchStations({
       q: place.name,
@@ -752,6 +757,7 @@ export default function RoutesPage() {
 
     setStations((current) => mergeStations(current, result));
     setSelectedStationId(result[0]?.id ?? "");
+    setStationSupportsShuttle(result[0]?.supportsShuttle ?? false);
     showMessage("station", t("routes.stationSearchFound", { count: result.length }));
   }
 
@@ -830,7 +836,7 @@ export default function RoutesPage() {
       latitude: stationPlaceDraft.latitude,
       longitude: stationPlaceDraft.longitude,
       addressStreet: stationPlaceDraft.address,
-      supportsShuttle: false,
+      supportsShuttle: stationSupportsShuttle,
       locationId: selectedLocationId,
     });
 
@@ -842,11 +848,14 @@ export default function RoutesPage() {
       latitude: created.latitude ?? stationPlaceDraft.latitude,
       longitude: created.longitude ?? stationPlaceDraft.longitude,
       address: created.addressStreet ?? stationPlaceDraft.address,
+      supportsShuttle:
+        created.supportsShuttle ?? stationSupportsShuttle,
     };
 
     setStations((current) => mergeStations(current, [station]));
     setSelectedStationId(station.id);
     setSelectedLocationId("");
+    setStationSupportsShuttle(false);
     assignStationToRoute(station.id);
     showMessage("station", t("routes.stationCreatedAndAttached"));
   }
@@ -1110,6 +1119,7 @@ export default function RoutesPage() {
             draft.orderIndex !== item.orderIndex,
         ),
       );
+      setRouteStopPendingRemoval(null);
       showMessage("routeStop", t("routes.routeStopRemoved"));
       return;
     }
@@ -1129,6 +1139,7 @@ export default function RoutesPage() {
           draft.orderIndex !== item.orderIndex,
       ),
     );
+    setRouteStopPendingRemoval(null);
     showMessage("routeStop", t("routes.routeStopRemoved"));
   }
 
@@ -1346,25 +1357,54 @@ export default function RoutesPage() {
                   }}
                 />
                 {stationPlaceDraft && !selectedStationId && (
-                  <div>
-                    <label className={labelClass}>
-                      {t("routes.searchLocation")}
-                    </label>
-                    <CustomSelect
-                      className={inputClass}
-                      value={selectedLocationId}
-                      onChange={(event) => setSelectedLocationId(event.target.value)}
-                    >
-                      <option value="">{t("routes.selectSearchLocation")}</option>
-                      {locations.map((location) => (
-                        <option key={location.id} value={location.id}>
-                          {location.name} · {location.code}
+                  <div className="space-y-3">
+                    <div>
+                      <label className={labelClass}>
+                        {t("routes.searchLocation")}
+                      </label>
+                      <CustomSelect
+                        aria-label={t("routes.searchLocation")}
+                        className={inputClass}
+                        value={selectedLocationId}
+                        onChange={(event) =>
+                          setSelectedLocationId(event.target.value)
+                        }
+                      >
+                        <option value="">
+                          {t("routes.selectSearchLocation")}
                         </option>
-                      ))}
-                    </CustomSelect>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {t("routes.searchLocationHint")}
-                    </p>
+                        {locations.map((location) => (
+                          <option key={location.id} value={location.id}>
+                            {location.name} · {location.code}
+                          </option>
+                        ))}
+                      </CustomSelect>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {t("routes.searchLocationHint")}
+                      </p>
+                    </div>
+                    <label
+                      htmlFor="station-supports-shuttle"
+                      className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
+                    >
+                      <input
+                        id="station-supports-shuttle"
+                        type="checkbox"
+                        checked={stationSupportsShuttle}
+                        onChange={(event) =>
+                          setStationSupportsShuttle(event.target.checked)
+                        }
+                        className="mt-0.5 h-4 w-4 cursor-pointer accent-vr-500"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-gray-900">
+                          {t("routes.supportsShuttle")}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-gray-500">
+                          {t("routes.supportsShuttleHint")}
+                        </span>
+                      </span>
+                    </label>
                   </div>
                 )}
               </div>
@@ -1919,9 +1959,7 @@ export default function RoutesPage() {
                   {canManageRoutes && (
                     <button
                       type="button"
-                      onClick={() =>
-                        runAction(() => handleRemoveRouteStop(item))
-                      }
+                      onClick={() => setRouteStopPendingRemoval(item)}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
                       aria-label={t("routes.removeRouteStop")}
                       title={t("routes.removeRouteStop")}
@@ -1967,6 +2005,44 @@ export default function RoutesPage() {
       {isLoading && (
         <p className="text-sm text-gray-500">{t("routes.loading")}</p>
       )}
+
+      <Modal
+        open={Boolean(routeStopPendingRemoval)}
+        onClose={() => setRouteStopPendingRemoval(null)}
+        title={t("routes.removeRouteStopTitle")}
+        subtitle={t("routes.removeRouteStopSubtitle")}
+        icon={<FiTrash2 />}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setRouteStopPendingRemoval(null)}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              {tc("cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (routeStopPendingRemoval) {
+                  runAction(() =>
+                    handleRemoveRouteStop(routeStopPendingRemoval),
+                  );
+                }
+              }}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              {tc("delete")}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm leading-6 text-gray-600">
+          {t("routes.removeRouteStopConfirm", {
+            stopName: routeStopPendingRemoval?.stopName ?? "",
+          })}
+        </p>
+      </Modal>
     </div>
   );
 }
@@ -2300,7 +2376,3 @@ function DurationInput({
     </div>
   );
 }
-
-
-
-

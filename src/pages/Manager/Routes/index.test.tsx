@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createOperatorStation,
   getOperatorRoutes,
   getOperatorStations,
   getOperatorStops,
   getPublicLocations,
+  searchStations,
 } from "../../../api/vietride";
 import RoutesPage from "./index";
 
@@ -21,7 +23,38 @@ vi.mock("../../../auth", () => ({
 }));
 
 vi.mock("../../../components/PlacePicker", () => ({
-  default: ({ label }: { label: string }) => <div>{label}</div>,
+  default: ({
+    label,
+    onSelect,
+  }: {
+    label: string;
+    onSelect: (place: {
+      placeId: string;
+      name: string;
+      address: string;
+      city: string;
+      province: string;
+      latitude: number;
+      longitude: number;
+    }) => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onSelect({
+          placeId: "place-1",
+          name: "Bến xe Trung tâm",
+          address: "1 Đường Chính",
+          city: "Hồ Chí Minh",
+          province: "Hồ Chí Minh",
+          latitude: 10.77,
+          longitude: 106.69,
+        })
+      }
+    >
+      {label}
+    </button>
+  ),
 }));
 
 vi.mock("../../../components/GoogleMapCanvas", () => ({
@@ -66,6 +99,7 @@ describe("Manager route setup workflow", () => {
       pageSize: 100,
     });
     vi.mocked(getPublicLocations).mockResolvedValue([]);
+    vi.mocked(searchStations).mockResolvedValue([]);
   });
 
   it("presents the route setup as five understandable steps", async () => {
@@ -118,5 +152,65 @@ describe("Manager route setup workflow", () => {
       screen.getByRole("button", { name: /routes.workflowStopTitle/ }),
     ).toHaveAttribute("aria-current", "step");
     expect(screen.getByText("routes.stopManagement")).toBeInTheDocument();
+  });
+
+  it("sends the shuttle capability when creating a station", async () => {
+    vi.mocked(getPublicLocations).mockResolvedValue([
+      {
+        id: "location-1",
+        code: "HCM",
+        name: "Hồ Chí Minh",
+        type: "MUNICIPALITY",
+        sortOrder: 1,
+        isActive: true,
+      },
+    ]);
+    vi.mocked(createOperatorStation).mockResolvedValue({
+      operatorId: "operator-1",
+      stationId: "station-1",
+      supportsShuttle: true,
+      station: {
+        id: "station-1",
+        name: "Bến xe Trung tâm",
+        city: "Hồ Chí Minh",
+        province: "Hồ Chí Minh",
+        latitude: 10.77,
+        longitude: 106.69,
+        supportsShuttle: true,
+      },
+    });
+
+    render(<RoutesPage />);
+    await screen.findByRole("heading", { name: "routes.workflowTitle" });
+    await waitFor(() =>
+      expect(screen.queryByText("routes.loading")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.stationName" }),
+    );
+
+    const locationSelect = await screen.findByRole("button", {
+      name: "routes.searchLocation",
+    });
+    fireEvent.click(locationSelect);
+    fireEvent.click(
+      screen.getByRole("option", { name: "Hồ Chí Minh · HCM" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /routes\.supportsShuttle/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.createAndAttachStation" }),
+    );
+
+    await waitFor(() =>
+      expect(createOperatorStation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          locationId: "location-1",
+          supportsShuttle: true,
+        }),
+      ),
+    );
   });
 });

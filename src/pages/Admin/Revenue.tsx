@@ -15,30 +15,8 @@ import {
   type AdminRevenueAnalytics,
   type MetricValue,
 } from "../../api/vietride";
+import { formatCurrency } from "../../utils/currency";
 import { downloadRevenueCsv } from "./revenueCsv";
-
-const formatMoney = (value: number) =>
-  new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatCompactMoney = (value: number) => {
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toLocaleString("vi-VN", {
-      maximumFractionDigits: 1,
-    })}B`;
-  }
-
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toLocaleString("vi-VN", {
-      maximumFractionDigits: 1,
-    })}M`;
-  }
-
-  return value.toLocaleString("vi-VN");
-};
 
 function monthNumber(value: string) {
   const month = Number(value.slice(5, 7));
@@ -59,7 +37,7 @@ const KPI = ({ title, metric }: KPIProps) => {
       <p className="text-sm text-gray-600">{title}</p>
       <div className="mt-1 flex items-end justify-between gap-3">
         <p className="text-2xl font-bold text-gray-900">
-          {metric ? formatMoney(metric.currentValue) : "-"}
+          {metric ? formatCurrency(metric.currentValue) : "-"}
         </p>
       </div>
     </div>
@@ -261,7 +239,7 @@ export default function Revenue() {
                 {t("revenue.totalInPeriod")}
               </p>
               <p className="mt-1 text-lg font-bold text-slate-900">
-                {formatCompactMoney(totalInPeriod)}
+                {formatCurrency(totalInPeriod)}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -339,12 +317,12 @@ export default function Revenue() {
                     axisLine={false}
                     tickLine={false}
                     tick={{ fill: "#94a3b8", fontSize: 12 }}
-                    tickFormatter={formatCompactMoney}
-                    width={64}
+                    tickFormatter={(value) => formatCurrency(Number(value))}
+                    width={112}
                   />
                   <Tooltip
                     cursor={{ fill: "#f8fafc" }}
-                    formatter={(value) => formatMoney(Number(value ?? 0))}
+                    formatter={(value) => formatCurrency(Number(value ?? 0))}
                     labelFormatter={(value) =>
                       t("revenue.monthValue", {
                         month: monthNumber(String(value)),
@@ -417,7 +395,7 @@ export default function Revenue() {
                   </div>
                 </div>
                 <div className="shrink-0 text-right font-semibold">
-                  {formatMoney(operator.revenueVnd)}
+                  {formatCurrency(operator.revenueVnd)}
                 </div>
               </div>
             ))}

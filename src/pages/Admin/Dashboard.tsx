@@ -34,6 +34,7 @@ import {
   type MetricValue,
 } from "../../api/vietride";
 import { downloadCsv } from "../../utils/csv";
+import { formatCurrency } from "../../utils/currency";
 
 import { downloadRevenueCsv } from "./revenueCsv";
 type BookingChartPoint = {
@@ -46,6 +47,15 @@ type OperatorRevenuePoint = {
   operator: string;
   revenue: number;
 };
+
+const operatorRevenueColors = [
+  "#14b8a6",
+  "#3b82f6",
+  "#8b5cf6",
+  "#f59e0b",
+  "#ec4899",
+  "#22c55e",
+];
 
 function currentYearRange() {
   const year = new Date().getFullYear();
@@ -62,10 +72,6 @@ function monthLabel(dateValue?: string) {
 
   const month = Number(dateValue.slice(5, 7));
   return Number.isNaN(month) ? dateValue : `T${month}`;
-}
-
-function formatVnd(value: number) {
-  return `${value.toLocaleString("vi-VN")} VND`;
 }
 
 function formatCompactNumber(value: number) {
@@ -221,11 +227,9 @@ export default function AdminDashboard() {
   const adminKPIs = [
     {
       label: t("dashboard.totalRevenue"),
-      value: metrics
-        ? formatVnd(metrics.totalRevenue.currentValue)
-        : "-",
+      value: metrics ? formatCurrency(metrics.totalRevenue.currentValue) : "-",
       previous: metrics
-        ? formatVnd(metrics.totalRevenue.previousValue)
+        ? formatCurrency(metrics.totalRevenue.previousValue)
         : "-",
       trend: metrics
         ? metricTrend(
@@ -319,6 +323,13 @@ export default function AdminDashboard() {
     metrics?.operatorStatusDistribution.find(
       (item) => item.status === "APPROVED",
     )?.count ?? 0;
+  const sortedRevenueByOperatorData = [...revenueByOperatorData].sort(
+    (left, right) => right.revenue - left.revenue,
+  );
+  const totalOperatorRevenue = sortedRevenueByOperatorData.reduce(
+    (sum, item) => sum + item.revenue,
+    0,
+  );
   const handleExportReport = (report: { key: string; label: string }) => {
     if (report.key === "revenue" && revenueAnalytics) {
       downloadRevenueCsv(revenueAnalytics, {
@@ -439,13 +450,13 @@ export default function AdminDashboard() {
                   yAxisId="revenue"
                   orientation="right"
                   stroke="#3b82f6"
-                  tickFormatter={formatVnd}
+                  tickFormatter={(value) => formatCurrency(Number(value))}
                   width={115}
                 />
                 <Tooltip
                   formatter={(value, name) => [
                     name === t("dashboard.revenueLegend")
-                      ? formatVnd(Number(value ?? 0))
+                      ? formatCurrency(Number(value ?? 0))
                       : formatCompactNumber(Number(value ?? 0)),
                     name,
                   ]}
@@ -520,9 +531,14 @@ export default function AdminDashboard() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          {t("dashboard.revenueByOperator")}
-        </h2>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {t("dashboard.revenueByOperator")}
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            {t("dashboard.revenueByOperatorHint")}
+          </p>
+        </div>
         {isLoading ? (
           <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
             {t("dashboard.loadingChart")}
@@ -532,31 +548,105 @@ export default function AdminDashboard() {
             {t("dashboard.noOperatorRevenue")}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart
-              data={revenueByOperatorData}
-              layout="vertical"
-              margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis type="number" stroke="#9ca3af" tickFormatter={formatVnd} />
-              <YAxis
-                dataKey="operator"
-                type="category"
-                stroke="#9ca3af"
-                width={115}
-              />
-              <Tooltip
-                formatter={(value) => formatVnd(Number(value ?? 0))}
-                contentStyle={{
-                  backgroundColor: "#fff",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                }}
-              />
-              <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 8, 8, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="grid gap-6 lg:grid-cols-[minmax(280px,0.8fr)_minmax(360px,1.2fr)] lg:items-center">
+            <div className="relative h-[280px] min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={sortedRevenueByOperatorData}
+                    dataKey="revenue"
+                    nameKey="operator"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={78}
+                    outerRadius={112}
+                    paddingAngle={3}
+                    stroke="none"
+                  >
+                    {sortedRevenueByOperatorData.map((item, index) => (
+                      <Cell
+                        key={item.operator}
+                        fill={
+                          operatorRevenueColors[
+                            index % operatorRevenueColors.length
+                          ]
+                        }
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => formatCurrency(Number(value ?? 0))}
+                    contentStyle={{
+                      backgroundColor: "#fff",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "8px",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-xs font-medium uppercase text-gray-500">
+                  {t("dashboard.totalRevenue")}
+                </span>
+                <strong className="mt-1 text-lg text-gray-900">
+                  {formatCurrency(totalOperatorRevenue)}
+                </strong>
+              </div>
+            </div>
+
+            <div className="min-w-0 space-y-3">
+              {sortedRevenueByOperatorData.map((item, index) => {
+                const percentage =
+                  totalOperatorRevenue > 0
+                    ? (item.revenue / totalOperatorRevenue) * 100
+                    : 0;
+                const color =
+                  operatorRevenueColors[
+                    index % operatorRevenueColors.length
+                  ];
+
+                return (
+                    <div
+                      key={item.operator}
+                      className="rounded-lg border border-gray-200 px-4 py-3"
+                    >
+                      <div className="flex min-w-0 items-start justify-between gap-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-gray-900">
+                              {item.operator}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {t("dashboard.revenueShare", {
+                                value: percentage.toLocaleString("vi-VN", {
+                                  maximumFractionDigits: 1,
+                                }),
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <strong className="shrink-0 text-sm text-gray-900">
+                          {formatCurrency(item.revenue)}
+                        </strong>
+                      </div>
+                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            backgroundColor: color,
+                            width: `${Math.max(percentage, 2)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+              })}
+            </div>
+          </div>
         )}
       </div>
 

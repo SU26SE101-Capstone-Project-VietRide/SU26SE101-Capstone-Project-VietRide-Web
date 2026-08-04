@@ -92,10 +92,8 @@ describe("Admin Revenue", () => {
       groupBy: "month",
       top: 10,
     });
-    expect(screen.getAllByText("revenue.newGrowth")).toHaveLength(2);
-    expect(screen.getByText("— 0%")).toHaveClass("text-gray-500");
-    expect(screen.getAllByText(/revenue.previousPeriod:/)).toHaveLength(3);
-    expect(screen.getByText("137,6M")).toBeInTheDocument();
+    expect(screen.getAllByText("137.600.000 ₫")).toHaveLength(4);
+    expect(screen.queryByText(/137,6M/)).not.toBeInTheDocument();
     expect(screen.getByText("revenue.monthValue 7")).toBeInTheDocument();
     expect(screen.getByText("100%")).toBeInTheDocument();
     expect(screen.getByTestId("bar-paid")).toBeInTheDocument();

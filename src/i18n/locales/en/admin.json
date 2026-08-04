@@ -19,6 +19,8 @@
     "noOperatorRevenue": "No operators have generated revenue yet.",
     "userDistribution": "User distribution",
     "revenueByOperator": "Revenue by operator",
+    "revenueByOperatorHint": "Compare each operator's share and actual revenue for the period.",
+    "revenueShare": "{{value}}% of total revenue",
     "operatorStatus": "Operator status",
     "revenueLegend": "Revenue",
     "bookingLegend": "Bookings",

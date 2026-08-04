@@ -19,6 +19,8 @@
     "noOperatorRevenue": "Chưa có nhà xe phát sinh doanh thu.",
     "userDistribution": "Phân bố người dùng",
     "revenueByOperator": "Doanh thu theo nhà xe",
+    "revenueByOperatorHint": "So sánh tỷ trọng và doanh thu thực tế của từng nhà xe trong kỳ.",
+    "revenueShare": "{{value}}% tổng doanh thu",
     "operatorStatus": "Trạng thái nhà xe",
     "revenueLegend": "Doanh thu",
     "bookingLegend": "Lượt đặt vé",
