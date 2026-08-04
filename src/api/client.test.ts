@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiRequest, buildQuery } from "./client";
+import { ApiRequestError, apiRequest, buildQuery } from "./client";
 
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -10,6 +10,31 @@ describe("api client", () => {
     vi.restoreAllMocks();
   });
 
+  it("preserves API error code and status", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          statusCode: 403,
+          error: {
+            code: "TRACKING_ACCESS_DENIED",
+            message: "Tracking access denied.",
+          },
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = apiRequest("/v1/tracking/shuttle-trips/shuttle-1/latest");
+
+    await expect(request).rejects.toBeInstanceOf(ApiRequestError);
+    await expect(request).rejects.toMatchObject({
+      status: 403,
+      code: "TRACKING_ACCESS_DENIED",
+      message: "Tracking access denied.",
+    });
+  });
   it("builds query strings without empty values", () => {
     expect(
       buildQuery({

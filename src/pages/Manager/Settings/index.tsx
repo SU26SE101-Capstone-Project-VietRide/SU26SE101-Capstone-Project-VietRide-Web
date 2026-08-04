@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiPercent,
@@ -9,7 +9,6 @@ import {
   FiTrash2,
   FiCheck,
   FiX,
-  FiAlertTriangle,
 } from "react-icons/fi";
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
@@ -21,6 +20,14 @@ import {
   type OperatorConfig,
 } from "../../../data/mockData";
 import { formatDateOnly } from "../../../utils/date";
+import {
+  createOperatorFareSurchargePeriod,
+  deleteOperatorFareSurchargePeriod,
+  getOperatorFareSurchargePeriods,
+  getOperatorFareSurchargeSettings,
+  updateOperatorFareSurchargePeriod,
+  updateOperatorFareSurchargeSettings,
+} from "../../../api/vietride";
 
 const CURRENT_OPERATOR_ID = "op1";
 
@@ -111,7 +118,42 @@ export default function ManagerSettings() {
     surchargePercent: "15",
   });
   const [periodPage, setPeriodPage] = useState(1);
+  const [fareLoading, setFareLoading] = useState(true);
+  const [fareError, setFareError] = useState("");
   const pageSize = 8;
+  const loadFareData = useCallback(async () => {
+    setFareLoading(true);
+    setFareError("");
+    try {
+      const [setting, periods] = await Promise.all([
+        getOperatorFareSurchargeSettings(),
+        getOperatorFareSurchargePeriods({ page: 1, pageSize: 100 }),
+      ]);
+      setConfig((prev) => ({
+        ...prev,
+        autoApplyHolidayPricing: setting.isEnabled,
+        holidayPeriods: periods.items.map((period) => ({
+          id: period.periodId,
+          name: period.name,
+          startDate: period.startDate,
+          endDate: period.endDate,
+          surchargePercent: period.surchargePercent,
+          active: period.isActive,
+        })),
+      }));
+    } catch (err) {
+      setFareError(
+        err instanceof Error ? err.message : t("settings.loadFailed"),
+      );
+    } finally {
+      setFareLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadFareData());
+  }, [loadFareData]);
+
   const paginatedHolidayPeriods = useMemo(
     () =>
       config.holidayPeriods.slice(
@@ -128,9 +170,18 @@ export default function ManagerSettings() {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
-    setSavedSnapshot({ ...config });
-    alert(t("settings.saveSuccess"));
+  const handleSave = async () => {
+    try {
+      await updateOperatorFareSurchargeSettings({
+        isEnabled: config.autoApplyHolidayPricing,
+      });
+      setSavedSnapshot({ ...config });
+      alert(t("settings.saveSuccess"));
+    } catch (err) {
+      setFareError(
+        err instanceof Error ? err.message : t("settings.saveFailed"),
+      );
+    }
   };
 
   const handleReset = () => {
@@ -159,57 +210,53 @@ export default function ManagerSettings() {
     setPeriodModalOpen(true);
   };
 
-  const handleSavePeriod = () => {
+  const handleSavePeriod = async () => {
     const surchargePercent = Number(periodForm.surchargePercent);
     if (
-      !periodForm.name ||
+      !periodForm.name.trim() ||
       !periodForm.startDate ||
       !periodForm.endDate ||
-      Number.isNaN(surchargePercent)
-    ) {
+      surchargePercent < 1 ||
+      surchargePercent > 100
+    )
       return;
+    try {
+      if (editingPeriod) {
+        await updateOperatorFareSurchargePeriod(editingPeriod.id, {
+          name: periodForm.name.trim(),
+          startDate: periodForm.startDate,
+          endDate: periodForm.endDate,
+          surchargePercent,
+          isActive: editingPeriod.active,
+        });
+      } else {
+        await createOperatorFareSurchargePeriod({
+          name: periodForm.name.trim(),
+          startDate: periodForm.startDate,
+          endDate: periodForm.endDate,
+          surchargePercent,
+          isActive: true,
+        });
+      }
+      setPeriodModalOpen(false);
+      setEditingPeriod(null);
+      await loadFareData();
+    } catch (err) {
+      setFareError(
+        err instanceof Error ? err.message : t("settings.saveFailed"),
+      );
     }
-
-    if (editingPeriod) {
-      setConfig((prev) => ({
-        ...prev,
-        holidayPeriods: prev.holidayPeriods.map((p) =>
-          p.id === editingPeriod.id
-            ? {
-                ...p,
-                name: periodForm.name,
-                startDate: periodForm.startDate,
-                endDate: periodForm.endDate,
-                surchargePercent,
-              }
-            : p,
-        ),
-      }));
-    } else {
-      const newPeriod: HolidayPricingPeriod = {
-        id: `hp${Date.now()}`,
-        name: periodForm.name,
-        startDate: periodForm.startDate,
-        endDate: periodForm.endDate,
-        surchargePercent,
-        active: true,
-      };
-      setConfig((prev) => ({
-        ...prev,
-        holidayPeriods: [...prev.holidayPeriods, newPeriod],
-      }));
-    }
-
-    setPeriodModalOpen(false);
-    setEditingPeriod(null);
   };
 
-  const handleDeletePeriod = (id: string) => {
-    if (confirm(t("settings.confirmDeletePeriod"))) {
-      setConfig((prev) => ({
-        ...prev,
-        holidayPeriods: prev.holidayPeriods.filter((p) => p.id !== id),
-      }));
+  const handleDeletePeriod = async (id: string) => {
+    if (!confirm(t("settings.confirmDeletePeriod"))) return;
+    try {
+      await deleteOperatorFareSurchargePeriod(id);
+      await loadFareData();
+    } catch (err) {
+      setFareError(
+        err instanceof Error ? err.message : t("settings.saveFailed"),
+      );
     }
   };
 
@@ -231,13 +278,14 @@ export default function ManagerSettings() {
         <p className="mt-1 text-sm text-gray-600">{t("settings.subtitle")}</p>
       </div>
 
-      <div
-        className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
-        role="status"
-      >
-        <FiAlertTriangle className="mt-0.5 shrink-0" size={18} />
-        <span>{t("settings.demoBanner")}</span>
-      </div>
+      {fareError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {fareError}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1">
         {tabs.map((tabItem) => (
@@ -262,7 +310,7 @@ export default function ManagerSettings() {
           <div className="space-y-6">
             <div>
               <h3 className="mb-4 text-base font-semibold text-gray-800">
-                {t("settings.holidaySurcharge")}
+                {fareLoading ? tc("loading") : t("settings.holidaySurcharge")}
               </h3>
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <Field
@@ -617,6 +665,7 @@ export default function ManagerSettings() {
 
       <Modal
         open={periodModalOpen}
+        wide
         onClose={() => {
           setPeriodModalOpen(false);
           setEditingPeriod(null);
@@ -642,7 +691,7 @@ export default function ManagerSettings() {
               }
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>{t("settings.fromDate")}</label>
               <CustomDateTimeInput

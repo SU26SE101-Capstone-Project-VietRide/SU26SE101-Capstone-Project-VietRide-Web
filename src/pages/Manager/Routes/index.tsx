@@ -37,6 +37,7 @@ import {
   removeRouteStop,
   searchStations,
   updateOperatorRoute,
+  updateOperatorStation,
   updateOperatorRouteGeometry,
   updateOperatorStop,
   type OperatorRoute,
@@ -106,6 +107,7 @@ type RouteStopDraft = RouteStopRequest & {
 
 type StationOption = Station & {
   address?: string;
+  operatorStationId?: string;
 };
 
 type StationRouteRole = "" | "origin" | "destination";
@@ -252,6 +254,7 @@ function toStationOption(operatorStation: OperatorStation): StationOption {
 
   return {
     id: operatorStation.stationId || station?.id || operatorStation.id || "",
+    operatorStationId: operatorStation.id,
     name:
       operatorStation.displayNameOverride ||
       station?.name ||
@@ -795,6 +798,17 @@ export default function RoutesPage() {
     if (stationRouteRole === "destination") {
       updateRoute("destinationStationId", stationId);
     }
+  }
+
+  async function handleConfirmShuttleSupport() {
+    const selected = stations.find((station) => station.id === selectedStationId);
+    if (!selected?.operatorStationId) {
+      setError(t("routes.stationSelectForShuttle"));
+      return;
+    }
+    await updateOperatorStation(selected.operatorStationId, { supportsShuttle: stationSupportsShuttle });
+    setStations((current) => current.map((station) => station.id === selectedStationId ? { ...station, supportsShuttle: stationSupportsShuttle } : station));
+    showMessage("station", t("routes.shuttleSupportSaved"));
   }
 
   async function handleAttachStation() {
@@ -1413,7 +1427,13 @@ export default function RoutesPage() {
               <CustomSelect
                 className={inputClass + " lg:flex-1"}
                 value={selectedStationId}
-                onChange={(event) => setSelectedStationId(event.target.value)}
+                onChange={(event) => {
+                  const nextStationId = event.target.value;
+                  setSelectedStationId(nextStationId);
+                  setStationSupportsShuttle(
+                    stations.find((station) => station.id === nextStationId)?.supportsShuttle ?? false,
+                  );
+                }}
               >
                 <option value="">{t("routes.selectStation")}</option>
                 {stations.map((station) => (
@@ -1439,6 +1459,18 @@ export default function RoutesPage() {
                       {t("routes.useAsDestination")}
                     </option>
                   </CustomSelect>
+                  {selectedStationId && (
+                    <>
+                      <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                        <input type="checkbox" checked={stationSupportsShuttle} onChange={(event) => setStationSupportsShuttle(event.target.checked)} className="h-4 w-4 accent-vr-500" />
+                        {t("routes.supportsShuttle")}
+                      </label>
+                      <button type="button" onClick={() => runAction(handleConfirmShuttleSupport)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50">
+                        <FiCheckCircle size={16} />
+                        {t("routes.confirmShuttle")}
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     onClick={() => runAction(handleAttachStation)}

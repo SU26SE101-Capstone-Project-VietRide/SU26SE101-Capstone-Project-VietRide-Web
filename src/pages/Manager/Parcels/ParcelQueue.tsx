@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
@@ -352,7 +353,7 @@ export default function ParcelQueue() {
                     {item.recipientName || "-"}
                   </p>
                   <p className="mt-1 text-gray-500">
-                    {item.recipientPhone || "-"}
+                    {formatVietnamPhoneForDisplay(item.recipientPhone)}
                   </p>
                 </td>
                 <td className="px-5 py-4 text-sm text-gray-700">
@@ -475,7 +476,7 @@ export default function ParcelQueue() {
                 />
                 <Detail
                   label={t("parcels.queue.phoneLabel")}
-                  value={selected.recipientPhone || "-"}
+                  value={formatVietnamPhoneForDisplay(selected.recipientPhone)}
                 />
                 <Detail
                   label={t("parcels.queue.routeLabel")}

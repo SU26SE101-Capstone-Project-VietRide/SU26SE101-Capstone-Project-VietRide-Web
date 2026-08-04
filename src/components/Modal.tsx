@@ -66,7 +66,7 @@ export default function Modal({
             <FiX size={20} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-4">{children}</div>
         {footer && (
           <div className="shrink-0 border-t border-gray-100 px-6 py-4 flex justify-end gap-2 bg-white rounded-b-xl">
             {footer}

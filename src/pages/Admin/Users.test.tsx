@@ -84,12 +84,12 @@ describe("Admin Users", () => {
     expect(screen.queryByTestId("users-table-skeleton")).not.toBeInTheDocument();
   });
 
-  it("keeps the action icons in a fixed sticky grid", async () => {
+  it("keeps the action icons separated in the sticky action cell", async () => {
     render(<Users />);
 
     const detailsButton = await screen.findByRole("button", { name: "details" });
     expect(detailsButton.closest("td")).toHaveClass("sticky", "right-0");
-    expect(detailsButton.parentElement).toHaveClass("grid", "grid-cols-2", "w-[68px]");
+    expect(detailsButton.parentElement).toHaveClass("flex", "gap-2", "w-[80px]");
   });
 
   it("shows identity data once and balances timestamps in the detail modal", async () => {

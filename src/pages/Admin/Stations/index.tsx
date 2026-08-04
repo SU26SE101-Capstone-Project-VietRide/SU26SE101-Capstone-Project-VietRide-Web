@@ -604,7 +604,7 @@ export default function AdminStations() {
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+      <section className="space-y-5">
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -757,7 +757,7 @@ export default function AdminStations() {
         </div>
 
         {selectedStation && form && (
-          <aside className="space-y-5 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start xl:overflow-y-auto xl:pr-1">
+          <aside className="grid gap-5 lg:grid-cols-2">
             <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-vr-50 p-2 text-vr-700">

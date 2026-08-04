@@ -11,7 +11,6 @@ import {
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import {
-  acceptOperatorVoucherConsent,
   activateOperatorVoucher,
   createOperatorVoucher,
   deactivateOperatorVoucher,
@@ -103,6 +102,10 @@ function formatMoney(value: number) {
   return value.toLocaleString("vi-VN");
 }
 
+function truncateVoucherName(value: string) {
+  return value.length > 30 ? value.slice(0, 29) + "…" : value;
+}
+
 function getVoucherId(voucher: OperatorVoucher) {
   return voucher.id;
 }
@@ -183,7 +186,7 @@ export default function ManagerVouchers() {
   const [vouchers, setVouchers] = useState<OperatorVoucher[]>([]);
   const [consents, setConsents] = useState<OperatorVoucherConsent[]>([]);
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
-  const [consentStatus, setConsentStatus] = useState("");
+  const [consentStatus] = useState("");
   const [form, setForm] = useState<VoucherForm>(emptyForm);
   const [selectedVoucher, setSelectedVoucher] =
     useState<OperatorVoucher | null>(null);
@@ -203,9 +206,7 @@ export default function ManagerVouchers() {
 
     try {
       const [voucherResult, consentResult, routeResult] = await Promise.all([
-        isOperatorAdmin
-          ? getOperatorVouchers({ page: 1, pageSize: 100 })
-          : Promise.resolve(null),
+        getOperatorVouchers({ page: 1, pageSize: 100 }),
         getOperatorVoucherConsents(consentStatus || undefined),
         getOperatorRoutes({ page: 1, pageSize: 100 }),
       ]);
@@ -229,9 +230,7 @@ export default function ManagerVouchers() {
 
       try {
         const [voucherResult, consentResult, routeResult] = await Promise.all([
-          isOperatorAdmin
-            ? getOperatorVouchers({ page: 1, pageSize: 100 })
-            : Promise.resolve(null),
+          getOperatorVouchers({ page: 1, pageSize: 100 }),
           getOperatorVoucherConsents(consentStatus || undefined),
           getOperatorRoutes({ page: 1, pageSize: 100 }),
         ]);
@@ -379,20 +378,6 @@ export default function ManagerVouchers() {
     }
   }
 
-  async function handleAcceptConsent(consent: OperatorVoucherConsent) {
-    setError("");
-    setMessage("");
-    try {
-      await acceptOperatorVoucherConsent(consent.id);
-      setMessage(
-        t("vouchers.acceptConsentSuccess", { code: consent.voucherCode }),
-      );
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("vouchers.acceptFailed"));
-    }
-  }
-
   async function handleRejectConsent() {
     if (!rejectingConsent) {
       return;
@@ -446,7 +431,8 @@ export default function ManagerVouchers() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      {isOperatorAdmin && (
+        <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard
           label={t("vouchers.totalVouchers")}
           value={vouchers.length}
@@ -456,7 +442,8 @@ export default function ManagerVouchers() {
           label={t("vouchers.pendingConsents")}
           value={pendingConsentCount}
         />
-      </div>
+        </div>
+      )}
 
       {isOperatorAdmin && (
         <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
@@ -498,7 +485,7 @@ export default function ManagerVouchers() {
         </div>
       )}
 
-      {isOperatorAdmin && activeTab === "vouchers" ? (
+      {isOperatorAdmin ? (
         <div className="space-y-4">
           <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -563,16 +550,16 @@ export default function ManagerVouchers() {
           />
         </div>
       ) : (
-        <ConsentTable
-          consents={consents}
-          status={consentStatus}
+        <VoucherTable
+          vouchers={vouchers}
           isLoading={isLoading}
-          canManage={isOperatorAdmin}
-          onStatusChange={setConsentStatus}
-          onAccept={handleAcceptConsent}
-          onReject={setRejectingConsent}
+          onEdit={openEditModal}
+          onToggle={handleToggle}
+          onDelete={setDeletingVoucher}
         />
       )}
+
+
 
       <VoucherModal
         open={isModalOpen}
@@ -713,8 +700,8 @@ function VoucherTable({
                   {voucher.code}
                 </td>
                 <td className="px-5 py-4">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {voucher.name}
+                  <p className="max-w-[300px] truncate whitespace-nowrap text-sm font-semibold leading-5 text-gray-900" title={voucher.name}>
+                    {truncateVoucherName(voucher.name)}
                   </p>
                   <p className="text-xs text-gray-500">{tc(`voucherTypes.${voucher.type}`, { defaultValue: voucher.type })}</p>
                 </td>
@@ -812,152 +799,6 @@ function VoucherTable({
   );
 }
 
-function ConsentTable({
-  consents,
-  status,
-  isLoading,
-  canManage,
-  onStatusChange,
-  onAccept,
-  onReject,
-}: {
-  consents: OperatorVoucherConsent[];
-  status: string;
-  isLoading: boolean;
-  canManage: boolean;
-  onStatusChange: (status: string) => void;
-  onAccept: (consent: OperatorVoucherConsent) => void;
-  onReject: (consent: OperatorVoucherConsent) => void;
-}) {
-  const { t } = useTranslation("manager");
-  const { t: tc } = useTranslation("common");
-  const [page, setPage] = useState(1);
-  const pageSize = 8;
-  const totalPages = Math.max(1, Math.ceil(consents.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedConsents = useMemo(
-    () =>
-      consents.slice(
-        (currentPage - 1) * pageSize,
-        currentPage * pageSize,
-      ),
-    [consents, currentPage],
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <label className={labelClass}>
-          {t("vouchers.consentStatusFilter")}
-        </label>
-        <CustomSelect
-          className={inputClass}
-          value={status}
-          onChange={(event) => {
-            onStatusChange(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">{t("vouchers.all")}</option>
-          <option value="PENDING">{tc("voucherConsentStatuses.PENDING")}</option>
-          <option value="ACCEPTED">{tc("voucherConsentStatuses.ACCEPTED")}</option>
-          <option value="REJECTED">{tc("voucherConsentStatuses.REJECTED")}</option>
-        </CustomSelect>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3">{t("vouchers.voucherCode")}</th>
-                <th className="px-5 py-3">{t("vouchers.value")}</th>
-                <th className="px-5 py-3">{t("vouchers.minOrder")}</th>
-                <th className="px-5 py-3">{t("vouchers.validity")}</th>
-                <th className="px-5 py-3">{t("vouchers.status")}</th>
-                <th className="px-5 py-3">{t("vouchers.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedConsents.map((consent) => {
-                const canRespond = canManage && consent.status === "PENDING";
-
-                return (
-                  <tr
-                    key={consent.id}
-                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
-                  >
-                    <td className="px-5 py-4">
-                      <p className="font-mono text-sm font-semibold text-vr-700">
-                        {consent.voucherCode}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {tc(`voucherTypes.${consent.voucherType}`, { defaultValue: consent.voucherType })}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-gray-700">
-                      {consent.voucherValue}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-gray-700">
-                      {formatMoney(consent.minOrderAmount)} VND
-                    </td>
-                    <td className="px-5 py-4 text-sm text-gray-700">
-                      <p>{formatDate(consent.validFrom)}</p>
-                      <p className="text-xs text-gray-500">
-                        {t("vouchers.validUntil", {
-                          date: formatDate(consent.validUntil),
-                        })}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-gray-700">
-                      {tc(`voucherConsentStatuses.${consent.status}`, { defaultValue: consent.status })}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <IconButton
-                          label={t("vouchers.accept")}
-                          disabled={!canRespond}
-                          onClick={() => onAccept(consent)}
-                        >
-                          <FiCheck size={16} />
-                        </IconButton>
-                        <IconButton
-                          label={t("vouchers.reject")}
-                          disabled={!canRespond}
-                          onClick={() => onReject(consent)}
-                        >
-                          <FiX size={16} />
-                        </IconButton>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {isLoading && (
-          <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
-            {t("vouchers.loadingConsents")}
-          </div>
-        )}
-        {!isLoading && consents.length === 0 && (
-          <div className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-500">
-            {t("vouchers.emptyConsents")}
-          </div>
-        )}
-        <Pagination
-          page={currentPage}
-          pageSize={pageSize}
-          totalItems={consents.length}
-          onPageChange={setPage}
-        />
-      </div>
-    </div>
-  );
-}
-
 function IconButton({
   label,
   onClick,
@@ -1012,6 +853,20 @@ function VoucherModal({
     onChange("applicableRouteIds", routeIdsToValue(nextRouteIds));
   }
 
+  function handleFieldChange(key: keyof VoucherForm, value: string) {
+    if (key === "type") {
+      onChange("type", value);
+      if (value === "FIXED_AMOUNT") onChange("maxDiscountAmount", form.value);
+      return;
+    }
+    if (key === "value" && form.type === "FIXED_AMOUNT") {
+      onChange("value", value);
+      onChange("maxDiscountAmount", value);
+      return;
+    }
+    onChange(key, value);
+  }
+
   return (
     <Modal
       open={open}
@@ -1039,8 +894,8 @@ function VoucherModal({
         </>
       }
     >
-      <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-5">
+        <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.formBasics")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
           <Field
             label={t("vouchers.voucherCode")}
             value={form.code}
@@ -1053,17 +908,18 @@ function VoucherModal({
             value={form.name}
             onChange={(value) => onChange("name", value)}
             placeholder={t("vouchers.nameSummerPlaceholder")}
+            maxLength={30}
           />
-        </div>
+        </div></section>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.discountRules")}</h3></div></div><div className={form.type === "FIXED_AMOUNT" ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-3"}>
           <div>
             <label className={labelClass}>{t("vouchers.discountType")}</label>
             <CustomSelect
               className={inputClass}
               value={form.type}
               disabled={isEditing}
-              onChange={(event) => onChange("type", event.target.value)}
+              onChange={(event) => handleFieldChange("type", event.target.value)}
             >
               <option value="PERCENT_OFF">
                 {t("vouchers.discountTypePercent")}
@@ -1074,19 +930,21 @@ function VoucherModal({
             </CustomSelect>
           </div>
           <Field
-            label={t("vouchers.value")}
+            label={form.type === "FIXED_AMOUNT" ? t("vouchers.discountAmount") : t("vouchers.discountPercent")}
             type="number"
             value={form.value}
             currency={form.type === "FIXED_AMOUNT"}
-            onChange={(value) => onChange("value", value)}
+            onChange={(value) => handleFieldChange("value", value)}
           />
-          <Field
-            label={t("vouchers.maxDiscount")}
-            type="number"
-            value={form.maxDiscountAmount}
-            currency
-            onChange={(value) => onChange("maxDiscountAmount", value)}
-          />
+          {form.type === "PERCENT_OFF" && (
+            <Field
+              label={t("vouchers.maxDiscount")}
+              type="number"
+              value={form.maxDiscountAmount}
+              currency
+              onChange={(value) => onChange("maxDiscountAmount", value)}
+            />
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -1109,9 +967,9 @@ function VoucherModal({
             value={form.perUserLimit}
             onChange={(value) => onChange("perUserLimit", value)}
           />
-        </div>
+        </div></section>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.validityRules")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
           <Field
             label={t("vouchers.validFrom")}
             type="datetime-local"
@@ -1124,10 +982,10 @@ function VoucherModal({
             value={form.validUntil}
             onChange={(value) => onChange("validUntil", value)}
           />
-        </div>
+        </div></section>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+        <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.scopeRules")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <label className={labelClass}>
               {t("vouchers.applicableRoutes")}
             </label>
@@ -1205,6 +1063,7 @@ function VoucherModal({
             </CustomSelect>
           </div>
         </div>
+      </section>
       </div>
     </Modal>
   );
@@ -1218,6 +1077,7 @@ function Field({
   type = "text",
   disabled = false,
   currency = false,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -1226,7 +1086,12 @@ function Field({
   type?: string;
   disabled?: boolean;
   currency?: boolean;
+  maxLength?: number;
 }) {
+  const { t } = useTranslation("manager");
+  const isAtCharacterLimit = Boolean(maxLength && value.length >= maxLength);
+  const fieldClassName = isAtCharacterLimit ? inputClass + " border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-500/30" : inputClass;
+
   const isCustomDateTime =
     type === "date" ||
     type === "datetime-local" ||
@@ -1239,7 +1104,7 @@ function Field({
       <label className={labelClass}>{label}</label>
       {isCustomDateTime ? (
         <CustomDateTimeInput
-          className={inputClass}
+          className={fieldClassName}
           type={type}
           value={value}
           disabled={disabled}
@@ -1261,8 +1126,14 @@ function Field({
           value={value}
           disabled={disabled}
           placeholder={placeholder}
+          maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
         />
+      )}
+      {maxLength && (
+        <p className={isAtCharacterLimit ? "mt-1 text-xs font-medium text-amber-700" : "mt-1 text-xs text-gray-500"}>
+          {isAtCharacterLimit ? t("vouchers.characterLimitReached") : ""} {value.length}/{maxLength} {t("vouchers.charactersCount")}
+        </p>
       )}
     </div>
   );

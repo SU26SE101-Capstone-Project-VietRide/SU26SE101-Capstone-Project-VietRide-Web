@@ -186,6 +186,8 @@
     "lockSuccess": "Đã khóa tài khoản {{name}}.",
     "unlockSuccess": "Đã mở khóa tài khoản {{name}}.",
     "detailTitle": "Chi tiết người dùng",
+    "accountInformation": "Thông tin tài khoản",
+    "accountInformationHint": "Thông tin định danh và thời gian hoạt động của tài khoản.",
     "updatedAt": "Cập nhật lúc"
   },
   "vouchers": {

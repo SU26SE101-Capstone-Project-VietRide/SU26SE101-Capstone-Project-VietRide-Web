@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { useTranslation } from "react-i18next";
+import { ApiRequestError } from "../../../api/client";
 import {
   FiSearch,
   FiDownload,
@@ -423,7 +425,11 @@ export default function DispatchPanel() {
                 ...item,
                 isRefreshing: false,
                 error:
-                  err instanceof Error ? err.message : t("dispatch.trackingFailed"),
+                  err instanceof ApiRequestError && err.code === "TRACKING_ACCESS_DENIED"
+                    ? t("dispatch.operatorTrackingDenied")
+                    : err instanceof Error
+                      ? err.message
+                      : t("dispatch.trackingFailed"),
               }
             : item,
         ),
@@ -650,7 +656,7 @@ export default function DispatchPanel() {
                         {r.customerName}
                       </div>
                       <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                        <FiPhone size={12} /> {r.phone}
+                        <FiPhone size={12} /> {formatVietnamPhoneForDisplay(r.phone)}
                       </div>
                     </td>
                     <td className="px-3 py-3 text-gray-700">{r.trip}</td>
@@ -1109,7 +1115,7 @@ export default function DispatchPanel() {
                 <option value="">{t("dispatch.selectDriverPlaceholder")}</option>
                 {drivers.map((driver) => (
                   <option key={driver.id} value={driver.id}>
-                    {driver.name} {driver.phone ? `- ${driver.phone}` : ""}
+                    {driver.name} {driver.phone ? `- ${formatVietnamPhoneForDisplay(driver.phone)}` : ""}
                   </option>
                 ))}
               </CustomSelect>
@@ -1214,7 +1220,7 @@ export default function DispatchPanel() {
                 label={t("dispatch.customerName")}
                 value={selectedRequest.customerName}
               />
-              <DetailItem label={tc("phone")} value={selectedRequest.phone} />
+              <DetailItem label={tc("phone")} value={formatVietnamPhoneForDisplay(selectedRequest.phone)} />
             </DetailSection>
 
             <DetailSection title={t("dispatch.tripInfo")} columns="three">

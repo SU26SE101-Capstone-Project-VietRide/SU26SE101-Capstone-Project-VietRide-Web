@@ -120,7 +120,6 @@ export default function Payouts() {
         role="status"
       >
         <FiAlertTriangle className="mt-0.5 shrink-0" size={18} />
-        <span>{t("payouts.demoBanner")}</span>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

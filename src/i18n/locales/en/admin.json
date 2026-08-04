@@ -186,6 +186,8 @@
     "lockSuccess": "{{name}} has been locked.",
     "unlockSuccess": "{{name}} has been unlocked.",
     "detailTitle": "User details",
+    "accountInformation": "Account information",
+    "accountInformationHint": "Identity and activity details for this account.",
     "updatedAt": "Updated at"
   },
   "vouchers": {

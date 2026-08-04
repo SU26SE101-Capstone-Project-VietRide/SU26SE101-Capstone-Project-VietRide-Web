@@ -102,7 +102,7 @@
     "CANCELLED": "Đã hủy",
     "EXPIRED": "Đã hết hạn",
     "DRAFT": "Bản nháp",
-    "ISSUED": "Đã phát hành",
+    "ISSUED": "Đã xuất hóa đơn",
     "PROCESSING": "Đang xử lý",
     "FAILED": "Thất bại",
     "COMPLETED": "Hoàn tất",

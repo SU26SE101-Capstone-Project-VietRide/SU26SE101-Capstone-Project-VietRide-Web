@@ -204,18 +204,14 @@ export default function CustomDateTimeInput({
 
       {isOpen && !disabled && (
         <div
-          className={`absolute z-50 mt-1 rounded-xl border border-vr-100 bg-white p-3 text-sm shadow-xl shadow-vr-900/10 ${
+          className={`absolute left-0 z-50 mt-1 max-w-full rounded-xl border border-vr-100 bg-white p-3 text-sm shadow-xl shadow-vr-900/10 sm:left-0 sm:right-auto ${
             !isTimeOnly && !isDateOnly
-              ? "w-[min(44rem,calc(100vw-2rem))]"
+              ? "w-[min(30rem,calc(100vw-2rem))] max-w-full"
               : "w-[min(22rem,calc(100vw-2rem))]"
           }`}
         >
           <div
-            className={
-              !isTimeOnly && !isDateOnly
-                ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(13rem,0.8fr)]"
-                : ""
-            }
+            className=""
           >
           {!isTimeOnly && (
             <div>
@@ -285,7 +281,7 @@ export default function CustomDateTimeInput({
               className={
                 isTimeOnly
                   ? ""
-                  : "border-t border-gray-100 pt-3 md:border-l md:border-t-0 md:pl-4 md:pt-0"
+                  : "mt-4 border-t border-gray-100 pt-4"
               }
             >
               <div className="grid grid-cols-2 gap-3">

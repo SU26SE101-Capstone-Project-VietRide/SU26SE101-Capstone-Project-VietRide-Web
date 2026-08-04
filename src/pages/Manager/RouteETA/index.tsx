@@ -1,340 +1,281 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertCircle,
-  FiAlertTriangle,
   FiCheckCircle,
   FiClock,
-  FiMoreVertical,
-  FiSearch,
   FiFilter,
+  FiRefreshCw,
+  FiSearch,
+  FiXCircle,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import {
+  approveOperatorRouteChangeProposal,
+  getOperatorRouteChangeProposal,
+  getOperatorRouteChangeProposals,
+  rejectOperatorRouteChangeProposal,
+  type RouteChangeProposal,
+  type RouteChangeProposalStatus,
+} from "../../../api/vietride";
 
-type RouteETARequest = {
-  id: string;
-  code: string;
-  route: string;
-  status: "pending" | "approved" | "rejected";
-  etaDelay: number; // in minutes
-  seatsAffected: number;
-  location: string;
-  time: string;
-  reason: string;
+const pageSize = 50;
+
+const statusStyles: Record<RouteChangeProposalStatus, string> = {
+  PENDING: "bg-orange-100 text-orange-700",
+  APPROVED: "bg-green-100 text-green-700",
+  REJECTED: "bg-red-100 text-red-700",
+  SUPERSEDED: "bg-gray-100 text-gray-600",
+  EXPIRED: "bg-gray-100 text-gray-600",
 };
 
-const mockRequests: RouteETARequest[] = [
-  {
-    id: "1",
-    code: "VR-2401",
-    route: "HCM → Đà Lạt",
-    status: "pending",
-    etaDelay: 45,
-    seatsAffected: 38,
-    location: "Yêu cầu dừng tại Tài xế Nguyễn Văn An",
-    time: "10:24",
-    reason:
-      "Gặp sự cố giao thông trên tuyến QL1, phải chuyển lộ trình qua QL27",
-  },
-  {
-    id: "2",
-    code: "VR-2402",
-    route: "HCM → Nha Trang",
-    status: "approved",
-    etaDelay: 25,
-    seatsAffected: 32,
-    location: "Yêu cầu dừng tại Trạm dừng Trần Minh Quân",
-    time: "09:48",
-    reason: "Điều chỉnh lộ trình do công trình đường cao tốc",
-  },
-  {
-    id: "3",
-    code: "VR-2403",
-    route: "HCM → Sapa",
-    status: "pending",
-    etaDelay: 10,
-    seatsAffected: 28,
-    location: "Đặc biệt dành cho khách hàng VIP",
-    time: "08:12",
-    reason: "Yêu cầu phục vụ khách VIP, cần dừng thêm điểm",
-  },
-];
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("vi-VN", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(date);
+}
 
 export default function RouteETAPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [search, setSearch] = useState("");
+  const [requests, setRequests] = useState<RouteChangeProposal[]>([]);
   const [selectedRequest, setSelectedRequest] =
-    useState<RouteETARequest | null>(null);
-  const [requests] = useState<RouteETARequest[]>(mockRequests);
+    useState<RouteChangeProposal | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<RouteChangeProposalStatus | "ALL">(
+    "PENDING",
+  );
+  const [rejectReason, setRejectReason] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  const pending = requests.filter((r) => r.status === "pending").length;
-  const approved = requests.filter((r) => r.status === "approved").length;
-  const avgDelay = requests.length
-    ? Math.round(
-        requests.reduce((sum, r) => sum + r.etaDelay, 0) / requests.length,
-      )
-    : 0;
+  const loadRequests = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await getOperatorRouteChangeProposals({
+        page: 1,
+        pageSize,
+        status: status === "ALL" ? undefined : status,
+      });
+      setRequests(result.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("routeEta.loadFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }, [status, t]);
 
-  const filtered = requests.filter((r) => {
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      r.code.toLowerCase().includes(q) ||
-      r.route.toLowerCase().includes(q) ||
-      r.location.toLowerCase().includes(q)
+  useEffect(() => {
+    const task = queueMicrotask(() => void loadRequests());
+    return () => { void task; };
+  }, [loadRequests]);
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return requests;
+    return requests.filter((request) =>
+      [request.id, request.tripId, request.reason, request.snapshot.name]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
     );
-  });
+  }, [requests, search]);
 
-  const statusLabel = (status: RouteETARequest["status"]) => {
-    if (status === "pending") return tc("pending");
-    if (status === "approved") return tc("approved");
-    return t("routeEta.rejected");
-  };
+  const pending = requests.filter((request) => request.status === "PENDING").length;
+  const approved = requests.filter((request) => request.status === "APPROVED").length;
+
+  async function openDetails(request: RouteChangeProposal) {
+    setSelectedRequest(request);
+    setError("");
+    try {
+      const detail = await getOperatorRouteChangeProposal(request.id);
+      setSelectedRequest(detail);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("routeEta.loadFailed"));
+    }
+  }
+
+  async function approve(request: RouteChangeProposal) {
+    if (request.status !== "PENDING") return;
+    setActionId(request.id);
+    setError("");
+    setMessage("");
+    try {
+      await approveOperatorRouteChangeProposal(request.id);
+      setSelectedRequest(null);
+      setMessage(t("routeEta.approvedMessage"));
+      await loadRequests();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("routeEta.actionFailed"));
+    } finally {
+      setActionId("");
+    }
+  }
+
+  async function reject(request: RouteChangeProposal) {
+    if (request.status !== "PENDING") return;
+    setActionId(request.id);
+    setError("");
+    setMessage("");
+    try {
+      await rejectOperatorRouteChangeProposal(request.id, {
+        reason: rejectReason.trim() || null,
+      });
+      setRejectReason("");
+      setSelectedRequest(null);
+      setMessage(t("routeEta.rejectedMessage"));
+      await loadRequests();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("routeEta.actionFailed"));
+    } finally {
+      setActionId("");
+    }
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {t("routeEta.title")}
-        </h1>
-        <p className="text-sm text-gray-600 mt-1">{t("routeEta.subtitle")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{t("routeEta.title")}</h1>
+          <p className="mt-1 text-sm text-gray-600">{t("routeEta.subtitle")}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void loadRequests()}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-60"
+        >
+          <FiRefreshCw className={loading ? "animate-spin" : ""} />
+          {tc("refresh")}
+        </button>
       </div>
 
-      <div
-        className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
-        role="status"
-      >
-        <FiAlertTriangle className="mt-0.5 shrink-0" size={18} />
-        <span>{t("routeEta.demoBanner")}</span>
-      </div>
+      {message && <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div>}
+      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs text-gray-500 font-medium">{tc("pending")}</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{pending}</p>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <p className="text-xs font-medium text-gray-500">{tc("pending")}</p>
+          <p className="mt-2 text-3xl font-bold text-gray-900">{pending}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs text-gray-500 font-medium">
-            {t("routeEta.approvedToday")}
-          </p>
-          <p className="text-3xl font-bold text-green-600 mt-2">{approved}</p>
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <p className="text-xs font-medium text-gray-500">{t("routeEta.approvedToday")}</p>
+          <p className="mt-2 text-3xl font-bold text-green-600">{approved}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs text-gray-500 font-medium">
-            {t("routeEta.avgDelay")}
-          </p>
-          <p className="text-3xl font-bold text-orange-600 mt-2">
-            {t("routeEta.minutes", { n: avgDelay })}
-          </p>
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <p className="text-xs font-medium text-gray-500">{t("routeEta.total")}</p>
+          <p className="mt-2 text-3xl font-bold text-gray-900">{requests.length}</p>
         </div>
       </div>
 
-      {/* Search & Filter */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-end">
-          <div className="flex-1 relative">
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex flex-col items-end gap-3 sm:flex-row">
+          <div className="relative flex-1">
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              type="text"
-              placeholder={t("routeEta.searchPlaceholder")}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={t("routeEta.searchPlaceholder")}
+              className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm"
             />
           </div>
-          <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-            <FiFilter size={16} /> {tc("filter")}
-          </button>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <FiFilter />
+            <select
+              value={status}
+              onChange={(event) =>
+                setStatus(event.target.value as RouteChangeProposalStatus | "ALL")
+              }
+              className="rounded-lg border border-gray-200 px-3 py-2"
+            >
+              <option value="PENDING">{tc("pending")}</option>
+              <option value="APPROVED">{tc("approved")}</option>
+              <option value="REJECTED">{t("routeEta.rejected")}</option>
+              <option value="SUPERSEDED">{t("routeEta.superseded")}</option>
+              <option value="EXPIRED">{t("routeEta.expired")}</option>
+              <option value="ALL">{tc("all")}</option>
+            </select>
+          </label>
         </div>
       </div>
 
-      {/* Requests List */}
       <div className="space-y-3">
-        {filtered.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-            <p className="text-gray-500">{t("routeEta.empty")}</p>
-          </div>
+        {loading ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">{tc("loading")}</div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">{t("routeEta.empty")}</div>
         ) : (
           filtered.map((request) => (
-            <div
-              key={request.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition"
-            >
+            <article key={request.id} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 pt-1">
-                  {request.status === "pending" && (
-                    <FiAlertCircle className="w-5 h-5 text-orange-500" />
-                  )}
-                  {request.status === "approved" && (
-                    <FiCheckCircle className="w-5 h-5 text-green-500" />
-                  )}
-                  {request.status === "rejected" && (
-                    <FiAlertCircle className="w-5 h-5 text-red-500" />
-                  )}
+                <div className="pt-1">
+                  {request.status === "PENDING" ? <FiAlertCircle className="text-orange-500" /> : request.status === "APPROVED" ? <FiCheckCircle className="text-green-500" /> : <FiXCircle className="text-gray-400" />}
                 </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-900">
-                      {request.code}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {request.route}
-                    </span>
-                    <span
-                      className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                        request.status === "pending"
-                          ? "bg-orange-100 text-orange-700"
-                          : request.status === "approved"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {statusLabel(request.status)}
-                    </span>
+                <button type="button" onClick={() => void openDetails(request)} className="min-w-0 flex-1 text-left">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-gray-900">{request.snapshot.name}</span>
+                    <span className="font-mono text-xs text-gray-500">{request.tripId}</span>
+                    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>{t(`routeEta.status.${request.status}`)}</span>
                   </div>
-
-                  <div className="mt-2 text-sm text-gray-700">
-                    <p className="font-medium">{request.reason}</p>
+                  <p className="mt-2 text-sm text-gray-700">{request.reason}</p>
+                  <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500">
+                    <span><FiClock className="mr-1 inline" />{formatDate(request.createdAt)}</span>
+                    <span>{request.type}</span>
+                    <span>{request.snapshot.stops.length} {t("routeEta.stops")}</span>
                   </div>
-
-                  <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-600">
-                    <div>
-                      <span className="text-gray-500">
-                        {t("routeEta.adjustedEta")}
-                      </span>{" "}
-                      <span className="font-semibold text-orange-600">
-                        {t("routeEta.minutes", { n: request.etaDelay })}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">
-                        {t("routeEta.impact")}
-                      </span>{" "}
-                      <span className="font-semibold">
-                        {t("routeEta.passengers", {
-                          n: request.seatsAffected,
-                        })}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">
-                        {t("routeEta.extraRequest")}
-                      </span>{" "}
-                      <span className="font-semibold">{request.location}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <FiClock size={14} />
-                      <span>{request.time}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {request.status === "pending" && (
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => setSelectedRequest(request)}
-                      className="px-3 py-2 bg-vr-500 hover:bg-vr-600 text-white text-sm font-medium rounded-lg transition"
-                    >
-                      {t("routeEta.approveNotify")}
-                    </button>
-                    <button
-                      onClick={() => setSelectedRequest(request)}
-                      className="p-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <FiMoreVertical size={18} />
-                    </button>
-                  </div>
-                )}
-
-                {request.status !== "pending" && (
-                  <div className="flex-shrink-0">
-                    <span
-                      className={`text-sm font-medium ${
-                        request.status === "approved"
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {request.status === "approved"
-                        ? t("routeEta.approvedMark")
-                        : t("routeEta.rejectedMark")}
-                    </span>
-                  </div>
+                </button>
+                {request.status === "PENDING" && (
+                  <button
+                    type="button"
+                    onClick={() => void openDetails(request)}
+                    className="rounded-lg bg-vr-500 px-3 py-2 text-sm font-semibold text-white"
+                  >
+                    {t("routeEta.review")}
+                  </button>
                 )}
               </div>
-            </div>
+            </article>
           ))
         )}
       </div>
 
-      {/* Detail Modal */}
       <Modal
         open={selectedRequest !== null}
         onClose={() => setSelectedRequest(null)}
-        title={selectedRequest ? selectedRequest.code : ""}
-        subtitle={selectedRequest ? selectedRequest.route : ""}
+        title={selectedRequest?.snapshot.name ?? ""}
+        subtitle={selectedRequest ? selectedRequest.tripId : ""}
       >
         {selectedRequest && (
           <div className="space-y-4">
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-              <div>
-                <p className="text-xs text-gray-500 font-medium">
-                  {t("routeEta.reasonLabel")}
-                </p>
-                <p className="text-sm text-gray-900 mt-1">
-                  {selectedRequest.reason}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 font-medium">
-                  {t("routeEta.adjustedEtaLabel")}
-                </p>
-                <p className="text-sm text-gray-900 mt-1">
-                  {t("routeEta.minutes", { n: selectedRequest.etaDelay })}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 font-medium">
-                  {t("routeEta.affectedPassengers")}
-                </p>
-                <p className="text-sm text-gray-900 mt-1">
-                  {t("routeEta.passengers", {
-                    n: selectedRequest.seatsAffected,
-                  })}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 font-medium">
-                  {t("routeEta.extraRequestLabel")}
-                </p>
-                <p className="text-sm text-gray-900 mt-1">
-                  {selectedRequest.location}
-                </p>
-              </div>
+            <div className="rounded-lg bg-gray-50 p-4 text-sm">
+              <p className="font-medium text-gray-900">{selectedRequest.reason}</p>
+              <p className="mt-2 text-gray-600">{selectedRequest.snapshot.description || "-"}</p>
+              <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+                <div><dt className="text-gray-500">{t("routeEta.type")}</dt><dd className="font-semibold">{selectedRequest.type}</dd></div>
+                <div><dt className="text-gray-500">{t("routeEta.createdAt")}</dt><dd className="font-semibold">{formatDate(selectedRequest.createdAt)}</dd></div>
+                <div><dt className="text-gray-500">{t("routeEta.distance")}</dt><dd className="font-semibold">{selectedRequest.snapshot.totalDistanceKm ?? "-"} km</dd></div>
+                <div><dt className="text-gray-500">{t("routeEta.duration")}</dt><dd className="font-semibold">{selectedRequest.snapshot.estimatedDurationMinutes ?? "-"} phút</dd></div>
+              </dl>
             </div>
-
-            <div className="border-t pt-4 flex gap-2">
-              <button
-                type="button"
-                disabled
-                title={t("routeEta.actionDisabledTooltip")}
-                className="flex-1 cursor-not-allowed px-4 py-2 bg-gray-100 text-gray-400 font-medium rounded-lg"
-              >
-                {t("routeEta.approveAndSend")}
-              </button>
-              <button
-                type="button"
-                disabled
-                title={t("routeEta.actionDisabledTooltip")}
-                className="flex-1 cursor-not-allowed px-4 py-2 border border-gray-200 text-gray-400 font-medium rounded-lg"
-              >
-                {t("routeEta.rejectedMark")}
-              </button>
-            </div>
+            {selectedRequest.status === "PENDING" && (
+              <>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-gray-700">{t("routeEta.rejectReason")}</span>
+                  <textarea value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} maxLength={500} className="min-h-24 w-full rounded-lg border border-gray-200 p-3" />
+                </label>
+                <div className="flex gap-2">
+                  <button type="button" disabled={Boolean(actionId)} onClick={() => void approve(selectedRequest)} className="flex-1 rounded-lg bg-green-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{actionId ? tc("processing") : t("routeEta.approve")}</button>
+                  <button type="button" disabled={Boolean(actionId)} onClick={() => void reject(selectedRequest)} className="flex-1 rounded-lg border border-red-200 px-4 py-2 font-semibold text-red-700 disabled:opacity-60">{t("routeEta.reject")}</button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </Modal>

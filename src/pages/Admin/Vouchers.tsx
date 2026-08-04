@@ -108,15 +108,6 @@ function voucherServicesOf(voucher: AdminVoucher) {
   return voucher.applicableServices ?? [];
 }
 
-function isBookingVoucher(voucher: AdminVoucher) {
-  const services = voucherServicesOf(voucher);
-  return services.length === 0 || services.includes("BOOKING");
-}
-
-function isParcelVoucher(voucher: AdminVoucher) {
-  return voucherServicesOf(voucher).includes("PARCEL");
-}
-
 function discountTypeOf(voucher: AdminVoucher) {
   const type = (voucher.discountType ?? voucher.type ?? "").toUpperCase();
   return type.includes("FIXED") ? "fixed" : "percent";
@@ -226,7 +217,6 @@ function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
   const selectedOperatorIds = toOperatorIds(form.applicableOperatorIds);
 
   return {
-    code: form.code.trim() || undefined,
     name: form.name.trim(),
     type: form.discountType,
     value: toNumber(form.discount),
@@ -288,7 +278,6 @@ function toForm(voucher: AdminVoucher): VoucherForm {
 function toCampaignRequest(form: CampaignForm): AdminCampaignRequest {
   return {
     name: form.name.trim(),
-    description: form.description.trim() || undefined,
     ownerOperatorId: form.ownerOperatorId || null,
     validFrom: toEndOfDayIso(form.validFrom),
     validUntil: toEndOfDayIso(form.validUntil),
@@ -297,10 +286,19 @@ function toCampaignRequest(form: CampaignForm): AdminCampaignRequest {
   };
 }
 
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-gray-900">{value || "-"}</p>
+    </div>
+  );
+}
+
 export default function Vouchers() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
-  const [activeTab, setActiveTab] = useState<VoucherTab>("booking");
+  const [activeTab] = useState<VoucherTab>("booking");
   const [vouchers, setVouchers] = useState<AdminVoucher[]>([]);
   const [campaigns, setCampaigns] = useState<AdminCampaign[]>([]);
   const [operators, setOperators] = useState<AdminOperator[]>([]);
@@ -311,6 +309,7 @@ export default function Vouchers() {
   const [campaignOpen, setCampaignOpen] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState<AdminVoucher | null>(null);
   const [consentVoucher, setConsentVoucher] = useState<AdminVoucher | null>(null);
+  const [detailVoucher, setDetailVoucher] = useState<AdminVoucher | null>(null);
   const [consents, setConsents] = useState<AdminVoucherConsent[]>([]);
   const [consentsLoading, setConsentsLoading] = useState(false);
   const [deletingVoucher, setDeletingVoucher] = useState<AdminVoucher | null>(null);
@@ -324,17 +323,9 @@ export default function Vouchers() {
   const [voucherPage, setVoucherPage] = useState(1);
   const [campaignPage, setCampaignPage] = useState(1);
   const pageSize = 8;
+  void openConsentModal;
 
-  const bookingVouchers = useMemo(
-    () => vouchers.filter(isBookingVoucher),
-    [vouchers],
-  );
-  const parcelVouchers = useMemo(
-    () => vouchers.filter(isParcelVoucher),
-    [vouchers],
-  );
-  const currentVouchers =
-    activeTab === "booking" ? bookingVouchers : parcelVouchers;
+  const currentVouchers = vouchers;
   const paginatedVouchers = useMemo(
     () =>
       currentVouchers.slice(
@@ -651,43 +642,6 @@ export default function Vouchers() {
         </div>
       </div>
 
-      <div className="flex gap-0 border-b border-gray-200">
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab("booking");
-            setVoucherPage(1);
-          }}
-          className={`border-b-2 px-6 py-3 text-sm font-medium transition ${
-            activeTab === "booking"
-              ? "border-vr-500 text-vr-600"
-              : "border-transparent text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          {t("vouchers.tabBooking")}
-          <span className="ml-2 rounded-full bg-vr-100 px-2 py-1 text-xs text-vr-700">
-            {bookingVouchers.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab("parcel");
-            setVoucherPage(1);
-          }}
-          className={`border-b-2 px-6 py-3 text-sm font-medium transition ${
-            activeTab === "parcel"
-              ? "border-vr-500 text-vr-600"
-              : "border-transparent text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          {t("vouchers.tabParcel")}
-          <span className="ml-2 rounded-full bg-vr-100 px-2 py-1 text-xs text-vr-700">
-            {parcelVouchers.length}
-          </span>
-        </button>
-      </div>
-
       {message && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {message}
@@ -699,17 +653,14 @@ export default function Vouchers() {
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-5">
+          <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4"><div className="mb-1 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500" /><h3 className="font-bold text-gray-900">Thiết lập mã giảm giá</h3></div><p className="text-sm text-gray-500">Cấu hình thông tin, mức giảm và điều kiện áp dụng cho voucher.</p></div>
         <div>
           <h2 className="mb-4 text-lg font-semibold text-gray-900">
-            {activeTab === "booking"
-              ? t("vouchers.bookingSectionTitle")
-              : t("vouchers.parcelSectionTitle")}
+            {t("vouchers.title")}
           </h2>
           <p className="mb-6 text-sm text-gray-600">
-            {activeTab === "booking"
-              ? t("vouchers.bookingSectionDesc")
-              : t("vouchers.parcelSectionDesc")}
+            {t("vouchers.subtitleLong")}
           </p>
         </div>
 
@@ -736,16 +687,13 @@ export default function Vouchers() {
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <table className="w-full table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
               <colgroup>
-                <col className="w-[8%]" />
-                <col className="w-[13%]" />
-                <col className="w-[8%]" />
-                <col className="w-[9%]" />
-                <col className="w-[14%]" />
-                <col className="w-[7%]" />
-                <col className="w-[11%]" />
                 <col className="w-[10%]" />
-                <col className="w-[9%]" />
-                <col className="w-[11%]" />
+                <col className="w-[18%]" />
+                <col className="w-[10%]" />
+                <col className="w-[22%]" />
+                <col className="w-[15%]" />
+                <col className="w-[12%]" />
+                <col className="w-[13%]" />
               </colgroup>
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
@@ -759,19 +707,10 @@ export default function Vouchers() {
                     {t("vouchers.discount")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
-                    {t("vouchers.applicable")}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.fundingAndScope")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
-                    {t("vouchers.issued")}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {t("vouchers.used")}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
-                    {t("vouchers.expiry")}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                     {tc("status")}
@@ -787,7 +726,6 @@ export default function Vouchers() {
                   const usedCount = usedCountOf(voucher);
                   const usageRate =
                     quantity > 0 ? Math.round((usedCount / quantity) * 100) : 0;
-                  const expiryDate = formatDisplayDate(expiryDateOf(voucher));
                   const discount = discountValueOf(voucher);
 
                   return (
@@ -822,14 +760,6 @@ export default function Vouchers() {
                         </span>
                       </td>
                       <td className="overflow-hidden whitespace-nowrap px-2 py-4">
-                        <span
-                          className="block truncate text-sm text-gray-600"
-                          title={getApplicableLabel(applicableToOf(voucher))}
-                        >
-                          {getApplicableLabel(applicableToOf(voucher))}
-                        </span>
-                      </td>
-                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
                         <p
                           className="truncate text-sm font-medium text-gray-900"
                           title={getFundingLabel(voucher.fundingType)}
@@ -844,9 +774,6 @@ export default function Vouchers() {
                         </p>
                       </td>
                       <td className="overflow-hidden whitespace-nowrap px-2 py-4">
-                        {formatNumber(quantity)}
-                      </td>
-                      <td className="overflow-hidden whitespace-nowrap px-2 py-4">
                         <div className="w-full max-w-20">
                           <div className="h-2 overflow-hidden rounded-full bg-gray-200">
                             <div
@@ -858,11 +785,6 @@ export default function Vouchers() {
                             {formatNumber(usedCount)} ({usageRate}%)
                           </p>
                         </div>
-                      </td>
-                      <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-sm">
-                        <span className="block truncate" title={expiryDate}>
-                          {expiryDate}
-                        </span>
                       </td>
                       <td className="overflow-hidden whitespace-nowrap px-2 py-4">
                         <span
@@ -879,10 +801,10 @@ export default function Vouchers() {
                         <div className="flex justify-end gap-1">
                           <button
                             type="button"
-                            onClick={() => void openConsentModal(voucher)}
+                            onClick={() => setDetailVoucher(voucher)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-vr-100 text-vr-600 hover:bg-vr-50"
-                            aria-label={t("vouchers.viewConsents", { defaultValue: "Xem phản hồi của nhà xe" })}
-                            title={t("vouchers.viewConsents", { defaultValue: "Xem phản hồi của nhà xe" })}
+                            aria-label={t("vouchers.viewDetails", { defaultValue: "Xem chi tiết voucher" })}
+                            title={t("vouchers.viewDetails", { defaultValue: "Xem chi tiết voucher" })}
                           >
                             <FiEye size={16} />
                           </button>
@@ -1027,6 +949,24 @@ export default function Vouchers() {
       </section>
 
       <Modal
+        open={detailVoucher !== null}
+        onClose={() => setDetailVoucher(null)}
+        wide
+        icon={<FiTag size={20} />}
+        title={t("vouchers.detailTitle", { defaultValue: "Chi tiết mã giảm giá" })}
+        subtitle={detailVoucher?.code}
+        footer={<button type="button" onClick={() => setDetailVoucher(null)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">{tc("close")}</button>}
+      >
+        {detailVoucher && (
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-vr-100 bg-gradient-to-br from-vr-50 to-white p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-vr-700">{t("vouchers.code")}</p><p className="mt-1 text-xl font-bold text-gray-900">{detailVoucher.code}</p><p className="mt-1 text-sm text-gray-600">{detailVoucher.name}</p></div><div className="text-right"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t("vouchers.discount")}</p><p className="mt-1 text-2xl font-bold text-vr-700">{discountTypeOf(detailVoucher) === "percent" ? String(discountValueOf(detailVoucher)) + "%" : formatNumber(discountValueOf(detailVoucher)) + "₫"}</p><span className={"mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold " + (activeOf(detailVoucher) ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600")}>{activeOf(detailVoucher) ? tc("active") : tc("inactive")}</span></div></div></section>
+            <section className="rounded-2xl border border-gray-200 bg-white p-5"><h3 className="mb-4 text-base font-bold text-gray-900">Phạm vi áp dụng</h3><div className="grid gap-4 sm:grid-cols-3"><DetailItem label="Áp dụng cho" value={getApplicableLabel(applicableToOf(detailVoucher))} /><DetailItem label={t("vouchers.fundingType")} value={getFundingLabel(detailVoucher.fundingType)} /><DetailItem label={t("vouchers.operatorScope")} value={getOperatorScopeLabel(detailVoucher)} /></div></section>
+            <section className="rounded-2xl border border-gray-200 bg-white p-5"><h3 className="mb-4 text-base font-bold text-gray-900">Phát hành & thời hạn sử dụng</h3><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><DetailItem label={t("vouchers.issued")} value={formatNumber(quantityOf(detailVoucher))} /><DetailItem label={t("vouchers.used")} value={formatNumber(usedCountOf(detailVoucher))} /><DetailItem label="Phát hành từ" value={formatDisplayDate(detailVoucher.validFrom ?? "")} /><DetailItem label={t("vouchers.expiry")} value={formatDisplayDate(expiryDateOf(detailVoucher))} /></div></section>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         open={consentVoucher !== null}
         onClose={() => setConsentVoucher(null)}
         wide
@@ -1151,7 +1091,7 @@ export default function Vouchers() {
         }
       >
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 grid gap-4 sm:grid-cols-2">
             <Field
               label={t("vouchers.voucherCode")}
               value={form.code}
@@ -1183,7 +1123,7 @@ export default function Vouchers() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>{t("vouchers.discountType")}</label>
               <CustomSelect
@@ -1245,7 +1185,7 @@ export default function Vouchers() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 grid gap-4 sm:grid-cols-2">
             <Field
               label={t("vouchers.minOrder")}
               value={form.minOrderValue}
@@ -1261,8 +1201,8 @@ export default function Vouchers() {
             />
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 grid gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>{t("vouchers.fundingType")}</label>
                 <CustomSelect
@@ -1716,3 +1656,4 @@ function CampaignVoucherSelector({
     </div>
   );
 }
+

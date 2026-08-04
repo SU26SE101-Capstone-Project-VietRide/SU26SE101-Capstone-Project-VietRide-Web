@@ -1,4 +1,5 @@
 import { FiCamera, FiChevronRight, FiEdit2, FiHome, FiLoader } from "react-icons/fi";
+import { formatVietnamPhoneForDisplay } from "../utils/phone";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -525,7 +526,7 @@ export default function Profile() {
               <p className="text-xs text-gray-600 font-semibold uppercase">
                 {t("profilePage.phone")}
               </p>
-              <p className="text-gray-900 mt-2 font-medium">{profile.phone}</p>
+              <p className="text-gray-900 mt-2 font-medium">{formatVietnamPhoneForDisplay(profile.phone)}</p>
             </div>
             <div className="col-span-2">
               <p className="text-xs text-gray-600 font-semibold uppercase">

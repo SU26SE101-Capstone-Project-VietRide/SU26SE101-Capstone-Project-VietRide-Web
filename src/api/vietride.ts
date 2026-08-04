@@ -478,10 +478,18 @@ export type AdminTripSettlementParams = OperatorTripSettlementParams & {
 export type OperatorLedgerEntry = {
   ledgerEntryId: string;
   tripId: string;
+  actorType?: "USER" | "SYSTEM" | string;
+  actor?: {
+    userId: string;
+    displayName: string;
+    email?: string;
+    role?: string;
+  } | null;
   entryType: string;
   amount: number;
   referenceType: string;
-  referenceId: string;
+  referenceId: string | null;
+  note?: string | null;
   createdAt: string;
 };
 
@@ -1003,8 +1011,10 @@ export type AvailableVoucherParams = {
 export type ParcelSizeCategory = "SMALL" | "MEDIUM" | "LARGE" | "EXTRA_LARGE" | string;
 
 export type ParcelAvailableTripsParams = PageParams & {
-  originStationId: string;
-  destinationStationId: string;
+  originStationId?: string;
+  destinationStationId?: string;
+  originLocationCode?: string;
+  destinationLocationCode?: string;
   departureDate: string;
   lengthCm: number;
   widthCm: number;
@@ -2063,6 +2073,22 @@ export type AlternativeRouteRequest = {
   }>;
 };
 
+export type RouteChangeProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUPERSEDED" | "EXPIRED";
+export type RouteChangeProposalType = "EXISTING" | "CUSTOM";
+export type RouteChangeProposalSnapshot = { name: string; description: string | null; destinationStationId: string; totalDistanceKm: number | null; estimatedDurationMinutes: number | null; pathPolyline: string | null; stops: Array<{ stopId: string; orderIndex: number; estimatedDurationFromOriginMinutes: number; distanceFromOriginKm: number; }>; };
+export type RouteChangeProposal = { id: string; tripId: string; operatorId: string; proposedByUserId: string; type: RouteChangeProposalType; status: RouteChangeProposalStatus; sourceAlternativeRouteId: string | null; sourceUpdatedAt: string | null; incidentId: string | null; reason: string; snapshot: RouteChangeProposalSnapshot; decidedByUserId: string | null; decidedAt: string | null; rejectionReason: string | null; resolutionCode: string | null; supersededByProposalId: string | null; approvedAlternativeRouteId: string | null; createdAt: string; updatedAt: string; };
+export type OperatorRouteChangeProposalParams = PageParams & { tripId?: string; status?: RouteChangeProposalStatus; type?: RouteChangeProposalType; };
+export type RouteChangeAffectedBooking = { bookingId: string; candidateStops: Array<{ stopId: string | null; stationId: string | null; stationName: string; sequence: number; estimatedArrivalAt: string; }>; };
+export type RouteChangeResult = { tripId: string; status: string; alternativeRouteId: string; affectedBookings: RouteChangeAffectedBooking[]; };
+export type ApproveRouteChangeProposalResult = { proposal: RouteChangeProposal; routeChange: RouteChangeResult; };
+export type RejectRouteChangeProposalRequest = { reason?: string | null; };
+export type DirectRouteChangeRequest = { alternativeRouteId: string; };
+export type AdminOperatorDetail = AdminOperator & { address: { street: string | null; ward: string | null; district: string | null; province: string | null } | null; representativeName: string | null; representativePhone: string | null; registrationStatus: "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED"; isActive: boolean; approvedAt: string | null; rejectedAt: string | null; rejectReason: string | null; suspendedAt: string | null; suspendReason: string | null; cancellationPolicy: Array<{ hoursBeforeDeparture: number; feePercent: number }> | null; parcelNoShowPolicy: { noShowFeePercent: number; additionalPaymentTimeoutMinutes: number }; luggagePolicy: { defaultLuggageKgPerSeat: number }; updatedAt: string; };
+export type FareSurchargeSetting = { isEnabled: boolean };
+export type FareSurchargeStatus = "DISABLED" | "UPCOMING" | "EXPIRED" | "APPLYING";
+export type FareSurchargePeriod = { periodId: string; name: string; startDate: string; endDate: string; surchargePercent: number; isActive: boolean; status: FareSurchargeStatus; createdAt: string; updatedAt: string };
+export type FareSurchargePeriodRequest = { name: string; startDate: string; endDate: string; surchargePercent: number; isActive?: boolean | null };
+export type FareSurchargePeriodPatch = Partial<FareSurchargePeriodRequest>;
 export type VehicleSeat = {
   seatNumber: string;
   row: number;
@@ -2170,7 +2196,16 @@ export type PublicTrip = {
   status: string;
   departureTime: string;
   estimatedArrivalTime: string;
+  departureDateTime?: string;
+  availableSeats?: number;
+  allowAlongRoutePickup?: boolean;
+  allowAlongRouteDropoff?: boolean;
   baseFare: number;
+  surchargePercent?: number;
+  surchargeAmount?: number;
+  effectiveFare?: number;
+  surchargePeriodId?: string | null;
+  surchargePeriodName?: string | null;
   originStation: Pick<Station, "id" | "name">;
   destinationStation: Pick<Station, "id" | "name">;
   stops: Array<{
@@ -2539,6 +2574,10 @@ export function resetPassword(request: ResetPasswordRequest) {
     body: request,
     authenticated: false,
   });
+}
+
+export function getAdminOperatorDetail(operatorId: string) {
+  return apiRequest<AdminOperatorDetail>(`/v1/admin/operators/${operatorId}`);
 }
 
 export function getAdminOperators(params: PageParams = {}) {
@@ -3806,6 +3845,18 @@ export function deactivateAdminCampaign(campaignId: string) {
   );
 }
 
+export function getOperatorRouteChangeProposals(params: OperatorRouteChangeProposalParams = {}) { return apiRequest<PagedResult<RouteChangeProposal>>(`/v1/operator/route-change-proposals${buildQuery(params)}`); }
+export function getOperatorRouteChangeProposal(proposalId: string) { return apiRequest<RouteChangeProposal>(`/v1/operator/route-change-proposals/${proposalId}`); }
+export function approveOperatorRouteChangeProposal(proposalId: string, idempotencyKey: string = createIdempotencyKey()) { return apiRequest<ApproveRouteChangeProposalResult>(`/v1/operator/route-change-proposals/${proposalId}/approve`, { method: "POST", headers: { "Idempotency-Key": idempotencyKey } }); }
+export function rejectOperatorRouteChangeProposal(proposalId: string, request: RejectRouteChangeProposalRequest = {}, idempotencyKey: string = createIdempotencyKey()) { return apiRequest<RouteChangeProposal>(`/v1/operator/route-change-proposals/${proposalId}/reject`, { method: "POST", body: request, headers: { "Idempotency-Key": idempotencyKey } }); }
+export function changeOperatorTripRoute(tripId: string, request: DirectRouteChangeRequest, idempotencyKey: string = createIdempotencyKey()) { return apiRequest<RouteChangeResult>(`/v1/operator/trips/${tripId}/change-route`, { method: "POST", body: request, headers: { "Idempotency-Key": idempotencyKey } }); }
+export function getOperatorFareSurchargeSettings() { return apiRequest<FareSurchargeSetting>("/v1/operator/fare-surcharges/settings"); }
+export function updateOperatorFareSurchargeSettings(request: FareSurchargeSetting, idempotencyKey: string = createIdempotencyKey()) { return apiRequest<FareSurchargeSetting>("/v1/operator/fare-surcharges/settings", { method: "PUT", body: request, headers: { "Idempotency-Key": idempotencyKey } }); }
+export function getOperatorFareSurchargePeriods(params: PageParams = {}) { return apiRequest<PagedResult<FareSurchargePeriod>>(`/v1/operator/fare-surcharges/periods${buildQuery(params)}`); }
+export function createOperatorFareSurchargePeriod(request: FareSurchargePeriodRequest, idempotencyKey: string = createIdempotencyKey()) { return apiRequest<FareSurchargePeriod>("/v1/operator/fare-surcharges/periods", { method: "POST", body: request, headers: { "Idempotency-Key": idempotencyKey } }); }
+export function updateOperatorFareSurchargePeriod(periodId: string, request: FareSurchargePeriodPatch, idempotencyKey: string = createIdempotencyKey()) { return apiRequest<FareSurchargePeriod>(`/v1/operator/fare-surcharges/periods/${periodId}`, { method: "PATCH", body: request, headers: { "Idempotency-Key": idempotencyKey } }); }
+export function deleteOperatorFareSurchargePeriod(periodId: string, idempotencyKey: string = createIdempotencyKey()) { return apiRequest<void>(`/v1/operator/fare-surcharges/periods/${periodId}`, { method: "DELETE", headers: { "Idempotency-Key": idempotencyKey } }); }
+
 export function getAlternativeRoutes(routeId: string, params: PageParams = {}) {
   return apiRequest<PagedResult<AlternativeRoute>>(
     `/v1/operator/routes/${routeId}/alternative-routes${buildQuery(params)}`,
@@ -3897,7 +3948,7 @@ export function getVehicleTypes(params: PageParams & { searchIn?: string } = {})
 }
 
 export function searchPublicTrips(params: PublicTripSearchParams) {
-  return apiRequest<PublicTrip[]>(`/v1/trips/search${buildQuery(params)}`);
+  return apiRequest<PagedResult<PublicTrip>>(`/v1/trips/search${buildQuery(params)}`);
 }
 
 export function getPublicTrip(tripId: string) {
@@ -4184,6 +4235,12 @@ export function getTrackingTripTrail(
 export function getTrackingTripEta(tripId: string, stopId: string) {
   return apiRequest<TrackingEtaResponse>(
     `/v1/tracking/trips/${tripId}/eta${buildQuery({ stopId })}`,
+  );
+}
+
+export function getTrackingTripRouteGeometry(tripId: string) {
+  return apiRequest<TripRouteGeometry>(
+    `/v1/tracking/trips/${tripId}/route-geometry`,
   );
 }
 

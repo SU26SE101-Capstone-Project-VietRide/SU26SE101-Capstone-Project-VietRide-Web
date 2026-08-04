@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatVietnamPhoneForDisplay } from "../../utils/phone";
 import { useTranslation } from "react-i18next";
 import {
   FiDownload,
@@ -17,6 +18,7 @@ import {
   approveAdminOperator,
   createAdminOperator,
   getAdminOperators,
+  getAdminOperatorDetail,
   rejectAdminOperator,
   suspendAdminOperator,
   type AdminOperator,
@@ -444,9 +446,14 @@ export default function Operators() {
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2">
                         <button
-                          onClick={() => {
-                            setSelectedOperator(operator);
-                            setOpenDetail(true);
+                          onClick={async () => {
+                            try {
+                              const detail = await getAdminOperatorDetail(operator.operatorId);
+                              setSelectedOperator(detail);
+                              setOpenDetail(true);
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : t("operators.loadFailed"));
+                            }
                           }}
                           className="p-1.5 text-vr-600 hover:bg-vr-50 rounded-lg transition"
                           title={tc("details")}
@@ -555,7 +562,7 @@ export default function Operators() {
               />
               <DetailItem
                 label={tc("phone")}
-                value={selectedOperator.contactPhone}
+                value={formatVietnamPhoneForDisplay(selectedOperator.contactPhone)}
               />
               <DetailItem
                 label={tc("status")}
@@ -601,7 +608,7 @@ export default function Operators() {
                 />
                 <DetailItem
                   label={t("operators.representativePhone")}
-                  value={selectedOperator.representativePhone}
+                  value={formatVietnamPhoneForDisplay(selectedOperator.representativePhone)}
                 />
               </div>
             </section>

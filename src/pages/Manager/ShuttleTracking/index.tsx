@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ApiRequestError } from "../../../api/client";
 import type { Socket } from "socket.io-client";
 import { FiMapPin, FiNavigation, FiRefreshCw, FiX } from "react-icons/fi";
 import {
@@ -22,6 +23,20 @@ import GoogleMapCanvas from "../../../components/GoogleMapCanvas";
 import { formatDateTime } from "../../../utils/date";
 
 type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
+function getTrackingErrorMessage(
+  error: unknown,
+  fallback: string,
+  denied: string,
+): string {
+  if (
+    error instanceof ApiRequestError &&
+    error.code === "TRACKING_ACCESS_DENIED"
+  ) {
+    return denied;
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
 
 const defaultCenter = { lat: 10.7769, lng: 106.7009 };
 
@@ -39,7 +54,13 @@ function realtimeDotClass(status: RealtimeStatus) {
   return "bg-gray-400";
 }
 
-export default function ShuttleTracking() {
+export type ShuttleTrackingProps = {
+  embedded?: boolean;
+};
+
+export default function ShuttleTracking({
+  embedded = false,
+}: ShuttleTrackingProps) {
   const { t } = useTranslation("manager");
 
   const [recentTrips, setRecentTrips] = useState<RecentShuttleTrip[]>(() =>
@@ -77,7 +98,11 @@ export default function ShuttleTracking() {
       setEta(etaResult);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : t("shuttleTracking.loadFailed"),
+        getTrackingErrorMessage(
+          err,
+          t("shuttleTracking.loadFailed"),
+          t("shuttleTracking.operatorTrackingDenied"),
+        ),
       );
     } finally {
       setIsLoading(false);
@@ -119,7 +144,11 @@ export default function ShuttleTracking() {
           setRealtimeStatus("connected");
         } else {
           setRealtimeStatus("error");
-          setError(t("shuttleTracking.realtimeJoinFailed"));
+          setError(
+            ack.error === "TRACKING_ACCESS_DENIED"
+              ? t("shuttleTracking.operatorTrackingDenied")
+              : t("shuttleTracking.realtimeJoinFailed"),
+          );
         }
       });
     });
@@ -169,14 +198,16 @@ export default function ShuttleTracking() {
 
   return (
     <div className="flex flex-col gap-5 pb-2">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-          {t("shuttleTracking.title")}
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-base">
-          {t("shuttleTracking.subtitle")}
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+            {t("shuttleTracking.title")}
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-base">
+            {t("shuttleTracking.subtitle")}
+          </p>
+        </div>
+      )}
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">

@@ -1,6 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { useTranslation } from "react-i18next";
-import { FiAlertTriangle, FiBox, FiCheck, FiClock, FiCreditCard, FiDownload, FiEye, FiShoppingCart, FiTrendingUp, FiXCircle } from "react-icons/fi";
+import {
+  FiAlertTriangle,
+  FiBox,
+  FiCheck,
+  FiClock,
+  FiCreditCard,
+  FiDownload,
+  FiEye,
+  FiShoppingCart,
+  FiTrendingUp,
+  FiXCircle,
+} from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import {
   getOperatorSubscription,
@@ -27,13 +46,19 @@ function formatNumber(n: number) {
   return n.toLocaleString("vi-VN");
 }
 
-function formatPrice(plan: SubscriptionPlan, billingPeriod: SubscriptionBillingPeriod) {
+function formatPrice(
+  plan: SubscriptionPlan,
+  billingPeriod: SubscriptionBillingPeriod,
+) {
   const amount =
     billingPeriod === "YEARLY" ? plan.pricePerYear : plan.pricePerMonth;
   return `${formatNumber(amount)} VND`;
 }
 
-function planLimit(plan: SubscriptionPlan, key: keyof SubscriptionPlan["limits"]) {
+function planLimit(
+  plan: SubscriptionPlan,
+  key: keyof SubscriptionPlan["limits"],
+) {
   return plan.limits[key] ?? 0;
 }
 
@@ -119,7 +144,9 @@ export default function ManagerPackages() {
   const [subscription, setSubscription] =
     useState<OperatorSubscriptionDetail | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(
+    null,
+  );
   const [billingPeriod, setBillingPeriod] =
     useState<SubscriptionBillingPeriod>("YEARLY");
   const [purchaseOpen, setPurchaseOpen] = useState(false);
@@ -137,11 +164,9 @@ export default function ManagerPackages() {
   const currentPlan = subscription?.plan ?? null;
   const pendingUpgrade = subscription?.pendingUpgrade ?? null;
   const hasPendingPayment =
-    subscription?.status === "PENDING_PAYMENT" ||
-    Boolean(pendingUpgrade);
+    subscription?.status === "PENDING_PAYMENT" || Boolean(pendingUpgrade);
   const hasUnresolvedPendingPayment =
-    subscription?.status === "PENDING_PAYMENT" &&
-    !pendingUpgrade;
+    subscription?.status === "PENDING_PAYMENT" && !pendingUpgrade;
   const pendingTargetPlanId =
     pendingUpgrade?.targetPlan?.planId ?? pendingUpgrade?.targetPlanId ?? "";
   const pendingTargetPlanName =
@@ -155,8 +180,8 @@ export default function ManagerPackages() {
   );
   const canRetryPendingPayment = Boolean(
     pendingUpgrade &&
-      remainingPaymentSeconds > 0 &&
-      pendingUpgrade.latestPayment?.canRetry === true,
+    remainingPaymentSeconds > 0 &&
+    pendingUpgrade.latestPayment?.canRetry === true,
   );
   const isCancelledSubscription = subscription?.status === "CANCELLED";
   const isExpiredSubscription = subscription?.status === "EXPIRED";
@@ -175,8 +200,8 @@ export default function ManagerPackages() {
   );
   const hasSubscriptionPeriodIssue = Boolean(
     subscription &&
-      !hasUnresolvedPendingPayment &&
-      hasUnexpectedSubscriptionPeriod(subscription),
+    !hasUnresolvedPendingPayment &&
+    hasUnexpectedSubscriptionPeriod(subscription),
   );
   const availablePlans = useMemo(
     () =>
@@ -210,7 +235,9 @@ export default function ManagerPackages() {
         await loadSubscriptionData();
       } catch (err) {
         if (isCurrent) {
-          setError(err instanceof Error ? err.message : t("packages.loadFailed"));
+          setError(
+            err instanceof Error ? err.message : t("packages.loadFailed"),
+          );
         }
       } finally {
         if (isCurrent) setIsLoading(false);
@@ -244,12 +271,9 @@ export default function ManagerPackages() {
           console.info("[SubscriptionPayment] PENDING_SYNC_RESULT", {
             status: result.status,
             activePlanId: result.plan.planId,
-            upgradeAttemptId:
-              result.pendingUpgrade?.upgradeAttemptId ?? null,
-            paymentId:
-              result.pendingUpgrade?.latestPayment?.paymentId ?? null,
-            paymentStatus:
-              result.pendingUpgrade?.latestPayment?.status ?? null,
+            upgradeAttemptId: result.pendingUpgrade?.upgradeAttemptId ?? null,
+            paymentId: result.pendingUpgrade?.latestPayment?.paymentId ?? null,
+            paymentStatus: result.pendingUpgrade?.latestPayment?.status ?? null,
           });
         }
       } catch (refreshError) {
@@ -329,10 +353,7 @@ export default function ManagerPackages() {
         ? selectedPlan.pricePerYear
         : selectedPlan.pricePerMonth;
     const isCurrentPlan = selectedPlan.planId === currentPlan?.planId;
-    if (
-      (isCurrentPlan && !canRepurchaseCurrentPlan) ||
-      payableAmount <= 0
-    ) {
+    if ((isCurrentPlan && !canRepurchaseCurrentPlan) || payableAmount <= 0) {
       setError(t("packages.planNotPayable"));
       return;
     }
@@ -342,10 +363,10 @@ export default function ManagerPackages() {
     setError("");
 
     const request = {
-        planId: selectedPlan.planId,
-        billingPeriod,
-        paymentMethod: "VNPAY" as const,
-        returnUrl: `${window.location.origin}/payments/return`,
+      planId: selectedPlan.planId,
+      billingPeriod,
+      paymentMethod: "VNPAY" as const,
+      returnUrl: `${window.location.origin}/payments/return`,
     };
     const requestSignature = JSON.stringify(request);
     if (upgradeIntentRef.current?.signature !== requestSignature) {
@@ -497,7 +518,7 @@ export default function ManagerPackages() {
                 ? "border-red-200 bg-red-50/70"
                 : isExpiredSubscription
                   ? "border-amber-200 bg-amber-50/70"
-              : "border-vr-200 bg-vr-50/70"
+                  : "border-vr-200 bg-vr-50/70"
           }`}
         >
           <div className="flex items-start justify-between gap-4">
@@ -507,10 +528,10 @@ export default function ManagerPackages() {
                 <h3 className="text-lg font-bold text-gray-900">
                   {t(
                     isCancelledSubscription
-                        ? "packages.cancelledPackage"
-                        : isExpiredSubscription
-                          ? "packages.expiredPackage"
-                          : "packages.currentPackage",
+                      ? "packages.cancelledPackage"
+                      : isExpiredSubscription
+                        ? "packages.expiredPackage"
+                        : "packages.currentPackage",
                     { name: currentPlan.name },
                   )}
                 </h3>
@@ -530,7 +551,15 @@ export default function ManagerPackages() {
                         : "text-vr-700"
                   }`}
                 >
-                  {tc(`enumLabels.${subscription.status}`, { defaultValue: subscription.status })} · {subscription.billingPeriod ? tc(`enumLabels.${subscription.billingPeriod}`, { defaultValue: subscription.billingPeriod }) : "-"}
+                  {tc(`enumLabels.${subscription.status}`, {
+                    defaultValue: subscription.status,
+                  })}{" "}
+                  ·{" "}
+                  {subscription.billingPeriod
+                    ? tc(`enumLabels.${subscription.billingPeriod}`, {
+                        defaultValue: subscription.billingPeriod,
+                      })
+                    : "-"}
                 </p>
                 {hasCurrentPlanEntitlement ? (
                   <div className="mt-3 grid gap-4 text-sm sm:grid-cols-3">
@@ -587,16 +616,16 @@ export default function ManagerPackages() {
                   </p>
                 </div>
                 {canRetryPendingPayment ? (
-                <button
-                  type="button"
+                  <button
+                    type="button"
                     onClick={() => void handleRetryPayment()}
                     disabled={isRetryingPayment}
                     className="cursor-pointer rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 font-semibold text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
+                  >
                     {isRetryingPayment
                       ? t("packages.retryingPayment")
                       : t("packages.retryPayment")}
-                </button>
+                  </button>
                 ) : (
                   <span className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
                     {t("packages.retryPaymentUnavailable")}
@@ -702,7 +731,11 @@ export default function ManagerPackages() {
                 <p className="text-3xl font-bold text-vr-600">
                   {formatPrice(plan, billingPeriod)}
                 </p>
-                <p className="mt-1 text-sm text-gray-500">{tc(`enumLabels.${billingPeriod}`, { defaultValue: billingPeriod })}</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {tc(`enumLabels.${billingPeriod}`, {
+                    defaultValue: billingPeriod,
+                  })}
+                </p>
               </div>
 
               <div className="mb-6 space-y-3">
@@ -751,8 +784,7 @@ export default function ManagerPackages() {
                 type="button"
                 onClick={() => openPurchase(plan)}
                 disabled={
-                  !canPurchasePackage ||
-                  Boolean(subscription?.pendingUpgrade)
+                  !canPurchasePackage || Boolean(subscription?.pendingUpgrade)
                 }
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-vr-500 py-2 font-medium text-white transition-colors hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -898,7 +930,11 @@ function OperatorInvoiceSection() {
         }
       } catch (err) {
         if (!ignore) {
-          setError(err instanceof Error ? err.message : t("packages.invoiceLoadFailed"));
+          setError(
+            err instanceof Error
+              ? err.message
+              : t("packages.invoiceLoadFailed"),
+          );
         }
       } finally {
         if (!ignore) setLoading(false);
@@ -917,7 +953,9 @@ function OperatorInvoiceSection() {
     try {
       setDetail(await getOperatorInvoice(invoiceId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("packages.invoiceDetailFailed"));
+      setError(
+        err instanceof Error ? err.message : t("packages.invoiceDetailFailed"),
+      );
     } finally {
       setDetailLoadingId("");
     }
@@ -935,7 +973,11 @@ function OperatorInvoiceSection() {
       link.rel = "noopener noreferrer";
       link.click();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("packages.invoiceDownloadFailed"));
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("packages.invoiceDownloadFailed"),
+      );
     } finally {
       setDownloadingId("");
     }
@@ -944,16 +986,119 @@ function OperatorInvoiceSection() {
   return (
     <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-200 px-5 py-4">
-        <h2 className="text-xl font-bold text-gray-900">{t("packages.invoices")}</h2>
-        <p className="mt-1 text-sm text-gray-500">{t("packages.invoicesHint")}</p>
+        <h2 className="text-xl font-bold text-gray-900">
+          {t("packages.invoices")}
+        </h2>
+        <p className="mt-1 text-sm text-gray-500">
+          {t("packages.invoicesHint")}
+        </p>
       </div>
-      {error && <div role="alert" className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {error && (
+        <div
+          role="alert"
+          className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {error}
+        </div>
+      )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600"><th className="px-4 py-3">{t("packages.invoiceNumber")}</th><th className="px-4 py-3">{t("packages.period")}</th><th className="px-4 py-3">{t("packages.amount")}</th><th className="px-4 py-3">{t("packages.invoiceStatus")}</th><th className="px-4 py-3">PDF</th><th className="px-4 py-3 text-center">{t("packages.action")}</th></tr></thead>
-          <tbody>{!loading && invoices.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-500">{t("packages.noInvoices")}</td></tr> : invoices.map((invoice) => <tr key={invoice.invoiceId} className="border-t border-gray-100"><td className="px-4 py-3 font-semibold">{invoice.invoiceNumber}</td><td className="px-4 py-3 text-gray-600">{formatDateOnly(invoice.periodFrom)} - {formatDateOnly(invoice.periodTo)}</td><td className="px-4 py-3 font-semibold">{formatNumber(invoice.amount)} đ</td><td className="px-4 py-3">{tc(`enumLabels.${invoice.status}`, { defaultValue: invoice.status })}</td><td className="px-4 py-3">{tc(`enumLabels.${invoice.pdfGenerationStatus}`, { defaultValue: invoice.pdfGenerationStatus })}</td><td className="px-4 py-3"><div className="flex justify-center gap-2"><button type="button" disabled={detailLoadingId === invoice.invoiceId} onClick={() => void openInvoiceDetail(invoice.invoiceId)} className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40" title={t("packages.viewInvoice")} aria-label={t("packages.viewInvoice")}><FiEye /></button><button type="button" disabled={invoice.status !== "ISSUED" || invoice.pdfGenerationStatus !== "COMPLETED" || downloadingId === invoice.invoiceId} onClick={() => void downloadInvoice(invoice.invoiceId)} className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40" title={t("packages.downloadInvoice")} aria-label={t("packages.downloadInvoice")}><FiDownload /></button></div></td></tr>)}</tbody>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+              <th className="px-4 py-3">{t("packages.invoiceNumber")}</th>
+              <th className="px-4 py-3">{t("packages.period")}</th>
+              <th className="px-4 py-3">{t("packages.amount")}</th>
+              <th className="px-4 py-3">{t("packages.invoiceStatus")}</th>
+              <th className="px-4 py-3">Tệp hóa đơn</th>
+              <th className="px-4 py-3 text-center">{t("packages.action")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!loading && invoices.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-4 py-10 text-center text-gray-500"
+                >
+                  {t("packages.noInvoices")}
+                </td>
+              </tr>
+            ) : (
+              invoices.map((invoice) => (
+                <tr
+                  key={invoice.invoiceId}
+                  className="border-t border-gray-100"
+                >
+                  <td className="px-4 py-3 font-semibold">
+                    {invoice.invoiceNumber}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {formatDateOnly(invoice.periodFrom)} -{" "}
+                    {formatDateOnly(invoice.periodTo)}
+                  </td>
+                  <td className="px-4 py-3 font-semibold">
+                    {formatNumber(invoice.amount)} đ
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        invoice.status === "ISSUED"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {tc(`enumLabels.${invoice.status}`, {
+                        defaultValue: invoice.status,
+                      })}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {tc(`enumLabels.${invoice.pdfGenerationStatus}`, {
+                      defaultValue: invoice.pdfGenerationStatus,
+                    })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center gap-2">
+                      <button
+                        type="button"
+                        disabled={detailLoadingId === invoice.invoiceId}
+                        onClick={() =>
+                          void openInvoiceDetail(invoice.invoiceId)
+                        }
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={t("packages.viewInvoice")}
+                        aria-label={t("packages.viewInvoice")}
+                      >
+                        <FiEye />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          invoice.status !== "ISSUED" ||
+                          invoice.pdfGenerationStatus !== "COMPLETED" ||
+                          downloadingId === invoice.invoiceId
+                        }
+                        onClick={() => void downloadInvoice(invoice.invoiceId)}
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={t("packages.downloadInvoice")}
+                        aria-label={t("packages.downloadInvoice")}
+                      >
+                        <FiDownload />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
         </table>
       </div>
-      <Pagination page={page} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} />
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        onPageChange={setPage}
+      />
       <Modal
         open={Boolean(detail)}
         onClose={() => setDetail(null)}
@@ -962,7 +1107,11 @@ function OperatorInvoiceSection() {
         title={t("packages.invoiceDetailTitle")}
         subtitle={detail?.invoiceNumber}
         footer={
-          <button type="button" onClick={() => setDetail(null)} className="cursor-pointer rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+          <button
+            type="button"
+            onClick={() => setDetail(null)}
+            className="cursor-pointer rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+          >
             {t("packages.close")}
           </button>
         }
@@ -977,29 +1126,107 @@ function InvoiceDetailContent({ detail }: { detail: OperatorInvoiceDetail }) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const buyer = detail.buyerSnapshot;
-  const address = [buyer.addressStreet, buyer.addressWard, buyer.addressDistrict, buyer.addressProvince]
+  const address = [
+    buyer.addressStreet,
+    buyer.addressWard,
+    buyer.addressDistrict,
+    buyer.addressProvince,
+  ]
     .filter(Boolean)
     .join(", ");
+  const statusLabel = tc(`enumLabels.${detail.status}`, {
+    defaultValue: detail.status,
+  });
+  const billingLabel = tc(`enumLabels.${detail.billingPeriod}`, {
+    defaultValue: detail.billingPeriod,
+  });
 
   return (
-    <div className="space-y-5">
-      <section className="grid gap-4 sm:grid-cols-2">
-        <InfoItem label={t("packages.invoiceNumber")} value={detail.invoiceNumber} />
-        <InfoItem label={t("packages.invoiceStatus")} value={tc(`enumLabels.${detail.status}`, { defaultValue: detail.status })} />
-        <InfoItem label={t("packages.packageColumn")} value={detail.planName} />
-        <InfoItem label={t("packages.amount")} value={`${formatNumber(detail.amount)} đ`} />
-        <InfoItem label={t("packages.billingPeriod")} value={tc(`enumLabels.${detail.billingPeriod}`, { defaultValue: detail.billingPeriod })} />
-        <InfoItem label={t("packages.period")} value={`${formatDateOnly(detail.periodFrom)} - ${formatDateOnly(detail.periodTo)}`} />
+    <div className="space-y-6 pb-2">
+      <div className="rounded-xl border border-vr-100 bg-gradient-to-br from-vr-50 via-white to-slate-50 p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-vr-600">
+              {t("packages.invoiceNumber")}
+            </p>
+            <p className="mt-2 font-mono text-lg font-bold tracking-tight text-gray-900">
+              {detail.invoiceNumber}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {detail.planName} · {billingLabel}
+            </p>
+          </div>
+          <span className="inline-flex w-fit items-center rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700">
+            {statusLabel}
+          </span>
+        </div>
+        <div className="mt-5 flex flex-col gap-1 border-t border-vr-100 pt-4 sm:flex-row sm:items-end sm:justify-between">
+          <span className="text-sm font-medium text-gray-500">
+            {t("packages.amount")}
+          </span>
+          <span className="text-2xl font-bold tracking-tight text-vr-700">
+            {formatNumber(detail.amount)} đ
+          </span>
+        </div>
+      </div>
+
+      <section>
+        <div className="mb-3 flex items-center gap-3">
+          <span className="h-5 w-1 rounded-full bg-vr-500" />
+          <h3 className="font-bold text-gray-900">
+            {t("packages.packageColumn")}
+          </h3>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <InfoItem
+            label={t("packages.packageColumn")}
+            value={detail.planName}
+          />
+          <InfoItem label={t("packages.billingPeriod")} value={billingLabel} />
+          <InfoItem
+            label={t("packages.period")}
+            value={
+              formatDateOnly(detail.periodFrom) +
+              " - " +
+              formatDateOnly(detail.periodTo)
+            }
+          />
+        </div>
       </section>
-      <section className="border-t border-gray-200 pt-5">
-        <h3 className="mb-4 font-bold text-gray-900">{t("packages.buyerInfo")}</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <InfoItem label={t("packages.buyerName")} value={buyer.name || "-"} />
-          <InfoItem label={t("packages.taxCode")} value={buyer.taxCode || "-"} />
-          <InfoItem label={t("packages.businessRegistrationNumber")} value={buyer.businessRegistrationNumber || "-"} />
-          <InfoItem label={t("packages.contactEmail")} value={buyer.contactEmail || "-"} />
-          <InfoItem label={t("packages.contactPhone")} value={buyer.contactPhone || "-"} />
-          <InfoItem label={t("packages.address")} value={address || "-"} />
+
+      <section className="border-t border-gray-100 pt-5">
+        <div className="mb-3 flex items-center gap-3">
+          <span className="h-5 w-1 rounded-full bg-vr-500" />
+          <h3 className="font-bold text-gray-900">{t("packages.buyerInfo")}</h3>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="grid gap-x-6 divide-y divide-gray-100 sm:grid-cols-2 sm:divide-y-0">
+            <div className="space-y-4 p-4 sm:border-r sm:border-gray-100">
+              <InfoItem
+                label={t("packages.buyerName")}
+                value={buyer.name || "-"}
+              />
+              <InfoItem
+                label={t("packages.businessRegistrationNumber")}
+                value={buyer.businessRegistrationNumber || "-"}
+              />
+              <InfoItem
+                label={t("packages.contactPhone")}
+                value={formatVietnamPhoneForDisplay(buyer.contactPhone)}
+              />
+            </div>
+            <div className="space-y-4 p-4">
+              <InfoItem
+                label={t("packages.taxCode")}
+                value={buyer.taxCode || "-"}
+              />
+              <InfoItem
+                label={t("packages.contactEmail")}
+                value={buyer.contactEmail || "-"}
+              />
+              <InfoItem label={t("packages.address")} value={address || "-"} />
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -1062,9 +1289,14 @@ function LimitRow({
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 font-semibold text-gray-900">{value}</p>
+    <div className="min-w-0 rounded-lg bg-gray-50 px-3 py-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-semibold text-gray-900">
+        {value}
+      </p>
     </div>
   );
 }
+

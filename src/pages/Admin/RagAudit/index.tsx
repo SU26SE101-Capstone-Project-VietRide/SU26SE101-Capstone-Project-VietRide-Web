@@ -161,7 +161,7 @@ export default function RagAudit() {
         </div>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+      <div className="grid gap-5">
         <section className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -188,7 +188,7 @@ export default function RagAudit() {
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[760px] whitespace-nowrap text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
                   <th className="px-4 py-3">{tc("title")}</th>
@@ -209,19 +209,6 @@ export default function RagAudit() {
                         <div>
                           <p className="font-semibold text-gray-900">
                             {document.title}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {tc(
-                              `enumLabels.${document.fileType ?? document.documentType}`,
-                              {
-                                defaultValue:
-                                  document.fileType ?? document.documentType,
-                              },
-                            )}{" "}
-                            - {document.title || "Tài liệu cho trợ lý AI"}
-                          </p>
-                          <p className="mt-1 font-mono text-[11px] text-gray-400">
-                            {document.id}
                           </p>
                         </div>
                       </div>

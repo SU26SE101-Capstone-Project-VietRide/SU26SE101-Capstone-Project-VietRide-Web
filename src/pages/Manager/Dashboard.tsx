@@ -40,6 +40,7 @@ import {
 import { getAuthUser } from "../../auth";
 import Pagination from "../../components/Pagination";
 import { downloadCsv } from "../../utils/csv";
+import { formatCurrency } from "../../utils/currency";
 
 type KPICard = {
   labelKey: string;
@@ -98,13 +99,6 @@ type DashboardSummary = {
   activeTrips: number | null;
 };
 
-const parcelStatusColors = [
-  "#2563eb",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-];
 
 function toDateInput(date: Date) {
   const year = date.getFullYear();
@@ -162,6 +156,24 @@ function formatCompactMoney(value: number) {
   }
 
   return value.toLocaleString("vi-VN");
+}
+
+function statusColor(key: string, index: number) {
+  const normalized = key.toUpperCase();
+  if (normalized.includes("CANCEL") || normalized.includes("FAIL")) return "#ef4444";
+  if (normalized.includes("DELIVER") || normalized.includes("COMPLETE")) return "#10b981";
+  if (normalized.includes("TRANSIT") || normalized.includes("LOADED")) return "#0ea5e9";
+  if (normalized.includes("CONFIRM") || normalized.includes("PROCESS")) return "#2563eb";
+  if (normalized.includes("PENDING") || normalized.includes("WAIT")) return "#f59e0b";
+  return ["#64748b", "#8b5cf6", "#14b8a6"][index % 3];
+}
+
+function vehicleStatusClass(status: string) {
+  const normalized = status.toUpperCase();
+  if (normalized.includes("ACTIVE") || normalized.includes("AVAILABLE") || normalized.includes("READY")) return "bg-emerald-50 text-emerald-700";
+  if (normalized.includes("TRIP") || normalized.includes("RUN") || normalized.includes("BUSY")) return "bg-sky-50 text-sky-700";
+  if (normalized.includes("MAINTENANCE") || normalized.includes("REPAIR")) return "bg-amber-50 text-amber-700";
+  return "bg-slate-100 text-slate-600";
 }
 
 function formatCompactNumber(value: number) {
@@ -440,7 +452,7 @@ export default function ManagerDashboard() {
           statusStats.items.map((item, index) => ({
             key: item.key ?? "UNKNOWN",
             value: item.count ?? 0,
-            color: parcelStatusColors[index % parcelStatusColors.length],
+            color: statusColor(item.key ?? "UNKNOWN", index),
           })),
         );
       } catch (error) {
@@ -558,13 +570,13 @@ export default function ManagerDashboard() {
         value:
           summary.revenue.currentMonth === null
             ? "-"
-            : formatCompactMoney(summary.revenue.currentMonth),
+            : formatCurrency(summary.revenue.currentMonth),
         helper:
           summary.revenue.yearToDate === null
             ? t("dashboard.unavailable")
             : t("dashboard.yearToDateValue", {
                 year,
-                value: formatCompactMoney(summary.revenue.yearToDate),
+                value: formatCurrency(summary.revenue.yearToDate),
               }),
         ...revenueChange,
         icon: <FiBarChart2 className="h-5 w-5" />,
@@ -810,14 +822,12 @@ export default function ManagerDashboard() {
                   activeDot={{ r: 5 }}
                   name={`${t("dashboard.chartRevenue")} (VND)`}
                 />
-                <Line
+                <Bar
                   yAxisId="bookings"
-                  type="monotone"
                   dataKey="bookings"
-                  stroke="#7c3aed"
-                  strokeWidth={3}
-                  dot={{ r: 3, fill: "#ffffff", strokeWidth: 2 }}
-                  activeDot={{ r: 5 }}
+                  fill="#8b5cf6"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={28}
                   name={t("dashboard.chartBookings")}
                 />
               </LineChart>
@@ -1023,21 +1033,25 @@ export default function ManagerDashboard() {
           )}
         </section>
 
-        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">
-            {t("dashboard.fleetStatus")}
-          </h2>
+        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">{t("dashboard.fleetStatus")}</h2>
+              <p className="mt-1 text-sm text-gray-500">Theo dõi trạng thái phương tiện trong ngày</p>
+            </div>
+            <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">{vehicles.length} xe</span>
+          </div>
           {vehicles.length === 0 ? (
             renderEmpty(isLoading ? "Đang tải dữ liệu..." : "Chưa có phương tiện.")
           ) : (
-            <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               {vehicles.map((vehicle) => (
                 <div
                   key={vehicleId(vehicle)}
-                  className="flex items-center justify-between rounded-lg bg-gray-50 p-3"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gradient-to-r from-slate-50 to-white p-3.5 transition hover:border-vr-100 hover:shadow-sm"
                 >
-                  <div className="flex items-center gap-2">
-                    <FiTruck size={16} className="text-vr-600" />
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vr-50 text-vr-600"><FiTruck size={18} /></span>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">
                         {vehicle.licensePlate}
@@ -1047,7 +1061,7 @@ export default function ManagerDashboard() {
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-medium text-gray-700">
+                  <span className={"shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " + vehicleStatusClass(vehicle.status)}>
                     {vehicle.status}
                   </span>
                 </div>
@@ -1093,7 +1107,7 @@ export default function ManagerDashboard() {
                   <td className="px-4 py-3 text-sm text-gray-600">{shipment.sender}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{shipment.recipient}</td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {shipment.cost.toLocaleString("vi-VN")} đ
+                    {formatCurrency(shipment.cost)}
                   </td>
                   <td className="px-4 py-3">{getStatusBadge(shipment.status)}</td>
                   <td className="px-4 py-3 text-center">
@@ -1129,3 +1143,4 @@ export default function ManagerDashboard() {
     </div>
   );
 }
+

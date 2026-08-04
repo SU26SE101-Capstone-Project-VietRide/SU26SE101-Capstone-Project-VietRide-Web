@@ -22,6 +22,8 @@ type FleetMapProps = {
   vehicles: FleetVehicleMapPoint[];
   selectedId: string | null;
   focusCenter: GoogleMapCoordinate | null;
+  routePath?: GoogleMapCoordinate[] | null;
+  trailPath?: GoogleMapCoordinate[] | null;
   onMarkerSelect: (id: string) => void;
 };
 
@@ -34,6 +36,8 @@ export default function FleetMap({
   vehicles,
   selectedId,
   focusCenter,
+  routePath,
+  trailPath,
   onMarkerSelect,
 }: FleetMapProps) {
   const markers = useMemo(
@@ -58,6 +62,35 @@ export default function FleetMap({
     [onMarkerSelect, selectedId, vehicles],
   );
 
+  const polylines = useMemo(() => {
+    const lines: Array<{
+      id: string;
+      path: GoogleMapCoordinate[];
+      color: string;
+      opacity: number;
+      weight: number;
+    }> = [];
+    if (routePath && routePath.length > 1) {
+      lines.push({
+        id: "selected-trip-route",
+        path: routePath,
+        color: "#0f766e",
+        opacity: 0.45,
+        weight: 4,
+      });
+    }
+    if (trailPath && trailPath.length > 1) {
+      lines.push({
+        id: "selected-trip-trail",
+        path: trailPath,
+        color: "#2563eb",
+        opacity: 0.95,
+        weight: 6,
+      });
+    }
+    return lines;
+  }, [routePath, trailPath]);
+
   return (
     <GoogleMapCanvas
       ariaLabel="Bản đồ theo dõi đội xe"
@@ -66,6 +99,7 @@ export default function FleetMap({
       emptyState="Không có phương tiện phù hợp với bộ lọc."
       focusCenter={focusCenter}
       markers={markers}
+      polylines={polylines}
       scrollWheelZoom
       zoom={11}
     />

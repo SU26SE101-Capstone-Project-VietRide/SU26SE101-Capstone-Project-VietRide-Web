@@ -11,18 +11,14 @@ import {
 } from "react-icons/fi";
 import {
   Area,
+  AreaChart,
   Bar,
-  ComposedChart,
+  BarChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
 } from "recharts";
 import {
   exportOperatorReport,
@@ -36,6 +32,7 @@ import CustomSelect from "../../../components/CustomSelect";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Pagination from "../../../components/Pagination";
 import { formatDateInputValue } from "../../../utils/date";
+import { formatCurrency } from "../../../utils/currency";
 
 type ExportRange = {
   from: string;
@@ -89,20 +86,6 @@ function monthOptions() {
 function monthLabel(value: string) {
   const [, month] = value.split("-");
   return month ? `T${Number(month)}` : value;
-}
-
-function formatCompactMoney(value: number) {
-  const abs = Math.abs(value);
-
-  if (abs >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(1)}B`;
-  }
-
-  if (abs >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-
-  return value.toLocaleString("vi-VN");
 }
 
 function TrendBadge({ metric }: { metric: MetricValue }) {
@@ -198,7 +181,7 @@ export default function ManagerReports() {
     () =>
       (analytics?.monthly ?? []).map((item) => ({
         month: monthLabel(item.month),
-        revenue: Math.round(item.revenueVnd / 1_000_000),
+        revenue: Math.round(item.revenueVnd),
         trips: item.tripCount,
       })),
     [analytics],
@@ -279,13 +262,13 @@ export default function ManagerReports() {
         {
           key: "totalRevenue",
           label: t("reports.totalRevenue"),
-          value: formatCompactMoney(summary.totalRevenueVnd.currentValue),
+          value: formatCurrency(summary.totalRevenueVnd.currentValue),
           metric: summary.totalRevenueVnd,
         },
         {
           key: "avgPerTrip",
           label: t("reports.avgPerTripRow"),
-          value: formatCompactMoney(
+          value: formatCurrency(
             summary.averageRevenuePerTripVnd.currentValue,
           ),
           metric: summary.averageRevenuePerTripVnd,
@@ -293,7 +276,7 @@ export default function ManagerReports() {
         {
           key: "ticketRevenue",
           label: t("reports.onlineTicketRevenue"),
-          value: formatCompactMoney(summary.ticketRevenueVnd.currentValue),
+          value: formatCurrency(summary.ticketRevenueVnd.currentValue),
           metric: summary.ticketRevenueVnd,
         },
       ]
@@ -447,7 +430,7 @@ export default function ManagerReports() {
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {isLoading || !summary
               ? "-"
-              : formatCompactMoney(summary.totalRevenueVnd.currentValue)}
+              : formatCurrency(summary.totalRevenueVnd.currentValue)}
           </p>
           {summary && <TrendBadge metric={summary.totalRevenueVnd} />}
         </div>
@@ -459,7 +442,7 @@ export default function ManagerReports() {
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {isLoading || !summary
               ? "-"
-              : formatCompactMoney(
+              : formatCurrency(
                   summary.averageRevenuePerTripVnd.currentValue,
                 )}
           </p>
@@ -473,7 +456,7 @@ export default function ManagerReports() {
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {isLoading || !summary
               ? "-"
-              : formatCompactMoney(summary.ticketRevenueVnd.currentValue)}
+              : formatCurrency(summary.ticketRevenueVnd.currentValue)}
           </p>
           {summary && <TrendBadge metric={summary.ticketRevenueVnd} />}
         </div>
@@ -485,7 +468,7 @@ export default function ManagerReports() {
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {isLoading || !summary
               ? "-"
-              : formatCompactMoney(summary.parcelRevenueVnd.currentValue)}
+              : formatCurrency(summary.parcelRevenueVnd.currentValue)}
           </p>
           {summary && <TrendBadge metric={summary.parcelRevenueVnd} />}
         </div>
@@ -509,7 +492,6 @@ export default function ManagerReports() {
             <span className="inline-flex items-center gap-2 font-medium text-gray-700">
               <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
               {t("reports.chartRevenue")}
-              <span className="font-normal text-gray-400">M VND</span>
             </span>
             <span className="inline-flex items-center gap-2 font-medium text-gray-700">
               <span className="h-2.5 w-2.5 rounded-sm bg-sky-500" />
@@ -524,108 +506,48 @@ export default function ManagerReports() {
           </div>
         ) : (
           <div className="px-3 pb-4 pt-6 sm:px-5">
-            <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart
-                data={monthlyChartData}
-                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient
-                    id="operatorRevenueArea"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.3} />
-                    <stop
-                      offset="100%"
-                      stopColor="#14b8a6"
-                      stopOpacity={0.02}
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id="operatorTripBars"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor="#38bdf8" />
-                    <stop offset="100%" stopColor="#0ea5e9" />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  vertical={false}
-                  stroke="#e2e8f0"
-                  strokeDasharray="4 6"
-                />
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                  dy={10}
-                />
-                <YAxis
-                  yAxisId="revenue"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                  tickFormatter={(value) => `${value}M`}
-                  width={48}
-                />
-                <YAxis
-                  yAxisId="trips"
-                  orientation="right"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                  allowDecimals={false}
-                  width={38}
-                />
-                <Tooltip
-                  cursor={{ stroke: "#94a3b8", strokeDasharray: "4 4" }}
-                  contentStyle={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                    padding: "10px 12px",
-                  }}
-                  labelStyle={{
-                    color: "#0f172a",
-                    fontWeight: 600,
-                    marginBottom: "6px",
-                  }}
-                  itemStyle={{ fontSize: "12px", padding: "2px 0" }}
-                />
-                <Area
-                  yAxisId="revenue"
-                  type="monotone"
-                  dataKey="revenue"
-                  name={t("reports.chartRevenue")}
-                  unit=" M VND"
-                  stroke="#0f9f94"
-                  strokeWidth={3}
-                  fill="url(#operatorRevenueArea)"
-                  activeDot={{
-                    r: 5,
-                    fill: "#0f9f94",
-                    stroke: "#ffffff",
-                    strokeWidth: 2,
-                  }}
-                />
-                <Bar
-                  yAxisId="trips"
-                  dataKey="trips"
-                  name={t("reports.chartTrips")}
-                  fill="url(#operatorTripBars)"
-                  radius={[6, 6, 2, 2]}
-                  barSize={20}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(260px,0.75fr)]">
+              <div className="rounded-lg border border-gray-100 bg-gray-50/60 p-3 sm:p-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {t("reports.chartRevenue")}
+                  </span>
+                  <span className="text-xs text-gray-500">₫</span>
+                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={monthlyChartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="operatorRevenueArea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.28} />
+                        <stop offset="100%" stopColor="#14b8a6" stopOpacity={0.03} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 6" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11 }} tickFormatter={(value) => formatCurrency(Number(value))} width={100} />
+                    <Tooltip cursor={{ stroke: "#94a3b8", strokeDasharray: "4 4" }} contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "8px", boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)" }} formatter={(value) => [formatCurrency(Number(value)), t("reports.chartRevenue")]} />
+                    <Area type="monotone" dataKey="revenue" name={t("reports.chartRevenue")} stroke="#0f9f94" strokeWidth={3} fill="url(#operatorRevenueArea)" activeDot={{ r: 5, fill: "#0f9f94", stroke: "#ffffff", strokeWidth: 2 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="rounded-lg border border-gray-100 bg-gray-50/60 p-3 sm:p-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {t("reports.chartTrips")}
+                  </span>
+                  <span className="text-xs text-gray-500">{t("reports.chartTrips")}</span>
+                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={monthlyChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 6" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11 }} />
+                    <YAxis axisLine={false} tickLine={false} allowDecimals={false} tick={{ fill: "#64748b", fontSize: 11 }} width={28} />
+                    <Tooltip cursor={{ fill: "#e0f2fe" }} contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "8px", boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)" }} formatter={(value) => [String(Number(value ?? 0)), t("reports.chartTrips")]} />
+                    <Bar dataKey="trips" name={t("reports.chartTrips")} fill="#0ea5e9" radius={[6, 6, 2, 2]} barSize={24} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -645,35 +567,52 @@ export default function ManagerReports() {
               {isLoading ? tc("loading") : t("reports.noData")}
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <RadarChart data={routeChartData}>
-                <PolarGrid stroke="#e5e7eb" />
-                <PolarAngleAxis
-                  dataKey="name"
-                  stroke="#9ca3af"
-                  style={{ fontSize: "11px" }}
-                />
-                <PolarRadiusAxis
-                  angle={90}
+            <ResponsiveContainer
+              width="100%"
+              height={Math.max(300, routeChartData.length * 52)}
+            >
+              <BarChart
+                data={routeChartData}
+                layout="vertical"
+                margin={{ top: 4, right: 18, left: 8, bottom: 4 }}
+              >
+                <CartesianGrid horizontal={false} stroke="#e5e7eb" />
+                <XAxis
+                  type="number"
                   domain={[0, 100]}
-                  stroke="#9ca3af"
-                  style={{ fontSize: "11px" }}
+                  tickFormatter={(value) => `${value}%`}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#64748b", fontSize: 11 }}
                 />
-                <Radar
-                  name={t("reports.efficiency")}
-                  dataKey="efficiency"
-                  stroke="#6366f1"
-                  fill="#6366f1"
-                  fillOpacity={0.6}
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={132}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#475569", fontSize: 11 }}
                 />
                 <Tooltip
+                  formatter={(value) => [
+                    `${Number(value ?? 0).toFixed(1)}%`,
+                    t("reports.efficiency"),
+                  ]}
                   contentStyle={{
-                    backgroundColor: "#f9fafb",
+                    backgroundColor: "#ffffff",
                     border: "1px solid #e5e7eb",
                     borderRadius: "8px",
+                    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                   }}
                 />
-              </RadarChart>
+                <Bar
+                  dataKey="efficiency"
+                  name={t("reports.efficiency")}
+                  fill="#14b8a6"
+                  radius={[0, 6, 6, 0]}
+                  barSize={24}
+                />
+              </BarChart>
             </ResponsiveContainer>
           )}
         </div>
@@ -696,7 +635,7 @@ export default function ManagerReports() {
                     {item.label}
                   </span>
                   <span className="text-sm font-bold text-gray-900">
-                    {formatCompactMoney(item.amount)}{" "}
+                    {formatCurrency(item.amount)}{" "}
                     <span className="text-gray-500">
                       · {item.percent.toFixed(1)}%
                     </span>
@@ -728,7 +667,7 @@ export default function ManagerReports() {
                   {t("reports.totalRevenue")}
                 </span>
                 <span className="text-lg font-bold text-gray-900">
-                  {formatCompactMoney(summary.totalRevenueVnd.currentValue)}
+                  {formatCurrency(summary.totalRevenueVnd.currentValue)}
                 </span>
               </div>
             </div>
@@ -806,3 +745,5 @@ export default function ManagerReports() {
     </div>
   );
 }
+
+

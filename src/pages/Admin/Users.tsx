@@ -1,12 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FiEye,
-  FiLock,
-  FiSearch,
-  FiUnlock,
-  FiUser,
-} from "react-icons/fi";
+import { FiEye, FiLock, FiSearch, FiUnlock, FiUser } from "react-icons/fi";
 import {
   getAdminOperatorUsers,
   getAdminUsers,
@@ -27,7 +21,7 @@ const fallbackAvatarUrl =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='32' fill='%23ecfeff'/%3E%3Ccircle cx='64' cy='48' r='22' fill='%235bc7ca'/%3E%3Cpath d='M28 106c5-24 19-36 36-36s31 12 36 36' fill='%231e8f93'/%3E%3C/svg%3E";
 
 const actionButtonClass =
-  "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
 
 function isActiveStatus(status: string) {
   return status.toUpperCase() === "ACTIVE";
@@ -65,7 +59,9 @@ export default function Users() {
       setMessage(null);
 
       try {
-        const listUsers = operatorUsersOnly ? getAdminOperatorUsers : getAdminUsers;
+        const listUsers = operatorUsersOnly
+          ? getAdminOperatorUsers
+          : getAdminUsers;
         const result = await listUsers({
           page,
           pageSize,
@@ -87,7 +83,8 @@ export default function Users() {
           setTotalItems(0);
           setMessage({
             tone: "error",
-            text: error instanceof Error ? error.message : t("users.loadFailed"),
+            text:
+              error instanceof Error ? error.message : t("users.loadFailed"),
           });
         }
       } finally {
@@ -153,12 +150,13 @@ export default function Users() {
     }
   }
 
-
   return (
     <div className="space-y-6">
       <header>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t("users.title")}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("users.title")}
+          </h1>
           <p className="mt-1 text-gray-600">{t("users.subtitle")}</p>
         </div>
       </header>
@@ -271,112 +269,132 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {!isLoading && users.map((user) => {
-                const canToggle =
-                  user.userId !== currentUserId &&
-                  (isActiveStatus(user.status) || isLockedStatus(user.status));
+              {!isLoading &&
+                users.map((user) => {
+                  const canToggle =
+                    user.userId !== currentUserId &&
+                    (isActiveStatus(user.status) ||
+                      isLockedStatus(user.status));
 
-                const userRoleLabel = roleLabel(user.role);
-                return (
-                  <tr key={user.userId} className="group border-b border-gray-100 hover:bg-gray-50">
-                    <td className="min-w-0 px-4 py-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <img
-                          src={user.avatarUrl || fallbackAvatarUrl}
-                          alt={user.displayName || user.email}
-                          width={40}
-                          height={40}
-                          loading="lazy"
-                          className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover"
-                        />
+                  const userRoleLabel = roleLabel(user.role);
+                  return (
+                    <tr
+                      key={user.userId}
+                      className="group border-b border-gray-100 hover:bg-gray-50"
+                    >
+                      <td className="min-w-0 px-4 py-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <img
+                            src={user.avatarUrl || fallbackAvatarUrl}
+                            alt={user.displayName || user.email}
+                            width={40}
+                            height={40}
+                            loading="lazy"
+                            className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover"
+                          />
+                          <span
+                            className="truncate text-sm font-semibold text-gray-900"
+                            title={user.displayName || undefined}
+                          >
+                            {user.displayName || "-"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="min-w-0 px-4 py-4 text-sm text-gray-600">
                         <span
-                          className="truncate text-sm font-semibold text-gray-900"
-                          title={user.displayName || undefined}
+                          className="block w-full max-w-[220px] truncate"
+                          title={user.email}
                         >
-                          {user.displayName || "-"}
+                          {user.email}
                         </span>
-                      </div>
-                    </td>
-                    <td className="min-w-0 px-4 py-4 text-sm text-gray-600">
-                      <span
-                        className="block w-full max-w-[220px] truncate"
-                        title={user.email}
-                      >
-                        {user.email}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-gray-600">
-                      {formatVietnamPhoneForDisplay(user.phone)}
-                    </td>
-                    <td className="min-w-0 px-4 py-4 text-sm text-gray-700">
-                      <span className="block truncate" title={userRoleLabel}>
-                        {userRoleLabel}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-gray-600">
-                      {formatDateTime(user.createdAt)}
-                    </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap">
-                      <span
-                        className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          isActiveStatus(user.status)
-                            ? "bg-emerald-50 text-emerald-700"
-                            : isLockedStatus(user.status)
-                              ? "bg-rose-50 text-rose-700"
-                              : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {user.status ? tc(`enumLabels.${user.status}`, { defaultValue: user.status }) : "-"}
-                      </span>
-                    </td>
-                    <td className="sticky right-0 bg-white px-2 py-4 group-hover:bg-gray-50">
-                      <div className="mx-auto grid w-[68px] grid-cols-2 gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setSelected(user)}
-                          className={actionButtonClass}
-                          title={tc("details")}
-                          aria-label={tc("details")}
+                      </td>
+                      <td className="px-4 py-4 text-sm whitespace-nowrap text-gray-600">
+                        {formatVietnamPhoneForDisplay(user.phone)}
+                      </td>
+                      <td className="min-w-0 px-4 py-4 text-sm text-gray-700">
+                        <span className="block truncate" title={userRoleLabel}>
+                          {userRoleLabel}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm whitespace-nowrap text-gray-600">
+                        {formatDateTime(user.createdAt)}
+                      </td>
+                      <td className="px-4 py-4 text-sm whitespace-nowrap">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            isActiveStatus(user.status)
+                              ? "bg-emerald-50 text-emerald-700"
+                              : isLockedStatus(user.status)
+                                ? "bg-rose-50 text-rose-700"
+                                : "bg-slate-100 text-slate-600"
+                          }`}
                         >
-                          <FiEye size={16} />
-                        </button>
-                        {(isActiveStatus(user.status) || isLockedStatus(user.status)) && (
+                          {user.status
+                            ? tc(`enumLabels.${user.status}`, {
+                                defaultValue: user.status,
+                              })
+                            : "-"}
+                        </span>
+                      </td>
+                      <td className="sticky right-0 bg-white px-2 py-4 group-hover:bg-gray-50">
+                        <div className="mx-auto flex w-[80px] justify-center gap-2">
                           <button
                             type="button"
-                            onClick={() => void toggleLock(user)}
-                            disabled={!canToggle || actionUserId === user.userId}
-                            className={`${actionButtonClass} ${
-                              isLockedStatus(user.status)
-                                ? "text-emerald-600 hover:bg-emerald-50"
-                                : "text-rose-600 hover:bg-rose-50"
-                            }`}
-                            title={
-                              user.userId === currentUserId
-                                ? t("users.selfLockBlocked")
-                                : isLockedStatus(user.status)
+                            onClick={() => setSelected(user)}
+                            className={actionButtonClass}
+                            title={tc("details")}
+                            aria-label={tc("details")}
+                          >
+                            <FiEye size={16} />
+                          </button>
+                          {(isActiveStatus(user.status) ||
+                            isLockedStatus(user.status)) && (
+                            <button
+                              type="button"
+                              onClick={() => void toggleLock(user)}
+                              disabled={
+                                !canToggle || actionUserId === user.userId
+                              }
+                              className={`${actionButtonClass} ${
+                                isLockedStatus(user.status)
+                                  ? "text-emerald-600 hover:bg-emerald-50"
+                                  : "text-rose-600 hover:bg-rose-50"
+                              }`}
+                              title={
+                                user.userId === currentUserId
+                                  ? t("users.selfLockBlocked")
+                                  : isLockedStatus(user.status)
+                                    ? t("users.unlock")
+                                    : t("users.lock")
+                              }
+                              aria-label={
+                                isLockedStatus(user.status)
                                   ? t("users.unlock")
                                   : t("users.lock")
-                            }
-                            aria-label={
-                              isLockedStatus(user.status)
-                                ? t("users.unlock")
-                                : t("users.lock")
-                            }
-                          >
-                            {isLockedStatus(user.status) ? <FiUnlock /> : <FiLock />}
-                          </button>
-                        )}
-                        {!isActiveStatus(user.status) && !isLockedStatus(user.status) && (
-                          <span aria-hidden="true" className="h-8 w-8" />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                              }
+                            >
+                              {isLockedStatus(user.status) ? (
+                                <FiUnlock />
+                              ) : (
+                                <FiLock />
+                              )}
+                            </button>
+                          )}
+                          {!isActiveStatus(user.status) &&
+                            !isLockedStatus(user.status) && (
+                              <span aria-hidden="true" className="h-8 w-8" />
+                            )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               {!isLoading && users.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
+                  <td
+                    colSpan={7}
+                    className="px-5 py-12 text-center text-sm text-gray-500"
+                  >
                     {t("users.empty")}
                   </td>
                 </tr>
@@ -403,7 +421,6 @@ export default function Users() {
         roleLabel={roleLabel}
         onClose={() => setSelected(null)}
       />
-
     </div>
   );
 }
@@ -442,37 +459,87 @@ function UserDetailModal({
     >
       {user && (
         <div className="space-y-5">
-          <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center">
-            <img
-              src={user.avatarUrl || fallbackAvatarUrl}
-              alt={user.displayName}
-              width={72}
-              height={72}
-              loading="lazy"
-              className="h-[72px] w-[72px] rounded-lg border border-white bg-white object-cover shadow-sm"
-            />
-            <div className="min-w-0">
-              <p className="text-lg font-bold text-gray-900">{user.displayName || "-"}</p>
-              <p className="mt-1 break-words text-sm text-gray-600">{user.email || "-"}</p>
-              <p className="mt-2 text-sm font-semibold text-vr-700">{roleLabel(user.role)}</p>
+          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="h-20 bg-transparent" />
+            <div className="px-5 pb-5">
+              <div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex min-w-0 items-end gap-4">
+                  <img
+                    src={user.avatarUrl || fallbackAvatarUrl}
+                    alt={user.displayName || user.email}
+                    width={88}
+                    height={88}
+                    loading="lazy"
+                    className="h-[88px] w-[88px] shrink-0 rounded-2xl border-4 border-white bg-white object-cover shadow-md"
+                  />
+                  <div className="min-w-0 pb-1">
+                    <p className="truncate text-xl font-bold text-gray-900">
+                      {user.displayName || "-"}
+                    </p>
+                    <p
+                      className="mt-1 truncate text-sm text-gray-500"
+                      title={user.email}
+                    >
+                      {user.email || "-"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2 pb-1">
+                  <span className="rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-700">
+                    {roleLabel(user.role)}
+                  </span>
+                  <span
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-50 text-emerald-700" : isLockedStatus(user.status) ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}
+                  >
+                    {tc(`enumLabels.${user.status}`, {
+                      defaultValue: user.status,
+                    })}
+                  </span>
+                </div>
+              </div>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-500">
+                {t("users.passengerDetailHint")}
+              </p>
             </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <DetailItem label={tc("phone")} value={formatVietnamPhoneForDisplay(user.phone)} />
-            <DetailItem label={tc("status")} value={tc(`enumLabels.${user.status}`, { defaultValue: user.status })} />
-            <DetailItem label={t("users.joined")} value={formatDateTime(user.createdAt)} />
-            <DetailItem label={t("users.updatedAt")} value={formatDateTime(user.updatedAt)} />
-          </div>
+          </section>
+          <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {t("users.accountInformation")}
+                </h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  {t("users.accountInformationHint")}
+                </p>
+              </div>
+              <FiUser className="text-vr-600" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DetailItem
+                label={tc("phone")}
+                value={formatVietnamPhoneForDisplay(user.phone)}
+              />
+              <DetailItem label={t("users.userId")} value={user.userId} />
+              <DetailItem
+                label={t("users.joined")}
+                value={formatDateTime(user.createdAt)}
+              />
+              <DetailItem
+                label={t("users.updatedAt")}
+                value={formatDateTime(user.updatedAt)}
+              />
+            </div>
+          </section>
         </div>
       )}
     </Modal>
   );
 }
 
-
 function SkeletonBlock({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />;
+  return (
+    <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />
+  );
 }
 
 function UserTableSkeletonRows() {
@@ -485,16 +552,28 @@ function UserTableSkeletonRows() {
           aria-hidden="true"
           data-testid={index === 0 ? "users-table-skeleton" : undefined}
         >
-          <td className="px-4 py-4"><SkeletonBlock className="h-10 w-full" /></td>
-          <td className="px-4 py-4"><SkeletonBlock className="h-4 w-full" /></td>
-          <td className="px-4 py-4"><SkeletonBlock className="h-4 w-full" /></td>
-          <td className="px-4 py-4"><SkeletonBlock className="h-4 w-full" /></td>
-          <td className="px-4 py-4"><SkeletonBlock className="h-4 w-full" /></td>
-          <td className="px-4 py-4"><SkeletonBlock className="h-6 w-20" /></td>
+          <td className="px-4 py-4">
+            <SkeletonBlock className="h-10 w-full" />
+          </td>
+          <td className="px-4 py-4">
+            <SkeletonBlock className="h-4 w-full" />
+          </td>
+          <td className="px-4 py-4">
+            <SkeletonBlock className="h-4 w-full" />
+          </td>
+          <td className="px-4 py-4">
+            <SkeletonBlock className="h-4 w-full" />
+          </td>
+          <td className="px-4 py-4">
+            <SkeletonBlock className="h-4 w-full" />
+          </td>
+          <td className="px-4 py-4">
+            <SkeletonBlock className="h-6 w-20" />
+          </td>
           <td className="sticky right-0 bg-white px-2 py-4">
-            <div className="mx-auto flex w-[68px] gap-1">
-              <SkeletonBlock className="h-8 w-8" />
-              <SkeletonBlock className="h-8 w-8" />
+            <div className="mx-auto flex w-[80px] gap-2">
+              <SkeletonBlock className="h-9 w-9" />
+              <SkeletonBlock className="h-9 w-9" />
             </div>
           </td>
         </tr>
@@ -502,4 +581,3 @@ function UserTableSkeletonRows() {
     </>
   );
 }
-

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   FiArrowDown,
   FiArrowUp,
+  FiCheckCircle,
   FiClock,
   FiDollarSign,
   FiRefreshCw,
@@ -148,10 +149,19 @@ export default function ManagerWallet() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<FiDollarSign />} label={t("wallet.currentBalance")} value={formatMoney(wallet?.balance ?? 0)} />
         <Metric icon={<FiClock />} label={t("wallet.pendingHold")} value={formatMoney(wallet?.pendingHoldAmount ?? 0)} />
         <Metric icon={<FiArrowDown />} label={t("wallet.eligibleAmount")} value={formatMoney(wallet?.eligibleAmount ?? 0)} />
+        <Metric
+          icon={<FiCheckCircle />}
+          label={t("wallet.settledAmount")}
+          value={formatMoney(
+            settlements
+              .filter((item) => item.status === "SETTLED")
+              .reduce((sum, item) => sum + item.netAmount, 0),
+          )}
+        />
       </div>
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -206,108 +216,86 @@ function EmptyRow({ columns, t }: { columns: number; t: Translate }) {
 }
 
 function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Translate }) {
-  const credits = items.filter((item) => item.type === "CREDIT");
-  const debits = items.filter((item) => item.type === "DEBIT");
-
   return (
-    <div className="space-y-6 p-4">
-      <WalletTransactionGroup
-        icon={<FiArrowDown className="text-emerald-600" />}
-        title={t("wallet.moneyIn")}
-        items={credits}
-        tone="credit"
-        emptyLabel={t("wallet.noCredits")}
-        t={t}
-      />
-      <WalletTransactionGroup
-        icon={<FiArrowUp className="text-red-600" />}
-        title={t("wallet.moneyOut")}
-        items={debits}
-        tone="debit"
-        emptyLabel={t("wallet.noDebits")}
-        t={t}
-      />
-    </div>
-  );
-}
-
-function WalletTransactionGroup({
-  icon,
-  title,
-  items,
-  tone,
-  emptyLabel,
-  t,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  items: WalletTransaction[];
-  tone: "credit" | "debit";
-  emptyLabel: string;
-  t: Translate;
-}) {
-  const amountClass = tone === "credit" ? "text-emerald-700" : "text-red-700";
-  const sign = tone === "credit" ? "+" : "-";
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-gray-200">
-      <h3 className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-800">
-        {icon}
-        {title}
-      </h3>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-            <th className="px-4 py-3">{t("wallet.datetime")}</th>
-            <th className="px-4 py-3">{t("wallet.descriptionCol")}</th>
-            <th className="px-4 py-3">{t("wallet.amount")}</th>
-            <th className="px-4 py-3">{t("wallet.balanceBefore")}</th>
-            <th className="px-4 py-3">{t("wallet.balance")}</th>
-          </tr>
-        </thead>
+    <div className="overflow-x-auto p-4">
+      <table className="w-full min-w-[920px] text-sm">
+        <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+          <th className="px-4 py-3">{t("wallet.time")}</th>
+          <th className="px-4 py-3">{t("wallet.cashFlow")}</th>
+          <th className="px-4 py-3">{t("wallet.change")}</th>
+          <th className="px-4 py-3">{t("wallet.balanceBeforeShort")}</th>
+          <th className="px-4 py-3">{t("wallet.balanceAfter")}</th>
+          <th className="px-4 py-3">{t("wallet.transactionType")}</th>
+        </tr></thead>
         <tbody>
-          {items.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
-                {emptyLabel}
+          {items.length === 0 ? <EmptyRow columns={6} t={t} /> : items.map((item) => {
+            const isCredit = item.type === "CREDIT";
+            return <tr key={item.transactionId} className="border-t border-gray-100">
+              <td className="whitespace-nowrap px-4 py-3 text-gray-700">{formatDate(item.createdAt)}</td>
+              <td className={`px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
+                {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
+                {t(isCredit ? "wallet.moneyIn" : "wallet.moneyOut")}
               </td>
-            </tr>
-          ) : (
-            items.map((item) => (
-              <tr key={item.transactionId} className="border-t border-gray-100">
-                <td className="px-4 py-3 text-gray-600">{formatDate(item.createdAt)}</td>
-                <td className="px-4 py-3 text-gray-700">{item.note || item.referenceType}</td>
-                <td className={`px-4 py-3 font-semibold ${amountClass}`}>
-                  {sign}
-                  {formatMoney(item.amount)}
-                </td>
-                <td className="px-4 py-3 text-gray-600">{formatMoney(item.balanceBefore)}</td>
-                <td className="px-4 py-3 font-semibold">{formatMoney(item.balanceAfter)}</td>
-              </tr>
-            ))
-          )}
+              <td className={`whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? "+" : "-"}{formatMoney(item.amount)}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatMoney(item.balanceBefore)}</td>
+              <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatMoney(item.balanceAfter)}</td>
+              <td className="px-4 py-3 text-gray-700">{item.note || t(`wallet.references.${item.referenceType}`)}</td>
+            </tr>;
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 function SettlementTable({ items, t }: { items: TripSettlement[]; t: Translate }) {
-  const { t: tc } = useTranslation("common");
   return (
-    <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-      <th className="px-4 py-3">{t("wallet.amount")}</th><th className="px-4 py-3">{t("wallet.eligibleAt")}</th><th className="px-4 py-3">{t("wallet.statusLabel")}</th>
-    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={3} t={t} /> : items.map((item) => (
-      <tr key={item.settlementId} className="border-t border-gray-100"><td className="px-4 py-3 font-semibold">{formatMoney(item.netAmount)}</td><td className="px-4 py-3">{formatDate(item.eligibleAt)}</td><td className="px-4 py-3"><span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">{tc(`enumLabels.${item.status}`, { defaultValue: item.status })}</span></td></tr>
-    ))}</tbody></table>
+    <div className="overflow-x-auto p-4">
+      <table className="w-full min-w-[760px] text-sm">
+        <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+          <th className="px-4 py-3">{t("wallet.paymentTime")}</th>
+          <th className="px-4 py-3">{t("wallet.receivedAmount")}</th>
+          <th className="px-4 py-3">{t("wallet.statusLabel")}</th>
+          <th className="px-4 py-3">{t("wallet.form")}</th>
+        </tr></thead>
+        <tbody>
+          {items.length === 0 ? <EmptyRow columns={4} t={t} /> : items.map((item) => {
+            const settled = item.status === "SETTLED";
+            return <tr key={item.settlementId} className="border-t border-gray-100">
+              <td className="whitespace-nowrap px-4 py-3">{formatDate(item.settlementMethod === "ADMIN_MANUAL" && item.settledAt ? item.settledAt : item.eligibleAt)}</td>
+              <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatMoney(item.netAmount)}</td>
+              <td className="whitespace-nowrap px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${settled ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-700"}`}>{t(`wallet.status.${item.status}`)}</span></td>
+              <td className="px-4 py-3">{item.settlementMethod ? <><span>{t(`wallet.methods.${item.settlementMethod}`)}</span>{item.settlementMethod === "ADMIN_MANUAL" && item.settledBy?.displayName ? <p className="mt-1 text-xs text-gray-500">{t("wallet.settledBy")}: {item.settledBy.displayName}</p> : null}</> : "-"}</td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 function LedgerTable({ items, t }: { items: OperatorLedgerEntry[]; t: Translate }) {
   const { t: tc } = useTranslation("common");
   return (
-    <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-      <th className="px-4 py-3">{t("wallet.datetime")}</th><th className="px-4 py-3">{t("wallet.entryType")}</th><th className="px-4 py-3">{t("wallet.amount")}</th>
-    </tr></thead><tbody>{items.length === 0 ? <EmptyRow columns={3} t={t} /> : items.map((item) => (
-      <tr key={item.ledgerEntryId} className="border-t border-gray-100"><td className="px-4 py-3">{formatDate(item.createdAt)}</td><td className="px-4 py-3 font-semibold">{tc(`enumLabels.${item.entryType}`, { defaultValue: item.entryType })}</td><td className={`px-4 py-3 font-semibold ${item.amount < 0 ? "text-red-700" : "text-emerald-700"}`}>{formatMoney(item.amount)}</td></tr>
-    ))}</tbody></table>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-sm">
+        <thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+          <th className="px-4 py-3">{t("wallet.datetime")}</th>
+          <th className="px-4 py-3">{t("wallet.entryType")}</th>
+          <th className="px-4 py-3">{t("wallet.amount")}</th>
+          <th className="px-4 py-3">{t("wallet.actor")}</th>
+          <th className="px-4 py-3">{t("wallet.note")}</th>
+        </tr></thead>
+        <tbody>
+          {items.length === 0 ? <EmptyRow columns={5} t={t} /> : items.map((item) => (
+            <tr key={item.ledgerEntryId} className="border-t border-gray-100">
+              <td className="whitespace-nowrap px-4 py-3">{formatDate(item.createdAt)}</td>
+              <td className="px-4 py-3 font-semibold">{tc("enumLabels." + item.entryType, { defaultValue: item.entryType })}</td>
+              <td className={"whitespace-nowrap px-4 py-3 font-semibold " + (item.amount < 0 ? "text-red-700" : "text-emerald-700")}>{formatMoney(item.amount)}</td>
+              <td className="px-4 py-3">{item.actor?.displayName || tc("enumLabels.SYSTEM", { defaultValue: item.actorType || "-" })}</td>
+              <td className="px-4 py-3 text-gray-600">{item.note || "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

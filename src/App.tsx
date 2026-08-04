@@ -97,12 +97,7 @@ export default function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<ManagerDashboard />} />
               <Route path="trips" element={<TripsList />} />
-              <Route path="route-eta" element={<RouteETA />} />
               <Route path="routes" element={<RoutesList />} />
-              <Route
-                path="route-extensions"
-                element={<Navigate to="/manager/route-eta" replace />}
-              />
               <Route path="vehicles" element={<VehiclesList />} />
               <Route path="bookings" element={<BookingsList />} />
               <Route path="parcels" element={<ParcelsList />} />
@@ -117,6 +112,10 @@ export default function App() {
               <Route
                 element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
               >
+                <Route path="route-eta" element={<RouteETA />} />
+
+                <Route path="route-extensions" element={<Navigate to="/manager/route-eta" replace />} />
+
                 <Route
                   path="vehicle-builder"
                   element={<VehicleBuilderPage />}

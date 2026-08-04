@@ -14,13 +14,15 @@ import { useTranslation } from "react-i18next";
 import type { Socket } from "socket.io-client";
 import {
   getInternalTripRouteStops,
-  getOperatorBookings,
+  getOperatorTrips,
   getTrackingTripEta,
   getTrackingTripLatest,
+  getTrackingTripRouteGeometry,
   getTrackingTripTrail,
-  type OperatorBookingListItem,
+  type OperatorTripListItem,
   type TrackingEtaResponse,
   type TripRouteStop,
+  type TripRouteGeometry,
   type TrackingLatestResponse,
   type TrackingTrailPoint,
 } from "../../../api/vietride";
@@ -36,81 +38,69 @@ import {
 } from "../../../lib/trackingSocket";
 
 type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
+function getFleetStatus(location: TrackingLatestLocation): FleetVehicleMapPoint["status"] {
+  if (location.speedKmh == null) return "offline";
+  return location.speedKmh > 2 ? "moving" : "idle";
+}
 
-const fleetSeed: FleetVehicleMapPoint[] = [
-  {
-    id: "1",
-    plate: "51B-12345",
-    driver: "Nguyễn Văn An",
-    route: "HCM → Đà Lạt",
-    speedKmh: 72,
-    status: "moving",
-    position: { lat: 10.7769, lng: 106.7009 },
-  },
-  {
-    id: "2",
-    plate: "51B-22334",
-    driver: "Trần Minh Tuấn",
-    route: "HCM → Nha Trang",
-    speedKmh: 0,
-    status: "idle",
-    position: { lat: 10.8014, lng: 106.652 },
-  },
-  {
-    id: "3",
-    plate: "51B-33445",
-    driver: "Lê Hoàng Nam",
-    route: "HCM → Vũng Tàu",
-    speedKmh: 58,
-    status: "moving",
-    position: { lat: 10.7377, lng: 106.6297 },
-  },
-  {
-    id: "4",
-    plate: "51B-44556",
-    driver: "Phạm Quốc Huy",
-    route: "HCM → Cần Thơ",
-    speedKmh: null,
-    status: "offline",
-    position: { lat: 10.8231, lng: 106.6297 },
-  },
-  {
-    id: "5",
-    plate: "29A-11223",
-    driver: "Đỗ Văn Long",
-    route: "HN → Sapa",
-    speedKmh: 64,
-    status: "moving",
-    position: { lat: 10.714, lng: 106.7561 },
-  },
-  {
-    id: "6",
-    plate: "51B-55667",
-    driver: "Võ Thị Mai",
-    route: "HCM → Đà Lạt",
-    speedKmh: 0,
-    status: "idle",
-    position: { lat: 10.7626, lng: 106.6602 },
-  },
-  {
-    id: "7",
-    plate: "51B-66778",
-    driver: "Hoàng Đức",
-    route: "HCM → Đà Lạt",
-    speedKmh: 81,
-    status: "moving",
-    position: { lat: 10.8412, lng: 106.8098 },
-  },
-  {
-    id: "8",
-    plate: "51B-77889",
-    driver: "Bùi Thanh Sơn",
-    route: "HCM → Nha Trang",
-    speedKmh: 45,
-    status: "moving",
-    position: { lat: 10.6989, lng: 106.7721 },
-  },
-];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function decodeGooglePolyline(encoded: string): GoogleMapCoordinate[] {
+  const coordinates: GoogleMapCoordinate[] = [];
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte: number;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index < encoded.length);
+    latitude += result & 1 ? ~(result >> 1) : result >> 1;
+
+    result = 0;
+    shift = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index < encoded.length);
+    longitude += result & 1 ? ~(result >> 1) : result >> 1;
+
+    coordinates.push({ lat: latitude / 1e5, lng: longitude / 1e5 });
+  }
+
+  return coordinates;
+}
+
+function routeGeometryPath(geometry: TripRouteGeometry | null): GoogleMapCoordinate[] {
+  if (!geometry) return [];
+
+  if (geometry.points?.length) {
+    return [...geometry.points]
+      .sort((left, right) => (left.orderIndex ?? 0) - (right.orderIndex ?? 0))
+      .map((point) => ({ lat: point.latitude, lng: point.longitude }));
+  }
+
+  const geoJson = geometry.geoJson;
+  const source = isRecord(geoJson) && isRecord(geoJson.geometry) ? geoJson.geometry : geoJson;
+  if (isRecord(source) && source.type === "LineString" && Array.isArray(source.coordinates)) {
+    return source.coordinates.flatMap((point): GoogleMapCoordinate[] => {
+      if (!Array.isArray(point) || point.length < 2) return [];
+      const [longitude, latitude] = point;
+      if (typeof longitude !== "number" || typeof latitude !== "number") return [];
+      return [{ lat: latitude, lng: longitude }];
+    });
+  }
+
+  return geometry.encodedPolyline ? decodeGooglePolyline(geometry.encodedPolyline) : [];
+}
 
 function statusLabel(
   s: FleetVehicleMapPoint["status"],
@@ -140,21 +130,20 @@ function statusRowBadge(s: FleetVehicleMapPoint["status"]) {
 export default function GPSTracking() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-
-  const firstVehicle = fleetSeed[0];
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<
     "all" | FleetVehicleMapPoint["status"]
   >("all");
-  const [selectedId, setSelectedId] = useState<string | null>(firstVehicle.id);
-  const [focusCenter, setFocusCenter] = useState<GoogleMapCoordinate | null>(
-    firstVehicle.position,
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusCenter, setFocusCenter] = useState<GoogleMapCoordinate | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
   const [tripId, setTripId] = useState("");
   const [stopId, setStopId] = useState("");
-  const [tripOptions, setTripOptions] = useState<OperatorBookingListItem[]>([]);
+  const [tripOptions, setTripOptions] = useState<OperatorTripListItem[]>([]);
+  const [fleetVehicles, setFleetVehicles] = useState<FleetVehicleMapPoint[]>([]);
+  const [routeGeometry, setRouteGeometry] = useState<TripRouteGeometry | null>(null);
+  const [isFleetLoading, setIsFleetLoading] = useState(false);
   const [routeStops, setRouteStops] = useState<TripRouteStop[]>([]);
   const [latest, setLatest] = useState<TrackingLatestResponse | null>(null);
   const [trail, setTrail] = useState<TrackingTrailPoint[]>([]);
@@ -163,7 +152,9 @@ export default function GPSTracking() {
   const [apiError, setApiError] = useState("");
   const [isApiLoading, setIsApiLoading] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("idle");
-  const [delayInfo, setDelayInfo] = useState<TripStatusChangedEvent | null>(null);
+  const [delayInfo, setDelayInfo] = useState<TripStatusChangedEvent | null>(
+    null,
+  );
   const listRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -172,8 +163,13 @@ export default function GPSTracking() {
     return () => cancelAnimationFrame(id);
   }, []);
 
+  const trailPath = useMemo(
+    () => [...trail].reverse().map((point) => ({ lat: point.latitude, lng: point.longitude })),
+    [trail],
+  );
+
   const filtered = useMemo(() => {
-    return fleetSeed.filter((v) => {
+    return fleetVehicles.filter((v) => {
       const q = searchTerm.trim().toLowerCase();
       const matchQ =
         !q ||
@@ -183,56 +179,101 @@ export default function GPSTracking() {
       const matchF = filterStatus === "all" || v.status === filterStatus;
       return matchQ && matchF;
     });
-  }, [searchTerm, filterStatus]);
+  }, [fleetVehicles, searchTerm, filterStatus]);
 
   const metrics = useMemo(() => {
-    const total = fleetSeed.length;
-    const moving = fleetSeed.filter((v) => v.status === "moving").length;
-    const idle = fleetSeed.filter((v) => v.status === "idle").length;
-    const offline = fleetSeed.filter((v) => v.status === "offline").length;
+    const total = fleetVehicles.length;
+    const moving = fleetVehicles.filter((v) => v.status === "moving").length;
+    const idle = fleetVehicles.filter((v) => v.status === "idle").length;
+    const offline = fleetVehicles.filter((v) => v.status === "offline").length;
     return { total, moving, idle, offline };
-  }, []);
+  }, [fleetVehicles]);
 
   const selectVehicle = useCallback((id: string) => {
     setSelectedId(id);
-    const v = fleetSeed.find((x) => x.id === id);
-    if (v) setFocusCenter(v.position);
-  }, []);
+    const vehicle = fleetVehicles.find((item) => item.id === id);
+    if (vehicle) setFocusCenter(vehicle.position);
+  }, [fleetVehicles]);
+
+  const loadFleet = useCallback(async () => {
+    setIsFleetLoading(true);
+    setApiError("");
+
+    try {
+      const result = await getOperatorTrips({ page: 1, pageSize: 100 });
+      const vehicles = await Promise.all(
+        result.items.map(async (trip) => {
+          try {
+            const latestResult = await getTrackingTripLatest(trip.tripId);
+            const location = latestResult.latest;
+            if (!location) return null;
+            return {
+              id: trip.tripId,
+              plate: trip.vehicle.licensePlate,
+              driver: trip.driver?.displayName ?? "Chưa phân công",
+              route:
+                trip.route.name ||
+                `${trip.route.originName} - ${trip.route.destinationName}`,
+              speedKmh: location.speedKmh ?? null,
+              status: getFleetStatus(location),
+              position: { lat: location.latitude, lng: location.longitude },
+            } satisfies FleetVehicleMapPoint;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const nextVehicles = vehicles.filter(
+        (vehicle): vehicle is FleetVehicleMapPoint => vehicle !== null,
+      );
+      setTripOptions(result.items);
+      setFleetVehicles(nextVehicles);
+      setSelectedId((current) =>
+        current && nextVehicles.some((vehicle) => vehicle.id === current)
+          ? current
+          : nextVehicles[0]?.id ?? null,
+      );
+      setFocusCenter(nextVehicles[0]?.position ?? null);
+      setLastRefresh(new Date());
+    } catch (error: unknown) {
+      setTripOptions([]);
+      setFleetVehicles([]);
+      setSelectedId(null);
+      setFocusCenter(null);
+      setApiError(
+        error instanceof Error ? error.message : t("gps.trackingLoadFailed"),
+      );
+    } finally {
+      setIsFleetLoading(false);
+    }
+  }, [t]);
 
   useEffect(() => {
-    let cancelled = false;
+    const timerId = window.setTimeout(() => {
+      void loadFleet();
+    }, 0);
 
-    void getOperatorBookings({ page: 1, pageSize: 100, sortBy: "createdAt", sortDir: "desc" })
-      .then((result) => {
-        if (cancelled) return;
-        const uniqueTrips = Array.from(
-          new Map(result.items.map((booking) => [booking.tripId, booking])).values(),
-        );
-        setTripOptions(uniqueTrips);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setApiError(error instanceof Error ? error.message : t("gps.trackingLoadFailed"));
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
+    return () => window.clearTimeout(timerId);
+  }, [loadFleet]);
 
   async function selectTrip(nextTripId: string) {
     setTripId(nextTripId);
     setStopId("");
     setRouteStops([]);
     setDelayInfo(null);
+    setRouteGeometry(null);
     if (!nextTripId) return;
 
     try {
-      const stops = await getInternalTripRouteStops(nextTripId);
+      const [stops, geometry] = await Promise.all([
+        getInternalTripRouteStops(nextTripId),
+        getTrackingTripRouteGeometry(nextTripId),
+      ]);
       setRouteStops(stops);
+      setRouteGeometry(geometry);
     } catch {
       setRouteStops([]);
+      setRouteGeometry(null);
     }
   }
   async function loadTripTracking() {
@@ -246,7 +287,7 @@ export default function GPSTracking() {
     setApiMessage("");
 
     try {
-      const [latestResult, trailResult, etaResult] = await Promise.all([
+      const [latestResult, trailResult, etaResult, geometryResult] = await Promise.all([
         getTrackingTripLatest(tripId.trim()),
         getTrackingTripTrail(tripId.trim(), {
           page: 1,
@@ -257,11 +298,13 @@ export default function GPSTracking() {
         stopId.trim()
           ? getTrackingTripEta(tripId.trim(), stopId.trim())
           : Promise.resolve<TrackingEtaResponse | null>(null),
+        getTrackingTripRouteGeometry(tripId.trim()),
       ]);
 
       setLatest(latestResult);
       setTrail(trailResult.items);
       setEta(etaResult);
+      setRouteGeometry(geometryResult);
 
       if (latestResult.latest) {
         setFocusCenter({
@@ -273,7 +316,9 @@ export default function GPSTracking() {
       setLastRefresh(new Date());
       setApiMessage(t("gps.trackingLoaded"));
     } catch (err) {
-      setApiError(err instanceof Error ? err.message : t("gps.trackingLoadFailed"));
+      setApiError(
+        err instanceof Error ? err.message : t("gps.trackingLoadFailed"),
+      );
     } finally {
       setIsApiLoading(false);
     }
@@ -319,6 +364,22 @@ export default function GPSTracking() {
     socket.on("gps:update", (event: TrackingLatestLocation) => {
       if (cancelled) return;
       setLatest({ latest: event });
+      setTrail((current) => [
+        event,
+        ...current.filter((point) => point.recordedAt !== event.recordedAt),
+      ].slice(0, 100));
+      setFleetVehicles((current) =>
+        current.map((vehicle) =>
+          vehicle.id === event.tripId
+            ? {
+                ...vehicle,
+                position: { lat: event.latitude, lng: event.longitude },
+                speedKmh: event.speedKmh ?? null,
+                status: getFleetStatus(event),
+              }
+            : vehicle,
+        ),
+      );
       setFocusCenter({ lat: event.latitude, lng: event.longitude });
       setLastRefresh(new Date());
     });
@@ -351,18 +412,10 @@ export default function GPSTracking() {
 
   return (
     <div className="flex flex-col gap-5 pb-2">
-      <div
-        className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
-        role="status"
-      >
-        <FiAlertTriangle className="mt-0.5 shrink-0" size={18} />
-        <span>{t("gps.demoBanner")}</span>
-      </div>
-
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            {t("gps.title")} <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 align-middle text-xs font-semibold text-amber-800">{t("gps.demoBadge")}</span>
+            {t("gps.title")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-base">
             {t("gps.subtitle")}
@@ -379,11 +432,13 @@ export default function GPSTracking() {
           </span>
           <button
             type="button"
-            onClick={() => setLastRefresh(new Date())}
-            className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
+            onClick={() => void loadFleet()}
+            disabled={isFleetLoading}
+            aria-busy={isFleetLoading}
+            className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 disabled:cursor-wait disabled:opacity-70 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
           >
             <FiRefreshCw size={16} />
-            {tc("refresh")}
+            {isFleetLoading ? "Đang tải..." : tc("refresh")}
           </button>
         </div>
       </div>
@@ -564,9 +619,9 @@ export default function GPSTracking() {
               onChange={(event) => void selectTrip(event.target.value)}
             >
               <option value="">Chọn chuyến để theo dõi</option>
-              {tripOptions.map((booking) => (
-                <option key={booking.tripId} value={booking.tripId}>
-                  {booking.trip.routeName || `${booking.trip.originName || "-"} - ${booking.trip.destinationName || "-"}`} · {booking.trip.currentDepartureAt || booking.trip.departureAt || "Chưa có giờ đi"}
+              {tripOptions.map((trip) => (
+                <option key={trip.tripId} value={trip.tripId}>
+                  {trip.route.name || `${trip.route.originName} - ${trip.route.destinationName}`} · {trip.vehicle.licensePlate} · {new Date(trip.departureAt).toLocaleString("vi-VN")}
                 </option>
               ))}
             </CustomSelect>
@@ -582,7 +637,9 @@ export default function GPSTracking() {
               value={stopId}
               onChange={(event) => setStopId(event.target.value)}
             >
-              <option value="">Không tính giờ đến dự kiến theo điểm dừng</option>
+              <option value="">
+                Không tính giờ đến dự kiến theo điểm dừng
+              </option>
               {routeStops.map((stop) => (
                 <option key={stop.stopId} value={stop.stopId}>
                   {stop.orderIndex}. {stop.name || "Điểm dừng"}
@@ -632,9 +689,7 @@ export default function GPSTracking() {
             </p>
           </div>
           <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <p className="text-xs font-medium text-gray-500">
-              {t("gps.eta")}
-            </p>
+            <p className="text-xs font-medium text-gray-500">{t("gps.eta")}</p>
             <p className="mt-1 text-sm font-semibold text-gray-900">
               {eta?.eta
                 ? `${eta.eta.etaMinutes} min · ${eta.eta.distanceMeters} m`
@@ -650,11 +705,28 @@ export default function GPSTracking() {
             <div className="flex h-full min-h-[420px] items-center justify-center text-sm text-gray-500">
               {t("gps.loadingMap")}
             </div>
+          ) : isFleetLoading ? (
+            <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 text-sm text-gray-500">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-vr-500" aria-hidden="true" />
+              <span>{t("gps.loadingFleet")}</span>
+            </div>
+          ) : tripOptions.length === 0 ? (
+            <div className="flex h-full min-h-[420px] items-center justify-center px-6 text-center text-sm text-gray-500">
+              {apiError || t("gps.noTrips")}
+            </div>
+          ) : fleetVehicles.length === 0 ? (
+            <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-gray-500">
+              <FiTruck size={28} className="text-gray-400" aria-hidden="true" />
+              <span className="font-semibold text-gray-700">{t("gps.noLiveSignal")}</span>
+              <span>{t("gps.noLiveSignalHint")}</span>
+            </div>
           ) : (
             <FleetMap
               vehicles={filtered}
               selectedId={selectedId}
               focusCenter={focusCenter}
+              routePath={routeGeometryPath(routeGeometry)}
+              trailPath={trailPath}
               onMarkerSelect={selectVehicle}
             />
           )}
@@ -751,7 +823,7 @@ export default function GPSTracking() {
           {selectedId && (
             <div className="border-t border-gray-100 bg-gray-50/80 px-4 py-3 text-xs text-gray-600">
               {(() => {
-                const v = fleetSeed.find((x) => x.id === selectedId);
+                const v = fleetVehicles.find((x) => x.id === selectedId);
                 if (!v) return null;
                 return <p>{t("gps.pingInfo", { plate: v.plate })}</p>;
               })()}

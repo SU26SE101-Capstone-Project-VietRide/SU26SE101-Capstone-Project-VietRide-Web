@@ -141,11 +141,6 @@ const operatorStaffMenuConfig: MenuSection[] = [
       },
       { labelKey: "manager.trips", path: "/manager/trips", icon: <FiTruck /> },
       {
-        labelKey: "manager.routeEta",
-        path: "/manager/route-eta",
-        icon: <FiAlertTriangle />,
-      },
-      {
         labelKey: "manager.routes",
         path: "/manager/routes",
         icon: <FiNavigation />,

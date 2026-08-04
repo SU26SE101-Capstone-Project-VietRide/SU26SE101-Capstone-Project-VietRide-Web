@@ -3,7 +3,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type FormEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -12,15 +11,11 @@ import {
   FiArrowUp,
   FiCheckCircle,
   FiDollarSign,
-  FiPlus,
   FiRefreshCw,
   FiSearch,
-  FiSettings,
 } from "react-icons/fi";
 import { useSearchParams } from "react-router-dom";
 import {
-  adjustAdminOperatorWallet,
-  adjustAdminPlatformWallet,
   getAdminPlatformWallet,
   getAdminPlatformWalletTransactions,
   getAdminTripSettlements,
@@ -30,12 +25,9 @@ import {
   type TripSettlement,
   type TripSettlementStatus,
   type WalletTransaction,
-  type WalletTransactionType,
 } from "../../../api/vietride";
-import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
-import InvoiceRetryCard from "./InvoiceRetryCard";
 
 const pageSize = 10;
 
@@ -46,12 +38,7 @@ const statusClass: Record<TripSettlementStatus, string> = {
   CANCELLED: "bg-gray-100 text-gray-600",
 };
 
-const financeTabs = [
-  "overview",
-  "settlements",
-  "transactions",
-  "operations",
-] as const;
+const financeTabs = ["settlements", "transactions"] as const;
 type FinanceTab = (typeof financeTabs)[number];
 
 const settlementViews = [
@@ -89,7 +76,7 @@ function formatDate(value: string | null) {
 function parseFinanceTab(value: string | null): FinanceTab {
   return financeTabs.includes(value as FinanceTab)
     ? (value as FinanceTab)
-    : "overview";
+    : "settlements";
 }
 
 function parseSettlementView(value: string | null): SettlementView {
@@ -139,22 +126,6 @@ export default function WalletSettlement() {
     useState<TripSettlement | null>(null);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [adjustOpen, setAdjustOpen] = useState(false);
-  const [adjusting, setAdjusting] = useState(false);
-  const [confirmStep, setConfirmStep] = useState(false);
-  const [adjustForm, setAdjustForm] = useState<{
-    target: "PLATFORM" | "OPERATOR";
-    operatorId: string;
-    type: WalletTransactionType;
-    amount: string;
-    note: string;
-  }>({
-    target: "PLATFORM",
-    operatorId: "",
-    type: "CREDIT",
-    amount: "",
-    note: "",
-  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -293,70 +264,6 @@ export default function WalletSettlement() {
     }
   }
 
-  function closeAdjustModal() {
-    setAdjustOpen(false);
-    setConfirmStep(false);
-    setAdjustForm({
-      target: "PLATFORM",
-      operatorId: "",
-      type: "CREDIT",
-      amount: "",
-      note: "",
-    });
-  }
-
-  function handleAdjustFormSubmit(event: FormEvent) {
-    event.preventDefault();
-
-    if (!confirmStep) {
-      const amount = Number(adjustForm.amount);
-      const operatorId = adjustForm.operatorId.trim();
-      const note = adjustForm.note.trim();
-      if (
-        !Number.isFinite(amount) ||
-        amount <= 0 ||
-        !note ||
-        (adjustForm.target === "OPERATOR" && !operatorId)
-      ) {
-        setError(t("walletSettlement.adjustInvalid"));
-        return;
-      }
-
-      setError("");
-      setConfirmStep(true);
-      return;
-    }
-
-    void submitAdjustment();
-  }
-
-  async function submitAdjustment() {
-    const amount = Number(adjustForm.amount);
-    const operatorId = adjustForm.operatorId.trim();
-    const note = adjustForm.note.trim();
-
-    setAdjusting(true);
-    setError("");
-    setMessage("");
-    try {
-      const request = { type: adjustForm.type, amount, note };
-      if (adjustForm.target === "PLATFORM") {
-        await adjustAdminPlatformWallet(request);
-      } else {
-        await adjustAdminOperatorWallet(operatorId, request);
-      }
-      closeAdjustModal();
-      setMessage(t("walletSettlement.adjustSuccess"));
-      await loadData();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t("walletSettlement.actionFailed"),
-      );
-    } finally {
-      setAdjusting(false);
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -396,6 +303,13 @@ export default function WalletSettlement() {
         </div>
       )}
 
+      <OverviewTab
+        platformBalance={platformWallet?.balance ?? 0}
+        totals={totals}
+        loading={loading}
+        onOpenSettlements={() => selectSettlementView("NEEDS_ATTENTION")}
+      />
+
       <nav
         aria-label={t("walletSettlement.financeSections")}
         className="flex flex-wrap gap-2 border-b border-gray-200"
@@ -417,17 +331,9 @@ export default function WalletSettlement() {
         ))}
       </nav>
 
-      {activeTab === "overview" && (
-        <OverviewTab
-          platformBalance={platformWallet?.balance ?? 0}
-          totals={totals}
-          loading={loading}
-          onOpenSettlements={() => selectSettlementView("NEEDS_ATTENTION")}
-        />
-      )}
-
       {activeTab === "settlements" && (
-        <section className="space-y-4">
+        <>
+          <section className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {settlementViews.map((view) => (
               <button
@@ -467,7 +373,7 @@ export default function WalletSettlement() {
             </div>
 
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[820px] text-sm">
+              <table className="w-full min-w-[1120px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold whitespace-nowrap text-gray-600">
                     <th className="px-4 py-3">
@@ -524,7 +430,11 @@ export default function WalletSettlement() {
                         {formatMoney(record.netAmount)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
-                        {formatDate(record.eligibleAt)}
+                        {formatDate(
+                          record.settlementMethod === "ADMIN_MANUAL" && record.settledAt
+                            ? record.settledAt
+                            : record.eligibleAt,
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <span
@@ -589,43 +499,19 @@ export default function WalletSettlement() {
             />
           </div>
         </section>
+        </>
       )}
 
       {activeTab === "transactions" && (
-        <WalletTransactionTable
-          items={transactions}
-          page={transactionPage}
-          totalItems={transactionTotalItems}
-          onPageChange={setTransactionPage}
-          t={t}
-        />
-      )}
-
-      {activeTab === "operations" && (
-        <div className="grid gap-6 xl:grid-cols-2">
-          <section className="rounded-lg border border-gray-200 bg-white p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                  <FiSettings className="text-vr-600" />
-                  {t("walletSettlement.adjust")}
-                </h2>
-                <p className="mt-2 text-sm text-gray-600">
-                  {t("walletSettlement.adjustHint")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAdjustOpen(true)}
-                className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-              >
-                <FiPlus />
-                {t("walletSettlement.adjust")}
-              </button>
-            </div>
-          </section>
-          <InvoiceRetryCard />
-        </div>
+        <>
+          <WalletTransactionTable
+            items={transactions}
+            page={transactionPage}
+            totalItems={transactionTotalItems}
+            onPageChange={setTransactionPage}
+            t={t}
+          />
+        </>
       )}
 
       <Modal
@@ -683,195 +569,7 @@ export default function WalletSettlement() {
         )}
       </Modal>
 
-      <Modal
-        open={adjustOpen}
-        onClose={closeAdjustModal}
-        icon={<FiDollarSign />}
-        title={
-          confirmStep
-            ? t("walletSettlement.confirmStepTitle")
-            : t("walletSettlement.adjust")
-        }
-        subtitle={
-          confirmStep
-            ? t("walletSettlement.confirmStepHint")
-            : t("walletSettlement.adjustHint")
-        }
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={
-                confirmStep ? () => setConfirmStep(false) : closeAdjustModal
-              }
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700"
-            >
-              {confirmStep ? t("walletSettlement.confirmBack") : tc("cancel")}
-            </button>
-            <button
-              type="submit"
-              form="wallet-adjust-form"
-              disabled={adjusting}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {adjusting
-                ? tc("processing")
-                : confirmStep
-                  ? t("walletSettlement.confirmSubmit")
-                  : t("walletSettlement.continueButton")}
-            </button>
-          </>
-        }
-      >
-        <form
-          id="wallet-adjust-form"
-          className="space-y-4"
-          onSubmit={handleAdjustFormSubmit}
-        >
-          {confirmStep ? (
-            <dl className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-600">
-                  {t("walletSettlement.target")}
-                </dt>
-                <dd className="font-semibold text-gray-900">
-                  {t(`walletSettlement.targets.${adjustForm.target}`)}
-                </dd>
-              </div>
-              {adjustForm.target === "OPERATOR" && (
-                <div className="flex justify-between gap-4">
-                  <dt className="text-gray-600">
-                    {t("walletSettlement.operatorId")}
-                  </dt>
-                  <dd className="font-mono text-xs font-semibold text-gray-900">
-                    {adjustForm.operatorId.trim()}
-                  </dd>
-                </div>
-              )}
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-600">{t("walletSettlement.type")}</dt>
-                <dd className="font-semibold text-gray-900">
-                  {adjustForm.type === "CREDIT"
-                    ? "Ghi có (tiền vào)"
-                    : "Ghi nợ (tiền ra)"}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-600">
-                  {t("walletSettlement.amount")}
-                </dt>
-                <dd className="text-lg font-bold text-gray-900">
-                  {formatMoney(Number(adjustForm.amount))}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="shrink-0 text-gray-600">
-                  {t("walletSettlement.note")}
-                </dt>
-                <dd className="text-right text-gray-900">
-                  {adjustForm.note.trim()}
-                </dd>
-              </div>
-            </dl>
-          ) : (
-            <>
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-gray-600">
-                  {t("walletSettlement.target")}
-                </span>
-                <CustomSelect
-                  value={adjustForm.target}
-                  onChange={(event) =>
-                    setAdjustForm({
-                      ...adjustForm,
-                      target: event.target.value as typeof adjustForm.target,
-                    })
-                  }
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-                >
-                  <option value="PLATFORM">
-                    {t("walletSettlement.targets.PLATFORM")}
-                  </option>
-                  <option value="OPERATOR">
-                    {t("walletSettlement.targets.OPERATOR")}
-                  </option>
-                </CustomSelect>
-              </label>
-              {adjustForm.target === "OPERATOR" && (
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-gray-600">
-                    {t("walletSettlement.operatorId")}
-                  </span>
-                  <input
-                    value={adjustForm.operatorId}
-                    onChange={(event) =>
-                      setAdjustForm({
-                        ...adjustForm,
-                        operatorId: event.target.value,
-                      })
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-                    required
-                  />
-                </label>
-              )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label>
-                  <span className="mb-1 block text-xs font-semibold text-gray-600">
-                    {t("walletSettlement.type")}
-                  </span>
-                  <CustomSelect
-                    value={adjustForm.type}
-                    onChange={(event) =>
-                      setAdjustForm({
-                        ...adjustForm,
-                        type: event.target.value as WalletTransactionType,
-                      })
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-                  >
-                    <option value="CREDIT">Ghi có (tiền vào)</option>
-                    <option value="DEBIT">Ghi nợ (tiền ra)</option>
-                  </CustomSelect>
-                </label>
-                <label>
-                  <span className="mb-1 block text-xs font-semibold text-gray-600">
-                    {t("walletSettlement.amount")}
-                  </span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={adjustForm.amount}
-                    onChange={(event) =>
-                      setAdjustForm({
-                        ...adjustForm,
-                        amount: event.target.value,
-                      })
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-                    required
-                  />
-                </label>
-              </div>
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-gray-600">
-                  {t("walletSettlement.note")}
-                </span>
-                <textarea
-                  value={adjustForm.note}
-                  onChange={(event) =>
-                    setAdjustForm({ ...adjustForm, note: event.target.value })
-                  }
-                  className="min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm"
-                  required
-                />
-              </label>
-            </>
-          )}
-        </form>
-      </Modal>
-    </div>
+   </div>
   );
 }
 

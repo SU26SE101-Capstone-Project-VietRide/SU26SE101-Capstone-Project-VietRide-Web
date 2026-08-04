@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
@@ -555,7 +556,7 @@ function BookingDetailContent({
 
       <DetailSection title="Thông tin người mua" columns="four">
         <DetailItem label="Họ tên" value={booking.buyer?.displayName || "-"} />
-        <DetailItem label="Số điện thoại" value={booking.buyer?.phone || "-"} />
+        <DetailItem label="Số điện thoại" value={formatVietnamPhoneForDisplay(booking.buyer?.phone)} />
         <DetailItem label="Email" value={booking.buyer?.email || "-"} />
         <DetailItem label="Mã người dùng" value={booking.buyer?.userId || "-"} />
       </DetailSection>

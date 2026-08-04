@@ -25,6 +25,17 @@ type ApiEnvelope<T> = {
   error?: ApiErrorBody;
 };
 
+export class ApiRequestError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.code = code;
+  }
+}
 type RequestOptions = {
   method?: HttpMethod;
   body?: unknown;
@@ -61,6 +72,22 @@ function parseErrorMessage(payload: unknown, fallback: string): string {
   return fallback;
 }
 
+function parseErrorCode(payload: unknown): string | undefined {
+  if (!isRecord(payload) || !isRecord(payload.error)) {
+    return undefined;
+  }
+
+  const code = asString(payload.error.code);
+  return code || undefined;
+}
+
+function createApiRequestError(payload: unknown, status: number): ApiRequestError {
+  return new ApiRequestError(
+    parseErrorMessage(payload, `Request failed: ${status}`),
+    status,
+    parseErrorCode(payload),
+  );
+}
 async function parseResponse(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) {
@@ -119,12 +146,7 @@ export async function apiRequest<T>(
       const retryPayload = await parseResponse(retryResponse);
 
       if (!retryResponse.ok) {
-        throw new Error(
-          parseErrorMessage(
-            retryPayload,
-            `Request failed: ${retryResponse.status}`,
-          ),
-        );
+        throw createApiRequestError(retryPayload, retryResponse.status);
       }
 
       if (isRecord(retryPayload) && "data" in retryPayload) {
@@ -136,7 +158,7 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    throw new Error(parseErrorMessage(payload, `Request failed: ${response.status}`));
+    throw createApiRequestError(payload, response.status);
   }
 
   if (isRecord(payload) && "data" in payload) {
@@ -174,12 +196,7 @@ export async function apiBlobRequest(
 
       if (!retryResponse.ok) {
         const retryPayload = await parseResponse(retryResponse);
-        throw new Error(
-          parseErrorMessage(
-            retryPayload,
-            `Request failed: ${retryResponse.status}`,
-          ),
-        );
+        throw createApiRequestError(retryPayload, retryResponse.status);
       }
 
       return retryResponse.blob();
@@ -188,7 +205,7 @@ export async function apiBlobRequest(
 
   if (!response.ok) {
     const payload = await parseResponse(response);
-    throw new Error(parseErrorMessage(payload, `Request failed: ${response.status}`));
+    throw createApiRequestError(payload, response.status);
   }
 
   return response.blob();
@@ -229,7 +246,7 @@ export async function apiSseRequest(
 
   if (!response.ok) {
     const payload = await parseResponse(response);
-    throw new Error(parseErrorMessage(payload, `Request failed: ${response.status}`));
+    throw createApiRequestError(payload, response.status);
   }
 
   if (!response.body) {
