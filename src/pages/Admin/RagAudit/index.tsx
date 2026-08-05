@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiCheck,
@@ -11,14 +11,11 @@ import {
   approveRagDocument,
   getRagDocuments,
   getRagFeedback,
-  getRagRuntimeConfigs,
   type RagDocument,
   type RagFeedback,
-  type RagRuntimeConfig,
 } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
-import { RagConfigModal } from "./RagConfigModal";
 import { RagDocumentUploadModal } from "./RagDocumentUploadModal";
 
 const statusClass: Record<string, string> = {
@@ -35,20 +32,12 @@ function feedbackTone(rating: number) {
     : "bg-rose-50 text-rose-700";
 }
 
-function normalizeRuntimeConfigs(value: unknown): RagRuntimeConfig[] {
-  return Array.isArray(value) ? value : [];
-}
-
 export default function RagAudit() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [documents, setDocuments] = useState<RagDocument[]>([]);
   const [feedback, setFeedback] = useState<RagFeedback[]>([]);
-  const [, setConfigs] = useState<RagRuntimeConfig[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [selectedConfigKey, setSelectedConfigKey] = useState<string | null>(
-    null,
-  );
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -57,46 +46,76 @@ export default function RagAudit() {
   const [totalDocuments, setTotalDocuments] = useState(0);
   const pageSize = 8;
 
-  const loadData = useCallback(async () => {
+  // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
+
+  const loadDocuments = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
     try {
-      const [documentResult, feedbackResult, configResult] = await Promise.all([
-        getRagDocuments({
-          page,
-          pageSize,
-          search,
-          sortBy: "createdAt",
-          sortDir: "desc",
-        }),
-        getRagFeedback({
-          page: 1,
-          pageSize: 20,
-          sortBy: "createdAt",
-          sortDir: "desc",
-        }),
-        getRagRuntimeConfigs(),
-      ]);
+      const documentResult = await getRagDocuments({
+        page,
+        pageSize,
+        search,
+        sortBy: "createdAt",
+        sortDir: "desc",
+      });
 
       setDocuments(documentResult.items);
       setTotalDocuments(documentResult.totalItems);
-      setFeedback(feedbackResult.items);
-      setConfigs(normalizeRuntimeConfigs(configResult));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("ragAudit.loadFailed"));
+      setError(
+        err instanceof Error ? err.message : tRef.current("ragAudit.loadFailed"),
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [page, search, t]);
+  }, [page, search]);
+
+  // Feedback không phụ thuộc page/search của bảng documents → chỉ load lúc mount
+  const loadFeedback = useCallback(async () => {
+    try {
+      const feedbackResult = await getRagFeedback({
+        page: 1,
+        pageSize: 20,
+        sortBy: "createdAt",
+        sortDir: "desc",
+      });
+
+      setFeedback(feedbackResult.items);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : tRef.current("ragAudit.loadFailed"),
+      );
+    }
+  }, []);
+
+  // Nút refresh tải lại cả hai
+  const loadData = useCallback(
+    () => Promise.all([loadDocuments(), loadFeedback()]),
+    [loadDocuments, loadFeedback],
+  );
+
+  useEffect(() => {
+    // Debounce 250ms để gõ tìm kiếm không bắn request mỗi phím
+    const timeoutId = window.setTimeout(() => {
+      void loadDocuments();
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadDocuments]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      void loadData();
+      void loadFeedback();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [loadData]);
+  }, [loadFeedback]);
 
   async function handleApproveDocument(id: string) {
     setError("");
@@ -145,7 +164,7 @@ export default function RagAudit() {
             className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
           >
             <FiUploadCloud size={16} />
-            {t("ragAudit.uploadDocument", { defaultValue: "Tải tài liệu" })}
+            {t("ragAudit.uploadDocument")}
           </button>
         </div>
       </div>
@@ -281,7 +300,7 @@ export default function RagAudit() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-gray-900">
-                      {item.comment || "Không có ghi chú"}
+                      {item.comment || t("ragAudit.noComment")}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
                       {item.role ?? "-"} - {formatDateTime(item.createdAt)}
@@ -305,23 +324,8 @@ export default function RagAudit() {
         onUploaded={(document) => {
           setDocuments((current) => [document, ...current]);
           setTotalDocuments((current) => current + 1);
-          setMessage(
-            t("ragAudit.uploadSuccess", {
-              defaultValue: "Đã tải tài liệu lên knowledge base.",
-            }),
-          );
+          setMessage(t("ragAudit.uploadSuccess"));
         }}
-      />
-      <RagConfigModal
-        configKey={selectedConfigKey}
-        onClose={() => setSelectedConfigKey(null)}
-        onSaved={(updated) =>
-          setConfigs((current) =>
-            current.map((config) =>
-              config.key === updated.key ? updated : config,
-            ),
-          )
-        }
       />
     </div>
   );

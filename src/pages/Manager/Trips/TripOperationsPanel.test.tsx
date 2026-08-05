@@ -5,9 +5,9 @@ import {
   disruptOperatorTripNoSubstitution,
   getOperatorTripCargoCapacity,
   getOperatorTrips,
-  getOperatorUsers,
-  getOperatorVehicles,
   substituteOperatorTripVehicle,
+  type OperatorUser,
+  type OperatorVehicle,
 } from "../../../api/vietride";
 import TripOperationsPanel from "./TripOperationsPanel";
 
@@ -23,52 +23,37 @@ vi.mock("../../../api/vietride", () => ({
   disruptOperatorTripNoSubstitution: vi.fn(),
   getOperatorTripCargoCapacity: vi.fn(),
   getOperatorTrips: vi.fn(),
-  getOperatorUsers: vi.fn(),
-  getOperatorVehicles: vi.fn(),
   substituteOperatorTripVehicle: vi.fn(),
 }));
+
+// Xe và nhân sự giờ do trang cha truyền xuống qua props
+const vehiclesProp: OperatorVehicle[] = [
+  {
+    id: "vehicle-2",
+    operatorId: "operator-1",
+    licensePlate: "51B-999.99",
+    vehicleTypeId: "type-1",
+    totalSeats: 40,
+    maxCargoWeightKg: 500,
+    maxCargoVolumeM3: 5,
+    status: "ACTIVE",
+  },
+];
+
+const staffProp: OperatorUser[] = [
+  {
+    userId: "driver-2",
+    email: "driver@operator.vn",
+    displayName: "Driver Two",
+    role: "DRIVER",
+    status: "ACTIVE",
+    operatorId: "operator-1",
+  },
+];
 
 describe("TripOperationsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getOperatorVehicles).mockResolvedValue({
-      items: [
-        {
-          id: "vehicle-2",
-          operatorId: "operator-1",
-          licensePlate: "51B-999.99",
-          vehicleTypeId: "type-1",
-          totalSeats: 40,
-          maxCargoWeightKg: 500,
-          maxCargoVolumeM3: 5,
-          status: "ACTIVE",
-        },
-      ],
-      page: 1,
-      pageSize: 100,
-      totalItems: 1,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    });
-    vi.mocked(getOperatorUsers).mockResolvedValue({
-      items: [
-        {
-          userId: "driver-2",
-          email: "driver@operator.vn",
-          displayName: "Driver Two",
-          role: "DRIVER",
-          status: "ACTIVE",
-          operatorId: "operator-1",
-        },
-      ],
-      page: 1,
-      pageSize: 100,
-      totalItems: 1,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    });
     vi.mocked(getOperatorTrips).mockResolvedValue({
       items: [
         {
@@ -120,7 +105,7 @@ describe("TripOperationsPanel", () => {
 
   it("loads cargo capacity for an operator trip", async () => {
     const user = userEvent.setup();
-    render(<TripOperationsPanel />);
+    render(<TripOperationsPanel vehicles={vehiclesProp} staff={staffProp} />);
 
     await waitFor(() => expect(getOperatorTrips).toHaveBeenCalled());
     await user.click(screen.getByLabelText("tripOperations.tripSelect"));
@@ -139,9 +124,8 @@ describe("TripOperationsPanel", () => {
 
   it("substitutes a vehicle with the selected crew and reason", async () => {
     const user = userEvent.setup();
-    render(<TripOperationsPanel />);
+    render(<TripOperationsPanel vehicles={vehiclesProp} staff={staffProp} />);
 
-    await waitFor(() => expect(getOperatorVehicles).toHaveBeenCalled());
     await waitFor(() => expect(getOperatorTrips).toHaveBeenCalled());
     await user.click(screen.getByLabelText("tripOperations.tripSelect"));
     await user.click(

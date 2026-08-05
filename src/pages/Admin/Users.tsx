@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiEye, FiLock, FiSearch, FiUnlock, FiUser } from "react-icons/fi";
 import {
@@ -34,6 +34,10 @@ function isLockedStatus(status: string) {
 export default function Users() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const currentUserId = getAuthUser()?.id;
   const [searchTerm, setSearchTerm] = useState("");
   const [role, setRole] = useState("");
@@ -84,7 +88,9 @@ export default function Users() {
           setMessage({
             tone: "error",
             text:
-              error instanceof Error ? error.message : t("users.loadFailed"),
+              error instanceof Error
+                ? error.message
+                : tRef.current("users.loadFailed"),
           });
         }
       } finally {
@@ -98,7 +104,7 @@ export default function Users() {
       ignore = true;
       window.clearTimeout(timer);
     };
-  }, [includeDeleted, operatorUsersOnly, page, role, searchTerm, status, t]);
+  }, [includeDeleted, operatorUsersOnly, page, role, searchTerm, status]);
 
   const roleLabel = (userRole: AdminUserRole) => {
     const labels: Record<string, string> = {
@@ -238,9 +244,7 @@ export default function Users() {
               }}
               className="h-4 w-4 cursor-pointer accent-vr-500"
             />
-            {t("users.operatorUsersOnly", {
-              defaultValue: "Chỉ tài khoản nhà xe",
-            })}
+            {t("users.operatorUsersOnly")}
           </label>
         </div>
 

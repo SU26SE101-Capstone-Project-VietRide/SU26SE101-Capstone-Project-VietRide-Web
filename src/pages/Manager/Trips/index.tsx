@@ -1,27 +1,32 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FiAlertCircle,
-  FiCalendar,
-  FiCheckCircle,
-  FiEdit2,
-  FiPlus,
-  FiRefreshCw,
-  FiTruck,
-} from "react-icons/fi";
-import CurrencyInput from "../../../components/CurrencyInput";
-import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
-import CustomSelect from "../../../components/CustomSelect";
-import Pagination from "../../../components/Pagination";
+import { FiAlertCircle, FiCalendar, FiRefreshCw } from "react-icons/fi";
 import { getAuthUser } from "../../../auth";
-import { formatDateTime } from "../../../utils/date";
+import { toDatetimeLocalValue } from "../../../utils/date";
 import TripOperationsPanel from "./TripOperationsPanel";
+import ScheduleFormSection from "./ScheduleForm";
+import ScheduleTable from "./ScheduleTable";
+import { MetricCard, Panel, SectionHeader } from "./formControls";
+import {
+  emptyForm,
+  getArrivalEstimateValue,
+  getNextSuggestedDeparture,
+  recurrenceToDays,
+  toRouteOption,
+  toScheduleTimeValue,
+  toStaffOption,
+  toTripSchedule,
+  toTripScheduleFromApi,
+  toVehicleOption,
+} from "./tripHelpers";
+import type {
+  RouteOption,
+  ScheduleForm,
+  ScheduleStatus,
+  StaffOption,
+  TripSchedule,
+  VehicleOption,
+} from "./types";
 import {
   activateOperatorDriverSchedule,
   createOperatorDriverSchedule,
@@ -29,279 +34,26 @@ import {
   getOperatorRoutes,
   getOperatorUsers,
   getOperatorVehicles,
-  type OperatorDriverSchedule,
-  type OperatorRoute,
   type OperatorUser,
   type OperatorVehicle,
 } from "../../../api/vietride";
 
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
-
-type ResourceStatus = "active" | "inactive" | "available" | "busy";
-type ScheduleStatus = "draft" | "open" | "blocked";
-
-type RouteOption = {
-  id: string;
-  name: string;
-  origin: string;
-  destination: string;
-  status: ResourceStatus;
-  distanceKm?: number;
-  durationMinutes?: number;
-};
-
-type VehicleOption = {
-  id: string;
-  plate: string;
-  seats: number;
-  status: ResourceStatus;
-};
-
-type StaffOption = {
-  id: string;
-  name: string;
-  role: "driver" | "assistant";
-  status: ResourceStatus;
-};
-
-type ScheduleForm = {
-  routeId: string;
-  vehicleId: string;
-  driverId: string;
-  assistantId: string;
-  departureAt: string;
-  arrivalEstimate: string;
-  fare: string;
-  recurrence: string;
-};
-
-type TripSchedule = ScheduleForm & {
-  id: string;
-  code: string;
-  status: ScheduleStatus;
-  routeName?: string;
-  vehiclePlate?: string;
-  driverName?: string;
-  assistantName?: string;
-};
-
-const emptyForm: ScheduleForm = {
-  routeId: "",
-  vehicleId: "",
-  driverId: "",
-  assistantId: "",
-  departureAt: "",
-  arrivalEstimate: "",
-  fare: "250000",
-  recurrence: "daily",
-};
-
-function optionLabel<T extends { id: string }>(
-  options: T[],
-  id: string,
-  getLabel: (option: T) => string,
-) {
-  const match = options.find((option) => option.id === id);
-  return match ? getLabel(match) : "-";
-}
-
-function formatMoney(value: string) {
-  const amount = Number(value);
-  return Number.isFinite(amount)
-    ? new Intl.NumberFormat("vi-VN").format(amount)
-    : value;
-}
-
-function toDatetimeLocalValue(date: Date) {
-  const offsetMs = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-}
-
-function getNextSuggestedDeparture() {
-  const next = new Date();
-  next.setSeconds(0, 0);
-
-  const minutes = next.getMinutes();
-  const nextSlotMinutes = minutes < 30 ? 30 : 60;
-  next.setMinutes(nextSlotMinutes, 0, 0);
-
-  return next;
-}
-
-function getArrivalEstimateValue(departureAt: string, route?: RouteOption) {
-  if (!departureAt || !route) {
-    return "";
-  }
-
-  const departure = new Date(departureAt);
-  if (Number.isNaN(departure.getTime())) {
-    return "";
-  }
-
-  const durationMinutes =
-    route.durationMinutes && route.durationMinutes > 0
-      ? route.durationMinutes
-      : route.distanceKm && route.distanceKm > 0
-        ? Math.round((route.distanceKm / 55) * 60)
-        : 0;
-
-  if (durationMinutes <= 0) {
-    return "";
-  }
-
-  return toDatetimeLocalValue(
-    new Date(departure.getTime() + durationMinutes * 60_000),
-  );
-}
-
-function toScheduleTimeValue(dateTimeValue: string) {
-  const timePart = dateTimeValue.split(/[T ]/)[1] ?? "";
-  const [hour = "00", minute = "00", second = "00"] = timePart.split(":");
-  return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:${second.padStart(2, "0")}`;
-}
-
-function toScheduleDateTime(validFrom?: string, departureTime?: string) {
-  if (!validFrom || !departureTime) {
-    return "";
-  }
-
-  const rawTime = departureTime.includes("T")
-    ? departureTime.split("T")[1]
-    : departureTime;
-  const [hour = "00", minute = "00"] = rawTime
-    .replace("Z", "")
-    .split(".")[0]
-    .split(":");
-
-  return `${validFrom}T${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
-}
-
-function toResourceStatus(status?: string): ResourceStatus {
-  if (status === "ACTIVE" || status === "active" || status === "APPROVED") {
-    return "active";
-  }
-
-  if (status === "AVAILABLE" || status === "available") {
-    return "available";
-  }
-
-  if (status === "BUSY" || status === "busy") {
-    return "busy";
-  }
-
-  return "inactive";
-}
-
-function toRouteOption(route: OperatorRoute): RouteOption {
-  return {
-    id: route.id,
-    name: route.name,
-    origin: route.originStation?.name ?? route.originStationId,
-    destination: route.destinationStation?.name ?? route.destinationStationId,
-    status: route.isActive ? "active" : "inactive",
-    distanceKm: route.totalDistanceKm,
-    durationMinutes: route.estimatedDurationMinutes,
-  };
-}
-
-function toVehicleOption(vehicle: OperatorVehicle): VehicleOption {
-  return {
-    id: vehicle.vehicleId || vehicle.id || "",
-    plate: vehicle.licensePlate,
-    seats: vehicle.totalSeats,
-    status:
-      vehicle.status === "ACTIVE"
-        ? "available"
-        : toResourceStatus(vehicle.status),
-  };
-}
-
-function toStaffOption(user: OperatorUser): StaffOption {
-  return {
-    id: user.userId || user.id || "",
-    name: user.displayName,
-    role: user.role === "ASSISTANT" ? "assistant" : "driver",
-    status: toResourceStatus(user.status),
-  };
-}
-
-function recurrenceToDays(recurrence: string) {
-  if (recurrence === "daily") {
-    return [1, 2, 3, 4, 5, 6, 7];
-  }
-
-  if (recurrence === "weekend") {
-    return [6, 7];
-  }
-
-  if (recurrence === "weekly") {
-    return [1];
-  }
-
-  return undefined;
-}
-
-function toTripSchedule(
-  schedule: OperatorDriverSchedule,
-  form: ScheduleForm,
-  status: ScheduleStatus,
-): TripSchedule {
-  return {
-    ...form,
-    id: schedule.id,
-    code: `SCH-${schedule.id.slice(0, 8).toUpperCase()}`,
-    routeId: schedule.routeId,
-    vehicleId: schedule.vehicleId,
-    driverId: schedule.driverUserId ?? schedule.driverId ?? "",
-    assistantId: schedule.assistantUserId ?? schedule.assistantId ?? "",
-    departureAt: form.departureAt,
-    status: schedule.isActive || schedule.status === "ACTIVE" ? "open" : status,
-    routeName: schedule.route?.name,
-    vehiclePlate: schedule.vehicle?.licensePlate,
-    driverName: schedule.driver?.displayName,
-    assistantName: schedule.assistant?.displayName,
-  };
-}
-
-function toTripScheduleFromApi(schedule: OperatorDriverSchedule): TripSchedule {
-  const routeOption = schedule.route
-    ? toRouteOption(schedule.route)
-    : undefined;
-  const departureAt = toScheduleDateTime(
-    schedule.validFrom ?? schedule.effectiveFrom,
-    schedule.departureTime,
-  );
-  const arrivalEstimate = getArrivalEstimateValue(departureAt, routeOption);
-
-  return {
-    id: schedule.id,
-    code: `SCH-${schedule.id.slice(0, 8).toUpperCase()}`,
-    routeId: schedule.routeId,
-    vehicleId: schedule.vehicleId,
-    driverId: schedule.driverUserId ?? schedule.driverId ?? "",
-    assistantId: schedule.assistantUserId ?? schedule.assistantId ?? "",
-    departureAt,
-    arrivalEstimate,
-    fare: String(schedule.route?.baseFare ?? ""),
-    recurrence: "once",
-    status: schedule.isActive ? "open" : "draft",
-    routeName: schedule.route?.name,
-    vehiclePlate: schedule.vehicle?.licensePlate,
-    driverName: schedule.driver?.displayName,
-    assistantName: schedule.assistant?.displayName,
-  };
-}
-
 export default function TripsPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  // Giữ tham chiếu t mới nhất để effect tải dữ liệu không refetch khi đổi ngôn ngữ
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const authUser = getAuthUser();
   const [schedules, setSchedules] = useState<TripSchedule[]>([]);
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [staff, setStaff] = useState<StaffOption[]>([]);
+  // Dữ liệu thô từ API, truyền xuống TripOperationsPanel để tránh gọi API trùng lặp
+  const [operatorVehicles, setOperatorVehicles] = useState<OperatorVehicle[]>([]);
+  const [operatorStaff, setOperatorStaff] = useState<OperatorUser[]>([]);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
   const [editingId, setEditingId] = useState("");
   const [message, setMessage] = useState("");
@@ -330,10 +82,6 @@ export default function TripsPage() {
     [staff],
   );
   const editingSchedule = schedules.find((item) => item.id === editingId);
-  const paginatedSchedules = useMemo(
-    () => schedules.slice((page - 1) * pageSize, page * pageSize),
-    [page, schedules],
-  );
 
   useEffect(() => {
     let ignore = false;
@@ -351,6 +99,9 @@ export default function TripsPage() {
         if (ignore) {
           return;
         }
+
+        setOperatorVehicles(vehicleResult.items);
+        setOperatorStaff(userResult.items);
 
         const nextRoutes = routeResult.items.map(toRouteOption);
         const nextVehicles = vehicleResult.items.map(toVehicleOption);
@@ -384,7 +135,7 @@ export default function TripsPage() {
           setError(
             err instanceof Error
               ? err.message
-              : "Không thể tải tuyến, xe và nhân sự cho chuyến.",
+              : tRef.current("trips.loadResourcesFailed"),
           );
         }
       } finally {
@@ -417,7 +168,9 @@ export default function TripsPage() {
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error ? err.message : "Không thể tải lịch chuyến.",
+            err instanceof Error
+              ? err.message
+              : tRef.current("trips.loadSchedulesFailed"),
           );
         }
       }
@@ -579,7 +332,7 @@ export default function TripsPage() {
       );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Không thể tạo lịch chuyến.",
+        err instanceof Error ? err.message : t("trips.createScheduleFailed"),
       );
     } finally {
       setIsSaving(false);
@@ -676,151 +429,24 @@ export default function TripsPage() {
         />
       </div>
 
-      <TripOperationsPanel />
+      <TripOperationsPanel vehicles={operatorVehicles} staff={operatorStaff} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {canManageSchedules ? (
-          <section
-            ref={scheduleFormRef}
-            tabIndex={-1}
-            aria-label={
-              editingSchedule
-                ? t("trips.editScheduleTitle", { code: editingSchedule.code })
-                : t("trips.createScheduleTitle")
-            }
-            className="scroll-mt-6 space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm outline-none focus:ring-2 focus:ring-vr-200"
-          >
-            <SectionHeader
-              icon={<FiCalendar />}
-              title={
-                editingSchedule
-                  ? t("trips.editScheduleTitle", { code: editingSchedule.code })
-                  : t("trips.createScheduleTitle")
-              }
-              subtitle={t("trips.createScheduleSubtitle")}
-            />
-
-            {editingSchedule ? (
-              <div
-                className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-800"
-                role="status"
-              >
-                {t("trips.editScheduleFocusNotice")}
-              </div>
-            ) : null}
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <Select
-                label={t("trips.route")}
-                value={form.routeId}
-                onChange={(value) => updateForm("routeId", value)}
-              >
-                {routes.map((route) => (
-                  <option key={route.id} value={route.id}>
-                    {route.name} · {t(`trips.resourceStatus.${route.status}`)}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                label={t("trips.vehicle")}
-                value={form.vehicleId}
-                onChange={(value) => updateForm("vehicleId", value)}
-              >
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.plate} · {vehicle.seats} {t("trips.seats")} ·{" "}
-                    {t(`trips.resourceStatus.${vehicle.status}`)}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                label={t("trips.driver")}
-                value={form.driverId}
-                onChange={(value) => updateForm("driverId", value)}
-              >
-                {drivers.map((driver) => (
-                  <option key={driver.id} value={driver.id}>
-                    {driver.name} · {t(`trips.resourceStatus.${driver.status}`)}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                label={t("trips.assistant")}
-                value={form.assistantId}
-                onChange={(value) => updateForm("assistantId", value)}
-              >
-                <option value="">{t("trips.noAssistant")}</option>
-                {assistants.map((assistant) => (
-                  <option key={assistant.id} value={assistant.id}>
-                    {assistant.name}
-                  </option>
-                ))}
-              </Select>
-              <div>
-                <label className={labelClass}>{t("trips.departureTime")}</label>
-                <CustomDateTimeInput
-                  className={inputClass}
-                  value={form.departureAt}
-                  type="datetime-local"
-                  onChange={(event) =>
-                    updateForm("departureAt", event.target.value)
-                  }
-                />
-                <button
-                  type="button"
-                  onClick={suggestNextDepartureTime}
-                  className="mt-2 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-vr-200 bg-vr-50 px-3 py-2 text-xs font-semibold text-vr-800 transition hover:bg-vr-100"
-                >
-                  <FiCalendar />
-                  {t("trips.suggestNextDeparture")}
-                </button>
-              </div>
-              <Input
-                label={t("trips.arrivalEstimate")}
-                value={form.arrivalEstimate}
-                type="datetime-local"
-                onChange={(value) => updateForm("arrivalEstimate", value)}
-              />
-              <Input
-                label={t("trips.ticketPrice")}
-                value={form.fare}
-                type="number"
-                currency
-                onChange={(value) => updateForm("fare", value)}
-              />
-              <Select
-                label={t("trips.recurrence")}
-                value={form.recurrence}
-                onChange={(value) => updateForm("recurrence", value)}
-              >
-                <option value="once">{t("trips.recurrenceOnce")}</option>
-                <option value="daily">{t("trips.recurrenceDaily")}</option>
-                <option value="weekend">{t("trips.recurrenceWeekend")}</option>
-                <option value="weekly">{t("trips.recurrenceWeekly")}</option>
-              </Select>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => void saveSchedule("draft")}
-                disabled={isSaving || isLoadingResources}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiPlus />
-                {t("trips.saveDraft")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void saveSchedule("open")}
-                disabled={isSaving || isLoadingResources}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FiCheckCircle />
-                {t("trips.openForOperation")}
-              </button>
-            </div>
-          </section>
+          <ScheduleFormSection
+            form={form}
+            routes={routes}
+            vehicles={vehicles}
+            drivers={drivers}
+            assistants={assistants}
+            editingSchedule={editingSchedule}
+            isSaving={isSaving}
+            isLoadingResources={isLoadingResources}
+            formRef={scheduleFormRef}
+            onFieldChange={updateForm}
+            onSuggestDeparture={suggestNextDepartureTime}
+            onSave={(status) => void saveSchedule(status)}
+          />
         ) : (
           <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
@@ -846,258 +472,17 @@ export default function TripsPage() {
         </aside>
       </div>
 
-      <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 p-5">
-          <SectionHeader
-            icon={<FiTruck />}
-            title={t("trips.scheduleList")}
-            subtitle={t("trips.scheduleListSubtitle")}
-          />
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100 text-sm">
-            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-5 py-3">{t("trips.tripCode")}</th>
-                <th className="px-5 py-3">{t("trips.route")}</th>
-                <th className="px-5 py-3">{t("trips.vehicle")}</th>
-                <th className="px-5 py-3">{t("trips.crew")}</th>
-                <th className="px-5 py-3">{t("trips.departure")}</th>
-                <th className="px-5 py-3">{t("trips.fare")}</th>
-                <th className="px-5 py-3">{t("trips.status")}</th>
-                {canManageSchedules ? (
-                  <th className="px-5 py-3 text-right">{t("trips.actions")}</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {paginatedSchedules.length > 0 ? (
-                paginatedSchedules.map((schedule) => (
-                  <tr key={schedule.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-4 font-semibold text-gray-900">
-                      {schedule.code}
-                    </td>
-                    <td className="px-5 py-4 text-gray-700">
-                      {schedule.routeName ||
-                        optionLabel(
-                          routes,
-                          schedule.routeId,
-                          (route) => route.name,
-                        )}
-                    </td>
-                    <td className="px-5 py-4 text-gray-700">
-                      {schedule.vehiclePlate ||
-                        optionLabel(
-                          vehicles,
-                          schedule.vehicleId,
-                          (vehicle) => vehicle.plate,
-                        )}
-                    </td>
-                    <td className="px-5 py-4 text-gray-700">
-                      <span className="block">
-                        {schedule.driverName ||
-                          optionLabel(
-                            staff,
-                            schedule.driverId,
-                            (person) => person.name,
-                          )}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {schedule.assistantName ||
-                          optionLabel(
-                            staff,
-                            schedule.assistantId,
-                            (person) => person.name,
-                          )}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-gray-700">
-                      <span className="block">
-                        {formatDateTime(schedule.departureAt)}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {t("trips.eta")}:{" "}
-                        {formatDateTime(schedule.arrivalEstimate)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-gray-700">
-                      {formatMoney(schedule.fare)} đ
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">
-                        {t(`trips.scheduleStatus.${schedule.status}`)}
-                      </span>
-                    </td>
-                    {canManageSchedules ? (
-                      <td className="px-5 py-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => editSchedule(schedule)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
-                          title={t("trips.edit")}
-                          aria-label={t("trips.edit")}
-                        >
-                          <FiEdit2 size={16} />
-                        </button>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={canManageSchedules ? 8 : 7}
-                    className="px-5 py-8 text-center text-sm text-gray-500"
-                  >
-                    {t("trips.noSchedules")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {schedules.length > 0 ? (
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={schedules.length}
-            onPageChange={setPage}
-          />
-        ) : null}
-      </section>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: number;
-  helper?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
-      {helper ? <p className="mt-2 text-xs text-gray-500">{helper}</p> : null}
-    </div>
-  );
-}
-
-function SectionHeader({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: ReactNode;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
-        {icon}
-      </div>
-      <div>
-        <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-        <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
-      </div>
-    </div>
-  );
-}
-
-function Panel({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
-        <span className="text-vr-700">{icon}</span>
-        {title}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Input({
-  label,
-  value,
-  onChange,
-  type = "text",
-  currency = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  currency?: boolean;
-}) {
-  const isCustomDateTime =
-    type === "date" ||
-    type === "datetime-local" ||
-    type === "time" ||
-    type === "month" ||
-    type === "week";
-
-  return (
-    <div>
-      <label className={labelClass}>{label}</label>
-      {isCustomDateTime ? (
-        <CustomDateTimeInput
-          className={inputClass}
-          value={value}
-          type={type}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      ) : currency ? (
-        <CurrencyInput
-          className={inputClass}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      ) : (
-        <input
-          className={inputClass}
-          value={value}
-          type={type}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )}
-    </div>
-  );
-}
-
-function Select({
-  label,
-  value,
-  onChange,
-  children,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <label className={labelClass}>{label}</label>
-      <CustomSelect
-        className={inputClass}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {children}
-      </CustomSelect>
+      <ScheduleTable
+        schedules={schedules}
+        routes={routes}
+        vehicles={vehicles}
+        staff={staff}
+        canManageSchedules={canManageSchedules}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onEdit={editSchedule}
+      />
     </div>
   );
 }

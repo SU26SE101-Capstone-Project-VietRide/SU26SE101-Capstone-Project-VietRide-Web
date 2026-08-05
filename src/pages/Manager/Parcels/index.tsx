@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -40,10 +41,10 @@ import { DetailItem } from "../../../components/DetailLayout";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 import ParcelQueue from "./ParcelQueue";
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
+import {
+  inputClass,
+  labelClass,
+} from "../../../components/form/formClasses";
 const parcelSizeCategories: ParcelSizeCategory[] = [
   "SMALL",
   "MEDIUM",
@@ -99,6 +100,10 @@ function normalizeStatus(status?: string) {
 export default function ParcelsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const user = getAuthUser();
   const canManageRouteFares = user?.role === "OPERATOR_ADMIN";
   const [summary, setSummary] = useState<OperatorParcelReportSummary | null>(null);
@@ -168,11 +173,11 @@ export default function ParcelsList() {
       setStatusStats(statusStatsResult);
       setRouteStats(routeStatsResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("parcels.loadFailed"));
+      setError(err instanceof Error ? err.message : tRef.current("parcels.loadFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [canManageRouteFares, fromDate, t, toDate]);
+  }, [canManageRouteFares, fromDate, toDate]);
 
   function resetFareForm() {
     setEditingFare(null);
@@ -618,7 +623,7 @@ export default function ParcelsList() {
                       className="border-b border-gray-100 last:border-0"
                     >
                       <td className="px-5 py-4 text-sm font-medium text-gray-900">
-                        {routes.find((route) => route.id === fare.routeId)?.name || "Tuyến chưa có tên"}
+                        {routes.find((route) => route.id === fare.routeId)?.name || t("parcels.unnamedRoute")}
                         {canManageRouteFares && (<button type="button" onClick={() => handleEditFare(fare)} className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:text-vr-700" aria-label={t("parcels.editFare")} title={t("parcels.editFare")}><FiEdit2 size={15} /></button>)}
                       </td>
                       <td className="px-5 py-4 text-sm font-semibold text-gray-900">

@@ -72,6 +72,7 @@ function ImageUploadControl({
   isUploading,
   onFile,
 }: ImageUploadControlProps) {
+  const { t } = useTranslation("common");
   const inputId = useId();
 
   const selectFile = (files: FileList | null) => {
@@ -111,7 +112,7 @@ function ImageUploadControl({
         {isUploading && (
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/90 text-sm font-medium text-vr-700">
             <FiLoader className="animate-spin" size={24} />
-            Đang tải ảnh
+            {t("profilePage.uploadingImage")}
           </span>
         )}
       </label>
@@ -126,22 +127,24 @@ function ImageUploadControl({
           event.target.value = "";
         }}
       />
-      <p className="max-w-52 text-xs text-gray-500">JPG, PNG hoặc WebP, nhỏ hơn 5 MB. Có thể kéo ảnh vào đây.</p>
+      <p className="max-w-52 text-xs text-gray-500">{t("profilePage.imageHint")}</p>
     </div>
   );
 }
 
-function imageErrorMessage(error: unknown) {
+function imageErrorMessage(error: unknown, t: (key: string) => string) {
   if (error instanceof FirebaseImageError) {
     if (error.code === "INVALID_TYPE") {
-      return "Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.";
+      return t("profilePage.imageInvalidType");
     }
     if (error.code === "INVALID_SIZE") {
-      return "Ảnh phải có dung lượng nhỏ hơn 5 MB.";
+      return t("profilePage.imageInvalidSize");
     }
   }
 
-  return error instanceof Error ? error.message : "Không thể tải ảnh lên.";
+  return error instanceof Error
+    ? error.message
+    : t("profilePage.imageUploadFailed");
 }
 export default function Profile() {
   const { t } = useTranslation("common");
@@ -197,7 +200,9 @@ export default function Profile() {
         setFormData(nextProfile);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Không thể tải hồ sơ.");
+          setError(
+            err instanceof Error ? err.message : t("profilePage.loadFailed"),
+          );
         }
       }
     }
@@ -207,7 +212,7 @@ export default function Profile() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const handleAvatarFile = async (file: File) => {
     setUploadingImage("avatar");
@@ -216,7 +221,7 @@ export default function Profile() {
 
     try {
       const [uploadedUrl] = await uploadFirebaseImages("USER_AVATAR", [file]);
-      if (!uploadedUrl) throw new Error("Hệ thống không nhận được đường dẫn ảnh sau khi tải lên.");
+      if (!uploadedUrl) throw new Error(t("profilePage.avatarUrlMissing"));
 
       const result = await updateMyAvatar(uploadedUrl);
       setAvatarUrl(result.avatarUrl);
@@ -227,9 +232,9 @@ export default function Profile() {
           user: { ...session.user, avatarUrl: result.avatarUrl ?? undefined },
         });
       }
-      setImageMessage("Ảnh đại diện đã được cập nhật.");
+      setImageMessage(t("profilePage.avatarUpdated"));
     } catch (uploadError) {
-      setError(imageErrorMessage(uploadError));
+      setError(imageErrorMessage(uploadError, t));
     } finally {
       setUploadingImage(null);
     }
@@ -237,7 +242,7 @@ export default function Profile() {
 
   const handleLogoFile = async (file: File) => {
     if (currentUser?.role !== "OPERATOR_ADMIN" || !serverOperator) {
-      setError("Chỉ admin nhà xe được cập nhật logo.");
+      setError(t("profilePage.logoAdminOnly"));
       return;
     }
 
@@ -246,7 +251,7 @@ export default function Profile() {
     setImageMessage("");
     try {
       const [uploadedUrl] = await uploadFirebaseImages("OPERATOR_LOGO", [file]);
-      if (!uploadedUrl) throw new Error("Hệ thống không nhận được đường dẫn logo sau khi tải lên.");
+      if (!uploadedUrl) throw new Error(t("profilePage.logoUrlMissing"));
 
       const updated = await updateOperatorProfile({
         name: serverOperator.name,
@@ -263,9 +268,9 @@ export default function Profile() {
         luggagePolicy: serverOperator.luggagePolicy ?? null,
       });
       setServerOperator(updated);
-      setImageMessage("Logo nhà xe đã được cập nhật.");
+      setImageMessage(t("profilePage.logoUpdated"));
     } catch (uploadError) {
-      setError(imageErrorMessage(uploadError));
+      setError(imageErrorMessage(uploadError, t));
     } finally {
       setUploadingImage(null);
     }
@@ -354,7 +359,7 @@ export default function Profile() {
         {/* Profile Header */}
         <div className="flex items-start gap-6 pb-6 border-b border-gray-200 mb-6">
           <ImageUploadControl
-            label="Ảnh đại diện"
+            label={t("profilePage.avatarLabel")}
             imageUrl={avatarUrl}
             initials={initials}
             isUploading={uploadingImage === "avatar"}
@@ -368,7 +373,7 @@ export default function Profile() {
             <p className="text-gray-600 text-sm mt-1">
               {isOperator ? t(`enumLabels.${profile.bio}`) : profile.bio}
             </p>
-            <p className="text-gray-500 text-sm mt-1">Việt Nam</p>
+            <p className="text-gray-500 text-sm mt-1">{t("profilePage.countryVietnam")}</p>
 
 
 
@@ -387,7 +392,7 @@ export default function Profile() {
         {currentUser?.role === "OPERATOR_ADMIN" && serverOperator && (
           <div className="mb-6 border-b border-gray-200 pb-6">
             <ImageUploadControl
-              label="Biểu trưng (logo) nhà xe"
+              label={t("profilePage.logoLabel")}
               imageUrl={serverOperator.logoUrl}
               isUploading={uploadingImage === "logo"}
               onFile={handleLogoFile}

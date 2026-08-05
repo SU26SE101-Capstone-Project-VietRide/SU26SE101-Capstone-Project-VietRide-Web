@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertTriangle,
@@ -11,8 +11,6 @@ import {
   disruptOperatorTripNoSubstitution,
   getOperatorTripCargoCapacity,
   getOperatorTrips,
-  getOperatorUsers,
-  getOperatorVehicles,
   substituteOperatorTripVehicle,
   type CargoCapacity,
   type OperatorUser,
@@ -22,7 +20,7 @@ import {
 import { getAuthUser } from "../../../auth";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
-import { formatDateTime } from "../../../utils/date";
+import { formatDateTime, toDatetimeLocalValue } from "../../../utils/date";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -39,19 +37,28 @@ function tripLabel(trip: OperatorTripListItem) {
   return `${trip.route.name} · ${trip.vehicle.licensePlate} · ${formatDateTime(trip.departureAt)}`;
 }
 
-function toDatetimeLocalValue(date: Date) {
-  const offsetMs = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-}
-
 function getDefaultRecoveryDeparture() {
   const recoveryDeparture = new Date(Date.now() + 30 * 60_000);
   recoveryDeparture.setSeconds(0, 0);
   return toDatetimeLocalValue(recoveryDeparture);
 }
 
-export default function TripOperationsPanel() {
+type TripOperationsPanelProps = {
+  // Danh sách xe và nhân sự do trang cha tải sẵn, tránh gọi API trùng lặp
+  vehicles: OperatorVehicle[];
+  staff: OperatorUser[];
+};
+
+export default function TripOperationsPanel({
+  vehicles,
+  staff,
+}: TripOperationsPanelProps) {
   const { t } = useTranslation("manager");
+  // Giữ tham chiếu t mới nhất để effect không refetch khi đổi ngôn ngữ
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const canMutate = getAuthUser()?.role === "OPERATOR_ADMIN";
   const [tripId, setTripId] = useState("");
   const [trips, setTrips] = useState<OperatorTripListItem[]>([]);
@@ -59,8 +66,6 @@ export default function TripOperationsPanel() {
   const [tripStatus, setTripStatus] = useState("");
   const [isTripsLoading, setIsTripsLoading] = useState(false);
   const [capacity, setCapacity] = useState<CargoCapacity | null>(null);
-  const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
-  const [users, setUsers] = useState<OperatorUser[]>([]);
   const [newVehicleId, setNewVehicleId] = useState("");
   const [newDriverUserId, setNewDriverUserId] = useState("");
   const [newAssistantUserId, setNewAssistantUserId] = useState("");
@@ -75,21 +80,21 @@ export default function TripOperationsPanel() {
 
   const drivers = useMemo(
     () =>
-      users.filter(
+      staff.filter(
         (user) =>
           user.role === "DRIVER" &&
           (user.status === "ACTIVE" || user.status === "APPROVED"),
       ),
-    [users],
+    [staff],
   );
   const assistants = useMemo(
     () =>
-      users.filter(
+      staff.filter(
         (user) =>
           user.role === "ASSISTANT" &&
           (user.status === "ACTIVE" || user.status === "APPROVED"),
       ),
-    [users],
+    [staff],
   );
   const selectedTrip = useMemo(
     () => trips.find((trip) => trip.tripId === tripId),
@@ -128,9 +133,7 @@ export default function TripOperationsPanel() {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : t("tripOperations.tripsFailed", {
-              defaultValue: "Không thể tải danh sách chuyến.",
-            }),
+          : t("tripOperations.tripsFailed"),
       );
     } finally {
       setIsTripsLoading(false);
@@ -141,19 +144,14 @@ export default function TripOperationsPanel() {
     if (!canMutate) return;
 
     let ignore = false;
-    void Promise.all([
-      getOperatorVehicles({ page: 1, pageSize: 100 }),
-      getOperatorUsers({ page: 1, pageSize: 100 }),
-      getOperatorTrips({
-        page: 1,
-        pageSize: 100,
-        sortBy: "departureAt",
-        sortDir: "asc",
-      }),])
-      .then(([vehicleResult, userResult, tripResult]) => {
+    void getOperatorTrips({
+      page: 1,
+      pageSize: 100,
+      sortBy: "departureAt",
+      sortDir: "asc",
+    })
+      .then((tripResult) => {
         if (!ignore) {
-          setVehicles(vehicleResult.items);
-          setUsers(userResult.items);
           setTrips(tripResult.items);
         }
       })
@@ -162,9 +160,7 @@ export default function TripOperationsPanel() {
           setError(
             loadError instanceof Error
               ? loadError.message
-              : t("tripOperations.resourcesFailed", {
-                  defaultValue: "Không thể tải danh sách xe và nhân sự.",
-                }),
+              : tRef.current("tripOperations.resourcesFailed"),
           );
         }
       });
@@ -172,15 +168,13 @@ export default function TripOperationsPanel() {
     return () => {
       ignore = true;
     };
-  }, [canMutate, t]);
+  }, [canMutate]);
 
   async function loadCapacity() {
     const normalizedTripId = tripId.trim();
     if (!normalizedTripId) {
       setError(
-        t("tripOperations.tripRequired", {
-          defaultValue: "Vui lòng nhập mã chuyến.",
-        }),
+        t("tripOperations.tripRequired"),
       );
       return;
     }
@@ -195,9 +189,7 @@ export default function TripOperationsPanel() {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : t("tripOperations.capacityFailed", {
-              defaultValue: "Không thể tải sức chứa hàng hóa.",
-            }),
+          : t("tripOperations.capacityFailed"),
       );
     } finally {
       setIsLoading(false);
@@ -213,9 +205,7 @@ export default function TripOperationsPanel() {
       !reason.trim()
     ) {
       setError(
-        t("tripOperations.substituteRequired", {
-          defaultValue: "Mã chuyến, xe, tài xế và lý do là bắt buộc.",
-        }),
+        t("tripOperations.substituteRequired"),
       );
       return;
     }
@@ -226,18 +216,14 @@ export default function TripOperationsPanel() {
       recoveryDeparture.getTime() <= Date.now()
     ) {
       setError(
-        t("tripOperations.recoveryDepartureFuture", {
-          defaultValue: "Giờ khởi hành lại phải ở tương lai.",
-        }),
+        t("tripOperations.recoveryDepartureFuture"),
       );
       return;
     }
 
     if (
       !window.confirm(
-        t("tripOperations.substituteConfirm", {
-          defaultValue: "Xác nhận thay xe cho chuyến này?",
-        }),
+        t("tripOperations.substituteConfirm"),
       )
     ) {
       return;
@@ -259,7 +245,6 @@ export default function TripOperationsPanel() {
       });
       setMessage(
         t("tripOperations.substituteSuccess", {
-          defaultValue: "Đã thay xe. Chuyến mới: {{tripId}}",
           tripId: result.newTripId ?? result.tripId,
         }),
       );
@@ -267,9 +252,7 @@ export default function TripOperationsPanel() {
       setError(
         mutationError instanceof Error
           ? mutationError.message
-          : t("tripOperations.substituteFailed", {
-              defaultValue: "Không thể thay xe cho chuyến.",
-            }),
+          : t("tripOperations.substituteFailed"),
       );
     } finally {
       setIsMutating(false);
@@ -279,19 +262,14 @@ export default function TripOperationsPanel() {
   async function disruptTrip() {
     if (!tripId.trim() || !reason.trim()) {
       setError(
-        t("tripOperations.disruptRequired", {
-          defaultValue: "Mã chuyến và lý do là bắt buộc.",
-        }),
+        t("tripOperations.disruptRequired"),
       );
       return;
     }
 
     if (
       !window.confirm(
-        t("tripOperations.disruptConfirm", {
-          defaultValue:
-            "Xác nhận kết thúc chuyến do không có xe thay thế? Thao tác này không thể hoàn tác.",
-        }),
+        t("tripOperations.disruptConfirm"),
       )
     ) {
       return;
@@ -306,7 +284,6 @@ export default function TripOperationsPanel() {
       });
       setMessage(
         t("tripOperations.disruptSuccess", {
-          defaultValue: "Đã ghi nhận gián đoạn chuyến ({{status}}).",
           status: result.status ?? result.tripId,
         }),
       );
@@ -314,9 +291,7 @@ export default function TripOperationsPanel() {
       setError(
         mutationError instanceof Error
           ? mutationError.message
-          : t("tripOperations.disruptFailed", {
-              defaultValue: "Không thể ghi nhận gián đoạn chuyến.",
-            }),
+          : t("tripOperations.disruptFailed"),
       );
     } finally {
       setIsMutating(false);
@@ -329,20 +304,15 @@ export default function TripOperationsPanel() {
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
             <FiTruck className="text-vr-700" />
-            {t("tripOperations.title", {
-              defaultValue: "Xử lý sự cố chuyến đang vận hành",
-            })}
+            {t("tripOperations.title")}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            {t("tripOperations.subtitle", {
-              defaultValue:
-                "Dùng cho chuyến đã được tạo khi cần kiểm tra tải hàng, thay xe hoặc kết thúc chuyến do sự cố. Đây không phải khu vực tạo lịch chuyến.",
-            })}
+            {t("tripOperations.subtitle")}
           </p>
         </div>
         {!canMutate && (
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            {t("tripOperations.readOnly", { defaultValue: "Chỉ xem" })}
+            {t("tripOperations.readOnly")}
           </span>
         )}
       </div>
@@ -363,27 +333,23 @@ export default function TripOperationsPanel() {
         <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
           <label className="relative block">
             <span className="sr-only">
-              {t("tripOperations.searchTrips", { defaultValue: "Tìm chuyến" })}
+              {t("tripOperations.searchTrips")}
             </span>
             <FiSearch className="pointer-events-none absolute left-3 top-3.5 text-gray-400" />
             <input
               value={tripSearch}
               onChange={(event) => setTripSearch(event.target.value)}
               className={`${inputClass} pl-9`}
-              placeholder={t("tripOperations.searchPlaceholder", {
-                defaultValue: "Tìm theo tuyến, biển số hoặc mã chuyến",
-              })}
+              placeholder={t("tripOperations.searchPlaceholder")}
             />
           </label>
           <CustomSelect
             value={tripStatus}
             onChange={(event) => setTripStatus(event.target.value)}
             className={inputClass}
-            aria-label={t("tripOperations.statusFilter", {
-              defaultValue: "Lọc trạng thái chuyến",
-            })}
+            aria-label={t("tripOperations.statusFilter")}
           >
-            <option value="">Tất cả trạng thái</option>
+            <option value="">{t("tripOperations.allStatuses")}</option>
             {[
               "SCHEDULED",
               "BOARDING",
@@ -404,7 +370,7 @@ export default function TripOperationsPanel() {
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2.5 text-sm font-semibold text-vr-700 disabled:opacity-60"
           >
             <FiRefreshCw className={isTripsLoading ? "animate-spin" : ""} />
-            {t("tripOperations.search", { defaultValue: "Tìm chuyến" })}
+            {t("tripOperations.search")}
           </button>
         </div>
       )}
@@ -418,14 +384,12 @@ export default function TripOperationsPanel() {
               setCapacity(null);
             }}
             className={inputClass}
-            aria-label={t("tripOperations.tripSelect", {
-              defaultValue: "Chọn chuyến",
-            })}
+            aria-label={t("tripOperations.tripSelect")}
           >
             <option value="">
               {isTripsLoading
-                ? t("tripOperations.loadingTrips", { defaultValue: "Đang tải chuyến..." })
-                : t("tripOperations.selectTrip", { defaultValue: "Chọn chuyến vận hành" })}
+                ? t("tripOperations.loadingTrips")
+                : t("tripOperations.selectTrip")}
             </option>
             {trips.map((trip) => (
               <option key={trip.tripId} value={trip.tripId}>
@@ -441,9 +405,7 @@ export default function TripOperationsPanel() {
               setCapacity(null);
             }}
             className={inputClass}
-            placeholder={t("tripOperations.tripPlaceholder", {
-              defaultValue: "UUID chuyến",
-            })}
+            placeholder={t("tripOperations.tripPlaceholder")}
           />
         )}
         <button
@@ -453,22 +415,18 @@ export default function TripOperationsPanel() {
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
         >
           <FiRefreshCw className={isLoading ? "animate-spin" : ""} />
-          {t("tripOperations.loadCapacity", { defaultValue: "Tải sức chứa" })}
+          {t("tripOperations.loadCapacity")}
         </button>
       </div>
 
       {capacity && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <CapacityMetric
-            label={t("tripOperations.maxWeight", {
-              defaultValue: "Tải trọng tối đa",
-            })}
+            label={t("tripOperations.maxWeight")}
             value={`${capacity.maxCargoWeightKg.toLocaleString("vi-VN")} kg`}
           />
           <CapacityMetric
-            label={t("tripOperations.reservedWeight", {
-              defaultValue: "Đã giữ chỗ",
-            })}
+            label={t("tripOperations.reservedWeight")}
             value={`${(
               capacity.reservedCargoWeightKg ??
               capacity.reservedWeightKg ??
@@ -476,15 +434,11 @@ export default function TripOperationsPanel() {
             ).toLocaleString("vi-VN")} kg`}
           />
           <CapacityMetric
-            label={t("tripOperations.loadedWeight", {
-              defaultValue: "Đã xếp",
-            })}
+            label={t("tripOperations.loadedWeight")}
             value={`${(capacity.loadedWeightKg ?? 0).toLocaleString("vi-VN")} kg`}
           />
           <CapacityMetric
-            label={t("tripOperations.percentFull", {
-              defaultValue: "Mức sử dụng",
-            })}
+            label={t("tripOperations.percentFull")}
             value={`${(capacity.percentFull ?? 0).toLocaleString("vi-VN")}%`}
           />
         </div>
@@ -495,7 +449,7 @@ export default function TripOperationsPanel() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                {t("tripOperations.vehicle", { defaultValue: "Xe thay thế" })}
+                {t("tripOperations.vehicle")}
               </span>
               <CustomSelect
                 value={newVehicleId}
@@ -503,7 +457,7 @@ export default function TripOperationsPanel() {
                 className={inputClass}
               >
                 <option value="">
-                  {t("tripOperations.selectVehicle", { defaultValue: "Chọn xe" })}
+                  {t("tripOperations.selectVehicle")}
                 </option>
                 {replacementVehicles.map((vehicle) => (
                   <option key={vehicleId(vehicle)} value={vehicleId(vehicle)}>
@@ -514,7 +468,7 @@ export default function TripOperationsPanel() {
             </label>
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                {t("tripOperations.driver", { defaultValue: "Tài xế mới" })}
+                {t("tripOperations.driver")}
               </span>
               <CustomSelect
                 value={newDriverUserId}
@@ -522,9 +476,7 @@ export default function TripOperationsPanel() {
                 className={inputClass}
               >
                 <option value="">
-                  {t("tripOperations.selectDriver", {
-                    defaultValue: "Chọn tài xế",
-                  })}
+                  {t("tripOperations.selectDriver")}
                 </option>
                 {drivers.map((driver) => (
                   <option key={userId(driver)} value={userId(driver)}>
@@ -535,9 +487,7 @@ export default function TripOperationsPanel() {
             </label>
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                {t("tripOperations.assistant", {
-                  defaultValue: "Phụ xe mới (không bắt buộc)",
-                })}
+                {t("tripOperations.assistant")}
               </span>
               <CustomSelect
                 value={newAssistantUserId}
@@ -545,9 +495,7 @@ export default function TripOperationsPanel() {
                 className={inputClass}
               >
                 <option value="">
-                  {t("tripOperations.noAssistant", {
-                    defaultValue: "Không chọn phụ xe",
-                  })}
+                  {t("tripOperations.noAssistant")}
                 </option>
                 {assistants.map((assistant) => (
                   <option key={userId(assistant)} value={userId(assistant)}>
@@ -558,7 +506,7 @@ export default function TripOperationsPanel() {
             </label>
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                {t("tripOperations.reason", { defaultValue: "Lý do" })}
+                {t("tripOperations.reason")}
               </span>
               <input
                 value={reason}
@@ -613,7 +561,7 @@ export default function TripOperationsPanel() {
               className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               <FiRepeat />
-              {t("tripOperations.substitute", { defaultValue: "Thay xe" })}
+              {t("tripOperations.substitute")}
             </button>
             <button
               type="button"
@@ -622,9 +570,7 @@ export default function TripOperationsPanel() {
               className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 disabled:opacity-60"
             >
               <FiAlertTriangle />
-              {t("tripOperations.disrupt", {
-                defaultValue: "Không có xe thay thế",
-              })}
+              {t("tripOperations.disrupt")}
             </button>
           </div>
         </div>

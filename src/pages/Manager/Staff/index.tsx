@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiDownload,
@@ -27,10 +27,10 @@ import {
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
 import { downloadCsv } from "../../../utils/csv";
+import { labelClass } from "../../../components/form/formClasses";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 const staffAvatarUrl =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='32' fill='%23ecfeff'/%3E%3Ccircle cx='64' cy='48' r='22' fill='%2314b8a6'/%3E%3Cpath d='M28 106c5-24 19-36 36-36s31 12 36 36' fill='%230f766e'/%3E%3C/svg%3E";
 
@@ -41,31 +41,32 @@ const emptyUserForm: CreateOperatorUserRequest = {
   role: "OPERATOR_STAFF",
 };
 
+// Label/description là key i18n namespace manager, dịch tại nơi render
 const staffGroups = [
-  { key: "ALL", label: "Tất cả nhân sự" },
-  { key: "FIELD", label: "Tài xế & phụ xe" },
-  { key: "OPS", label: "Quản trị & vận hành" },
+  { key: "ALL", labelKey: "staff.groupAll" },
+  { key: "FIELD", labelKey: "staff.groupField" },
+  { key: "OPS", labelKey: "staff.groupOps" },
 ] as const;
 
 const roleOptions: Array<{
   value: AdminUserRole;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
 }> = [
   {
     value: "OPERATOR_STAFF",
-    label: "Nhân viên vận hành",
-    description: "Hỗ trợ vận hành, kiểm tra đặt vé và xử lý khách tại quầy.",
+    labelKey: "staff.operatorStaff",
+    descriptionKey: "staff.roleDescOperatorStaff",
   },
   {
     value: "DRIVER",
-    label: "Tài xế",
-    description: "Xem chuyến được phân công và cập nhật vận hành chuyến.",
+    labelKey: "staff.driver",
+    descriptionKey: "staff.roleDescDriver",
   },
   {
     value: "ASSISTANT",
-    label: "Phụ xe",
-    description: "Xác nhận hành khách lên xe và hỗ trợ hàng hóa.",
+    labelKey: "staff.assistant",
+    descriptionKey: "staff.roleDescAssistant",
   },
 ];
 
@@ -88,7 +89,13 @@ function isOpsRole(role: AdminUserRole) {
 export default function StaffPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  // Giữ tham chiếu t mới nhất để callback tải dữ liệu không refetch khi đổi ngôn ngữ
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeGroup, setActiveGroup] =
     useState<(typeof staffGroups)[number]["key"]>("ALL");
   const [roleFilter, setRoleFilter] = useState("");
@@ -106,41 +113,47 @@ export default function StaffPage() {
   const [totalItems, setTotalItems] = useState(0);
   const pageSize = 8;
 
+  // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Bookings)
   useEffect(() => {
-    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
 
-    async function loadUsers() {
-      setIsLoading(true);
-      setError("");
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
-      try {
-        const result = await getOperatorUsers({
-          page: 1,
-          pageSize: 20,
-          search,
-        });
+  // Hàm tải danh sách nhân sự dùng chung cho effect và sau khi tạo tài khoản.
+  // Request chỉ phụ thuộc search (page/pageSize hardcode) — filter role/status lọc client.
+  const loadUsers = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
 
-        if (!cancelled) {
-          setUsers(result.items);
-          setTotalItems(result.totalItems);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Không thể tải danh sách nhân sự.");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
+    try {
+      const result = await getOperatorUsers({
+        page: 1,
+        pageSize: 20,
+        search: debouncedSearch,
+      });
+
+      setUsers(result.items);
+      setTotalItems(result.totalItems);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : tRef.current("staff.loadFailed"),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    async function run() {
+      await loadUsers();
     }
 
-    loadUsers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [page, roleFilter, search, statusFilter]);
+    void run();
+  }, [loadUsers]);
 
   const filtered = useMemo(
     () =>
@@ -164,7 +177,7 @@ export default function StaffPage() {
   function handleExportCsv() {
     downloadCsv(
       "staff.csv",
-      ["Tên", "Email", "Số điện thoại", "Vai trò", "Trạng thái"],
+      [tc("name"), tc("email"), tc("phone"), t("staff.role"), tc("status")],
       filtered.map((user) => [
         user.displayName,
         user.email,
@@ -178,7 +191,7 @@ export default function StaffPage() {
     const roleOption = roleOptions.find((option) => option.value === role);
 
     if (roleOption) {
-      return roleOption.label;
+      return t(roleOption.labelKey);
     }
 
     const labels: Record<string, string> = {
@@ -194,19 +207,11 @@ export default function StaffPage() {
   }
 
   function roleDescription(role: AdminUserRole) {
-    return (
-      roleOptions.find((option) => option.value === role)?.description ?? ""
-    );
-  }
+    const descriptionKey = roleOptions.find(
+      (option) => option.value === role,
+    )?.descriptionKey;
 
-  async function reloadUsers() {
-    const result = await getOperatorUsers({
-      page: 1,
-      pageSize: 20,
-      search,
-    });
-    setUsers(result.items);
-    setTotalItems(result.totalItems);
+    return descriptionKey ? t(descriptionKey) : "";
   }
 
   async function handleCreateUser() {
@@ -217,7 +222,7 @@ export default function StaffPage() {
         ...userForm,
         phone: normalizeVietnamPhoneForApi(userForm.phone),
       });
-      await reloadUsers();
+      await loadUsers();
       setUserForm(emptyUserForm);
       setOpenAdd(false);
       setMessage(t("staff.createInitialPasswordSuccess"));
@@ -271,8 +276,7 @@ export default function StaffPage() {
             {t("staff.title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 sm:text-base">
-            Quản lý tài khoản nội bộ, gửi link đặt mật khẩu lần đầu và phân nhóm
-            vai trò vận hành.
+            {t("staff.pageSubtitle")}
           </p>
         </div>
         <button
@@ -301,7 +305,7 @@ export default function StaffPage() {
                   : "text-gray-600 hover:bg-gray-50"
               }`}
             >
-              {group.label}
+              {t(group.labelKey)}
             </button>
           ))}
         </div>
@@ -351,10 +355,7 @@ export default function StaffPage() {
               className={inputClass + " pl-10"}
               placeholder={t("staff.searchPlaceholder")}
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -369,7 +370,7 @@ export default function StaffPage() {
               <option value="">{t("staff.allRoles")}</option>
               {roleOptions.map((role) => (
                 <option key={role.value} value={role.value}>
-                  {role.label}
+                  {t(role.labelKey)}
                 </option>
               ))}
             </CustomSelect>
@@ -543,7 +544,7 @@ export default function StaffPage() {
         <div className="space-y-6">
           <section>
             <h3 className="mb-3 text-sm font-bold text-gray-900">
-              Thông tin nhân sự
+              {t("staff.staffInfoSection")}
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -557,7 +558,7 @@ export default function StaffPage() {
                   onChange={(e) =>
                     updateUserForm("displayName", e.target.value)
                   }
-                  placeholder="Nguyễn Văn A"
+                  placeholder={t("staff.fullNamePlaceholder")}
                 />
               </div>
               <div>
@@ -574,7 +575,7 @@ export default function StaffPage() {
               </div>
               <div>
                 <label className={labelClass}>
-                  Số điện thoại <span className="text-red-500">*</span>
+                  {tc("phone")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   className={inputClass}
@@ -598,7 +599,7 @@ export default function StaffPage() {
                 >
                   {roleOptions.map((role) => (
                     <option key={role.value} value={role.value}>
-                      {role.label}
+                      {t(role.labelKey)}
                     </option>
                   ))}
                 </CustomSelect>
@@ -608,7 +609,7 @@ export default function StaffPage() {
 
           <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
             <h3 className="text-sm font-bold text-gray-900">
-              Quyền theo vai trò
+              {t("staff.rolePermissions")}
             </h3>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {roleOptions.map((role) => (
@@ -621,10 +622,10 @@ export default function StaffPage() {
                   }`}
                 >
                   <p className="text-sm font-semibold text-gray-900">
-                    {role.label}
+                    {t(role.labelKey)}
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
-                    {role.description}
+                    {t(role.descriptionKey)}
                   </p>
                   <p className="mt-2 font-mono text-xs text-gray-400">
                     {role.value}
@@ -741,11 +742,10 @@ function StaffDetailModal({
 
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <p className="text-sm font-semibold text-gray-900">
-              Quyền của vai trò
+              {t("staff.rolePermissionTitle")}
             </p>
             <p className="mt-1 text-sm text-gray-600">
-              {roleDescription(user.role) ||
-                "Chưa có mô tả quyền cho vai trò này."}
+              {roleDescription(user.role) || t("staff.noRoleDescription")}
             </p>
             <p className="mt-2 font-mono text-xs text-gray-400">{user.role}</p>
           </div>

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import "./App.css";
 
 import { lazy, Suspense } from "react";
@@ -51,11 +52,13 @@ const ManagerDashboard = lazy(() => import("./pages/Manager/Dashboard"));
 const AdminDashboard = lazy(() => import("./pages/Admin/Dashboard"));
 const PrivateRoute = lazy(() => import("./components/PrivateRoute"));
 export default function App() {
+  const { t } = useTranslation("common");
+
   return (
     <BrowserRouter>
       <Suspense
         fallback={
-          <div className="p-6 text-sm text-gray-500">Đang tải trang...</div>
+          <div className="p-6 text-sm text-gray-500">{t("pageLoading")}</div>
         }
       >
         <Routes>

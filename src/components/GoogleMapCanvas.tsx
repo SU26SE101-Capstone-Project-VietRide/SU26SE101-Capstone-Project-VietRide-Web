@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   loadGoogleMapsLibrary,
   type GoogleCircleInstance,
@@ -98,6 +99,9 @@ export default function GoogleMapCanvas({
   scrollWheelZoom = true,
   zoom,
 }: GoogleMapCanvasProps) {
+  const { t } = useTranslation("common");
+  // Giữ t trong ref để effect khởi tạo bản đồ không phải chạy lại khi đổi ngôn ngữ.
+  const tRef = useRef(t);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<ReadyMap | null>(null);
   const mapClickListenerRef = useRef<GoogleMapsEventListener | null>(null);
@@ -105,6 +109,10 @@ export default function GoogleMapCanvas({
   const initialZoomRef = useRef(zoom);
   const [readyMap, setReadyMap] = useState<ReadyMap | null>(null);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const fitSignature = useMemo(
     () =>
@@ -165,7 +173,7 @@ export default function GoogleMapCanvas({
               setError(
                 mapError instanceof Error
                   ? mapError.message
-                  : "Không thể khởi tạo bản đồ Google.",
+                  : tRef.current("map.initFailed"),
               );
             }
           }
@@ -179,7 +187,7 @@ export default function GoogleMapCanvas({
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Không thể tải bản đồ Google.",
+            : tRef.current("map.loadFailed"),
         );
       });
 
@@ -325,7 +333,7 @@ export default function GoogleMapCanvas({
       <div ref={containerRef} className="h-full min-h-[inherit] w-full" />
       {!readyMap && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-50 text-sm text-gray-500">
-          Đang tải Google Maps...
+          {t("map.loading")}
         </div>
       )}
       {error && (

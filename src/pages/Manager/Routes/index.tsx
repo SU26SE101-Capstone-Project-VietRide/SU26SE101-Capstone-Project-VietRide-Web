@@ -1,337 +1,64 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FiCheckCircle,
-  FiCornerUpLeft,
-  FiEdit2,
-  FiGitBranch,
-  FiMapPin,
-  FiNavigation,
-  FiPlus,
-  FiRefreshCw,
-  FiSave,
-  FiSearch,
-  FiTrash2,
-} from "react-icons/fi";
+import { FiMapPin, FiPlus, FiRefreshCw, FiTrash2 } from "react-icons/fi";
 import {
   addRouteStop,
-  createAlternativeRoute,
   createOperatorRoute,
-  createOperatorStation,
-  createOperatorStop,
   getAlternativeRoutes,
   getOperatorRoute,
   getOperatorRoutes,
   getOperatorStations,
-  getOperatorStop,
   getOperatorStops,
   getPublicLocations,
   removeRouteStop,
-  searchStations,
-  updateAlternativeRoute,
-  deleteAlternativeRoute,
   updateOperatorRoute,
-  updateOperatorStation,
-  updateOperatorRouteGeometry,
-  updateOperatorStop,
-  type AlternativeRoute,
-  type AlternativeRouteRequest,
   type OperatorRoute,
   type OperatorRouteRequest,
-  type OperatorStation,
   type OperatorStop,
-  type OperatorStopRequest,
   type AdminLocation,
   type RouteStopRequest,
-  type Station,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
-import CurrencyInput from "../../../components/CurrencyInput";
 import Modal from "../../../components/Modal";
-import PlacePicker, {
-  type PlaceSelection,
-} from "../../../components/PlacePicker";
 import CustomSelect from "../../../components/CustomSelect";
-import GoogleMapCanvas from "../../../components/GoogleMapCanvas";
-import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 import {
-  decodeGooglePolyline,
-  encodeGooglePolyline,
+  inputClass,
+  labelClass,
+} from "../../../components/form/formClasses";
+import {
   estimateCoachDurationMinutes,
-  parseGoogleDurationSeconds,
   type RouteCoordinate,
 } from "./polyline";
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
-const draftRouteId = "__draft_route__";
-const defaultRouteMapCenter: GoogleMapCoordinate = {
-  lat: 10.7769,
-  lng: 106.7009,
-};
-const googleRoutesEndpoint =
-  "https://routes.googleapis.com/directions/v2:computeRoutes";
-
-const emptyStopForm: OperatorStopRequest = {
-  name: "",
-  latitude: 0,
-  longitude: 0,
-  description: "",
-  address: "",
-  googlePlaceId: "",
-};
-
-const emptyRouteForm: OperatorRouteRequest = {
-  name: "",
-  originStationId: "",
-  destinationStationId: "",
-  returnRouteId: "",
-  baseFare: 0,
-  totalDistanceKm: 0,
-  estimatedDurationMinutes: 0,
-  isActive: true,
-};
-
-const emptyAlternativeRouteForm: AlternativeRouteRequest = {
-  name: "",
-  description: "",
-  destinationStationId: "",
-  totalDistanceKm: 0,
-  estimatedDurationMinutes: 0,
-  isActive: true,
-  stops: [],
-};
-
-type RouteStopDraft = RouteStopRequest & {
-  routeId?: string;
-  routeName: string;
-  stopName: string;
-  latitude: number;
-  longitude: number;
-};
-
-type StationOption = Station & {
-  address?: string;
-  operatorStationId?: string;
-};
-
-type StationRouteRole = "" | "origin" | "destination";
-type FeedbackScope =
-  | "global"
-  | "station"
-  | "stop"
-  | "route"
-  | "alternative"
-  | "routeStop"
-  | "geometry";
-
-function toNumber(value: string) {
-  const next = Number(value);
-  return Number.isFinite(next) ? next : 0;
-}
-
-function isGuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value,
-  );
-}
-
-function toRadians(value: number) {
-  return (value * Math.PI) / 180;
-}
-
-function distanceKmBetween(
-  first: { latitude: number; longitude: number },
-  second: { latitude: number; longitude: number },
-) {
-  const earthRadiusKm = 6371;
-  const latDistance = toRadians(second.latitude - first.latitude);
-  const lonDistance = toRadians(second.longitude - first.longitude);
-  const firstLat = toRadians(first.latitude);
-  const secondLat = toRadians(second.latitude);
-  const haversine =
-    Math.sin(latDistance / 2) ** 2 +
-    Math.cos(firstLat) * Math.cos(secondLat) * Math.sin(lonDistance / 2) ** 2;
-
-  return (
-    2 *
-    earthRadiusKm *
-    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
-  );
-}
-
-function calculatePathDistance(points: RouteCoordinate[]) {
-  return points.slice(1).reduce(
-    (total, point, index) => total + distanceKmBetween(points[index], point),
-    0,
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-async function requestRoadGeometry(
-  points: RouteCoordinate[],
-  errorMessage: string,
-) {
-  const apiKey = import.meta.env.VITE_GOOGLE_ROUTES_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error(errorMessage);
-  }
-
-  const toWaypoint = (point: RouteCoordinate) => ({
-    location: {
-      latLng: {
-        latitude: point.latitude,
-        longitude: point.longitude,
-      },
-    },
-  });
-  const response = await fetch(googleRoutesEndpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask":
-        "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
-    },
-    body: JSON.stringify({
-      origin: toWaypoint(points[0]),
-      destination: toWaypoint(points[points.length - 1]),
-      intermediates: points.slice(1, -1).map(toWaypoint),
-      travelMode: "DRIVE",
-      routingPreference: "TRAFFIC_AWARE_OPTIMAL",
-      computeAlternativeRoutes: false,
-      polylineQuality: "HIGH_QUALITY",
-      polylineEncoding: "ENCODED_POLYLINE",
-      languageCode: "vi",
-      units: "METRIC",
-    }),
-  });
-  const body: unknown = await response.json();
-
-  if (!response.ok || !isRecord(body) || !Array.isArray(body.routes)) {
-    throw new Error(errorMessage);
-  }
-
-  const firstRoute = body.routes[0];
-  if (
-    !isRecord(firstRoute) ||
-    typeof firstRoute.distanceMeters !== "number" ||
-    typeof firstRoute.duration !== "string"
-  ) {
-    throw new Error(errorMessage);
-  }
-
-  const polyline = firstRoute.polyline;
-  if (!isRecord(polyline) || typeof polyline.encodedPolyline !== "string") {
-    throw new Error(errorMessage);
-  }
-
-  const durationSeconds = parseGoogleDurationSeconds(firstRoute.duration);
-  if (durationSeconds <= 0) {
-    throw new Error(errorMessage);
-  }
-
-  return {
-    points: decodeGooglePolyline(polyline.encodedPolyline),
-    totalDistanceKm: Number((firstRoute.distanceMeters / 1000).toFixed(1)),
-    estimatedDurationMinutes: Math.max(1, Math.round(durationSeconds / 60)),
-  };
-}
-
-function routeToForm(route: OperatorRoute): OperatorRouteRequest {
-  return {
-    name: route.name,
-    originStationId: route.originStationId,
-    destinationStationId: route.destinationStationId,
-    returnRouteId: route.returnRouteId ?? "",
-    baseFare: route.baseFare,
-    totalDistanceKm: route.totalDistanceKm,
-    estimatedDurationMinutes: route.estimatedDurationMinutes,
-    isActive: route.isActive,
-  };
-}
-
-function alternativeRouteToForm(route: AlternativeRoute): AlternativeRouteRequest {
-  return {
-    name: route.name,
-    description: route.description ?? "",
-    destinationStationId: route.destinationStationId,
-    totalDistanceKm: route.totalDistanceKm,
-    estimatedDurationMinutes: route.estimatedDurationMinutes,
-    isActive: route.isActive,
-    stops: route.stops.map((stop) => ({
-      stopId: stop.stopId,
-      orderIndex: stop.orderIndex,
-      estimatedDurationFromOriginMinutes:
-        stop.estimatedDurationFromOriginMinutes,
-      distanceFromOriginKm: stop.distanceFromOriginKm,
-    })),
-  };
-}
-
-function toStationOption(operatorStation: OperatorStation): StationOption {
-  const station = operatorStation.station;
-
-  return {
-    id: operatorStation.stationId || station?.id || operatorStation.id || "",
-    operatorStationId: operatorStation.id,
-    name:
-      operatorStation.displayNameOverride ||
-      station?.name ||
-      operatorStation.name ||
-      "",
-    slug: station?.slug,
-    address:
-      station?.address ||
-      station?.addressStreet ||
-      operatorStation.addressStreet ||
-      "",
-    addressStreet:
-      station?.addressStreet || operatorStation.addressStreet || "",
-    city: station?.city || operatorStation.city || "",
-    province: station?.province || operatorStation.province || "",
-    latitude: station?.latitude ?? operatorStation.latitude ?? 0,
-    longitude: station?.longitude ?? operatorStation.longitude ?? 0,
-    supportsShuttle:
-      station?.supportsShuttle ?? operatorStation.supportsShuttle ?? false,
-    isActive: station?.isActive ?? operatorStation.isActive,
-    createdAt: station?.createdAt ?? operatorStation.createdAt,
-    updatedAt: station?.updatedAt ?? operatorStation.updatedAt,
-  };
-}
-
-function toRouteStopRequest(draft: RouteStopDraft): RouteStopRequest {
-  return {
-    stopId: draft.stopId,
-    orderIndex: draft.orderIndex,
-    estimatedDurationFromOriginMinutes:
-      draft.estimatedDurationFromOriginMinutes,
-    distanceFromOriginKm: draft.distanceFromOriginKm,
-    allowPickup: draft.allowPickup,
-    allowDropoff: draft.allowDropoff,
-  };
-}
-
-function mergeStations(current: StationOption[], incoming: StationOption[]) {
-  const stationMap = new Map(current.map((station) => [station.id, station]));
-
-  incoming.forEach((station) => {
-    stationMap.set(station.id, { ...stationMap.get(station.id), ...station });
-  });
-
-  return Array.from(stationMap.values());
-}
+import { toNumber } from "../../../utils/number";
+import { distanceKmBetween } from "./geometry";
+import {
+  draftRouteId,
+  emptyRouteForm,
+  isGuid,
+  mergeStations,
+  routeToForm,
+  toRouteStopRequest,
+  toStationOption,
+} from "./routeFormUtils";
+import type {
+  FeedbackScope,
+  RouteMapPoint,
+  RouteStopDraft,
+  StationOption,
+} from "./types";
+import { useRouteGeometry } from "./useRouteGeometry";
+import { useAlternativeRoutes } from "./useAlternativeRoutes";
+import { useStationManagement } from "./useStationManagement";
+import { useStopForm } from "./useStopForm";
+import InlineFeedback from "./InlineFeedback";
+import SectionHeader from "./SectionHeader";
+import { Input } from "./formControls";
+import StationManagementPanel from "./StationManagementPanel";
+import RouteFormSection from "./RouteFormSection";
+import AlternativeRoutesSection from "./AlternativeRoutesSection";
+import StopEditorCard from "./StopEditorCard";
+import RouteStopList from "./RouteStopList";
+import GeometryPanel from "./GeometryPanel";
 
 export default function RoutesPage() {
   const { t } = useTranslation("manager");
@@ -341,25 +68,10 @@ export default function RoutesPage() {
   const [stops, setStops] = useState<OperatorStop[]>([]);
   const [stations, setStations] = useState<StationOption[]>([]);
   const [locations, setLocations] = useState<AdminLocation[]>([]);
-  const [stationPlaceDraft, setStationPlaceDraft] =
-    useState<PlaceSelection | null>(null);
-  const [selectedLocationId, setSelectedLocationId] = useState("");
-  const [stationSupportsShuttle, setStationSupportsShuttle] = useState(false);
-  const [stationRouteRole, setStationRouteRole] =
-    useState<StationRouteRole>("");
   const [routeStopDrafts, setRouteStopDrafts] = useState<RouteStopDraft[]>([]);
-  const [selectedStationId, setSelectedStationId] = useState("");
-  const [stopForm, setStopForm] = useState<OperatorStopRequest>(emptyStopForm);
   const [routeForm, setRouteForm] =
     useState<OperatorRouteRequest>(emptyRouteForm);
   const [selectedRouteId, setSelectedRouteId] = useState("");
-  const [alternativeRoutes, setAlternativeRoutes] = useState<AlternativeRoute[]>([]);
-  const [selectedAlternativeRouteId, setSelectedAlternativeRouteId] = useState("");
-  const [alternativeForm, setAlternativeForm] =
-    useState<AlternativeRouteRequest>(emptyAlternativeRouteForm);
-  const [alternativeStopId, setAlternativeStopId] = useState("");
-  const [alternativeStopDuration, setAlternativeStopDuration] = useState(0);
-  const [alternativeStopDistance, setAlternativeStopDistance] = useState(0);
   const [selectedStopId, setSelectedStopId] = useState("");
   const [routeStopOrder, setRouteStopOrder] = useState("1");
   const [routeStopDuration, setRouteStopDuration] = useState("0");
@@ -370,12 +82,20 @@ export default function RoutesPage() {
   const [messageScope, setMessageScope] = useState<FeedbackScope>("global");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [routePathPoints, setRoutePathPoints] = useState<RouteCoordinate[]>([]);
-  const [isEditingGeometry, setIsEditingGeometry] = useState(false);
-  const [isGeometryDirty, setIsGeometryDirty] = useState(false);
   const [routeStopPendingRemoval, setRouteStopPendingRemoval] =
     useState<RouteStopDraft | null>(null);
   const lastEstimatedRoutePairRef = useRef("");
+  // Ref giữ giá trị mới nhất để loadData không phải phụ thuộc vào
+  // selectedRouteId/selectedStopId/t — tránh refetch toàn bộ khi chọn tuyến/điểm dừng
+  const tRef = useRef(t);
+  const selectedRouteIdRef = useRef(selectedRouteId);
+  const selectedStopIdRef = useRef(selectedStopId);
+
+  useEffect(() => {
+    tRef.current = t;
+    selectedRouteIdRef.current = selectedRouteId;
+    selectedStopIdRef.current = selectedStopId;
+  });
 
   const selectedRoute = useMemo(
     () => routes.find((route) => route.id === selectedRouteId) ?? null,
@@ -438,17 +158,7 @@ export default function RoutesPage() {
             color: "#dc2626",
           }
         : null,
-    ].filter(
-      (
-        point,
-      ): point is {
-        id: string;
-        name: string;
-        latitude: number;
-        longitude: number;
-        color: string;
-      } => Boolean(point),
-    );
+    ].filter((point): point is RouteMapPoint => Boolean(point));
   }, [
     currentRouteStops,
     routeForm.destinationStationId,
@@ -466,22 +176,43 @@ export default function RoutesPage() {
     [routeMapPoints],
   );
 
-  const applySavedGeometry = useCallback((route: OperatorRoute | null) => {
-    setIsEditingGeometry(false);
-    setIsGeometryDirty(false);
-
-    if (!route?.pathPolyline) {
-      setRoutePathPoints([]);
-      return;
-    }
-
-    try {
-      setRoutePathPoints(decodeGooglePolyline(route.pathPolyline));
-    } catch {
-      setRoutePathPoints([]);
-      setError(t("routes.invalidSavedGeometry"));
-    }
-  }, [t]);
+  const geometry = useRouteGeometry({
+    selectedRouteId,
+    routeForm,
+    routeWaypoints,
+    setRouteForm,
+    setRoutes,
+    setError,
+    showMessage,
+    t,
+  });
+  const alternatives = useAlternativeRoutes({
+    selectedRouteId,
+    originStationId: routeForm.originStationId,
+    stops,
+    setError,
+    showMessage,
+    t,
+  });
+  const stationManager = useStationManagement({
+    stations,
+    setStations,
+    updateRoute,
+    setError,
+    showMessage,
+    t,
+  });
+  const stopFormControl = useStopForm({
+    selectedStopId,
+    setSelectedStopId,
+    setStops,
+    setError,
+    showMessage,
+    t,
+  });
+  const { applySavedGeometry } = geometry;
+  const { applyAlternatives } = alternatives;
+  const { setStopForm } = stopFormControl;
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -496,8 +227,9 @@ export default function RoutesPage() {
           getPublicLocations(),
         ]);
       const nextRouteSummary =
-        routeResult.items.find((item) => item.id === selectedRouteId) ??
-        routeResult.items[0];
+        routeResult.items.find(
+          (item) => item.id === selectedRouteIdRef.current,
+        ) ?? routeResult.items[0];
       const nextRoute = nextRouteSummary
         ? await getOperatorRoute(nextRouteSummary.id)
         : undefined;
@@ -505,7 +237,7 @@ export default function RoutesPage() {
         ? await getAlternativeRoutes(nextRoute.id, { page: 1, pageSize: 2 })
         : undefined;
       const nextStop =
-        stopResult.items.find((item) => item.id === selectedStopId) ??
+        stopResult.items.find((item) => item.id === selectedStopIdRef.current) ??
         stopResult.items[0];
 
       setRoutes(
@@ -524,10 +256,7 @@ export default function RoutesPage() {
       setLocations(locationResult.filter((location) => location.isActive));
       setSelectedRouteId(nextRoute?.id ?? "");
       setSelectedStopId(nextStop?.id ?? "");
-      setAlternativeRoutes(alternativeResult?.items ?? []);
-      const nextAlternative = alternativeResult?.items[0];
-      setSelectedAlternativeRouteId(nextAlternative?.id ?? "");
-      setAlternativeForm(nextAlternative ? alternativeRouteToForm(nextAlternative) : emptyAlternativeRouteForm);
+      applyAlternatives(alternativeResult?.items ?? []);
 
       if (nextRoute) {
         lastEstimatedRoutePairRef.current = `${nextRoute.originStationId}:${nextRoute.destinationStationId}`;
@@ -548,12 +277,15 @@ export default function RoutesPage() {
         });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("routes.loadFailed"));
+      setError(
+        err instanceof Error ? err.message : tRef.current("routes.loadFailed"),
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [applySavedGeometry, selectedRouteId, selectedStopId, t]);
+  }, [applyAlternatives, applySavedGeometry, setStopForm]);
 
+  // Chỉ chạy khi mount — chi tiết tuyến/điểm dừng đang chọn do handleSelectRoute/handleSelectStop đảm nhiệm
   useEffect(() => {
     queueMicrotask(() => {
       void loadData();
@@ -629,196 +361,6 @@ export default function RoutesPage() {
     setMessage(nextMessage);
   }
 
-  function invalidateLocalGeometry(routeId = selectedRouteId) {
-    setRoutePathPoints([]);
-    setIsEditingGeometry(false);
-    setIsGeometryDirty(false);
-    setRoutes((current) =>
-      current.map((route) =>
-        route.id === routeId ? { ...route, pathPolyline: null } : route,
-      ),
-    );
-  }
-
-  async function handleCalculateGeometry() {
-    if (routeWaypoints.length < 2) {
-      setError(t("routes.geometryRequiresEndpoints"));
-      return;
-    }
-
-    const result = await requestRoadGeometry(
-      routeWaypoints,
-      t("routes.routingFailed"),
-    );
-    setRoutePathPoints(result.points);
-    setRouteForm((current) => ({
-      ...current,
-      totalDistanceKm: result.totalDistanceKm,
-      estimatedDurationMinutes: result.estimatedDurationMinutes,
-    }));
-    setIsEditingGeometry(false);
-    setIsGeometryDirty(true);
-    showMessage("geometry", t("routes.geometryCalculated"));
-  }
-
-  function handleStartManualGeometry() {
-    setRoutePathPoints([]);
-    setIsEditingGeometry(true);
-    setIsGeometryDirty(true);
-    setMessageScope("geometry");
-    setMessage(t("routes.manualGeometryHint"));
-  }
-
-  function handleAppendGeometryPoint(point: RouteCoordinate) {
-    setRoutePathPoints((current) => [...current, point]);
-    setIsGeometryDirty(true);
-  }
-
-  function handleUndoGeometryPoint() {
-    setRoutePathPoints((current) => current.slice(0, -1));
-    setIsGeometryDirty(true);
-  }
-
-  async function handleSaveGeometry() {
-    if (!selectedRouteId) {
-      setError(t("routes.selectRouteFirst"));
-      return;
-    }
-
-    if (routePathPoints.length < 2) {
-      setError(t("routes.geometryRequiresTwoPoints"));
-      return;
-    }
-
-    const nextRouteForm = isEditingGeometry
-      ? (() => {
-          const totalDistanceKm = Number(
-            calculatePathDistance(routePathPoints).toFixed(1),
-          );
-          return {
-            ...routeForm,
-            totalDistanceKm,
-            estimatedDurationMinutes:
-              estimateCoachDurationMinutes(totalDistanceKm),
-          };
-        })()
-      : routeForm;
-    const updatedRoute = await updateOperatorRoute(selectedRouteId, {
-      ...nextRouteForm,
-      returnRouteId: nextRouteForm.returnRouteId || undefined,
-    });
-    const savedRoute = await updateOperatorRouteGeometry(selectedRouteId, {
-      pathPolyline: encodeGooglePolyline(routePathPoints),
-    });
-    const routeWithMetrics = {
-      ...savedRoute,
-      totalDistanceKm: updatedRoute.totalDistanceKm,
-      estimatedDurationMinutes: updatedRoute.estimatedDurationMinutes,
-    };
-
-    setRoutes((current) =>
-      current.map((route) =>
-        route.id === routeWithMetrics.id ? routeWithMetrics : route,
-      ),
-    );
-    setRouteForm(routeToForm(routeWithMetrics));
-    applySavedGeometry(routeWithMetrics);
-    showMessage("geometry", t("routes.geometrySaved"));
-  }
-
-  async function handleClearGeometry() {
-    if (!selectedRouteId) {
-      setError(t("routes.selectRouteFirst"));
-      return;
-    }
-
-    const updated = await updateOperatorRouteGeometry(selectedRouteId, {
-      pathPolyline: null,
-    });
-    setRoutes((current) =>
-      current.map((route) => (route.id === updated.id ? updated : route)),
-    );
-    applySavedGeometry(updated);
-    showMessage("geometry", t("routes.geometryCleared"));
-  }
-
-  function updateStop<K extends keyof OperatorStopRequest>(
-    key: K,
-    value: OperatorStopRequest[K],
-  ) {
-    setStopForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  const selectedStationPlace = useMemo<PlaceSelection | null>(() => {
-    const station = stations.find((item) => item.id === selectedStationId);
-
-    if (!station) {
-      return stationPlaceDraft;
-    }
-
-    return {
-      placeId: station.id,
-      name: station.name,
-      address:
-        station.address ??
-        `${station.name}, ${station.city || station.province}`,
-      city: station.city,
-      province: station.province,
-      latitude: station.latitude,
-      longitude: station.longitude,
-    };
-  }, [selectedStationId, stationPlaceDraft, stations]);
-
-  const selectedStopPlace = useMemo<PlaceSelection | null>(() => {
-    if (!stopForm.latitude || !stopForm.longitude) {
-      return null;
-    }
-
-    return {
-      placeId:
-        stopForm.googlePlaceId || `${stopForm.latitude},${stopForm.longitude}`,
-      name: stopForm.name,
-      address: stopForm.address ?? "",
-      city: "",
-      province: "",
-      latitude: stopForm.latitude,
-      longitude: stopForm.longitude,
-    };
-  }, [stopForm]);
-
-  async function applyStationPlace(place: PlaceSelection) {
-    setStationPlaceDraft(place);
-    setSelectedStationId("");
-    setStationSupportsShuttle(false);
-
-    const result = await searchStations({
-      q: place.name,
-      city: place.city,
-      province: place.province,
-    });
-
-    if (!result.length) {
-      showMessage("station", t("routes.platformStationNotFound"));
-      return;
-    }
-
-    setStations((current) => mergeStations(current, result));
-    setSelectedStationId(result[0]?.id ?? "");
-    setStationSupportsShuttle(result[0]?.supportsShuttle ?? false);
-    showMessage("station", t("routes.stationSearchFound", { count: result.length }));
-  }
-
-  function applyStopPlace(place: PlaceSelection) {
-    setStopForm((current) => ({
-      ...current,
-      name: place.name,
-      address: place.address,
-      latitude: place.latitude,
-      longitude: place.longitude,
-      googlePlaceId: place.placeId,
-    }));
-  }
-
   function updateRoute<K extends keyof OperatorRouteRequest>(
     key: K,
     value: OperatorRouteRequest[K],
@@ -827,155 +369,10 @@ export default function RoutesPage() {
       (key === "originStationId" || key === "destinationStationId") &&
       routeForm[key] !== value
     ) {
-      invalidateLocalGeometry();
+      geometry.invalidateLocalGeometry();
     }
 
     setRouteForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function assignStationToRoute(stationId: string) {
-    if (stationRouteRole === "origin") {
-      updateRoute("originStationId", stationId);
-      return;
-    }
-
-    if (stationRouteRole === "destination") {
-      updateRoute("destinationStationId", stationId);
-    }
-  }
-
-  async function handleConfirmShuttleSupport() {
-    const selected = stations.find((station) => station.id === selectedStationId);
-    if (!selected?.operatorStationId) {
-      setError(t("routes.stationSelectForShuttle"));
-      return;
-    }
-    await updateOperatorStation(selected.operatorStationId, { supportsShuttle: stationSupportsShuttle });
-    setStations((current) => current.map((station) => station.id === selectedStationId ? { ...station, supportsShuttle: stationSupportsShuttle } : station));
-    showMessage("station", t("routes.shuttleSupportSaved"));
-  }
-
-  async function handleAttachStation() {
-    if (!selectedStationId) {
-      setError(t("routes.stationRequired"));
-      return;
-    }
-
-    await createOperatorStation({
-      stationId: selectedStationId,
-    });
-    assignStationToRoute(selectedStationId);
-    showMessage("station", t("routes.stationAttached"));
-  }
-
-  async function handleCreateAndAttachStation() {
-    if (!stationPlaceDraft) {
-      setError(t("routes.stationPlaceRequired"));
-      return;
-    }
-
-    const city = stationPlaceDraft.city.trim();
-    const province = stationPlaceDraft.province.trim() || city;
-
-    if (!city || !province) {
-      setError(t("routes.stationLocationRequired"));
-      return;
-    }
-
-    if (!selectedLocationId) {
-      setError(t("routes.searchLocationRequired"));
-      return;
-    }
-
-    const created = await createOperatorStation({
-      name: stationPlaceDraft.name,
-      city,
-      province,
-      latitude: stationPlaceDraft.latitude,
-      longitude: stationPlaceDraft.longitude,
-      addressStreet: stationPlaceDraft.address,
-      supportsShuttle: stationSupportsShuttle,
-      locationId: selectedLocationId,
-    });
-
-    const station = created.station ?? {
-      id: created.stationId,
-      name: created.name ?? stationPlaceDraft.name,
-      city: created.city ?? city,
-      province: created.province ?? province,
-      latitude: created.latitude ?? stationPlaceDraft.latitude,
-      longitude: created.longitude ?? stationPlaceDraft.longitude,
-      address: created.addressStreet ?? stationPlaceDraft.address,
-      supportsShuttle:
-        created.supportsShuttle ?? stationSupportsShuttle,
-    };
-
-    setStations((current) => mergeStations(current, [station]));
-    setSelectedStationId(station.id);
-    setSelectedLocationId("");
-    setStationSupportsShuttle(false);
-    assignStationToRoute(station.id);
-    showMessage("station", t("routes.stationCreatedAndAttached"));
-  }
-
-  async function handleCreateStop() {
-    if (!stopForm.name.trim()) {
-      setError(t("routes.stopRequired"));
-      return;
-    }
-
-    if (!stopForm.latitude || !stopForm.longitude) {
-      setError(t("routes.coordinatesRequired"));
-      return;
-    }
-
-    const created = await createOperatorStop(stopForm);
-    setStops((prev) => [created, ...prev]);
-    setSelectedStopId(created.id);
-    setStopForm(emptyStopForm);
-    showMessage("stop", t("routes.stopCreated"));
-  }
-
-  async function handleUpdateStop() {
-    if (!selectedStopId) {
-      setError(t("routes.selectStopFirst"));
-      return;
-    }
-
-    if (!stopForm.name.trim()) {
-      setError(t("routes.stopRequired"));
-      return;
-    }
-
-    const updated = await updateOperatorStop(selectedStopId, stopForm);
-    setStops((prev) =>
-      prev.map((item) => (item.id === updated.id ? updated : item)),
-    );
-    showMessage("stop", t("routes.stopUpdated"));
-  }
-
-  async function handleSelectStop(stopId: string) {
-    setSelectedStopId(stopId);
-
-    if (!stopId) {
-      setStopForm(emptyStopForm);
-      return;
-    }
-
-    const stop = await getOperatorStop(stopId);
-    setStops((prev) =>
-      prev.some((item) => item.id === stop.id)
-        ? prev.map((item) => (item.id === stop.id ? stop : item))
-        : [stop, ...prev],
-    );
-    setStopForm({
-      name: stop.name,
-      latitude: stop.latitude,
-      longitude: stop.longitude,
-      description: stop.description ?? "",
-      address: stop.address ?? "",
-      googlePlaceId: stop.googlePlaceId,
-    });
   }
 
   async function handleCreateRoute() {
@@ -1019,9 +416,7 @@ export default function RoutesPage() {
     setRoutes((prev) => [created, ...prev]);
     setSelectedRouteId(created.id);
     setRouteForm(routeToForm(created));
-    setAlternativeRoutes([]);
-    setSelectedAlternativeRouteId("");
-    setAlternativeForm(emptyAlternativeRouteForm);
+    alternatives.resetAlternatives();
     applySavedGeometry(created);
     setRouteStopDrafts((prev) => [
       ...prev.filter((item) => item.routeId !== draftRouteId),
@@ -1040,9 +435,7 @@ export default function RoutesPage() {
     if (!routeId) {
       lastEstimatedRoutePairRef.current = "";
       setRouteForm(emptyRouteForm);
-      setAlternativeRoutes([]);
-      setSelectedAlternativeRouteId("");
-      setAlternativeForm(emptyAlternativeRouteForm);
+      alternatives.resetAlternatives();
       applySavedGeometry(null);
       return;
     }
@@ -1051,11 +444,8 @@ export default function RoutesPage() {
       getOperatorRoute(routeId),
       getAlternativeRoutes(routeId, { page: 1, pageSize: 2 }),
     ]);
-    setAlternativeRoutes(alternativeResult.items);
-    const nextAlternative = alternativeResult.items[0];
-    setSelectedAlternativeRouteId(nextAlternative?.id ?? "");
-    setAlternativeForm(nextAlternative ? alternativeRouteToForm(nextAlternative) : emptyAlternativeRouteForm);
-    setAlternativeStopId("");
+    applyAlternatives(alternativeResult.items);
+    alternatives.setAlternativeStopId("");
     setRoutes((prev) =>
       prev.some((item) => item.id === route.id)
         ? prev.map((item) => (item.id === route.id ? route : item))
@@ -1102,107 +492,6 @@ export default function RoutesPage() {
     showMessage("route", t("routes.routeUpdated"));
   }
 
-
-  function handleSelectAlternativeRoute(alternativeRouteId: string) {
-    setSelectedAlternativeRouteId(alternativeRouteId);
-    const alternative = alternativeRoutes.find((item) => item.id === alternativeRouteId);
-    setAlternativeForm(alternative ? alternativeRouteToForm(alternative) : emptyAlternativeRouteForm);
-    setAlternativeStopId("");
-  }
-
-  function updateAlternative<K extends keyof AlternativeRouteRequest>(
-    key: K,
-    value: AlternativeRouteRequest[K],
-  ) {
-    setAlternativeForm((current) => ({ ...current, [key]: value }));
-  }
-
-  function handleAddAlternativeStop() {
-    const stop = stops.find((item) => item.id === alternativeStopId);
-    if (!stop) {
-      setError(t("routes.alternativeStopRequired"));
-      return;
-    }
-    if (alternativeForm.stops.some((item) => item.stopId === stop.id)) {
-      setError(t("routes.alternativeDuplicateStop"));
-      return;
-    }
-    setAlternativeForm((current) => ({
-      ...current,
-      stops: [...current.stops, {
-        stopId: stop.id,
-        orderIndex: current.stops.length + 1,
-        estimatedDurationFromOriginMinutes: alternativeStopDuration,
-        distanceFromOriginKm: alternativeStopDistance,
-      }],
-    }));
-    setAlternativeStopId("");
-    setAlternativeStopDuration(0);
-    setAlternativeStopDistance(0);
-  }
-
-  function handleRemoveAlternativeStop(stopId: string) {
-    setAlternativeForm((current) => ({
-      ...current,
-      stops: current.stops
-        .filter((item) => item.stopId !== stopId)
-        .map((item, index) => ({ ...item, orderIndex: index + 1 })),
-    }));
-  }
-
-  async function handleCreateAlternativeRoute() {
-    if (!selectedRouteId) {
-      setError(t("routes.selectRouteFirst"));
-      return;
-    }
-    if (alternativeRoutes.length >= 2) {
-      setError(t("routes.alternativeLimitReached"));
-      return;
-    }
-    if (!alternativeForm.name.trim()) {
-      setError(t("routes.alternativeNameRequired"));
-      return;
-    }
-    if (!alternativeForm.destinationStationId) {
-      setError(t("routes.alternativeDestinationRequired"));
-      return;
-    }
-    if (alternativeForm.destinationStationId === routeForm.originStationId) {
-      setError(t("routes.alternativeDestinationInvalid"));
-      return;
-    }
-    const created = await createAlternativeRoute(selectedRouteId, alternativeForm);
-    setAlternativeRoutes((current) => [...current, created]);
-    setSelectedAlternativeRouteId(created.id);
-    setAlternativeForm(alternativeRouteToForm(created));
-    showMessage("alternative", t("routes.alternativeCreated"));
-  }
-
-  async function handleUpdateAlternativeRoute() {
-    if (!selectedAlternativeRouteId) {
-      setError(t("routes.selectAlternativeFirst"));
-      return;
-    }
-    const updated = await updateAlternativeRoute(selectedAlternativeRouteId, alternativeForm);
-    setAlternativeRoutes((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-    setAlternativeForm(alternativeRouteToForm(updated));
-    showMessage("alternative", t("routes.alternativeUpdated"));
-  }
-
-  async function handleDeleteAlternativeRoute() {
-    if (!selectedAlternativeRouteId) {
-      setError(t("routes.selectAlternativeFirst"));
-      return;
-    }
-    await deleteAlternativeRoute(selectedAlternativeRouteId);
-    const remaining = alternativeRoutes.filter((item) => item.id !== selectedAlternativeRouteId);
-    const nextAlternative = remaining[0];
-    setAlternativeRoutes(remaining);
-    setSelectedAlternativeRouteId(nextAlternative?.id ?? "");
-    setAlternativeForm(nextAlternative ? alternativeRouteToForm(nextAlternative) : emptyAlternativeRouteForm);
-    showMessage("alternative", t("routes.alternativeDeleted"));
-  }
-
   async function handleAddRouteStop() {
     if (!selectedStop) {
       setError(t("routes.routeStopRequired"));
@@ -1231,7 +520,7 @@ export default function RoutesPage() {
 
     if (selectedRoute) {
       await addRouteStop(selectedRoute.id, request);
-      invalidateLocalGeometry(selectedRoute.id);
+      geometry.invalidateLocalGeometry(selectedRoute.id);
     }
 
     setRouteStopDrafts((prev) => [
@@ -1303,7 +592,7 @@ export default function RoutesPage() {
     }
 
     await removeRouteStop(selectedRoute.id, item.stopId);
-    invalidateLocalGeometry(selectedRoute.id);
+    geometry.invalidateLocalGeometry(selectedRoute.id);
     setRouteStopDrafts((prev) =>
       prev.filter(
         (draft) =>
@@ -1351,549 +640,40 @@ export default function RoutesPage() {
       <div className="grid gap-5 xl:grid-cols-[440px_minmax(0,1fr)]">
         <main className="min-w-0 space-y-5">
           {/* Danh mục bến: thao tác một lần cho mỗi bến nên thu gọn mặc định */}
-          <details className="rounded-xl border border-gray-200 bg-white shadow-sm">
-            <summary className="cursor-pointer list-none select-none px-5 py-4 [&::-webkit-details-marker]:hidden">
-              <span className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                <FiSearch className="text-vr-700" size={16} />
-                {t("routes.stationManagement")}
-              </span>
-              <span className="mt-0.5 block text-xs text-gray-500">
-                {t("routes.stationManagementHint")}
-              </span>
-            </summary>
-            <div className="border-t border-gray-100 p-5 pt-4">
+          <StationManagementPanel
+            canManageRoutes={canManageRoutes}
+            stations={stations}
+            locations={locations}
+            manager={stationManager}
+            onRunAction={runAction}
+            feedbackMessage={messageScope === "station" ? message : ""}
+          />
 
-            <div className="rounded-lg border border-gray-200 p-4">
-              <p className="text-sm font-bold text-gray-900">
-                {t("routes.stationExistingTitle")}
-              </p>
-              <div className="mt-3 space-y-3">
-                <CustomSelect
-                  className={inputClass}
-                  value={selectedStationId}
-                  onChange={(event) => {
-                    const nextStationId = event.target.value;
-                    setSelectedStationId(nextStationId);
-                    setStationSupportsShuttle(
-                      stations.find((station) => station.id === nextStationId)?.supportsShuttle ?? false,
-                    );
-                  }}
-                >
-                  <option value="">{t("routes.selectStation")}</option>
-                  {stations.map((station) => (
-                    <option key={station.id} value={station.id}>
-                      {station.name} · {station.city || station.province}
-                    </option>
-                  ))}
-                </CustomSelect>
-                {canManageRoutes && (
-                  <>
-                    <CustomSelect
-                      className={inputClass}
-                      value={stationRouteRole}
-                      onChange={(event) =>
-                        setStationRouteRole(
-                          event.target.value as StationRouteRole,
-                        )
-                      }
-                    >
-                      <option value="">{t("routes.stationRouteRoleNone")}</option>
-                      <option value="origin">{t("routes.useAsOrigin")}</option>
-                      <option value="destination">
-                        {t("routes.useAsDestination")}
-                      </option>
-                    </CustomSelect>
-                    {selectedStationId && (
-                      <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
-                        <input type="checkbox" checked={stationSupportsShuttle} onChange={(event) => setStationSupportsShuttle(event.target.checked)} className="h-4 w-4 accent-vr-500" />
-                        {t("routes.supportsShuttle")}
-                      </label>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => runAction(handleAttachStation)}
-                        disabled={!selectedStationId}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50"
-                      >
-                        <FiCheckCircle size={16} />
-                        {t("routes.attachStation")}
-                      </button>
-                      {selectedStationId && (
-                        <button type="button" onClick={() => runAction(handleConfirmShuttleSupport)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50">
-                          <FiCheckCircle size={16} />
-                          {t("routes.confirmShuttle")}
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+          <RouteFormSection
+            canManageRoutes={canManageRoutes}
+            routes={routes}
+            stations={stations}
+            selectedRouteId={selectedRouteId}
+            form={routeForm}
+            onUpdateField={updateRoute}
+            onSelectRoute={(routeId) =>
+              runAction(() => handleSelectRoute(routeId))
+            }
+            onCreateRoute={() => runAction(handleCreateRoute)}
+            onUpdateRoute={() => runAction(handleUpdateRoute)}
+            feedbackMessage={messageScope === "route" ? message : ""}
+          />
 
-            {canManageRoutes && (
-              <div className="mt-4 rounded-lg border border-gray-200 p-4">
-                <p className="text-sm font-bold text-gray-900">
-                  {t("routes.stationCreateTitle")}
-                </p>
-                <div className="mt-3 space-y-3">
-                  <PlacePicker
-                    label={t("routes.stationName")}
-                    placeholder="Bến xe Miền Đông, Thành phố Hồ Chí Minh"
-                    selectedPlace={selectedStationPlace}
-                    onSelect={(place) => {
-                      runAction(() => applyStationPlace(place));
-                    }}
-                  />
-                  {stationPlaceDraft && !selectedStationId && (
-                    <>
-                      <div>
-                        <label className={labelClass}>
-                          {t("routes.searchLocation")}
-                        </label>
-                        <CustomSelect
-                          aria-label={t("routes.searchLocation")}
-                          className={inputClass}
-                          value={selectedLocationId}
-                          onChange={(event) =>
-                            setSelectedLocationId(event.target.value)
-                          }
-                        >
-                          <option value="">
-                            {t("routes.selectSearchLocation")}
-                          </option>
-                          {locations.map((location) => (
-                            <option key={location.id} value={location.id}>
-                              {location.name} · {location.code}
-                            </option>
-                          ))}
-                        </CustomSelect>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {t("routes.searchLocationHint")}
-                        </p>
-                      </div>
-                      <label
-                        htmlFor="station-supports-shuttle"
-                        className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
-                      >
-                        <input
-                          id="station-supports-shuttle"
-                          type="checkbox"
-                          checked={stationSupportsShuttle}
-                          onChange={(event) =>
-                            setStationSupportsShuttle(event.target.checked)
-                          }
-                          className="mt-0.5 h-4 w-4 cursor-pointer accent-vr-500"
-                        />
-                        <span>
-                          <span className="block text-sm font-semibold text-gray-900">
-                            {t("routes.supportsShuttle")}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-gray-500">
-                            {t("routes.supportsShuttleHint")}
-                          </span>
-                        </span>
-                      </label>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => runAction(handleCreateAndAttachStation)}
-                    disabled={
-                      !stationPlaceDraft ||
-                      Boolean(selectedStationId) ||
-                      !selectedLocationId
-                    }
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:opacity-50"
-                  >
-                    <FiMapPin size={16} />
-                    {t("routes.createAndAttachStation")}
-                  </button>
-                </div>
-              </div>
-            )}
-            <InlineFeedback
-              message={messageScope === "station" ? message : ""}
-            />
-            </div>
-          </details>
+          <AlternativeRoutesSection
+            canManageRoutes={canManageRoutes}
+            hasSelectedRoute={Boolean(selectedRouteId)}
+            stations={stations}
+            stops={stops}
+            alternatives={alternatives}
+            onRunAction={runAction}
+            feedbackMessage={messageScope === "alternative" ? message : ""}
+          />
 
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <SectionHeader
-              icon={<FiGitBranch />}
-              title={t("routes.routeManagement")}
-              subtitle={t("routes.routeManagementHint")}
-            />
-            <div className="mt-4 flex gap-2">
-              <div className="min-w-0 flex-1">
-                <CustomSelect
-                  className={inputClass}
-                  value={selectedRouteId}
-                  onChange={(event) =>
-                    runAction(() => handleSelectRoute(event.target.value))
-                  }
-                >
-                  <option value="">{t("routes.selectRoute")}</option>
-                  {routes.map((route) => (
-                    <option key={route.id} value={route.id}>
-                      {route.name} · {route.totalDistanceKm} km
-                    </option>
-                  ))}
-                </CustomSelect>
-              </div>
-              {canManageRoutes && selectedRouteId && (
-                <button
-                  type="button"
-                  onClick={() => runAction(() => handleSelectRoute(""))}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <FiPlus size={16} />
-                  {t("routes.newRoute")}
-                </button>
-              )}
-            </div>
-            <div className="mt-4 space-y-3">
-              <Input
-                label={t("routes.routeName")}
-                value={routeForm.name}
-                onChange={(value) => updateRoute("name", value)}
-                placeholder="Thành phố Hồ Chí Minh - Đà Lạt"
-                disabled={!canManageRoutes}
-              />
-              <StationSelect
-                label={t("routes.originStationId")}
-                stations={stations}
-                value={routeForm.originStationId}
-                placeholder={t("routes.selectOriginStation")}
-                onChange={(value) => updateRoute("originStationId", value)}
-                disabled={!canManageRoutes}
-              />
-              <StationSelect
-                label={t("routes.destinationStationId")}
-                stations={stations}
-                value={routeForm.destinationStationId}
-                placeholder={t("routes.selectDestinationStation")}
-                onChange={(value) => updateRoute("destinationStationId", value)}
-                disabled={!canManageRoutes}
-              />
-              <div>
-                <label className={labelClass}>
-                  {t("routes.returnRouteId")}
-                </label>
-                <CustomSelect
-                  className={inputClass}
-                  value={routeForm.returnRouteId ?? ""}
-                  onChange={(event) =>
-                    updateRoute("returnRouteId", event.target.value)
-                  }
-                  disabled={!canManageRoutes}
-                >
-                  <option value="">{t("routes.noReturnRoute")}</option>
-                  {routes
-                    .filter((route) => route.id !== selectedRouteId)
-                    .map((route) => (
-                      <option key={route.id} value={route.id}>
-                        {route.name}
-                      </option>
-                    ))}
-                </CustomSelect>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <NumberInput
-                  label={t("routes.baseFare")}
-                  value={routeForm.baseFare}
-                  onChange={(value) => updateRoute("baseFare", value)}
-                  disabled={!canManageRoutes}
-                  currency
-                />
-                <NumberInput
-                  label={t("routes.totalDistance")}
-                  value={routeForm.totalDistanceKm}
-                  onChange={(value) => updateRoute("totalDistanceKm", value)}
-                  disabled={!canManageRoutes}
-                />
-              </div>
-              <DurationInput
-                label={t("routes.durationMinutes")}
-                value={routeForm.estimatedDurationMinutes}
-                onChange={(value) =>
-                  updateRoute("estimatedDurationMinutes", value)
-                }
-                hourLabel={t("routes.hours")}
-                minuteLabel={t("routes.minutes")}
-                disabled={!canManageRoutes}
-              />
-              <label className="flex items-end gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={routeForm.isActive}
-                  disabled={!canManageRoutes}
-                  onChange={(event) =>
-                    updateRoute("isActive", event.target.checked)
-                  }
-                />
-                {t("routes.activeRoute")}
-              </label>
-            </div>
-            {canManageRoutes && (
-              <div className="mt-4">
-                {selectedRouteId ? (
-                  <button
-                    type="button"
-                    onClick={() => runAction(handleUpdateRoute)}
-                    className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-                  >
-                    <FiSave size={16} />
-                    {t("routes.updateRoute")}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => runAction(handleCreateRoute)}
-                    className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-                  >
-                    <FiPlus size={16} />
-                    {t("routes.createRoute")}
-                  </button>
-                )}
-              </div>
-            )}
-            <InlineFeedback message={messageScope === "route" ? message : ""} />
-          </section>
-
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <SectionHeader
-              icon={<FiGitBranch />}
-              title={t("routes.alternativeManagement")}
-              subtitle={t("routes.alternativeManagementHint")}
-            />
-            {!selectedRouteId ? (
-              <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                {t("routes.alternativeSelectRoute")}
-              </p>
-            ) : (
-              <>
-                <div className="mt-4 rounded-lg border border-vr-100 bg-vr-50/60 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {t("routes.alternativeCapacity", { count: alternativeRoutes.length })}
-                    </p>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-vr-700">
-                      {alternativeRoutes.length}/2
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-gray-600">
-                    {t("routes.alternativeCapacityHint")}
-                  </p>
-                </div>
-
-                <div className="mt-4 grid gap-2 md:grid-cols-2">
-                  {alternativeRoutes.map((alternative, index) => (
-                    <button
-                      key={alternative.id}
-                      type="button"
-                      onClick={() => handleSelectAlternativeRoute(alternative.id)}
-                      className={selectedAlternativeRouteId === alternative.id
-                        ? "rounded-lg border border-vr-300 bg-vr-50 p-3 text-left ring-1 ring-vr-200"
-                        : "rounded-lg border border-gray-200 bg-white p-3 text-left hover:border-vr-200 hover:bg-gray-50"}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wide text-vr-700">
-                          {t("routes.alternativeNumber", { number: index + 1 })}
-                        </span>
-                        <span className={alternative.isActive
-                          ? "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
-                          : "rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500"}
-                        >
-                          {alternative.isActive ? t("routes.alternativeActive") : t("routes.alternativeInactive")}
-                        </span>
-                      </div>
-                      <p className="mt-1 font-semibold text-gray-900">{alternative.name}</p>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {alternative.totalDistanceKm} km · {alternative.estimatedDurationMinutes} {t("routes.minutes")}
-                      </p>
-                    </button>
-                  ))}
-                  {!alternativeRoutes.length && (
-                    <p className="text-sm text-gray-500">{t("routes.alternativeEmpty")}</p>
-                  )}
-                </div>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
-                  <Input
-                    label={t("routes.alternativeName")}
-                    value={alternativeForm.name}
-                    onChange={(value) => updateAlternative("name", value)}
-                    placeholder={t("routes.alternativeNamePlaceholder")}
-                    disabled={!canManageRoutes}
-                  />
-                  <StationSelect
-                    label={t("routes.alternativeDestination")}
-                    stations={stations}
-                    value={alternativeForm.destinationStationId}
-                    placeholder={t("routes.selectAlternativeDestination")}
-                    onChange={(value) => updateAlternative("destinationStationId", value)}
-                    disabled={!canManageRoutes}
-                  />
-                  <div className="md:col-span-2">
-                    <label className={labelClass}>{t("routes.alternativeDescription")}</label>
-                    <textarea
-                      className={inputClass + " min-h-20 resize-y"}
-                      value={alternativeForm.description}
-                      onChange={(event) => updateAlternative("description", event.target.value)}
-                      placeholder={t("routes.alternativeDescriptionPlaceholder")}
-                      disabled={!canManageRoutes}
-                    />
-                  </div>
-                  <NumberInput
-                    label={t("routes.totalDistance")}
-                    value={alternativeForm.totalDistanceKm}
-                    onChange={(value) => updateAlternative("totalDistanceKm", value)}
-                    disabled={!canManageRoutes}
-                  />
-                  <DurationInput
-                    label={t("routes.durationMinutes")}
-                    value={alternativeForm.estimatedDurationMinutes}
-                    onChange={(value) => updateAlternative("estimatedDurationMinutes", value)}
-                    hourLabel={t("routes.hours")}
-                    minuteLabel={t("routes.minutes")}
-                    disabled={!canManageRoutes}
-                  />
-                  <label className="flex items-end gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={alternativeForm.isActive}
-                      disabled={!canManageRoutes}
-                      onChange={(event) => updateAlternative("isActive", event.target.checked)}
-                    />
-                    {t("routes.activeAlternative")}
-                  </label>
-                </div>
-
-                <div className="mt-5 rounded-lg border border-gray-200 p-4">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{t("routes.alternativeStops")}</p>
-                    <p className="mt-1 text-xs text-gray-500">{t("routes.alternativeStopsHint")}</p>
-                  </div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_150px_auto] md:items-end">
-                    <div>
-                      <label className={labelClass}>{t("routes.stop")}</label>
-                      <CustomSelect
-                        className={inputClass}
-                        value={alternativeStopId}
-                        onChange={(event) => setAlternativeStopId(event.target.value)}
-                        disabled={!canManageRoutes}
-                      >
-                        <option value="">{t("routes.selectStop")}</option>
-                        {stops
-                          .filter((stop) => !alternativeForm.stops.some((item) => item.stopId === stop.id))
-                          .map((stop) => (
-                            <option key={stop.id} value={stop.id}>{stop.name}</option>
-                          ))}
-                      </CustomSelect>
-                    </div>
-                    <NumberInput
-                      label={t("routes.durationFromOrigin")}
-                      value={alternativeStopDuration}
-                      onChange={setAlternativeStopDuration}
-                      disabled={!canManageRoutes}
-                    />
-                    <NumberInput
-                      label={t("routes.distanceFromOrigin")}
-                      value={alternativeStopDistance}
-                      onChange={setAlternativeStopDistance}
-                      disabled={!canManageRoutes}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddAlternativeStop}
-                      disabled={!canManageRoutes || !alternativeStopId}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <FiPlus size={16} />
-                      {t("routes.addAlternativeStop")}
-                    </button>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {alternativeForm.stops.map((routeStop, index) => {
-                      const stop = stops.find((item) => item.id === routeStop.stopId);
-                      return (
-                        <div key={routeStop.stopId} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm">
-                          <span className="min-w-0 truncate font-medium text-gray-800">
-                            {index + 1}. {stop?.name ?? routeStop.stopId}
-                          </span>
-                          <span className="shrink-0 text-xs text-gray-500">
-                            {routeStop.distanceFromOriginKm} km · {routeStop.estimatedDurationFromOriginMinutes} {t("routes.minutes")}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={t("routes.removeAlternativeStop")}
-                            onClick={() => handleRemoveAlternativeStop(routeStop.stopId)}
-                            disabled={!canManageRoutes}
-                            className="shrink-0 text-gray-400 hover:text-red-600 disabled:opacity-50"
-                          >
-                            <FiTrash2 size={16} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                    {!alternativeForm.stops.length && (
-                      <p className="text-xs text-gray-500">{t("routes.alternativeNoStops")}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {canManageRoutes && (
-                    <>
-                      {!selectedAlternativeRouteId ? (
-                        <button
-                          type="button"
-                          onClick={() => runAction(handleCreateAlternativeRoute)}
-                          className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-                        >
-                          <FiPlus size={16} />
-                          {t("routes.createAlternative")}
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => runAction(handleUpdateAlternativeRoute)}
-                            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-                          >
-                            <FiSave size={16} />
-                            {t("routes.updateAlternative")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => runAction(handleDeleteAlternativeRoute)}
-                            className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-                          >
-                            <FiTrash2 size={16} />
-                            {t("routes.deleteAlternative")}
-                          </button>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedAlternativeRouteId("");
-                          setAlternativeForm(emptyAlternativeRouteForm);
-                        }}
-                        disabled={alternativeRoutes.length >= 2}
-                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        <FiPlus size={16} />
-                        {t("routes.newAlternative")}
-                      </button>
-                    </>
-                  )}
-                </div>
-                <InlineFeedback message={messageScope === "alternative" ? message : ""} />
-              </>
-            )}
-          </section>
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
               icon={<FiMapPin />}
@@ -1907,7 +687,9 @@ export default function RoutesPage() {
                   className={inputClass}
                   value={selectedStopId}
                   onChange={(event) =>
-                    runAction(() => handleSelectStop(event.target.value))
+                    runAction(() =>
+                      stopFormControl.handleSelectStop(event.target.value),
+                    )
                   }
                 >
                   <option value="">{t("routes.selectStop")}</option>
@@ -1919,47 +701,22 @@ export default function RoutesPage() {
                 </CustomSelect>
               </div>
               {canManageRoutes && (
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <p className="text-sm font-bold text-gray-900">
-                    {t("routes.stopCreateTitle")}
-                  </p>
-                  <div className="mt-3 space-y-3">
-                    <PlacePicker
-                      label={t("routes.stopName")}
-                      placeholder="Điểm đón, bến xe, địa chỉ..."
-                      selectedPlace={selectedStopPlace}
-                      onSelect={applyStopPlace}
-                    />
-                    <Input
-                      label={t("routes.description")}
-                      value={stopForm.description ?? ""}
-                      onChange={(value) => updateStop("description", value)}
-                      placeholder={t("routes.stopDescriptionPlaceholder")}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => runAction(handleCreateStop)}
-                        className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-                      >
-                        <FiPlus size={16} />
-                        {t("routes.createStop")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => runAction(handleUpdateStop)}
-                        disabled={!selectedStopId}
-                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        <FiSave size={16} />
-                        {t("routes.updateStop")}
-                      </button>
-                    </div>
-                  </div>
-                  <InlineFeedback
-                    message={messageScope === "stop" ? message : ""}
-                  />
-                </div>
+                <StopEditorCard
+                  selectedStopPlace={stopFormControl.selectedStopPlace}
+                  onSelectPlace={stopFormControl.applyStopPlace}
+                  description={stopFormControl.stopForm.description ?? ""}
+                  onChangeDescription={(value) =>
+                    stopFormControl.updateStop("description", value)
+                  }
+                  onCreateStop={() =>
+                    runAction(stopFormControl.handleCreateStop)
+                  }
+                  onUpdateStop={() =>
+                    runAction(stopFormControl.handleUpdateStop)
+                  }
+                  canUpdate={Boolean(selectedStopId)}
+                  feedbackMessage={messageScope === "stop" ? message : ""}
+                />
               )}
               <div className="grid grid-cols-3 gap-3">
                 <Input
@@ -2027,155 +784,28 @@ export default function RoutesPage() {
                 </>
               )}
             </div>
-            <div className="mt-4 border-t border-gray-100 pt-4">
-              <p className="text-sm font-bold text-gray-900">
-                {activeRouteName}
-                <span className="ml-2 font-normal text-gray-500">
-                  {currentRouteStops.length} {t("routes.stop").toLowerCase()}
-                </span>
-              </p>
-              <div className="mt-2 space-y-2">
-                {currentRouteStops.map((item) => (
-                  <div
-                    key={`${item.stopId}-${item.orderIndex}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
-                  >
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        #{item.orderIndex} · {item.stopName}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {item.distanceFromOriginKm} km ·{" "}
-                        {item.estimatedDurationFromOriginMinutes} min
-                      </p>
-                    </div>
-                    {canManageRoutes && (
-                      <button
-                        type="button"
-                        onClick={() => setRouteStopPendingRemoval(item)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
-                        aria-label={t("routes.removeRouteStop")}
-                        title={t("routes.removeRouteStop")}
-                      >
-                        <FiTrash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {currentRouteStops.length === 0 && (
-                  <p className="text-sm text-gray-500">
-                    {t("routes.noStopsAttached")}
-                  </p>
-                )}
-              </div>
-            </div>
+            <RouteStopList
+              activeRouteName={activeRouteName}
+              items={currentRouteStops}
+              canManageRoutes={canManageRoutes}
+              onRequestRemove={setRouteStopPendingRemoval}
+            />
             <InlineFeedback
               message={messageScope === "routeStop" ? message : ""}
             />
           </section>
         </main>
 
-        <section className="min-w-0 xl:sticky xl:top-6 xl:self-start">
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
-              <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                <FiNavigation className="text-vr-700" size={16} />
-                {t("routes.geometryTitle")}
-              </div>
-              <span
-                className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-                  isEditingGeometry
-                    ? "bg-amber-50 text-amber-700"
-                    : isGeometryDirty
-                      ? "bg-blue-50 text-blue-700"
-                      : selectedRoute?.pathPolyline
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                {isEditingGeometry
-                  ? t("routes.geometryDrawing")
-                  : isGeometryDirty
-                    ? t("routes.geometryUnsaved")
-                    : selectedRoute?.pathPolyline
-                      ? t("routes.geometrySavedStatus")
-                      : t("routes.geometryMissing")}
-              </span>
-            </div>
-
-            <div className="h-105 xl:h-[calc(100vh-19rem)] xl:min-h-120">
-              <RouteDesignMap
-                points={routeMapPoints}
-                pathPoints={routePathPoints}
-                isEditing={isEditingGeometry}
-                onAppendPoint={handleAppendGeometryPoint}
-                emptyText={t("routes.mapNoPoints")}
-              />
-            </div>
-
-            {canManageRoutes && (
-              <div className="flex flex-wrap gap-2 border-t border-gray-100 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => runAction(handleCalculateGeometry)}
-                  disabled={routeWaypoints.length < 2}
-                  className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-3 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <FiNavigation size={16} />
-                  {t("routes.calculateGeometry")}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStartManualGeometry}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <FiEdit2 size={16} />
-                  {t("routes.drawGeometry")}
-                </button>
-                {isEditingGeometry && (
-                  <button
-                    type="button"
-                    onClick={handleUndoGeometryPoint}
-                    disabled={routePathPoints.length === 0}
-                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <FiCornerUpLeft size={16} />
-                    {t("routes.undoGeometryPoint")}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => runAction(handleSaveGeometry)}
-                  disabled={
-                    !selectedRouteId ||
-                    routePathPoints.length < 2 ||
-                    !isGeometryDirty
-                  }
-                  className="inline-flex items-center gap-2 rounded-lg border border-vr-200 px-3 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <FiSave size={16} />
-                  {t("routes.saveGeometry")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runAction(handleClearGeometry)}
-                  disabled={!selectedRouteId || routePathPoints.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <FiTrash2 size={16} />
-                  {t("routes.clearGeometry")}
-                </button>
-              </div>
-            )}
-            {messageScope === "geometry" && message && (
-              <div className="border-t border-gray-100 px-4 py-3">
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {message}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
+        <GeometryPanel
+          canManageRoutes={canManageRoutes}
+          geometry={geometry}
+          points={routeMapPoints}
+          waypointCount={routeWaypoints.length}
+          hasSelectedRoute={Boolean(selectedRouteId)}
+          hasSavedPolyline={Boolean(selectedRoute?.pathPolyline)}
+          onRunAction={runAction}
+          feedbackMessage={messageScope === "geometry" ? message : ""}
+        />
       </div>
 
       {isLoading && (
@@ -2219,313 +849,6 @@ export default function RoutesPage() {
           })}
         </p>
       </Modal>
-    </div>
-  );
-}
-
-function RouteDesignMap({
-  points,
-  pathPoints,
-  isEditing,
-  onAppendPoint,
-  emptyText,
-}: {
-  points: Array<{
-    id: string;
-    name: string;
-    latitude: number;
-    longitude: number;
-    color: string;
-  }>;
-  pathPoints: RouteCoordinate[];
-  isEditing: boolean;
-  onAppendPoint: (point: RouteCoordinate) => void;
-  emptyText: string;
-}) {
-  const displayedPath = pathPoints.length > 0 ? pathPoints : points;
-  const center: GoogleMapCoordinate =
-    displayedPath.length > 0
-      ? {
-          lat:
-            displayedPath.reduce(
-              (total, point) => total + point.latitude,
-              0,
-            ) / displayedPath.length,
-          lng:
-            displayedPath.reduce(
-              (total, point) => total + point.longitude,
-              0,
-            ) / displayedPath.length,
-        }
-      : defaultRouteMapCenter;
-  const linePositions: GoogleMapCoordinate[] = displayedPath.map((point) => ({
-    lat: point.latitude,
-    lng: point.longitude,
-  }));
-  const hasSavedOrDraftPath = pathPoints.length > 1;
-  const mapMarkers = [
-    ...points.map((point) => ({
-      color: point.color,
-      id: point.id,
-      position: {
-        lat: point.latitude,
-        lng: point.longitude,
-      },
-      radiusMeters: 1_200,
-      title: point.name,
-    })),
-    ...(isEditing
-      ? pathPoints.map((point, index) => ({
-          color: "#0f766e",
-          id: `geometry-${index}-${point.latitude}-${point.longitude}`,
-          position: {
-            lat: point.latitude,
-            lng: point.longitude,
-          },
-          radiusMeters: 550,
-        }))
-      : []),
-  ];
-  const mapPolylines =
-    linePositions.length > 1
-      ? [
-          {
-            color: hasSavedOrDraftPath ? "#0f766e" : "#64748b",
-            id: "route-geometry",
-            opacity: hasSavedOrDraftPath ? 1 : 0.62,
-            path: linePositions,
-            weight: hasSavedOrDraftPath ? 5 : 3,
-          },
-        ]
-      : [];
-
-  return (
-    <div className={`relative h-full ${isEditing ? "cursor-crosshair" : ""}`}>
-      <GoogleMapCanvas
-        ariaLabel="Bản đồ đường đi thực tế của tuyến"
-        center={center}
-        fitPoints={linePositions}
-        markers={mapMarkers}
-        onMapClick={
-          isEditing
-            ? (position) =>
-                onAppendPoint({
-                  latitude: position.lat,
-                  longitude: position.lng,
-                })
-            : undefined
-        }
-        polylines={mapPolylines}
-        className="h-full w-full"
-        zoom={displayedPath.length > 1 ? 8 : 13}
-      />
-      {points.length === 0 && (
-        <p className="absolute inset-x-0 bottom-0 border-t border-gray-100 bg-white/95 px-3 py-2 text-xs text-gray-500">
-          {emptyText}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function InlineFeedback({ message }: { message: string }) {
-  if (!message) return null;
-
-  return (
-    <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-      {message}
-    </div>
-  );
-}
-
-function SectionHeader({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: ReactNode;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
-        {icon}
-      </div>
-      <div>
-        <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-        <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
-      </div>
-    </div>
-  );
-}
-
-function Input({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  disabled = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <div>
-      <label className={labelClass}>{label}</label>
-      <input
-        className={inputClass}
-        value={value}
-        type={type}
-        placeholder={placeholder}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </div>
-  );
-}
-
-function StationSelect({
-  label,
-  stations,
-  value,
-  placeholder,
-  onChange,
-  disabled = false,
-}: {
-  label: string;
-  stations: StationOption[];
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  const hasSelectedValue =
-    value && !stations.some((station) => station.id === value);
-
-  return (
-    <div>
-      <label className={labelClass}>{label}</label>
-      <CustomSelect
-        className={inputClass}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="">{placeholder}</option>
-        {hasSelectedValue && <option value={value}>{value}</option>}
-        {stations.map((station) => (
-          <option key={station.id} value={station.id}>
-            {station.name} · {station.city || station.province}
-          </option>
-        ))}
-      </CustomSelect>
-    </div>
-  );
-}
-
-function NumberInput({
-  label,
-  value,
-  onChange,
-  disabled = false,
-  currency = false,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  disabled?: boolean;
-  currency?: boolean;
-}) {
-  return (
-    <div>
-      <label className={labelClass}>{label}</label>
-      {currency ? (
-        <CurrencyInput
-          className={inputClass}
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(toNumber(event.target.value))}
-        />
-      ) : (
-        <input
-          className={inputClass}
-          value={value}
-          type="number"
-          disabled={disabled}
-          onChange={(event) => onChange(toNumber(event.target.value))}
-        />
-      )}
-    </div>
-  );
-}
-
-function DurationInput({
-  label,
-  value,
-  onChange,
-  hourLabel,
-  minuteLabel,
-  disabled = false,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  hourLabel: string;
-  minuteLabel: string;
-  disabled?: boolean;
-}) {
-  const totalMinutes = Math.max(0, Math.round(value));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  return (
-    <div>
-      <label className={labelClass}>{label}</label>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="relative">
-          <span className="sr-only">{hourLabel}</span>
-          <input
-            className={`${inputClass} pr-12`}
-            value={hours}
-            type="number"
-            min={0}
-            disabled={disabled}
-            onChange={(event) =>
-              onChange(Math.max(0, Math.floor(toNumber(event.target.value))) * 60 + minutes)
-            }
-          />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-            {hourLabel}
-          </span>
-        </label>
-        <label className="relative">
-          <span className="sr-only">{minuteLabel}</span>
-          <input
-            className={`${inputClass} pr-14`}
-            value={minutes}
-            type="number"
-            min={0}
-            max={59}
-            disabled={disabled}
-            onChange={(event) => {
-              const nextMinutes = Math.min(
-                59,
-                Math.max(0, Math.floor(toNumber(event.target.value))),
-              );
-              onChange(hours * 60 + nextMinutes);
-            }}
-          />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-            {minuteLabel}
-          </span>
-        </label>
-      </div>
     </div>
   );
 }

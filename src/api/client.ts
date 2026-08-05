@@ -3,6 +3,7 @@ import {
   addIdempotencyHeader,
   type HttpMethod,
 } from "./idempotency";
+import { isRecord } from "../utils/typeGuards";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -45,10 +46,6 @@ type RequestOptions = {
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";

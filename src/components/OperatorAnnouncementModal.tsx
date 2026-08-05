@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FiSend } from "react-icons/fi";
 import {
   sendOperatorNotification,
@@ -19,6 +20,7 @@ export default function OperatorAnnouncementModal({
   open,
   onClose,
 }: OperatorAnnouncementModalProps) {
+  const { t } = useTranslation("common");
   const [scope, setScope] = useState<OperatorNotificationScope>("OPERATOR");
   const [tripId, setTripId] = useState("");
   const [title, setTitle] = useState("");
@@ -40,11 +42,11 @@ export default function OperatorAnnouncementModal({
     const normalizedTripId = tripId.trim();
 
     if (!normalizedTitle || !normalizedBody) {
-      setError("Vui lòng nhập tiêu đề và nội dung thông báo.");
+      setError(t("announcementModal.validationRequired"));
       return;
     }
     if (scope === "TRIP" && !normalizedTripId) {
-      setError("Vui lòng nhập tripId khi gửi theo chuyến.");
+      setError(t("announcementModal.tripIdRequired"));
       return;
     }
 
@@ -58,7 +60,9 @@ export default function OperatorAnnouncementModal({
         title: normalizedTitle,
         body: normalizedBody,
       });
-      setSuccess(`Đã tiếp nhận thông báo cho ${result.recipientCount} người nhận.`);
+      setSuccess(
+        t("announcementModal.accepted", { count: result.recipientCount }),
+      );
       setTitle("");
       setBody("");
       setTripId("");
@@ -66,7 +70,7 @@ export default function OperatorAnnouncementModal({
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Không thể gửi thông báo.",
+          : t("announcementModal.sendFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -77,8 +81,8 @@ export default function OperatorAnnouncementModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title="Gửi thông báo vận hành"
-      subtitle="Phát thông báo cho toàn nhà xe hoặc người liên quan đến một chuyến."
+      title={t("announcementModal.title")}
+      subtitle={t("announcementModal.subtitle")}
       icon={<FiSend />}
       footer={
         <>
@@ -88,7 +92,7 @@ export default function OperatorAnnouncementModal({
             onClick={handleClose}
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            Đóng
+            {t("close")}
           </button>
           <button
             type="button"
@@ -96,59 +100,62 @@ export default function OperatorAnnouncementModal({
             onClick={() => void handleSubmit()}
             className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <FiSend /> {submitting ? "Đang gửi..." : "Gửi thông báo"}
+            <FiSend />{" "}
+            {submitting
+              ? t("announcementModal.submitting")
+              : t("announcementModal.submit")}
           </button>
         </>
       }
     >
       <div className="space-y-4">
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">Phạm vi</span>
+          <span className="mb-1 block text-sm font-medium text-gray-700">{t("announcementModal.scope")}</span>
           <CustomSelect
             value={scope}
             onChange={(event) =>
               setScope(event.target.value as OperatorNotificationScope)
             }
-            aria-label="Phạm vi thông báo"
+            aria-label={t("announcementModal.scopeAria")}
             className={inputClass}
           >
-            <option value="OPERATOR">Toàn bộ nhà xe</option>
-            <option value="TRIP">Theo chuyến</option>
+            <option value="OPERATOR">{t("announcementModal.scopeOperator")}</option>
+            <option value="TRIP">{t("announcementModal.scopeTrip")}</option>
           </CustomSelect>
         </label>
 
         {scope === "TRIP" && (
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">Mã chuyến</span>
+            <span className="mb-1 block text-sm font-medium text-gray-700">{t("announcementModal.tripId")}</span>
             <input
               value={tripId}
               onChange={(event) => setTripId(event.target.value)}
               className={inputClass}
-              placeholder="Nhập mã chuyến cần thông báo"
+              placeholder={t("announcementModal.tripIdPlaceholder")}
             />
           </label>
         )}
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">Tiêu đề</span>
+          <span className="mb-1 block text-sm font-medium text-gray-700">{t("title")}</span>
           <input
             value={title}
             maxLength={120}
             onChange={(event) => setTitle(event.target.value)}
             className={inputClass}
-            placeholder="Ví dụ: Thay đổi giờ khởi hành"
+            placeholder={t("announcementModal.titlePlaceholder")}
           />
           <span className="mt-1 block text-right text-xs text-gray-400">{title.length}/120</span>
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">Nội dung</span>
+          <span className="mb-1 block text-sm font-medium text-gray-700">{t("content")}</span>
           <textarea
             value={body}
             maxLength={500}
             onChange={(event) => setBody(event.target.value)}
             className={`${inputClass} min-h-28 resize-y`}
-            placeholder="Nhập nội dung cần gửi"
+            placeholder={t("announcementModal.bodyPlaceholder")}
           />
           <span className="mt-1 block text-right text-xs text-gray-400">{body.length}/500</span>
         </label>

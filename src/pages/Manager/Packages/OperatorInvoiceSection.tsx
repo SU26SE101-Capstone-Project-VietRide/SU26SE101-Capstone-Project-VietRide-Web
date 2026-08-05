@@ -1,0 +1,240 @@
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { FiCreditCard, FiDownload, FiEye } from "react-icons/fi";
+import Modal from "../../../components/Modal";
+import {
+  getOperatorInvoices,
+  getOperatorInvoice,
+  downloadOperatorInvoice,
+  type OperatorInvoice,
+  type OperatorInvoiceDetail,
+} from "../../../api/vietride";
+import { formatDateOnly } from "../../../utils/date";
+import Pagination from "../../../components/Pagination";
+import { formatNumber } from "./subscriptionHelpers";
+import InvoiceDetailContent from "./InvoiceDetailContent";
+
+export default function OperatorInvoiceSection() {
+  const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
+  const [invoices, setInvoices] = useState<OperatorInvoice[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState("");
+  const [error, setError] = useState("");
+  const [detail, setDetail] = useState<OperatorInvoiceDetail | null>(null);
+  const [detailLoadingId, setDetailLoadingId] = useState("");
+  const pageSize = 8;
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadInvoices() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const result = await getOperatorInvoices({
+          page,
+          pageSize,
+          sortBy: "createdAt",
+          sortDir: "desc",
+        });
+        if (!ignore) {
+          setInvoices(result.items);
+          setTotalItems(result.totalItems);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : t("packages.invoiceLoadFailed"),
+          );
+        }
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
+
+    void loadInvoices();
+    return () => {
+      ignore = true;
+    };
+  }, [page, t]);
+
+  async function openInvoiceDetail(invoiceId: string) {
+    setDetailLoadingId(invoiceId);
+    setError("");
+    try {
+      setDetail(await getOperatorInvoice(invoiceId));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("packages.invoiceDetailFailed"),
+      );
+    } finally {
+      setDetailLoadingId("");
+    }
+  }
+
+  async function downloadInvoice(invoiceId: string) {
+    setDownloadingId(invoiceId);
+    setError("");
+
+    try {
+      const result = await downloadOperatorInvoice(invoiceId);
+      const link = document.createElement("a");
+      link.href = result.downloadUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.click();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("packages.invoiceDownloadFailed"),
+      );
+    } finally {
+      setDownloadingId("");
+    }
+  }
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="border-b border-gray-200 px-5 py-4">
+        <h2 className="text-xl font-bold text-gray-900">
+          {t("packages.invoices")}
+        </h2>
+        <p className="mt-1 text-sm text-gray-500">
+          {t("packages.invoicesHint")}
+        </p>
+      </div>
+      {error && (
+        <div
+          role="alert"
+          className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {error}
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+              <th className="px-4 py-3">{t("packages.invoiceNumber")}</th>
+              <th className="px-4 py-3">{t("packages.period")}</th>
+              <th className="px-4 py-3">{t("packages.amount")}</th>
+              <th className="px-4 py-3">{t("packages.invoiceStatus")}</th>
+              <th className="px-4 py-3">{t("packages.invoiceFile")}</th>
+              <th className="px-4 py-3 text-center">{t("packages.action")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!loading && invoices.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-4 py-10 text-center text-gray-500"
+                >
+                  {t("packages.noInvoices")}
+                </td>
+              </tr>
+            ) : (
+              invoices.map((invoice) => (
+                <tr
+                  key={invoice.invoiceId}
+                  className="border-t border-gray-100"
+                >
+                  <td className="px-4 py-3 font-semibold">
+                    {invoice.invoiceNumber}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {formatDateOnly(invoice.periodFrom)} -{" "}
+                    {formatDateOnly(invoice.periodTo)}
+                  </td>
+                  <td className="px-4 py-3 font-semibold">
+                    {formatNumber(invoice.amount)} đ
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        invoice.status === "ISSUED"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {tc(`enumLabels.${invoice.status}`, {
+                        defaultValue: invoice.status,
+                      })}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {tc(`enumLabels.${invoice.pdfGenerationStatus}`, {
+                      defaultValue: invoice.pdfGenerationStatus,
+                    })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center gap-2">
+                      <button
+                        type="button"
+                        disabled={detailLoadingId === invoice.invoiceId}
+                        onClick={() =>
+                          void openInvoiceDetail(invoice.invoiceId)
+                        }
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={t("packages.viewInvoice")}
+                        aria-label={t("packages.viewInvoice")}
+                      >
+                        <FiEye />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          invoice.status !== "ISSUED" ||
+                          invoice.pdfGenerationStatus !== "COMPLETED" ||
+                          downloadingId === invoice.invoiceId
+                        }
+                        onClick={() => void downloadInvoice(invoice.invoiceId)}
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={t("packages.downloadInvoice")}
+                        aria-label={t("packages.downloadInvoice")}
+                      >
+                        <FiDownload />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        onPageChange={setPage}
+      />
+      <Modal
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        wide
+        icon={<FiCreditCard size={20} />}
+        title={t("packages.invoiceDetailTitle")}
+        subtitle={detail?.invoiceNumber}
+        footer={
+          <button
+            type="button"
+            onClick={() => setDetail(null)}
+            className="cursor-pointer rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            {t("packages.close")}
+          </button>
+        }
+      >
+        {detail ? <InvoiceDetailContent detail={detail} /> : null}
+      </Modal>
+    </section>
+  );
+}

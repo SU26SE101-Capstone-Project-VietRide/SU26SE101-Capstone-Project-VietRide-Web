@@ -49,7 +49,11 @@
     "exportRevenue": "Doanh thu (.CSV)",
     "exportUsers": "Người dùng",
     "exportOperators": "Nhà xe",
-    "exportBookings": "Lượt đặt vé"
+    "exportBookings": "Lượt đặt vé",
+    "loadFailed": "Không thể tải dữ liệu dashboard.",
+    "csvReportHeader": "Báo cáo",
+    "csvNoteHeader": "Ghi chú",
+    "csvPlaceholderNote": "Dữ liệu minh họa; mở trang Báo cáo để xem dữ liệu đầy đủ từ hệ thống"
   },
   "operators": {
     "title": "Nhà xe",
@@ -143,7 +147,13 @@
     "commissionPercent": "% Hoa hồng nền tảng",
     "activateNow": "Kích hoạt ngay",
     "allowTicketSales": "Cho phép bán vé ngay",
-    "activateHint": "Sau khi hồ sơ được xác thực, nhà xe có thể nhận lượt đặt vé."
+    "activateHint": "Sau khi hồ sơ được xác thực, nhà xe có thể nhận lượt đặt vé.",
+    "loadFailed": "Không thể tải danh sách nhà xe.",
+    "csvPhone": "Điện thoại",
+    "businessRegPlaceholder": "0312345678",
+    "taxCodePlaceholder": "0301234567",
+    "contactEmailPlaceholder": "ops@congty.vn",
+    "contactPhonePlaceholder": "0901 234 567"
   },
   "users": {
     "title": "Quản lý người dùng",
@@ -188,7 +198,8 @@
     "detailTitle": "Chi tiết người dùng",
     "accountInformation": "Thông tin tài khoản",
     "accountInformationHint": "Thông tin định danh và thời gian hoạt động của tài khoản.",
-    "updatedAt": "Cập nhật lúc"
+    "updatedAt": "Cập nhật lúc",
+    "operatorUsersOnly": "Chỉ tài khoản nhà xe"
   },
   "vouchers": {
     "title": "Quản lý mã giảm giá & khuyến mãi",
@@ -291,7 +302,14 @@
     "campaignSaveSuccess": "Đã lưu chiến dịch.",
     "campaignSaveFailed": "Thao tác chiến dịch thất bại.",
     "campaignActivateSuccess": "Đã kích hoạt chiến dịch.",
-    "campaignDeactivateSuccess": "Đã tắt chiến dịch."
+    "campaignDeactivateSuccess": "Đã tắt chiến dịch.",
+    "detailTitle": "Chi tiết mã giảm giá",
+    "viewDetails": "Xem chi tiết voucher",
+    "setupTitle": "Thiết lập mã giảm giá",
+    "setupDesc": "Cấu hình thông tin, mức giảm và điều kiện áp dụng cho voucher.",
+    "detailScopeTitle": "Phạm vi áp dụng",
+    "detailIssuanceTitle": "Phát hành & thời hạn sử dụng",
+    "issuedFrom": "Phát hành từ"
   },
   "locations": {
     "title": "Khu vực",
@@ -492,7 +510,19 @@
     "contentPlaceholder": "Nhập nội dung chính sách...",
     "contentHint": "Bạn có thể sử dụng dòng mới để tách các điểm (1. Point 1\\n2. Point 2)",
     "turnOff": "Tắt",
-    "turnOn": "Bật"
+    "turnOn": "Bật",
+    "loadFailed": "Không thể tải danh sách policy.",
+    "deleteFailed": "Không thể xóa policy.",
+    "updateStatusFailed": "Không thể cập nhật trạng thái policy.",
+    "saveFailed": "Không thể lưu policy.",
+    "systemAdminBadge": "Quản trị viên hệ thống",
+    "empty": "Chưa có policy trong nhóm này.",
+    "loading": "Đang tải policy...",
+    "saving": "Đang lưu...",
+    "detailTitle": "Chi tiết chính sách",
+    "policyInfo": "Thông tin chính sách",
+    "summary": "Tóm tắt",
+    "createdBy": "Người tạo"
   },
   "payouts": {
     "title": "Duyệt chi trả nhà xe",
@@ -652,6 +682,24 @@
       "LOW": "Thấp",
       "MEDIUM": "Trung bình",
       "HIGH": "Cao"
+    },
+    "uploadDocument": "Tải tài liệu",
+    "uploadModalTitle": "Tải tài liệu tham khảo cho trợ lý AI",
+    "uploadHint": "Hỗ trợ tệp TXT hoặc Markdown; dung lượng tối đa theo cấu hình hệ thống.",
+    "uploadRequired": "Vui lòng chọn file và nhập tiêu đề.",
+    "uploadSuccess": "Đã tải tài liệu lên knowledge base.",
+    "noComment": "Không có ghi chú",
+    "categories": {
+      "CUSTOMER_SUPPORT": "Hỗ trợ khách hàng",
+      "OPERATOR_POLICY": "Chính sách nhà xe",
+      "PLATFORM_ADMIN": "Quản trị nền tảng"
+    },
+    "documentTypes": {
+      "FAQ": "Câu hỏi thường gặp (FAQ)",
+      "POLICY": "Chính sách",
+      "SOP": "Quy trình vận hành (SOP)",
+      "GUIDE": "Hướng dẫn",
+      "TERMS": "Điều khoản"
     }
   },
   "revenue": {
@@ -694,7 +742,8 @@
     "vehicles": " xe",
     "detailTitle": "Chi tiết doanh thu",
     "detailDescription": "Báo cáo chi tiết theo tuyến và nhà vận hành sẽ hiển thị ở đây.",
-    "billionSuffix": "tỷ"
+    "billionSuffix": "tỷ",
+    "loadFailed": "Không thể tải dữ liệu doanh thu."
   },
   "reports": {
     "title": "Báo cáo hệ thống",

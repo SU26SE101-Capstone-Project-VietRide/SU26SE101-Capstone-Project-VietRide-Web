@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -127,53 +128,107 @@ export default function WalletSettlement() {
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  const loadData = useCallback(async () => {
+  // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
+  // Đếm số request đang chạy để `loading` chỉ tắt khi tất cả xong
+  const pendingLoadsRef = useRef(0);
+
+  const runLoad = useCallback(async (task: () => Promise<unknown>) => {
+    pendingLoadsRef.current += 1;
     setLoading(true);
     setError("");
 
     try {
-      const [walletResult, settlementResult, transactionResult] =
-        await Promise.all([
-          getAdminPlatformWallet(),
-          getAdminTripSettlements({
-            page,
-            pageSize,
-            sortBy: "createdAt",
-            sortDir: "desc",
-            ...settlementFilters(settlementView),
-          }),
-          getAdminPlatformWalletTransactions({
-            page: transactionPage,
-            pageSize,
-            sortBy: "createdAt",
-            sortDir: "desc",
-          }),
-        ]);
-
-      setPlatformWallet(walletResult);
-      setRecords(settlementResult.items);
-      setTotalItems(settlementResult.totalItems);
-      setTransactions(transactionResult.items);
-      setTransactionTotalItems(transactionResult.totalItems);
+      await task();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : t("walletSettlement.loadFailed"),
+        err instanceof Error
+          ? err.message
+          : tRef.current("walletSettlement.loadFailed"),
       );
     } finally {
-      setLoading(false);
+      pendingLoadsRef.current -= 1;
+      if (pendingLoadsRef.current === 0) {
+        setLoading(false);
+      }
     }
-  }, [page, settlementView, t, transactionPage]);
+  }, []);
 
+  const loadWallet = useCallback(async () => {
+    const walletResult = await getAdminPlatformWallet();
+    setPlatformWallet(walletResult);
+  }, []);
+
+  const loadSettlements = useCallback(async () => {
+    const settlementResult = await getAdminTripSettlements({
+      page,
+      pageSize,
+      sortBy: "createdAt",
+      sortDir: "desc",
+      ...settlementFilters(settlementView),
+    });
+    setRecords(settlementResult.items);
+    setTotalItems(settlementResult.totalItems);
+  }, [page, settlementView]);
+
+  const loadTransactions = useCallback(async () => {
+    const transactionResult = await getAdminPlatformWalletTransactions({
+      page: transactionPage,
+      pageSize,
+      sortBy: "createdAt",
+      sortDir: "desc",
+    });
+    setTransactions(transactionResult.items);
+    setTransactionTotalItems(transactionResult.totalItems);
+  }, [transactionPage]);
+
+  // Refresh toàn bộ: dùng cho nút refresh và sau khi settle thủ công
+  const loadData = useCallback(
+    () =>
+      runLoad(() =>
+        Promise.all([loadWallet(), loadSettlements(), loadTransactions()]),
+      ),
+    [loadSettlements, loadTransactions, loadWallet, runLoad],
+  );
+
+  // Ví chỉ load lúc mount (và sau settle qua loadData)
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) void loadData();
+      if (!cancelled) void runLoad(loadWallet);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [loadData]);
+  }, [loadWallet, runLoad]);
+
+  // Settlements load theo page / filter đang xem
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void runLoad(loadSettlements);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadSettlements, runLoad]);
+
+  // Transactions load theo trang giao dịch
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void runLoad(loadTransactions);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadTransactions, runLoad]);
 
   const filteredRecords = useMemo(() => {
     const query = search.trim().toLowerCase();

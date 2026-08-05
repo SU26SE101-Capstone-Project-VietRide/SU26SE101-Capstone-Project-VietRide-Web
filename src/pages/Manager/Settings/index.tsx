@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiPercent,
@@ -18,7 +18,7 @@ import {
   operatorConfigs,
   type HolidayPricingPeriod,
   type OperatorConfig,
-} from "../../../data/mockData";
+} from "./operatorConfigDefaults";
 import { formatDateOnly } from "../../../utils/date";
 import {
   createOperatorFareSurchargePeriod,
@@ -28,14 +28,14 @@ import {
   updateOperatorFareSurchargePeriod,
   updateOperatorFareSurchargeSettings,
 } from "../../../api/vietride";
+import {
+  inputClass,
+  labelClass,
+} from "../../../components/form/formClasses";
 
 const CURRENT_OPERATOR_ID = "op1";
 
 type TabId = "pricing" | "booking" | "parcel";
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
 function Toggle({
   checked,
@@ -97,6 +97,10 @@ const defaultConfig =
 export default function ManagerSettings() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const [tab, setTab] = useState<TabId>("pricing");
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -143,12 +147,12 @@ export default function ManagerSettings() {
       }));
     } catch (err) {
       setFareError(
-        err instanceof Error ? err.message : t("settings.loadFailed"),
+        err instanceof Error ? err.message : tRef.current("settings.loadFailed"),
       );
     } finally {
       setFareLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => void loadFareData());

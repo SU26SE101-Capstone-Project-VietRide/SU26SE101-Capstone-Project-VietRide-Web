@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiBookOpen,
@@ -39,6 +39,10 @@ function createInitialFilters(): ReportFilters {
 export default function AdminReports() {
   const { t, i18n } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const [draftFilters, setDraftFilters] =
     useState<ReportFilters>(createInitialFilters);
   const [filters, setFilters] = useState<ReportFilters>(createInitialFilters);
@@ -57,7 +61,7 @@ export default function AdminReports() {
       const to = toExclusiveUtcDayEnd(filters.to);
 
       if (!from || !to) {
-        setError(t("reports.dateRequired"));
+        setError(tRef.current("reports.dateRequired"));
         return;
       }
 
@@ -75,7 +79,7 @@ export default function AdminReports() {
           setError(
             loadError instanceof Error
               ? loadError.message
-              : t("reports.loadFailed"),
+              : tRef.current("reports.loadFailed"),
           );
         }
       } finally {
@@ -89,7 +93,7 @@ export default function AdminReports() {
     return () => {
       ignore = true;
     };
-  }, [filters, reloadKey, t]);
+  }, [filters, reloadKey]);
 
   const numberFormatter = useMemo(
     () => new Intl.NumberFormat(i18n.language === "vi" ? "vi-VN" : "en-US"),

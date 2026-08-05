@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { FiMapPin, FiSearch } from "react-icons/fi";
 import GoogleMapCanvas from "./GoogleMapCanvas";
 import {
@@ -132,6 +133,7 @@ export default function PlacePicker({
   selectedPlace,
   onSelect,
 }: PlacePickerProps) {
+  const { t } = useTranslation("common");
   const selectedPlaceId = selectedPlace?.placeId ?? "";
   const selectedPlaceName = selectedPlace?.name ?? "";
   const [queryDraft, setQueryDraft] = useState({
@@ -195,7 +197,7 @@ export default function PlacePicker({
           setMessage(
             error instanceof Error
               ? error.message
-              : "Không thể tải Google Places.",
+              : t("placePicker.loadFailed"),
           );
         }
       });
@@ -203,19 +205,19 @@ export default function PlacePicker({
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   const searchPlaces = useCallback(
     async (rawQuery: string) => {
       const input = rawQuery.trim();
       if (input.length < 2) {
         setSuggestions([]);
-        setMessage("Nhập ít nhất 2 ký tự để tìm địa điểm.");
+        setMessage(t("placePicker.minChars"));
         return;
       }
 
       if (!placesLibrary) {
-        setMessage("Google Places đang được tải, vui lòng thử lại.");
+        setMessage(t("placePicker.libraryLoading"));
         return;
       }
 
@@ -252,7 +254,7 @@ export default function PlacePicker({
         setMessage(
           nextSuggestions.length
             ? ""
-            : "Không tìm thấy địa điểm phù hợp tại Việt Nam.",
+            : t("placePicker.noResults"),
         );
       } catch (error) {
         if (requestId === requestSequenceRef.current) {
@@ -260,7 +262,7 @@ export default function PlacePicker({
           setMessage(
             error instanceof Error
               ? error.message
-              : "Không thể tìm địa điểm lúc này.",
+              : t("placePicker.searchFailed"),
           );
         }
       } finally {
@@ -269,7 +271,7 @@ export default function PlacePicker({
         }
       }
     },
-    [placesLibrary],
+    [placesLibrary, t],
   );
 
   useEffect(() => {
@@ -308,7 +310,7 @@ export default function PlacePicker({
       const selection = placeToSelection(place, suggestion.prediction);
 
       if (!selection) {
-        throw new Error("Google Places chưa trả về tọa độ cho địa điểm này.");
+        throw new Error(t("placePicker.missingCoordinates"));
       }
 
       onSelect(selection);
@@ -322,7 +324,7 @@ export default function PlacePicker({
       setMessage(
         error instanceof Error
           ? error.message
-          : "Không thể lấy chi tiết địa điểm đã chọn.",
+          : t("placePicker.detailsFailed"),
       );
     } finally {
       if (requestId === requestSequenceRef.current) {
@@ -350,9 +352,7 @@ export default function PlacePicker({
         });
         const result = response.results[0];
         if (!result) {
-          throw new Error(
-            "Không lấy được thông tin tại vị trí đã chọn trên bản đồ.",
-          );
+          throw new Error(t("placePicker.reverseNoResult"));
         }
 
         const selection = geocoderResultToSelection(result, position);
@@ -367,7 +367,7 @@ export default function PlacePicker({
         setMessage(
           error instanceof Error
             ? error.message
-            : "Không thể lấy thông tin vị trí đã chọn.",
+            : t("placePicker.reverseFailed"),
         );
       } finally {
         if (requestId === requestSequenceRef.current) {
@@ -375,7 +375,7 @@ export default function PlacePicker({
         }
       }
     },
-    [onSelect],
+    [onSelect, t],
   );
 
   function handleQueryChange(value: string) {
@@ -420,7 +420,9 @@ export default function PlacePicker({
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
           >
             <FiSearch size={16} />
-            {isSearching ? "Đang tìm..." : "Tìm"}
+            {isSearching
+              ? t("placePicker.searching")
+              : t("placePicker.searchButton")}
           </button>
         </div>
       </label>
@@ -429,7 +431,7 @@ export default function PlacePicker({
         <div
           className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm"
           role="listbox"
-          aria-label="Kết quả tìm địa điểm"
+          aria-label={t("placePicker.resultsAria")}
         >
           {suggestions.map((suggestion) => (
             <button
@@ -453,7 +455,9 @@ export default function PlacePicker({
 
       <div className="overflow-hidden rounded-lg border border-gray-200">
         <GoogleMapCanvas
-          ariaLabel={`Bản đồ chọn ${label.toLowerCase()}`}
+          ariaLabel={t("placePicker.mapAria", {
+            label: label.toLowerCase(),
+          })}
           center={center}
           focusCenter={selectedPlace ? center : null}
           markers={markers}
@@ -461,7 +465,7 @@ export default function PlacePicker({
           scrollWheelZoom
           zoom={13}
           className="h-60 w-full"
-          emptyState="Tìm địa điểm hoặc bấm trực tiếp lên bản đồ để chọn."
+          emptyState={t("placePicker.mapEmptyState")}
         />
       </div>
 

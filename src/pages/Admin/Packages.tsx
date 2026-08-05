@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiBox, FiEdit2, FiPlus, FiPower } from "react-icons/fi";
 import CurrencyInput from "../../components/CurrencyInput";
@@ -10,19 +10,12 @@ import {
   type AdminSubscriptionPlanRequest,
   type SubscriptionPlan,
 } from "../../api/vietride";
+import { toNumber } from "../../utils/number";
+import { inputClass, labelClass } from "../../components/form/formClasses";
 
 function formatNumber(n: number) {
   return n.toLocaleString("vi-VN");
 }
-
-function toNumber(value: string) {
-  const next = Number(value);
-  return Number.isFinite(next) ? next : 0;
-}
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
 const emptyForm: AdminSubscriptionPlanRequest = {
   name: "",
@@ -78,7 +71,8 @@ export default function Packages() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  async function loadPlans() {
+  // Một loader duy nhất dùng chung cho lần load đầu (effect) và sau các mutation
+  const loadPlans = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
@@ -90,34 +84,18 @@ export default function Packages() {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [t]);
 
   useEffect(() => {
-    let isCurrent = true;
-
-    async function loadInitialPlans() {
-      try {
-        const result = await getAdminSubscriptionPlans({ includeInactive: true });
-        if (isCurrent) {
-          setPlans(result);
-        }
-      } catch (err) {
-        if (isCurrent) {
-          setError(err instanceof Error ? err.message : t("packages.loadFailed"));
-        }
-      } finally {
-        if (isCurrent) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void loadInitialPlans();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void loadPlans();
+    });
 
     return () => {
-      isCurrent = false;
+      cancelled = true;
     };
-  }, [t]);
+  }, [loadPlans]);
 
   function openCreate() {
     setSelectedPlan(null);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { useTranslation } from "react-i18next";
 import {
@@ -24,10 +24,9 @@ import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
 import { formatDateInputValue, formatDateTime } from "../../../utils/date";
+import { inputClass } from "../../../components/form/formClasses";
 
 const PAGE_SIZE = 20;
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 const actionIconClass =
   "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -98,6 +97,10 @@ function isPhoneSearch(value: string) {
 export default function BookingsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -150,7 +153,7 @@ export default function BookingsList() {
         if (!isCurrent) return;
         setBookingsPage(emptyPage);
         setListError(
-          error instanceof Error ? error.message : t("bookings.loadError"),
+          error instanceof Error ? error.message : tRef.current("bookings.loadError"),
         );
       } finally {
         if (isCurrent) setIsLoading(false);
@@ -161,7 +164,7 @@ export default function BookingsList() {
     return () => {
       isCurrent = false;
     };
-  }, [debouncedSearch, page, reloadVersion, statusFilter, t]);
+  }, [debouncedSearch, page, reloadVersion, statusFilter]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -517,6 +520,7 @@ function BookingDetailContent({
   statusBadge,
 }: BookingDetailContentProps) {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const route = routeLabel(booking);
   const journey = journeyLabel(booking);
   const seats = booking.seats ?? [];
@@ -554,11 +558,11 @@ function BookingDetailContent({
         />
       </DetailSection>
 
-      <DetailSection title="Thông tin người mua" columns="four">
-        <DetailItem label="Họ tên" value={booking.buyer?.displayName || "-"} />
-        <DetailItem label="Số điện thoại" value={formatVietnamPhoneForDisplay(booking.buyer?.phone)} />
-        <DetailItem label="Email" value={booking.buyer?.email || "-"} />
-        <DetailItem label="Mã người dùng" value={booking.buyer?.userId || "-"} />
+      <DetailSection title={t("bookings.buyerInfo")} columns="four">
+        <DetailItem label={t("bookings.fullNameLabel")} value={booking.buyer?.displayName || "-"} />
+        <DetailItem label={tc("phone")} value={formatVietnamPhoneForDisplay(booking.buyer?.phone)} />
+        <DetailItem label={tc("email")} value={booking.buyer?.email || "-"} />
+        <DetailItem label={t("bookings.buyerUserCode")} value={booking.buyer?.userId || "-"} />
       </DetailSection>
       <DetailSection title={t("bookings.tripInfo")} columns="four">
         <DetailItem label={t("bookings.route")} value={route} />

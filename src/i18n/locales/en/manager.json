@@ -41,7 +41,22 @@
     "topRoutes": "Top {{count}} routes",
     "shareOfTotal": "{{percent}}% of parcels",
     "tripCount": "{{count}} trips",
-    "completionRate": "{{percent}}% completed"
+    "completionRate": "{{percent}}% completed",
+    "loadFailed": "Unable to load data.",
+    "errorSourceFleet": "Fleet",
+    "errorSourceActiveTrips": "Active trips",
+    "errorSourceParcelStats": "Parcel stats",
+    "errorSourceParcelRouteStats": "Parcel route stats",
+    "unknownRoute": "Unknown",
+    "csvCode": "Code",
+    "fleetStatusHint": "Track vehicle status throughout the day",
+    "vehicleCount": "{{count}} vehicles",
+    "loadingData": "Loading data...",
+    "noVehicles": "No vehicles yet.",
+    "noRevenueData": "No revenue data yet.",
+    "noParcelData": "No parcel data yet.",
+    "noParcelRouteData": "No parcel data by route yet.",
+    "statsNoPermission": "You do not have permission to view these stats."
   },
   "trips": {
     "title": "Trip management",
@@ -148,7 +163,10 @@
       "blocked": "Blocked"
     },
     "activeDriversHelper": "Counts ACTIVE driver accounts; this does not mean they are currently available.",
-    "editScheduleFocusNotice": "You are editing this schedule. Changes are currently saved only for this browser session."
+    "editScheduleFocusNotice": "You are editing this schedule. Changes are currently saved only for this browser session.",
+    "loadResourcesFailed": "Unable to load routes, vehicles and staff for trips.",
+    "loadSchedulesFailed": "Unable to load trip schedules.",
+    "createScheduleFailed": "Unable to create trip schedule."
   },
   "routeEta": {
     "title": "Route change & ETA update",
@@ -172,7 +190,7 @@
     "adjustedEtaLabel": "Adjusted ETA",
     "affectedPassengers": "Affected passengers",
     "extraRequestLabel": "Additional request",
-    "approveAndSend": "✓ Approve & notify" ,
+    "approveAndSend": "✓ Approve & notify",
     "loadFailed": "Could not load route change proposals",
     "actionFailed": "Could not process the proposal.",
     "approvedMessage": "Route change proposal approved.",
@@ -204,7 +222,8 @@
       "TRIP_NO_LONGER_EDITABLE": "The trip is no longer in an editable state.",
       "SOURCE_ROUTE_CHANGED": "The source route changed or is no longer valid."
     },
-    "proposalNoLongerPending": "This proposal is no longer pending. The list has been reloaded."
+    "proposalNoLongerPending": "This proposal is no longer pending. The list has been reloaded.",
+    "durationMinutes": "{{value}} min"
   },
   "routes": {
     "title": "Routes & stops",
@@ -378,7 +397,11 @@
     "invalidSavedGeometry": "The saved polyline is invalid and cannot be displayed.",
     "noRouteSelected": "No route selected",
     "noStopsAttached": "No stops attached yet.",
-    "loading": "Loading routes and stops..."
+    "loading": "Loading routes and stops...",
+    "namePlaceholder": "Ho Chi Minh City - Da Lat",
+    "stopNamePlaceholder": "Pickup point, station, address...",
+    "stationNamePlaceholder": "Mien Dong Bus Station, Ho Chi Minh City",
+    "designMapAria": "Map of the route's actual path"
   },
   "vehicles": {
     "title": "Vehicle management",
@@ -484,7 +507,14 @@
     "maintenanceContractor": "Maintenance contractor",
     "contractorPlaceholder": "Garage / workshop name",
     "maintenanceNoteLabel": "Note:",
-    "maintenanceWarning": "The vehicle will be marked as \"Maintenance\" in the system and cannot be used for trips during this period."
+    "maintenanceWarning": "The vehicle will be marked as \"Maintenance\" in the system and cannot be used for trips during this period.",
+    "loadFailed": "Unable to load vehicle list.",
+    "seatTitle": "Row {{row}}, column {{col}}, type {{type}}",
+    "stockPhotoAlt1": "Modern coach exterior",
+    "stockPhotoAlt2": "Coach driving on the road",
+    "stockPhotoAlt3": "Seats inside the coach cabin",
+    "stockPhotoAlt4": "Side view of the coach",
+    "stockPhotoAlt5": "Coach interior"
   },
   "staff": {
     "title": "Staff management",
@@ -562,7 +592,22 @@
     "displayName": "Display name",
     "createdAt": "Created at",
     "initialPassword": "Initial password",
-    "initialPasswordDetailHint": "If the staff member has not received the email or the link expired, return to the list and click the mail icon to resend the password setup link."
+    "initialPasswordDetailHint": "If the staff member has not received the email or the link expired, return to the list and click the mail icon to resend the password setup link.",
+    "loadFailed": "Unable to load staff list.",
+    "pageSubtitle": "Manage internal accounts, send first-time password setup links and group operating roles.",
+    "groupAll": "All staff",
+    "groupField": "Drivers & assistants",
+    "groupOps": "Admin & operations",
+    "operatorStaff": "Operations staff",
+    "assistant": "Bus assistant",
+    "roleDescOperatorStaff": "Supports operations, checks bookings and handles customers at the counter.",
+    "roleDescDriver": "Views assigned trips and updates trip operations.",
+    "roleDescAssistant": "Confirms passenger boarding and assists with cargo.",
+    "staffInfoSection": "Staff information",
+    "fullNamePlaceholder": "Nguyen Van A",
+    "rolePermissions": "Permissions by role",
+    "rolePermissionTitle": "Role permissions",
+    "noRoleDescription": "No permission description for this role yet."
   },
   "bookings": {
     "title": "Booking monitor",
@@ -691,7 +736,9 @@
       "passenger": "Passenger",
       "operator": "Operator",
       "system": "System"
-    }
+    },
+    "buyerInfo": "Buyer information",
+    "buyerUserCode": "User ID"
   },
   "parcels": {
     "title": "Parcel management",
@@ -905,7 +952,8 @@
       "confirmActionTitle": "Confirm action",
       "confirmActionSubtitle": "This will update the order's status.",
       "processing": "Processing..."
-    }
+    },
+    "unnamedRoute": "Unnamed route"
   },
   "gps": {
     "title": "GPS tracking",
@@ -977,7 +1025,11 @@
     "realtimeConnected": "Realtime connected",
     "realtimeDisconnected": "Realtime disconnected",
     "realtimeJoinFailed": "Could not join realtime tracking for this trip.",
-    "delayedBanner": "Trip is running about {{minutes}} min late (updated at {{time}})."
+    "delayedBanner": "Trip is running about {{minutes}} min late (updated at {{time}}).",
+    "unassignedDriver": "Unassigned",
+    "noSpeedData": "No speed data",
+    "fleetMapAria": "Fleet tracking map",
+    "noVehiclesMatchFilter": "No vehicles match the current filters."
   },
   "dispatch": {
     "title": "Shuttle dispatch",
@@ -1065,7 +1117,11 @@
     "refreshTracking": "Refresh location/ETA",
     "trackingFailed": "Could not load this shuttle trip's location/ETA.",
     "operatorTrackingDenied": "This account is not authorized to monitor shuttle tracking.",
-    "removeTracking": "Stop tracking"
+    "removeTracking": "Stop tracking",
+    "loadFailed": "Unable to load shuttle request list.",
+    "assignFailed": "Unable to assign the shuttle vehicle.",
+    "csvCustomer": "Customer",
+    "csvAddress": "Address"
   },
   "shuttleTracking": {
     "title": "Shuttle tracking",
@@ -1213,7 +1269,8 @@
     "maxUsagePlaceholder": "e.g. 1",
     "activateNow": "Activate now",
     "activateAfterCreate": "Enable voucher after creation",
-    "activateHint": "The voucher will be active and customers can use it immediately."
+    "activateHint": "The voucher will be active and customers can use it immediately.",
+    "loadFailed": "Unable to load voucher list."
   },
   "packages": {
     "title": "Plans & billing",
@@ -1343,7 +1400,8 @@
     "close": "Close",
     "invoiceLoadFailed": "Could not load invoices.",
     "invoiceDownloadFailed": "Could not download the invoice.",
-    "purchaseAlert": "Buy {{name}} for {{months}} months\nBase price: {{base}} VND\nDiscount: {{discount}} VND\nTotal: {{total}} VND\nPayment method: {{method}}\n\nPurchase successful!"
+    "purchaseAlert": "Buy {{name}} for {{months}} months\nBase price: {{base}} VND\nDiscount: {{discount}} VND\nTotal: {{total}} VND\nPayment method: {{method}}\n\nPurchase successful!",
+    "invoiceFile": "Invoice file"
   },
   "paymentReturn": {
     "pageTitle": "Service package payment result",
@@ -1386,7 +1444,12 @@
     "categoryPlaceholder": "e.g. Passengers, Cancellation, Baggage",
     "contentLabel": "Policy content *",
     "contentPlaceholder": "Enter policy content...",
-    "contentHint": "Use line breaks to separate points (1. Point 1, 2. Point 2)"
+    "contentHint": "Use line breaks to separate points (1. Point 1, 2. Point 2)",
+    "loadFailed": "Unable to load policy list.",
+    "deleteFailed": "Unable to delete the policy.",
+    "toggleFailed": "Unable to update the policy status.",
+    "saveFailed": "Unable to save the policy.",
+    "saving": "Saving..."
   },
   "reports": {
     "title": "Revenue & analytics",
@@ -1484,8 +1547,16 @@
     "receivedAmount": "Received amount",
     "form": "Form",
     "settledBy": "Settled by",
-    "status": { "PENDING_HOLD": "Pending hold", "ELIGIBLE": "Eligible", "SETTLED": "Settled", "CANCELLED": "Cancelled" },
-    "methods": { "AUTO_WEEKLY": "Automatic weekly", "ADMIN_MANUAL": "Admin manual settlement" },
+    "status": {
+      "PENDING_HOLD": "Pending hold",
+      "ELIGIBLE": "Eligible",
+      "SETTLED": "Settled",
+      "CANCELLED": "Cancelled"
+    },
+    "methods": {
+      "AUTO_WEEKLY": "Automatic weekly",
+      "ADMIN_MANUAL": "Admin manual settlement"
+    },
     "cashFlow": "Cash flow",
     "operator": "Operator",
     "type": "Type",
@@ -1618,7 +1689,15 @@
     "seatNotDisabled": "Only disabled seats can be enabled.",
     "capacityUpdated": "Capacity updated for {{trip}}.",
     "seatDisabled": "Seat {{seat}} has been disabled.",
-    "seatEnabled": "Seat {{seat}} has been enabled."
+    "seatEnabled": "Seat {{seat}} has been enabled.",
+    "loadFailed": "Unable to load capacity data.",
+    "invalidSeatLayout": "This vehicle has no valid seat layout.",
+    "updateVehicleFailed": "Unable to update the vehicle.",
+    "vehicleCapacityUpdated": "Capacity updated for vehicle {{code}}.",
+    "defaultVehicleType": "Operator vehicle",
+    "seatCount": "{{count}} seats",
+    "loadingData": "Loading data...",
+    "noVehicles": "No vehicles yet."
   },
   "settings": {
     "title": "Operator settings",
@@ -1687,6 +1766,42 @@
     "recoveryDepartureFuture": "Recovery departure must be in the future.",
     "notifyPassengers": "Notify affected passengers",
     "notifyPassengersHint": "The backend notification flow is triggered after a successful substitution.",
-    "substituteUnavailable": "The selected trip cannot be substituted in its current status."
+    "substituteUnavailable": "The selected trip cannot be substituted in its current status.",
+    "tripsFailed": "Unable to load trip list.",
+    "resourcesFailed": "Unable to load vehicle and staff lists.",
+    "tripRequired": "Please enter a trip ID.",
+    "capacityFailed": "Unable to load cargo capacity.",
+    "substituteRequired": "Trip ID, vehicle, driver and reason are required.",
+    "substituteConfirm": "Confirm vehicle substitution for this trip?",
+    "substituteSuccess": "Vehicle substituted. New trip: {{tripId}}",
+    "substituteFailed": "Unable to substitute the vehicle for this trip.",
+    "disruptRequired": "Trip ID and reason are required.",
+    "disruptConfirm": "Confirm ending this trip with no substitute vehicle? This action cannot be undone.",
+    "disruptSuccess": "Trip disruption recorded ({{status}}).",
+    "disruptFailed": "Unable to record the trip disruption.",
+    "readOnly": "Read only",
+    "searchTrips": "Search trips",
+    "searchPlaceholder": "Search by route, license plate or trip ID",
+    "statusFilter": "Filter trip status",
+    "allStatuses": "All statuses",
+    "search": "Search trips",
+    "tripSelect": "Select trip",
+    "loadingTrips": "Loading trips...",
+    "selectTrip": "Select an operating trip",
+    "tripPlaceholder": "Trip UUID",
+    "loadCapacity": "Load capacity",
+    "maxWeight": "Max cargo weight",
+    "reservedWeight": "Reserved",
+    "loadedWeight": "Loaded",
+    "percentFull": "Utilization",
+    "vehicle": "Replacement vehicle",
+    "selectVehicle": "Select vehicle",
+    "driver": "New driver",
+    "selectDriver": "Select driver",
+    "assistant": "New assistant (optional)",
+    "noAssistant": "No assistant",
+    "reason": "Reason",
+    "substitute": "Substitute vehicle",
+    "disrupt": "No substitute vehicle"
   }
 }

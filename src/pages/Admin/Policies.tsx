@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiCheck,
@@ -22,6 +22,7 @@ import {
   updateAdminPolicy,
   type PolicyItem,
 } from "../../api/vietride";
+import { inputClass, labelClass } from "../../components/form/formClasses";
 
 type PolicyTab = "for_operator" | "for_user";
 type Policy = Omit<PolicyItem, "policyType" | "createdBy"> & {
@@ -40,10 +41,6 @@ function toPolicy(policy: PolicyItem): Policy {
 function toPolicyAudience(tab: PolicyTab) {
   return tab === "for_operator" ? ("FOR_OPERATOR" as const) : ("FOR_USER" as const);
 }
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
 
 function activeBadge(
   policy: Pick<Policy, "active">,
@@ -87,30 +84,53 @@ export default function AdminPolicies() {
     category: "",
   });
 
+  // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
+
   const loadPolicies = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const audience = toPolicyAudience(activeTab);
-      const [current, operatorResult, userResult] = await Promise.all([
-        getAdminPolicies({ page, pageSize, policyType: audience }),
+      const current = await getAdminPolicies({ page, pageSize, policyType: audience });
+      setPolicies(current.items.map(toPolicy));
+      setTotalItems(current.totalItems);
+    } catch (reason) {
+      setPolicies([]);
+      setTotalItems(0);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : tRef.current("policies.loadFailed"),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, page]);
+
+  // Đếm badge tab tách riêng: chỉ chạy lúc mount và sau mutation làm đổi số lượng
+  // (create/delete); đổi trang hay update không kéo thêm 2 request đếm.
+  const loadTabCounts = useCallback(async () => {
+    try {
+      const [operatorResult, userResult] = await Promise.all([
         getAdminPolicies({ page: 1, pageSize: 1, policyType: "FOR_OPERATOR" }),
         getAdminPolicies({ page: 1, pageSize: 1, policyType: "FOR_USER" }),
       ]);
-      setPolicies(current.items.map(toPolicy));
-      setTotalItems(current.totalItems);
       setTabCounts({
         operator: operatorResult.totalItems,
         user: userResult.totalItems,
       });
     } catch (reason) {
-      setPolicies([]);
-      setTotalItems(0);
-      setError(reason instanceof Error ? reason.message : "Không thể tải danh sách policy.");
-    } finally {
-      setLoading(false);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : tRef.current("policies.loadFailed"),
+      );
     }
-  }, [activeTab, page]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,6 +142,17 @@ export default function AdminPolicies() {
       cancelled = true;
     };
   }, [loadPolicies]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void loadTabCounts();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadTabCounts]);
 
   const paginatedPolicies = policies;
 
@@ -151,9 +182,12 @@ export default function AdminPolicies() {
     setError("");
     try {
       await deleteAdminPolicy(id);
-      await loadPolicies();
+      // Xoá làm đổi tổng số → refresh cả badge tab
+      await Promise.all([loadPolicies(), loadTabCounts()]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Không thể xóa policy.");
+      setError(
+        reason instanceof Error ? reason.message : t("policies.deleteFailed"),
+      );
     }
   };
 
@@ -166,13 +200,18 @@ export default function AdminPolicies() {
       });
       await loadPolicies();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Không thể cập nhật trạng thái policy.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : t("policies.updateStatusFailed"),
+      );
     }
   };
 
   const handleSave = async () => {
     setSaving(true);
     setError("");
+    const isCreate = !selectedPolicy;
     try {
       const request = {
         ...formData,
@@ -190,9 +229,14 @@ export default function AdminPolicies() {
       setEditOpen(false);
       setCreateOpen(false);
       resetForm();
-      await loadPolicies();
+      // Tạo mới làm đổi tổng số → refresh badge; update thì không
+      await Promise.all(
+        isCreate ? [loadPolicies(), loadTabCounts()] : [loadPolicies()],
+      );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Không thể lưu policy.");
+      setError(
+        reason instanceof Error ? reason.message : t("policies.saveFailed"),
+      );
     } finally {
       setSaving(false);
     }
@@ -203,7 +247,7 @@ export default function AdminPolicies() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-vr-600">
-            Quản trị viên hệ thống
+            {t("policies.systemAdminBadge")}
           </p>
           <h1 className="mt-1 text-3xl font-bold text-gray-900">
             {t("policies.title")}
@@ -282,14 +326,14 @@ export default function AdminPolicies() {
               {!loading && paginatedPolicies.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-500">
-                    Chưa có policy trong nhóm này.
+                    {t("policies.empty")}
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
                   <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-500">
-                    Đang tải policy...
+                    {t("policies.loading")}
                   </td>
                 </tr>
               )}
@@ -486,7 +530,11 @@ export default function AdminPolicies() {
               disabled={saving}
               className="flex-1 rounded-lg bg-vr-500 py-2 font-medium text-white hover:bg-vr-600 transition-colors"
             >
-              {saving ? "Đang lưu..." : selectedPolicy ? tc("update") : tc("create")}
+              {saving
+                ? t("policies.saving")
+                : selectedPolicy
+                  ? tc("update")
+                  : tc("create")}
             </button>
           </div>
         </div>
@@ -525,9 +573,7 @@ function PolicyDetailModal({
       onClose={onClose}
       wide
       icon={<FiShield size={20} />}
-      title={t("policies.detailTitle", {
-        defaultValue: "Chi tiết chính sách",
-      })}
+      title={t("policies.detailTitle")}
       subtitle={policy?.title}
       footer={
         <>
@@ -553,9 +599,7 @@ function PolicyDetailModal({
       {policy && (
         <div className="space-y-5">
           <DetailSection
-            title={t("policies.policyInfo", {
-              defaultValue: "Thông tin chính sách",
-            })}
+            title={t("policies.policyInfo")}
             columns="three"
           >
             <DetailItem label={tc("title")} value={policy.title} />
@@ -583,14 +627,14 @@ function PolicyDetailModal({
           </DetailSection>
 
           <DetailSection
-            title={t("policies.summary", { defaultValue: "Tóm tắt" })}
+            title={t("policies.summary")}
           >
             <DetailItem
               label={t("policies.shortDescription")}
               value={policy.description}
             />
             <DetailItem
-              label={t("policies.createdBy", { defaultValue: "Người tạo" })}
+              label={t("policies.createdBy")}
               value={policy.createdBy}
             />
           </DetailSection>

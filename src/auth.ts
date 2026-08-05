@@ -1,4 +1,5 @@
 import { createIdempotencyKey } from "./api/idempotency";
+import { isRecord } from "./utils/typeGuards";
 
 export type AuthRole = "SYSTEM_ADMIN" | "OPERATOR_ADMIN" | "OPERATOR_STAFF";
 
@@ -40,10 +41,6 @@ type ApiEnvelope<T> = {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const AUTH_STORAGE_KEY = "auth";
 const LEGACY_USER_KEY = "user";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";

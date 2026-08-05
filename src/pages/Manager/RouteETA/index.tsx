@@ -282,7 +282,7 @@ export default function RouteETAPage() {
                 <div><dt className="text-gray-500">{t("routeEta.type")}</dt><dd className="font-semibold">{selectedRequest.type}</dd></div>
                 <div><dt className="text-gray-500">{t("routeEta.createdAt")}</dt><dd className="font-semibold">{formatDate(selectedRequest.createdAt)}</dd></div>
                 <div><dt className="text-gray-500">{t("routeEta.distance")}</dt><dd className="font-semibold">{selectedRequest.snapshot.totalDistanceKm ?? "-"} km</dd></div>
-                <div><dt className="text-gray-500">{t("routeEta.duration")}</dt><dd className="font-semibold">{selectedRequest.snapshot.estimatedDurationMinutes ?? "-"} phút</dd></div>
+                <div><dt className="text-gray-500">{t("routeEta.duration")}</dt><dd className="font-semibold">{t("routeEta.durationMinutes", { value: selectedRequest.snapshot.estimatedDurationMinutes ?? "-" })}</dd></div>
                 <div>
                   <dt className="text-gray-500">{tc("status")}</dt>
                   <dd>
