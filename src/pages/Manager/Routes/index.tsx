@@ -8,8 +8,6 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  FiArrowLeft,
-  FiArrowRight,
   FiCheckCircle,
   FiCornerUpLeft,
   FiEdit2,
@@ -20,7 +18,6 @@ import {
   FiRefreshCw,
   FiSave,
   FiSearch,
-  FiShuffle,
   FiTrash2,
 } from "react-icons/fi";
 import {
@@ -118,7 +115,6 @@ type FeedbackScope =
   | "route"
   | "routeStop"
   | "geometry";
-type RoutesTab = Exclude<FeedbackScope, "global">;
 
 function toNumber(value: string) {
   const next = Number(value);
@@ -335,7 +331,6 @@ export default function RoutesPage() {
   const [routePathPoints, setRoutePathPoints] = useState<RouteCoordinate[]>([]);
   const [isEditingGeometry, setIsEditingGeometry] = useState(false);
   const [isGeometryDirty, setIsGeometryDirty] = useState(false);
-  const [activeTab, setActiveTab] = useState<RoutesTab>("station");
   const [routeStopPendingRemoval, setRouteStopPendingRemoval] =
     useState<RouteStopDraft | null>(null);
   const lastEstimatedRoutePairRef = useRef("");
@@ -1157,61 +1152,6 @@ export default function RoutesPage() {
     showMessage("routeStop", t("routes.routeStopRemoved"));
   }
 
-  const workflowSteps: Array<{
-    id: RoutesTab;
-    icon: ReactNode;
-    title: string;
-    description: string;
-    complete: boolean;
-  }> = [
-    {
-      id: "station",
-      icon: <FiSearch size={18} />,
-      title: t("routes.workflowStationTitle"),
-      description: t("routes.workflowStationDescription"),
-      complete: stations.length >= 2,
-    },
-    {
-      id: "stop",
-      icon: <FiMapPin size={18} />,
-      title: t("routes.workflowStopTitle"),
-      description: t("routes.workflowStopDescription"),
-      complete: stops.length > 0,
-    },
-    {
-      id: "route",
-      icon: <FiGitBranch size={18} />,
-      title: t("routes.workflowRouteTitle"),
-      description: t("routes.workflowRouteDescription"),
-      complete: Boolean(selectedRouteId),
-    },
-    {
-      id: "routeStop",
-      icon: <FiShuffle size={18} />,
-      title: t("routes.workflowOrderTitle"),
-      description: t("routes.workflowOrderDescription"),
-      complete: currentRouteStops.length > 0,
-    },
-    {
-      id: "geometry",
-      icon: <FiNavigation size={18} />,
-      title: t("routes.workflowGeometryTitle"),
-      description: t("routes.workflowGeometryDescription"),
-      complete: Boolean(selectedRoute?.pathPolyline) && !isGeometryDirty,
-    },
-  ];
-  const activeStepIndex = workflowSteps.findIndex(
-    (step) => step.id === activeTab,
-  );
-  const activeStep = workflowSteps[activeStepIndex];
-  const previousStep = workflowSteps[activeStepIndex - 1];
-  const nextStep = workflowSteps[activeStepIndex + 1];
-  const completedStepCount = workflowSteps.filter(
-    (step) => step.complete,
-  ).length;
-  const workflowProgress =
-    (completedStepCount / workflowSteps.length) * 100;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1244,242 +1184,154 @@ export default function RoutesPage() {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-5 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-bold tracking-[0.18em] text-vr-600 uppercase">
-              {t("routes.workflowEyebrow")}
-            </p>
-            <h2 className="mt-1 text-xl font-bold text-gray-900">
-              {t("routes.workflowTitle")}
-            </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-              {t("routes.workflowSubtitle")}
-            </p>
-          </div>
-          <div className="min-w-48 rounded-xl bg-slate-50 px-4 py-3">
-            <div className="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">
-              <span>{t("routes.workflowProgressLabel")}</span>
-              <span className="text-vr-700">
-                {t("routes.workflowProgress", {
-                  completed: completedStepCount,
-                  total: workflowSteps.length,
-                })}
+      <div className="grid gap-5 xl:grid-cols-[440px_minmax(0,1fr)]">
+        <main className="min-w-0 space-y-5">
+          {/* Danh mục bến: thao tác một lần cho mỗi bến nên thu gọn mặc định */}
+          <details className="rounded-xl border border-gray-200 bg-white shadow-sm">
+            <summary className="cursor-pointer list-none select-none px-5 py-4 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                <FiSearch className="text-vr-700" size={16} />
+                {t("routes.stationManagement")}
               </span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">
-              <div
-                className="h-full rounded-full bg-vr-500 transition-all"
-                style={{ width: workflowProgress + "%" }}
-              />
-            </div>
-          </div>
-        </div>
+              <span className="mt-0.5 block text-xs text-gray-500">
+                {t("routes.stationManagementHint")}
+              </span>
+            </summary>
+            <div className="border-t border-gray-100 p-5 pt-4">
 
-        <div className="grid gap-2 p-4 md:grid-cols-2 xl:grid-cols-5">
-          {workflowSteps.map((step, index) => {
-            const isActive = step.id === activeTab;
-            const statusLabel = isActive
-              ? t("routes.workflowInProgress")
-              : step.complete
-                ? t("routes.workflowCompleted")
-                : t("routes.workflowPending");
-
-            return (
-              <button
-                key={step.id}
-                type="button"
-                aria-current={isActive ? "step" : undefined}
-                onClick={() => setActiveTab(step.id)}
-                className={
-                  isActive
-                    ? "group rounded-xl border border-vr-300 bg-vr-50 p-4 text-left shadow-sm transition"
-                    : step.complete
-                      ? "group rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-left transition hover:border-emerald-300"
-                      : "group rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:border-vr-200 hover:bg-gray-50"
-                }
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={
-                      isActive
-                        ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-500 text-white"
-                        : step.complete
-                          ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
-                          : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 group-hover:bg-vr-50 group-hover:text-vr-700"
-                    }
-                  >
-                    {step.complete && !isActive ? (
-                      <FiCheckCircle size={18} />
-                    ) : (
-                      step.icon
-                    )}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-bold tracking-wide text-gray-400 uppercase">
-                      {t("routes.workflowStepNumber", { number: index + 1 })}
-                    </span>
-                    <span className="mt-0.5 block text-sm font-bold text-gray-900">
-                      {step.title}
-                    </span>
-                  </span>
-                </div>
-                <span className="mt-3 block text-xs leading-5 text-gray-500">
-                  {step.description}
-                </span>
-                <span
-                  className={
-                    isActive
-                      ? "mt-3 inline-flex rounded-full bg-vr-100 px-2.5 py-1 text-[11px] font-semibold text-vr-700"
-                      : step.complete
-                        ? "mt-3 inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"
-                        : "mt-3 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-500"
-                  }
-                >
-                  {statusLabel}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-gray-100 bg-gray-50/70 px-5 py-3 text-sm text-gray-600">
-          <span><strong className="text-gray-900">{stations.length}</strong> {t("routes.stations")}</span>
-          <span><strong className="text-gray-900">{stops.length}</strong> {t("routes.stops")}</span>
-          <span><strong className="text-gray-900">{routes.length}</strong> {t("routes.routes")}</span>
-          <span><strong className="text-gray-900">{routeStopDrafts.length}</strong> {t("routes.routeStopOrders")}</span>
-        </div>
-      </section>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <main className="space-y-5">
-          {activeTab === "station" && (
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <SectionHeader
-              icon={<FiSearch />}
-              title={t("routes.stationManagement")}
-              subtitle={t("routes.stationManagementHint")}
-            />
-            {canManageRoutes && (
-              <div className="mt-4 space-y-3">
-                <PlacePicker
-                  label={t("routes.stationName")}
-                  placeholder="Bến xe Miền Đông, Thành phố Hồ Chí Minh"
-                  selectedPlace={selectedStationPlace}
-                  onSelect={(place) => {
-                    runAction(() => applyStationPlace(place));
+            <div className="rounded-lg border border-gray-200 p-4">
+              <p className="text-sm font-bold text-gray-900">
+                {t("routes.stationExistingTitle")}
+              </p>
+              <div className="mt-3 space-y-3">
+                <CustomSelect
+                  className={inputClass}
+                  value={selectedStationId}
+                  onChange={(event) => {
+                    const nextStationId = event.target.value;
+                    setSelectedStationId(nextStationId);
+                    setStationSupportsShuttle(
+                      stations.find((station) => station.id === nextStationId)?.supportsShuttle ?? false,
+                    );
                   }}
-                />
-                {stationPlaceDraft && !selectedStationId && (
-                  <div className="space-y-3">
-                    <div>
-                      <label className={labelClass}>
-                        {t("routes.searchLocation")}
-                      </label>
-                      <CustomSelect
-                        aria-label={t("routes.searchLocation")}
-                        className={inputClass}
-                        value={selectedLocationId}
-                        onChange={(event) =>
-                          setSelectedLocationId(event.target.value)
-                        }
-                      >
-                        <option value="">
-                          {t("routes.selectSearchLocation")}
-                        </option>
-                        {locations.map((location) => (
-                          <option key={location.id} value={location.id}>
-                            {location.name} · {location.code}
-                          </option>
-                        ))}
-                      </CustomSelect>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {t("routes.searchLocationHint")}
-                      </p>
-                    </div>
-                    <label
-                      htmlFor="station-supports-shuttle"
-                      className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
-                    >
-                      <input
-                        id="station-supports-shuttle"
-                        type="checkbox"
-                        checked={stationSupportsShuttle}
-                        onChange={(event) =>
-                          setStationSupportsShuttle(event.target.checked)
-                        }
-                        className="mt-0.5 h-4 w-4 cursor-pointer accent-vr-500"
-                      />
-                      <span>
-                        <span className="block text-sm font-semibold text-gray-900">
-                          {t("routes.supportsShuttle")}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-gray-500">
-                          {t("routes.supportsShuttleHint")}
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="mt-4 flex flex-col gap-3 lg:flex-row">
-              <CustomSelect
-                className={inputClass + " lg:flex-1"}
-                value={selectedStationId}
-                onChange={(event) => {
-                  const nextStationId = event.target.value;
-                  setSelectedStationId(nextStationId);
-                  setStationSupportsShuttle(
-                    stations.find((station) => station.id === nextStationId)?.supportsShuttle ?? false,
-                  );
-                }}
-              >
-                <option value="">{t("routes.selectStation")}</option>
-                {stations.map((station) => (
-                  <option key={station.id} value={station.id}>
-                    {station.name} · {station.city || station.province}
-                  </option>
-                ))}
-              </CustomSelect>
-              {canManageRoutes && (
-                <>
-                  <CustomSelect
-                    className={inputClass + " lg:w-56"}
-                    value={stationRouteRole}
-                    onChange={(event) =>
-                      setStationRouteRole(
-                        event.target.value as StationRouteRole,
-                      )
-                    }
-                  >
-                    <option value="">{t("routes.stationRouteRoleNone")}</option>
-                    <option value="origin">{t("routes.useAsOrigin")}</option>
-                    <option value="destination">
-                      {t("routes.useAsDestination")}
+                >
+                  <option value="">{t("routes.selectStation")}</option>
+                  {stations.map((station) => (
+                    <option key={station.id} value={station.id}>
+                      {station.name} · {station.city || station.province}
                     </option>
-                  </CustomSelect>
-                  {selectedStationId && (
-                    <>
+                  ))}
+                </CustomSelect>
+                {canManageRoutes && (
+                  <>
+                    <CustomSelect
+                      className={inputClass}
+                      value={stationRouteRole}
+                      onChange={(event) =>
+                        setStationRouteRole(
+                          event.target.value as StationRouteRole,
+                        )
+                      }
+                    >
+                      <option value="">{t("routes.stationRouteRoleNone")}</option>
+                      <option value="origin">{t("routes.useAsOrigin")}</option>
+                      <option value="destination">
+                        {t("routes.useAsDestination")}
+                      </option>
+                    </CustomSelect>
+                    {selectedStationId && (
                       <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
                         <input type="checkbox" checked={stationSupportsShuttle} onChange={(event) => setStationSupportsShuttle(event.target.checked)} className="h-4 w-4 accent-vr-500" />
                         {t("routes.supportsShuttle")}
                       </label>
-                      <button type="button" onClick={() => runAction(handleConfirmShuttleSupport)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50">
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => runAction(handleAttachStation)}
+                        disabled={!selectedStationId}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50"
+                      >
                         <FiCheckCircle size={16} />
-                        {t("routes.confirmShuttle")}
+                        {t("routes.attachStation")}
                       </button>
+                      {selectedStationId && (
+                        <button type="button" onClick={() => runAction(handleConfirmShuttleSupport)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50">
+                          <FiCheckCircle size={16} />
+                          {t("routes.confirmShuttle")}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {canManageRoutes && (
+              <div className="mt-4 rounded-lg border border-gray-200 p-4">
+                <p className="text-sm font-bold text-gray-900">
+                  {t("routes.stationCreateTitle")}
+                </p>
+                <div className="mt-3 space-y-3">
+                  <PlacePicker
+                    label={t("routes.stationName")}
+                    placeholder="Bến xe Miền Đông, Thành phố Hồ Chí Minh"
+                    selectedPlace={selectedStationPlace}
+                    onSelect={(place) => {
+                      runAction(() => applyStationPlace(place));
+                    }}
+                  />
+                  {stationPlaceDraft && !selectedStationId && (
+                    <>
+                      <div>
+                        <label className={labelClass}>
+                          {t("routes.searchLocation")}
+                        </label>
+                        <CustomSelect
+                          aria-label={t("routes.searchLocation")}
+                          className={inputClass}
+                          value={selectedLocationId}
+                          onChange={(event) =>
+                            setSelectedLocationId(event.target.value)
+                          }
+                        >
+                          <option value="">
+                            {t("routes.selectSearchLocation")}
+                          </option>
+                          {locations.map((location) => (
+                            <option key={location.id} value={location.id}>
+                              {location.name} · {location.code}
+                            </option>
+                          ))}
+                        </CustomSelect>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {t("routes.searchLocationHint")}
+                        </p>
+                      </div>
+                      <label
+                        htmlFor="station-supports-shuttle"
+                        className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
+                      >
+                        <input
+                          id="station-supports-shuttle"
+                          type="checkbox"
+                          checked={stationSupportsShuttle}
+                          onChange={(event) =>
+                            setStationSupportsShuttle(event.target.checked)
+                          }
+                          className="mt-0.5 h-4 w-4 cursor-pointer accent-vr-500"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-gray-900">
+                            {t("routes.supportsShuttle")}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            {t("routes.supportsShuttleHint")}
+                          </span>
+                        </span>
+                      </label>
                     </>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => runAction(handleAttachStation)}
-                    disabled={!selectedStationId}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50"
-                  >
-                    <FiCheckCircle size={16} />
-                    {t("routes.attachStation")}
-                  </button>
                   <button
                     type="button"
                     onClick={() => runAction(handleCreateAndAttachStation)}
@@ -1493,74 +1345,50 @@ export default function RoutesPage() {
                     <FiMapPin size={16} />
                     {t("routes.createAndAttachStation")}
                   </button>
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
             <InlineFeedback
               message={messageScope === "station" ? message : ""}
             />
-          </section>
-          )}
-
-          {activeTab === "stop" && (
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <SectionHeader
-              icon={<FiMapPin />}
-              title={t("routes.stopManagement")}
-              subtitle={t("routes.stopManagementHint")}
-            />
-            {canManageRoutes && (
-              <div className="mt-4 space-y-3">
-                <PlacePicker
-                  label={t("routes.stopName")}
-                  placeholder="Điểm đón, bến xe, địa chỉ..."
-                  selectedPlace={selectedStopPlace}
-                  onSelect={applyStopPlace}
-                />
-              </div>
-            )}
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <Input
-                label={t("routes.description")}
-                value={stopForm.description ?? ""}
-                onChange={(value) => updateStop("description", value)}
-                placeholder={t("routes.stopDescriptionPlaceholder")}
-                disabled={!canManageRoutes}
-              />
             </div>
-            {canManageRoutes && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => runAction(handleCreateStop)}
-                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-                >
-                  <FiPlus size={16} />
-                  {t("routes.createStop")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runAction(handleUpdateStop)}
-                  disabled={!selectedStopId}
-                  className="ml-2 mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  <FiSave size={16} />
-                  {t("routes.updateStop")}
-                </button>
-              </>
-            )}
-            <InlineFeedback message={messageScope === "stop" ? message : ""} />
-          </section>
-          )}
+          </details>
 
-          {activeTab === "route" && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
               icon={<FiGitBranch />}
               title={t("routes.routeManagement")}
               subtitle={t("routes.routeManagementHint")}
             />
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="mt-4 flex gap-2">
+              <div className="min-w-0 flex-1">
+                <CustomSelect
+                  className={inputClass}
+                  value={selectedRouteId}
+                  onChange={(event) =>
+                    runAction(() => handleSelectRoute(event.target.value))
+                  }
+                >
+                  <option value="">{t("routes.selectRoute")}</option>
+                  {routes.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.name} · {route.totalDistanceKm} km
+                    </option>
+                  ))}
+                </CustomSelect>
+              </div>
+              {canManageRoutes && selectedRouteId && (
+                <button
+                  type="button"
+                  onClick={() => runAction(() => handleSelectRoute(""))}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  <FiPlus size={16} />
+                  {t("routes.newRoute")}
+                </button>
+              )}
+            </div>
+            <div className="mt-4 space-y-3">
               <Input
                 label={t("routes.routeName")}
                 value={routeForm.name}
@@ -1606,19 +1434,21 @@ export default function RoutesPage() {
                     ))}
                 </CustomSelect>
               </div>
-              <NumberInput
-                label={t("routes.baseFare")}
-                value={routeForm.baseFare}
-                onChange={(value) => updateRoute("baseFare", value)}
-                disabled={!canManageRoutes}
-                currency
-              />
-              <NumberInput
-                label={t("routes.totalDistance")}
-                value={routeForm.totalDistanceKm}
-                onChange={(value) => updateRoute("totalDistanceKm", value)}
-                disabled={!canManageRoutes}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <NumberInput
+                  label={t("routes.baseFare")}
+                  value={routeForm.baseFare}
+                  onChange={(value) => updateRoute("baseFare", value)}
+                  disabled={!canManageRoutes}
+                  currency
+                />
+                <NumberInput
+                  label={t("routes.totalDistance")}
+                  value={routeForm.totalDistanceKm}
+                  onChange={(value) => updateRoute("totalDistanceKm", value)}
+                  disabled={!canManageRoutes}
+                />
+              </div>
               <DurationInput
                 label={t("routes.durationMinutes")}
                 value={routeForm.estimatedDurationMinutes}
@@ -1641,9 +1471,18 @@ export default function RoutesPage() {
                 {t("routes.activeRoute")}
               </label>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {canManageRoutes && (
-                <>
+            {canManageRoutes && (
+              <div className="mt-4">
+                {selectedRouteId ? (
+                  <button
+                    type="button"
+                    onClick={() => runAction(handleUpdateRoute)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+                  >
+                    <FiSave size={16} />
+                    {t("routes.updateRoute")}
+                  </button>
+                ) : (
                   <button
                     type="button"
                     onClick={() => runAction(handleCreateRoute)}
@@ -1652,44 +1491,19 @@ export default function RoutesPage() {
                     <FiPlus size={16} />
                     {t("routes.createRoute")}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => runAction(handleUpdateRoute)}
-                    disabled={!selectedRouteId}
-                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <FiSave size={16} />
-                    {t("routes.updateRoute")}
-                  </button>
-                </>
-              )}
-              <CustomSelect
-                className={inputClass + " min-w-64"}
-                value={selectedRouteId}
-                onChange={(event) =>
-                  runAction(() => handleSelectRoute(event.target.value))
-                }
-              >
-                <option value="">{t("routes.selectRoute")}</option>
-                {routes.map((route) => (
-                  <option key={route.id} value={route.id}>
-                    {route.name} · {route.totalDistanceKm} km
-                  </option>
-                ))}
-              </CustomSelect>
-            </div>
+                )}
+              </div>
+            )}
             <InlineFeedback message={messageScope === "route" ? message : ""} />
           </section>
-          )}
 
-          {activeTab === "routeStop" && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
-              icon={<FiShuffle />}
-              title={t("routes.stopOrderManagement")}
-              subtitle={t("routes.stopOrderManagementHint")}
+              icon={<FiMapPin />}
+              title={t("routes.routeStopsTitle")}
+              subtitle={t("routes.routeStopsHint")}
             />
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="mt-4 space-y-3">
               <div>
                 <label className={labelClass}>{t("routes.stop")}</label>
                 <CustomSelect
@@ -1707,27 +1521,72 @@ export default function RoutesPage() {
                   ))}
                 </CustomSelect>
               </div>
-              <Input
-                label={t("routes.stopOrder")}
-                value={routeStopOrder}
-                onChange={setRouteStopOrder}
-                type="number"
-                disabled={!canManageRoutes}
-              />
-              <Input
-                label={t("routes.durationFromOrigin")}
-                value={routeStopDuration}
-                onChange={setRouteStopDuration}
-                type="number"
-                disabled={!canManageRoutes}
-              />
-              <Input
-                label={t("routes.distanceFromOrigin")}
-                value={routeStopDistance}
-                onChange={setRouteStopDistance}
-                type="number"
-                disabled={!canManageRoutes}
-              />
+              {canManageRoutes && (
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-sm font-bold text-gray-900">
+                    {t("routes.stopCreateTitle")}
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    <PlacePicker
+                      label={t("routes.stopName")}
+                      placeholder="Điểm đón, bến xe, địa chỉ..."
+                      selectedPlace={selectedStopPlace}
+                      onSelect={applyStopPlace}
+                    />
+                    <Input
+                      label={t("routes.description")}
+                      value={stopForm.description ?? ""}
+                      onChange={(value) => updateStop("description", value)}
+                      placeholder={t("routes.stopDescriptionPlaceholder")}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => runAction(handleCreateStop)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+                      >
+                        <FiPlus size={16} />
+                        {t("routes.createStop")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => runAction(handleUpdateStop)}
+                        disabled={!selectedStopId}
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <FiSave size={16} />
+                        {t("routes.updateStop")}
+                      </button>
+                    </div>
+                  </div>
+                  <InlineFeedback
+                    message={messageScope === "stop" ? message : ""}
+                  />
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-3">
+                <Input
+                  label={t("routes.stopOrder")}
+                  value={routeStopOrder}
+                  onChange={setRouteStopOrder}
+                  type="number"
+                  disabled={!canManageRoutes}
+                />
+                <Input
+                  label={t("routes.durationFromOrigin")}
+                  value={routeStopDuration}
+                  onChange={setRouteStopDuration}
+                  type="number"
+                  disabled={!canManageRoutes}
+                />
+                <Input
+                  label={t("routes.distanceFromOrigin")}
+                  value={routeStopDistance}
+                  onChange={setRouteStopDistance}
+                  type="number"
+                  disabled={!canManageRoutes}
+                />
+              </div>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-4">
               <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -1771,20 +1630,61 @@ export default function RoutesPage() {
                 </>
               )}
             </div>
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <p className="text-sm font-bold text-gray-900">
+                {activeRouteName}
+                <span className="ml-2 font-normal text-gray-500">
+                  {currentRouteStops.length} {t("routes.stop").toLowerCase()}
+                </span>
+              </p>
+              <div className="mt-2 space-y-2">
+                {currentRouteStops.map((item) => (
+                  <div
+                    key={`${item.stopId}-${item.orderIndex}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        #{item.orderIndex} · {item.stopName}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {item.distanceFromOriginKm} km ·{" "}
+                        {item.estimatedDurationFromOriginMinutes} min
+                      </p>
+                    </div>
+                    {canManageRoutes && (
+                      <button
+                        type="button"
+                        onClick={() => setRouteStopPendingRemoval(item)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
+                        aria-label={t("routes.removeRouteStop")}
+                        title={t("routes.removeRouteStop")}
+                      >
+                        <FiTrash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {currentRouteStops.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    {t("routes.noStopsAttached")}
+                  </p>
+                )}
+              </div>
+            </div>
             <InlineFeedback
               message={messageScope === "routeStop" ? message : ""}
             />
           </section>
-          )}
+        </main>
 
-          {activeTab === "geometry" && (
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <SectionHeader
-                icon={<FiNavigation />}
-                title={t("routes.geometryTitle")}
-                subtitle={t("routes.geometryHint")}
-              />
+        <section className="min-w-0 xl:sticky xl:top-6 xl:self-start">
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
+              <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                <FiNavigation className="text-vr-700" size={16} />
+                {t("routes.geometryTitle")}
+              </div>
               <span
                 className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
                   isEditingGeometry
@@ -1806,21 +1706,23 @@ export default function RoutesPage() {
               </span>
             </div>
 
-            <RouteDesignMap
-              points={routeMapPoints}
-              pathPoints={routePathPoints}
-              isEditing={isEditingGeometry}
-              onAppendPoint={handleAppendGeometryPoint}
-              emptyText={t("routes.mapNoPoints")}
-            />
+            <div className="h-105 xl:h-[calc(100vh-19rem)] xl:min-h-120">
+              <RouteDesignMap
+                points={routeMapPoints}
+                pathPoints={routePathPoints}
+                isEditing={isEditingGeometry}
+                onAppendPoint={handleAppendGeometryPoint}
+                emptyText={t("routes.mapNoPoints")}
+              />
+            </div>
 
             {canManageRoutes && (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 border-t border-gray-100 px-4 py-3">
                 <button
                   type="button"
                   onClick={() => runAction(handleCalculateGeometry)}
                   disabled={routeWaypoints.length < 2}
-                  className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-3 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiNavigation size={16} />
                   {t("routes.calculateGeometry")}
@@ -1828,7 +1730,7 @@ export default function RoutesPage() {
                 <button
                   type="button"
                   onClick={handleStartManualGeometry}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                 >
                   <FiEdit2 size={16} />
                   {t("routes.drawGeometry")}
@@ -1838,7 +1740,7 @@ export default function RoutesPage() {
                     type="button"
                     onClick={handleUndoGeometryPoint}
                     disabled={routePathPoints.length === 0}
-                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <FiCornerUpLeft size={16} />
                     {t("routes.undoGeometryPoint")}
@@ -1852,7 +1754,7 @@ export default function RoutesPage() {
                     routePathPoints.length < 2 ||
                     !isGeometryDirty
                   }
-                  className="inline-flex items-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-lg border border-vr-200 px-3 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiSave size={16} />
                   {t("routes.saveGeometry")}
@@ -1861,177 +1763,22 @@ export default function RoutesPage() {
                   type="button"
                   onClick={() => runAction(handleClearGeometry)}
                   disabled={!selectedRouteId || routePathPoints.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiTrash2 size={16} />
                   {t("routes.clearGeometry")}
                 </button>
               </div>
             )}
-            <InlineFeedback
-              message={messageScope === "geometry" ? message : ""}
-            />
-          </section>
-          )}
-          <nav
-            aria-label={t("routes.workflowNavigation")}
-            className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
-          >
-            <button
-              type="button"
-              disabled={!previousStep}
-              onClick={() => previousStep && setActiveTab(previousStep.id)}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <FiArrowLeft size={16} />
-              {t("routes.workflowPrevious")}
-            </button>
-
-            <div className="text-center">
-              <p className="text-xs font-semibold text-gray-400 uppercase">
-                {t("routes.workflowStepPosition", {
-                  current: activeStepIndex + 1,
-                  total: workflowSteps.length,
-                })}
-              </p>
-              <p className="mt-0.5 text-sm font-bold text-gray-900">
-                {activeStep.title}
-              </p>
-            </div>
-
-            {nextStep ? (
-              <button
-                type="button"
-                onClick={() => setActiveTab(nextStep.id)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-vr-600"
-              >
-                {t("routes.workflowContinue", { step: nextStep.title })}
-                <FiArrowRight size={16} />
-              </button>
-            ) : (
-              <span className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
-                <FiCheckCircle size={16} />
-                {t("routes.workflowLastStep")}
-              </span>
-            )}
-          </nav>
-        </main>
-
-        <aside className="space-y-5">
-          <Panel
-            title={t("routes.workflowSummaryTitle")}
-            icon={<FiGitBranch />}
-          >
-            <div className="rounded-lg bg-vr-50 px-3 py-3">
-              <p className="text-xs font-semibold text-vr-600">
-                {selectedRouteId
-                  ? t("routes.workflowSelectedRoute")
-                  : t("routes.workflowDraftRoute")}
-              </p>
-              <p className="mt-1 font-bold text-gray-900">{activeRouteName}</p>
-            </div>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex items-start justify-between gap-4">
-                <dt className="text-gray-500">{t("routes.originStationId")}</dt>
-                <dd className="text-right font-semibold text-gray-900">
-                  {selectedOriginStation?.name ?? t("routes.workflowNotSelected")}
-                </dd>
-              </div>
-              <div className="flex items-start justify-between gap-4">
-                <dt className="text-gray-500">{t("routes.destinationStationId")}</dt>
-                <dd className="text-right font-semibold text-gray-900">
-                  {selectedDestinationStation?.name ?? t("routes.workflowNotSelected")}
-                </dd>
-              </div>
-              <div className="flex items-start justify-between gap-4">
-                <dt className="text-gray-500">{t("routes.stops")}</dt>
-                <dd className="font-semibold text-gray-900">
-                  {currentRouteStops.length}
-                </dd>
-              </div>
-              <div className="flex items-start justify-between gap-4">
-                <dt className="text-gray-500">{t("routes.geometryTitle")}</dt>
-                <dd className="text-right font-semibold text-gray-900">
-                  {selectedRoute?.pathPolyline
-                    ? t("routes.geometrySavedStatus")
-                    : t("routes.geometryMissing")}
-                </dd>
-              </div>
-            </dl>
-          </Panel>
-
-          <Panel title={t("routes.scopeRules")} icon={<FiCheckCircle />}>
-            <ul className="space-y-2 text-sm text-gray-600">
-              <li>{t("routes.ruleOperatorScope")}</li>
-              <li>{t("routes.ruleUniqueOrder")}</li>
-              <li>{t("routes.ruleDifferentStations")}</li>
-              <li>{t("routes.ruleRequiredCoordinates")}</li>
-            </ul>
-          </Panel>
-
-          <Panel title={t("routes.routePreview")} icon={<FiGitBranch />}>
-            <p className="text-sm font-semibold text-gray-900">
-              {activeRouteName}
-            </p>
-            <div className="mt-3 space-y-2">
-              {currentRouteStops.map((item) => (
-                <div
-                  key={`${item.stopId}-${item.orderIndex}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
-                >
-                  <div>
-                    <p className="font-semibold text-gray-900">
-                      #{item.orderIndex} · {item.stopName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {item.distanceFromOriginKm} km ·{" "}
-                      {item.estimatedDurationFromOriginMinutes} min
-                    </p>
-                  </div>
-                  {canManageRoutes && (
-                    <button
-                      type="button"
-                      onClick={() => setRouteStopPendingRemoval(item)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
-                      aria-label={t("routes.removeRouteStop")}
-                      title={t("routes.removeRouteStop")}
-                    >
-                      <FiTrash2 size={16} />
-                    </button>
-                  )}
+            {messageScope === "geometry" && message && (
+              <div className="border-t border-gray-100 px-4 py-3">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {message}
                 </div>
-              ))}
-              {currentRouteStops.length === 0 && (
-                <p className="text-sm text-gray-500">
-                  {t("routes.noStopsAttached")}
-                </p>
-              )}
-            </div>
-          </Panel>
-
-          <Panel title={t("routes.latestStops")} icon={<FiMapPin />}>
-            <div className="space-y-2">
-              {stops.slice(0, 5).map((stop) => (
-                <button
-                  key={stop.id}
-                  type="button"
-                  onClick={() => runAction(() => handleSelectStop(stop.id))}
-                  className="block w-full rounded-lg border border-gray-100 px-3 py-2 text-left text-sm hover:border-vr-200 hover:bg-vr-50"
-                >
-                  <span className="font-semibold text-gray-900">
-                    {stop.name}
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    {stop.address}
-                  </span>
-                </button>
-              ))}
-              {!stops.length && (
-                <p className="text-sm text-gray-500">{t("routes.noStops")}</p>
-              )}
-            </div>
-          </Panel>
-        </aside>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       {isLoading && (
@@ -2156,30 +1903,27 @@ function RouteDesignMap({
       : [];
 
   return (
-    <div className="mt-3 overflow-hidden rounded-xl border border-gray-200">
-      <div className={`h-96 ${isEditing ? "cursor-crosshair" : ""}`}>
-        <GoogleMapCanvas
-          ariaLabel="Bản đồ đường đi thực tế của tuyến"
-          center={center}
-          fitPoints={linePositions}
-          markers={mapMarkers}
-          onMapClick={
-            isEditing
-              ? (position) =>
-                  onAppendPoint({
-                    latitude: position.lat,
-                    longitude: position.lng,
-                  })
-              : undefined
-          }
-          polylines={mapPolylines}
-          scrollWheelZoom={false}
-          className="h-full w-full"
-          zoom={displayedPath.length > 1 ? 8 : 13}
-        />
-      </div>
+    <div className={`relative h-full ${isEditing ? "cursor-crosshair" : ""}`}>
+      <GoogleMapCanvas
+        ariaLabel="Bản đồ đường đi thực tế của tuyến"
+        center={center}
+        fitPoints={linePositions}
+        markers={mapMarkers}
+        onMapClick={
+          isEditing
+            ? (position) =>
+                onAppendPoint({
+                  latitude: position.lat,
+                  longitude: position.lng,
+                })
+            : undefined
+        }
+        polylines={mapPolylines}
+        className="h-full w-full"
+        zoom={displayedPath.length > 1 ? 8 : 13}
+      />
       {points.length === 0 && (
-        <p className="border-t border-gray-100 bg-white px-3 py-2 text-xs text-gray-500">
+        <p className="absolute inset-x-0 bottom-0 border-t border-gray-100 bg-white/95 px-3 py-2 text-xs text-gray-500">
           {emptyText}
         </p>
       )}
@@ -2216,26 +1960,6 @@ function SectionHeader({
         <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
       </div>
     </div>
-  );
-}
-
-function Panel({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
-        <span className="text-vr-700">{icon}</span>
-        {title}
-      </div>
-      {children}
-    </section>
   );
 }
 

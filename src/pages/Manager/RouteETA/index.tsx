@@ -10,6 +10,7 @@ import {
   FiXCircle,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import { ApiRequestError } from "../../../api/client";
 import {
   approveOperatorRouteChangeProposal,
   getOperatorRouteChangeProposal,
@@ -102,6 +103,22 @@ export default function RouteETAPage() {
     }
   }
 
+  // Theo docs BE: STALE/NOT_PENDING là trạng thái terminal — không retry với key mới,
+  // đóng modal và tải lại danh sách vì nhiều proposal có thể đã đổi trạng thái.
+  async function handleTerminalConflict(err: unknown) {
+    if (
+      err instanceof ApiRequestError &&
+      (err.code === "ROUTE_CHANGE_PROPOSAL_STALE" ||
+        err.code === "ROUTE_CHANGE_PROPOSAL_NOT_PENDING")
+    ) {
+      setSelectedRequest(null);
+      setMessage(t("routeEta.proposalNoLongerPending"));
+      await loadRequests();
+      return true;
+    }
+    return false;
+  }
+
   async function approve(request: RouteChangeProposal) {
     if (request.status !== "PENDING") return;
     setActionId(request.id);
@@ -113,7 +130,9 @@ export default function RouteETAPage() {
       setMessage(t("routeEta.approvedMessage"));
       await loadRequests();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("routeEta.actionFailed"));
+      if (!(await handleTerminalConflict(err))) {
+        setError(err instanceof Error ? err.message : t("routeEta.actionFailed"));
+      }
     } finally {
       setActionId("");
     }
@@ -133,7 +152,9 @@ export default function RouteETAPage() {
       setMessage(t("routeEta.rejectedMessage"));
       await loadRequests();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("routeEta.actionFailed"));
+      if (!(await handleTerminalConflict(err))) {
+        setError(err instanceof Error ? err.message : t("routeEta.actionFailed"));
+      }
     } finally {
       setActionId("");
     }
@@ -262,7 +283,32 @@ export default function RouteETAPage() {
                 <div><dt className="text-gray-500">{t("routeEta.createdAt")}</dt><dd className="font-semibold">{formatDate(selectedRequest.createdAt)}</dd></div>
                 <div><dt className="text-gray-500">{t("routeEta.distance")}</dt><dd className="font-semibold">{selectedRequest.snapshot.totalDistanceKm ?? "-"} km</dd></div>
                 <div><dt className="text-gray-500">{t("routeEta.duration")}</dt><dd className="font-semibold">{selectedRequest.snapshot.estimatedDurationMinutes ?? "-"} phút</dd></div>
+                <div>
+                  <dt className="text-gray-500">{tc("status")}</dt>
+                  <dd>
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusStyles[selectedRequest.status]}`}>
+                      {t(`routeEta.status.${selectedRequest.status}`)}
+                    </span>
+                  </dd>
+                </div>
+                {selectedRequest.decidedAt && (
+                  <div><dt className="text-gray-500">{t("routeEta.decidedAt")}</dt><dd className="font-semibold">{formatDate(selectedRequest.decidedAt)}</dd></div>
+                )}
               </dl>
+              {selectedRequest.rejectionReason && (
+                <p className="mt-3 rounded-lg border border-red-100 bg-red-50 p-3 text-red-700">
+                  <span className="font-semibold">{t("routeEta.rejectReason")}:</span>{" "}
+                  {selectedRequest.rejectionReason}
+                </p>
+              )}
+              {selectedRequest.resolutionCode && (
+                <p className="mt-3 rounded-lg border border-gray-200 bg-white p-3 text-gray-700">
+                  <span className="font-semibold">{t("routeEta.resolutionLabel")}:</span>{" "}
+                  {t(`routeEta.resolution.${selectedRequest.resolutionCode}`, {
+                    defaultValue: selectedRequest.resolutionCode,
+                  })}
+                </p>
+              )}
             </div>
             {selectedRequest.status === "PENDING" && (
               <>

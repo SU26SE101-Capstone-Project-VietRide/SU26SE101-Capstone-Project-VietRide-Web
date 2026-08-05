@@ -102,11 +102,11 @@ describe("Manager route setup workflow", () => {
     vi.mocked(searchStations).mockResolvedValue([]);
   });
 
-  it("presents the route setup as five understandable steps", async () => {
+  it("presents the route editor on a single screen with a persistent map", async () => {
     render(<RoutesPage />);
 
     expect(
-      await screen.findByRole("heading", { name: "routes.workflowTitle" }),
+      await screen.findByRole("heading", { name: "routes.manageTitle" }),
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(getOperatorRoutes).toHaveBeenCalledTimes(1),
@@ -115,28 +115,18 @@ describe("Manager route setup workflow", () => {
       expect(screen.queryByText("routes.loading")).not.toBeInTheDocument(),
     );
 
-    const stationStep = screen.getByRole("button", {
-      name: /routes.workflowStationTitle/,
-    });
-    expect(stationStep).toHaveAttribute("aria-current", "step");
-    expect(
-      screen.getByRole("button", { name: /routes.workflowStopTitle/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /routes.workflowRouteTitle/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /routes.workflowOrderTitle/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /routes.workflowGeometryTitle/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("routes.workflowSummaryTitle")).toBeInTheDocument();
+    expect(screen.getByText("routes.routeManagement")).toBeInTheDocument();
+    expect(screen.getByText("routes.routeStopsTitle")).toBeInTheDocument();
+    expect(screen.getByText("routes.stopCreateTitle")).toBeInTheDocument();
+    expect(screen.getByText("routes.stationManagement")).toBeInTheDocument();
+    expect(screen.getByText("routes.noStopsAttached")).toBeInTheDocument();
+    expect(screen.getByTestId("route-map")).toBeInTheDocument();
+    expect(screen.getByText("routes.calculateGeometry")).toBeInTheDocument();
   });
 
-  it("moves to the next step from the persistent workflow navigation", async () => {
+  it("shows the create action for a new route and hides the update action", async () => {
     render(<RoutesPage />);
-    await screen.findByRole("heading", { name: "routes.workflowTitle" });
+    await screen.findByRole("heading", { name: "routes.manageTitle" });
 
     await waitFor(() =>
       expect(getOperatorRoutes).toHaveBeenCalledTimes(1),
@@ -144,14 +134,13 @@ describe("Manager route setup workflow", () => {
     await waitFor(() =>
       expect(screen.queryByText("routes.loading")).not.toBeInTheDocument(),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: /routes.workflowContinue/ }),
-    );
 
     expect(
-      screen.getByRole("button", { name: /routes.workflowStopTitle/ }),
-    ).toHaveAttribute("aria-current", "step");
-    expect(screen.getByText("routes.stopManagement")).toBeInTheDocument();
+      screen.getByRole("button", { name: /routes.createRoute/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /routes.updateRoute/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("sends the shuttle capability when creating a station", async () => {
@@ -181,7 +170,7 @@ describe("Manager route setup workflow", () => {
     });
 
     render(<RoutesPage />);
-    await screen.findByRole("heading", { name: "routes.workflowTitle" });
+    await screen.findByRole("heading", { name: "routes.manageTitle" });
     await waitFor(() =>
       expect(screen.queryByText("routes.loading")).not.toBeInTheDocument(),
     );

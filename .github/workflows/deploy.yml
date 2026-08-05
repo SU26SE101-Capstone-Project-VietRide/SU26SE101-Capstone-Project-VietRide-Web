@@ -134,8 +134,14 @@ jobs:
               echo "::error::network vietride_net chua ton tai — deploy BE truoc"; exit 1
             fi
 
-            # .env của riêng FE, chỉ chứa tag. KHÔNG đụng .env secret của BE.
-            printf 'FRONTEND_TAG=%s\n' "${{ env.IMAGE_TAG }}" > .env
+            # .env của riêng FE — compose chỉ dùng nó để thay ${FRONTEND_TAG}.
+            # Chỉ cập nhật dòng FRONTEND_TAG, giữ nguyên các dòng khác nếu có ai
+            # sửa tay trên server (lưu ý: key VITE_* đặt ở đây KHÔNG có tác dụng
+            # với FE — Vite nhúng key lúc build image, xem Dockerfile).
+            touch .env
+            { grep -v '^FRONTEND_TAG=' .env || true; } > .env.new
+            printf 'FRONTEND_TAG=%s\n' "${{ env.IMAGE_TAG }}" >> .env.new
+            mv .env.new .env
 
             docker compose -f docker-compose.prod.yml --env-file .env config --quiet
             docker compose -f docker-compose.prod.yml --env-file .env pull
@@ -162,7 +168,10 @@ jobs:
               echo "::error::network vietride_net chua ton tai — deploy BE truoc"; exit 1
             fi
 
-            printf 'FRONTEND_TAG=%s\n' "${{ env.IMAGE_TAG }}" > .env
+            touch .env
+            { grep -v '^FRONTEND_TAG=' .env || true; } > .env.new
+            printf 'FRONTEND_TAG=%s\n' "${{ env.IMAGE_TAG }}" >> .env.new
+            mv .env.new .env
 
             docker compose -f docker-compose.prod.yml --env-file .env config --quiet
             docker compose -f docker-compose.prod.yml --env-file .env pull

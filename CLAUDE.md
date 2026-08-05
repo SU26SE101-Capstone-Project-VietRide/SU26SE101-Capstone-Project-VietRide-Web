@@ -100,6 +100,9 @@ src/
 
 ## Ghi chú
 
+- `CODE_CONVENTIONS.md` (root) là quy chuẩn chi tiết về cấu trúc thư mục, ngưỡng tách
+  component, hooks, naming — đọc khi dựng màn mới hoặc refactor. Cùng thứ tự ưu tiên với
+  file này.
 - `AGENTS.md` là prompt cho tool khác (CodeGraph/Ponytail/Superpower). Phần rule kỹ thuật
   đã được rút gọn vào file này; khi hai bên mâu thuẫn, **CLAUDE.md thắng** vì nó bám fact repo.
 - `README.md` vẫn là boilerplate Vite, chưa mô tả dự án — đừng lấy làm nguồn tham chiếu.
