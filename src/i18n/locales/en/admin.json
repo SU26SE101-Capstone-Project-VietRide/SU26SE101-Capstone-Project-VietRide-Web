@@ -49,7 +49,11 @@
     "exportRevenue": "Revenue (.CSV)",
     "exportUsers": "Users",
     "exportOperators": "Operators",
-    "exportBookings": "Bookings"
+    "exportBookings": "Bookings",
+    "loadFailed": "Unable to load dashboard data.",
+    "csvReportHeader": "Report",
+    "csvNoteHeader": "Note",
+    "csvPlaceholderNote": "Sample data; open the Reports page to see full system data"
   },
   "operators": {
     "title": "Operators",
@@ -143,7 +147,13 @@
     "commissionPercent": "Platform commission %",
     "activateNow": "Activate now",
     "allowTicketSales": "Allow ticket sales immediately",
-    "activateHint": "After document verification, the operator can receive bookings."
+    "activateHint": "After document verification, the operator can receive bookings.",
+    "loadFailed": "Unable to load the operator list.",
+    "csvPhone": "Phone",
+    "businessRegPlaceholder": "0312345678",
+    "taxCodePlaceholder": "0301234567",
+    "contactEmailPlaceholder": "ops@congty.vn",
+    "contactPhonePlaceholder": "0901 234 567"
   },
   "users": {
     "title": "User management",
@@ -188,7 +198,8 @@
     "detailTitle": "User details",
     "accountInformation": "Account information",
     "accountInformationHint": "Identity and activity details for this account.",
-    "updatedAt": "Updated at"
+    "updatedAt": "Updated at",
+    "operatorUsersOnly": "Operator accounts only"
   },
   "vouchers": {
     "title": "Voucher & promotions",
@@ -291,7 +302,14 @@
     "campaignSaveSuccess": "Campaign saved.",
     "campaignSaveFailed": "Campaign request failed.",
     "campaignActivateSuccess": "Campaign activated.",
-    "campaignDeactivateSuccess": "Campaign deactivated."
+    "campaignDeactivateSuccess": "Campaign deactivated.",
+    "detailTitle": "Voucher details",
+    "viewDetails": "View voucher details",
+    "setupTitle": "Voucher setup",
+    "setupDesc": "Configure the voucher's details, discount amount and usage conditions.",
+    "detailScopeTitle": "Applicable scope",
+    "detailIssuanceTitle": "Issuance & validity",
+    "issuedFrom": "Issued from"
   },
   "locations": {
     "title": "Search areas",
@@ -492,7 +510,19 @@
     "contentPlaceholder": "Enter policy content...",
     "contentHint": "You can use line breaks to separate points (1. Point 1\\n2. Point 2)",
     "turnOff": "Off",
-    "turnOn": "On"
+    "turnOn": "On",
+    "loadFailed": "Unable to load policies.",
+    "deleteFailed": "Unable to delete the policy.",
+    "updateStatusFailed": "Unable to update the policy status.",
+    "saveFailed": "Unable to save the policy.",
+    "systemAdminBadge": "System admin",
+    "empty": "No policies in this group yet.",
+    "loading": "Loading policies...",
+    "saving": "Saving...",
+    "detailTitle": "Policy details",
+    "policyInfo": "Policy information",
+    "summary": "Summary",
+    "createdBy": "Created by"
   },
   "payouts": {
     "title": "Operator payout approval",
@@ -652,6 +682,24 @@
       "LOW": "Low",
       "MEDIUM": "Medium",
       "HIGH": "High"
+    },
+    "uploadDocument": "Upload document",
+    "uploadModalTitle": "Upload reference documents for the AI assistant",
+    "uploadHint": "Supports TXT or Markdown files; the maximum size follows the system configuration.",
+    "uploadRequired": "Please choose a file and enter a title.",
+    "uploadSuccess": "Document uploaded to the knowledge base.",
+    "noComment": "No comment",
+    "categories": {
+      "CUSTOMER_SUPPORT": "Customer support",
+      "OPERATOR_POLICY": "Operator policy",
+      "PLATFORM_ADMIN": "Platform admin"
+    },
+    "documentTypes": {
+      "FAQ": "Frequently asked questions (FAQ)",
+      "POLICY": "Policy",
+      "SOP": "Standard operating procedure (SOP)",
+      "GUIDE": "Guide",
+      "TERMS": "Terms"
     }
   },
   "revenue": {
@@ -694,7 +742,8 @@
     "vehicles": " vehicles",
     "detailTitle": "Revenue details",
     "detailDescription": "Detailed reports by route and operator will appear here.",
-    "billionSuffix": "B"
+    "billionSuffix": "B",
+    "loadFailed": "Unable to load revenue data."
   },
   "reports": {
     "title": "System reports",

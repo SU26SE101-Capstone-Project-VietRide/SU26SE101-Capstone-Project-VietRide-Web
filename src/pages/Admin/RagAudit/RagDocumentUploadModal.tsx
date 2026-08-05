@@ -43,11 +43,7 @@ export function RagDocumentUploadModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!file || !title.trim()) {
-      setError(
-        t("ragAudit.uploadRequired", {
-          defaultValue: "Vui lòng chọn file và nhập tiêu đề.",
-        }),
-      );
+      setError(t("ragAudit.uploadRequired"));
       return;
     }
 
@@ -89,12 +85,8 @@ export function RagDocumentUploadModal({
       onClose={onClose}
       wide
       icon={<FiUploadCloud />}
-      title={t("ragAudit.uploadDocument", {
-        defaultValue: "Tải tài liệu tham khảo cho trợ lý AI",
-      })}
-      subtitle={t("ragAudit.uploadHint", {
-        defaultValue: "Hỗ trợ tệp TXT hoặc Markdown; dung lượng tối đa theo cấu hình hệ thống.",
-      })}
+      title={t("ragAudit.uploadModalTitle")}
+      subtitle={t("ragAudit.uploadHint")}
       footer={
         <>
           <button
@@ -162,9 +154,9 @@ export function RagDocumentUploadModal({
             onChange={(event) => setAccessLevel(event.target.value)}
             className={inputClass}
           >
-            <option value="PUBLIC">Công khai</option>
-            <option value="OPERATOR">Nhà xe</option>
-            <option value="ADMIN">Quản trị viên</option>
+            <option value="PUBLIC">{tc("enumLabels.PUBLIC")}</option>
+            <option value="OPERATOR">{tc("enumLabels.OPERATOR")}</option>
+            <option value="ADMIN">{tc("enumLabels.ADMIN")}</option>
           </CustomSelect>
         </label>
         <label>
@@ -176,9 +168,15 @@ export function RagDocumentUploadModal({
             onChange={(event) => setCategory(event.target.value)}
             className={inputClass}
           >
-            <option value="CUSTOMER_SUPPORT">Hỗ trợ khách hàng</option>
-            <option value="OPERATOR_POLICY">Chính sách nhà xe</option>
-            <option value="PLATFORM_ADMIN">Quản trị nền tảng</option>
+            <option value="CUSTOMER_SUPPORT">
+              {t("ragAudit.categories.CUSTOMER_SUPPORT")}
+            </option>
+            <option value="OPERATOR_POLICY">
+              {t("ragAudit.categories.OPERATOR_POLICY")}
+            </option>
+            <option value="PLATFORM_ADMIN">
+              {t("ragAudit.categories.PLATFORM_ADMIN")}
+            </option>
           </CustomSelect>
         </label>
         <label>
@@ -190,11 +188,11 @@ export function RagDocumentUploadModal({
             onChange={(event) => setDocumentType(event.target.value)}
             className={inputClass}
           >
-            <option value="FAQ">Câu hỏi thường gặp (FAQ)</option>
-            <option value="POLICY">Chính sách</option>
-            <option value="SOP">Quy trình vận hành (SOP)</option>
-            <option value="GUIDE">Hướng dẫn</option>
-            <option value="TERMS">Điều khoản</option>
+            <option value="FAQ">{t("ragAudit.documentTypes.FAQ")}</option>
+            <option value="POLICY">{t("ragAudit.documentTypes.POLICY")}</option>
+            <option value="SOP">{t("ragAudit.documentTypes.SOP")}</option>
+            <option value="GUIDE">{t("ragAudit.documentTypes.GUIDE")}</option>
+            <option value="TERMS">{t("ragAudit.documentTypes.TERMS")}</option>
           </CustomSelect>
         </label>
         <label>

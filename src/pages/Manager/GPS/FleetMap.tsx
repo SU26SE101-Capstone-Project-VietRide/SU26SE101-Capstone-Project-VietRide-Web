@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import GoogleMapCanvas from "../../../components/GoogleMapCanvas";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 
@@ -40,6 +41,7 @@ export default function FleetMap({
   trailPath,
   onMarkerSelect,
 }: FleetMapProps) {
+  const { t } = useTranslation("manager");
   const markers = useMemo(
     () =>
       vehicles.map((vehicle) => ({
@@ -48,7 +50,7 @@ export default function FleetMap({
           vehicle.driver,
           vehicle.route,
           vehicle.speedKmh == null
-            ? "Không có dữ liệu tốc độ"
+            ? t("gps.noSpeedData")
             : `${vehicle.speedKmh} km/h`,
         ],
         fillOpacity: vehicle.status === "offline" ? 0.55 : 0.95,
@@ -59,7 +61,7 @@ export default function FleetMap({
         selected: vehicle.id === selectedId,
         title: vehicle.plate,
       })),
-    [onMarkerSelect, selectedId, vehicles],
+    [onMarkerSelect, selectedId, t, vehicles],
   );
 
   const polylines = useMemo(() => {
@@ -93,10 +95,10 @@ export default function FleetMap({
 
   return (
     <GoogleMapCanvas
-      ariaLabel="Bản đồ theo dõi đội xe"
+      ariaLabel={t("gps.fleetMapAria")}
       center={defaultCenter}
       className="h-full min-h-[420px] w-full rounded-xl"
-      emptyState="Không có phương tiện phù hợp với bộ lọc."
+      emptyState={t("gps.noVehiclesMatchFilter")}
       focusCenter={focusCenter}
       markers={markers}
       polylines={polylines}

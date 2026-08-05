@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiEdit2,
@@ -80,6 +80,10 @@ function toRequest(form: LocationForm): AdminLocationRequest | null {
 export default function AdminLocations() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const [items, setItems] = useState<AdminLocation[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -118,12 +122,14 @@ export default function AdminLocations() {
       setMessage({
         tone: "error",
         text:
-          error instanceof Error ? error.message : t("locations.loadFailed"),
+          error instanceof Error
+            ? error.message
+            : tRef.current("locations.loadFailed"),
       });
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, status, t]);
+  }, [page, pageSize, search, status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

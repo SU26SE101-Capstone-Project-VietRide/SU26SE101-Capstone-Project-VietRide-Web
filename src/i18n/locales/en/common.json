@@ -70,6 +70,7 @@
   "today": "Today",
   "from": "From",
   "to": "To",
+  "pageLoading": "Loading page...",
   "topbar": {
     "defaultUserName": "Operator manager",
     "searchPlaceholder": "Search trips, bookings, parcels...",
@@ -77,7 +78,47 @@
     "loadingNotifications": "Loading notifications...",
     "noNotifications": "No notifications yet.",
     "notificationLoadFailed": "Unable to load notifications.",
-    "notificationReadFailed": "Unable to mark notification as read."
+    "notificationReadFailed": "Unable to mark notification as read.",
+    "sendOperatorAnnouncement": "Send operational announcement"
+  },
+  "announcementModal": {
+    "title": "Send operational announcement",
+    "subtitle": "Broadcast an announcement to the whole operator or people related to a trip.",
+    "submit": "Send announcement",
+    "submitting": "Sending...",
+    "scope": "Scope",
+    "scopeAria": "Announcement scope",
+    "scopeOperator": "Entire operator",
+    "scopeTrip": "By trip",
+    "tripId": "Trip ID",
+    "tripIdPlaceholder": "Enter the trip ID to notify",
+    "titlePlaceholder": "Example: Departure time change",
+    "bodyPlaceholder": "Enter the message to send",
+    "validationRequired": "Please enter the announcement title and content.",
+    "tripIdRequired": "Please enter the tripId when sending by trip.",
+    "accepted": "Announcement accepted for {{count}} recipients.",
+    "sendFailed": "Unable to send the announcement."
+  },
+  "placePicker": {
+    "loadFailed": "Unable to load Google Places.",
+    "minChars": "Enter at least 2 characters to search for a place.",
+    "libraryLoading": "Google Places is still loading, please try again.",
+    "noResults": "No matching places found in Vietnam.",
+    "searchFailed": "Unable to search for places right now.",
+    "missingCoordinates": "Google Places has not returned coordinates for this place.",
+    "detailsFailed": "Unable to fetch details for the selected place.",
+    "reverseNoResult": "Unable to get information at the selected map position.",
+    "reverseFailed": "Unable to get the selected position information.",
+    "searching": "Searching...",
+    "searchButton": "Search",
+    "resultsAria": "Place search results",
+    "mapAria": "Map to select {{label}}",
+    "mapEmptyState": "Search for a place or click directly on the map to select."
+  },
+  "map": {
+    "loading": "Loading Google Maps...",
+    "initFailed": "Unable to initialize Google Maps.",
+    "loadFailed": "Unable to load Google Maps."
   },
   "voucherConsentStatuses": {
     "PENDING": "Pending",
@@ -180,6 +221,20 @@
     "taxId": "Tax ID",
     "operatorStatus": "Operator status",
     "businessRegistrationNumber": "Business registration number",
-    "operatorFieldReadOnlyHint": "Managed by the system — not editable here."
+    "operatorFieldReadOnlyHint": "Managed by the system — not editable here.",
+    "countryVietnam": "Vietnam",
+    "avatarLabel": "Avatar",
+    "logoLabel": "Operator logo",
+    "uploadingImage": "Uploading image",
+    "imageHint": "JPG, PNG or WebP, under 5 MB. You can drag an image here.",
+    "imageInvalidType": "Only JPG, PNG or WebP images are supported.",
+    "imageInvalidSize": "Image must be smaller than 5 MB.",
+    "imageUploadFailed": "Unable to upload the image.",
+    "loadFailed": "Unable to load the profile.",
+    "avatarUrlMissing": "The system did not receive the image URL after upload.",
+    "avatarUpdated": "Avatar updated.",
+    "logoAdminOnly": "Only the operator admin can update the logo.",
+    "logoUrlMissing": "The system did not receive the logo URL after upload.",
+    "logoUpdated": "Operator logo updated."
   }
 }

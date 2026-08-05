@@ -186,7 +186,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
                       }}
                       className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-vr-200 bg-vr-50 px-3 py-2 text-sm font-semibold text-vr-800 hover:bg-vr-100"
                     >
-                      <FiSend /> Gửi thông báo vận hành
+                      <FiSend /> {t("topbar.sendOperatorAnnouncement")}
                     </button>
                   </div>
                 )}

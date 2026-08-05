@@ -98,6 +98,11 @@ src/
 | `i18n-sync` | Thêm key dịch hoặc kiểm tra parity vi/en |
 | `verify` | Trước khi commit/push — chạy đúng pipeline CI |
 
+## Git
+
+- **KHÔNG tự `git commit` / `git push`.** Chuẩn bị thay đổi + verify xanh rồi dừng lại,
+  báo cáo để owner tự review và commit. Chỉ commit khi được yêu cầu rõ ràng trong câu chat.
+
 ## Ghi chú
 
 - `CODE_CONVENTIONS.md` (root) là quy chuẩn chi tiết về cấu trúc thư mục, ngưỡng tách

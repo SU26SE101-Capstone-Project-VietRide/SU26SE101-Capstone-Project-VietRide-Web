@@ -33,6 +33,12 @@ export function formatDateInputValue(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+// Đổi Date sang giá trị cho input datetime-local (giờ địa phương, cắt giây).
+export function toDatetimeLocalValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 export function toUtcDayStart(dateValue: string) {
   return dateValue ? `${dateValue}T00:00:00.000Z` : undefined;
 }

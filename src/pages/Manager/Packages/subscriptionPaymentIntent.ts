@@ -1,3 +1,5 @@
+import { isRecord } from "../../../utils/typeGuards";
+
 const STORAGE_KEY = "vietride.subscription-payment-intent";
 
 export type SubscriptionPaymentIntent = {
@@ -6,10 +8,6 @@ export type SubscriptionPaymentIntent = {
   targetPlanId: string;
   targetPlanName: string;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function saveSubscriptionPaymentIntent(
   intent: SubscriptionPaymentIntent,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiArrowDown,
@@ -134,6 +134,10 @@ function TrendStatusBadge({ trend }: { trend: MetricValue["trend"] }) {
 export default function ManagerReports() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const [page, setPage] = useState(1);
   const [month, setMonth] = useState(currentMonthValue);
   const [analytics, setAnalytics] = useState<OperatorRevenueAnalytics | null>(
@@ -159,12 +163,12 @@ export default function ManagerReports() {
     } catch (error) {
       setAnalytics(null);
       setLoadError(
-        error instanceof Error ? error.message : t("reports.loadFailed"),
+        error instanceof Error ? error.message : tRef.current("reports.loadFailed"),
       );
     } finally {
       setIsLoading(false);
     }
-  }, [month, t]);
+  }, [month]);
 
   useEffect(() => {
     let cancelled = false;

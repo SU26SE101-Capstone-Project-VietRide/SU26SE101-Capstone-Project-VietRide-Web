@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiCheck, FiLock, FiSave, FiSlash } from "react-icons/fi";
 import { getOperatorVehicles, updateOperatorVehicle, type OperatorVehicle, type SeatLayoutJson } from "../../../api/vietride";
@@ -12,6 +12,8 @@ type TripCapacity = {
   bookedCargoVolumeM3: number; seats: SeatAvailability[];
 };
 type AlertState = { tone: "success" | "error"; message: string };
+// Chữ ký hàm dịch tối thiểu cho helper thuần, nhận từ useTranslation("manager")
+type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
 const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
 const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
@@ -23,12 +25,12 @@ function parseLayout(vehicle: OperatorVehicle): SeatLayoutJson | null {
   if (typeof vehicle.seatLayoutJson !== "string") return vehicle.seatLayoutJson;
   try { return JSON.parse(vehicle.seatLayoutJson) as SeatLayoutJson; } catch { return null; }
 }
-function toCapacity(vehicle: OperatorVehicle): TripCapacity {
+function toCapacity(vehicle: OperatorVehicle, t: TranslateFn): TripCapacity {
   const layout = parseLayout(vehicle);
   return {
     id: vehicleId(vehicle), code: vehicle.licensePlate,
-    routeName: vehicle.vehicleTypeName ?? vehicle.vehicleTypeCode ?? "Phương tiện nhà xe",
-    vehiclePlate: `${vehicle.totalSeats} ghế`, departureTime: vehicle.status,
+    routeName: vehicle.vehicleTypeName ?? vehicle.vehicleTypeCode ?? t("capacity.defaultVehicleType"),
+    vehiclePlate: t("capacity.seatCount", { count: vehicle.totalSeats }), departureTime: vehicle.status,
     maxCargoWeightKg: vehicle.maxCargoWeightKg ?? 0, maxCargoVolumeM3: vehicle.maxCargoVolumeM3 ?? 0,
     bookedCargoWeightKg: 0, bookedCargoVolumeM3: 0,
     seats: (layout?.seats ?? []).map((seat) => ({
@@ -47,6 +49,11 @@ function seatClass(status: SeatStatus, selected: boolean) {
 
 export default function CapacityPage() {
   const { t } = useTranslation("manager");
+  // Giữ tham chiếu t mới nhất để effect tải dữ liệu không refetch khi đổi ngôn ngữ
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const canEdit = getAuthUser()?.role === "OPERATOR_ADMIN";
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [trips, setTrips] = useState<TripCapacity[]>([]);
@@ -63,7 +70,7 @@ export default function CapacityPage() {
     let ignore = false;
     void getOperatorVehicles({ page: 1, pageSize: 100 }).then((result) => {
       if (ignore) return;
-      const mapped = result.items.map(toCapacity);
+      const mapped = result.items.map((item) => toCapacity(item, tRef.current));
       setVehicles(result.items); setTrips(mapped);
       const first = mapped[0];
       if (first) {
@@ -71,7 +78,7 @@ export default function CapacityPage() {
         setWeightInput(String(first.maxCargoWeightKg)); setVolumeInput(String(first.maxCargoVolumeM3));
       }
     }).catch((error: unknown) => {
-      if (!ignore) setAlert({ tone: "error", message: error instanceof Error ? error.message : "Không thể tải dữ liệu sức chứa." });
+      if (!ignore) setAlert({ tone: "error", message: error instanceof Error ? error.message : tRef.current("capacity.loadFailed") });
     }).finally(() => { if (!ignore) setLoading(false); });
     return () => { ignore = true; };
   }, []);
@@ -92,7 +99,7 @@ export default function CapacityPage() {
   async function persist(next: TripCapacity, successMessage: string) {
     const vehicle = vehicles.find((item) => vehicleId(item) === next.id);
     const layout = vehicle ? parseLayout(vehicle) : null;
-    if (!vehicle || !layout) { setAlert({ tone: "error", message: "Phương tiện chưa có sơ đồ ghế hợp lệ." }); return; }
+    if (!vehicle || !layout) { setAlert({ tone: "error", message: t("capacity.invalidSeatLayout") }); return; }
     setSaving(true); setAlert(null);
     try {
       const updated = await updateOperatorVehicle(next.id, {
@@ -105,9 +112,9 @@ export default function CapacityPage() {
         }) },
       });
       setVehicles((items) => items.map((item) => vehicleId(item) === next.id ? updated : item));
-      setTrips((items) => items.map((item) => item.id === next.id ? toCapacity(updated) : item));
+      setTrips((items) => items.map((item) => item.id === next.id ? toCapacity(updated, t) : item));
       setAlert({ tone: "success", message: successMessage });
-    } catch (error) { setAlert({ tone: "error", message: error instanceof Error ? error.message : "Không thể cập nhật phương tiện." }); }
+    } catch (error) { setAlert({ tone: "error", message: error instanceof Error ? error.message : t("capacity.updateVehicleFailed") }); }
     finally { setSaving(false); }
   }
 
@@ -115,7 +122,7 @@ export default function CapacityPage() {
     if (!selectedTrip || !canEdit) return;
     const nextWeight = Number(weightInput); const nextVolume = Number(volumeInput);
     if (!Number.isFinite(nextWeight) || !Number.isFinite(nextVolume) || nextWeight < 0 || nextVolume < 0) { setAlert({ tone: "error", message: t("capacity.invalidCapacity") }); return; }
-    await persist({ ...selectedTrip, maxCargoWeightKg: nextWeight, maxCargoVolumeM3: nextVolume }, `Đã cập nhật sức chứa cho xe ${selectedTrip.code}.`);
+    await persist({ ...selectedTrip, maxCargoWeightKg: nextWeight, maxCargoVolumeM3: nextVolume }, t("capacity.vehicleCapacityUpdated", { code: selectedTrip.code }));
   }
   async function disableSeat() {
     if (!selectedTrip || !selectedSeat || !canEdit) return;
@@ -155,12 +162,12 @@ export default function CapacityPage() {
             <div className="mt-4 space-y-2">
               {loading && (
                 <p className="py-6 text-center text-sm text-slate-500">
-                  Đang tải dữ liệu...
+                  {t("capacity.loadingData")}
                 </p>
               )}
               {!loading && trips.length === 0 && (
                 <p className="py-6 text-center text-sm text-slate-500">
-                  Chưa có phương tiện.
+                  {t("capacity.noVehicles")}
                 </p>
               )}
               {trips.map((trip) => (                <button

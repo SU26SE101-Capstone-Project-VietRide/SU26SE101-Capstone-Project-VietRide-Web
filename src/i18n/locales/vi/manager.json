@@ -41,7 +41,22 @@
     "topRoutes": "Top {{count}} tuyến",
     "shareOfTotal": "{{percent}}% tổng đơn",
     "tripCount": "{{count}} chuyến",
-    "completionRate": "Hoàn thành {{percent}}%"
+    "completionRate": "Hoàn thành {{percent}}%",
+    "loadFailed": "Không thể tải dữ liệu.",
+    "errorSourceFleet": "Phương tiện",
+    "errorSourceActiveTrips": "Chuyến đang chạy",
+    "errorSourceParcelStats": "Thống kê parcel",
+    "errorSourceParcelRouteStats": "Thống kê tuyến parcel",
+    "unknownRoute": "Không xác định",
+    "csvCode": "Mã",
+    "fleetStatusHint": "Theo dõi trạng thái phương tiện trong ngày",
+    "vehicleCount": "{{count}} xe",
+    "loadingData": "Đang tải dữ liệu...",
+    "noVehicles": "Chưa có phương tiện.",
+    "noRevenueData": "Chưa có dữ liệu doanh thu.",
+    "noParcelData": "Chưa có dữ liệu parcel.",
+    "noParcelRouteData": "Chưa có dữ liệu parcel theo tuyến.",
+    "statsNoPermission": "Không có quyền xem thống kê này."
   },
   "trips": {
     "title": "Quản lý chuyến xe",
@@ -148,7 +163,10 @@
       "blocked": "Bị chặn"
     },
     "activeDriversHelper": "Đếm tài khoản tài xế ACTIVE; không đồng nghĩa tài xế đang rảnh.",
-    "editScheduleFocusNotice": "Bạn đang chỉnh sửa lịch này. Thay đổi hiện chỉ được lưu trong phiên trình duyệt."
+    "editScheduleFocusNotice": "Bạn đang chỉnh sửa lịch này. Thay đổi hiện chỉ được lưu trong phiên trình duyệt.",
+    "loadResourcesFailed": "Không thể tải tuyến, xe và nhân sự cho chuyến.",
+    "loadSchedulesFailed": "Không thể tải lịch chuyến.",
+    "createScheduleFailed": "Không thể tạo lịch chuyến."
   },
   "routeEta": {
     "title": "Điều chỉnh lộ trình & giờ đến dự kiến",
@@ -204,7 +222,8 @@
       "TRIP_NO_LONGER_EDITABLE": "Chuyến không còn ở trạng thái cho phép đổi tuyến.",
       "SOURCE_ROUTE_CHANGED": "Tuyến nguồn đã thay đổi hoặc không còn hợp lệ."
     },
-    "proposalNoLongerPending": "Đề xuất không còn ở trạng thái chờ duyệt. Danh sách đã được tải lại."
+    "proposalNoLongerPending": "Đề xuất không còn ở trạng thái chờ duyệt. Danh sách đã được tải lại.",
+    "durationMinutes": "{{value}} phút"
   },
   "routes": {
     "title": "Tuyến đường & điểm dừng",
@@ -378,7 +397,11 @@
     "invalidSavedGeometry": "Polyline đã lưu không hợp lệ nên chưa thể hiển thị.",
     "noRouteSelected": "Chưa chọn tuyến",
     "noStopsAttached": "Chưa gắn điểm dừng.",
-    "loading": "Đang tải tuyến và điểm dừng..."
+    "loading": "Đang tải tuyến và điểm dừng...",
+    "namePlaceholder": "Thành phố Hồ Chí Minh - Đà Lạt",
+    "stopNamePlaceholder": "Điểm đón, bến xe, địa chỉ...",
+    "stationNamePlaceholder": "Bến xe Miền Đông, Thành phố Hồ Chí Minh",
+    "designMapAria": "Bản đồ đường đi thực tế của tuyến"
   },
   "vehicles": {
     "title": "Quản lý phương tiện",
@@ -484,7 +507,14 @@
     "maintenanceContractor": "Nhà thầu bảo trì",
     "contractorPlaceholder": "Tên garage / xưởng sửa",
     "maintenanceNoteLabel": "Lưu ý:",
-    "maintenanceWarning": "Xe sẽ được đánh dấu là \"Bảo trì\" trong hệ thống và không thể sử dụng cho các chuyến đi trong thời gian này."
+    "maintenanceWarning": "Xe sẽ được đánh dấu là \"Bảo trì\" trong hệ thống và không thể sử dụng cho các chuyến đi trong thời gian này.",
+    "loadFailed": "Không thể tải danh sách xe.",
+    "seatTitle": "Hàng {{row}}, cột {{col}}, loại {{type}}",
+    "stockPhotoAlt1": "Ngoại thất xe khách hiện đại",
+    "stockPhotoAlt2": "Xe khách đang di chuyển trên đường",
+    "stockPhotoAlt3": "Ghế ngồi trong khoang xe khách",
+    "stockPhotoAlt4": "Góc nhìn bên hông xe khách",
+    "stockPhotoAlt5": "Nội thất xe khách"
   },
   "staff": {
     "title": "Quản lý nhân sự",
@@ -562,7 +592,22 @@
     "displayName": "Tên hiển thị",
     "createdAt": "Ngày tạo",
     "initialPassword": "Mật khẩu khởi tạo",
-    "initialPasswordDetailHint": "Nếu nhân sự chưa nhận email hoặc link hết hạn, quay lại danh sách và bấm icon thư để gửi lại link đặt mật khẩu."
+    "initialPasswordDetailHint": "Nếu nhân sự chưa nhận email hoặc link hết hạn, quay lại danh sách và bấm icon thư để gửi lại link đặt mật khẩu.",
+    "loadFailed": "Không thể tải danh sách nhân sự.",
+    "pageSubtitle": "Quản lý tài khoản nội bộ, gửi link đặt mật khẩu lần đầu và phân nhóm vai trò vận hành.",
+    "groupAll": "Tất cả nhân sự",
+    "groupField": "Tài xế & phụ xe",
+    "groupOps": "Quản trị & vận hành",
+    "operatorStaff": "Nhân viên vận hành",
+    "assistant": "Phụ xe",
+    "roleDescOperatorStaff": "Hỗ trợ vận hành, kiểm tra đặt vé và xử lý khách tại quầy.",
+    "roleDescDriver": "Xem chuyến được phân công và cập nhật vận hành chuyến.",
+    "roleDescAssistant": "Xác nhận hành khách lên xe và hỗ trợ hàng hóa.",
+    "staffInfoSection": "Thông tin nhân sự",
+    "fullNamePlaceholder": "Nguyễn Văn A",
+    "rolePermissions": "Quyền theo vai trò",
+    "rolePermissionTitle": "Quyền của vai trò",
+    "noRoleDescription": "Chưa có mô tả quyền cho vai trò này."
   },
   "bookings": {
     "title": "Theo dõi đặt vé",
@@ -691,7 +736,9 @@
       "passenger": "Khách hàng",
       "operator": "Nhà xe",
       "system": "Hệ thống"
-    }
+    },
+    "buyerInfo": "Thông tin người mua",
+    "buyerUserCode": "Mã người dùng"
   },
   "parcels": {
     "title": "Quản lý hàng hóa",
@@ -905,7 +952,8 @@
       "confirmActionTitle": "Xác nhận tác vụ",
       "confirmActionSubtitle": "Hành động này sẽ cập nhật trạng thái đơn hàng.",
       "processing": "Đang xử lý..."
-    }
+    },
+    "unnamedRoute": "Tuyến chưa có tên"
   },
   "gps": {
     "title": "Theo dõi GPS",
@@ -977,7 +1025,11 @@
     "realtimeConnected": "Đã kết nối realtime",
     "realtimeDisconnected": "Mất kết nối realtime",
     "realtimeJoinFailed": "Không thể tham gia theo dõi realtime cho chuyến này.",
-    "delayedBanner": "Chuyến đang trễ khoảng {{minutes}} phút (cập nhật lúc {{time}})."
+    "delayedBanner": "Chuyến đang trễ khoảng {{minutes}} phút (cập nhật lúc {{time}}).",
+    "unassignedDriver": "Chưa phân công",
+    "noSpeedData": "Không có dữ liệu tốc độ",
+    "fleetMapAria": "Bản đồ theo dõi đội xe",
+    "noVehiclesMatchFilter": "Không có phương tiện phù hợp với bộ lọc."
   },
   "dispatch": {
     "title": "Điều phối xe trung chuyển",
@@ -1065,7 +1117,11 @@
     "refreshTracking": "Làm mới vị trí/ETA",
     "trackingFailed": "Không thể tải vị trí/ETA của chuyến trung chuyển.",
     "operatorTrackingDenied": "Tài khoản hiện tại chưa được cấp quyền xem tracking xe trung chuyển.",
-    "removeTracking": "Bỏ theo dõi"
+    "removeTracking": "Bỏ theo dõi",
+    "loadFailed": "Không thể tải danh sách yêu cầu xe trung chuyển.",
+    "assignFailed": "Không thể phân công xe trung chuyển.",
+    "csvCustomer": "Khách hàng",
+    "csvAddress": "Địa chỉ"
   },
   "shuttleTracking": {
     "title": "Theo dõi xe trung chuyển",
@@ -1213,7 +1269,8 @@
     "maxUsagePlaceholder": "VD: 1",
     "activateNow": "Kích hoạt ngay",
     "activateAfterCreate": "Bật mã giảm giá sau khi tạo",
-    "activateHint": "Mã giảm giá sẽ có hiệu lực và khách hàng có thể sử dụng ngay."
+    "activateHint": "Mã giảm giá sẽ có hiệu lực và khách hàng có thể sử dụng ngay.",
+    "loadFailed": "Không thể tải danh sách mã giảm giá."
   },
   "packages": {
     "title": "Gói cước & thanh toán",
@@ -1343,7 +1400,8 @@
     "close": "Đóng",
     "invoiceLoadFailed": "Không thể tải danh sách hóa đơn.",
     "invoiceDownloadFailed": "Không thể tải hóa đơn.",
-    "purchaseAlert": "Mua {{name}} trong {{months}} tháng\nGiá gốc: {{base}} VND\nGiảm giá: {{discount}} VND\nTổng: {{total}} VND\nPhương thức thanh toán: {{method}}\n\nMua thành công!"
+    "purchaseAlert": "Mua {{name}} trong {{months}} tháng\nGiá gốc: {{base}} VND\nGiảm giá: {{discount}} VND\nTổng: {{total}} VND\nPhương thức thanh toán: {{method}}\n\nMua thành công!",
+    "invoiceFile": "Tệp hóa đơn"
   },
   "paymentReturn": {
     "pageTitle": "Kết quả thanh toán gói dịch vụ",
@@ -1386,7 +1444,12 @@
     "categoryPlaceholder": "VD: Hành khách, Hủy vé, Hành lý",
     "contentLabel": "Nội dung chính sách *",
     "contentPlaceholder": "Nhập nội dung chính sách...",
-    "contentHint": "Bạn có thể sử dụng dòng mới để tách các điểm (1. Điểm 1, 2. Điểm 2)"
+    "contentHint": "Bạn có thể sử dụng dòng mới để tách các điểm (1. Điểm 1, 2. Điểm 2)",
+    "loadFailed": "Không thể tải danh sách policy.",
+    "deleteFailed": "Không thể xóa policy.",
+    "toggleFailed": "Không thể cập nhật trạng thái policy.",
+    "saveFailed": "Không thể lưu policy.",
+    "saving": "Đang lưu..."
   },
   "reports": {
     "title": "Báo cáo doanh thu",
@@ -1626,7 +1689,15 @@
     "seatNotDisabled": "Chỉ có thể bật lại ghế đang bị tắt.",
     "capacityUpdated": "Đã cập nhật sức chứa cho {{trip}}.",
     "seatDisabled": "Đã tắt ghế {{seat}}.",
-    "seatEnabled": "Đã bật lại ghế {{seat}}."
+    "seatEnabled": "Đã bật lại ghế {{seat}}.",
+    "loadFailed": "Không thể tải dữ liệu sức chứa.",
+    "invalidSeatLayout": "Phương tiện chưa có sơ đồ ghế hợp lệ.",
+    "updateVehicleFailed": "Không thể cập nhật phương tiện.",
+    "vehicleCapacityUpdated": "Đã cập nhật sức chứa cho xe {{code}}.",
+    "defaultVehicleType": "Phương tiện nhà xe",
+    "seatCount": "{{count}} ghế",
+    "loadingData": "Đang tải dữ liệu...",
+    "noVehicles": "Chưa có phương tiện."
   },
   "settings": {
     "title": "Cấu hình nhà xe",
@@ -1695,6 +1766,42 @@
     "recoveryDepartureFuture": "Giờ khởi hành lại phải ở tương lai.",
     "notifyPassengers": "Thông báo cho hành khách bị ảnh hưởng",
     "notifyPassengersHint": "Hệ thống sẽ dùng luồng thông báo của BE sau khi thay xe thành công.",
-    "substituteUnavailable": "Chuyến được chọn không cho phép thay xe ở trạng thái hiện tại."
+    "substituteUnavailable": "Chuyến được chọn không cho phép thay xe ở trạng thái hiện tại.",
+    "tripsFailed": "Không thể tải danh sách chuyến.",
+    "resourcesFailed": "Không thể tải danh sách xe và nhân sự.",
+    "tripRequired": "Vui lòng nhập mã chuyến.",
+    "capacityFailed": "Không thể tải sức chứa hàng hóa.",
+    "substituteRequired": "Mã chuyến, xe, tài xế và lý do là bắt buộc.",
+    "substituteConfirm": "Xác nhận thay xe cho chuyến này?",
+    "substituteSuccess": "Đã thay xe. Chuyến mới: {{tripId}}",
+    "substituteFailed": "Không thể thay xe cho chuyến.",
+    "disruptRequired": "Mã chuyến và lý do là bắt buộc.",
+    "disruptConfirm": "Xác nhận kết thúc chuyến do không có xe thay thế? Thao tác này không thể hoàn tác.",
+    "disruptSuccess": "Đã ghi nhận gián đoạn chuyến ({{status}}).",
+    "disruptFailed": "Không thể ghi nhận gián đoạn chuyến.",
+    "readOnly": "Chỉ xem",
+    "searchTrips": "Tìm chuyến",
+    "searchPlaceholder": "Tìm theo tuyến, biển số hoặc mã chuyến",
+    "statusFilter": "Lọc trạng thái chuyến",
+    "allStatuses": "Tất cả trạng thái",
+    "search": "Tìm chuyến",
+    "tripSelect": "Chọn chuyến",
+    "loadingTrips": "Đang tải chuyến...",
+    "selectTrip": "Chọn chuyến vận hành",
+    "tripPlaceholder": "UUID chuyến",
+    "loadCapacity": "Tải sức chứa",
+    "maxWeight": "Tải trọng tối đa",
+    "reservedWeight": "Đã giữ chỗ",
+    "loadedWeight": "Đã xếp",
+    "percentFull": "Mức sử dụng",
+    "vehicle": "Xe thay thế",
+    "selectVehicle": "Chọn xe",
+    "driver": "Tài xế mới",
+    "selectDriver": "Chọn tài xế",
+    "assistant": "Phụ xe mới (không bắt buộc)",
+    "noAssistant": "Không chọn phụ xe",
+    "reason": "Lý do",
+    "substitute": "Thay xe",
+    "disrupt": "Không có xe thay thế"
   }
 }

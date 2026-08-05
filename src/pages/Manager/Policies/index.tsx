@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiPlus,
@@ -17,14 +17,19 @@ import {
   updateOperatorPolicy,
   type PolicyItem,
 } from "../../../api/vietride";
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
-const labelClass = "mb-1 block text-xs font-medium text-gray-600";
+import {
+  inputClass,
+  labelClass,
+} from "../../../components/form/formClasses";
 
 export default function ManagerPolicies() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  // Giữ tham chiếu t mới nhất để callback tải dữ liệu không refetch khi đổi ngôn ngữ
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const [policies, setPolicies] = useState<PolicyItem[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -52,7 +57,11 @@ export default function ManagerPolicies() {
     } catch (reason) {
       setPolicies([]);
       setTotalItems(0);
-      setError(reason instanceof Error ? reason.message : "Không thể tải danh sách policy.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : tRef.current("policies.loadFailed"),
+      );
     } finally {
       setLoading(false);
     }
@@ -94,7 +103,9 @@ export default function ManagerPolicies() {
       await deleteOperatorPolicy(id);
       await loadPolicies();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Không thể xóa policy.");
+      setError(
+        reason instanceof Error ? reason.message : t("policies.deleteFailed"),
+      );
     }
   };
 
@@ -107,7 +118,9 @@ export default function ManagerPolicies() {
       });
       await loadPolicies();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Không thể cập nhật trạng thái policy.");
+      setError(
+        reason instanceof Error ? reason.message : t("policies.toggleFailed"),
+      );
     }
   };
 
@@ -133,7 +146,9 @@ export default function ManagerPolicies() {
       resetForm();
       await loadPolicies();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Không thể lưu policy.");
+      setError(
+        reason instanceof Error ? reason.message : t("policies.saveFailed"),
+      );
     } finally {
       setSaving(false);
     }
@@ -383,7 +398,7 @@ export default function ManagerPolicies() {
               disabled={saving}
               className="flex-1 rounded-lg bg-vr-500 py-2 font-medium text-white transition-colors hover:bg-vr-600"
             >
-              {saving ? "Đang lưu..." : selectedPolicy ? tc("update") : tc("create")}
+              {saving ? t("policies.saving") : selectedPolicy ? tc("update") : tc("create")}
             </button>
           </div>
         </div>

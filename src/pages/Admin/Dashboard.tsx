@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
@@ -174,6 +174,12 @@ export default function AdminDashboard() {
     useState<AdminRevenueAnalytics | null>(null);
   const [loadError, setLoadError] = useState("");
 
+  // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
+
   const loadDashboard = async () => {
     setIsLoading(true);
     setLoadError("");
@@ -199,7 +205,7 @@ export default function AdminDashboard() {
       setLoadError(
         requestError instanceof Error
           ? requestError.message
-          : "Không thể tải dữ liệu dashboard.",
+          : tRef.current("dashboard.loadFailed"),
       );
     } finally {
       setIsLoading(false);
@@ -346,13 +352,8 @@ export default function AdminDashboard() {
 
     downloadCsv(
       "admin-dashboard-report.csv",
-      ["Báo cáo", "Ghi chú"],
-      [
-        [
-          report.label,
-          "Dữ liệu minh họa; mở trang Báo cáo để xem dữ liệu đầy đủ từ hệ thống",
-        ],
-      ],
+      [t("dashboard.csvReportHeader"), t("dashboard.csvNoteHeader")],
+      [[report.label, t("dashboard.csvPlaceholderNote")]],
     );
   };
 

@@ -70,6 +70,7 @@
   "today": "Hôm nay",
   "from": "Từ ngày",
   "to": "Đến ngày",
+  "pageLoading": "Đang tải trang...",
   "topbar": {
     "defaultUserName": "Quản lý nhà xe",
     "searchPlaceholder": "Tìm chuyến, lượt đặt vé, đơn hàng...",
@@ -77,7 +78,47 @@
     "loadingNotifications": "Đang tải thông báo...",
     "noNotifications": "Chưa có thông báo nào.",
     "notificationLoadFailed": "Không thể tải thông báo.",
-    "notificationReadFailed": "Không thể đánh dấu đã đọc."
+    "notificationReadFailed": "Không thể đánh dấu đã đọc.",
+    "sendOperatorAnnouncement": "Gửi thông báo vận hành"
+  },
+  "announcementModal": {
+    "title": "Gửi thông báo vận hành",
+    "subtitle": "Phát thông báo cho toàn nhà xe hoặc người liên quan đến một chuyến.",
+    "submit": "Gửi thông báo",
+    "submitting": "Đang gửi...",
+    "scope": "Phạm vi",
+    "scopeAria": "Phạm vi thông báo",
+    "scopeOperator": "Toàn bộ nhà xe",
+    "scopeTrip": "Theo chuyến",
+    "tripId": "Mã chuyến",
+    "tripIdPlaceholder": "Nhập mã chuyến cần thông báo",
+    "titlePlaceholder": "Ví dụ: Thay đổi giờ khởi hành",
+    "bodyPlaceholder": "Nhập nội dung cần gửi",
+    "validationRequired": "Vui lòng nhập tiêu đề và nội dung thông báo.",
+    "tripIdRequired": "Vui lòng nhập tripId khi gửi theo chuyến.",
+    "accepted": "Đã tiếp nhận thông báo cho {{count}} người nhận.",
+    "sendFailed": "Không thể gửi thông báo."
+  },
+  "placePicker": {
+    "loadFailed": "Không thể tải Google Places.",
+    "minChars": "Nhập ít nhất 2 ký tự để tìm địa điểm.",
+    "libraryLoading": "Google Places đang được tải, vui lòng thử lại.",
+    "noResults": "Không tìm thấy địa điểm phù hợp tại Việt Nam.",
+    "searchFailed": "Không thể tìm địa điểm lúc này.",
+    "missingCoordinates": "Google Places chưa trả về tọa độ cho địa điểm này.",
+    "detailsFailed": "Không thể lấy chi tiết địa điểm đã chọn.",
+    "reverseNoResult": "Không lấy được thông tin tại vị trí đã chọn trên bản đồ.",
+    "reverseFailed": "Không thể lấy thông tin vị trí đã chọn.",
+    "searching": "Đang tìm...",
+    "searchButton": "Tìm",
+    "resultsAria": "Kết quả tìm địa điểm",
+    "mapAria": "Bản đồ chọn {{label}}",
+    "mapEmptyState": "Tìm địa điểm hoặc bấm trực tiếp lên bản đồ để chọn."
+  },
+  "map": {
+    "loading": "Đang tải Google Maps...",
+    "initFailed": "Không thể khởi tạo bản đồ Google.",
+    "loadFailed": "Không thể tải bản đồ Google."
   },
   "voucherConsentStatuses": {
     "PENDING": "Chờ xử lý",
@@ -180,6 +221,20 @@
     "taxId": "Mã số thuế",
     "operatorStatus": "Trạng thái nhà xe",
     "businessRegistrationNumber": "Số đăng ký kinh doanh",
-    "operatorFieldReadOnlyHint": "Thông tin do hệ thống quản lý, không chỉnh sửa được ở đây."
+    "operatorFieldReadOnlyHint": "Thông tin do hệ thống quản lý, không chỉnh sửa được ở đây.",
+    "countryVietnam": "Việt Nam",
+    "avatarLabel": "Ảnh đại diện",
+    "logoLabel": "Biểu trưng (logo) nhà xe",
+    "uploadingImage": "Đang tải ảnh",
+    "imageHint": "JPG, PNG hoặc WebP, nhỏ hơn 5 MB. Có thể kéo ảnh vào đây.",
+    "imageInvalidType": "Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.",
+    "imageInvalidSize": "Ảnh phải có dung lượng nhỏ hơn 5 MB.",
+    "imageUploadFailed": "Không thể tải ảnh lên.",
+    "loadFailed": "Không thể tải hồ sơ.",
+    "avatarUrlMissing": "Hệ thống không nhận được đường dẫn ảnh sau khi tải lên.",
+    "avatarUpdated": "Ảnh đại diện đã được cập nhật.",
+    "logoAdminOnly": "Chỉ admin nhà xe được cập nhật logo.",
+    "logoUrlMissing": "Hệ thống không nhận được đường dẫn logo sau khi tải lên.",
+    "logoUpdated": "Logo nhà xe đã được cập nhật."
   }
 }

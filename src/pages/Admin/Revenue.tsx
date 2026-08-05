@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiDownload } from "react-icons/fi";
 import {
@@ -64,6 +64,12 @@ export default function Revenue() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -81,7 +87,7 @@ export default function Revenue() {
       setError(
         reason instanceof Error
           ? reason.message
-          : "Không thể tải dữ liệu doanh thu.",
+          : tRef.current("revenue.loadFailed"),
       );
     } finally {
       setLoading(false);
