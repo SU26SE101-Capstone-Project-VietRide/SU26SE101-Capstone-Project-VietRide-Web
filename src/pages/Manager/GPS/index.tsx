@@ -13,15 +13,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Socket } from "socket.io-client";
 import {
-  getInternalTripRouteStops,
   getOperatorTrips,
-  getTrackingTripEta,
   getTrackingTripLatest,
   getTrackingTripRouteGeometry,
   getTrackingTripTrail,
   type OperatorTripListItem,
   type TrackingEtaResponse,
-  type TripRouteStop,
   type TripRouteGeometry,
   type TrackingLatestResponse,
   type TrackingTrailPoint,
@@ -139,12 +136,10 @@ export default function GPSTracking() {
   const [mapReady, setMapReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
   const [tripId, setTripId] = useState("");
-  const [stopId, setStopId] = useState("");
   const [tripOptions, setTripOptions] = useState<OperatorTripListItem[]>([]);
   const [fleetVehicles, setFleetVehicles] = useState<FleetVehicleMapPoint[]>([]);
   const [routeGeometry, setRouteGeometry] = useState<TripRouteGeometry | null>(null);
   const [isFleetLoading, setIsFleetLoading] = useState(false);
-  const [routeStops, setRouteStops] = useState<TripRouteStop[]>([]);
   const [latest, setLatest] = useState<TrackingLatestResponse | null>(null);
   const [trail, setTrail] = useState<TrackingTrailPoint[]>([]);
   const [eta, setEta] = useState<TrackingEtaResponse | null>(null);
@@ -258,21 +253,15 @@ export default function GPSTracking() {
 
   async function selectTrip(nextTripId: string) {
     setTripId(nextTripId);
-    setStopId("");
-    setRouteStops([]);
     setDelayInfo(null);
+    setEta(null);
     setRouteGeometry(null);
     if (!nextTripId) return;
 
     try {
-      const [stops, geometry] = await Promise.all([
-        getInternalTripRouteStops(nextTripId),
-        getTrackingTripRouteGeometry(nextTripId),
-      ]);
-      setRouteStops(stops);
+      const geometry = await getTrackingTripRouteGeometry(nextTripId);
       setRouteGeometry(geometry);
     } catch {
-      setRouteStops([]);
       setRouteGeometry(null);
     }
   }
@@ -287,7 +276,7 @@ export default function GPSTracking() {
     setApiMessage("");
 
     try {
-      const [latestResult, trailResult, etaResult, geometryResult] = await Promise.all([
+      const [latestResult, trailResult, geometryResult] = await Promise.all([
         getTrackingTripLatest(tripId.trim()),
         getTrackingTripTrail(tripId.trim(), {
           page: 1,
@@ -295,15 +284,12 @@ export default function GPSTracking() {
           sortBy: "recordedAt",
           sortDir: "desc",
         }),
-        stopId.trim()
-          ? getTrackingTripEta(tripId.trim(), stopId.trim())
-          : Promise.resolve<TrackingEtaResponse | null>(null),
         getTrackingTripRouteGeometry(tripId.trim()),
       ]);
 
       setLatest(latestResult);
       setTrail(trailResult.items);
-      setEta(etaResult);
+      setEta(null);
       setRouteGeometry(geometryResult);
 
       if (latestResult.latest) {
@@ -553,13 +539,13 @@ export default function GPSTracking() {
         </div>
       </div>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">
+            <h2 className="text-lg font-bold text-gray-900">
               {t("gps.realTrackingTitle")}
             </h2>
-            <p className="mt-0.5 text-xs text-gray-500">
+            <p className="mt-1 text-sm text-gray-500">
               {t("gps.realTrackingHint")}
             </p>
           </div>
@@ -607,42 +593,21 @@ export default function GPSTracking() {
             })}
           </div>
         )}
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">
               {t("gps.tripId")}
             </label>
             <CustomSelect
               aria-label={t("gps.tripId")}
-              className="w-full"
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 text-base font-medium text-gray-800 shadow-sm hover:border-vr-300 focus:border-vr-500 focus:ring-2 focus:ring-vr-500/25"
               value={tripId}
               onChange={(event) => void selectTrip(event.target.value)}
             >
-              <option value="">Chọn chuyến để theo dõi</option>
+              <option value="">{t("gps.selectTripPlaceholder")}</option>
               {tripOptions.map((trip) => (
                 <option key={trip.tripId} value={trip.tripId}>
                   {trip.route.name || `${trip.route.originName} - ${trip.route.destinationName}`} · {trip.vehicle.licensePlate} · {new Date(trip.departureAt).toLocaleString("vi-VN")}
-                </option>
-              ))}
-            </CustomSelect>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">
-              {t("gps.stopId")}
-            </label>
-            <CustomSelect
-              aria-label={t("gps.stopId")}
-              className="w-full"
-              disabled={!tripId || routeStops.length === 0}
-              value={stopId}
-              onChange={(event) => setStopId(event.target.value)}
-            >
-              <option value="">
-                Không tính giờ đến dự kiến theo điểm dừng
-              </option>
-              {routeStops.map((stop) => (
-                <option key={stop.stopId} value={stop.stopId}>
-                  {stop.orderIndex}. {stop.name || "Điểm dừng"}
                 </option>
               ))}
             </CustomSelect>
@@ -651,7 +616,7 @@ export default function GPSTracking() {
             type="button"
             disabled={isApiLoading}
             onClick={() => void loadTripTracking()}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-vr-500 px-5 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <FiRefreshCw size={16} />
             {isApiLoading ? t("gps.loadingTracking") : t("gps.loadTracking")}
@@ -669,28 +634,28 @@ export default function GPSTracking() {
           </div>
         )}
 
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <p className="text-xs font-medium text-gray-500">
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+            <p className="text-sm font-medium text-gray-500">
               {t("gps.latestLocation")}
             </p>
-            <p className="mt-1 text-sm font-semibold text-gray-900">
+            <p className="mt-1 text-base font-semibold text-gray-900">
               {latest?.latest
                 ? `${latest.latest.latitude}, ${latest.latest.longitude}`
                 : "-"}
             </p>
           </div>
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <p className="text-xs font-medium text-gray-500">
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+            <p className="text-sm font-medium text-gray-500">
               {t("gps.trailPoints")}
             </p>
-            <p className="mt-1 text-sm font-semibold text-gray-900">
+            <p className="mt-1 text-base font-semibold text-gray-900">
               {trail.length}
             </p>
           </div>
-          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <p className="text-xs font-medium text-gray-500">{t("gps.eta")}</p>
-            <p className="mt-1 text-sm font-semibold text-gray-900">
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+            <p className="text-sm font-medium text-gray-500">{t("gps.eta")}</p>
+            <p className="mt-1 text-base font-semibold text-gray-900">
               {eta?.eta
                 ? `${eta.eta.etaMinutes} min · ${eta.eta.distanceMeters} m`
                 : "-"}

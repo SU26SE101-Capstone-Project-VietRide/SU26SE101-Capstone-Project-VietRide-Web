@@ -11,7 +11,7 @@ import {
 import WalletSettlement from ".";
 
 const { translate } = vi.hoisted(() => ({
-  translate: (key: string) => key,
+  translate: vi.fn((key: string) => key),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -185,6 +185,19 @@ describe("Admin WalletSettlement", () => {
 
   it("refreshes financial data after a manual settlement", async () => {
     const user = userEvent.setup();
+    const settlementWithOperator = {
+      ...settlement,
+      operator: {
+        operatorId: settlement.operatorId,
+        name: "Nhà xe Minh Tâm",
+        logoUrl: null,
+        contactPhone: null,
+      },
+    } as const;
+    vi.mocked(getAdminTripSettlements).mockResolvedValue({
+      ...page,
+      items: [settlementWithOperator],
+    });
     render(
       <MemoryRouter
         initialEntries={[
@@ -195,7 +208,7 @@ describe("Admin WalletSettlement", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText(settlement.operatorId);
+    await screen.findByText(settlementWithOperator.operator.name);
     await user.click(
       screen.getByRole("button", {
         name: "walletSettlement.manualSettle",
@@ -219,6 +232,10 @@ describe("Admin WalletSettlement", () => {
     );
     await waitFor(() =>
       expect(getAdminPlatformWallet).toHaveBeenCalledTimes(2),
+    );
+    expect(translate).toHaveBeenCalledWith(
+      "walletSettlement.settledMessage",
+      { operator: settlementWithOperator.operator.name },
     );
   });
 

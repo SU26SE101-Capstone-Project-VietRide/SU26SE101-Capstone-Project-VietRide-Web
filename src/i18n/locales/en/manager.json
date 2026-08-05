@@ -962,6 +962,7 @@
     "incidentNoticeLabel": "Note:",
     "incidentNotice": "The report will be sent to technical support and operations management for timely handling.",
     "tripId": "Trip ID",
+    "selectTripPlaceholder": "Select a trip to track",
     "stopId": "Stop ID",
     "stopIdOptional": "stopId (optional for ETA)",
     "loadTracking": "Load tracking",

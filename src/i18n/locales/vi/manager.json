@@ -962,6 +962,7 @@
     "incidentNoticeLabel": "Lưu ý:",
     "incidentNotice": "Báo cáo sẽ được gửi tới đội hỗ trợ kỹ thuật và quản lý vận hành để xử lý kịp thời.",
     "tripId": "Mã chuyến",
+    "selectTripPlaceholder": "Chọn chuyến để theo dõi",
     "stopId": "Mã điểm dừng",
     "stopIdOptional": "Mã điểm dừng (không bắt buộc, dùng để tính giờ đến dự kiến)",
     "loadTracking": "Tải tracking",
