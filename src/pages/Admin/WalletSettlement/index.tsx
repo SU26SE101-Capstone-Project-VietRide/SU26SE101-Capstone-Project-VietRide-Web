@@ -251,7 +251,10 @@ export default function WalletSettlement() {
     try {
       await settleAdminTripSettlement(record.settlementId);
       setMessage(
-        t("walletSettlement.settledMessage", { id: record.settlementId }),
+        t("walletSettlement.settledMessage", {
+          operator:
+            record.operator?.name ?? t("walletSettlement.operatorFallback"),
+        }),
       );
       setSettlementToConfirm(null);
       await loadData();

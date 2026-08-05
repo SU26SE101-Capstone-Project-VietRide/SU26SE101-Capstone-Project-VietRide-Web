@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createOperatorStation,
+  getAlternativeRoutes,
   getOperatorRoutes,
   getOperatorStations,
   getOperatorStops,
@@ -64,8 +65,11 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
 vi.mock("../../../api/vietride", () => ({
   addRouteStop: vi.fn(),
   createOperatorRoute: vi.fn(),
+  createAlternativeRoute: vi.fn(),
   createOperatorStation: vi.fn(),
   createOperatorStop: vi.fn(),
+  deleteAlternativeRoute: vi.fn(),
+  getAlternativeRoutes: vi.fn(),
   getOperatorRoute: vi.fn(),
   getOperatorRoutes: vi.fn(),
   getOperatorStations: vi.fn(),
@@ -74,6 +78,7 @@ vi.mock("../../../api/vietride", () => ({
   getPublicLocations: vi.fn(),
   removeRouteStop: vi.fn(),
   searchStations: vi.fn(),
+  updateAlternativeRoute: vi.fn(),
   updateOperatorRoute: vi.fn(),
   updateOperatorRouteGeometry: vi.fn(),
   updateOperatorStop: vi.fn(),
@@ -93,6 +98,7 @@ describe("Manager route setup workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getOperatorRoutes).mockResolvedValue(emptyPage);
+    vi.mocked(getAlternativeRoutes).mockResolvedValue(emptyPage);
     vi.mocked(getOperatorStops).mockResolvedValue(emptyPage);
     vi.mocked(getOperatorStations).mockResolvedValue({
       ...emptyPage,
@@ -102,7 +108,7 @@ describe("Manager route setup workflow", () => {
     vi.mocked(searchStations).mockResolvedValue([]);
   });
 
-  it("presents the route setup as five understandable steps", async () => {
+  it("presents the route setup with backup route setup", async () => {
     render(<RoutesPage />);
 
     expect(
@@ -124,6 +130,9 @@ describe("Manager route setup workflow", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /routes.workflowRouteTitle/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /routes.workflowAlternativeTitle/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /routes.workflowOrderTitle/ }),

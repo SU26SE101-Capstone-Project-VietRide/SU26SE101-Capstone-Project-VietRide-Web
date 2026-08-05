@@ -25,9 +25,11 @@ import {
 } from "react-icons/fi";
 import {
   addRouteStop,
+  createAlternativeRoute,
   createOperatorRoute,
   createOperatorStation,
   createOperatorStop,
+  getAlternativeRoutes,
   getOperatorRoute,
   getOperatorRoutes,
   getOperatorStations,
@@ -36,10 +38,14 @@ import {
   getPublicLocations,
   removeRouteStop,
   searchStations,
+  updateAlternativeRoute,
+  deleteAlternativeRoute,
   updateOperatorRoute,
   updateOperatorStation,
   updateOperatorRouteGeometry,
   updateOperatorStop,
+  type AlternativeRoute,
+  type AlternativeRouteRequest,
   type OperatorRoute,
   type OperatorRouteRequest,
   type OperatorStation,
@@ -97,6 +103,16 @@ const emptyRouteForm: OperatorRouteRequest = {
   isActive: true,
 };
 
+const emptyAlternativeRouteForm: AlternativeRouteRequest = {
+  name: "",
+  description: "",
+  destinationStationId: "",
+  totalDistanceKm: 0,
+  estimatedDurationMinutes: 0,
+  isActive: true,
+  stops: [],
+};
+
 type RouteStopDraft = RouteStopRequest & {
   routeId?: string;
   routeName: string;
@@ -116,6 +132,7 @@ type FeedbackScope =
   | "station"
   | "stop"
   | "route"
+  | "alternative"
   | "routeStop"
   | "geometry";
 type RoutesTab = Exclude<FeedbackScope, "global">;
@@ -249,6 +266,24 @@ function routeToForm(route: OperatorRoute): OperatorRouteRequest {
   };
 }
 
+function alternativeRouteToForm(route: AlternativeRoute): AlternativeRouteRequest {
+  return {
+    name: route.name,
+    description: route.description ?? "",
+    destinationStationId: route.destinationStationId,
+    totalDistanceKm: route.totalDistanceKm,
+    estimatedDurationMinutes: route.estimatedDurationMinutes,
+    isActive: route.isActive,
+    stops: route.stops.map((stop) => ({
+      stopId: stop.stopId,
+      orderIndex: stop.orderIndex,
+      estimatedDurationFromOriginMinutes:
+        stop.estimatedDurationFromOriginMinutes,
+      distanceFromOriginKm: stop.distanceFromOriginKm,
+    })),
+  };
+}
+
 function toStationOption(operatorStation: OperatorStation): StationOption {
   const station = operatorStation.station;
 
@@ -322,6 +357,13 @@ export default function RoutesPage() {
   const [routeForm, setRouteForm] =
     useState<OperatorRouteRequest>(emptyRouteForm);
   const [selectedRouteId, setSelectedRouteId] = useState("");
+  const [alternativeRoutes, setAlternativeRoutes] = useState<AlternativeRoute[]>([]);
+  const [selectedAlternativeRouteId, setSelectedAlternativeRouteId] = useState("");
+  const [alternativeForm, setAlternativeForm] =
+    useState<AlternativeRouteRequest>(emptyAlternativeRouteForm);
+  const [alternativeStopId, setAlternativeStopId] = useState("");
+  const [alternativeStopDuration, setAlternativeStopDuration] = useState(0);
+  const [alternativeStopDistance, setAlternativeStopDistance] = useState(0);
   const [selectedStopId, setSelectedStopId] = useState("");
   const [routeStopOrder, setRouteStopOrder] = useState("1");
   const [routeStopDuration, setRouteStopDuration] = useState("0");
@@ -464,6 +506,9 @@ export default function RoutesPage() {
       const nextRoute = nextRouteSummary
         ? await getOperatorRoute(nextRouteSummary.id)
         : undefined;
+      const alternativeResult = nextRoute
+        ? await getAlternativeRoutes(nextRoute.id, { page: 1, pageSize: 2 })
+        : undefined;
       const nextStop =
         stopResult.items.find((item) => item.id === selectedStopId) ??
         stopResult.items[0];
@@ -484,6 +529,10 @@ export default function RoutesPage() {
       setLocations(locationResult.filter((location) => location.isActive));
       setSelectedRouteId(nextRoute?.id ?? "");
       setSelectedStopId(nextStop?.id ?? "");
+      setAlternativeRoutes(alternativeResult?.items ?? []);
+      const nextAlternative = alternativeResult?.items[0];
+      setSelectedAlternativeRouteId(nextAlternative?.id ?? "");
+      setAlternativeForm(nextAlternative ? alternativeRouteToForm(nextAlternative) : emptyAlternativeRouteForm);
 
       if (nextRoute) {
         lastEstimatedRoutePairRef.current = `${nextRoute.originStationId}:${nextRoute.destinationStationId}`;
@@ -975,6 +1024,9 @@ export default function RoutesPage() {
     setRoutes((prev) => [created, ...prev]);
     setSelectedRouteId(created.id);
     setRouteForm(routeToForm(created));
+    setAlternativeRoutes([]);
+    setSelectedAlternativeRouteId("");
+    setAlternativeForm(emptyAlternativeRouteForm);
     applySavedGeometry(created);
     setRouteStopDrafts((prev) => [
       ...prev.filter((item) => item.routeId !== draftRouteId),
@@ -993,11 +1045,22 @@ export default function RoutesPage() {
     if (!routeId) {
       lastEstimatedRoutePairRef.current = "";
       setRouteForm(emptyRouteForm);
+      setAlternativeRoutes([]);
+      setSelectedAlternativeRouteId("");
+      setAlternativeForm(emptyAlternativeRouteForm);
       applySavedGeometry(null);
       return;
     }
 
-    const route = await getOperatorRoute(routeId);
+    const [route, alternativeResult] = await Promise.all([
+      getOperatorRoute(routeId),
+      getAlternativeRoutes(routeId, { page: 1, pageSize: 2 }),
+    ]);
+    setAlternativeRoutes(alternativeResult.items);
+    const nextAlternative = alternativeResult.items[0];
+    setSelectedAlternativeRouteId(nextAlternative?.id ?? "");
+    setAlternativeForm(nextAlternative ? alternativeRouteToForm(nextAlternative) : emptyAlternativeRouteForm);
+    setAlternativeStopId("");
     setRoutes((prev) =>
       prev.some((item) => item.id === route.id)
         ? prev.map((item) => (item.id === route.id ? route : item))
@@ -1042,6 +1105,107 @@ export default function RoutesPage() {
     setRouteForm(routeToForm(updated));
     applySavedGeometry(updated);
     showMessage("route", t("routes.routeUpdated"));
+  }
+
+
+  function handleSelectAlternativeRoute(alternativeRouteId: string) {
+    setSelectedAlternativeRouteId(alternativeRouteId);
+    const alternative = alternativeRoutes.find((item) => item.id === alternativeRouteId);
+    setAlternativeForm(alternative ? alternativeRouteToForm(alternative) : emptyAlternativeRouteForm);
+    setAlternativeStopId("");
+  }
+
+  function updateAlternative<K extends keyof AlternativeRouteRequest>(
+    key: K,
+    value: AlternativeRouteRequest[K],
+  ) {
+    setAlternativeForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleAddAlternativeStop() {
+    const stop = stops.find((item) => item.id === alternativeStopId);
+    if (!stop) {
+      setError(t("routes.alternativeStopRequired"));
+      return;
+    }
+    if (alternativeForm.stops.some((item) => item.stopId === stop.id)) {
+      setError(t("routes.alternativeDuplicateStop"));
+      return;
+    }
+    setAlternativeForm((current) => ({
+      ...current,
+      stops: [...current.stops, {
+        stopId: stop.id,
+        orderIndex: current.stops.length + 1,
+        estimatedDurationFromOriginMinutes: alternativeStopDuration,
+        distanceFromOriginKm: alternativeStopDistance,
+      }],
+    }));
+    setAlternativeStopId("");
+    setAlternativeStopDuration(0);
+    setAlternativeStopDistance(0);
+  }
+
+  function handleRemoveAlternativeStop(stopId: string) {
+    setAlternativeForm((current) => ({
+      ...current,
+      stops: current.stops
+        .filter((item) => item.stopId !== stopId)
+        .map((item, index) => ({ ...item, orderIndex: index + 1 })),
+    }));
+  }
+
+  async function handleCreateAlternativeRoute() {
+    if (!selectedRouteId) {
+      setError(t("routes.selectRouteFirst"));
+      return;
+    }
+    if (alternativeRoutes.length >= 2) {
+      setError(t("routes.alternativeLimitReached"));
+      return;
+    }
+    if (!alternativeForm.name.trim()) {
+      setError(t("routes.alternativeNameRequired"));
+      return;
+    }
+    if (!alternativeForm.destinationStationId) {
+      setError(t("routes.alternativeDestinationRequired"));
+      return;
+    }
+    if (alternativeForm.destinationStationId === routeForm.originStationId) {
+      setError(t("routes.alternativeDestinationInvalid"));
+      return;
+    }
+    const created = await createAlternativeRoute(selectedRouteId, alternativeForm);
+    setAlternativeRoutes((current) => [...current, created]);
+    setSelectedAlternativeRouteId(created.id);
+    setAlternativeForm(alternativeRouteToForm(created));
+    showMessage("alternative", t("routes.alternativeCreated"));
+  }
+
+  async function handleUpdateAlternativeRoute() {
+    if (!selectedAlternativeRouteId) {
+      setError(t("routes.selectAlternativeFirst"));
+      return;
+    }
+    const updated = await updateAlternativeRoute(selectedAlternativeRouteId, alternativeForm);
+    setAlternativeRoutes((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    setAlternativeForm(alternativeRouteToForm(updated));
+    showMessage("alternative", t("routes.alternativeUpdated"));
+  }
+
+  async function handleDeleteAlternativeRoute() {
+    if (!selectedAlternativeRouteId) {
+      setError(t("routes.selectAlternativeFirst"));
+      return;
+    }
+    await deleteAlternativeRoute(selectedAlternativeRouteId);
+    const remaining = alternativeRoutes.filter((item) => item.id !== selectedAlternativeRouteId);
+    const nextAlternative = remaining[0];
+    setAlternativeRoutes(remaining);
+    setSelectedAlternativeRouteId(nextAlternative?.id ?? "");
+    setAlternativeForm(nextAlternative ? alternativeRouteToForm(nextAlternative) : emptyAlternativeRouteForm);
+    showMessage("alternative", t("routes.alternativeDeleted"));
   }
 
   async function handleAddRouteStop() {
@@ -1184,6 +1348,13 @@ export default function RoutesPage() {
       title: t("routes.workflowRouteTitle"),
       description: t("routes.workflowRouteDescription"),
       complete: Boolean(selectedRouteId),
+    },
+    {
+      id: "alternative",
+      icon: <FiGitBranch size={18} />,
+      title: t("routes.workflowAlternativeTitle"),
+      description: t("routes.workflowAlternativeDescription"),
+      complete: alternativeRoutes.length === 2,
     },
     {
       id: "routeStop",
@@ -1347,6 +1518,7 @@ export default function RoutesPage() {
           <span><strong className="text-gray-900">{stations.length}</strong> {t("routes.stations")}</span>
           <span><strong className="text-gray-900">{stops.length}</strong> {t("routes.stops")}</span>
           <span><strong className="text-gray-900">{routes.length}</strong> {t("routes.routes")}</span>
+          <span><strong className="text-gray-900">{alternativeRoutes.length}/2</strong> {t("routes.alternativeRoutes")}</span>
           <span><strong className="text-gray-900">{routeStopDrafts.length}</strong> {t("routes.routeStopOrders")}</span>
         </div>
       </section>
@@ -1682,6 +1854,241 @@ export default function RoutesPage() {
           </section>
           )}
 
+          {activeTab === "alternative" && (
+          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <SectionHeader
+              icon={<FiGitBranch />}
+              title={t("routes.alternativeManagement")}
+              subtitle={t("routes.alternativeManagementHint")}
+            />
+            {!selectedRouteId ? (
+              <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {t("routes.alternativeSelectRoute")}
+              </p>
+            ) : (
+              <>
+                <div className="mt-4 rounded-lg border border-vr-100 bg-vr-50/60 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {t("routes.alternativeCapacity", { count: alternativeRoutes.length })}
+                    </p>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-vr-700">
+                      {alternativeRoutes.length}/2
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                    {t("routes.alternativeCapacityHint")}
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-2 md:grid-cols-2">
+                  {alternativeRoutes.map((alternative, index) => (
+                    <button
+                      key={alternative.id}
+                      type="button"
+                      onClick={() => handleSelectAlternativeRoute(alternative.id)}
+                      className={selectedAlternativeRouteId === alternative.id
+                        ? "rounded-lg border border-vr-300 bg-vr-50 p-3 text-left ring-1 ring-vr-200"
+                        : "rounded-lg border border-gray-200 bg-white p-3 text-left hover:border-vr-200 hover:bg-gray-50"}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wide text-vr-700">
+                          {t("routes.alternativeNumber", { number: index + 1 })}
+                        </span>
+                        <span className={alternative.isActive
+                          ? "rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                          : "rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500"}
+                        >
+                          {alternative.isActive ? t("routes.alternativeActive") : t("routes.alternativeInactive")}
+                        </span>
+                      </div>
+                      <p className="mt-1 font-semibold text-gray-900">{alternative.name}</p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {alternative.totalDistanceKm} km · {alternative.estimatedDurationMinutes} {t("routes.minutes")}
+                      </p>
+                    </button>
+                  ))}
+                  {!alternativeRoutes.length && (
+                    <p className="text-sm text-gray-500">{t("routes.alternativeEmpty")}</p>
+                  )}
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  <Input
+                    label={t("routes.alternativeName")}
+                    value={alternativeForm.name}
+                    onChange={(value) => updateAlternative("name", value)}
+                    placeholder={t("routes.alternativeNamePlaceholder")}
+                    disabled={!canManageRoutes}
+                  />
+                  <StationSelect
+                    label={t("routes.alternativeDestination")}
+                    stations={stations}
+                    value={alternativeForm.destinationStationId}
+                    placeholder={t("routes.selectAlternativeDestination")}
+                    onChange={(value) => updateAlternative("destinationStationId", value)}
+                    disabled={!canManageRoutes}
+                  />
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>{t("routes.alternativeDescription")}</label>
+                    <textarea
+                      className={inputClass + " min-h-20 resize-y"}
+                      value={alternativeForm.description}
+                      onChange={(event) => updateAlternative("description", event.target.value)}
+                      placeholder={t("routes.alternativeDescriptionPlaceholder")}
+                      disabled={!canManageRoutes}
+                    />
+                  </div>
+                  <NumberInput
+                    label={t("routes.totalDistance")}
+                    value={alternativeForm.totalDistanceKm}
+                    onChange={(value) => updateAlternative("totalDistanceKm", value)}
+                    disabled={!canManageRoutes}
+                  />
+                  <DurationInput
+                    label={t("routes.durationMinutes")}
+                    value={alternativeForm.estimatedDurationMinutes}
+                    onChange={(value) => updateAlternative("estimatedDurationMinutes", value)}
+                    hourLabel={t("routes.hours")}
+                    minuteLabel={t("routes.minutes")}
+                    disabled={!canManageRoutes}
+                  />
+                  <label className="flex items-end gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={alternativeForm.isActive}
+                      disabled={!canManageRoutes}
+                      onChange={(event) => updateAlternative("isActive", event.target.checked)}
+                    />
+                    {t("routes.activeAlternative")}
+                  </label>
+                </div>
+
+                <div className="mt-5 rounded-lg border border-gray-200 p-4">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{t("routes.alternativeStops")}</p>
+                    <p className="mt-1 text-xs text-gray-500">{t("routes.alternativeStopsHint")}</p>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_150px_auto] md:items-end">
+                    <div>
+                      <label className={labelClass}>{t("routes.stop")}</label>
+                      <CustomSelect
+                        className={inputClass}
+                        value={alternativeStopId}
+                        onChange={(event) => setAlternativeStopId(event.target.value)}
+                        disabled={!canManageRoutes}
+                      >
+                        <option value="">{t("routes.selectStop")}</option>
+                        {stops
+                          .filter((stop) => !alternativeForm.stops.some((item) => item.stopId === stop.id))
+                          .map((stop) => (
+                            <option key={stop.id} value={stop.id}>{stop.name}</option>
+                          ))}
+                      </CustomSelect>
+                    </div>
+                    <NumberInput
+                      label={t("routes.durationFromOrigin")}
+                      value={alternativeStopDuration}
+                      onChange={setAlternativeStopDuration}
+                      disabled={!canManageRoutes}
+                    />
+                    <NumberInput
+                      label={t("routes.distanceFromOrigin")}
+                      value={alternativeStopDistance}
+                      onChange={setAlternativeStopDistance}
+                      disabled={!canManageRoutes}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddAlternativeStop}
+                      disabled={!canManageRoutes || !alternativeStopId}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <FiPlus size={16} />
+                      {t("routes.addAlternativeStop")}
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {alternativeForm.stops.map((routeStop, index) => {
+                      const stop = stops.find((item) => item.id === routeStop.stopId);
+                      return (
+                        <div key={routeStop.stopId} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm">
+                          <span className="min-w-0 truncate font-medium text-gray-800">
+                            {index + 1}. {stop?.name ?? routeStop.stopId}
+                          </span>
+                          <span className="shrink-0 text-xs text-gray-500">
+                            {routeStop.distanceFromOriginKm} km · {routeStop.estimatedDurationFromOriginMinutes} {t("routes.minutes")}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={t("routes.removeAlternativeStop")}
+                            onClick={() => handleRemoveAlternativeStop(routeStop.stopId)}
+                            disabled={!canManageRoutes}
+                            className="shrink-0 text-gray-400 hover:text-red-600 disabled:opacity-50"
+                          >
+                            <FiTrash2 size={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {!alternativeForm.stops.length && (
+                      <p className="text-xs text-gray-500">{t("routes.alternativeNoStops")}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {canManageRoutes && (
+                    <>
+                      {!selectedAlternativeRouteId ? (
+                        <button
+                          type="button"
+                          onClick={() => runAction(handleCreateAlternativeRoute)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+                        >
+                          <FiPlus size={16} />
+                          {t("routes.createAlternative")}
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => runAction(handleUpdateAlternativeRoute)}
+                            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+                          >
+                            <FiSave size={16} />
+                            {t("routes.updateAlternative")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => runAction(handleDeleteAlternativeRoute)}
+                            className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                          >
+                            <FiTrash2 size={16} />
+                            {t("routes.deleteAlternative")}
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAlternativeRouteId("");
+                          setAlternativeForm(emptyAlternativeRouteForm);
+                        }}
+                        disabled={alternativeRoutes.length >= 2}
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <FiPlus size={16} />
+                        {t("routes.newAlternative")}
+                      </button>
+                    </>
+                  )}
+                </div>
+                <InlineFeedback message={messageScope === "alternative" ? message : ""} />
+              </>
+            )}
+          </section>
+          )}
           {activeTab === "routeStop" && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <SectionHeader
