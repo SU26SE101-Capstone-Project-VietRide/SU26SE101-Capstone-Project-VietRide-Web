@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FiMapPin, FiPlus, FiRefreshCw, FiTrash2 } from "react-icons/fi";
+import { FiRefreshCw } from "react-icons/fi";
 import {
   addRouteStop,
   createOperatorRoute,
@@ -10,86 +11,91 @@ import {
   getOperatorStations,
   getOperatorStops,
   getPublicLocations,
-  removeRouteStop,
   updateOperatorRoute,
   type OperatorRoute,
   type OperatorRouteRequest,
   type OperatorStop,
   type AdminLocation,
-  type RouteStopRequest,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
-import Modal from "../../../components/Modal";
-import CustomSelect from "../../../components/CustomSelect";
-import {
-  inputClass,
-  labelClass,
-} from "../../../components/form/formClasses";
 import {
   estimateCoachDurationMinutes,
   type RouteCoordinate,
 } from "./polyline";
-import { toNumber } from "../../../utils/number";
-import { distanceKmBetween } from "./geometry";
+import { distanceKmBetween, requestRoadGeometry } from "./geometry";
 import {
   draftRouteId,
   emptyRouteForm,
   isGuid,
   mergeStations,
+  parseRouteTab,
   routeToForm,
   toRouteStopRequest,
   toStationOption,
+  type RouteTab,
 } from "./routeFormUtils";
-import type {
-  FeedbackScope,
-  RouteMapPoint,
-  RouteStopDraft,
-  StationOption,
-} from "./types";
+import type { FeedbackScope, StationOption } from "./types";
 import { useRouteGeometry } from "./useRouteGeometry";
 import { useAlternativeRoutes } from "./useAlternativeRoutes";
 import { useStationManagement } from "./useStationManagement";
 import { useStopForm } from "./useStopForm";
-import InlineFeedback from "./InlineFeedback";
-import SectionHeader from "./SectionHeader";
-import { Input } from "./formControls";
-import StationManagementPanel from "./StationManagementPanel";
+import { useRouteStopEditor } from "./useRouteStopEditor";
+import { useRouteMapPoints } from "./useRouteMapPoints";
+import RouteListSidebar from "./RouteListSidebar";
+import RouteDetailHeader from "./RouteDetailHeader";
 import RouteFormSection from "./RouteFormSection";
 import AlternativeRoutesSection from "./AlternativeRoutesSection";
-import StopEditorCard from "./StopEditorCard";
-import RouteStopList from "./RouteStopList";
+import RouteStopsSection from "./RouteStopsSection";
 import GeometryPanel from "./GeometryPanel";
+import RouteEmptyState from "./RouteEmptyState";
+import StationManagementModal from "./StationManagementModal";
+import CreateRouteModal, { type CreateRouteBasics } from "./CreateRouteModal";
+import RemoveRouteStopModal from "./RemoveRouteStopModal";
 
 export default function RoutesPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseRouteTab(searchParams.get("tab"));
   const canManageRoutes = getAuthUser()?.role === "OPERATOR_ADMIN";
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [stops, setStops] = useState<OperatorStop[]>([]);
   const [stations, setStations] = useState<StationOption[]>([]);
   const [locations, setLocations] = useState<AdminLocation[]>([]);
-  const [routeStopDrafts, setRouteStopDrafts] = useState<RouteStopDraft[]>([]);
   const [routeForm, setRouteForm] =
     useState<OperatorRouteRequest>(emptyRouteForm);
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [selectedStopId, setSelectedStopId] = useState("");
-  const [routeStopOrder, setRouteStopOrder] = useState("1");
-  const [routeStopDuration, setRouteStopDuration] = useState("0");
-  const [routeStopDistance, setRouteStopDistance] = useState("0");
-  const [allowPickup, setAllowPickup] = useState(true);
-  const [allowDropoff, setAllowDropoff] = useState(true);
   const [message, setMessage] = useState("");
   const [messageScope, setMessageScope] = useState<FeedbackScope>("global");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [routeStopPendingRemoval, setRouteStopPendingRemoval] =
-    useState<RouteStopDraft | null>(null);
+  const [isStationModalOpen, setIsStationModalOpen] = useState(false);
+  const [isCreateRouteModalOpen, setIsCreateRouteModalOpen] = useState(false);
+  // Auto-fill km/thời lượng theo Google Routes khi chọn đủ 2 bến có tọa độ
+  const [isAutoCalculatingMetrics, setIsAutoCalculatingMetrics] =
+    useState(false);
+  const [autoMetricsFallback, setAutoMetricsFallback] = useState(false);
+  // "Sửa tay": lưu identity mảng điểm đường đi đang được mở khóa — khi geometry đổi
+  // (tính lại/vẽ lại/tải tuyến khác) mảng mới khác identity nên tự khóa lại, không cần effect
+  const [unlockedGeometryPoints, setUnlockedGeometryPoints] = useState<
+    RouteCoordinate[] | null
+  >(null);
   const lastEstimatedRoutePairRef = useRef("");
+  // Cặp bến đã thử gọi tính đường tự động — tránh gọi lặp khi request lỗi mà số liệu vẫn 0
+  const autoCalcAttemptedPairRef = useRef("");
   // Ref giữ giá trị mới nhất để loadData không phải phụ thuộc vào
   // selectedRouteId/selectedStopId/t — tránh refetch toàn bộ khi chọn tuyến/điểm dừng
   const tRef = useRef(t);
   const selectedRouteIdRef = useRef(selectedRouteId);
   const selectedStopIdRef = useRef(selectedStopId);
+  // Ref phá vòng phụ thuộc stopEditor → geometry → mapPoints → stopEditor:
+  // handler chỉ chạy sau render nên tham chiếu qua ref là an toàn
+  const invalidateGeometryRef = useRef<(routeId?: string) => void>(() => {});
+  // Ref tương tự cho effect auto-fill — không đưa object geometry vào deps
+  const applyComputedGeometryRef = useRef<(points: RouteCoordinate[]) => void>(
+    () => {},
+  );
 
   useEffect(() => {
     tRef.current = t;
@@ -117,65 +123,26 @@ export default function RoutesPage() {
   const activeRouteKey = selectedRoute?.id ?? draftRouteId;
   const activeRouteName =
     selectedRoute?.name || routeForm.name.trim() || t("routes.draftRoute");
-  const currentRouteStops = useMemo(
-    () =>
-      routeStopDrafts
-        .filter((item) => item.routeId === activeRouteKey)
-        .sort((a, b) => a.orderIndex - b.orderIndex),
-    [activeRouteKey, routeStopDrafts],
-  );
-  const routeMapPoints = useMemo(() => {
-    const origin = stations.find(
-      (station) => station.id === routeForm.originStationId,
-    );
-    const destination = stations.find(
-      (station) => station.id === routeForm.destinationStationId,
-    );
 
-    return [
-      origin
-        ? {
-            id: `origin-${origin.id}`,
-            name: `${t("routes.origin")}: ${origin.name}`,
-            latitude: origin.latitude,
-            longitude: origin.longitude,
-            color: "#0f766e",
-          }
-        : null,
-      ...currentRouteStops.map((stop) => ({
-        id: `stop-${stop.stopId}-${stop.orderIndex}`,
-        name: `#${stop.orderIndex} · ${stop.stopName}`,
-        latitude: stop.latitude,
-        longitude: stop.longitude,
-        color: stop.allowPickup && stop.allowDropoff ? "#2563eb" : "#f59e0b",
-      })),
-      destination
-        ? {
-            id: `destination-${destination.id}`,
-            name: `${t("routes.destination")}: ${destination.name}`,
-            latitude: destination.latitude,
-            longitude: destination.longitude,
-            color: "#dc2626",
-          }
-        : null,
-    ].filter((point): point is RouteMapPoint => Boolean(point));
-  }, [
-    currentRouteStops,
-    routeForm.destinationStationId,
-    routeForm.originStationId,
+  const stopEditor = useRouteStopEditor({
+    selectedRoute,
+    selectedStop,
     stations,
+    originStationId: routeForm.originStationId,
+    activeRouteKey,
+    activeRouteName,
+    invalidateLocalGeometry: (routeId) => invalidateGeometryRef.current(routeId),
+    setError,
+    showMessage,
     t,
-  ]);
-
-  const routeWaypoints = useMemo<RouteCoordinate[]>(
-    () =>
-      routeMapPoints.map((point) => ({
-        latitude: point.latitude,
-        longitude: point.longitude,
-      })),
-    [routeMapPoints],
-  );
-
+  });
+  const { routeMapPoints, routeWaypoints } = useRouteMapPoints({
+    stations,
+    originStationId: routeForm.originStationId,
+    destinationStationId: routeForm.destinationStationId,
+    currentRouteStops: stopEditor.currentRouteStops,
+    t,
+  });
   const geometry = useRouteGeometry({
     selectedRouteId,
     routeForm,
@@ -186,6 +153,8 @@ export default function RoutesPage() {
     showMessage,
     t,
   });
+  invalidateGeometryRef.current = geometry.invalidateLocalGeometry;
+  applyComputedGeometryRef.current = geometry.applyComputedGeometry;
   const alternatives = useAlternativeRoutes({
     selectedRouteId,
     originStationId: routeForm.originStationId,
@@ -213,6 +182,7 @@ export default function RoutesPage() {
   const { applySavedGeometry } = geometry;
   const { applyAlternatives } = alternatives;
   const { setStopForm } = stopFormControl;
+  const { setRouteStopDrafts } = stopEditor;
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -292,53 +262,127 @@ export default function RoutesPage() {
     });
   }, [loadData]);
 
+  // Deep-link ?routeId=: sau khi danh sách tuyến đã tải, nếu URL trỏ tới tuyến tồn tại
+  // thì chọn tuyến đó. Chỉ phản ứng khi param KHÁC tuyến đang chọn để tránh vòng lặp
+  // (handleSelectRoute cũng ghi lại ?routeId= vào URL). Id không tồn tại → bỏ qua im lặng.
   useEffect(() => {
-    if (!canManageRoutes || !selectedOriginStation || !selectedDestinationStation) {
-      return;
-    }
+    const paramRouteId = searchParams.get("routeId");
 
     if (
-      selectedOriginStation.id === selectedDestinationStation.id ||
-      !selectedOriginStation.latitude ||
-      !selectedOriginStation.longitude ||
-      !selectedDestinationStation.latitude ||
-      !selectedDestinationStation.longitude
+      !paramRouteId ||
+      paramRouteId === selectedRouteId ||
+      !routes.some((route) => route.id === paramRouteId)
     ) {
       return;
     }
 
-    const routePairKey = `${selectedOriginStation.id}:${selectedDestinationStation.id}`;
+    runAction(() => handleSelectRoute(paramRouteId));
+  });
+
+  // Chọn đủ 2 bến → tự gọi Google Routes lấy polyline + km + thời lượng và auto-fill
+  // form. Guard bằng ref cặp bến để chỉ gọi khi CẶP bến đổi (hoặc số liệu còn 0 mà
+  // chưa từng thử). Lỗi/thiếu key/thiếu tọa độ → fallback ước lượng haversine như cũ,
+  // 2 ô vẫn nhập tay được kèm hint — flow không được gãy khi môi trường không có key.
+  useEffect(() => {
+    if (
+      !canManageRoutes ||
+      !selectedOriginStation ||
+      !selectedDestinationStation ||
+      selectedOriginStation.id === selectedDestinationStation.id
+    ) {
+      return;
+    }
+
+    const origin = selectedOriginStation;
+    const destination = selectedDestinationStation;
+    const routePairKey = `${origin.id}:${destination.id}`;
+
+    if (
+      !origin.latitude ||
+      !origin.longitude ||
+      !destination.latitude ||
+      !destination.longitude
+    ) {
+      // Bến thiếu tọa độ → không tính tự động được, chỉ hiện hint nhập tay
+      if (lastEstimatedRoutePairRef.current !== routePairKey) {
+        setAutoMetricsFallback(true);
+      }
+      return;
+    }
+
     const shouldEstimate =
       lastEstimatedRoutePairRef.current !== routePairKey ||
-      routeForm.totalDistanceKm === 0 ||
-      routeForm.estimatedDurationMinutes === 0;
+      ((routeForm.totalDistanceKm === 0 ||
+        routeForm.estimatedDurationMinutes === 0) &&
+        autoCalcAttemptedPairRef.current !== routePairKey);
 
     if (!shouldEstimate) {
       return;
     }
 
-    const distance = distanceKmBetween(
-      selectedOriginStation,
-      selectedDestinationStation,
-    );
-    const totalDistanceKm = Number(distance.toFixed(1));
-    const estimatedDurationMinutes = estimateCoachDurationMinutes(distance);
-
     lastEstimatedRoutePairRef.current = routePairKey;
-    setRouteForm((current) => {
-      if (
-        current.originStationId !== selectedOriginStation.id ||
-        current.destinationStationId !== selectedDestinationStation.id
-      ) {
-        return current;
-      }
+    autoCalcAttemptedPairRef.current = routePairKey;
 
-      return {
-        ...current,
-        totalDistanceKm,
-        estimatedDurationMinutes,
-      };
-    });
+    const applyMetrics = (
+      totalDistanceKm: number,
+      estimatedDurationMinutes: number,
+    ) => {
+      setRouteForm((current) => {
+        if (
+          current.originStationId !== origin.id ||
+          current.destinationStationId !== destination.id
+        ) {
+          return current;
+        }
+
+        return { ...current, totalDistanceKm, estimatedDurationMinutes };
+      });
+    };
+
+    let cancelled = false;
+    setIsAutoCalculatingMetrics(true);
+    setAutoMetricsFallback(false);
+    void (async () => {
+      try {
+        const result = await requestRoadGeometry(
+          [
+            { latitude: origin.latitude, longitude: origin.longitude },
+            {
+              latitude: destination.latitude,
+              longitude: destination.longitude,
+            },
+          ],
+          tRef.current("routes.routingFailed"),
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        applyComputedGeometryRef.current(result.points);
+        applyMetrics(result.totalDistanceKm, result.estimatedDurationMinutes);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        // Fallback: giữ ước lượng đường chim bay như trước, ô số vẫn editable
+        const distance = distanceKmBetween(origin, destination);
+        applyMetrics(
+          Number(distance.toFixed(1)),
+          estimateCoachDurationMinutes(distance),
+        );
+        setAutoMetricsFallback(true);
+      } finally {
+        if (!cancelled) {
+          setIsAutoCalculatingMetrics(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     canManageRoutes,
     routeForm.estimatedDurationMinutes,
@@ -361,6 +405,23 @@ export default function RoutesPage() {
     setMessage(nextMessage);
   }
 
+  function selectTab(tab: RouteTab) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+
+        if (tab === "info") {
+          next.delete("tab");
+        } else {
+          next.set("tab", tab);
+        }
+
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
   function updateRoute<K extends keyof OperatorRouteRequest>(
     key: K,
     value: OperatorRouteRequest[K],
@@ -375,36 +436,32 @@ export default function RoutesPage() {
     setRouteForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleCreateRoute() {
-    if (!routeForm.name.trim()) {
-      setError(t("routes.routeNameRequired"));
-      return;
+  // Tạo tuyến từ modal: chỉ các field bắt buộc, phần còn lại lấy mặc định của
+  // emptyRouteForm. Ném Error để modal hiển thị lỗi ngay trong hộp thoại.
+  async function handleCreateRoute(basics: CreateRouteBasics) {
+    if (!basics.name.trim()) {
+      throw new Error(t("routes.routeNameRequired"));
     }
 
-    if (!routeForm.originStationId || !routeForm.destinationStationId) {
-      setError(t("routes.routeStationsRequired"));
-      return;
+    if (!basics.originStationId || !basics.destinationStationId) {
+      throw new Error(t("routes.routeStationsRequired"));
     }
 
-    if (
-      !isGuid(routeForm.originStationId) ||
-      !isGuid(routeForm.destinationStationId)
-    ) {
-      setError(t("routes.routeStationIdsInvalid"));
-      return;
+    if (!isGuid(basics.originStationId) || !isGuid(basics.destinationStationId)) {
+      throw new Error(t("routes.routeStationIdsInvalid"));
     }
 
-    if (routeForm.originStationId === routeForm.destinationStationId) {
-      setError(t("routes.originDestinationDifferent"));
-      return;
+    if (basics.originStationId === basics.destinationStationId) {
+      throw new Error(t("routes.originDestinationDifferent"));
     }
 
-    const pendingStops = routeStopDrafts.filter(
+    const pendingStops = stopEditor.routeStopDrafts.filter(
       (item) => item.routeId === draftRouteId,
     );
     const created = await createOperatorRoute({
-      ...routeForm,
-      returnRouteId: routeForm.returnRouteId || null,
+      ...emptyRouteForm,
+      ...basics,
+      returnRouteId: null,
     });
 
     await Promise.all(
@@ -418,6 +475,10 @@ export default function RoutesPage() {
     setRouteForm(routeToForm(created));
     alternatives.resetAlternatives();
     applySavedGeometry(created);
+    lastEstimatedRoutePairRef.current = `${created.originStationId}:${created.destinationStationId}`;
+    // Cho phép effect auto-fill thử tính lại nếu tuyến mới chưa có số liệu
+    autoCalcAttemptedPairRef.current = "";
+    setAutoMetricsFallback(false);
     setRouteStopDrafts((prev) => [
       ...prev.filter((item) => item.routeId !== draftRouteId),
       ...pendingStops.map((item) => ({
@@ -426,11 +487,42 @@ export default function RoutesPage() {
         routeName: created.name,
       })),
     ]);
-    showMessage("route", t("routes.routeCreated"));
+    // Auto-select tuyến mới và chuyển sang tab Điểm dừng để bổ sung tiếp
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+
+        next.set("routeId", created.id);
+        next.set("tab", "stops");
+
+        return next;
+      },
+      { replace: true },
+    );
+    showMessage("global", t("routes.routeCreated"));
   }
 
   async function handleSelectRoute(routeId: string) {
     setSelectedRouteId(routeId);
+    // Đổi tuyến → reset trạng thái auto-fill của tuyến trước
+    autoCalcAttemptedPairRef.current = "";
+    setAutoMetricsFallback(false);
+    setUnlockedGeometryPoints(null);
+    // Đồng bộ ?routeId= lên URL để share deep-link; replace để không spam history
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+
+        if (routeId) {
+          next.set("routeId", routeId);
+        } else {
+          next.delete("routeId");
+        }
+
+        return next;
+      },
+      { replace: true },
+    );
 
     if (!routeId) {
       lastEstimatedRoutePairRef.current = "";
@@ -492,119 +584,6 @@ export default function RoutesPage() {
     showMessage("route", t("routes.routeUpdated"));
   }
 
-  async function handleAddRouteStop() {
-    if (!selectedStop) {
-      setError(t("routes.routeStopRequired"));
-      return;
-    }
-
-    const orderIndex = toNumber(routeStopOrder);
-    const duplicateOrder = routeStopDrafts.some(
-      (item) =>
-        item.routeId === activeRouteKey && item.orderIndex === orderIndex,
-    );
-
-    if (duplicateOrder) {
-      setError(t("routes.duplicateStopOrder"));
-      return;
-    }
-
-    const request: RouteStopRequest = {
-      stopId: selectedStop.id,
-      orderIndex,
-      estimatedDurationFromOriginMinutes: toNumber(routeStopDuration),
-      distanceFromOriginKm: toNumber(routeStopDistance),
-      allowPickup,
-      allowDropoff,
-    };
-
-    if (selectedRoute) {
-      await addRouteStop(selectedRoute.id, request);
-      geometry.invalidateLocalGeometry(selectedRoute.id);
-    }
-
-    setRouteStopDrafts((prev) => [
-      ...prev,
-      {
-        ...request,
-        routeId: activeRouteKey,
-        routeName: activeRouteName,
-        stopName: selectedStop.name,
-        latitude: selectedStop.latitude,
-        longitude: selectedStop.longitude,
-      },
-    ]);
-    setRouteStopOrder(String(orderIndex + 1));
-    showMessage(
-      "routeStop",
-      selectedRoute
-        ? t("routes.routeStopAdded")
-        : t("routes.routeStopDraftAdded"),
-    );
-  }
-
-  async function handleEstimateRouteStopMetrics() {
-    const origin = stations.find(
-      (station) => station.id === routeForm.originStationId,
-    );
-
-    if (!origin || !selectedStop) {
-      setError(t("routes.estimateRequiresOriginAndStop"));
-      return;
-    }
-
-    if (
-      !origin.latitude ||
-      !origin.longitude ||
-      !selectedStop.latitude ||
-      !selectedStop.longitude
-    ) {
-      setError(t("routes.estimateRequiresCoordinates"));
-      return;
-    }
-
-    const distance = distanceKmBetween(origin, selectedStop);
-    const durationMinutes = estimateCoachDurationMinutes(distance);
-
-    setRouteStopDistance(distance.toFixed(1));
-    setRouteStopDuration(String(durationMinutes));
-    showMessage("routeStop", t("routes.estimatedRouteStopMetrics"));
-  }
-
-  async function handleRemoveRouteStop(item: RouteStopDraft) {
-    if (item.routeId === draftRouteId) {
-      setRouteStopDrafts((prev) =>
-        prev.filter(
-          (draft) =>
-            draft.routeId !== draftRouteId ||
-            draft.stopId !== item.stopId ||
-            draft.orderIndex !== item.orderIndex,
-        ),
-      );
-      setRouteStopPendingRemoval(null);
-      showMessage("routeStop", t("routes.routeStopRemoved"));
-      return;
-    }
-
-    if (!selectedRoute) {
-      setError(t("routes.selectRouteFirst"));
-      return;
-    }
-
-    await removeRouteStop(selectedRoute.id, item.stopId);
-    geometry.invalidateLocalGeometry(selectedRoute.id);
-    setRouteStopDrafts((prev) =>
-      prev.filter(
-        (draft) =>
-          draft.routeId !== selectedRoute.id ||
-          draft.stopId !== item.stopId ||
-          draft.orderIndex !== item.orderIndex,
-      ),
-    );
-    setRouteStopPendingRemoval(null);
-    showMessage("routeStop", t("routes.routeStopRemoved"));
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -637,218 +616,146 @@ export default function RoutesPage() {
         </div>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[440px_minmax(0,1fr)]">
-        <main className="min-w-0 space-y-5">
-          {/* Danh mục bến: thao tác một lần cho mỗi bến nên thu gọn mặc định */}
-          <StationManagementPanel
-            canManageRoutes={canManageRoutes}
-            stations={stations}
-            locations={locations}
-            manager={stationManager}
-            onRunAction={runAction}
-            feedbackMessage={messageScope === "station" ? message : ""}
-          />
-
-          <RouteFormSection
-            canManageRoutes={canManageRoutes}
-            routes={routes}
-            stations={stations}
-            selectedRouteId={selectedRouteId}
-            form={routeForm}
-            onUpdateField={updateRoute}
-            onSelectRoute={(routeId) =>
-              runAction(() => handleSelectRoute(routeId))
-            }
-            onCreateRoute={() => runAction(handleCreateRoute)}
-            onUpdateRoute={() => runAction(handleUpdateRoute)}
-            feedbackMessage={messageScope === "route" ? message : ""}
-          />
-
-          <AlternativeRoutesSection
-            canManageRoutes={canManageRoutes}
-            hasSelectedRoute={Boolean(selectedRouteId)}
-            stations={stations}
-            stops={stops}
-            alternatives={alternatives}
-            onRunAction={runAction}
-            feedbackMessage={messageScope === "alternative" ? message : ""}
-          />
-
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <SectionHeader
-              icon={<FiMapPin />}
-              title={t("routes.routeStopsTitle")}
-              subtitle={t("routes.routeStopsHint")}
-            />
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className={labelClass}>{t("routes.stop")}</label>
-                <CustomSelect
-                  className={inputClass}
-                  value={selectedStopId}
-                  onChange={(event) =>
-                    runAction(() =>
-                      stopFormControl.handleSelectStop(event.target.value),
-                    )
-                  }
-                >
-                  <option value="">{t("routes.selectStop")}</option>
-                  {stops.map((stop) => (
-                    <option key={stop.id} value={stop.id}>
-                      {stop.name}
-                    </option>
-                  ))}
-                </CustomSelect>
-              </div>
-              {canManageRoutes && (
-                <StopEditorCard
-                  selectedStopPlace={stopFormControl.selectedStopPlace}
-                  onSelectPlace={stopFormControl.applyStopPlace}
-                  description={stopFormControl.stopForm.description ?? ""}
-                  onChangeDescription={(value) =>
-                    stopFormControl.updateStop("description", value)
-                  }
-                  onCreateStop={() =>
-                    runAction(stopFormControl.handleCreateStop)
-                  }
-                  onUpdateStop={() =>
-                    runAction(stopFormControl.handleUpdateStop)
-                  }
-                  canUpdate={Boolean(selectedStopId)}
-                  feedbackMessage={messageScope === "stop" ? message : ""}
-                />
-              )}
-              <div className="grid grid-cols-3 gap-3">
-                <Input
-                  label={t("routes.stopOrder")}
-                  value={routeStopOrder}
-                  onChange={setRouteStopOrder}
-                  type="number"
-                  disabled={!canManageRoutes}
-                />
-                <Input
-                  label={t("routes.durationFromOrigin")}
-                  value={routeStopDuration}
-                  onChange={setRouteStopDuration}
-                  type="number"
-                  disabled={!canManageRoutes}
-                />
-                <Input
-                  label={t("routes.distanceFromOrigin")}
-                  value={routeStopDistance}
-                  onChange={setRouteStopDistance}
-                  type="number"
-                  disabled={!canManageRoutes}
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-4">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={allowPickup}
-                  disabled={!canManageRoutes}
-                  onChange={(event) => setAllowPickup(event.target.checked)}
-                />
-                {t("routes.allowPickup")}
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={allowDropoff}
-                  disabled={!canManageRoutes}
-                  onChange={(event) => setAllowDropoff(event.target.checked)}
-                />
-                {t("routes.allowDropoff")}
-              </label>
-              {canManageRoutes && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => runAction(handleAddRouteStop)}
-                    disabled={!selectedStopId}
-                    className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50"
-                  >
-                    <FiPlus size={16} />
-                    {t("routes.addStopToRoute")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runAction(handleEstimateRouteStopMetrics)}
-                    disabled={!routeForm.originStationId || !selectedStopId}
-                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <FiRefreshCw size={16} />
-                    {t("routes.estimateRouteStopMetrics")}
-                  </button>
-                </>
-              )}
-            </div>
-            <RouteStopList
-              activeRouteName={activeRouteName}
-              items={currentRouteStops}
-              canManageRoutes={canManageRoutes}
-              onRequestRemove={setRouteStopPendingRemoval}
-            />
-            <InlineFeedback
-              message={messageScope === "routeStop" ? message : ""}
-            />
-          </section>
-        </main>
-
-        <GeometryPanel
+      <div className="grid items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <RouteListSidebar
+          routes={routes}
+          selectedRouteId={selectedRouteId}
           canManageRoutes={canManageRoutes}
-          geometry={geometry}
-          points={routeMapPoints}
-          waypointCount={routeWaypoints.length}
-          hasSelectedRoute={Boolean(selectedRouteId)}
-          hasSavedPolyline={Boolean(selectedRoute?.pathPolyline)}
-          onRunAction={runAction}
-          feedbackMessage={messageScope === "geometry" ? message : ""}
+          onSelectRoute={(routeId) =>
+            runAction(() => handleSelectRoute(routeId))
+          }
+          onCreateRoute={() => setIsCreateRouteModalOpen(true)}
         />
+
+        {selectedRoute ? (
+          <main className="min-w-0 space-y-4">
+            <RouteDetailHeader
+              routeName={selectedRoute.name}
+              activeTab={activeTab}
+              onSelectTab={selectTab}
+              onOpenStationManagement={() => setIsStationModalOpen(true)}
+            />
+
+            {activeTab === "info" && (
+              <div className="grid items-start gap-5 xl:grid-cols-2">
+                <RouteFormSection
+                  canManageRoutes={canManageRoutes}
+                  routes={routes}
+                  stations={stations}
+                  selectedRouteId={selectedRouteId}
+                  form={routeForm}
+                  onUpdateField={updateRoute}
+                  onUpdateRoute={() => runAction(handleUpdateRoute)}
+                  onOpenStationManagement={() => setIsStationModalOpen(true)}
+                  feedbackMessage={messageScope === "route" ? message : ""}
+                  isAutoCalculatingMetrics={isAutoCalculatingMetrics}
+                  autoMetricsFallback={autoMetricsFallback}
+                  metricsLocked={
+                    geometry.routePathPoints.length >= 2 &&
+                    !geometry.isEditingGeometry &&
+                    unlockedGeometryPoints !== geometry.routePathPoints
+                  }
+                  onUnlockMetrics={() =>
+                    setUnlockedGeometryPoints(geometry.routePathPoints)
+                  }
+                />
+                <GeometryPanel
+                  canManageRoutes={canManageRoutes}
+                  geometry={geometry}
+                  points={routeMapPoints}
+                  waypointCount={routeWaypoints.length}
+                  hasSelectedRoute={Boolean(selectedRouteId)}
+                  hasSavedPolyline={Boolean(selectedRoute.pathPolyline)}
+                  onRunAction={runAction}
+                  feedbackMessage={messageScope === "geometry" ? message : ""}
+                />
+              </div>
+            )}
+
+            {activeTab === "stops" && (
+              <RouteStopsSection
+                canManageRoutes={canManageRoutes}
+                stops={stops}
+                selectedStopId={selectedStopId}
+                stopFormControl={stopFormControl}
+                routeStopOrder={stopEditor.routeStopOrder}
+                onChangeRouteStopOrder={stopEditor.setRouteStopOrder}
+                routeStopDuration={stopEditor.routeStopDuration}
+                onChangeRouteStopDuration={stopEditor.setRouteStopDuration}
+                routeStopDistance={stopEditor.routeStopDistance}
+                onChangeRouteStopDistance={stopEditor.setRouteStopDistance}
+                allowPickup={stopEditor.allowPickup}
+                onChangeAllowPickup={stopEditor.setAllowPickup}
+                allowDropoff={stopEditor.allowDropoff}
+                onChangeAllowDropoff={stopEditor.setAllowDropoff}
+                canEstimate={Boolean(routeForm.originStationId)}
+                activeRouteName={activeRouteName}
+                currentRouteStops={stopEditor.currentRouteStops}
+                onAddRouteStop={() => runAction(stopEditor.handleAddRouteStop)}
+                onEstimateRouteStopMetrics={() =>
+                  runAction(stopEditor.handleEstimateRouteStopMetrics)
+                }
+                onRequestRemove={stopEditor.setRouteStopPendingRemoval}
+                onRunAction={runAction}
+                stopFeedbackMessage={messageScope === "stop" ? message : ""}
+                routeStopFeedbackMessage={
+                  messageScope === "routeStop" ? message : ""
+                }
+              />
+            )}
+
+            {activeTab === "alternatives" && (
+              <AlternativeRoutesSection
+                canManageRoutes={canManageRoutes}
+                hasSelectedRoute={Boolean(selectedRouteId)}
+                stations={stations}
+                stops={stops}
+                alternatives={alternatives}
+                onRunAction={runAction}
+                feedbackMessage={
+                  messageScope === "alternative" ? message : ""
+                }
+              />
+            )}
+          </main>
+        ) : (
+          <RouteEmptyState
+            canManageRoutes={canManageRoutes}
+            onCreateRoute={() => setIsCreateRouteModalOpen(true)}
+            onOpenStationManagement={() => setIsStationModalOpen(true)}
+          />
+        )}
       </div>
 
       {isLoading && (
         <p className="text-sm text-gray-500">{t("routes.loading")}</p>
       )}
 
-      <Modal
-        open={Boolean(routeStopPendingRemoval)}
-        onClose={() => setRouteStopPendingRemoval(null)}
-        title={t("routes.removeRouteStopTitle")}
-        subtitle={t("routes.removeRouteStopSubtitle")}
-        icon={<FiTrash2 />}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setRouteStopPendingRemoval(null)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (routeStopPendingRemoval) {
-                  runAction(() =>
-                    handleRemoveRouteStop(routeStopPendingRemoval),
-                  );
-                }
-              }}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-            >
-              {tc("delete")}
-            </button>
-          </>
+      <StationManagementModal
+        open={isStationModalOpen}
+        onClose={() => setIsStationModalOpen(false)}
+        canManageRoutes={canManageRoutes}
+        stations={stations}
+        locations={locations}
+        manager={stationManager}
+        onRunAction={runAction}
+        feedbackMessage={messageScope === "station" ? message : ""}
+      />
+
+      <CreateRouteModal
+        open={isCreateRouteModalOpen}
+        onClose={() => setIsCreateRouteModalOpen(false)}
+        stations={stations}
+        onSubmit={handleCreateRoute}
+      />
+
+      <RemoveRouteStopModal
+        item={stopEditor.routeStopPendingRemoval}
+        onClose={() => stopEditor.setRouteStopPendingRemoval(null)}
+        onConfirm={(item) =>
+          runAction(() => stopEditor.handleRemoveRouteStop(item))
         }
-      >
-        <p className="text-sm leading-6 text-gray-600">
-          {t("routes.removeRouteStopConfirm", {
-            stopName: routeStopPendingRemoval?.stopName ?? "",
-          })}
-        </p>
-      </Modal>
+      />
     </div>
   );
 }

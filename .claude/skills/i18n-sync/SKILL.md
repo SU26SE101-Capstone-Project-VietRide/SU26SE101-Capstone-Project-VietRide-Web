@@ -20,6 +20,16 @@ node .claude/skills/i18n-sync/check-i18n.mjs
 
 In số key mỗi namespace và liệt kê key lệch, exit 1 khi có lệch. `--json` để lấy output máy đọc.
 
+Parity chỉ so vi↔en — nó KHÔNG bắt được key code đang gọi mà cả hai file JSON đều thiếu
+(bug thật đã gặp: 35 key `routes.alternative*` hiện key thô trên UI). Chạy thêm:
+
+```bash
+node .claude/skills/i18n-sync/scan-missing-i18n.mjs
+```
+
+Quét literal `t("a.b")` trong `src/pages/**` + `src/components/**` và đối chiếu với JSON theo
+namespace suy từ vị trí file. Chạy cả hai script trước khi commit thay đổi liên quan i18n.
+
 Baseline lúc tạo skill (2026-07-31): common 164 · nav 42 · login 106 · admin 570 · manager 1404
 — parity 100%. Nếu chạy ra `FAIL` thì đó là do thay đổi mới, không phải nợ cũ.
 

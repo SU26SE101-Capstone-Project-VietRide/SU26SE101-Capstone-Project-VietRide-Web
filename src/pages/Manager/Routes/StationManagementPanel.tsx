@@ -1,6 +1,7 @@
-// Panel quản lý bến: chọn bến sẵn có / tìm và tạo bến mới rồi gắn vào tuyến
+// Panel quản lý bến: chọn bến sẵn có / tìm và tạo bến mới rồi gắn vào tuyến.
+// Nội dung này được hiển thị bên trong StationManagementModal (luôn mở, không collapse).
 import { useTranslation } from "react-i18next";
-import { FiCheckCircle, FiMapPin, FiSearch } from "react-icons/fi";
+import { FiCheckCircle, FiMapPin } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import PlacePicker from "../../../components/PlacePicker";
 import {
@@ -32,18 +33,7 @@ export default function StationManagementPanel({
   const { t } = useTranslation("manager");
 
   return (
-    <details className="rounded-xl border border-gray-200 bg-white shadow-sm">
-      <summary className="cursor-pointer list-none select-none px-5 py-4 [&::-webkit-details-marker]:hidden">
-        <span className="flex items-center gap-2 text-sm font-bold text-gray-900">
-          <FiSearch className="text-vr-700" size={16} />
-          {t("routes.stationManagement")}
-        </span>
-        <span className="mt-0.5 block text-xs text-gray-500">
-          {t("routes.stationManagementHint")}
-        </span>
-      </summary>
-      <div className="border-t border-gray-100 p-5 pt-4">
-
+    <div className="space-y-4">
       <div className="rounded-lg border border-gray-200 p-4">
         <p className="text-sm font-bold text-gray-900">
           {t("routes.stationExistingTitle")}
@@ -107,7 +97,7 @@ export default function StationManagementPanel({
       </div>
 
       {canManageRoutes && (
-        <div className="mt-4 rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-gray-200 p-4">
           <p className="text-sm font-bold text-gray-900">
             {t("routes.stationCreateTitle")}
           </p>
@@ -188,7 +178,6 @@ export default function StationManagementPanel({
         </div>
       )}
       <InlineFeedback message={feedbackMessage} />
-      </div>
-    </details>
+    </div>
   );
 }

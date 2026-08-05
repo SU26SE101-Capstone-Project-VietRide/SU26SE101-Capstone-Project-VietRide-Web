@@ -1,55 +1,71 @@
-import { FiRefreshCw } from "react-icons/fi";
+import { FiExternalLink, FiRefreshCw, FiX } from "react-icons/fi";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import type {
-  OperatorTripListItem,
   TrackingEtaResponse,
   TrackingLatestResponse,
 } from "../../../api/vietride";
-import CustomSelect from "../../../components/CustomSelect";
 import type { TripStatusChangedEvent } from "../../../lib/trackingSocket";
 import type { RealtimeStatus } from "./gpsHelpers";
 
 type TripTrackingPanelProps = {
   tripId: string;
+  /** Nhãn chuyến đang chọn (tuyến · biển số) hiển thị ở header */
+  tripLabel: string;
+  /** Id tuyến của chuyến đang chọn — có thì hiện link "Xem tuyến" sang màn Routes */
+  routeId?: string | null;
   realtimeStatus: RealtimeStatus;
   delayInfo: TripStatusChangedEvent | null;
-  tripOptions: OperatorTripListItem[];
   isApiLoading: boolean;
   apiMessage: string;
   apiError: string;
   latest: TrackingLatestResponse | null;
   trailCount: number;
   eta: TrackingEtaResponse | null;
-  onSelectTrip: (tripId: string) => void;
   onLoadTracking: () => void;
+  /** Bỏ chọn chuyến — quay lại panel KPI + danh sách xe */
+  onDeselect: () => void;
 };
 
 export default function TripTrackingPanel({
   tripId,
+  tripLabel,
+  routeId = null,
   realtimeStatus,
   delayInfo,
-  tripOptions,
   isApiLoading,
   apiMessage,
   apiError,
   latest,
   trailCount,
   eta,
-  onSelectTrip,
   onLoadTracking,
+  onDeselect,
 }: TripTrackingPanelProps) {
   const { t } = useTranslation("manager");
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-bold text-gray-900">
             {t("gps.realTrackingTitle")}
           </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            {t("gps.realTrackingHint")}
+          <p className="mt-1 truncate text-sm font-semibold text-vr-700" title={tripLabel}>
+            {tripLabel}
           </p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {t("operations.selectedTripId", { tripId })}
+          </p>
+          {routeId && (
+            <Link
+              to={`/manager/routes?routeId=${routeId}`}
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-vr-700 hover:text-vr-800 hover:underline"
+            >
+              <FiExternalLink size={12} />
+              {t("operations.viewRoute")}
+            </Link>
+          )}
         </div>
         {tripId && (
           <span
@@ -95,33 +111,23 @@ export default function TripTrackingPanel({
           })}
         </div>
       )}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">
-            {t("gps.tripId")}
-          </label>
-          <CustomSelect
-            aria-label={t("gps.tripId")}
-            className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 text-base font-medium text-gray-800 shadow-sm hover:border-vr-300 focus:border-vr-500 focus:ring-2 focus:ring-vr-500/25"
-            value={tripId}
-            onChange={(event) => onSelectTrip(event.target.value)}
-          >
-            <option value="">{t("gps.selectTripPlaceholder")}</option>
-            {tripOptions.map((trip) => (
-              <option key={trip.tripId} value={trip.tripId}>
-                {trip.route.name || `${trip.route.originName} - ${trip.route.destinationName}`} · {trip.vehicle.licensePlate} · {new Date(trip.departureAt).toLocaleString("vi-VN")}
-              </option>
-            ))}
-          </CustomSelect>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           disabled={isApiLoading}
           onClick={onLoadTracking}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-vr-500 px-5 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <FiRefreshCw size={16} />
           {isApiLoading ? t("gps.loadingTracking") : t("gps.loadTracking")}
+        </button>
+        <button
+          type="button"
+          onClick={onDeselect}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+        >
+          <FiX size={16} />
+          {t("operations.deselectTrip")}
         </button>
       </div>
 
@@ -136,7 +142,7 @@ export default function TripTrackingPanel({
         </div>
       )}
 
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
+      <div className="mt-5 grid gap-3">
         <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
           <p className="text-sm font-medium text-gray-500">
             {t("gps.latestLocation")}

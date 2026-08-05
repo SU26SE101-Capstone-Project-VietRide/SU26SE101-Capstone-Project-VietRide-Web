@@ -5,22 +5,34 @@ import {
   FiCheckCircle,
   FiClock,
   FiFilter,
+  FiMap,
   FiRefreshCw,
   FiSearch,
+  FiX,
   FiXCircle,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import GoogleMapCanvas from "../../../components/GoogleMapCanvas";
 import { ApiRequestError } from "../../../api/client";
 import {
   approveOperatorRouteChangeProposal,
   getOperatorRouteChangeProposal,
   getOperatorRouteChangeProposals,
+  getTrackingTripRouteGeometry,
   rejectOperatorRouteChangeProposal,
   type RouteChangeProposal,
   type RouteChangeProposalStatus,
 } from "../../../api/vietride";
+import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
+import { decodeGooglePolyline, routeGeometryPath } from "./gpsHelpers";
 
 const pageSize = 50;
+
+// Màu path trên bản đồ so sánh: đề xuất = xanh vr (vr-800), hiện tại = xám
+const proposedPathColor = "#2d8282";
+const currentPathColor = "#9ca3af";
+
+const defaultMapCenter: GoogleMapCoordinate = { lat: 10.7769, lng: 106.7009 };
 
 const statusStyles: Record<RouteChangeProposalStatus, string> = {
   PENDING: "bg-orange-100 text-orange-700",
@@ -40,7 +52,20 @@ function formatDate(value: string) {
       }).format(date);
 }
 
-export default function RouteETAPage() {
+type ProposalsPanelProps = {
+  // Đóng panel, quay về trạng thái trước đó của cột phải
+  onClose: () => void;
+  // "Xem trên bản đồ": chọn chuyến tương ứng trong Operations (đóng panel do index xử lý)
+  onViewTrip: (tripId: string) => void;
+  // Gọi sau mỗi lần approve/reject/conflict thành công để index cập nhật badge count
+  onProposalsChanged?: () => void;
+};
+
+export default function ProposalsPanel({
+  onClose,
+  onViewTrip,
+  onProposalsChanged,
+}: ProposalsPanelProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [requests, setRequests] = useState<RouteChangeProposal[]>([]);
@@ -55,6 +80,11 @@ export default function RouteETAPage() {
   const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  // Lộ trình hiện tại của chuyến (màu xám), lưu kèm tripId để không vẽ nhầm sang đề xuất khác
+  const [currentRoute, setCurrentRoute] = useState<{
+    tripId: string;
+    path: GoogleMapCoordinate[];
+  } | null>(null);
 
   const loadRequests = useCallback(async () => {
     setLoading(true);
@@ -89,8 +119,72 @@ export default function RouteETAPage() {
     );
   }, [requests, search]);
 
-  const pending = requests.filter((request) => request.status === "PENDING").length;
-  const approved = requests.filter((request) => request.status === "APPROVED").length;
+  // Path đề xuất decode từ polyline trong snapshot (màu xanh vr)
+  const proposedPath = useMemo<GoogleMapCoordinate[]>(() => {
+    const encoded = selectedRequest?.snapshot.pathPolyline;
+    return encoded ? decodeGooglePolyline(encoded) : [];
+  }, [selectedRequest]);
+
+  // Tải lộ trình hiện tại của chuyến để so sánh — chỉ khi đề xuất có polyline
+  useEffect(() => {
+    const tripId = selectedRequest?.tripId;
+    if (!tripId || !selectedRequest?.snapshot.pathPolyline) return;
+
+    let ignore = false;
+    void getTrackingTripRouteGeometry(tripId)
+      .then((geometry) => {
+        if (!ignore) setCurrentRoute({ tripId, path: routeGeometryPath(geometry) });
+      })
+      .catch(() => {
+        // Không có geometry hiện tại thì chỉ vẽ path đề xuất
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [selectedRequest]);
+
+  // Chỉ dùng path hiện tại khi nó thuộc đúng chuyến của đề xuất đang xem
+  const currentPath = useMemo<GoogleMapCoordinate[]>(
+    () =>
+      currentRoute && currentRoute.tripId === selectedRequest?.tripId
+        ? currentRoute.path
+        : [],
+    [currentRoute, selectedRequest],
+  );
+
+  const comparisonPolylines = useMemo(() => {
+    const lines: Array<{
+      id: string;
+      path: GoogleMapCoordinate[];
+      color: string;
+      opacity: number;
+      weight: number;
+    }> = [];
+    if (currentPath.length > 1) {
+      lines.push({
+        id: "current-route",
+        path: currentPath,
+        color: currentPathColor,
+        opacity: 0.85,
+        weight: 4,
+      });
+    }
+    if (proposedPath.length > 1) {
+      lines.push({
+        id: "proposed-route",
+        path: proposedPath,
+        color: proposedPathColor,
+        opacity: 0.95,
+        weight: 5,
+      });
+    }
+    return lines;
+  }, [currentPath, proposedPath]);
+
+  const fitPoints = useMemo(
+    () => [...proposedPath, ...currentPath],
+    [currentPath, proposedPath],
+  );
 
   async function openDetails(request: RouteChangeProposal) {
     setSelectedRequest(request);
@@ -114,6 +208,7 @@ export default function RouteETAPage() {
       setSelectedRequest(null);
       setMessage(t("routeEta.proposalNoLongerPending"));
       await loadRequests();
+      onProposalsChanged?.();
       return true;
     }
     return false;
@@ -129,6 +224,7 @@ export default function RouteETAPage() {
       setSelectedRequest(null);
       setMessage(t("routeEta.approvedMessage"));
       await loadRequests();
+      onProposalsChanged?.();
     } catch (err) {
       if (!(await handleTerminalConflict(err))) {
         setError(err instanceof Error ? err.message : t("routeEta.actionFailed"));
@@ -151,6 +247,7 @@ export default function RouteETAPage() {
       setSelectedRequest(null);
       setMessage(t("routeEta.rejectedMessage"));
       await loadRequests();
+      onProposalsChanged?.();
     } catch (err) {
       if (!(await handleTerminalConflict(err))) {
         setError(err instanceof Error ? err.message : t("routeEta.actionFailed"));
@@ -161,102 +258,113 @@ export default function RouteETAPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="flex min-h-0 flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t("routeEta.title")}</h1>
-          <p className="mt-1 text-sm text-gray-600">{t("routeEta.subtitle")}</p>
+          <h2 className="text-lg font-bold text-gray-900">{t("routeEta.title")}</h2>
+          <p className="mt-0.5 text-xs text-gray-500">{t("routeEta.subtitle")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadRequests()}
-          disabled={loading}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-60"
-        >
-          <FiRefreshCw className={loading ? "animate-spin" : ""} />
-          {tc("refresh")}
-        </button>
-      </div>
-
-      {message && <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div>}
-      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium text-gray-500">{tc("pending")}</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{pending}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium text-gray-500">{t("routeEta.approvedToday")}</p>
-          <p className="mt-2 text-3xl font-bold text-green-600">{approved}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium text-gray-500">{t("routeEta.total")}</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{requests.length}</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void loadRequests()}
+            disabled={loading}
+            aria-label={tc("refresh")}
+            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 disabled:opacity-60"
+          >
+            <FiRefreshCw className={loading ? "animate-spin" : ""} />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={tc("close")}
+            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600"
+          >
+            <FiX />
+          </button>
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <div className="flex flex-col items-end gap-3 sm:flex-row">
-          <div className="relative flex-1">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("routeEta.searchPlaceholder")}
-              className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            <FiFilter />
-            <select
-              value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as RouteChangeProposalStatus | "ALL")
-              }
-              className="rounded-lg border border-gray-200 px-3 py-2"
-            >
-              <option value="PENDING">{tc("pending")}</option>
-              <option value="APPROVED">{tc("approved")}</option>
-              <option value="REJECTED">{t("routeEta.rejected")}</option>
-              <option value="SUPERSEDED">{t("routeEta.superseded")}</option>
-              <option value="EXPIRED">{t("routeEta.expired")}</option>
-              <option value="ALL">{tc("all")}</option>
-            </select>
-          </label>
+      {message && (
+        <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          {message}
         </div>
+      )}
+      {error && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2">
+        <div className="relative">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t("routeEta.searchPlaceholder")}
+            className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <FiFilter />
+          <select
+            value={status}
+            onChange={(event) =>
+              setStatus(event.target.value as RouteChangeProposalStatus | "ALL")
+            }
+            className="flex-1 rounded-lg border border-gray-200 px-3 py-2"
+          >
+            <option value="PENDING">{tc("pending")}</option>
+            <option value="APPROVED">{tc("approved")}</option>
+            <option value="REJECTED">{t("routeEta.rejected")}</option>
+            <option value="SUPERSEDED">{t("routeEta.superseded")}</option>
+            <option value="EXPIRED">{t("routeEta.expired")}</option>
+            <option value="ALL">{tc("all")}</option>
+          </select>
+        </label>
       </div>
 
       <div className="space-y-3">
         {loading ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">{tc("loading")}</div>
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">{tc("loading")}</div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">{t("routeEta.empty")}</div>
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">{t("routeEta.empty")}</div>
         ) : (
           filtered.map((request) => (
-            <article key={request.id} className="rounded-lg border border-gray-200 bg-white p-4">
-              <div className="flex items-start gap-4">
+            <article key={request.id} className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="flex items-start gap-3">
                 <div className="pt-1">
                   {request.status === "PENDING" ? <FiAlertCircle className="text-orange-500" /> : request.status === "APPROVED" ? <FiCheckCircle className="text-green-500" /> : <FiXCircle className="text-gray-400" />}
                 </div>
                 <button type="button" onClick={() => void openDetails(request)} className="min-w-0 flex-1 text-left">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-gray-900">{request.snapshot.name}</span>
-                    <span className="font-mono text-xs text-gray-500">{request.tripId}</span>
                     <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>{t(`routeEta.status.${request.status}`)}</span>
                   </div>
                   <p className="mt-2 text-sm text-gray-700">{request.reason}</p>
-                  <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500">
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
                     <span><FiClock className="mr-1 inline" />{formatDate(request.createdAt)}</span>
                     <span>{request.type}</span>
                     <span>{request.snapshot.stops.length} {t("routeEta.stops")}</span>
                   </div>
                 </button>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => onViewTrip(request.tripId)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-vr-800 hover:underline"
+                >
+                  <FiMap />
+                  {t("operations.viewOnMap")}
+                  <span className="font-mono font-normal text-gray-500">{request.tripId}</span>
+                </button>
                 {request.status === "PENDING" && (
                   <button
                     type="button"
                     onClick={() => void openDetails(request)}
-                    className="rounded-lg bg-vr-500 px-3 py-2 text-sm font-semibold text-white"
+                    className="rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-semibold text-white"
                   >
                     {t("routeEta.review")}
                   </button>
@@ -272,9 +380,48 @@ export default function RouteETAPage() {
         onClose={() => setSelectedRequest(null)}
         title={selectedRequest?.snapshot.name ?? ""}
         subtitle={selectedRequest ? selectedRequest.tripId : ""}
+        wide
       >
         {selectedRequest && (
           <div className="space-y-4">
+            {/* Bản đồ so sánh: đề xuất (xanh vr) vs lộ trình hiện tại (xám) */}
+            <div>
+              <GoogleMapCanvas
+                ariaLabel={t("operations.comparisonMapAria")}
+                center={proposedPath[0] ?? defaultMapCenter}
+                className="h-64 w-full rounded-lg border border-gray-200"
+                emptyState={t("operations.proposalNoPolyline")}
+                fitPoints={fitPoints}
+                polylines={comparisonPolylines}
+                zoom={11}
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-gray-600">
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="h-1 w-5 rounded-full"
+                    style={{ backgroundColor: proposedPathColor }}
+                    aria-hidden="true"
+                  />
+                  {t("operations.proposedPathLegend")}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="h-1 w-5 rounded-full"
+                    style={{ backgroundColor: currentPathColor }}
+                    aria-hidden="true"
+                  />
+                  {t("operations.currentPathLegend")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onViewTrip(selectedRequest.tripId)}
+                  className="ml-auto inline-flex items-center gap-1 font-semibold text-vr-800 hover:underline"
+                >
+                  <FiMap />
+                  {t("operations.viewOnMap")}
+                </button>
+              </div>
+            </div>
             <div className="rounded-lg bg-gray-50 p-4 text-sm">
               <p className="font-medium text-gray-900">{selectedRequest.reason}</p>
               <p className="mt-2 text-gray-600">{selectedRequest.snapshot.description || "-"}</p>
@@ -325,6 +472,6 @@ export default function RouteETAPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </section>
   );
 }

@@ -12,6 +12,15 @@ import type { RouteStopDraft, StationOption } from "./types";
 
 export const draftRouteId = "__draft_route__";
 
+// Tab của cột chi tiết (master–detail), sync với query param ?tab=
+export const routeTabs = ["info", "stops", "alternatives"] as const;
+
+export type RouteTab = (typeof routeTabs)[number];
+
+export function parseRouteTab(value: string | null): RouteTab {
+  return routeTabs.find((tab) => tab === value) ?? "info";
+}
+
 export const emptyStopForm: OperatorStopRequest = {
   name: "",
   latitude: 0,

@@ -13,7 +13,7 @@
   "closeMenu": "Đóng menu",
   "manager": {
     "dashboard": "Tổng quan",
-    "trips": "Chuyến",
+    "trips": "Lịch chạy",
     "routeEta": "Điều chỉnh lộ trình & giờ đến dự kiến",
     "routes": "Tuyến & điểm dừng",
     "vehicles": "Phương tiện",
@@ -22,6 +22,7 @@
     "bookings": "Đặt vé",
     "parcels": "Hàng hóa",
     "gps": "Theo dõi GPS",
+    "operations": "Trung tâm vận hành",
     "dispatch": "Điều phối xe trung chuyển",
     "shuttleTracking": "Theo dõi xe trung chuyển",
     "vouchers": "Mã giảm giá",

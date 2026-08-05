@@ -106,6 +106,14 @@ export function useRouteGeometry({
     showMessage("geometry", t("routes.geometryCalculated"));
   }
 
+  // Nhận kết quả đường đã tính sẵn (flow auto-fill khi chọn đủ 2 bến) — chỉ áp
+  // polyline cục bộ + đánh dấu chưa lưu; số km/thời lượng do caller tự cập nhật form
+  function applyComputedGeometry(points: RouteCoordinate[]) {
+    setRoutePathPoints(points);
+    setIsEditingGeometry(false);
+    setIsGeometryDirty(true);
+  }
+
   function handleStartManualGeometry() {
     setRoutePathPoints([]);
     setIsEditingGeometry(true);
@@ -191,6 +199,7 @@ export function useRouteGeometry({
     isEditingGeometry,
     isGeometryDirty,
     applySavedGeometry,
+    applyComputedGeometry,
     invalidateLocalGeometry,
     handleCalculateGeometry,
     handleStartManualGeometry,

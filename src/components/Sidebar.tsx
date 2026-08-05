@@ -5,6 +5,7 @@ import {
   FiTruck,
   FiBookOpen,
   FiPackage,
+  FiMap,
   FiMapPin,
   FiBarChart2,
   FiSettings,
@@ -12,7 +13,6 @@ import {
   FiUsers,
   FiNavigation,
   FiDollarSign,
-  FiAlertTriangle,
   FiFileText,
   FiGrid,
   FiDatabase,
@@ -44,11 +44,6 @@ const operatorAdminMenuConfig: MenuSection[] = [
       },
       { labelKey: "manager.trips", path: "/manager/trips", icon: <FiTruck /> },
       {
-        labelKey: "manager.routeEta",
-        path: "/manager/route-eta",
-        icon: <FiAlertTriangle />,
-      },
-      {
         labelKey: "manager.routes",
         path: "/manager/routes",
         icon: <FiNavigation />,
@@ -74,7 +69,11 @@ const operatorAdminMenuConfig: MenuSection[] = [
         path: "/manager/parcels",
         icon: <FiPackage />,
       },
-      { labelKey: "manager.gps", path: "/manager/gps", icon: <FiMapPin /> },
+      {
+        labelKey: "manager.operations",
+        path: "/manager/operations",
+        icon: <FiMap />,
+      },
       {
         labelKey: "manager.dispatch",
         path: "/manager/dispatch",
@@ -154,7 +153,11 @@ const operatorStaffMenuConfig: MenuSection[] = [
         path: "/manager/parcels",
         icon: <FiPackage />,
       },
-      { labelKey: "manager.gps", path: "/manager/gps", icon: <FiMapPin /> },
+      {
+        labelKey: "manager.operations",
+        path: "/manager/operations",
+        icon: <FiMap />,
+      },
       {
         labelKey: "manager.dispatch",
         path: "/manager/dispatch",

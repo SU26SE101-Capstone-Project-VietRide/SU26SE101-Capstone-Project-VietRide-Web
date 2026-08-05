@@ -9,8 +9,6 @@ import {
 } from "../../../api/vietride";
 import TripsPage from "./index";
 
-const scrollIntoViewMock = vi.fn();
-
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, unknown>) =>
@@ -19,11 +17,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../../../auth", () => ({
-  getAuthUser: () => ({ role: "OPERATOR_ADMIN" }),
-}));
-
-vi.mock("./TripOperationsPanel", () => ({
-  default: () => <div>trip-operations-panel</div>,
+  getAuthUser: () => ({ id: "operator-admin-1", role: "OPERATOR_ADMIN" }),
 }));
 
 vi.mock("../../../api/vietride", () => ({
@@ -38,15 +32,8 @@ vi.mock("../../../api/vietride", () => ({
 describe("TripsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    scrollIntoViewMock.mockClear();
-    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoViewMock,
-    });
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
-    });
+    // Cache danh mục nằm trong sessionStorage — dọn giữa các test
+    sessionStorage.clear();
 
     vi.mocked(getOperatorRoutes).mockResolvedValue({
       items: [
@@ -138,6 +125,113 @@ describe("TripsPage", () => {
     });
   });
 
+  it("shows skeletons instead of zeros and empty-state while loading", () => {
+    // Backend chậm: cả 4 request treo — màn phải hiện skeleton, không hiện "0"
+    vi.mocked(getOperatorRoutes).mockReturnValue(new Promise<never>(() => {}));
+    vi.mocked(getOperatorVehicles).mockReturnValue(
+      new Promise<never>(() => {}),
+    );
+    vi.mocked(getOperatorUsers).mockReturnValue(new Promise<never>(() => {}));
+    vi.mocked(getOperatorDriverSchedules).mockReturnValue(
+      new Promise<never>(() => {}),
+    );
+
+    render(<TripsPage />);
+
+    // 4 thẻ KPI đều là skeleton, không thẻ nào hiện số 0
+    expect(screen.getAllByTestId("metric-card-skeleton")).toHaveLength(4);
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+    // Bảng hiện hàng skeleton thay vì empty-state "chưa có lịch"
+    expect(screen.getByTestId("schedules-table-skeleton")).toBeInTheDocument();
+    expect(screen.queryByText("trips.noSchedules")).not.toBeInTheDocument();
+  });
+
+  it("shows empty-state only after schedules finished loading", async () => {
+    vi.mocked(getOperatorDriverSchedules).mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 100,
+      totalItems: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    render(<TripsPage />);
+
+    expect(await screen.findByText("trips.noSchedules")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("schedules-table-skeleton"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders cached resources immediately without resource skeletons", async () => {
+    // Cache danh mục theo user hiện tại — API danh mục treo nhưng KPI vẫn có số ngay
+    sessionStorage.setItem(
+      "vietride:tripResources:operator-admin-1",
+      JSON.stringify({
+        ts: Date.now(),
+        data: {
+          routes: [
+            {
+              id: "route-1",
+              name: "Hồ Chí Minh - Đà Lạt",
+              origin: "Bến xe Miền Đông",
+              destination: "Bến xe Đà Lạt",
+              status: "active",
+              distanceKm: 300,
+              durationMinutes: 420,
+            },
+          ],
+          vehicles: [
+            {
+              id: "vehicle-1",
+              plate: "51B-123.45",
+              seats: 40,
+              status: "available",
+            },
+          ],
+          staff: [
+            {
+              id: "driver-active",
+              name: "Tài xế đang hoạt động",
+              role: "driver",
+              status: "active",
+            },
+          ],
+        },
+      }),
+    );
+    vi.mocked(getOperatorRoutes).mockReturnValue(new Promise<never>(() => {}));
+    vi.mocked(getOperatorVehicles).mockReturnValue(
+      new Promise<never>(() => {}),
+    );
+    vi.mocked(getOperatorUsers).mockReturnValue(new Promise<never>(() => {}));
+
+    render(<TripsPage />);
+
+    // 3 thẻ danh mục hiện số từ cache ngay, không skeleton
+    for (const labelKey of [
+      "trips.activeRoutes",
+      "trips.availableVehicles",
+      "trips.availableDrivers",
+    ]) {
+      const card = screen.getByText(labelKey).parentElement as HTMLElement;
+      expect(within(card).getByText("1")).toBeInTheDocument();
+      expect(
+        within(card).queryByTestId("metric-card-skeleton"),
+      ).not.toBeInTheDocument();
+    }
+
+    // Schedules không cache — vẫn load bình thường rồi hiện dữ liệu
+    expect(await screen.findByText("SCH-SCHEDULE")).toBeInTheDocument();
+    const openCard = screen.getByText("trips.openSchedules")
+      .parentElement as HTMLElement;
+    expect(
+      within(openCard).queryByTestId("metric-card-skeleton"),
+    ).not.toBeInTheDocument();
+  });
+
   it("counts ACTIVE driver accounts instead of only AVAILABLE resources", async () => {
     render(<TripsPage />);
 
@@ -150,23 +244,44 @@ describe("TripsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("scrolls and focuses the schedule form when edit is selected", async () => {
+  it("opens the schedule form modal from the create button", async () => {
+    const user = userEvent.setup();
+    render(<TripsPage />);
+
+    await screen.findByText("SCH-SCHEDULE");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByText("trips.createScheduleTitle"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("trips.businessRules"),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the modal prefilled with the schedule when edit is selected", async () => {
     const user = userEvent.setup();
     render(<TripsPage />);
 
     await screen.findByText("SCH-SCHEDULE");
     await user.click(screen.getByRole("button", { name: "trips.edit" }));
 
-    await waitFor(() => {
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("trips.editScheduleTitle SCH-SCHEDULE"),
+    ).toBeInTheDocument();
+    // Form điền sẵn giờ khởi hành của lịch đang sửa
+    expect(within(dialog).getByText("2026-09-01 08:00")).toBeInTheDocument();
 
-    const editRegion = screen.getByRole("region", {
-      name: /trips\.editScheduleTitle/,
+    // Đóng modal reset trạng thái sửa
+    await user.click(within(dialog).getAllByRole("button", { name: "close" })[0]);
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
-    expect(editRegion).toHaveFocus();
   });
 });

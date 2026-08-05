@@ -19,6 +19,7 @@ type ScheduleTableProps = {
   vehicles: VehicleOption[];
   staff: StaffOption[];
   canManageSchedules: boolean;
+  isLoading: boolean;
   page: number;
   pageSize: number;
   onPageChange: (page: number) => void;
@@ -31,6 +32,7 @@ export default function ScheduleTable({
   vehicles,
   staff,
   canManageSchedules,
+  isLoading,
   page,
   pageSize,
   onPageChange,
@@ -68,7 +70,12 @@ export default function ScheduleTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {paginatedSchedules.length > 0 ? (
+            {isLoading ? (
+              // Đang tải: hàng skeleton — empty-state chỉ hiện khi ĐÃ tải xong và thật sự rỗng
+              <ScheduleTableSkeletonRows
+                columns={canManageSchedules ? 8 : 7}
+              />
+            ) : paginatedSchedules.length > 0 ? (
               paginatedSchedules.map((schedule) => (
                 <tr key={schedule.id} className="hover:bg-gray-50">
                   <td className="px-5 py-4 font-semibold text-gray-900">
@@ -153,7 +160,7 @@ export default function ScheduleTable({
           </tbody>
         </table>
       </div>
-      {schedules.length > 0 ? (
+      {!isLoading && schedules.length > 0 ? (
         <Pagination
           page={page}
           pageSize={pageSize}
@@ -162,5 +169,28 @@ export default function ScheduleTable({
         />
       ) : null}
     </section>
+  );
+}
+
+// Skeleton hàng bảng khi đang tải lịch — chỉ màn này dùng, ≤ 50 dòng nên inline (§2).
+function ScheduleTableSkeletonRows({ columns }: { columns: number }) {
+  return (
+    <>
+      {Array.from({ length: 4 }, (_, rowIndex) => (
+        <tr
+          key={rowIndex}
+          aria-hidden="true"
+          data-testid={
+            rowIndex === 0 ? "schedules-table-skeleton" : undefined
+          }
+        >
+          {Array.from({ length: columns }, (_, columnIndex) => (
+            <td key={columnIndex} className="px-5 py-4">
+              <div className="h-4 w-full animate-pulse rounded-md bg-slate-200" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
   );
 }
