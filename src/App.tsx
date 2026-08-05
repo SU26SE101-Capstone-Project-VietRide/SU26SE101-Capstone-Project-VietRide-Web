@@ -13,11 +13,10 @@ const ParcelsList = lazy(() => import("./pages/Manager/Parcels/index"));
 const StaffList = lazy(() => import("./pages/Manager/Staff/index"));
 const VehiclesList = lazy(() => import("./pages/Manager/Vehicles/index"));
 const RoutesList = lazy(() => import("./pages/Manager/Routes/index"));
-const GPSTracking = lazy(() => import("./pages/Manager/GPS/index"));
+const OperationsCenter = lazy(() => import("./pages/Manager/Operations/index"));
 const Reports = lazy(() => import("./pages/Manager/Reports/index"));
 const DispatchPanel = lazy(() => import("./pages/Manager/Dispatch/index"));
 const ManagerWallet = lazy(() => import("./pages/Manager/Wallet/index"));
-const RouteETA = lazy(() => import("./pages/Manager/RouteETA/index"));
 const ManagerVouchers = lazy(() => import("./pages/Manager/Vouchers/index"));
 const ManagerPackages = lazy(() => import("./pages/Manager/Packages/index"));
 const SubscriptionPaymentReturn = lazy(
@@ -101,7 +100,8 @@ export default function App() {
               <Route path="vehicles" element={<VehiclesList />} />
               <Route path="bookings" element={<BookingsList />} />
               <Route path="parcels" element={<ParcelsList />} />
-              <Route path="gps" element={<GPSTracking />} />
+              <Route path="operations" element={<OperationsCenter />} />
+              <Route path="gps" element={<Navigate to="/manager/operations" replace />} />
               <Route path="shuttle-tracking" element={<Navigate to="/manager/dispatch" replace />} />
               <Route path="dispatch" element={<DispatchPanel />} />
               <Route path="profile" element={<Profile />} />
@@ -112,9 +112,10 @@ export default function App() {
               <Route
                 element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
               >
-                <Route path="route-eta" element={<RouteETA />} />
+                {/* Màn RouteETA cũ đã gộp vào Trung tâm vận hành (panel đề xuất lộ trình) */}
+                <Route path="route-eta" element={<Navigate to="/manager/operations?panel=proposals" replace />} />
 
-                <Route path="route-extensions" element={<Navigate to="/manager/route-eta" replace />} />
+                <Route path="route-extensions" element={<Navigate to="/manager/operations?panel=proposals" replace />} />
 
                 <Route
                   path="vehicle-builder"

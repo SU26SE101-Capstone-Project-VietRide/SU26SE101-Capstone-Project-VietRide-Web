@@ -13,7 +13,7 @@
   "closeMenu": "Close menu",
   "manager": {
     "dashboard": "Dashboard",
-    "trips": "Trips",
+    "trips": "Schedules",
     "routeEta": "Route change & ETA",
     "routes": "Routes & stops",
     "vehicles": "Vehicles",
@@ -22,6 +22,7 @@
     "bookings": "Bookings",
     "parcels": "Parcels",
     "gps": "GPS Tracking",
+    "operations": "Operations Center",
     "dispatch": "Shuttle dispatch",
     "shuttleTracking": "Shuttle tracking",
     "vouchers": "Vouchers",

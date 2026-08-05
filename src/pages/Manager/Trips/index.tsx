@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiAlertCircle, FiCalendar, FiRefreshCw } from "react-icons/fi";
+import { FiCalendar, FiPlus } from "react-icons/fi";
 import { getAuthUser } from "../../../auth";
 import { toDatetimeLocalValue } from "../../../utils/date";
-import TripOperationsPanel from "./TripOperationsPanel";
-import ScheduleFormSection from "./ScheduleForm";
+import {
+  readSessionCache,
+  writeSessionCache,
+} from "../../../utils/sessionCache";
+import ScheduleFormModal from "./ScheduleFormModal";
 import ScheduleTable from "./ScheduleTable";
-import { MetricCard, Panel, SectionHeader } from "./formControls";
+import { MetricCard, SectionHeader } from "./formControls";
 import {
   emptyForm,
   getArrivalEstimateValue,
@@ -34,34 +37,75 @@ import {
   getOperatorRoutes,
   getOperatorUsers,
   getOperatorVehicles,
-  type OperatorUser,
-  type OperatorVehicle,
 } from "../../../api/vietride";
+
+// Cache danh mục (tuyến/xe/nhân sự) theo phiên — stale-while-revalidate, hạn 10 phút.
+// KHÔNG cache schedules vì đó là dữ liệu nghiệp vụ đổi thường xuyên.
+const resourcesCacheMaxAgeMs = 10 * 60 * 1000;
+
+type TripResourcesCache = {
+  routes: RouteOption[];
+  vehicles: VehicleOption[];
+  staff: StaffOption[];
+};
+
+// Key chứa ID user hiện tại để đổi tài khoản không dính cache của nhà xe khác.
+function resourcesCacheKey(userId?: string) {
+  return `vietride:tripResources:${userId || "anonymous"}`;
+}
 
 export default function TripsPage() {
   const { t } = useTranslation("manager");
-  const { t: tc } = useTranslation("common");
   // Giữ tham chiếu t mới nhất để effect tải dữ liệu không refetch khi đổi ngôn ngữ
   const tRef = useRef(t);
   useEffect(() => {
     tRef.current = t;
   });
   const authUser = getAuthUser();
+  const cacheKey = resourcesCacheKey(authUser?.id);
+  // Đọc cache một lần khi mount (lazy initializer): có cache → hiện dữ liệu ngay,
+  // không bật skeleton; vẫn fetch nền để cập nhật + ghi đè cache.
+  const [cachedResources] = useState(() =>
+    readSessionCache<TripResourcesCache>(cacheKey, resourcesCacheMaxAgeMs),
+  );
   const [schedules, setSchedules] = useState<TripSchedule[]>([]);
-  const [routes, setRoutes] = useState<RouteOption[]>([]);
-  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
-  const [staff, setStaff] = useState<StaffOption[]>([]);
-  // Dữ liệu thô từ API, truyền xuống TripOperationsPanel để tránh gọi API trùng lặp
-  const [operatorVehicles, setOperatorVehicles] = useState<OperatorVehicle[]>([]);
-  const [operatorStaff, setOperatorStaff] = useState<OperatorUser[]>([]);
-  const [form, setForm] = useState<ScheduleForm>(emptyForm);
+  const [routes, setRoutes] = useState<RouteOption[]>(
+    cachedResources?.routes ?? [],
+  );
+  const [vehicles, setVehicles] = useState<VehicleOption[]>(
+    cachedResources?.vehicles ?? [],
+  );
+  const [staff, setStaff] = useState<StaffOption[]>(
+    cachedResources?.staff ?? [],
+  );
+  const [form, setForm] = useState<ScheduleForm>(() =>
+    cachedResources
+      ? {
+          ...emptyForm,
+          routeId: cachedResources.routes[0]?.id ?? "",
+          vehicleId: cachedResources.vehicles[0]?.id ?? "",
+          driverId:
+            cachedResources.staff.find((item) => item.role === "driver")?.id ??
+            "",
+          assistantId:
+            cachedResources.staff.find((item) => item.role === "assistant")
+              ?.id ?? "",
+        }
+      : emptyForm,
+  );
+  // Chỉ set default form theo phần tử đầu MỘT lần — fetch nền về sau không được
+  // ghi đè lựa chọn user đang thao tác.
+  const hasSetFormDefaultsRef = useRef(cachedResources !== null);
   const [editingId, setEditingId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [isLoadingResources, setIsLoadingResources] = useState(false);
+  const [isLoadingResources, setIsLoadingResources] = useState(
+    cachedResources === null,
+  );
+  const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [page, setPage] = useState(1);
-  const scheduleFormRef = useRef<HTMLElement | null>(null);
+  const [formModalOpen, setFormModalOpen] = useState(false);
   const pageSize = 8;
   const canManageSchedules = authUser?.role === "OPERATOR_ADMIN";
 
@@ -87,8 +131,6 @@ export default function TripsPage() {
     let ignore = false;
 
     async function loadResources() {
-      setIsLoadingResources(true);
-
       try {
         const [routeResult, vehicleResult, userResult] = await Promise.all([
           getOperatorRoutes({ page: 1, pageSize: 100 }),
@@ -100,14 +142,18 @@ export default function TripsPage() {
           return;
         }
 
-        setOperatorVehicles(vehicleResult.items);
-        setOperatorStaff(userResult.items);
-
         const nextRoutes = routeResult.items.map(toRouteOption);
         const nextVehicles = vehicleResult.items.map(toVehicleOption);
         const nextStaff = userResult.items
           .filter((user) => user.role === "DRIVER" || user.role === "ASSISTANT")
           .map(toStaffOption);
+
+        // Ghi đè cache bằng dữ liệu mới nhất cho lần vào màn tiếp theo
+        writeSessionCache<TripResourcesCache>(cacheKey, {
+          routes: nextRoutes,
+          vehicles: nextVehicles,
+          staff: nextStaff,
+        });
 
         if (nextRoutes.length > 0) {
           setRoutes(nextRoutes);
@@ -119,17 +165,20 @@ export default function TripsPage() {
           setStaff(nextStaff);
         }
 
-        setForm((current) => ({
-          ...current,
-          routeId: nextRoutes[0]?.id ?? current.routeId,
-          vehicleId: nextVehicles[0]?.id ?? current.vehicleId,
-          driverId:
-            nextStaff.find((item) => item.role === "driver")?.id ??
-            current.driverId,
-          assistantId:
-            nextStaff.find((item) => item.role === "assistant")?.id ??
-            current.assistantId,
-        }));
+        if (!hasSetFormDefaultsRef.current) {
+          hasSetFormDefaultsRef.current = true;
+          setForm((current) => ({
+            ...current,
+            routeId: nextRoutes[0]?.id ?? current.routeId,
+            vehicleId: nextVehicles[0]?.id ?? current.vehicleId,
+            driverId:
+              nextStaff.find((item) => item.role === "driver")?.id ??
+              current.driverId,
+            assistantId:
+              nextStaff.find((item) => item.role === "assistant")?.id ??
+              current.assistantId,
+          }));
+        }
       } catch (err) {
         if (!ignore) {
           setError(
@@ -150,7 +199,7 @@ export default function TripsPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
     let ignore = false;
@@ -172,6 +221,10 @@ export default function TripsPage() {
               ? err.message
               : tRef.current("trips.loadSchedulesFailed"),
           );
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingSchedules(false);
         }
       }
     }
@@ -291,6 +344,7 @@ export default function TripsPage() {
         ),
       );
       setEditingId("");
+      setFormModalOpen(false);
       setMessage(t("trips.scheduleUpdated"));
       return;
     }
@@ -325,6 +379,7 @@ export default function TripsPage() {
         driverId: drivers[0]?.id ?? "",
         assistantId: assistants[0]?.id ?? "",
       });
+      setFormModalOpen(false);
       setMessage(
         status === "open"
           ? t("trips.scheduleOpened")
@@ -357,16 +412,29 @@ export default function TripsPage() {
     setEditingId(schedule.id);
     setMessage("");
     setError("");
-    requestAnimationFrame(() => {
-      scheduleFormRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-      scheduleFormRef.current?.focus({ preventScroll: true });
-    });
+    setFormModalOpen(true);
   }
 
-  function resetForm() {
+  function openCreateModal() {
+    if (!canManageSchedules) {
+      return;
+    }
+
+    setForm({
+      ...emptyForm,
+      routeId: routes[0]?.id ?? "",
+      vehicleId: vehicles[0]?.id ?? "",
+      driverId: drivers[0]?.id ?? "",
+      assistantId: assistants[0]?.id ?? "",
+    });
+    setEditingId("");
+    setMessage("");
+    setError("");
+    setFormModalOpen(true);
+  }
+
+  function closeFormModal() {
+    setFormModalOpen(false);
     setForm(emptyForm);
     setEditingId("");
     setMessage("");
@@ -387,11 +455,11 @@ export default function TripsPage() {
         {canManageSchedules ? (
           <button
             type="button"
-            onClick={resetForm}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+            onClick={openCreateModal}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-vr-600"
           >
-            <FiRefreshCw />
-            {tc("reset")}
+            <FiPlus />
+            {t("trips.createScheduleTitle")}
           </button>
         ) : null}
       </div>
@@ -411,66 +479,59 @@ export default function TripsPage() {
         <MetricCard
           label={t("trips.activeRoutes")}
           value={activeRoutes.length}
+          isLoading={isLoadingResources}
         />
         <MetricCard
           label={t("trips.availableVehicles")}
           value={availableVehicles.length}
+          isLoading={isLoadingResources}
         />
         <MetricCard
           label={t("trips.availableDrivers")}
           value={drivers.filter((driver) => driver.status === "active").length}
           helper={t("trips.activeDriversHelper")}
+          isLoading={isLoadingResources}
         />
         <MetricCard
           label={t("trips.openSchedules")}
           value={
             schedules.filter((schedule) => schedule.status === "open").length
           }
+          isLoading={isLoadingSchedules}
         />
       </div>
 
-      <TripOperationsPanel vehicles={operatorVehicles} staff={operatorStaff} />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        {canManageSchedules ? (
-          <ScheduleFormSection
-            form={form}
-            routes={routes}
-            vehicles={vehicles}
-            drivers={drivers}
-            assistants={assistants}
-            editingSchedule={editingSchedule}
-            isSaving={isSaving}
-            isLoadingResources={isLoadingResources}
-            formRef={scheduleFormRef}
-            onFieldChange={updateForm}
-            onSuggestDeparture={suggestNextDepartureTime}
-            onSave={(status) => void saveSchedule(status)}
+      {!canManageSchedules && (
+        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <SectionHeader
+            icon={<FiCalendar />}
+            title={t("trips.staffMonitorTitle")}
+            subtitle={t("trips.staffMonitorSubtitle")}
           />
-        ) : (
-          <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <SectionHeader
-              icon={<FiCalendar />}
-              title={t("trips.staffMonitorTitle")}
-              subtitle={t("trips.staffMonitorSubtitle")}
-            />
-            <div className="rounded-lg border border-vr-100 bg-vr-50 px-4 py-3 text-sm text-vr-800">
-              {t("trips.staffReadOnlyHint")}
-            </div>
-          </section>
-        )}
+          <div className="rounded-lg border border-vr-100 bg-vr-50 px-4 py-3 text-sm text-vr-800">
+            {t("trips.staffReadOnlyHint")}
+          </div>
+        </section>
+      )}
 
-        <aside className="space-y-4">
-          <Panel title={t("trips.businessRules")} icon={<FiAlertCircle />}>
-            <ul className="space-y-2 text-sm text-gray-600">
-              <li>{t("trips.ruleFutureDeparture")}</li>
-              <li>{t("trips.ruleAvailability")}</li>
-              <li>{t("trips.ruleActiveRoute")}</li>
-              <li>{t("trips.ruleSubscription")}</li>
-            </ul>
-          </Panel>
-        </aside>
-      </div>
+      {canManageSchedules && (
+        <ScheduleFormModal
+          open={formModalOpen}
+          onClose={closeFormModal}
+          form={form}
+          routes={routes}
+          vehicles={vehicles}
+          drivers={drivers}
+          assistants={assistants}
+          editingSchedule={editingSchedule}
+          isSaving={isSaving}
+          isLoadingResources={isLoadingResources}
+          error={error}
+          onFieldChange={updateForm}
+          onSuggestDeparture={suggestNextDepartureTime}
+          onSave={(status) => void saveSchedule(status)}
+        />
+      )}
 
       <ScheduleTable
         schedules={schedules}
@@ -478,6 +539,7 @@ export default function TripsPage() {
         vehicles={vehicles}
         staff={staff}
         canManageSchedules={canManageSchedules}
+        isLoading={isLoadingSchedules}
         page={page}
         pageSize={pageSize}
         onPageChange={setPage}

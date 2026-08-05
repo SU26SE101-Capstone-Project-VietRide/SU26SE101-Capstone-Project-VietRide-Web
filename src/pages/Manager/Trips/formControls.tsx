@@ -9,13 +9,28 @@ type MetricCardProps = {
   label: string;
   value: number;
   helper?: string;
+  isLoading?: boolean;
 };
 
-export function MetricCard({ label, value, helper }: MetricCardProps) {
+export function MetricCard({
+  label,
+  value,
+  helper,
+  isLoading = false,
+}: MetricCardProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
+      {isLoading ? (
+        // Đang tải: skeleton thay cho số 0 gây hiểu nhầm "không có dữ liệu"
+        <div
+          className="mt-2 h-8 w-16 animate-pulse rounded-md bg-slate-200"
+          aria-hidden="true"
+          data-testid="metric-card-skeleton"
+        />
+      ) : (
+        <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
+      )}
       {helper ? <p className="mt-2 text-xs text-gray-500">{helper}</p> : null}
     </div>
   );

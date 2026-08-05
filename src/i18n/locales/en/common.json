@@ -165,6 +165,7 @@
     "PUBLIC": "Public",
     "OPERATOR": "Operator",
     "ADMIN": "Administrator",
+    "SYSTEM": "System",
     "FAQ": "Frequently asked questions",
     "POLICY": "Policy",
     "SOP": "Standard operating procedure",

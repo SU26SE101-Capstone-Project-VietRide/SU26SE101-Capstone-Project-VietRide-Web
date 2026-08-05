@@ -7,22 +7,31 @@ import {
 } from "react-icons/fi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import {
+  getOperatorRouteChangeProposals,
   getOperatorTrips,
+  getOperatorUsers,
+  getOperatorVehicles,
   getTrackingTripLatest,
   getTrackingTripRouteGeometry,
   getTrackingTripTrail,
   type OperatorTripListItem,
+  type OperatorUser,
+  type OperatorVehicle,
   type TrackingEtaResponse,
   type TripRouteGeometry,
   type TrackingLatestResponse,
   type TrackingTrailPoint,
 } from "../../../api/vietride";
+import { getAuthUser } from "../../../auth";
 import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
 import FleetFilterBar from "./FleetFilterBar";
 import FleetMapLegend from "./FleetMapLegend";
 import FleetMetricCard from "./FleetMetricCard";
 import FleetVehicleList from "./FleetVehicleList";
+import ProposalsPanel from "./ProposalsPanel";
+import TripActionsPanel from "./TripActionsPanel";
 import TripTrackingPanel from "./TripTrackingPanel";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 import {
@@ -38,7 +47,14 @@ import {
   type RealtimeStatus,
 } from "./gpsHelpers";
 
-export default function GPSTracking() {
+// Nhãn hiển thị chuyến trong header panel theo dõi
+function tripLabel(trip: OperatorTripListItem): string {
+  const routeName =
+    trip.route.name || `${trip.route.originName} - ${trip.route.destinationName}`;
+  return `${routeName} · ${trip.vehicle.licensePlate}`;
+}
+
+export default function OperationsPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   // Giữ tham chiếu t mới nhất để effect socket không reconnect khi đổi ngôn ngữ
@@ -46,15 +62,16 @@ export default function GPSTracking() {
   useEffect(() => {
     tRef.current = t;
   });
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<
     "all" | FleetVehicleMapPoint["status"]
   >("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Một state duy nhất cho cả marker/list và panel theo dõi (khoá chung tripId)
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [focusCenter, setFocusCenter] = useState<GoogleMapCoordinate | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
-  const [tripId, setTripId] = useState("");
   const [tripOptions, setTripOptions] = useState<OperatorTripListItem[]>([]);
   const [fleetVehicles, setFleetVehicles] = useState<FleetVehicleMapPoint[]>([]);
   const [routeGeometry, setRouteGeometry] = useState<TripRouteGeometry | null>(null);
@@ -69,6 +86,70 @@ export default function GPSTracking() {
   const [delayInfo, setDelayInfo] = useState<TripStatusChangedEvent | null>(
     null,
   );
+  // Chỉ đồng bộ ?tripId= từ URL vào state một lần sau lượt tải fleet đầu tiên
+  const urlSyncDoneRef = useRef(false);
+  // Xe + nhân sự cho form thay xe trong TripActionsPanel — tải một lần lúc mount
+  const [operatorVehicles, setOperatorVehicles] = useState<OperatorVehicle[]>([]);
+  const [operatorStaff, setOperatorStaff] = useState<OperatorUser[]>([]);
+  // Chỉ OPERATOR_ADMIN được thay xe / huỷ chuyến / duyệt đề xuất lộ trình
+  const canMutate = getAuthUser()?.role === "OPERATOR_ADMIN";
+  // Số đề xuất lộ trình PENDING cho badge — chỉ tải với OPERATOR_ADMIN
+  const [pendingProposalCount, setPendingProposalCount] = useState(0);
+  // Panel đề xuất lộ trình mở khi URL có ?panel=proposals (F5 giữ trạng thái)
+  const showProposalsPanel =
+    canMutate && searchParams.get("panel") === "proposals";
+
+  // Đếm proposal PENDING qua totalItems với pageSize tối thiểu — rẻ hơn tải cả trang
+  const refreshPendingProposalCount = useCallback(() => {
+    if (!canMutate) return;
+    void getOperatorRouteChangeProposals({ page: 1, pageSize: 1, status: "PENDING" })
+      .then((result) => setPendingProposalCount(result.totalItems))
+      .catch(() => {
+        // Badge chỉ mang tính thông tin — lỗi đếm không chặn màn
+      });
+  }, [canMutate]);
+
+  useEffect(() => {
+    refreshPendingProposalCount();
+    if (!canMutate) return;
+    // Đề xuất mới từ tài xế không có kênh realtime — poll badge mỗi 60s
+    const intervalId = window.setInterval(refreshPendingProposalCount, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [canMutate, refreshPendingProposalCount]);
+
+  const setProposalsPanelOpen = useCallback(
+    (open: boolean) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (open) next.set("panel", "proposals");
+          else next.delete("panel");
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  useEffect(() => {
+    let ignore = false;
+    void Promise.all([
+      getOperatorVehicles({ page: 1, pageSize: 100 }),
+      getOperatorUsers({ page: 1, pageSize: 100 }),
+    ])
+      .then(([vehicleResult, userResult]) => {
+        if (ignore) return;
+        setOperatorVehicles(vehicleResult.items);
+        setOperatorStaff(userResult.items);
+      })
+      .catch(() => {
+        // Thiếu danh sách xe/nhân sự chỉ ảnh hưởng form thay xe — không chặn cả màn
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setMapReady(true));
@@ -101,11 +182,56 @@ export default function GPSTracking() {
     return { total, moving, idle, offline };
   }, [fleetVehicles]);
 
-  const selectVehicle = useCallback((id: string) => {
-    setSelectedId(id);
-    const vehicle = fleetVehicles.find((item) => item.id === id);
-    if (vehicle) setFocusCenter(vehicle.position);
-  }, [fleetVehicles]);
+  const selectedTrip = useMemo(
+    () =>
+      selectedTripId
+        ? tripOptions.find((trip) => trip.tripId === selectedTripId) ?? null
+        : null,
+    [selectedTripId, tripOptions],
+  );
+
+  // Chọn / bỏ chọn chuyến: cập nhật state + URL + tải geometry tuyến
+  const selectTrip = useCallback(
+    (nextTripId: string | null) => {
+      setSelectedTripId(nextTripId);
+      setDelayInfo(null);
+      setEta(null);
+      setRouteGeometry(null);
+      setLatest(null);
+      setTrail([]);
+      setApiMessage("");
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (nextTripId) {
+            next.set("tripId", nextTripId);
+            // Chọn chuyến thì đóng panel đề xuất — cột phải chuyển sang chi tiết chuyến
+            next.delete("panel");
+          } else {
+            next.delete("tripId");
+          }
+          return next;
+        },
+        { replace: true },
+      );
+      if (!nextTripId) return;
+
+      void getTrackingTripRouteGeometry(nextTripId)
+        .then((geometry) => setRouteGeometry(geometry))
+        .catch(() => setRouteGeometry(null));
+    },
+    [setSearchParams],
+  );
+
+  // Click marker trên map hoặc chọn trong list = chọn chuyến theo dõi luôn
+  const selectVehicle = useCallback(
+    (id: string) => {
+      selectTrip(id);
+      const vehicle = fleetVehicles.find((item) => item.id === id);
+      if (vehicle) setFocusCenter(vehicle.position);
+    },
+    [fleetVehicles, selectTrip],
+  );
 
   const loadFleet = useCallback(async () => {
     setIsFleetLoading(true);
@@ -142,21 +268,17 @@ export default function GPSTracking() {
       );
       setTripOptions(result.items);
       setFleetVehicles(nextVehicles);
-      setSelectedId((current) =>
-        current && nextVehicles.some((vehicle) => vehicle.id === current)
-          ? current
-          : nextVehicles[0]?.id ?? null,
-      );
       setFocusCenter(nextVehicles[0]?.position ?? null);
       setLastRefresh(new Date());
+      return result.items;
     } catch (error: unknown) {
       setTripOptions([]);
       setFleetVehicles([]);
-      setSelectedId(null);
       setFocusCenter(null);
       setApiError(
         error instanceof Error ? error.message : t("gps.trackingLoadFailed"),
       );
+      return [] as OperatorTripListItem[];
     } finally {
       setIsFleetLoading(false);
     }
@@ -164,28 +286,25 @@ export default function GPSTracking() {
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
-      void loadFleet();
+      void loadFleet().then((trips) => {
+        if (urlSyncDoneRef.current) return;
+        urlSyncDoneRef.current = true;
+        // Deep-link ?tripId=... — id không tồn tại trong danh sách thì bỏ qua im lặng
+        const urlTripId = searchParams.get("tripId");
+        if (urlTripId && trips.some((trip) => trip.tripId === urlTripId)) {
+          selectTrip(urlTripId);
+        }
+      });
     }, 0);
 
     return () => window.clearTimeout(timerId);
-  }, [loadFleet]);
+    // searchParams chỉ đọc một lần lúc vào màn — không đưa vào deps để tránh reload fleet
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadFleet, selectTrip]);
 
-  async function selectTrip(nextTripId: string) {
-    setTripId(nextTripId);
-    setDelayInfo(null);
-    setEta(null);
-    setRouteGeometry(null);
-    if (!nextTripId) return;
-
-    try {
-      const geometry = await getTrackingTripRouteGeometry(nextTripId);
-      setRouteGeometry(geometry);
-    } catch {
-      setRouteGeometry(null);
-    }
-  }
   async function loadTripTracking() {
-    if (!tripId.trim()) {
+    const tripId = selectedTripId?.trim() ?? "";
+    if (!tripId) {
       setApiError(t("gps.tripIdRequired"));
       return;
     }
@@ -197,8 +316,8 @@ export default function GPSTracking() {
     try {
       // Geometry tuyến đã được tải khi chọn chuyến (selectTrip) — không gọi lại ở đây
       const [latestResult, trailResult] = await Promise.all([
-        getTrackingTripLatest(tripId.trim()),
-        getTrackingTripTrail(tripId.trim(), {
+        getTrackingTripLatest(tripId),
+        getTrackingTripTrail(tripId, {
           page: 1,
           pageSize: 20,
           sortBy: "recordedAt",
@@ -230,12 +349,13 @@ export default function GPSTracking() {
 
   useEffect(() => {
     let cancelled = false;
-    const nextStatus: RealtimeStatus = tripId.trim() ? "connecting" : "idle";
+    const tripId = selectedTripId?.trim() ?? "";
+    const nextStatus: RealtimeStatus = tripId ? "connecting" : "idle";
     const statusTimer = window.setTimeout(() => {
       if (!cancelled) setRealtimeStatus(nextStatus);
     }, 0);
 
-    if (!tripId.trim()) {
+    if (!tripId) {
       return () => {
         cancelled = true;
         window.clearTimeout(statusTimer);
@@ -245,7 +365,7 @@ export default function GPSTracking() {
     const socket = createTrackingSocket();
 
     socket.on("connect", () => {
-      void joinTripTracking(socket, tripId.trim()).then((ack) => {
+      void joinTripTracking(socket, tripId).then((ack) => {
         if (cancelled) return;
         if (ack.success) {
           setRealtimeStatus("connected");
@@ -302,17 +422,17 @@ export default function GPSTracking() {
       window.clearTimeout(statusTimer);
       socket.disconnect();
     };
-  }, [tripId]);
+  }, [selectedTripId]);
 
   return (
     <div className="flex flex-col gap-5 pb-2">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            {t("gps.title")}
+            {t("operations.title")}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-base">
-            {t("gps.subtitle")}
+            {t("operations.subtitle")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -337,41 +457,6 @@ export default function GPSTracking() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <FleetMetricCard
-          label={t("gps.totalOnMap")}
-          value={metrics.total}
-          hint={t("gps.tracking")}
-          valueClass="text-gray-900"
-          iconClass="bg-vr-50 text-vr-700"
-          icon={<FiTruck size={20} />}
-        />
-        <FleetMetricCard
-          label={t("gps.moving")}
-          value={metrics.moving}
-          hint={t("gps.hasMovement")}
-          valueClass="text-emerald-700"
-          iconClass="bg-emerald-50 text-emerald-600"
-          icon={<FiNavigation size={20} />}
-        />
-        <FleetMetricCard
-          label={t("gps.stopped")}
-          value={metrics.idle}
-          hint={t("gps.zeroSpeed")}
-          valueClass="text-amber-700"
-          iconClass="bg-amber-50 text-amber-600"
-          icon={<FiPauseCircle size={20} />}
-        />
-        <FleetMetricCard
-          label={t("gps.alerts")}
-          value={metrics.offline}
-          hint={t("gps.signalLost")}
-          valueClass="text-red-600"
-          iconClass="bg-red-50 text-red-600"
-          icon={<FiAlertTriangle size={20} />}
-        />
-      </div>
-
       <FleetFilterBar
         searchTerm={searchTerm}
         onSearchTermChange={setSearchTerm}
@@ -379,23 +464,29 @@ export default function GPSTracking() {
         onFilterStatusChange={setFilterStatus}
       />
 
-      <TripTrackingPanel
-        tripId={tripId}
-        realtimeStatus={realtimeStatus}
-        delayInfo={delayInfo}
-        tripOptions={tripOptions}
-        isApiLoading={isApiLoading}
-        apiMessage={apiMessage}
-        apiError={apiError}
-        latest={latest}
-        trailCount={trail.length}
-        eta={eta}
-        onSelectTrip={(nextTripId) => void selectTrip(nextTripId)}
-        onLoadTracking={() => void loadTripTracking()}
-      />
+      {apiError && !selectedTripId && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {apiError}
+        </div>
+      )}
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1fr_380px]">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+        {/* Trái: bản đồ đội xe chiếm phần lớn màn hình */}
         <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-inner xl:min-h-[min(72vh,640px)]">
+          {/* Badge đề xuất lộ trình chờ duyệt — góc trên bản đồ, chỉ OPERATOR_ADMIN */}
+          {canMutate && (
+            <button
+              type="button"
+              onClick={() => setProposalsPanelOpen(!showProposalsPanel)}
+              className={`absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
+                pendingProposalCount > 0
+                  ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                  : "border-gray-200 bg-white/95 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {t("operations.proposalsBadge", { count: pendingProposalCount })}
+            </button>
+          )}
           {!mapReady ? (
             <div className="flex h-full min-h-[420px] items-center justify-center text-sm text-gray-500">
               {t("gps.loadingMap")}
@@ -418,7 +509,7 @@ export default function GPSTracking() {
           ) : (
             <FleetMap
               vehicles={filtered}
-              selectedId={selectedId}
+              selectedId={selectedTripId}
               focusCenter={focusCenter}
               routePath={routeGeometryPath(routeGeometry)}
               trailPath={trailPath}
@@ -428,12 +519,96 @@ export default function GPSTracking() {
           <FleetMapLegend />
         </div>
 
-        <FleetVehicleList
-          vehicles={filtered}
-          fleetVehicles={fleetVehicles}
-          selectedId={selectedId}
-          onSelect={selectVehicle}
-        />
+        {/* Phải: panel ngữ cảnh — đề xuất lộ trình khi mở, chi tiết chuyến khi chọn, KPI + danh sách xe mặc định */}
+        {showProposalsPanel ? (
+          <div className="flex min-h-0 flex-col gap-4 xl:max-h-[min(72vh,640px)] xl:overflow-y-auto">
+            <ProposalsPanel
+              onClose={() => setProposalsPanelOpen(false)}
+              // "Xem trên bản đồ": chọn chuyến đó trên Operations — selectTrip tự đóng panel (xoá ?panel=)
+              onViewTrip={selectVehicle}
+              onProposalsChanged={refreshPendingProposalCount}
+            />
+          </div>
+        ) : selectedTripId ? (
+          // Cột phải scroll được khi panel theo dõi + panel hành động dài hơn bản đồ
+          <div className="flex min-h-0 flex-col gap-4 xl:max-h-[min(72vh,640px)] xl:overflow-y-auto">
+            <TripTrackingPanel
+              tripId={selectedTripId}
+              tripLabel={selectedTrip ? tripLabel(selectedTrip) : selectedTripId}
+              routeId={selectedTrip?.route.routeId ?? null}
+              realtimeStatus={realtimeStatus}
+              delayInfo={delayInfo}
+              isApiLoading={isApiLoading}
+              apiMessage={apiMessage}
+              apiError={apiError}
+              latest={latest}
+              trailCount={trail.length}
+              eta={eta}
+              onLoadTracking={() => void loadTripTracking()}
+              onDeselect={() => selectTrip(null)}
+            />
+            <TripActionsPanel
+              // key theo tripId: đổi chuyến thì remount, xoá sạch form/kết quả của chuyến trước
+              key={selectedTripId}
+              tripId={selectedTripId}
+              trip={selectedTrip}
+              vehicles={operatorVehicles}
+              staff={operatorStaff}
+              canMutate={canMutate}
+              onTripReplaced={(newTripId) => {
+                // Chuyển selection + URL sang chuyến mới, rồi tải lại fleet để list có chuyến đó.
+                // Đổi lộ trình giữ nguyên tripId — selectTrip vẫn tải lại geometry lộ trình mới.
+                selectTrip(newTripId);
+                void loadFleet();
+                // Đổi lộ trình trực tiếp có thể supersede đề xuất PENDING — cập nhật badge
+                refreshPendingProposalCount();
+              }}
+            />
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-col gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FleetMetricCard
+                label={t("gps.totalOnMap")}
+                value={metrics.total}
+                hint={t("gps.tracking")}
+                valueClass="text-gray-900"
+                iconClass="bg-vr-50 text-vr-700"
+                icon={<FiTruck size={20} />}
+              />
+              <FleetMetricCard
+                label={t("gps.moving")}
+                value={metrics.moving}
+                hint={t("gps.hasMovement")}
+                valueClass="text-emerald-700"
+                iconClass="bg-emerald-50 text-emerald-600"
+                icon={<FiNavigation size={20} />}
+              />
+              <FleetMetricCard
+                label={t("gps.stopped")}
+                value={metrics.idle}
+                hint={t("gps.zeroSpeed")}
+                valueClass="text-amber-700"
+                iconClass="bg-amber-50 text-amber-600"
+                icon={<FiPauseCircle size={20} />}
+              />
+              <FleetMetricCard
+                label={t("gps.alerts")}
+                value={metrics.offline}
+                hint={t("gps.signalLost")}
+                valueClass="text-red-600"
+                iconClass="bg-red-50 text-red-600"
+                icon={<FiAlertTriangle size={20} />}
+              />
+            </div>
+            <FleetVehicleList
+              vehicles={filtered}
+              fleetVehicles={fleetVehicles}
+              selectedId={selectedTripId}
+              onSelect={selectVehicle}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

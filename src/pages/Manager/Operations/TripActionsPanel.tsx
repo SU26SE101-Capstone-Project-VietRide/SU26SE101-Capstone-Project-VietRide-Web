@@ -1,26 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import {
   FiAlertTriangle,
+  FiGitBranch,
   FiRefreshCw,
   FiRepeat,
-  FiSearch,
   FiTruck,
 } from "react-icons/fi";
 import {
+  changeOperatorTripRoute,
   disruptOperatorTripNoSubstitution,
+  getAlternativeRoutes,
   getOperatorTripCargoCapacity,
-  getOperatorTrips,
   substituteOperatorTripVehicle,
+  type AlternativeRoute,
   type CargoCapacity,
+  type OperatorTripListItem,
   type OperatorUser,
   type OperatorVehicle,
-  type OperatorTripListItem,
 } from "../../../api/vietride";
-import { getAuthUser } from "../../../auth";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
-import { formatDateTime, toDatetimeLocalValue } from "../../../utils/date";
+import { toDatetimeLocalValue } from "../../../utils/date";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -33,38 +35,39 @@ function userId(user: OperatorUser) {
   return user.userId || user.id || "";
 }
 
-function tripLabel(trip: OperatorTripListItem) {
-  return `${trip.route.name} · ${trip.vehicle.licensePlate} · ${formatDateTime(trip.departureAt)}`;
-}
-
 function getDefaultRecoveryDeparture() {
   const recoveryDeparture = new Date(Date.now() + 30 * 60_000);
   recoveryDeparture.setSeconds(0, 0);
   return toDatetimeLocalValue(recoveryDeparture);
 }
 
-type TripOperationsPanelProps = {
+type TripActionsPanelProps = {
+  /** Chuyến do map/list của Trung tâm vận hành chọn — panel không tự chọn chuyến */
+  tripId: string;
+  /** Chi tiết chuyến đang chọn (nếu có) — dùng để lọc xe thay thế và cờ canSubstituteVehicle */
+  trip?: OperatorTripListItem | null;
   // Danh sách xe và nhân sự do trang cha tải sẵn, tránh gọi API trùng lặp
   vehicles: OperatorVehicle[];
   staff: OperatorUser[];
+  /** Chỉ OPERATOR_ADMIN được thay xe / huỷ chuyến / đổi lộ trình */
+  canMutate: boolean;
+  /**
+   * Sau khi thay xe thành công — trang cha chuyển selection sang chuyến mới.
+   * Đổi lộ trình cũng gọi callback này (cùng tripId) để trang cha tải lại
+   * geometry của chuyến + danh sách fleet.
+   */
+  onTripReplaced: (newTripId: string) => void;
 };
 
-export default function TripOperationsPanel({
+export default function TripActionsPanel({
+  tripId,
+  trip = null,
   vehicles,
   staff,
-}: TripOperationsPanelProps) {
+  canMutate,
+  onTripReplaced,
+}: TripActionsPanelProps) {
   const { t } = useTranslation("manager");
-  // Giữ tham chiếu t mới nhất để effect không refetch khi đổi ngôn ngữ
-  const tRef = useRef(t);
-  useEffect(() => {
-    tRef.current = t;
-  });
-  const canMutate = getAuthUser()?.role === "OPERATOR_ADMIN";
-  const [tripId, setTripId] = useState("");
-  const [trips, setTrips] = useState<OperatorTripListItem[]>([]);
-  const [tripSearch, setTripSearch] = useState("");
-  const [tripStatus, setTripStatus] = useState("");
-  const [isTripsLoading, setIsTripsLoading] = useState(false);
   const [capacity, setCapacity] = useState<CargoCapacity | null>(null);
   const [newVehicleId, setNewVehicleId] = useState("");
   const [newDriverUserId, setNewDriverUserId] = useState("");
@@ -77,6 +80,16 @@ export default function TripOperationsPanel({
   const [isMutating, setIsMutating] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  // Section "Đổi lộ trình": null = chưa tải danh sách tuyến thay thế
+  const [isChangeRouteOpen, setIsChangeRouteOpen] = useState(false);
+  const [alternatives, setAlternatives] = useState<AlternativeRoute[] | null>(
+    null,
+  );
+  const [isAlternativesLoading, setIsAlternativesLoading] = useState(false);
+  const [selectedAlternativeRouteId, setSelectedAlternativeRouteId] =
+    useState("");
+  const [routeChangeMessage, setRouteChangeMessage] = useState("");
+  const [routeChangeError, setRouteChangeError] = useState("");
 
   const drivers = useMemo(
     () =>
@@ -96,86 +109,20 @@ export default function TripOperationsPanel({
       ),
     [staff],
   );
-  const selectedTrip = useMemo(
-    () => trips.find((trip) => trip.tripId === tripId),
-    [tripId, trips],
-  );
   const replacementVehicles = useMemo(
     () =>
       vehicles.filter(
         (vehicle) =>
           (vehicle.status === "ACTIVE" || vehicle.status === "AVAILABLE") &&
-          vehicleId(vehicle) !== selectedTrip?.vehicle.vehicleId,
+          vehicleId(vehicle) !== trip?.vehicle.vehicleId,
       ),
-    [selectedTrip, vehicles],
+    [trip, vehicles],
   );
-
-  async function loadTrips() {
-    if (!canMutate) return;
-
-    setIsTripsLoading(true);
-    setError("");
-    try {
-      const result = await getOperatorTrips({
-        page: 1,
-        pageSize: 100,
-        search: tripSearch.trim() || undefined,
-        status: tripStatus || undefined,
-        sortBy: "departureAt",
-        sortDir: "asc",
-      });
-      setTrips(result.items);
-      if (result.items.length === 1) {
-        setTripId(result.items[0].tripId);
-      }
-    } catch (loadError) {
-      setTrips([]);
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : t("tripOperations.tripsFailed"),
-      );
-    } finally {
-      setIsTripsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!canMutate) return;
-
-    let ignore = false;
-    void getOperatorTrips({
-      page: 1,
-      pageSize: 100,
-      sortBy: "departureAt",
-      sortDir: "asc",
-    })
-      .then((tripResult) => {
-        if (!ignore) {
-          setTrips(tripResult.items);
-        }
-      })
-      .catch((loadError: unknown) => {
-        if (!ignore) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : tRef.current("tripOperations.resourcesFailed"),
-          );
-        }
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, [canMutate]);
 
   async function loadCapacity() {
     const normalizedTripId = tripId.trim();
     if (!normalizedTripId) {
-      setError(
-        t("tripOperations.tripRequired"),
-      );
+      setError(t("tripOperations.tripRequired"));
       return;
     }
 
@@ -204,9 +151,7 @@ export default function TripOperationsPanel({
       !estimatedRecoveryDepartureAt ||
       !reason.trim()
     ) {
-      setError(
-        t("tripOperations.substituteRequired"),
-      );
+      setError(t("tripOperations.substituteRequired"));
       return;
     }
 
@@ -215,17 +160,11 @@ export default function TripOperationsPanel({
       Number.isNaN(recoveryDeparture.getTime()) ||
       recoveryDeparture.getTime() <= Date.now()
     ) {
-      setError(
-        t("tripOperations.recoveryDepartureFuture"),
-      );
+      setError(t("tripOperations.recoveryDepartureFuture"));
       return;
     }
 
-    if (
-      !window.confirm(
-        t("tripOperations.substituteConfirm"),
-      )
-    ) {
+    if (!window.confirm(t("tripOperations.substituteConfirm"))) {
       return;
     }
 
@@ -243,11 +182,12 @@ export default function TripOperationsPanel({
           assistantId: newAssistantUserId || null,
         },
       });
-      setMessage(
-        t("tripOperations.substituteSuccess", {
-          tripId: result.newTripId ?? result.tripId,
-        }),
-      );
+      const newTripId = result.newTripId ?? result.tripId;
+      setMessage(t("tripOperations.substituteSuccess", { tripId: newTripId }));
+      // Trang cha chuyển selection + URL sang chuyến mới
+      if (newTripId) {
+        onTripReplaced(newTripId);
+      }
     } catch (mutationError) {
       setError(
         mutationError instanceof Error
@@ -261,17 +201,11 @@ export default function TripOperationsPanel({
 
   async function disruptTrip() {
     if (!tripId.trim() || !reason.trim()) {
-      setError(
-        t("tripOperations.disruptRequired"),
-      );
+      setError(t("tripOperations.disruptRequired"));
       return;
     }
 
-    if (
-      !window.confirm(
-        t("tripOperations.disruptConfirm"),
-      )
-    ) {
+    if (!window.confirm(t("tripOperations.disruptConfirm"))) {
       return;
     }
 
@@ -298,8 +232,79 @@ export default function TripOperationsPanel({
     }
   }
 
+  async function loadAlternatives() {
+    const routeId = trip?.route.routeId;
+    if (!routeId) {
+      setRouteChangeError(t("tripOperations.alternativesFailed"));
+      return;
+    }
+
+    setIsAlternativesLoading(true);
+    setRouteChangeError("");
+    try {
+      const result = await getAlternativeRoutes(routeId, {
+        page: 1,
+        pageSize: 2,
+      });
+      // Chỉ cho đổi sang tuyến thay thế đang active
+      setAlternatives(result.items.filter((route) => route.isActive));
+    } catch (loadError) {
+      setAlternatives(null);
+      setRouteChangeError(
+        loadError instanceof Error
+          ? loadError.message
+          : t("tripOperations.alternativesFailed"),
+      );
+    } finally {
+      setIsAlternativesLoading(false);
+    }
+  }
+
+  function toggleChangeRoute() {
+    const nextOpen = !isChangeRouteOpen;
+    setIsChangeRouteOpen(nextOpen);
+    // Mở lần đầu mới tải — đóng/mở lại không gọi API lần nữa
+    if (nextOpen && alternatives === null && !isAlternativesLoading) {
+      void loadAlternatives();
+    }
+  }
+
+  async function changeRoute() {
+    if (!tripId.trim() || !selectedAlternativeRouteId) {
+      setRouteChangeError(t("tripOperations.changeRouteRequired"));
+      return;
+    }
+
+    // Confirm 2 bước như pattern huỷ chuyến — đổi lộ trình ảnh hưởng booking đang chạy
+    if (!window.confirm(t("tripOperations.changeRouteConfirm"))) {
+      return;
+    }
+
+    setIsMutating(true);
+    setRouteChangeError("");
+    setRouteChangeMessage("");
+    try {
+      const result = await changeOperatorTripRoute(tripId.trim(), {
+        alternativeRouteId: selectedAlternativeRouteId,
+      });
+      setRouteChangeMessage(
+        t("tripOperations.changeRouteSuccess", { status: result.status }),
+      );
+      // Cùng tripId — trang cha re-select để tải lại geometry lộ trình mới + fleet
+      onTripReplaced(result.tripId ?? tripId.trim());
+    } catch (mutationError) {
+      setRouteChangeError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : t("tripOperations.changeRouteFailed"),
+      );
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -307,7 +312,7 @@ export default function TripOperationsPanel({
             {t("tripOperations.title")}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            {t("tripOperations.subtitle")}
+            {t("operations.actionsSubtitle")}
           </p>
         </div>
         {!canMutate && (
@@ -317,97 +322,7 @@ export default function TripOperationsPanel({
         )}
       </div>
 
-      <div
-        className="mt-4 rounded-xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-950"
-        role="note"
-      >
-        <p className="font-semibold">{t("tripOperations.scopeTitle")}</p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sky-900">
-          <li>{t("tripOperations.scopeExistingTrip")}</li>
-          <li>{t("tripOperations.scopeSubstitute")}</li>
-          <li>{t("tripOperations.scopeDisrupt")}</li>
-        </ul>
-      </div>
-
-      {canMutate && (
-        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
-          <label className="relative block">
-            <span className="sr-only">
-              {t("tripOperations.searchTrips")}
-            </span>
-            <FiSearch className="pointer-events-none absolute left-3 top-3.5 text-gray-400" />
-            <input
-              value={tripSearch}
-              onChange={(event) => setTripSearch(event.target.value)}
-              className={`${inputClass} pl-9`}
-              placeholder={t("tripOperations.searchPlaceholder")}
-            />
-          </label>
-          <CustomSelect
-            value={tripStatus}
-            onChange={(event) => setTripStatus(event.target.value)}
-            className={inputClass}
-            aria-label={t("tripOperations.statusFilter")}
-          >
-            <option value="">{t("tripOperations.allStatuses")}</option>
-            {[
-              "SCHEDULED",
-              "BOARDING",
-              "IN_PROGRESS",
-              "COMPLETED",
-              "CANCELLED",
-              "DISRUPTED",
-            ].map((status) => (
-              <option key={status} value={status}>
-                {status.replaceAll("_", " ")}
-              </option>
-            ))}
-          </CustomSelect>
-          <button
-            type="button"
-            disabled={isTripsLoading}
-            onClick={() => void loadTrips()}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2.5 text-sm font-semibold text-vr-700 disabled:opacity-60"
-          >
-            <FiRefreshCw className={isTripsLoading ? "animate-spin" : ""} />
-            {t("tripOperations.search")}
-          </button>
-        </div>
-      )}
-
-      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-        {canMutate ? (
-          <CustomSelect
-            value={tripId}
-            onChange={(event) => {
-              setTripId(event.target.value);
-              setCapacity(null);
-            }}
-            className={inputClass}
-            aria-label={t("tripOperations.tripSelect")}
-          >
-            <option value="">
-              {isTripsLoading
-                ? t("tripOperations.loadingTrips")
-                : t("tripOperations.selectTrip")}
-            </option>
-            {trips.map((trip) => (
-              <option key={trip.tripId} value={trip.tripId}>
-                {tripLabel(trip)}
-              </option>
-            ))}
-          </CustomSelect>
-        ) : (
-          <input
-            value={tripId}
-            onChange={(event) => {
-              setTripId(event.target.value);
-              setCapacity(null);
-            }}
-            className={inputClass}
-            placeholder={t("tripOperations.tripPlaceholder")}
-          />
-        )}
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <button
           type="button"
           disabled={isLoading}
@@ -420,7 +335,7 @@ export default function TripOperationsPanel({
       </div>
 
       {capacity && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <CapacityMetric
             label={t("tripOperations.maxWeight")}
             value={`${capacity.maxCargoWeightKg.toLocaleString("vi-VN")} kg`}
@@ -446,7 +361,7 @@ export default function TripOperationsPanel({
 
       {canMutate && (
         <div className="mt-5 border-t border-gray-100 pt-5">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
                 {t("tripOperations.vehicle")}
@@ -456,9 +371,7 @@ export default function TripOperationsPanel({
                 onChange={(event) => setNewVehicleId(event.target.value)}
                 className={inputClass}
               >
-                <option value="">
-                  {t("tripOperations.selectVehicle")}
-                </option>
+                <option value="">{t("tripOperations.selectVehicle")}</option>
                 {replacementVehicles.map((vehicle) => (
                   <option key={vehicleId(vehicle)} value={vehicleId(vehicle)}>
                     {vehicle.licensePlate}
@@ -475,9 +388,7 @@ export default function TripOperationsPanel({
                 onChange={(event) => setNewDriverUserId(event.target.value)}
                 className={inputClass}
               >
-                <option value="">
-                  {t("tripOperations.selectDriver")}
-                </option>
+                <option value="">{t("tripOperations.selectDriver")}</option>
                 {drivers.map((driver) => (
                   <option key={userId(driver)} value={userId(driver)}>
                     {driver.displayName}
@@ -494,9 +405,7 @@ export default function TripOperationsPanel({
                 onChange={(event) => setNewAssistantUserId(event.target.value)}
                 className={inputClass}
               >
-                <option value="">
-                  {t("tripOperations.noAssistant")}
-                </option>
+                <option value="">{t("tripOperations.noAssistant")}</option>
                 {assistants.map((assistant) => (
                   <option key={userId(assistant)} value={userId(assistant)}>
                     {assistant.displayName}
@@ -515,7 +424,7 @@ export default function TripOperationsPanel({
                 maxLength={500}
               />
             </label>
-            <label>
+            <label className="sm:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
                 {t("tripOperations.recoveryDeparture")}
               </span>
@@ -546,7 +455,7 @@ export default function TripOperationsPanel({
               </span>
             </span>
           </label>
-          {selectedTrip?.canSubstituteVehicle === false && (
+          {trip?.canSubstituteVehicle === false && (
             <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               {t("tripOperations.substituteUnavailable")}
             </p>
@@ -554,9 +463,7 @@ export default function TripOperationsPanel({
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
-              disabled={
-                isMutating || selectedTrip?.canSubstituteVehicle === false
-              }
+              disabled={isMutating || trip?.canSubstituteVehicle === false}
               onClick={() => void substituteVehicle()}
               className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
@@ -573,6 +480,103 @@ export default function TripOperationsPanel({
               {t("tripOperations.disrupt")}
             </button>
           </div>
+        </div>
+      )}
+
+      {canMutate && (
+        <div className="mt-5 border-t border-gray-100 pt-5">
+          <button
+            type="button"
+            onClick={toggleChangeRoute}
+            aria-expanded={isChangeRouteOpen}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          >
+            <FiGitBranch className="text-vr-700" />
+            {t("tripOperations.changeRoute")}
+          </button>
+
+          {isChangeRouteOpen && (
+            <div className="mt-4 flex flex-col gap-3">
+              <p className="text-sm text-gray-500">
+                {t("tripOperations.changeRouteHint")}
+              </p>
+
+              {isAlternativesLoading ? (
+                <p className="text-sm text-gray-500">
+                  {t("tripOperations.alternativesLoading")}
+                </p>
+              ) : alternatives !== null && alternatives.length === 0 ? (
+                // Tuyến chưa có tuyến thay thế active — dẫn sang màn Routes để khai báo
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <p>{t("tripOperations.noAlternatives")}</p>
+                  {trip?.route.routeId && (
+                    <Link
+                      to={`/manager/routes?routeId=${trip.route.routeId}&tab=alternatives`}
+                      className="mt-1 inline-block font-semibold text-vr-800 hover:underline"
+                    >
+                      {t("tripOperations.declareAlternatives")}
+                    </Link>
+                  )}
+                </div>
+              ) : alternatives !== null ? (
+                <>
+                  <div className="flex flex-col gap-2">
+                    {alternatives.map((alternative) => (
+                      <label
+                        key={alternative.id}
+                        className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 px-4 py-3 transition hover:border-vr-500"
+                      >
+                        <input
+                          type="radio"
+                          name="alternative-route"
+                          checked={
+                            selectedAlternativeRouteId === alternative.id
+                          }
+                          onChange={() =>
+                            setSelectedAlternativeRouteId(alternative.id)
+                          }
+                          className="mt-1 h-4 w-4 border-gray-300 text-vr-600 focus:ring-vr-500"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-gray-800">
+                            {alternative.name}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            {t("tripOperations.alternativeMeta", {
+                              km: alternative.totalDistanceKm,
+                              minutes: alternative.estimatedDurationMinutes,
+                            })}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      disabled={isMutating || !selectedAlternativeRouteId}
+                      onClick={() => void changeRoute()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                    >
+                      <FiGitBranch />
+                      {t("tripOperations.changeRouteApply")}
+                    </button>
+                  </div>
+                </>
+              ) : null}
+
+              {routeChangeMessage && (
+                <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                  {routeChangeMessage}
+                </p>
+              )}
+              {routeChangeError && (
+                <p className="rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {routeChangeError}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -598,6 +602,3 @@ function CapacityMetric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-
-

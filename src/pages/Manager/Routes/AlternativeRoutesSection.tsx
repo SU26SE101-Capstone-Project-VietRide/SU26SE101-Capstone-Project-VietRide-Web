@@ -169,8 +169,8 @@ export default function AlternativeRoutesSection({
               <p className="text-sm font-semibold text-gray-900">{t("routes.alternativeStops")}</p>
               <p className="mt-1 text-xs text-gray-500">{t("routes.alternativeStopsHint")}</p>
             </div>
-            <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_150px_auto] md:items-end">
-              <div>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 sm:col-span-2">
                 <label className={labelClass}>{t("routes.stop")}</label>
                 <CustomSelect
                   className={inputClass}
@@ -202,7 +202,7 @@ export default function AlternativeRoutesSection({
                 type="button"
                 onClick={handleAddAlternativeStop}
                 disabled={!canManageRoutes || !alternativeStopId}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:col-span-2"
               >
                 <FiPlus size={16} />
                 {t("routes.addAlternativeStop")}
