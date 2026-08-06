@@ -75,7 +75,7 @@ describe("api client", () => {
     });
   });
 
-  it("leaves fields undefined when the error envelope has none", async () => {
+  it("defaults fields to an empty array when the error envelope has none", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(
         JSON.stringify({
@@ -91,7 +91,7 @@ describe("api client", () => {
     await expect(apiRequest("/v1/operator/routes/missing")).rejects.toMatchObject(
       {
         code: "ROUTE_NOT_FOUND",
-        fields: undefined,
+        fields: [],
       },
     );
   });

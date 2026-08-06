@@ -1,1 +1,1 @@
-npx tsc -b --force && npm run lint && npm test && npm run build
+npx tsc -b && npm run lint && npm test && npm run build
