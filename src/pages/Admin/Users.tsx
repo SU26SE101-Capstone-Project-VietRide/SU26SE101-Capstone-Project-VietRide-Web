@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../hooks/useToastFeedback";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiActivity, FiEye, FiKey, FiLock, FiSearch, FiUnlock, FiUser, FiUsers } from "react-icons/fi";
@@ -151,6 +152,7 @@ export default function Users() {
     }
   }
 
+  useToastFeedback({ message: message?.tone === "success" ? message.text : "", error: message?.tone === "error" ? message.text : "" });
   return (
     <div className="space-y-6">
       <header>
@@ -168,17 +170,7 @@ export default function Users() {
         <StatCard label={t("users.operatorStaff")} value={users.filter((user) => user.role === "OPERATOR_STAFF").length} icon={<FiUsers size={20} />} iconClassName="bg-blue-50 text-blue-700" />
         <StatCard label={tc("enumLabels.PENDING_INITIAL_PASSWORD")} value={users.filter((user) => user.status === "PENDING_INITIAL_PASSWORD").length} icon={<FiKey size={20} />} iconClassName="bg-amber-50 text-amber-700" />
       </div>
-      {message && (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm font-medium ${
-            message.tone === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-rose-200 bg-rose-50 text-rose-700"
-          }`}
-        >
-          {message.text}
-        </div>
-      )}      <PersonnelTable
+      <PersonnelTable
         toolbar={<div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_220px_200px]">
           <div className="relative"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="search" placeholder={t("users.searchPlaceholder")} value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" /></div>
           <CustomSelect value={role} onChange={(event) => { setRole(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.allRoles")}</option><option value="PASSENGER">{t("users.customer")}</option><option value="OPERATOR_ADMIN">{t("users.operatorAdmin")}</option><option value="OPERATOR_STAFF">{t("users.operatorStaff")}</option><option value="DRIVER">{t("users.driver")}</option><option value="ASSISTANT">{t("users.assistant")}</option><option value="SYSTEM_ADMIN">{t("users.systemAdmin")}</option></CustomSelect>

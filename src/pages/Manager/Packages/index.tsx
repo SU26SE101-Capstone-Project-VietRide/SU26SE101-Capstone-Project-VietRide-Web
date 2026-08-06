@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -385,6 +386,7 @@ export default function ManagerPackages() {
     }
   }
 
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div>
@@ -394,16 +396,6 @@ export default function ManagerPackages() {
         <p className="mt-1 text-gray-600">{t("packages.subtitle")}</p>
       </div>
 
-      {message && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       {isLoading ? (
         <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">

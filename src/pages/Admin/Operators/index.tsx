@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -230,6 +231,7 @@ export default function Operators() {
     setOperatorForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -272,11 +274,6 @@ export default function Operators() {
         </div>
       )}
 
-      {message && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {message}
-        </div>
-      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -345,11 +342,6 @@ export default function Operators() {
           </button>
         </div>
 
-        {error && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
 
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
@@ -381,7 +373,7 @@ export default function Operators() {
             <tbody>
               {paginatedOperators.map((operator, idx) => {
                 const status = toKnownStatus(operator.registrationStatus);
-                return (
+  return (
                   <tr
                     key={operator.operatorId}
                     className="border-b border-gray-100 hover:bg-gray-50 transition"

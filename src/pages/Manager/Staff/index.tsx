@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -240,6 +241,7 @@ export default function StaffPage() {
     setUserForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -287,8 +289,6 @@ export default function StaffPage() {
           iconClassName="bg-amber-50 text-amber-700"
         />
       </div>
-      {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       <PersonnelTable
         toolbar={<div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="flex flex-wrap gap-2"><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect></div></div>}
         columns={[

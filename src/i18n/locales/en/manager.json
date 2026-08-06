@@ -1733,6 +1733,7 @@
     "settledAt": "Settled at",
     "actor": "Actor",
     "note": "Note",
+    "noNote": "No note",
     "tabs": {
       "transactions": "Wallet transactions",
       "settlements": "Trip settlements",

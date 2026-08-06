@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../hooks/useToastFeedback";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -105,10 +106,6 @@ export default function AdminReports() {
     (page - 1) * pageSize,
     page * pageSize,
   );
-  const isUpstreamUnavailable =
-    error.toLowerCase().includes("platform report source") ||
-    error.toLowerCase().includes("upstream");
-
   function applyFilters(event: FormEvent) {
     event.preventDefault();
     const fromDate = new Date(`${draftFilters.from}T00:00:00Z`);
@@ -164,6 +161,7 @@ export default function AdminReports() {
       ]
     : [];
 
+  useToastFeedback({ error });
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -228,34 +226,6 @@ export default function AdminReports() {
         </button>
       </form>
 
-      {error && (
-        <section
-          role="alert"
-          className="rounded-lg border border-rose-200 bg-rose-50 px-5 py-4 text-rose-800"
-        >
-          <h2 className="text-sm font-bold">
-            {isUpstreamUnavailable
-              ? t("reports.upstreamUnavailableTitle")
-              : t("reports.loadFailed")}
-          </h2>
-          <p className="mt-1 text-sm">
-            {isUpstreamUnavailable
-              ? t("reports.upstreamUnavailableHint")
-              : error}
-          </p>
-          {isUpstreamUnavailable && (
-            <p className="mt-2 text-xs text-rose-700">{error}</p>
-          )}
-          <button
-            type="button"
-            onClick={() => setReloadKey((value) => value + 1)}
-            className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-          >
-            <FiRefreshCw />
-            {t("reports.retry")}
-          </button>
-        </section>
-      )}
 
       {isLoading ? (
         <div className="rounded-lg border border-gray-200 bg-white px-5 py-16 text-center text-sm text-gray-500">

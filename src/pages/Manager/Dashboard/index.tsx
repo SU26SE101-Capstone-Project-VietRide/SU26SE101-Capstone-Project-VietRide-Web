@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -360,17 +361,9 @@ export default function ManagerDashboard() {
     );
   };
 
+  useToastFeedback({ error: loadErrors[0] ?? "" });
   return (
     <div className="space-y-6 pb-4">
-      {loadErrors.length > 0 && (
-        <div
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-        >
-          <p className="font-medium">{t("dashboard.someDataFailed")}</p>
-          <p className="mt-1">{loadErrors.join(" | ")}</p>
-        </div>
-      )}
 
       {!isOperatorAdmin && (
         <div

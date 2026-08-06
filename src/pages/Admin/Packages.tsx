@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../hooks/useToastFeedback";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiBox, FiEdit2, FiPlus, FiPower } from "react-icons/fi";
@@ -215,6 +216,7 @@ export default function Packages() {
     },
   ];
 
+  useToastFeedback({ message, error: error || formError });
   if (isLoading && plans.length === 0 && !error) {
     return <PackagesPageSkeleton loadingLabel={t("packages.loading")} />;
   }
@@ -237,16 +239,6 @@ export default function Packages() {
         </button>
       </div>
 
-      {message && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {plans.map((plan) => (

@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../hooks/useToastFeedback";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -362,16 +363,9 @@ export default function AdminDashboard() {
     void loadDashboard();
   };
 
+  useToastFeedback({ error: loadError });
   return (
     <div className="space-y-6 pb-4">
-      {loadError && (
-        <div
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-        >
-          {loadError}
-        </div>
-      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
@@ -587,7 +581,7 @@ export default function AdminDashboard() {
                 const color =
                   operatorRevenueColors[index % operatorRevenueColors.length];
 
-                return (
+  return (
                   <div
                     key={item.operator}
                     className="rounded-lg border border-gray-200 px-4 py-3"

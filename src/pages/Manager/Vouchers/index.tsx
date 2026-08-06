@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiTag } from "react-icons/fi";
@@ -193,7 +194,7 @@ export default function ManagerVouchers() {
             : item,
         ),
       );
-      setMessage(t("vouchers.deactivateSuccess"));
+      setMessage(t("vouchers.deactivateSuccess") || "Đã tắt voucher.");
     } else {
       const result = await activateOperatorVoucher(getVoucherId(voucher));
       setVouchers((current) =>
@@ -203,7 +204,7 @@ export default function ManagerVouchers() {
             : item,
         ),
       );
-      setMessage(t("vouchers.activateSuccess"));
+      setMessage(t("vouchers.activateSuccess") || "Đã kích hoạt voucher.");
     }
   }
 
@@ -229,6 +230,7 @@ export default function ManagerVouchers() {
     }
   }
 
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -262,16 +264,6 @@ export default function ManagerVouchers() {
 
       {isOperatorAdmin && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label={t("vouchers.totalVouchers")} value={vouchers.length} icon={<FiTag size={20} />} iconClassName="bg-vr-50 text-vr-700" /><StatCard label={t("vouchers.activeVouchers")} value={activeCount} icon={<FiTag size={20} />} iconClassName="bg-emerald-50 text-emerald-700" /><StatCard label={t("vouchers.bookingVouchers")} value={bookingVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-blue-50 text-blue-700" /><StatCard label={t("vouchers.parcelVouchers")} value={parcelVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-amber-50 text-amber-700" /></div>}
 
-      {message && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       {isOperatorAdmin ? (
         <div className="space-y-4">
@@ -329,7 +321,7 @@ export default function ManagerVouchers() {
               </button>
             </div>
           </div>
-          <VoucherTable
+          <VoucherTable
             toolbar={voucherToolbar}
             vouchers={filteredVouchers}
             isLoading={isLoading}
@@ -339,7 +331,7 @@ export default function ManagerVouchers() {
           />
         </div>
       ) : (
-        <VoucherTable
+        <VoucherTable
           toolbar={voucherToolbar}
           vouchers={filteredVouchers}
           isLoading={isLoading}

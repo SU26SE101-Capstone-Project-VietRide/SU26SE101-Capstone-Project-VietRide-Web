@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { FiUploadCloud } from "react-icons/fi";
@@ -79,6 +80,7 @@ export function RagDocumentUploadModal({
     }
   }
 
+  useToastFeedback({ error });
   return (
     <Modal
       open={open}
@@ -206,11 +208,6 @@ export function RagDocumentUploadModal({
             placeholder="SYSTEM_ADMIN, OPERATOR_ADMIN"
           />
         </label>
-        {error && (
-          <p className="sm:col-span-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {error}
-          </p>
-        )}
       </form>
     </Modal>
   );

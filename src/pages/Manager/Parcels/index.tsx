@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import {
   useCallback,
   useEffect,
@@ -108,6 +109,7 @@ export default function ParcelsList() {
   const [toDate] = useState(todayIsoDate());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  useToastFeedback({ error });
   const [farePage, setFarePage] = useState(1);
   const [fareSearch, setFareSearch] = useState("");
   const [fareSizeFilter, setFareSizeFilter] = useState<"" | ParcelSizeCategory>("");
@@ -283,11 +285,7 @@ export default function ParcelsList() {
           {tc("refresh")}
         </button>
       </div>
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<FiPackage />} label={t("parcels.todayOrders")} value={summary?.totalParcels ?? 0} iconClassName="bg-vr-50 text-vr-700" />
         <StatCard icon={<FiTruck />} label={t("parcels.inTransit")} value={summary?.totalLoaded ?? 0} iconClassName="bg-blue-50 text-blue-700" />
         <StatCard icon={<FiCheckCircle />} label={t("parcels.delivered")} value={summary?.totalDelivered ?? 0} iconClassName="bg-emerald-50 text-emerald-700" />

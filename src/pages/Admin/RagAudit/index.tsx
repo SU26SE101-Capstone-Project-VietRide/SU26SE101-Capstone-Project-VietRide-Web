@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -140,6 +141,7 @@ export default function RagAudit() {
     }
   }
 
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -169,16 +171,6 @@ export default function RagAudit() {
         </div>
       </div>
 
-      {message && (
-        <div className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-800">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          {error}
-        </div>
-      )}
 
       <div className="grid gap-5">
         <section className="rounded-lg border border-gray-200 bg-white p-4">

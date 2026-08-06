@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -167,6 +168,7 @@ export default function ManagerWallet() {
     setPage(1);
   }
 
+  useToastFeedback({ error });
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -185,11 +187,6 @@ export default function ManagerWallet() {
         </button>
       </div>
 
-      {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<FiDollarSign />} label={t("wallet.currentBalance")} value={formatMoney(wallet?.balance ?? 0)} iconClassName="bg-emerald-50 text-emerald-700" />
@@ -225,14 +222,14 @@ export default function ManagerWallet() {
               className="w-full flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
             />
             {tab === "transactions" && (
-              <CustomSelect value={transactionType} onChange={(event) => { setTransactionType(event.target.value as WalletTransactionType | ""); setPage(1); }} aria-label={t("wallet.allTransactionTypes")} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 lg:w-56">
+              <CustomSelect value={transactionType} onChange={(event) => { setTransactionType(event.target.value as WalletTransactionType | ""); setPage(1); }} aria-label={t("wallet.allTransactionTypes")} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 lg:w-72">
                 <option value="">{t("wallet.allTransactionTypes")}</option>
                 <option value="CREDIT">{t("wallet.moneyIn")}</option>
                 <option value="DEBIT">{t("wallet.moneyOut")}</option>
               </CustomSelect>
             )}
             {tab === "settlements" && (
-              <CustomSelect value={settlementStatus} onChange={(event) => { setSettlementStatus(event.target.value as TripSettlementStatus | ""); setPage(1); }} aria-label={t("wallet.allSettlementStatuses")} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 lg:w-56">
+              <CustomSelect value={settlementStatus} onChange={(event) => { setSettlementStatus(event.target.value as TripSettlementStatus | ""); setPage(1); }} aria-label={t("wallet.allSettlementStatuses")} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 lg:w-72">
                 <option value="">{t("wallet.allSettlementStatuses")}</option>
                 {(["PENDING_HOLD", "ELIGIBLE", "SETTLED", "CANCELLED"] as TripSettlementStatus[]).map((status) => <option key={status} value={status}>{t(`wallet.status.${status}`)}</option>)}
               </CustomSelect>
@@ -274,7 +271,7 @@ function settlementStatusClass(status: TripSettlementStatus) {
 function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Translate }) {
   return (
     <div className="overflow-x-auto p-4">
-      <table className="w-full min-w-[920px] text-sm">
+      <table className="w-full table-fixed text-sm">
         <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
           <th className="px-4 py-3">{t("wallet.time")}</th>
           <th className="px-4 py-3">{t("wallet.cashFlow")}</th>
@@ -306,7 +303,7 @@ function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Transla
 function SettlementTable({ items, t }: { items: TripSettlement[]; t: Translate }) {
   return (
     <div className="overflow-x-auto p-4">
-      <table className="w-full min-w-[760px] text-sm">
+      <table className="w-full table-fixed text-sm">
         <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
           <th className="px-4 py-3">{t("wallet.paymentTime")}</th>
           <th className="px-4 py-3">{t("wallet.receivedAmount")}</th>
@@ -331,7 +328,7 @@ function LedgerTable({ items, t }: { items: OperatorLedgerEntry[]; t: Translate 
   const { t: tc } = useTranslation("common");
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-sm">
+      <table className="w-full table-fixed text-sm">
         <thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
           <th className="px-4 py-3">{t("wallet.datetime")}</th>
           <th className="px-4 py-3">{t("wallet.entryType")}</th>
@@ -346,7 +343,7 @@ function LedgerTable({ items, t }: { items: OperatorLedgerEntry[]; t: Translate 
               <td className="px-4 py-3 font-semibold">{tc("enumLabels." + item.entryType, { defaultValue: item.entryType })}</td>
               <td className={"whitespace-nowrap px-4 py-3 font-semibold " + (item.amount < 0 ? "text-red-700" : "text-emerald-700")}>{formatMoney(item.amount)}</td>
               <td className="px-4 py-3">{item.actor?.displayName || tc("enumLabels.SYSTEM", { defaultValue: item.actorType || "-" })}</td>
-              <td className="px-4 py-3 text-gray-600">{item.note || "-"}</td>
+              <td className="px-4 py-3 text-gray-600">{item.note || t("wallet.noNote")}</td>
             </tr>
           ))}
         </tbody>
