@@ -68,7 +68,7 @@ describe("Admin Users", () => {
 
     const table = email.closest("table");
     expect(table).toHaveClass("table-fixed");
-    expect(table?.parentElement).toHaveClass("overflow-hidden");
+    expect(table?.parentElement).toHaveClass("overflow-x-auto");
 
     expect(screen.queryByText("users.joined" )).not.toBeInTheDocument();
   });

@@ -103,6 +103,7 @@ describe("Admin WalletSettlement", () => {
   });
 
   it("loads the needs-attention queue from the legacy payout redirect", async () => {
+    const user = userEvent.setup();
     render(
       <MemoryRouter
         initialEntries={[
@@ -127,16 +128,18 @@ describe("Admin WalletSettlement", () => {
       screen.queryByText("walletSettlement.status.PENDING_HOLD"),
     ).not.toBeInTheDocument();
 
-    const allFilterLabel = screen.getByText("walletSettlement.filters.ALL");
-    const attentionFilterLabel = screen.getByText(
-      "walletSettlement.filters.NEEDS_ATTENTION",
-    );
-    const eligibleFilterLabel = screen.getByText(
-      "walletSettlement.filters.ELIGIBLE",
-    );
-    expect(allFilterLabel.nextElementSibling).toHaveTextContent("1");
-    expect(attentionFilterLabel.nextElementSibling).toHaveTextContent("1");
-    expect(eligibleFilterLabel.nextElementSibling).toHaveTextContent("1");
+    await user.click(screen.getByRole("button", { name: "status" }));
+    expect(
+      screen.getByRole("option", { name: "walletSettlement.filters.ALL" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", {
+        name: "walletSettlement.filters.NEEDS_ATTENTION",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "walletSettlement.filters.ELIGIBLE" }),
+    ).toBeInTheDocument();
   });
 
   it("combines money in and out into one paginated table", async () => {

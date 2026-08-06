@@ -269,7 +269,9 @@ describe("TripsPage", () => {
     const label = await screen.findByText("trips.availableDrivers");
     const card = label.parentElement;
     expect(card).not.toBeNull();
-    expect(within(card as HTMLElement).getByText("1")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(card as HTMLElement).getByText("1")).toBeInTheDocument();
+    });
     expect(
       within(card as HTMLElement).getByText("trips.activeDriversHelper"),
     ).toBeInTheDocument();
