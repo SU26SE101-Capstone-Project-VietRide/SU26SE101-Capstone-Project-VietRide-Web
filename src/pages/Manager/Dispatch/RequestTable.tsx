@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiClock, FiEye, FiMapPin, FiTruck, FiUsers } from "react-icons/fi";
 import type {
@@ -32,6 +33,7 @@ export default function RequestTable({
 }: RequestTableProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const [currentTime] = useState(() => Date.now());
 
   if (isLoading && groups.length === 0) {
     return (
@@ -58,7 +60,7 @@ export default function RequestTable({
         const bookings = getOrderedBookingGroups(group);
         const cutoffPassed =
           isInboundDirection(group.direction) &&
-          new Date(group.hardCutoffAt).getTime() <= Date.now();
+           new Date(group.hardCutoffAt).getTime() <= currentTime;
 
         return (
           <li key={getGroupKey(group)} className="p-4 sm:p-5">

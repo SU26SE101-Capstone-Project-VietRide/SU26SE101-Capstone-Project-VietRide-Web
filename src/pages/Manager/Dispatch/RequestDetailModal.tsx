@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiMapPin } from "react-icons/fi";
 import type {
@@ -33,11 +34,12 @@ export default function RequestDetailModal({
 }: RequestDetailModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const [currentTime] = useState(() => Date.now());
   const bookings = group ? getOrderedBookingGroups(group) : [];
   const cutoffPassed = Boolean(
     group &&
       isInboundDirection(group.direction) &&
-      new Date(group.hardCutoffAt).getTime() <= Date.now(),
+       new Date(group.hardCutoffAt).getTime() <= currentTime,
   );
 
   return (
