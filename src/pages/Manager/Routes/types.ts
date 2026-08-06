@@ -22,8 +22,7 @@ export type FeedbackScope =
   | "stop"
   | "route"
   | "alternative"
-  | "routeStop"
-  | "geometry";
+  | "routeStop";
 
 export type RouteMapPoint = {
   id: string;

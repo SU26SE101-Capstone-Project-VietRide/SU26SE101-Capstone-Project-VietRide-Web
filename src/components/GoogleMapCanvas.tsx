@@ -13,6 +13,7 @@ import {
   type GoogleMapInstance,
   type GoogleMapsEventListener,
   type GoogleMapsLibrary,
+  type GoogleMarkerInstance,
   type GooglePolylineInstance,
 } from "../lib/googleMaps";
 
@@ -31,9 +32,46 @@ export type GoogleMapMarker = {
 export type GoogleMapPolyline = {
   color: string;
   id: string;
+  // Click chọn polyline (vd chọn phương án đường mờ) — có onClick thì clickable.
+  // position là tọa độ click trên đường (dùng cắm điểm nắn lộ trình)
+  onClick?: (position?: GoogleMapCoordinate) => void;
+  // Mousedown trên thân đường — khởi động kéo nắn tuỳ chỉnh kiểu Google Maps
+  // (túm thẳng thân đường); có handler thì polyline cũng clickable
+  onMouseDown?: (position: GoogleMapCoordinate) => void;
   opacity?: number;
   path: GoogleMapCoordinate[];
   weight?: number;
+  // Thứ tự chồng lớp: phương án đang chọn vẽ đè lên các phương án mờ
+  zIndex?: number;
+};
+
+// Marker dạng Symbol (google.maps.Marker legacy): nhãn bubble thời lượng phương án
+// hoặc điểm trung gian kéo được để nắn lộ trình
+export type GoogleMapPointMarker = {
+  cursor?: string;
+  draggable?: boolean;
+  icon?: {
+    fillColor?: string;
+    fillOpacity?: number;
+    path: string;
+    scale?: number;
+    strokeColor?: string;
+    strokeWeight?: number;
+  };
+  id: string;
+  label?: {
+    color?: string;
+    fontSize?: string;
+    fontWeight?: string;
+    text: string;
+  };
+  onClick?: () => void;
+  // Bắn LIÊN TỤC trong lúc kéo marker (event "drag") — caller tự throttle
+  onDrag?: (position: GoogleMapCoordinate) => void;
+  onDragEnd?: (position: GoogleMapCoordinate) => void;
+  position: GoogleMapCoordinate;
+  title?: string;
+  zIndex?: number;
 };
 
 type GoogleMapCanvasProps = {
@@ -45,8 +83,16 @@ type GoogleMapCanvasProps = {
   focusCenter?: GoogleMapCoordinate | null;
   markers?: GoogleMapMarker[];
   onMapClick?: (position: GoogleMapCoordinate) => void;
+  // Trao instance bản đồ cho caller cần thao tác imperative (setOptions khoá kéo
+  // bản đồ + addListener mousemove/mouseup cho kéo nắn tuỳ chỉnh). Gọi 1 lần khi
+  // bản đồ sẵn sàng — caller giữ trong ref, KHÔNG setState từ callback này.
+  onMapReady?: (map: GoogleMapInstance) => void;
+  pointMarkers?: GoogleMapPointMarker[];
   polylines?: GoogleMapPolyline[];
   scrollWheelZoom?: boolean;
+  // true = tạm ngưng đồng bộ camera theo props (setCenter/setZoom/fitBounds) —
+  // bật trong lúc kéo nắn đường để preview không giật camera giữa thao tác
+  suspendViewportSync?: boolean;
   zoom: number;
 };
 
@@ -86,6 +132,35 @@ function clearPolylines(polylines: GooglePolylineInstance[]) {
   polylines.forEach((polyline) => polyline.setMap(null));
 }
 
+// Một marker Symbol đang sống trên bản đồ (pool reconcile theo id): overlay +
+// listener bind một lần + data mới nhất để dispatcher gọi đúng callback hiện tại
+type PooledPointMarker = {
+  data: GoogleMapPointMarker;
+  listeners: Array<GoogleMapsEventListener | undefined>;
+  overlay: GoogleMarkerInstance;
+  positionKey: string;
+  styleKey: string;
+};
+
+// Khóa "hình dạng" của marker — đổi khóa này mới phải gỡ + vẽ lại instance;
+// KHÔNG gồm position (dời tại chỗ bằng setPosition) và callback (đọc qua data)
+function buildPointMarkerStyleKey(marker: GoogleMapPointMarker) {
+  return JSON.stringify({
+    clickable: Boolean(marker.onClick),
+    cursor: marker.cursor,
+    draggable: marker.draggable,
+    icon: marker.icon,
+    label: marker.label,
+    title: marker.title,
+    zIndex: marker.zIndex,
+  });
+}
+
+function removePooledPointMarker(entry: PooledPointMarker) {
+  entry.listeners.forEach((listener) => listener?.remove());
+  entry.overlay.setMap(null);
+}
+
 export default function GoogleMapCanvas({
   ariaLabel,
   center,
@@ -95,8 +170,11 @@ export default function GoogleMapCanvas({
   focusCenter,
   markers = [],
   onMapClick,
+  onMapReady,
+  pointMarkers = [],
   polylines = [],
   scrollWheelZoom = true,
+  suspendViewportSync = false,
   zoom,
 }: GoogleMapCanvasProps) {
   const { t } = useTranslation("common");
@@ -109,10 +187,25 @@ export default function GoogleMapCanvas({
   const initialZoomRef = useRef(zoom);
   const [readyMap, setReadyMap] = useState<ReadyMap | null>(null);
   const [error, setError] = useState("");
+  // Callback onMapReady giữ trong ref — identity đổi mỗi render của caller
+  // không được kích lại effect trao instance
+  const onMapReadyRef = useRef(onMapReady);
+  // Pool marker Symbol theo id — reconcile thay vì gỡ + vẽ lại toàn bộ
+  const pointMarkerPoolRef = useRef(new Map<string, PooledPointMarker>());
 
   useEffect(() => {
     tRef.current = t;
   }, [t]);
+
+  useEffect(() => {
+    onMapReadyRef.current = onMapReady;
+  }, [onMapReady]);
+
+  useEffect(() => {
+    if (readyMap) {
+      onMapReadyRef.current?.(readyMap.instance);
+    }
+  }, [readyMap]);
 
   const fitSignature = useMemo(
     () =>
@@ -202,13 +295,13 @@ export default function GoogleMapCanvas({
   }, [scrollWheelZoom]);
 
   useEffect(() => {
-    if (!readyMap) {
+    if (!readyMap || suspendViewportSync) {
       return;
     }
 
     readyMap.instance.setCenter(center);
     readyMap.instance.setZoom(zoom);
-  }, [center, readyMap, zoom]);
+  }, [center, readyMap, suspendViewportSync, zoom]);
 
   useEffect(() => {
     if (!readyMap || !focusCenter) {
@@ -220,7 +313,7 @@ export default function GoogleMapCanvas({
   }, [focusCenter, readyMap]);
 
   useEffect(() => {
-    if (!readyMap || fitPoints.length < 2) {
+    if (!readyMap || suspendViewportSync || fitPoints.length < 2) {
       return;
     }
 
@@ -229,7 +322,7 @@ export default function GoogleMapCanvas({
     if (!bounds.isEmpty()) {
       readyMap.instance.fitBounds(bounds, 32);
     }
-  }, [fitPoints, fitSignature, readyMap]);
+  }, [fitPoints, fitSignature, readyMap, suspendViewportSync]);
 
   useEffect(() => {
     mapClickListenerRef.current?.remove();
@@ -308,22 +401,159 @@ export default function GoogleMapCanvas({
       return;
     }
 
+    const listeners: GoogleMapsEventListener[] = [];
     const overlays = polylines
       .filter((polyline) => polyline.path.length > 1)
-      .map(
-        (polyline) =>
-          new readyMap.library.Polyline({
-            clickable: false,
-            map: readyMap.instance,
-            path: polyline.path,
-            strokeColor: polyline.color,
-            strokeOpacity: polyline.opacity ?? 1,
-            strokeWeight: polyline.weight ?? 5,
-          }),
-      );
+      .map((polyline) => {
+        const overlay = new readyMap.library.Polyline({
+          clickable: Boolean(polyline.onClick || polyline.onMouseDown),
+          map: readyMap.instance,
+          path: polyline.path,
+          strokeColor: polyline.color,
+          strokeOpacity: polyline.opacity ?? 1,
+          strokeWeight: polyline.weight ?? 5,
+          zIndex: polyline.zIndex,
+        });
 
-    return () => clearPolylines(overlays);
+        if (polyline.onClick) {
+          const handleClick = polyline.onClick;
+          listeners.push(
+            overlay.addListener("click", (event) => {
+              handleClick(
+                event?.latLng
+                  ? { lat: event.latLng.lat(), lng: event.latLng.lng() }
+                  : undefined,
+              );
+            }),
+          );
+        }
+
+        if (polyline.onMouseDown) {
+          const handleMouseDown = polyline.onMouseDown;
+          listeners.push(
+            overlay.addListener("mousedown", (event) => {
+              if (event?.latLng) {
+                handleMouseDown({
+                  lat: event.latLng.lat(),
+                  lng: event.latLng.lng(),
+                });
+              }
+            }),
+          );
+        }
+
+        return overlay;
+      });
+
+    return () => {
+      listeners.forEach((listener) => listener?.remove());
+      clearPolylines(overlays);
+    };
   }, [polylines, readyMap]);
+
+  // Marker dạng Symbol (nhãn bubble / điểm kéo) — cần thư viện marker; thiếu thì
+  // bỏ qua. RECONCILE theo id thay vì gỡ + vẽ lại toàn bộ mỗi khi mảng đổi
+  // identity: marker giữ nguyên id + hình dạng thì GIỮ NGUYÊN instance (marker
+  // đang được kéo không bao giờ bị recreate giữa gesture — nguyên nhân "đứt kéo");
+  // chỉ đổi vị trí thì setPosition tại chỗ; đổi hình dạng mới gỡ + vẽ lại.
+  useEffect(() => {
+    const MarkerClass = readyMap?.library.Marker;
+    if (!readyMap || !MarkerClass) {
+      return;
+    }
+
+    const pool = pointMarkerPoolRef.current;
+    const seenIds = new Set<string>();
+
+    pointMarkers.forEach((marker) => {
+      seenIds.add(marker.id);
+      const styleKey = buildPointMarkerStyleKey(marker);
+      const positionKey = `${marker.position.lat},${marker.position.lng}`;
+      let entry = pool.get(marker.id);
+
+      // Hình dạng đổi (icon/label/draggable...) → buộc phải vẽ lại instance.
+      // Vị trí đổi mà instance không hỗ trợ setPosition (mock cũ) cũng vẽ lại.
+      if (
+        entry &&
+        (entry.styleKey !== styleKey ||
+          (entry.positionKey !== positionKey && !entry.overlay.setPosition))
+      ) {
+        removePooledPointMarker(entry);
+        pool.delete(marker.id);
+        entry = undefined;
+      }
+
+      if (entry) {
+        // Chỉ vị trí đổi → dời tại chỗ, KHÔNG recreate (giữ gesture kéo nếu có)
+        if (entry.positionKey !== positionKey) {
+          entry.overlay.setPosition?.(marker.position);
+          entry.positionKey = positionKey;
+        }
+        // Handler đọc qua entry.data nên chỉ cần cập nhật data, không rebind
+        entry.data = marker;
+        return;
+      }
+
+      const overlay = new MarkerClass({
+        clickable: Boolean(marker.onClick),
+        cursor: marker.cursor,
+        draggable: marker.draggable,
+        icon: marker.icon,
+        label: marker.label,
+        map: readyMap.instance,
+        position: marker.position,
+        title: marker.title,
+        zIndex: marker.zIndex,
+      });
+      const nextEntry: PooledPointMarker = {
+        data: marker,
+        listeners: [],
+        overlay,
+        positionKey,
+        styleKey,
+      };
+      // Listener bind MỘT lần khi tạo, dispatch qua entry.data để luôn gọi
+      // callback của render mới nhất mà không phải gỡ/gắn lại listener mỗi render
+      nextEntry.listeners = [
+        overlay.addListener("click", () => nextEntry.data.onClick?.()),
+        overlay.addListener("drag", (event) => {
+          if (event?.latLng) {
+            nextEntry.data.onDrag?.({
+              lat: event.latLng.lat(),
+              lng: event.latLng.lng(),
+            });
+          }
+        }),
+        overlay.addListener("dragend", (event) => {
+          if (event?.latLng) {
+            nextEntry.data.onDragEnd?.({
+              lat: event.latLng.lat(),
+              lng: event.latLng.lng(),
+            });
+          }
+        }),
+      ];
+      pool.set(marker.id, nextEntry);
+    });
+
+    // Marker không còn trong props → gỡ khỏi bản đồ
+    pool.forEach((entry, id) => {
+      if (!seenIds.has(id)) {
+        removePooledPointMarker(entry);
+        pool.delete(id);
+      }
+    });
+  }, [pointMarkers, readyMap]);
+
+  // Dọn toàn bộ pool marker khi unmount (kể cả unmount giả của StrictMode —
+  // effect chạy lại sẽ dựng lại pool từ props hiện tại)
+  useEffect(() => {
+    const pool = pointMarkerPoolRef.current;
+    return () => {
+      pool.forEach((entry) => removePooledPointMarker(entry));
+      pool.clear();
+    };
+  }, []);
 
   return (
     <div
