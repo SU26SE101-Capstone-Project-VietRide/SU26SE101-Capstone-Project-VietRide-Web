@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600" role="img" aria-label="Vehicle image placeholder">
+  <rect width="900" height="600" fill="#f1f5f9"/>
+  <rect x="180" y="205" width="540" height="230" rx="36" fill="#cbd5e1"/>
+  <path d="M235 205h360c58 0 105 47 105 105v35H200V240c0-19 16-35 35-35Z" fill="#e2e8f0"/>
+  <rect x="250" y="245" width="135" height="80" rx="12" fill="#94a3b8"/>
+  <rect x="405" y="245" width="135" height="80" rx="12" fill="#94a3b8"/>
+  <rect x="560" y="245" width="95" height="80" rx="12" fill="#94a3b8"/>
+  <circle cx="295" cy="445" r="50" fill="#64748b"/>
+  <circle cx="295" cy="445" r="22" fill="#e2e8f0"/>
+  <circle cx="625" cy="445" r="50" fill="#64748b"/>
+  <circle cx="625" cy="445" r="22" fill="#e2e8f0"/>
+</svg>

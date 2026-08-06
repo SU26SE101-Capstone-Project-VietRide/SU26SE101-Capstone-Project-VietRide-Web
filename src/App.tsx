@@ -4,6 +4,8 @@ import "./App.css";
 
 import { lazy, Suspense } from "react";
 
+import ToastProvider from "./components/toast/ToastProvider";
+
 const ManagerLayout = lazy(() => import("./layouts/ManagerLayout"));
 const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -57,110 +59,148 @@ export default function App() {
           <div className="p-6 text-sm text-gray-500">{t("pageLoading")}</div>
         }
       >
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/register/success" element={<RegisterSuccess />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route
-            path="/set-initial-password"
-            element={<SetInitialPassword />}
-          />
-          <Route path="/auth/set-password" element={<SetInitialPassword />} />
-          <Route
-            path="/auth/set-initial-password"
-            element={<SetInitialPassword />}
-          />
-
-          {/* VNPay redirects the operator's browser to this result page. */}
-          <Route element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}>
+        <ToastProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/register/success" element={<RegisterSuccess />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route
-              path="/payments/return"
-              element={<SubscriptionPaymentReturn />}
+              path="/set-initial-password"
+              element={<SetInitialPassword />}
             />
-          </Route>
+            <Route path="/auth/set-password" element={<SetInitialPassword />} />
+            <Route
+              path="/auth/set-initial-password"
+              element={<SetInitialPassword />}
+            />
 
-          {/* Manager routes */}
-          <Route
-            element={
-              <PrivateRoute
-                allowedRoles={["OPERATOR_ADMIN", "OPERATOR_STAFF"]}
-              />
-            }
-          >
-            <Route path="/manager" element={<ManagerLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<ManagerDashboard />} />
-              <Route path="trips" element={<TripsList />} />
-              <Route path="routes" element={<RoutesList />} />
-              <Route path="vehicles" element={<VehiclesList />} />
-              <Route path="bookings" element={<BookingsList />} />
-              <Route path="parcels" element={<ParcelsList />} />
-              <Route path="operations" element={<OperationsCenter />} />
-              <Route path="gps" element={<Navigate to="/manager/operations" replace />} />
-              <Route path="shuttle-tracking" element={<Navigate to="/manager/dispatch" replace />} />
-              <Route path="dispatch" element={<DispatchPanel />} />
-              <Route path="profile" element={<Profile />} />
-              <Route path="vouchers" element={<ManagerVouchers />} />
-              <Route path="wallet" element={<ManagerWallet />} />
-              <Route path="reports" element={<Navigate to="/manager/dashboard" replace />} />
-              <Route path="assistant" element={<RagAssistant />} />
+            {/* VNPay redirects the operator's browser to this result page. */}
+            <Route element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}>
               <Route
-                element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
-              >
-                {/* Màn RouteETA cũ đã gộp vào Trung tâm vận hành (panel đề xuất lộ trình) */}
-                <Route path="route-eta" element={<Navigate to="/manager/operations?panel=proposals" replace />} />
+                path="/payments/return"
+                element={<SubscriptionPaymentReturn />}
+              />
+            </Route>
 
-                <Route path="route-extensions" element={<Navigate to="/manager/operations?panel=proposals" replace />} />
-
-                <Route
-                  path="vehicle-builder"
-                  element={<VehicleBuilderPage />}
+            {/* Manager routes */}
+            <Route
+              element={
+                <PrivateRoute
+                  allowedRoles={["OPERATOR_ADMIN", "OPERATOR_STAFF"]}
                 />
-                <Route path="staff" element={<StaffList />} />
-                <Route path="capacity" element={<Navigate to="/manager/vehicles" replace />} />
-                <Route path="packages" element={<ManagerPackages />} />
-                <Route path="policies" element={<ManagerPolicies />} />
-                <Route path="settings" element={<ManagerSettings />} />
+              }
+            >
+              <Route path="/manager" element={<ManagerLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<ManagerDashboard />} />
+                <Route path="trips" element={<TripsList />} />
+                <Route path="routes" element={<RoutesList />} />
+                <Route path="vehicles" element={<VehiclesList />} />
+                {/* Màn Capacity cũ đã gộp vào màn Vehicles */}
+                <Route
+                  path="capacity"
+                  element={<Navigate to="/manager/vehicles" replace />}
+                />
+                <Route path="bookings" element={<BookingsList />} />
+                <Route path="parcels" element={<ParcelsList />} />
+                <Route path="operations" element={<OperationsCenter />} />
+                <Route
+                  path="gps"
+                  element={<Navigate to="/manager/operations" replace />}
+                />
+                <Route
+                  path="shuttle-tracking"
+                  element={<Navigate to="/manager/dispatch" replace />}
+                />
+                <Route path="dispatch" element={<DispatchPanel />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="vouchers" element={<ManagerVouchers />} />
+                <Route path="wallet" element={<ManagerWallet />} />
+                <Route
+                  path="reports"
+                  element={<Navigate to="/manager/dashboard" replace />}
+                />
+                <Route path="assistant" element={<RagAssistant />} />
+                <Route
+                  element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
+                >
+                  {/* Màn RouteETA cũ đã gộp vào Trung tâm vận hành (panel đề xuất lộ trình) */}
+                  <Route
+                    path="route-eta"
+                    element={
+                      <Navigate
+                        to="/manager/operations?panel=proposals"
+                        replace
+                      />
+                    }
+                  />
+
+                  <Route
+                    path="route-extensions"
+                    element={
+                      <Navigate
+                        to="/manager/operations?panel=proposals"
+                        replace
+                      />
+                    }
+                  />
+
+                  <Route
+                    path="vehicle-builder"
+                    element={<VehicleBuilderPage />}
+                  />
+                  <Route path="staff" element={<StaffList />} />
+                  <Route
+                    path="capacity"
+                    element={<Navigate to="/manager/vehicles" replace />}
+                  />
+                  <Route path="packages" element={<ManagerPackages />} />
+                  <Route path="policies" element={<ManagerPolicies />} />
+                  <Route path="settings" element={<ManagerSettings />} />
+                </Route>
               </Route>
             </Route>
-          </Route>
 
-          {/* Admin routes */}
-          <Route element={<PrivateRoute allowedRoles={["SYSTEM_ADMIN"]} />}>
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="operators" element={<Operators />} />
-              <Route path="stations" element={<AdminStations />} />
-              <Route path="locations" element={<AdminLocations />} />
-              <Route path="users" element={<Users />} />
-              <Route path="vouchers" element={<Vouchers />} />
-              <Route path="packages" element={<Packages />} />
-              <Route path="reports" element={<AdminReports />} />
+            {/* Admin routes */}
+            <Route element={<PrivateRoute allowedRoles={["SYSTEM_ADMIN"]} />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="operators" element={<Operators />} />
+                <Route path="stations" element={<AdminStations />} />
+                <Route path="locations" element={<AdminLocations />} />
+                <Route path="users" element={<Users />} />
+                <Route path="vouchers" element={<Vouchers />} />
+                <Route path="packages" element={<Packages />} />
+                <Route path="reports" element={<AdminReports />} />
 
-              <Route
-                path="payouts"
-                element={
-                  <Navigate
-                    to="/admin/wallet-settlement?tab=settlements&filter=needs-attention"
-                    replace
-                  />
-                }
-              />
-              <Route path="wallet-settlement" element={<WalletSettlement />} />
-              <Route path="rag-audit" element={<RagAudit />} />
-              <Route path="assistant" element={<RagAssistant />} />
-              <Route path="policies" element={<AdminPolicies />} />
-              <Route path="profile" element={<Profile />} />
+                <Route
+                  path="payouts"
+                  element={
+                    <Navigate
+                      to="/admin/wallet-settlement?tab=settlements&filter=needs-attention"
+                      replace
+                    />
+                  }
+                />
+                <Route
+                  path="wallet-settlement"
+                  element={<WalletSettlement />}
+                />
+                <Route path="rag-audit" element={<RagAudit />} />
+                <Route path="assistant" element={<RagAssistant />} />
+                <Route path="policies" element={<AdminPolicies />} />
+                <Route path="profile" element={<Profile />} />
+              </Route>
             </Route>
-          </Route>
 
-          {/* Redirects */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
+            {/* Redirects */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </ToastProvider>
       </Suspense>
     </BrowserRouter>
   );

@@ -96,7 +96,9 @@ export default function AdminStations() {
 
         setStations(result.items);
         setLocations(locationResult.items);
-        const selected = result.items.find((station) => station.id === selectedStationId) ?? result.items[0];
+        const selected =
+          result.items.find((station) => station.id === selectedStationId) ??
+          result.items[0];
         setSelectedStationId(selected?.id ?? "");
         setForm(selected ? toForm(selected) : null);
       } catch (error) {
@@ -158,8 +160,10 @@ export default function AdminStations() {
     (page - 1) * pageSize,
     page * pageSize,
   );
-  const selectedStation = stations.find((station) => station.id === selectedStationId) ?? stations[0];
-  const editableForm = form ?? (selectedStation ? toForm(selectedStation) : null);
+  const selectedStation =
+    stations.find((station) => station.id === selectedStationId) ?? stations[0];
+  const editableForm =
+    form ?? (selectedStation ? toForm(selectedStation) : null);
   const activeCount = stations.filter(
     (station) => station.isActive !== false,
   ).length;
@@ -252,12 +256,7 @@ export default function AdminStations() {
 
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
-    if (
-      !(form.name ?? "").trim() ||
-      !(form.addressStreet ?? "").trim() ||
-      !(form.city ?? "").trim() ||
-      !(form.ward ?? "").trim()
-    ) {
+    if (!form.name.trim() || !form.addressStreet.trim() || !form.city.trim()) {
       setAlert({ tone: "error", message: t("stations.requiredFields") });
       return;
     }

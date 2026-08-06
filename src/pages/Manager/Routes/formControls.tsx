@@ -2,10 +2,7 @@
 // — ngoại lệ named export theo CODE_CONVENTIONS §3 (nhóm component siêu nhỏ liên quan chặt)
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomSelect from "../../../components/CustomSelect";
-import {
-  inputClass,
-  labelClass,
-} from "../../../components/form/formClasses";
+import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { toNumber } from "../../../utils/number";
 import type { StationOption } from "./types";
 
@@ -74,7 +71,8 @@ export function StationSelect({
         {hasSelectedValue && <option value={value}>{value}</option>}
         {stations.map((station) => (
           <option key={station.id} value={station.id}>
-            {station.name} · {station.city || station.ward}
+            {station.name} ·{" "}
+            {[station.ward, station.city].filter(Boolean).join(", ")}
           </option>
         ))}
       </CustomSelect>

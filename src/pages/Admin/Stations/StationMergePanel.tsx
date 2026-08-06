@@ -49,7 +49,7 @@ export default function StationMergePanel({
             .filter((station) => station.id !== selectedStation.id)
             .map((station) => (
               <option key={station.id} value={station.id}>
-                {station.name} - {station.ward}
+                {station.name} - {station.city}
               </option>
             ))}
         </CustomSelect>

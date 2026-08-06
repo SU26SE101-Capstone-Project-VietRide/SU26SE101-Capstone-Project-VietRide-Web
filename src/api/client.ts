@@ -7,7 +7,7 @@ import { isRecord } from "../utils/typeGuards";
 
 type QueryValue = string | number | boolean | null | undefined;
 
-type ApiErrorField = {
+export type ApiErrorField = {
   field?: string;
   message?: string;
 };
@@ -26,15 +26,29 @@ type ApiEnvelope<T> = {
   error?: ApiErrorBody;
 };
 
+export type ApiRequestErrorField = {
+  field: string;
+  message: string;
+};
+
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code?: string;
+  // Chi tiết lỗi theo field từ envelope `error.fields` (vd ROUTE_DUPLICATED
+  // trả `existingRouteId` để FE dẫn tới tuyến có sẵn)
+  readonly fields: ApiRequestErrorField[];
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    fields: ApiRequestErrorField[] = [],
+  ) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
+    this.fields = fields;
   }
 }
 type RequestOptions = {
@@ -43,6 +57,7 @@ type RequestOptions = {
   authenticated?: boolean;
   headers?: Record<string, string>;
   cache?: RequestCache;
+  signal?: AbortSignal;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -78,11 +93,32 @@ function parseErrorCode(payload: unknown): string | undefined {
   return code || undefined;
 }
 
+function parseErrorFields(payload: unknown): ApiRequestErrorField[] | undefined {
+  if (
+    !isRecord(payload) ||
+    !isRecord(payload.error) ||
+    !Array.isArray(payload.error.fields)
+  ) {
+    return undefined;
+  }
+
+  const fields = payload.error.fields
+    .filter(isRecord)
+    .map((entry) => ({
+      field: asString(entry.field),
+      message: asString(entry.message),
+    }))
+    .filter((entry) => entry.field || entry.message);
+
+  return fields.length > 0 ? fields : undefined;
+}
+
 function createApiRequestError(payload: unknown, status: number): ApiRequestError {
   return new ApiRequestError(
     parseErrorMessage(payload, `Request failed: ${status}`),
     status,
     parseErrorCode(payload),
+    parseErrorFields(payload) ?? [],
   );
 }
 async function parseResponse(response: Response): Promise<unknown> {
@@ -353,5 +389,6 @@ function sendRequest(
     headers: buildHeaders(options, accessToken),
     body: body as BodyInit | undefined,
     ...(options.cache ? { cache: options.cache } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 }

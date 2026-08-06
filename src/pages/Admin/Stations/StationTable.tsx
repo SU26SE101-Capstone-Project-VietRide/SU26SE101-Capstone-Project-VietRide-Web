@@ -68,11 +68,17 @@ export default function StationTable({
                   </p>
                 </td>
                 <td className="px-4 py-3 text-center text-gray-700">
-                  {[station.city, station.ward].filter(Boolean).join(" / ") ||
+                  {station.city ||
                     "-"}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 pr-6 text-center text-gray-700">
-                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${station.supportsShuttle ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{station.supportsShuttle ? t("stations.shuttleVehicle") : t("stations.nonShuttleVehicle")}</span>
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${station.supportsShuttle ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}
+                  >
+                    {station.supportsShuttle
+                      ? t("stations.shuttleVehicle")
+                      : t("stations.nonShuttleVehicle")}
+                  </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 pl-6 text-center">
                   <span
@@ -111,10 +117,14 @@ export default function StationTable({
                       className={`${iconButtonClass} text-rose-600 hover:bg-rose-50`}
                       onClick={() => onToggle(station)}
                       title={
-                        station.isActive === false ? tc("enable") : tc("disable")
+                        station.isActive === false
+                          ? tc("enable")
+                          : tc("disable")
                       }
                       aria-label={
-                        station.isActive === false ? tc("enable") : tc("disable")
+                        station.isActive === false
+                          ? tc("enable")
+                          : tc("disable")
                       }
                     >
                       <FiPower />

@@ -168,6 +168,26 @@ export default function TripTrackingPanel({
               ? `${eta.eta.etaMinutes} min · ${eta.eta.distanceMeters} m`
               : "-"}
           </p>
+          {eta?.eta?.stopName && (
+            <p className="mt-0.5 text-xs text-gray-500">
+              {t("gps.etaToStop", { stopName: eta.eta.stopName })}
+            </p>
+          )}
+          {eta?.eta && eta.eta.delayStatus !== "UNKNOWN" && (
+            <p
+              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                eta.eta.delayStatus === "DELAYED"
+                  ? "bg-amber-50 text-amber-800 ring-1 ring-amber-100"
+                  : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
+              }`}
+            >
+              {eta.eta.delayStatus === "DELAYED"
+                ? eta.eta.delayMinutes != null
+                  ? t("gps.etaDelayed", { minutes: eta.eta.delayMinutes })
+                  : t("gps.etaDelayedNoMinutes")
+                : t("gps.etaOnTime")}
+            </p>
+          )}
         </div>
       </div>
     </section>

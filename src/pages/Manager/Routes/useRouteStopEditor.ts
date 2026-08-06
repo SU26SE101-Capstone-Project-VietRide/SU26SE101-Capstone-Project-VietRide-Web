@@ -1,12 +1,8 @@
 // Hook cục bộ: state + thao tác gắn/gỡ điểm dừng vào tuyến (kể cả bản nháp).
-// Logic giữ nguyên từ index.tsx khi tách — không đổi hành vi.
+// Thêm/gỡ chỉ sửa state cục bộ và đánh dấu "chưa lưu" — lưu thật đi qua nút
+// "Lưu tuyến" (PUT /routes/{id}/full, replace-all stops), không gọi API lẻ nữa.
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  addRouteStop,
-  removeRouteStop,
-  type OperatorRoute,
-  type OperatorStop,
-} from "../../../api/vietride";
+import type { OperatorRoute, OperatorStop } from "../../../api/vietride";
 import { toNumber } from "../../../utils/number";
 import { distanceKmBetween } from "./geometry";
 import { estimateCoachDurationMinutes } from "./polyline";
@@ -26,6 +22,8 @@ type UseRouteStopEditorParams = {
   activeRouteKey: string;
   activeRouteName: string;
   invalidateLocalGeometry: (routeId?: string) => void;
+  // Đánh dấu tuyến đang chọn có thay đổi chưa lưu (bật nút "Lưu tuyến")
+  markRouteDirty: () => void;
   setError: (message: string) => void;
   showMessage: (scope: FeedbackScope, message: string) => void;
   t: TranslateFn;
@@ -39,6 +37,7 @@ export function useRouteStopEditor({
   activeRouteKey,
   activeRouteName,
   invalidateLocalGeometry,
+  markRouteDirty,
   setError,
   showMessage,
   t,
@@ -111,6 +110,21 @@ export function useRouteStopEditor({
       return;
     }
 
+    const duplicateStop = routeStopDrafts.some(
+      (item) =>
+        item.routeId === activeRouteKey && item.stopId === selectedStop.id,
+    );
+
+    if (duplicateStop) {
+      setError(t("routes.duplicateStopInRoute"));
+      return;
+    }
+
+    if (!allowPickup && !allowDropoff) {
+      setError(t("routes.stopNeedsPickupOrDropoff"));
+      return;
+    }
+
     const request = {
       stopId: selectedStop.id,
       orderIndex,
@@ -120,9 +134,10 @@ export function useRouteStopEditor({
       allowDropoff,
     };
 
+    // Chỉ thao tác cục bộ: điểm dừng đổi → đường đi đã lưu không còn khớp
     if (selectedRoute) {
-      await addRouteStop(selectedRoute.id, request);
       invalidateLocalGeometry(selectedRoute.id);
+      markRouteDirty();
     }
 
     setRouteStopDrafts((prev) => [
@@ -137,12 +152,7 @@ export function useRouteStopEditor({
       },
     ]);
     setRouteStopOrder(String(orderIndex + 1));
-    showMessage(
-      "routeStop",
-      selectedRoute
-        ? t("routes.routeStopAdded")
-        : t("routes.routeStopDraftAdded"),
-    );
+    showMessage("routeStop", t("routes.routeStopDraftAdded"));
   }
 
   async function handleEstimateRouteStopMetrics() {
@@ -172,31 +182,23 @@ export function useRouteStopEditor({
   }
 
   async function handleRemoveRouteStop(item: RouteStopDraft) {
-    if (item.routeId === draftRouteId) {
-      setRouteStopDrafts((prev) =>
-        prev.filter(
-          (draft) =>
-            draft.routeId !== draftRouteId ||
-            draft.stopId !== item.stopId ||
-            draft.orderIndex !== item.orderIndex,
-        ),
-      );
-      setRouteStopPendingRemoval(null);
-      showMessage("routeStop", t("routes.routeStopRemoved"));
-      return;
+    // Thao tác cục bộ cho cả bản nháp lẫn tuyến đã chọn — lưu thật qua "Lưu tuyến"
+    const targetRouteId = item.routeId ?? draftRouteId;
+
+    if (targetRouteId !== draftRouteId) {
+      if (!selectedRoute) {
+        setError(t("routes.selectRouteFirst"));
+        return;
+      }
+
+      invalidateLocalGeometry(selectedRoute.id);
+      markRouteDirty();
     }
 
-    if (!selectedRoute) {
-      setError(t("routes.selectRouteFirst"));
-      return;
-    }
-
-    await removeRouteStop(selectedRoute.id, item.stopId);
-    invalidateLocalGeometry(selectedRoute.id);
     setRouteStopDrafts((prev) =>
       prev.filter(
         (draft) =>
-          draft.routeId !== selectedRoute.id ||
+          draft.routeId !== targetRouteId ||
           draft.stopId !== item.stopId ||
           draft.orderIndex !== item.orderIndex,
       ),

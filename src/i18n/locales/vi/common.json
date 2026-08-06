@@ -135,6 +135,8 @@
     "ACTIVE": "Đang hoạt động",
     "INACTIVE": "Ngừng hoạt động",
     "MAINTENANCE": "Đang bảo trì",
+    "OFF_DUTY": "Tạm ngừng khai thác",
+    "RETIRED": "Đã thanh lý",
     "PENDING": "Chờ xử lý",
     "PENDING_PAYMENT": "Chờ thanh toán",
     "PENDING_HOLD": "Đang tạm giữ",

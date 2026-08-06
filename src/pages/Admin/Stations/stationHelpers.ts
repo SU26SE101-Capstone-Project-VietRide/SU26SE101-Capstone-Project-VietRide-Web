@@ -26,6 +26,7 @@ export type StationForm = {
   name: string;
   addressStreet: string;
   locationId: string;
+  // city = tỉnh/thành phố trực thuộc TƯ, ward = xã/phường (rỗng với legacy row null)
   city: string;
   ward: string;
   latitude: string;
@@ -132,7 +133,7 @@ export function toForm(station: AdminStation): StationForm {
     name: station.name ?? "",
     addressStreet: station.addressStreet ?? "",
     locationId: station.locationId ?? "",
-    city: station.city ?? "",
+    city: station.city,
     ward: station.ward ?? "",
     latitude: String(station.latitude),
     longitude: String(station.longitude),

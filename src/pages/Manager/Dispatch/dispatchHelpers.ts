@@ -1,52 +1,25 @@
-// Helper thuần + type cục bộ của màn Dispatch — không phụ thuộc React.
 import type {
   AdminUserRole,
   OperatorUser,
   OperatorVehicle,
   ShuttleBookingGroup,
+  ShuttleDirection,
   ShuttleRequestGroup,
   ShuttleTrackingEta,
   ShuttleTrackingLatest,
 } from "../../../api/vietride";
-
-export type RequestType = "Đón" | "Trả";
-export type RequestStatus =
-  | "pending"
-  | "assigned"
-  | "picking"
-  | "completed"
-  | "cancelled";
-export type VehicleStatus = "active" | "picking" | "idle";
-
-export type ShuttleRequest = {
-  id: string;
-  mainTripId: string;
-  bookingId: string;
-  customerName: string;
-  phone: string;
-  trip: string;
-  type: RequestType;
-  address: string;
-  note?: string;
-  time: string;
-  hardCutoffAt?: string;
-  passengerCount: number;
-  pickupLat?: number;
-  pickupLng?: number;
-  stationName?: string;
-  assignedDriver?: string;
-  assignedPlate?: string;
-  assignedCap?: string;
-  status: RequestStatus;
-};
 
 export type ShuttleVehicle = {
   id: string;
   plate: string;
   vehicleModel: string;
   capacity: number;
-  status: VehicleStatus;
-  currentPickups?: number;
+};
+
+export type ShuttleDriver = {
+  id: string;
+  name: string;
+  phone: string;
 };
 
 export type TrackedShuttleTrip = {
@@ -57,32 +30,6 @@ export type TrackedShuttleTrip = {
   error?: string;
   latest?: ShuttleTrackingLatest | null;
   eta?: ShuttleTrackingEta | null;
-};
-
-export type ShuttleDriver = {
-  id: string;
-  name: string;
-  phone?: string;
-  status: string;
-};
-
-export const STATUS_CLASS: Record<RequestStatus, string> = {
-  pending: "bg-gray-100 text-gray-600",
-  assigned: "bg-blue-50 text-blue-600",
-  picking: "bg-teal-50 text-teal-700",
-  completed: "bg-green-50 text-green-700",
-  cancelled: "bg-red-50 text-red-600",
-};
-
-export const V_STATUS_CLASS: Record<VehicleStatus, string> = {
-  active: "text-teal-600",
-  picking: "text-blue-500",
-  idle: "text-gray-400",
-};
-export const V_DOT_CLASS: Record<VehicleStatus, string> = {
-  active: "bg-teal-500",
-  picking: "bg-blue-500",
-  idle: "bg-gray-300",
 };
 
 export function formatTime(value?: string) {
@@ -104,63 +51,143 @@ export function formatTime(value?: string) {
   });
 }
 
-export function toRequestRows(group: ShuttleRequestGroup): ShuttleRequest[] {
+export function formatDistance(distanceMeters?: number | null) {
+  if (distanceMeters === null || distanceMeters === undefined) {
+    return "-";
+  }
+
+  if (distanceMeters < 1_000) {
+    return `${Math.round(distanceMeters)} m`;
+  }
+
+  return `${(distanceMeters / 1_000).toLocaleString("vi-VN", {
+    maximumFractionDigits: 1,
+  })} km`;
+}
+
+export function getBookingDistance(booking: ShuttleBookingGroup) {
+  return booking.roadDistanceMeters ?? booking.distanceToStationMeters;
+}
+
+export function getGroupKey(group: ShuttleRequestGroup) {
+  return `${group.mainTripId}:${group.direction}`;
+}
+
+export function isInboundDirection(direction: ShuttleDirection) {
+  return direction === "INBOUND_TO_STATION";
+}
+
+export function getOrderedBookingGroups(group: ShuttleRequestGroup) {
   const orderMap = new Map(
     group.suggestedBookingOrder.map((bookingId, index) => [bookingId, index]),
   );
 
-  return [...group.bookingGroups]
-    .sort((left, right) => {
-      const leftOrder = orderMap.get(left.bookingId) ?? Number.MAX_SAFE_INTEGER;
-      const rightOrder = orderMap.get(right.bookingId) ?? Number.MAX_SAFE_INTEGER;
+  return [...group.bookingGroups].sort((left, right) => {
+    const leftOrder = orderMap.get(left.bookingId) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = orderMap.get(right.bookingId) ?? Number.MAX_SAFE_INTEGER;
+
+    if (leftOrder !== rightOrder) {
       return leftOrder - rightOrder;
-    })
-    .map((booking) => toRequestRow(group, booking));
+    }
+
+    return new Date(left.requestedAt).getTime() - new Date(right.requestedAt).getTime();
+  });
 }
 
-export function toRequestRow(
+export function getOrderedSelectedBookingIds(
   group: ShuttleRequestGroup,
-  booking: ShuttleBookingGroup,
-): ShuttleRequest {
+  selectedBookingIds: string[],
+) {
+  const selectedIds = new Set(selectedBookingIds);
+  return getOrderedBookingGroups(group)
+    .map((booking) => booking.bookingId)
+    .filter((bookingId) => selectedIds.has(bookingId));
+}
+
+export function getSelectedPassengerCount(
+  group: ShuttleRequestGroup,
+  selectedBookingIds: string[],
+) {
+  const selectedIds = new Set(selectedBookingIds);
+  return group.bookingGroups.reduce(
+    (total, booking) =>
+      selectedIds.has(booking.bookingId)
+        ? total + booking.passengerCount
+        : total,
+    0,
+  );
+}
+
+function toLocalDateTimeInput(date: Date) {
+  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localTime.toISOString().slice(0, 16);
+}
+
+export function buildInitialSchedule(group: ShuttleRequestGroup) {
+  const now = new Date();
+  const earliestStart = new Date(now.getTime() + 10 * 60_000);
+  const boundary = new Date(group.hardCutoffAt);
+
+  if (Number.isNaN(boundary.getTime())) {
+    return { scheduledDepartureTime: "", scheduledEndTime: "" };
+  }
+
+  if (isInboundDirection(group.direction)) {
+    const scheduledEnd = new Date(boundary.getTime() - 5 * 60_000);
+    const suggestedStart = new Date(scheduledEnd.getTime() - 60 * 60_000);
+    const scheduledDeparture =
+      suggestedStart > earliestStart ? suggestedStart : earliestStart;
+
+    if (scheduledDeparture >= scheduledEnd) {
+      return { scheduledDepartureTime: "", scheduledEndTime: "" };
+    }
+
+    return {
+      scheduledDepartureTime: toLocalDateTimeInput(scheduledDeparture),
+      scheduledEndTime: toLocalDateTimeInput(scheduledEnd),
+    };
+  }
+
+  const scheduledDeparture = boundary > earliestStart ? boundary : earliestStart;
+  const scheduledEnd = new Date(scheduledDeparture.getTime() + 60 * 60_000);
   return {
-    id: booking.bookingId,
-    mainTripId: group.mainTripId,
-    bookingId: booking.bookingId,
-    customerName: booking.bookingId,
-    phone: "-",
-    trip: group.mainTripId,
-    type: "Đón",
-    address: booking.pickupAddress,
-    note: `${group.stationName} - ${booking.distanceToStationMeters}m`,
-    time: formatTime(group.departureDateTime),
-    hardCutoffAt: group.hardCutoffAt,
-    passengerCount: booking.passengerCount,
-    pickupLat: booking.pickupLat,
-    pickupLng: booking.pickupLng,
-    stationName: group.stationName,
-    status: "pending",
+    scheduledDepartureTime: toLocalDateTimeInput(scheduledDeparture),
+    scheduledEndTime: toLocalDateTimeInput(scheduledEnd),
   };
 }
 
-export function toVehicleOption(vehicle: OperatorVehicle): ShuttleVehicle {
+export function toVehicleOption(
+  vehicle: OperatorVehicle,
+): ShuttleVehicle | null {
+  const id = vehicle.vehicleId || vehicle.id || "";
+  const isActive =
+    vehicle.isActive !== false && vehicle.status.trim().toUpperCase() === "ACTIVE";
+
+  if (!id || !isActive || vehicle.totalSeats <= 0) {
+    return null;
+  }
+
   return {
-    id: vehicle.vehicleId || vehicle.id || "",
+    id,
     plate: vehicle.licensePlate,
     vehicleModel: vehicle.vehicleTypeName || vehicle.vehicleTypeCode || "-",
     capacity: vehicle.totalSeats,
-    status: vehicle.status === "ACTIVE" ? "active" : "idle",
   };
 }
 
-export function toDriverOption(user: OperatorUser): ShuttleDriver {
-  return {
-    id: user.userId || user.id || "",
-    name: user.displayName || user.email,
-    phone: user.phone,
-    status: user.status,
-  };
+export function toDriverOption(user: OperatorUser): ShuttleDriver | null {
+  const id = user.userId || user.id || "";
+  const name = user.displayName.trim();
+  const phone = user.phone?.trim() ?? "";
+  const isActive = user.status.trim().toUpperCase() === "ACTIVE";
+
+  if (!id || !name || !phone || !isActive || !isDriverRole(user.role)) {
+    return null;
+  }
+
+  return { id, name, phone };
 }
 
 export function isDriverRole(role: AdminUserRole) {
-  return role === "DRIVER" || role === "driver";
+  return role.toUpperCase() === "DRIVER";
 }

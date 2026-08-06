@@ -9,14 +9,17 @@ export type FleetVehicleMapPoint = {
   driver: string;
   route: string;
   speedKmh: number | null;
-  status: "moving" | "idle" | "offline";
-  position: GoogleMapCoordinate;
+  /** "lost" = mất tín hiệu GPS (không còn trong fleet-latest, TTL 300s) */
+  status: "moving" | "idle" | "offline" | "lost";
+  /** null khi mất tín hiệu và không còn toạ độ cuối — xe vẫn hiện trong list, không có marker */
+  position: GoogleMapCoordinate | null;
 };
 
 const statusFill: Record<FleetVehicleMapPoint["status"], string> = {
   moving: "#16a34a",
   idle: "#f59e0b",
   offline: "#9ca3af",
+  lost: "#d1d5db",
 };
 
 type FleetMapProps = {
@@ -44,23 +47,35 @@ export default function FleetMap({
   const { t } = useTranslation("manager");
   const markers = useMemo(
     () =>
-      vehicles.map((vehicle) => ({
-        color: statusFill[vehicle.status],
-        description: [
-          vehicle.driver,
-          vehicle.route,
-          vehicle.speedKmh == null
-            ? t("gps.noSpeedData")
-            : `${vehicle.speedKmh} km/h`,
-        ],
-        fillOpacity: vehicle.status === "offline" ? 0.55 : 0.95,
-        id: vehicle.id,
-        onClick: () => onMarkerSelect(vehicle.id),
-        position: vehicle.position,
-        radiusMeters: vehicle.id === selectedId ? 360 : 240,
-        selected: vehicle.id === selectedId,
-        title: vehicle.plate,
-      })),
+      // Xe mất tín hiệu không có toạ độ thì không có marker — vẫn nằm trong danh sách xe
+      vehicles.flatMap((vehicle) => {
+        const position = vehicle.position;
+        if (!position) return [];
+        return [
+          {
+            color: statusFill[vehicle.status],
+            description: [
+              vehicle.driver,
+              vehicle.route,
+              vehicle.speedKmh == null
+                ? t("gps.noSpeedData")
+                : `${vehicle.speedKmh} km/h`,
+            ],
+            fillOpacity:
+              vehicle.status === "lost"
+                ? 0.35
+                : vehicle.status === "offline"
+                  ? 0.55
+                  : 0.95,
+            id: vehicle.id,
+            onClick: () => onMarkerSelect(vehicle.id),
+            position,
+            radiusMeters: vehicle.id === selectedId ? 360 : 240,
+            selected: vehicle.id === selectedId,
+            title: vehicle.plate,
+          },
+        ];
+      }),
     [onMarkerSelect, selectedId, t, vehicles],
   );
 

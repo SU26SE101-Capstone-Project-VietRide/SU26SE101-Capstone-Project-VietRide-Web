@@ -1,40 +1,30 @@
 import type {
   OperatorVehicle,
-  OperatorVehicleRequest,
+  OperatorVehicleCreateRequest,
+  OperatorVehicleUpdateRequest,
   SeatLayoutJson,
   VehicleDeck,
   VehicleSeat,
+  VehicleSeatType,
+  VehicleStatus,
   VehicleType,
 } from "../../../api/vietride";
 import { toNumber } from "../../../utils/number";
+import vehiclePlaceholderUrl from "./vehicle-placeholder.svg";
 
-// Hằng class + helper thuần dùng chung cho index / VehicleModal / VehicleDetailModal
+// Hằng class + helper thuần dùng chung cho bảng, panel và VehicleModal.
 export const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 
-// alt là key i18n namespace manager, dịch bằng t() tại nơi render (VehicleDetailModal)
-export const vehiclePhotos = [
-  {
-    src: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=900&q=80",
-    alt: "vehicles.stockPhotoAlt1",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=900&q=80",
-    alt: "vehicles.stockPhotoAlt2",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1494515843206-f3117d3f51b7?auto=format&fit=crop&w=900&q=80",
-    alt: "vehicles.stockPhotoAlt3",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1509749837427-ac94a2553d0e?auto=format&fit=crop&w=900&q=80",
-    alt: "vehicles.stockPhotoAlt4",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1571019613914-85f342c6a11e?auto=format&fit=crop&w=900&q=80",
-    alt: "vehicles.stockPhotoAlt5",
-  },
-];
+export const MAX_VEHICLE_DECKS = 2;
+export const MAX_ROWS_PER_DECK = 20;
+export const MAX_COLUMNS_PER_ROW = 6;
+export const MAX_VEHICLE_SEATS = 120;
+
+export const vehiclePlaceholder = {
+  src: vehiclePlaceholderUrl,
+  alt: "",
+};
 
 export type VehicleForm = {
   vehicleTypeId: string;
@@ -51,6 +41,8 @@ export type VehicleForm = {
   seatPrefix: string;
 };
 
+export type VehicleFormErrors = Partial<Record<keyof VehicleForm, string>>;
+
 export const emptyVehicleForm: VehicleForm = {
   vehicleTypeId: "",
   licensePlate: "",
@@ -66,53 +58,93 @@ export const emptyVehicleForm: VehicleForm = {
   seatPrefix: "A",
 };
 
-export function getVehicleSeatLimit(vehicleTypes: VehicleType[], vehicleTypeId: string) {
-  return vehicleTypes.find((type) => type.id === vehicleTypeId)?.defaultSeatCount ?? 0;
+function toBoundedPositiveInteger(
+  value: string,
+  fallback: number,
+  maximum: number,
+) {
+  const next = Math.floor(Number(value));
+  return Number.isFinite(next) && next > 0 ? Math.min(next, maximum) : fallback;
 }
 
-export function normalizeSeatLayout(form: Pick<VehicleForm, "deckCount" | "rowsPerDeck" | "columnsPerRow">, seatLimit: number) {
-  const limit = Math.max(1, Math.floor(seatLimit));
-  const deckCount = Math.min(Math.max(Math.floor(Number(form.deckCount)) || 1, 1), 2);
-  const columnsPerRow = Math.max(1, Math.floor(Number(form.columnsPerRow)) || 1);
-  const rowsPerDeck = Math.max(1, Math.floor(Number(form.rowsPerDeck)) || 1);
-  const seatsPerDeck = Math.max(1, Math.floor(limit / deckCount));
-  if (rowsPerDeck * columnsPerRow <= seatsPerDeck) return { deckCount, rowsPerDeck, columnsPerRow };
-  if (columnsPerRow > seatsPerDeck) return { deckCount, rowsPerDeck: 1, columnsPerRow: seatsPerDeck };
-  return { deckCount, rowsPerDeck: Math.max(1, Math.floor(seatsPerDeck / columnsPerRow)), columnsPerRow };
+export function toSeatLayoutOptions(form: VehicleForm) {
+  const seatPrefix = form.seatPrefix?.trim() || "A";
+  const columnsPerRow = toBoundedPositiveInteger(
+    form.columnsPerRow,
+    4,
+    MAX_COLUMNS_PER_ROW,
+  );
+  const aisleAfterCol = Math.min(
+    toBoundedPositiveInteger(
+      form.aisleAfterCol,
+      2,
+      Math.max(columnsPerRow - 1, 1),
+    ),
+    Math.max(columnsPerRow - 1, 1),
+  );
+
+  return {
+    deckCount: toBoundedPositiveInteger(form.deckCount, 1, MAX_VEHICLE_DECKS),
+    rowsPerDeck: toBoundedPositiveInteger(
+      form.rowsPerDeck,
+      10,
+      MAX_ROWS_PER_DECK,
+    ),
+    columnsPerRow,
+    aisleAfterCol,
+    seatPrefix,
+    totalSeats: toBoundedPositiveInteger(form.totalSeats, 1, MAX_VEHICLE_SEATS),
+  };
 }
 
-export function toSeatLayoutOptions(form: VehicleForm, seatLimit = Number.MAX_SAFE_INTEGER) {
-  const normalized = normalizeSeatLayout(form, seatLimit);
-  const aisleAfterCol = Math.min(Math.max(1, Math.floor(Number(form.aisleAfterCol)) || 1), Math.max(normalized.columnsPerRow - 1, 1));
-  return { ...normalized, aisleAfterCol, seatPrefix: form.seatPrefix.trim() || "A" };
-}
+export function createDecks(form: VehicleForm): VehicleDeck[] {
+  const options = toSeatLayoutOptions(form);
+  const seatsPerDeck = options.rowsPerDeck * options.columnsPerRow;
+  const totalSeats = Math.min(
+    options.totalSeats,
+    options.deckCount * seatsPerDeck,
+    MAX_VEHICLE_SEATS,
+  );
 
-export function createDecks(form: VehicleForm, seatLimit = Number.MAX_SAFE_INTEGER): VehicleDeck[] {
-  const options = toSeatLayoutOptions(form, seatLimit);
-  let remainingSeats = Math.max(0, Math.floor(seatLimit));
   return Array.from({ length: options.deckCount }, (_, deckIndex) => {
-    const seatsInDeck = Math.min(options.rowsPerDeck * options.columnsPerRow, remainingSeats);
-    remainingSeats -= seatsInDeck;
-    const seats = Array.from({ length: seatsInDeck }, (_, seatIndex) => {
+    const firstSeatIndex = deckIndex * seatsPerDeck;
+    const deckSeatCount = Math.max(
+      0,
+      Math.min(seatsPerDeck, totalSeats - firstSeatIndex),
+    );
+    const seats = Array.from({ length: deckSeatCount }, (_, seatIndex) => {
       const row = Math.floor(seatIndex / options.columnsPerRow) + 1;
       const col = (seatIndex % options.columnsPerRow) + 1;
       const number = seatIndex + 1;
-      return { seatNumber: options.deckCount > 1 ? `${options.seatPrefix}${deckIndex + 1}-${number}` : `${options.seatPrefix}${number}`, row, col, deck: deckIndex + 1, type: "STANDARD", isWindow: col === 1 || col === options.columnsPerRow, isAisle: false, disabled: false };
+
+      const isAisle =
+        col === options.aisleAfterCol || col === options.aisleAfterCol + 1;
+
+      return {
+        seatNumber:
+          options.deckCount > 1
+            ? `${options.seatPrefix}${deckIndex + 1}-${number}`
+            : `${options.seatPrefix}${number}`,
+        row,
+        col,
+        deck: deckIndex + 1,
+        type: "STANDARD" as VehicleSeatType,
+        isWindow: col === 1 || col === options.columnsPerRow,
+        isAisle,
+        disabled: false,
+      };
     });
+
     return { deck: deckIndex + 1, seats };
-  });
-}
-export function countSeats(decks: VehicleDeck[]) {
-  return decks.reduce((total, deck) => total + deck.seats.length, 0);
+  }).filter((deck) => deck.seats.length > 0);
 }
 
-function toSeatLayoutJson(
+export function createSeatLayoutPreview(
   form: VehicleForm,
   vehicleTypes: VehicleType[] = [],
-  seatLimit = Number.MAX_SAFE_INTEGER,
 ): SeatLayoutJson {
-  const decks = createDecks(form, seatLimit);
-  const options = toSeatLayoutOptions(form, seatLimit);
+  const decks = createDecks(form);
+  const options = toSeatLayoutOptions(form);
   const seats = decks.flatMap((deck) => deck.seats);
   const vehicleType = vehicleTypes.find(
     (type) => type.id === form.vehicleTypeId,
@@ -127,6 +159,68 @@ function toSeatLayoutJson(
     decks: options.deckCount,
     aisles: [{ afterCol: options.aisleAfterCol }],
     seats,
+  };
+}
+
+export function createVehicleFormForType(
+  vehicleType?: VehicleType,
+): VehicleForm {
+  const requestedSeatCount = Math.floor(vehicleType?.defaultSeatCount ?? 40);
+  const totalSeats = Math.min(
+    Math.max(Number.isFinite(requestedSeatCount) ? requestedSeatCount : 40, 1),
+    MAX_VEHICLE_SEATS,
+  );
+  const columnsPerRow = Math.min(
+    MAX_COLUMNS_PER_ROW,
+    Math.max(
+      Math.min(4, totalSeats),
+      Math.ceil(totalSeats / MAX_ROWS_PER_DECK),
+    ),
+  );
+  const rowsPerDeck = Math.ceil(totalSeats / columnsPerRow);
+
+  return {
+    ...emptyVehicleForm,
+    vehicleTypeId: vehicleType?.id ?? "",
+    totalSeats: String(totalSeats),
+    deckCount: "1",
+    rowsPerDeck: String(rowsPerDeck),
+    columnsPerRow: String(columnsPerRow),
+    aisleAfterCol: String(Math.min(2, Math.max(columnsPerRow - 1, 1))),
+  };
+}
+
+export function updateVehicleFormValue(
+  form: VehicleForm,
+  key: keyof VehicleForm,
+  value: string,
+) {
+  const nextForm = { ...form, [key]: value };
+
+  if (key !== "deckCount" && key !== "rowsPerDeck" && key !== "columnsPerRow") {
+    return nextForm;
+  }
+
+  const deckCount = Math.floor(Number(nextForm.deckCount));
+  const rowsPerDeck = Math.floor(Number(nextForm.rowsPerDeck));
+  const columnsPerRow = Math.floor(Number(nextForm.columnsPerRow));
+
+  if (
+    !Number.isFinite(deckCount) ||
+    !Number.isFinite(rowsPerDeck) ||
+    !Number.isFinite(columnsPerRow) ||
+    deckCount < 1 ||
+    rowsPerDeck < 1 ||
+    columnsPerRow < 1
+  ) {
+    return nextForm;
+  }
+
+  return {
+    ...nextForm,
+    totalSeats: String(
+      Math.min(deckCount * rowsPerDeck * columnsPerRow, MAX_VEHICLE_SEATS),
+    ),
   };
 }
 
@@ -145,29 +239,9 @@ function groupSeatsByDeck(seats: VehicleSeat[]): VehicleDeck[] {
     .sort((left, right) => left.deck - right.deck);
 }
 
-export function getLayoutShape(vehicle: OperatorVehicle) {
-  const decks = vehicle.decks ?? parseSeatLayoutDecks(vehicle.seatLayoutJson);
-  const firstDeck = decks[0];
-
-  if (!firstDeck) {
-    return {
-      deckCount: "1",
-      rowsPerDeck: String(Math.max(1, Math.ceil(vehicle.totalSeats / 4))),
-      columnsPerRow: "4",
-    };
-  }
-
-  const maxRow = Math.max(...firstDeck.seats.map((seat) => seat.row), 1);
-  const maxColumn = Math.max(...firstDeck.seats.map((seat) => seat.col), 1);
-
-  return {
-    deckCount: String(Math.max(decks.length, 1)),
-    rowsPerDeck: String(maxRow),
-    columnsPerRow: String(maxColumn),
-  };
-}
-
-export function parseSeatLayoutDecks(layout: OperatorVehicle["seatLayoutJson"]) {
+export function parseSeatLayoutDecks(
+  layout: OperatorVehicle["seatLayoutJson"],
+) {
   if (!layout) {
     return [];
   }
@@ -191,23 +265,86 @@ export function parseSeatLayoutDecks(layout: OperatorVehicle["seatLayoutJson"]) 
   }
 }
 
-export function toVehicleRequest(
+export function toVehicleCreateRequest(
   form: VehicleForm,
   vehicleTypes: VehicleType[],
   imageUrls = getUniquePublicImageUrls(getImageEntries(form.imageUrls)),
-): OperatorVehicleRequest {
-  const seatLimit = getVehicleSeatLimit(vehicleTypes, form.vehicleTypeId) || Number.MAX_SAFE_INTEGER;
-  const seatLayoutJson = toSeatLayoutJson(form, vehicleTypes, seatLimit);
-
+  seatLayoutJson = createSeatLayoutPreview(form, vehicleTypes),
+): OperatorVehicleCreateRequest {
   return {
     vehicleTypeId: form.vehicleTypeId,
-    licensePlate: form.licensePlate,
+    licensePlate: form.licensePlate.trim(),
     totalSeats: seatLayoutJson.totalSeats,
     maxCargoWeightKg: toNumber(form.maxCargoWeightKg),
     maxCargoVolumeM3: toNumber(form.maxCargoVolumeM3),
     seatLayoutJson,
     imageUrls,
   };
+}
+
+const VEHICLE_STATUSES: readonly VehicleStatus[] = [
+  "ACTIVE",
+  "MAINTENANCE",
+  "OFF_DUTY",
+  "RETIRED",
+];
+
+export function isVehicleStatus(value: string): value is VehicleStatus {
+  return VEHICLE_STATUSES.some((status) => status === value);
+}
+
+export function normalizeVehicleStatus(status: string): VehicleStatus {
+  if (isVehicleStatus(status)) {
+    return status;
+  }
+
+  return status === "INACTIVE" ? "OFF_DUTY" : "ACTIVE";
+}
+
+function haveSameValues(left: string[], right: string[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+export function toVehicleUpdateRequest(
+  form: VehicleForm,
+  vehicle: OperatorVehicle,
+  imageUrls: string[],
+): OperatorVehicleUpdateRequest {
+  const request: OperatorVehicleUpdateRequest = {};
+  const licensePlate = form.licensePlate.trim();
+  const maxCargoWeightKg = toNumber(form.maxCargoWeightKg);
+  const maxCargoVolumeM3 = toNumber(form.maxCargoVolumeM3);
+  const currentImageUrls = getUniquePublicImageUrls(vehicle.imageUrls ?? []);
+  const status = normalizeVehicleStatus(form.status);
+
+  if (licensePlate !== vehicle.licensePlate) {
+    request.licensePlate = licensePlate;
+  }
+
+  if (form.vehicleTypeId !== vehicle.vehicleTypeId) {
+    request.vehicleTypeId = form.vehicleTypeId;
+  }
+
+  if (maxCargoWeightKg !== vehicle.maxCargoWeightKg) {
+    request.maxCargoWeightKg = maxCargoWeightKg;
+  }
+
+  if (maxCargoVolumeM3 !== (vehicle.maxCargoVolumeM3 ?? 0)) {
+    request.maxCargoVolumeM3 = maxCargoVolumeM3;
+  }
+
+  if (!haveSameValues(imageUrls, currentImageUrls)) {
+    request.imageUrls = imageUrls;
+  }
+
+  if (status !== normalizeVehicleStatus(vehicle.status)) {
+    request.status = status;
+  }
+
+  return request;
 }
 
 export function getImageEntries(value: string) {
@@ -271,13 +408,10 @@ export function getVehiclePhoto(vehicle: OperatorVehicle) {
     };
   }
 
-  const key = getVehicleId(vehicle) || vehicle.licensePlate;
-  const hash = Array.from(key).reduce(
-    (total, char) => total + char.charCodeAt(0),
-    0,
-  );
-
-  return vehiclePhotos[hash % vehiclePhotos.length];
+  return {
+    ...vehiclePlaceholder,
+    alt: vehicle.licensePlate,
+  };
 }
 
 export function getVehiclePhotos(vehicle: OperatorVehicle) {
@@ -287,5 +421,7 @@ export function getVehiclePhotos(vehicle: OperatorVehicle) {
       alt: vehicle.licensePlate,
     })) ?? [];
 
-  return apiPhotos.length > 0 ? apiPhotos : vehiclePhotos;
+  return apiPhotos.length > 0
+    ? apiPhotos
+    : [{ ...vehiclePlaceholder, alt: vehicle.licensePlate }];
 }

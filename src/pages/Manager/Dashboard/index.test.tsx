@@ -54,6 +54,7 @@ vi.mock("recharts", () => {
   return {
     ResponsiveContainer: Container,
     LineChart,
+    ComposedChart: LineChart,
     BarChart,
     PieChart: Container,
     Pie: Container,

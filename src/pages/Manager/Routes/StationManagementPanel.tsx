@@ -4,10 +4,7 @@ import { useTranslation } from "react-i18next";
 import { FiCheckCircle, FiMapPin } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import PlacePicker from "../../../components/PlacePicker";
-import {
-  inputClass,
-  labelClass,
-} from "../../../components/form/formClasses";
+import { inputClass, labelClass } from "../../../components/form/formClasses";
 import type { AdminLocation } from "../../../api/vietride";
 import InlineFeedback from "./InlineFeedback";
 import type { UseStationManagementResult } from "./useStationManagement";
@@ -42,12 +39,15 @@ export default function StationManagementPanel({
           <CustomSelect
             className={inputClass}
             value={manager.selectedStationId}
-            onChange={(event) => manager.handleSelectStation(event.target.value)}
+            onChange={(event) =>
+              manager.handleSelectStation(event.target.value)
+            }
           >
             <option value="">{t("routes.selectStation")}</option>
             {stations.map((station) => (
               <option key={station.id} value={station.id}>
-                {station.name} · {station.city || station.ward}
+                {station.name} ·{" "}
+                {[station.ward, station.city].filter(Boolean).join(", ")}
               </option>
             ))}
           </CustomSelect>
@@ -70,7 +70,14 @@ export default function StationManagementPanel({
               </CustomSelect>
               {manager.selectedStationId && (
                 <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
-                  <input type="checkbox" checked={manager.stationSupportsShuttle} onChange={(event) => manager.setStationSupportsShuttle(event.target.checked)} className="h-4 w-4 accent-vr-500" />
+                  <input
+                    type="checkbox"
+                    checked={manager.stationSupportsShuttle}
+                    onChange={(event) =>
+                      manager.setStationSupportsShuttle(event.target.checked)
+                    }
+                    className="h-4 w-4 accent-vr-500"
+                  />
                   {t("routes.supportsShuttle")}
                 </label>
               )}
@@ -85,7 +92,13 @@ export default function StationManagementPanel({
                   {t("routes.attachStation")}
                 </button>
                 {manager.selectedStationId && (
-                  <button type="button" onClick={() => onRunAction(manager.handleConfirmShuttleSupport)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onRunAction(manager.handleConfirmShuttleSupport)
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50"
+                  >
                     <FiCheckCircle size={16} />
                     {t("routes.confirmShuttle")}
                   </button>
@@ -124,9 +137,7 @@ export default function StationManagementPanel({
                       manager.setSelectedLocationId(event.target.value)
                     }
                   >
-                    <option value="">
-                      {t("routes.selectSearchLocation")}
-                    </option>
+                    <option value="">{t("routes.selectSearchLocation")}</option>
                     {locations.map((location) => (
                       <option key={location.id} value={location.id}>
                         {location.name} · {location.code}

@@ -47,6 +47,7 @@ export default function FleetFilterBar({
               <option value="moving">{t("gps.moving")}</option>
               <option value="idle">{t("gps.stopped")}</option>
               <option value="offline">{t("gps.signalLostStatus")}</option>
+              <option value="lost">{t("gps.gpsSignalLost")}</option>
             </CustomSelect>
           </div>
         </div>

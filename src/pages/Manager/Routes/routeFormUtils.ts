@@ -3,10 +3,11 @@ import type {
   AlternativeRoute,
   AlternativeRouteRequest,
   OperatorRoute,
+  OperatorRouteDetail,
+  OperatorRouteFullStopRequest,
   OperatorRouteRequest,
   OperatorStation,
   OperatorStopRequest,
-  RouteStopRequest,
 } from "../../../api/vietride";
 import type { RouteStopDraft, StationOption } from "./types";
 
@@ -90,7 +91,9 @@ export function alternativeRouteToForm(
   };
 }
 
-export function toStationOption(operatorStation: OperatorStation): StationOption {
+export function toStationOption(
+  operatorStation: OperatorStation,
+): StationOption {
   const station = operatorStation.station;
 
   return {
@@ -110,7 +113,7 @@ export function toStationOption(operatorStation: OperatorStation): StationOption
     addressStreet:
       station?.addressStreet || operatorStation.addressStreet || "",
     city: station?.city || operatorStation.city || "",
-    ward: station?.ward || operatorStation.ward || "",
+    ward: station?.ward ?? operatorStation.ward ?? null,
     latitude: station?.latitude ?? operatorStation.latitude ?? 0,
     longitude: station?.longitude ?? operatorStation.longitude ?? 0,
     supportsShuttle:
@@ -121,16 +124,51 @@ export function toStationOption(operatorStation: OperatorStation): StationOption
   };
 }
 
-export function toRouteStopRequest(draft: RouteStopDraft): RouteStopRequest {
-  return {
-    stopId: draft.stopId,
-    orderIndex: draft.orderIndex,
+// Route detail (8.2 và response /full) trả kèm `stops`, nhưng getOperatorRoute
+// đang khai type OperatorRoute (không stops) — đọc an toàn qua guard để đồng bộ
+// drafts cục bộ từ server (điều kiện bắt buộc cho lưu replace-all không mất stop)
+export function extractDetailStops(
+  route: OperatorRoute,
+): OperatorRouteDetail["stops"] {
+  const stops = (route as Partial<OperatorRouteDetail>).stops;
+  return Array.isArray(stops) ? stops : [];
+}
+
+// Map stops từ Route detail về draft cục bộ của màn — server đã project
+// distance/duration cho stop thiếu nên response là nguồn sự thật
+export function detailStopsToDrafts(route: OperatorRoute): RouteStopDraft[] {
+  return extractDetailStops(route).map((stop) => ({
+    stopId: stop.stopId,
+    orderIndex: stop.orderIndex,
     estimatedDurationFromOriginMinutes:
-      draft.estimatedDurationFromOriginMinutes,
-    distanceFromOriginKm: draft.distanceFromOriginKm,
-    allowPickup: draft.allowPickup,
-    allowDropoff: draft.allowDropoff,
-  };
+      stop.estimatedDurationFromOriginMinutes ?? 0,
+    distanceFromOriginKm: stop.distanceFromOriginKm ?? 0,
+    allowPickup: stop.allowPickup,
+    allowDropoff: stop.allowDropoff,
+    routeId: route.id,
+    routeName: route.name,
+    stopName: stop.name,
+    latitude: stop.latitude,
+    longitude: stop.longitude,
+  }));
+}
+
+// Chuẩn hóa drafts thành stops payload /full (contract 8.6/8.7): sort theo
+// orderIndex hiện có rồi đánh lại 1..N liên tục — server bắt buộc đúng tập 1..N
+export function draftsToFullStops(
+  drafts: RouteStopDraft[],
+): OperatorRouteFullStopRequest[] {
+  return [...drafts]
+    .sort((a, b) => a.orderIndex - b.orderIndex)
+    .map((draft, index) => ({
+      stopId: draft.stopId,
+      orderIndex: index + 1,
+      estimatedDurationFromOriginMinutes:
+        draft.estimatedDurationFromOriginMinutes,
+      distanceFromOriginKm: draft.distanceFromOriginKm,
+      allowPickup: draft.allowPickup,
+      allowDropoff: draft.allowDropoff,
+    }));
 }
 
 export function mergeStations(

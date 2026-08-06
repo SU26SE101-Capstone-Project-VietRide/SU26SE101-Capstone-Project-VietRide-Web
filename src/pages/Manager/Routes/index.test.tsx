@@ -1,8 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createOperatorRoute,
+  createOperatorRouteFull,
   createOperatorStation,
   getAlternativeRoutes,
   getOperatorRoute,
@@ -11,9 +17,12 @@ import {
   getOperatorStops,
   getPublicLocations,
   searchStations,
+  updateOperatorRouteFull,
   type OperatorRoute,
+  type OperatorRouteDetail,
   type OperatorStation,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import { distanceKmBetween, requestRoadGeometry } from "./geometry";
 import RoutesPage from "./index";
 
@@ -76,8 +85,7 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
 }));
 
 vi.mock("../../../api/vietride", () => ({
-  addRouteStop: vi.fn(),
-  createOperatorRoute: vi.fn(),
+  createOperatorRouteFull: vi.fn(),
   createAlternativeRoute: vi.fn(),
   createOperatorStation: vi.fn(),
   createOperatorStop: vi.fn(),
@@ -89,11 +97,9 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorStop: vi.fn(),
   getOperatorStops: vi.fn(),
   getPublicLocations: vi.fn(),
-  removeRouteStop: vi.fn(),
   searchStations: vi.fn(),
   updateAlternativeRoute: vi.fn(),
-  updateOperatorRoute: vi.fn(),
-  updateOperatorRouteGeometry: vi.fn(),
+  updateOperatorRouteFull: vi.fn(),
   updateOperatorStop: vi.fn(),
 }));
 
@@ -140,7 +146,7 @@ const operatorStations: OperatorStation[] = [
       id: originStationId,
       name: "Bến A",
       city: "Hồ Chí Minh",
-      ward: "Hồ Chí Minh",
+      ward: null,
       latitude: 10.77,
       longitude: 106.69,
     },
@@ -152,8 +158,8 @@ const operatorStations: OperatorStation[] = [
     station: {
       id: destinationStationId,
       name: "Bến B",
-      city: "Đà Lạt",
-      ward: "Lâm Đồng",
+      city: "Lâm Đồng",
+      ward: "Phường Xuân Hương - Đà Lạt",
       latitude: 11.94,
       longitude: 108.44,
     },
@@ -220,15 +226,18 @@ describe("Manager route setup workflow", () => {
     expect(await screen.findByText("routes.tabs.info")).toBeInTheDocument();
     expect(screen.getByText("routes.tabs.stops")).toBeInTheDocument();
     expect(screen.getByText("routes.tabs.alternatives")).toBeInTheDocument();
-    // Tab Thông tin mặc định: form tuyến + bản đồ, có nút cập nhật, không có nút tạo
+    // Tab Thông tin mặc định: form tuyến + bản đồ, nút "Lưu tuyến" atomic ở header
+    // (disabled khi chưa có thay đổi), không có nút tạo
     expect(screen.getByText("routes.routeManagement")).toBeInTheDocument();
     expect(screen.getByTestId("route-map")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /routes.updateRoute/ }),
-    ).toBeInTheDocument();
+      screen.getByRole("button", { name: /routes.saveRoute/ }),
+    ).toBeDisabled();
     expect(
       screen.queryByRole("button", { name: /routes.createRoute/ }),
     ).not.toBeInTheDocument();
+    // Bến đi/bến đến bất biến sau khi tạo → 2 ô chọn bến bị khóa kèm hint
+    expect(screen.getByText("routes.stationsLockedHint")).toBeInTheDocument();
   });
 
   it("opens the stops tab from the ?tab=stops deep link", async () => {
@@ -272,7 +281,7 @@ describe("Manager route setup workflow", () => {
         id: "station-1",
         name: "Bến xe Trung tâm",
         city: "Hồ Chí Minh",
-        ward: "Hồ Chí Minh",
+        ward: "Phường Bến Thành",
         latitude: 10.77,
         longitude: 106.69,
         supportsShuttle: true,
@@ -295,9 +304,7 @@ describe("Manager route setup workflow", () => {
       name: "routes.searchLocation",
     });
     fireEvent.click(locationSelect);
-    fireEvent.click(
-      screen.getByRole("option", { name: "Hồ Chí Minh · HCM" }),
-    );
+    fireEvent.click(screen.getByRole("option", { name: "Hồ Chí Minh · HCM" }));
     fireEvent.click(
       screen.getByRole("checkbox", { name: /routes\.supportsShuttle/ }),
     );
@@ -343,7 +350,61 @@ describe("Manager route setup workflow", () => {
     );
   });
 
-  it("creates a route through the create modal and switches to the stops tab", async () => {
+  it("ignores a stale route detail response when another route was selected meanwhile", async () => {
+    const routeB: OperatorRoute = {
+      ...routeA,
+      id: "route-2",
+      name: "Tuyến B",
+    };
+    // route-2 đứng đầu danh sách → loadData ban đầu chọn route-2 (resolve nhanh),
+    // còn route-1 (Tuyến A) trả chậm để mô phỏng backend spike 3-10s
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeB, routeA],
+      totalItems: 2,
+      totalPages: 1,
+    });
+    let resolveRouteA: (route: OperatorRoute) => void = () => {};
+    vi.mocked(getOperatorRoute).mockImplementation(
+      (routeId) =>
+        new Promise((resolve) => {
+          if (routeId === routeA.id) {
+            resolveRouteA = resolve;
+          } else {
+            resolve(routeB);
+          }
+        }),
+    );
+
+    renderRoutesPage();
+    await waitForLoaded();
+    expect(await screen.findByDisplayValue("Tuyến B")).toBeInTheDocument();
+
+    // Click Tuyến A (pending) → panel phải hiện overlay loading, sidebar vẫn bấm được
+    fireEvent.click(screen.getByRole("button", { name: /Tuyến A/ }));
+    expect(
+      await screen.findByText("routes.loadingRouteDetail"),
+    ).toBeInTheDocument();
+
+    // Đổi ý: click Tuyến B ngay khi A còn pending → B resolve trước, form là B.
+    // (jsdom render cả trigger CustomSelect mobile cùng tên → lấy item sidebar cuối)
+    const routeBButtons = screen.getAllByRole("button", { name: /Tuyến B/ });
+    fireEvent.click(routeBButtons[routeBButtons.length - 1]);
+    await waitFor(() =>
+      expect(
+        screen.queryByText("routes.loadingRouteDetail"),
+      ).not.toBeInTheDocument(),
+    );
+
+    // Response A về sau cùng → phải bị bỏ qua, KHÔNG đè form đang hiển thị B
+    await act(async () => {
+      resolveRouteA(routeA);
+    });
+    expect(screen.getByDisplayValue("Tuyến B")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Tuyến A")).not.toBeInTheDocument();
+  });
+
+  it("creates a route atomically through POST /routes/full and switches to the stops tab", async () => {
     vi.mocked(getOperatorStations).mockResolvedValue({
       ...emptyPage,
       items: operatorStations,
@@ -351,10 +412,11 @@ describe("Manager route setup workflow", () => {
       totalPages: 1,
       pageSize: 100,
     });
-    vi.mocked(createOperatorRoute).mockResolvedValue({
+    vi.mocked(createOperatorRouteFull).mockResolvedValue({
       ...routeA,
       id: "route-new",
       name: "Tuyến mới",
+      stops: [],
     });
 
     renderRoutesPage();
@@ -368,10 +430,9 @@ describe("Manager route setup workflow", () => {
       await screen.findByText("routes.createRouteModalTitle"),
     ).toBeInTheDocument();
 
-    fireEvent.change(
-      screen.getByPlaceholderText("routes.namePlaceholder"),
-      { target: { value: "Tuyến mới" } },
-    );
+    fireEvent.change(screen.getByPlaceholderText("routes.namePlaceholder"), {
+      target: { value: "Tuyến mới" },
+    });
     fireEvent.click(
       screen.getByRole("button", { name: "routes.selectOriginStation" }),
     );
@@ -382,25 +443,183 @@ describe("Manager route setup workflow", () => {
       screen.getByRole("button", { name: "routes.selectDestinationStation" }),
     );
     fireEvent.click(
-      screen.getByRole("option", { name: "Bến B · Đà Lạt" }),
+      screen.getByRole("option", {
+        name: "Bến B · Phường Xuân Hương - Đà Lạt, Lâm Đồng",
+      }),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: /routes.createRoute/ }),
+    // Google Routes lỗi (mặc định môi trường test) → chờ fallback haversine
+    // trước khi submit để payload có manualMetrics deterministic
+    expect(
+      await screen.findByText("routes.autoMetricsFallbackHint"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /routes.createRoute/ }));
+
+    const expectedDistance = Number(
+      distanceKmBetween(
+        { latitude: 10.77, longitude: 106.69 },
+        { latitude: 11.94, longitude: 108.44 },
+      ).toFixed(1),
     );
 
     await waitFor(() =>
-      expect(createOperatorRoute).toHaveBeenCalledWith(
+      expect(createOperatorRouteFull).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "Tuyến mới",
           originStationId,
           destinationStationId,
+          returnRouteId: null,
+          stops: [],
+          // Fallback không có polyline → gửi manualMetrics ước lượng
+          manualMetrics: expect.objectContaining({
+            totalDistanceKm: expectedDistance,
+          }),
         }),
       ),
     );
+    // Có fallback → KHÔNG gửi pathPolyline (contract 12.1)
+    expect(
+      vi.mocked(createOperatorRouteFull).mock.calls[0][0].pathPolyline,
+    ).toBeUndefined();
     // Tạo xong → auto-select tuyến mới và chuyển sang tab Điểm dừng
     expect(
       await screen.findByText("routes.routeStopsTitle"),
     ).toBeInTheDocument();
+  });
+
+  it("saves the selected route atomically with replace-all stops from the header button", async () => {
+    const routeDetail: OperatorRouteDetail = {
+      ...routeA,
+      stops: [
+        {
+          routeId: routeA.id,
+          stopId: "stop-9",
+          // orderIndex thưa (5) → payload phải chuẩn hóa lại 1..N
+          orderIndex: 5,
+          estimatedDurationFromOriginMinutes: 30,
+          distanceFromOriginKm: 10,
+          allowPickup: true,
+          allowDropoff: false,
+          name: "Điểm dừng 9",
+          address: null,
+          latitude: 10.8,
+          longitude: 106.7,
+          isActive: true,
+        },
+      ],
+    };
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeDetail);
+    vi.mocked(updateOperatorRouteFull).mockResolvedValue({
+      ...routeDetail,
+      name: "Tuyến A mới",
+      totalDistanceKm: 123.45,
+      estimatedDurationMinutes: 135,
+    });
+
+    renderRoutesPage();
+    await waitForLoaded();
+
+    // Sửa form → cờ dirty bật, nút "Lưu tuyến" enable
+    fireEvent.change(await screen.findByDisplayValue("Tuyến A"), {
+      target: { value: "Tuyến A mới" },
+    });
+    const saveButton = screen.getByRole("button", {
+      name: /routes.saveRoute/,
+    });
+    expect(saveButton).toBeEnabled();
+    fireEvent.click(saveButton);
+
+    await waitFor(() =>
+      expect(updateOperatorRouteFull).toHaveBeenCalledWith(
+        routeA.id,
+        expect.objectContaining({
+          name: "Tuyến A mới",
+          originStationId,
+          destinationStationId,
+          // Replace-all: gửi TOÀN BỘ stops hiện tại, orderIndex đánh lại 1..N
+          stops: [expect.objectContaining({ stopId: "stop-9", orderIndex: 1 })],
+          // Không có polyline cục bộ → gửi manualMetrics từ form
+          pathPolyline: null,
+          manualMetrics: {
+            totalDistanceKm: 120,
+            estimatedDurationMinutes: 180,
+          },
+        }),
+      ),
+    );
+    // Sync theo response server (nguồn sự thật) + báo đã lưu
+    expect(await screen.findByText("routes.routeSaved")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("123.45")).toBeInTheDocument();
+  });
+
+  it("offers opening the existing route when creation returns 409 ROUTE_DUPLICATED", async () => {
+    vi.mocked(getOperatorStations).mockResolvedValue({
+      ...emptyPage,
+      items: operatorStations,
+      totalItems: operatorStations.length,
+      totalPages: 1,
+      pageSize: 100,
+    });
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeA);
+    vi.mocked(createOperatorRouteFull).mockRejectedValue(
+      new ApiRequestError("Route already exists.", 409, "ROUTE_DUPLICATED", [
+        { field: "existingRouteId", message: routeA.id },
+      ]),
+    );
+
+    renderRoutesPage();
+    await waitForLoaded();
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /routes.newRoute/ })[0],
+    );
+    // Form tuyến đang chọn cũng có ô tên cùng placeholder → lấy ô trong modal (cuối)
+    const nameInputs = await screen.findAllByPlaceholderText(
+      "routes.namePlaceholder",
+    );
+    fireEvent.change(nameInputs[nameInputs.length - 1], {
+      target: { value: "Tuyến A" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.selectOriginStation" }),
+    );
+    fireEvent.click(
+      screen.getByRole("option", { name: "Bến A · Hồ Chí Minh" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.selectDestinationStation" }),
+    );
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: "Bến B · Phường Xuân Hương - Đà Lạt, Lâm Đồng",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /routes.createRoute/ }));
+
+    // 409 ROUTE_DUPLICATED → message + nút mở tuyến có sẵn ngay trong modal
+    expect(
+      await screen.findByText("Route already exists."),
+    ).toBeInTheDocument();
+    vi.mocked(getOperatorRoute).mockClear();
+    fireEvent.click(
+      screen.getByRole("button", { name: /routes.openExistingRoute/ }),
+    );
+
+    // Chọn lại tuyến có sẵn theo existingRouteId đọc từ error.fields
+    await waitFor(() =>
+      expect(getOperatorRoute).toHaveBeenCalledWith(routeA.id),
+    );
   });
 
   it("auto-fills distance and duration from the road geometry and locks the fields", async () => {
