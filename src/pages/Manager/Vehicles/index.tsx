@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  FiEdit2,
-  FiEye,
   FiPlus,
   FiRefreshCw,
   FiSearch,
-  FiShield,
-  FiTool,
   FiTruck,
 } from "react-icons/fi";
-import Pagination from "../../../components/Pagination";
+import { ApiRequestError } from "../../../api/client";
 import { getAuthUser } from "../../../auth";
+import { readSessionCache, writeSessionCache } from "../../../utils/sessionCache";
 import {
   createOperatorVehicle,
   getOperatorVehicle,
@@ -27,21 +31,46 @@ import {
   VehicleImageError,
   type VehicleImageErrorCode,
 } from "./vehicleImageUpload";
-import { VehicleImage } from "./VehicleImage";
 import VehicleModal from "./VehicleModal";
-import VehicleDetailModal from "./VehicleDetailModal";
+import { VehicleTable } from "./VehicleTable";
 import {
+  VehicleDetailsPanel,
+  type VehiclePanelMode,
+} from "./VehicleDetailsPanel";
+import {
+  createVehicleFormForType,
   emptyVehicleForm,
   getImageEntries,
-  getLayoutShape,
   getUniquePublicImageUrls,
   getVehicleId,
-  getVehiclePhoto,
-  getVehicleTypeLabel,
   inputClass,
-  toVehicleRequest,
+  isVehicleStatus,
+  MAX_COLUMNS_PER_ROW,
+  MAX_ROWS_PER_DECK,
+  MAX_VEHICLE_DECKS,
+  MAX_VEHICLE_SEATS,
+  normalizeVehicleStatus,
+  toVehicleCreateRequest,
+  toVehicleUpdateRequest,
+  updateVehicleFormValue,
   type VehicleForm,
+  type VehicleFormErrors,
 } from "./vehicleForm";
+import { parseVehicleSeatLayout, toggleVehicleSeat } from "./vehicleSeatHelpers";
+
+const VEHICLE_PAGE_SIZE = 10;
+const VEHICLE_TYPES_CACHE_KEY = "vietride:vehicleTypes";
+const VEHICLE_TYPES_CACHE_MAX_AGE_MS = 45 * 60 * 1000;
+
+function invalidateTripResourcesCache(userId?: string) {
+  try {
+    sessionStorage.removeItem(
+      `vietride:tripResources:${userId || "anonymous"}`,
+    );
+  } catch {
+    // Cache invalidation is an optimization and must not block a vehicle save.
+  }
+}
 
 export default function VehiclesPage() {
   const { t } = useTranslation("manager");
@@ -53,41 +82,85 @@ export default function VehiclesPage() {
   });
   const authUser = getAuthUser();
   const canManageVehicles = authUser?.role === "OPERATOR_ADMIN";
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const querySearch = searchParams.get("search") ?? "";
+  const parsedPage = Number(searchParams.get("page"));
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const [search, setSearch] = useState(querySearch);
   const [openReg, setOpenReg] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
-  const [openDetail, setOpenDetail] = useState(false);
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [selectedVehicle, setSelectedVehicle] =
     useState<OperatorVehicle | null>(null);
-  const [detailVehicle, setDetailVehicle] = useState<OperatorVehicle | null>(
-    null,
-  );
+  const [panelMode, setPanelMode] = useState<VehiclePanelMode>("info");
+  const [seatDraft, setSeatDraft] = useState<OperatorVehicle["seatLayoutJson"]>();
+  const [originalSeatLayout, setOriginalSeatLayout] = useState<OperatorVehicle["seatLayoutJson"]>();
+  const [isSeatEditing, setIsSeatEditing] = useState(false);
+  const [isSeatDetailLoading, setIsSeatDetailLoading] = useState(false);
+  const [isSeatSaving, setIsSeatSaving] = useState(false);
+  const [seatError, setSeatError] = useState("");
+  const [discardPrompt, setDiscardPrompt] = useState(false);
   const [vehicleForm, setVehicleForm] = useState<VehicleForm>(emptyVehicleForm);
   const [vehicleImageFiles, setVehicleImageFiles] = useState<File[]>([]);
   const [message, setMessage] = useState("");
+  const [formError, setFormError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<VehicleFormErrors>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
-  const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const pageSize = 8;
+  const [fleetTotalItems, setFleetTotalItems] = useState<number | null>(null);
+  const listAbortControllerRef = useRef<AbortController | null>(null);
+  const detailAbortControllerRef = useRef<AbortController | null>(null);
+  const pageSize = VEHICLE_PAGE_SIZE;
 
-  // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Bookings)
+  const selectedLayout = parseVehicleSeatLayout(
+    selectedVehicle?.seatLayoutJson,
+  );
+  const draftLayout = parseVehicleSeatLayout(seatDraft);
+  const initialLayout = parseVehicleSeatLayout(originalSeatLayout);
+  const isSeatDirty =
+    Boolean(draftLayout && initialLayout) &&
+    JSON.stringify(draftLayout) !== JSON.stringify(initialLayout);
+
+  useEffect(() => {
+    // URL navigation is an external source; mirror it into the controlled input.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearch(querySearch);
+  }, [querySearch]);
+
+  // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setDebouncedSearch(search.trim());
-      setPage(1);
+      const nextSearch = search.trim();
+      if (nextSearch === querySearch) {
+        return;
+      }
+
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (nextSearch) {
+            next.set("search", nextSearch);
+          } else {
+            next.delete("search");
+          }
+          next.set("page", "1");
+          return next;
+        },
+        { replace: true },
+      );
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [search]);
+  }, [querySearch, search, setSearchParams]);
 
-  // Hàm tải danh sách xe dùng chung cho effect, nút Refresh và sau create/update
+  // Hàm tải danh sách xe dùng chung cho effect, nút Refresh và sau create/update.
   const loadVehicles = useCallback(async () => {
+    listAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    listAbortControllerRef.current = controller;
     setIsLoading(true);
     setError("");
 
@@ -95,56 +168,83 @@ export default function VehiclesPage() {
       const vehicleResult = await getOperatorVehicles({
         page,
         pageSize,
-        search: debouncedSearch,
-      });
+        search: querySearch,
+        searchIn: "licensePlate",
+      }, controller.signal);
+
+      if (controller.signal.aborted) {
+        return;
+      }
 
       setVehicles(vehicleResult.items);
       setTotalItems(vehicleResult.totalItems);
+      if (!querySearch) {
+        setFleetTotalItems(vehicleResult.totalItems);
+      }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
+
       setError(
         err instanceof Error ? err.message : tRef.current("vehicles.loadFailed"),
       );
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, querySearch]);
 
   useEffect(() => {
-    async function run() {
-      await loadVehicles();
-    }
+    // The list request synchronizes component state with the external API.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadVehicles();
 
-    void run();
+    return () => {
+      listAbortControllerRef.current?.abort();
+    };
   }, [loadVehicles]);
 
-  // Danh mục loại xe là dữ liệu tĩnh — chỉ tải một lần lúc mount
+  // Danh mục loại xe là dữ liệu tĩnh — cache theo phiên, không gọi lại mỗi lần mở panel.
   useEffect(() => {
-    let ignore = false;
+    const cachedTypes = readSessionCache<VehicleType[]>(
+      VEHICLE_TYPES_CACHE_KEY,
+      VEHICLE_TYPES_CACHE_MAX_AGE_MS,
+    );
+
+    if (cachedTypes) {
+      // Session cache is an external source of truth for this reference data.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setVehicleTypes(cachedTypes);
+      return;
+    }
+
+    const controller = new AbortController();
 
     async function loadTypes() {
       try {
-        const typeResult = await getVehicleTypes({ page: 1, pageSize: 50 });
+        const typeResult = await getVehicleTypes(
+          { page: 1, pageSize: 50 },
+          controller.signal,
+        );
 
-        if (ignore) {
+        if (controller.signal.aborted) {
           return;
         }
 
         setVehicleTypes(typeResult.items);
+        writeSessionCache(VEHICLE_TYPES_CACHE_KEY, typeResult.items);
 
         if (typeResult.items[0]) {
-          const defaultSeatCount = typeResult.items[0].defaultSeatCount || 40;
-
-          setVehicleForm((prev) => ({
-            ...prev,
-            vehicleTypeId: prev.vehicleTypeId || typeResult.items[0].id,
-            totalSeats: prev.totalSeats || String(defaultSeatCount),
-            rowsPerDeck:
-              prev.rowsPerDeck ||
-              String(Math.max(1, Math.ceil(defaultSeatCount / 4))),
-          }));
+          setVehicleForm((current) =>
+            current.vehicleTypeId
+              ? current
+              : createVehicleFormForType(typeResult.items[0]),
+          );
         }
       } catch (err) {
-        if (!ignore) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
           setError(
             err instanceof Error
               ? err.message
@@ -157,79 +257,351 @@ export default function VehiclesPage() {
     void loadTypes();
 
     return () => {
-      ignore = true;
+      controller.abort();
     };
   }, []);
 
-  const total = vehicles.length;
-  const active = vehicles.filter(
-    (vehicle) => vehicle.status === "ACTIVE",
-  ).length;
-  const maint = vehicles.filter(
-    (vehicle) => vehicle.status === "MAINTENANCE",
-  ).length;
+  const total = fleetTotalItems ?? totalItems;
 
   function updateVehicleForm(key: keyof VehicleForm, value: string) {
-    setVehicleForm((prev) => ({ ...prev, [key]: value }));
+    setVehicleForm((current) => {
+      if (key === "vehicleTypeId" && openReg) {
+        const typeDefaults = createVehicleFormForType(
+          vehicleTypes.find((vehicleType) => vehicleType.id === value),
+        );
+
+        return {
+          ...current,
+          vehicleTypeId: value,
+          totalSeats: typeDefaults.totalSeats,
+          deckCount: typeDefaults.deckCount,
+          rowsPerDeck: typeDefaults.rowsPerDeck,
+          columnsPerRow: typeDefaults.columnsPerRow,
+          aisleAfterCol: typeDefaults.aisleAfterCol,
+        };
+      }
+
+      return updateVehicleFormValue(current, key, value);
+    });
+    setFieldErrors((current) => ({ ...current, [key]: undefined }));
+    setFormError("");
   }
 
   function openCreateModal() {
     setSelectedVehicle(null);
     setVehicleImageFiles([]);
     setError("");
-    setVehicleForm((prev) => ({
-      ...emptyVehicleForm,
-      vehicleTypeId: prev.vehicleTypeId || vehicleTypes[0]?.id || "",
-    }));
+    setMessage("");
+    setFormError("");
+    setFieldErrors({});
+    setVehicleForm(createVehicleFormForType(vehicleTypes[0]));
     setOpenReg(true);
   }
 
   function openEditModal(vehicle: OperatorVehicle) {
-    const layoutShape = getLayoutShape(vehicle);
-
     setSelectedVehicle(vehicle);
     setVehicleImageFiles([]);
     setError("");
+    setMessage("");
+    setFormError("");
+    setFieldErrors({});
     setVehicleForm({
+      ...emptyVehicleForm,
       vehicleTypeId: vehicle.vehicleTypeId,
       licensePlate: vehicle.licensePlate,
       totalSeats: String(vehicle.totalSeats),
       maxCargoWeightKg: String(vehicle.maxCargoWeightKg),
-      maxCargoVolumeM3: String(vehicle.maxCargoVolumeM3 ?? 5),
+      maxCargoVolumeM3: String(vehicle.maxCargoVolumeM3 ?? 0),
       imageUrls: vehicle.imageUrls?.join("\n") ?? "",
-      status: vehicle.status,
-      deckCount: layoutShape.deckCount,
-      rowsPerDeck: layoutShape.rowsPerDeck,
-      columnsPerRow: layoutShape.columnsPerRow,
-      aisleAfterCol: "2",
-      seatPrefix: "A",
+      status: normalizeVehicleStatus(vehicle.status),
     });
     setOpenEdit(true);
   }
 
-  async function openDetailModal(vehicle: OperatorVehicle) {
-    const vehicleId = getVehicleId(vehicle);
+  function closeVehicleModal(mode: "create" | "edit") {
+    if (mode === "create") {
+      setOpenReg(false);
+    } else {
+      setOpenEdit(false);
+      setSelectedVehicle(null);
+    }
 
-    if (!vehicleId) {
-      setError(t("vehicles.missingVehicleForDetail"));
+    setVehicleImageFiles([]);
+    setFormError("");
+    setFieldErrors({});
+  }
+
+  function resetSeatEditingState() {
+    detailAbortControllerRef.current?.abort();
+    setSeatDraft(undefined);
+    setOriginalSeatLayout(undefined);
+    setIsSeatEditing(false);
+    setIsSeatDetailLoading(false);
+    setIsSeatSaving(false);
+    setSeatError("");
+    setDiscardPrompt(false);
+  }
+
+  function openVehiclePanel(vehicle: OperatorVehicle, mode: VehiclePanelMode) {
+    if (isSeatEditing && isSeatDirty) {
+      setDiscardPrompt(true);
       return;
     }
 
-    setOpenDetail(true);
-    setIsDetailLoading(true);
+    resetSeatEditingState();
+    setSelectedVehicle(vehicle);
+    setPanelMode(mode);
+    setMessage("");
     setError("");
+  }
+
+  function closeVehiclePanel() {
+    resetSeatEditingState();
+    setSelectedVehicle(null);
+  }
+
+  function requestCloseVehiclePanel() {
+    if (isSeatSaving) {
+      return;
+    }
+
+    if (isSeatEditing && isSeatDirty) {
+      setDiscardPrompt(true);
+      return;
+    }
+
+    closeVehiclePanel();
+  }
+
+  function discardAndCloseVehiclePanel() {
+    closeVehiclePanel();
+  }
+
+  async function beginSeatEdit() {
+    const vehicleId = selectedVehicle ? getVehicleId(selectedVehicle) : "";
+
+    if (!vehicleId) {
+      setSeatError(t("vehicles.missingVehicleForDetail"));
+      return;
+    }
+
+    detailAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    detailAbortControllerRef.current = controller;
+    setPanelMode("seats");
+    setIsSeatEditing(true);
+    setIsSeatDetailLoading(true);
+    setSeatError("");
 
     try {
-      const detail = await getOperatorVehicle(vehicleId);
-      setDetailVehicle(detail);
+      const detail = await getOperatorVehicle(vehicleId, controller.signal);
+      if (controller.signal.aborted) {
+        return;
+      }
+      const freshLayout = parseVehicleSeatLayout(detail.seatLayoutJson);
+
+      if (!freshLayout) {
+        throw new Error(
+          t("vehicles.noSeatMap", { defaultValue: "Chưa có sơ đồ ghế." }),
+        );
+      }
+
+      setSelectedVehicle(detail);
+      setSeatDraft(freshLayout);
+      setOriginalSeatLayout(freshLayout);
     } catch (err) {
-      setOpenDetail(false);
-      setError(
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+
+      setIsSeatEditing(false);
+      setSeatError(
         err instanceof Error ? err.message : t("vehicles.loadDetailFailed"),
       );
     } finally {
-      setIsDetailLoading(false);
+      if (!controller.signal.aborted) {
+        setIsSeatDetailLoading(false);
+      }
     }
+  }
+
+  function toggleSeat(seatNumber: string) {
+    const currentLayout = parseVehicleSeatLayout(seatDraft);
+    if (!currentLayout) {
+      return;
+    }
+
+    setSeatDraft(toggleVehicleSeat(currentLayout, seatNumber));
+    setSeatError("");
+  }
+
+  function cancelSeatEdit() {
+    if (isSeatDirty) {
+      setDiscardPrompt(true);
+      return;
+    }
+
+    resetSeatEditingState();
+  }
+
+  async function saveSeatLayout() {
+    const vehicleId = selectedVehicle ? getVehicleId(selectedVehicle) : "";
+    const nextLayout = parseVehicleSeatLayout(seatDraft);
+
+    if (!vehicleId || !nextLayout || !isSeatDirty || isSeatSaving) {
+      return;
+    }
+
+    setIsSeatSaving(true);
+    setSeatError("");
+
+    try {
+      const updatedVehicle = await updateOperatorVehicle(vehicleId, {
+        seatLayoutJson: nextLayout,
+      });
+
+      setVehicles((current) =>
+        current.map((vehicle) =>
+          getVehicleId(vehicle) === vehicleId ? updatedVehicle : vehicle,
+        ),
+      );
+      setSelectedVehicle(updatedVehicle);
+      setSeatDraft(updatedVehicle.seatLayoutJson);
+      setOriginalSeatLayout(updatedVehicle.seatLayoutJson);
+      setIsSeatEditing(false);
+      setMessage(
+        t("vehicles.seatUpdateSuccess", {
+          defaultValue: "Đã cập nhật trạng thái ghế. Trip tạo sau khi lưu sẽ dùng layout mới.",
+        }),
+      );
+      invalidateTripResourcesCache(authUser?.id);
+    } catch (err) {
+      setSeatError(
+        err instanceof Error
+          ? err.message
+          : t("vehicles.updateFailed", { defaultValue: "Không thể lưu thay đổi." }),
+      );
+    } finally {
+      setIsSeatSaving(false);
+    }
+  }
+
+  function validateVehicleForm(mode: "create" | "edit") {
+    const nextErrors: VehicleFormErrors = {};
+    const requiredMessage = (label: string) => `${label}: ${tc("required")}`;
+    const rangeMessage = (label: string, minimum: number, maximum: number) =>
+      `${label}: ${minimum}–${maximum}`;
+    const licensePlate = vehicleForm.licensePlate.trim();
+
+    if (!licensePlate) {
+      nextErrors.licensePlate = requiredMessage(t("vehicles.plate"));
+    } else if (licensePlate.length > 20) {
+      nextErrors.licensePlate = `${t("vehicles.plate")}: ≤ 20`;
+    }
+
+    if (
+      !vehicleForm.vehicleTypeId ||
+      !vehicleTypes.some(
+        (vehicleType) => vehicleType.id === vehicleForm.vehicleTypeId,
+      )
+    ) {
+      nextErrors.vehicleTypeId = requiredMessage(t("vehicles.vehicleType"));
+    }
+
+    const cargoWeight = Number(vehicleForm.maxCargoWeightKg);
+    if (
+      !vehicleForm.maxCargoWeightKg.trim() ||
+      !Number.isFinite(cargoWeight) ||
+      cargoWeight < 0
+    ) {
+      nextErrors.maxCargoWeightKg = `${t("vehicles.cargoWeight")}: ≥ 0`;
+    }
+
+    const cargoVolume = Number(vehicleForm.maxCargoVolumeM3);
+    if (
+      !vehicleForm.maxCargoVolumeM3.trim() ||
+      !Number.isFinite(cargoVolume) ||
+      cargoVolume < 0
+    ) {
+      nextErrors.maxCargoVolumeM3 = `${t("vehicles.cargoVolumeM3")}: ≥ 0`;
+    }
+
+    if (mode === "edit" && !isVehicleStatus(vehicleForm.status)) {
+      nextErrors.status = requiredMessage(tc("status"));
+    }
+
+    if (mode === "create") {
+      const layoutFields: Array<{
+        key: "deckCount" | "rowsPerDeck" | "columnsPerRow";
+        label: string;
+        maximum: number;
+      }> = [
+        {
+          key: "deckCount",
+          label: t("vehicles.deckCount"),
+          maximum: MAX_VEHICLE_DECKS,
+        },
+        {
+          key: "rowsPerDeck",
+          label: t("vehicles.rowsPerDeck"),
+          maximum: MAX_ROWS_PER_DECK,
+        },
+        {
+          key: "columnsPerRow",
+          label: t("vehicles.columnsPerRow"),
+          maximum: MAX_COLUMNS_PER_ROW,
+        },
+      ];
+
+      layoutFields.forEach(({ key, label, maximum }) => {
+        const value = Number(vehicleForm[key]);
+        if (!Number.isInteger(value) || value < 1 || value > maximum) {
+          nextErrors[key] = rangeMessage(label, 1, maximum);
+        }
+      });
+
+      const columnsPerRow = Number(vehicleForm.columnsPerRow);
+      const aisleAfterCol = Number(vehicleForm.aisleAfterCol);
+      const maximumAisleColumn = Math.max(columnsPerRow - 1, 1);
+      if (
+        !Number.isInteger(aisleAfterCol) ||
+        aisleAfterCol < 1 ||
+        aisleAfterCol > maximumAisleColumn
+      ) {
+        nextErrors.aisleAfterCol = rangeMessage(
+          t("vehicles.aisleAfterCol"),
+          1,
+          Number.isFinite(maximumAisleColumn) ? maximumAisleColumn : 1,
+        );
+      }
+
+      const totalSeats = Number(vehicleForm.totalSeats);
+      const layoutCapacity =
+        Number(vehicleForm.deckCount) *
+        Number(vehicleForm.rowsPerDeck) *
+        columnsPerRow;
+      if (
+        !Number.isInteger(totalSeats) ||
+        totalSeats < 1 ||
+        totalSeats > MAX_VEHICLE_SEATS ||
+        totalSeats > layoutCapacity
+      ) {
+        nextErrors.totalSeats = rangeMessage(
+          t("vehicles.capacitySeats"),
+          1,
+          MAX_VEHICLE_SEATS,
+        );
+      }
+
+      const seatPrefix = vehicleForm.seatPrefix.trim();
+      if (!seatPrefix || seatPrefix.length > 4) {
+        nextErrors.seatPrefix = `${t("vehicles.seatPrefix")}: 1–4`;
+      }
+    }
+
+    setFieldErrors(nextErrors);
+    setFormError(Object.values(nextErrors).find(Boolean) ?? "");
+    return Object.keys(nextErrors).length === 0;
   }
 
   function getVehicleImageErrorMessage(uploadError: unknown) {
@@ -252,12 +624,42 @@ export default function VehiclesPage() {
   }
 
   function handleVehicleImageError(uploadError: unknown) {
-    setError(getVehicleImageErrorMessage(uploadError));
+    setFormError(getVehicleImageErrorMessage(uploadError));
+  }
+
+  function handleVehicleSubmitError(submitError: unknown) {
+    if (submitError instanceof ApiRequestError && submitError.fields.length > 0) {
+      const fieldMap: Record<string, keyof VehicleForm> = {
+        licenseplate: "licensePlate",
+        vehicletypeid: "vehicleTypeId",
+        totalSeats: "totalSeats",
+        totalseats: "totalSeats",
+        maxcargoweightkg: "maxCargoWeightKg",
+        maxcargovolumem3: "maxCargoVolumeM3",
+        status: "status",
+      };
+      const nextErrors: VehicleFormErrors = {};
+      submitError.fields.forEach((field) => {
+        const normalized = field.field?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        const key = normalized ? fieldMap[normalized] : undefined;
+        if (key && field.message) {
+          nextErrors[key] = field.message;
+        }
+      });
+
+      if (Object.keys(nextErrors).length > 0) {
+        setFieldErrors(nextErrors);
+        setFormError(Object.values(nextErrors).find(Boolean) ?? submitError.message);
+        return;
+      }
+    }
+
+    handleVehicleImageError(submitError);
   }
 
   function updateVehicleImageFiles(files: File[]) {
     setVehicleImageFiles(files);
-    setError("");
+    setFormError("");
   }
 
   async function prepareVehicleImageUrls() {
@@ -292,20 +694,40 @@ export default function VehiclesPage() {
       return;
     }
 
+    if (!validateVehicleForm("create")) {
+      return;
+    }
+
     setIsSaving(true);
-    setError("");
+    setFormError("");
+    setMessage("");
 
     try {
       const imageUrls = await prepareVehicleImageUrls();
       await createOperatorVehicle(
-        toVehicleRequest(vehicleForm, vehicleTypes, imageUrls),
+        toVehicleCreateRequest(vehicleForm, vehicleTypes, imageUrls),
       );
       setMessage(t("vehicles.createSuccess"));
       setVehicleImageFiles([]);
       setOpenReg(false);
-      await loadVehicles();
+
+      const shouldResetQuery = page !== 1 || querySearch.length > 0;
+      setSearch("");
+      if (shouldResetQuery) {
+        setSearchParams(
+          (current) => {
+            const next = new URLSearchParams(current);
+            next.delete("search");
+            next.set("page", "1");
+            return next;
+          },
+          { replace: true },
+        );
+      } else {
+        await loadVehicles();
+      }
     } catch (submitError) {
-      handleVehicleImageError(submitError);
+      handleVehicleSubmitError(submitError);
     } finally {
       setIsSaving(false);
     }
@@ -319,7 +741,7 @@ export default function VehiclesPage() {
     const vehicleId = getVehicleId(selectedVehicle);
 
     if (!vehicleId) {
-      setError(t("vehicles.missingVehicleForUpdate"));
+      setFormError(t("vehicles.missingVehicleForUpdate"));
       return;
     }
 
@@ -327,61 +749,44 @@ export default function VehiclesPage() {
       return;
     }
 
+    if (!validateVehicleForm("edit")) {
+      return;
+    }
+
     setIsSaving(true);
-    setError("");
+    setFormError("");
+    setMessage("");
 
     try {
       const imageUrls = await prepareVehicleImageUrls();
-      await updateOperatorVehicle(
-        vehicleId,
-        toVehicleRequest(vehicleForm, vehicleTypes, imageUrls),
+      const updateRequest = toVehicleUpdateRequest(
+        vehicleForm,
+        selectedVehicle,
+        imageUrls,
       );
+
+      const updatedVehicle =
+        Object.keys(updateRequest).length > 0
+          ? await updateOperatorVehicle(vehicleId, updateRequest)
+          : selectedVehicle;
+
+      setVehicles((current) =>
+        current.map((vehicle) =>
+          getVehicleId(vehicle) === vehicleId ? updatedVehicle : vehicle,
+        ),
+      );
+      setSelectedVehicle(updatedVehicle);
+      invalidateTripResourcesCache(authUser?.id);
+
       setMessage(t("vehicles.updateSuccess"));
       setVehicleImageFiles([]);
       setOpenEdit(false);
       await loadVehicles();
     } catch (submitError) {
-      handleVehicleImageError(submitError);
+      handleVehicleSubmitError(submitError);
     } finally {
       setIsSaving(false);
     }
-  }
-
-  function vehicleStatusBadge(status: string) {
-    const map = {
-      ACTIVE: {
-        bg: "bg-emerald-50",
-        dot: "bg-emerald-500",
-        text: "text-emerald-800",
-        label: t("vehicles.statusActive"),
-      },
-      MAINTENANCE: {
-        bg: "bg-amber-50",
-        dot: "bg-amber-500",
-        text: "text-amber-800",
-        label: t("vehicles.statusMaintenance"),
-      },
-      INACTIVE: {
-        bg: "bg-gray-100",
-        dot: "bg-gray-400",
-        text: "text-gray-700",
-        label: t("vehicles.inactive"),
-      },
-    }[status] ?? {
-      bg: "bg-gray-100",
-      dot: "bg-gray-400",
-      text: "text-gray-700",
-      label: status,
-    };
-
-    return (
-      <span
-        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${map.bg} ${map.text}`}
-      >
-        <span className={`h-1.5 w-1.5 rounded-full ${map.dot}`} />
-        {map.label}
-      </span>
-    );
   }
 
   return (
@@ -391,6 +796,9 @@ export default function VehiclesPage() {
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
             {t("vehicles.title")}
           </h1>
+          <p className="mt-1 max-w-2xl text-sm text-gray-500">
+            {t("vehicles.subtitle")}
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -415,31 +823,29 @@ export default function VehiclesPage() {
       </div>
 
       {message && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div
+          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+          role="status"
+          aria-live="polite"
+        >
           {message}
         </div>
       )}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+          aria-live="assertive"
+        >
           {error}
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:max-w-sm">
         <MetricCard
           label={t("vehicles.total")}
           value={total}
           icon={<FiTruck size={20} />}
-        />
-        <MetricCard
-          label={t("vehicles.active")}
-          value={active}
-          icon={<FiShield size={20} />}
-        />
-        <MetricCard
-          label={t("vehicles.maintenance")}
-          value={maint}
-          icon={<FiTool size={20} />}
         />
       </div>
 
@@ -448,8 +854,11 @@ export default function VehiclesPage() {
           <div className="relative min-w-0 flex-1">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              className={inputClass + " pl-10"}
-              placeholder={t("vehicles.searchPlaceholder")}
+              type="search"
+              name="vehicleSearch"
+              className={`${inputClass} pl-10`}
+              placeholder={`${tc("search")}: ${t("vehicles.plate")}`}
+              aria-label={`${tc("search")}: ${t("vehicles.plate")}`}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -457,132 +866,89 @@ export default function VehiclesPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3">{t("vehicles.photo")}</th>
-                <th className="px-5 py-3">{t("vehicles.plate")}</th>
-                <th className="px-5 py-3">{t("vehicles.model")}</th>
-                <th className="px-5 py-3">{t("vehicles.capacity")}</th>
-                <th className="px-5 py-3">{t("vehicles.cargoKg")}</th>
-                <th className="px-5 py-3">{tc("status")}</th>
-                <th className="px-5 py-3">{tc("actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vehicles.map((vehicle) => (
-                <tr
-                  key={getVehicleId(vehicle) || vehicle.licensePlate}
-                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
-                >
-                  <td className="px-5 py-4">
-                    <VehicleImage
-                      src={getVehiclePhoto(vehicle).src}
-                      alt={getVehiclePhoto(vehicle).alt}
-                      width={96}
-                      height={64}
-                      containerClassName="h-16 w-24 rounded-lg border border-gray-200"
-                      loadingLabel={t("vehicles.imageLoading")}
-                      errorLabel={t("vehicles.imageLoadFailed")}
-                    />
-                  </td>
-                  <td className="px-5 py-4 text-sm font-semibold text-gray-900">
-                    {vehicle.licensePlate}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {getVehicleTypeLabel(vehicle, vehicleTypes)}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {vehicle.totalSeats}
-                    {t("vehicles.seats")}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {vehicle.maxCargoWeightKg}
-                  </td>
-                  <td className="px-5 py-4">
-                    {vehicleStatusBadge(vehicle.status)}
-                  </td>
-                  <td className="px-5 py-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openDetailModal(vehicle)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
-                        title={t("vehicles.viewDetail")}
-                        aria-label={t("vehicles.viewDetail")}
-                      >
-                        <FiEye size={16} />
-                      </button>
-                      {canManageVehicles && (
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(vehicle)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                          title={tc("edit")}
-                          aria-label={tc("edit")}
-                        >
-                          <FiEdit2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {isLoading && (
-          <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
-            {t("vehicles.loading")}
-          </div>
-        )}
-        <Pagination
-          page={page}
-          pageSize={pageSize}
-          totalItems={totalItems}
-          onPageChange={setPage}
-        />
-      </div>
+      <VehicleTable
+        vehicles={vehicles}
+        vehicleTypes={vehicleTypes}
+        isLoading={isLoading}
+        search={querySearch}
+        canManageVehicles={canManageVehicles}
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        onPageChange={(nextPage) =>
+          setSearchParams(
+            (current) => {
+              const next = new URLSearchParams(current);
+              next.set("page", String(nextPage));
+              return next;
+            },
+            { replace: true },
+          )
+        }
+        onOpenPanel={openVehiclePanel}
+        onEdit={openEditModal}
+      />
 
       <VehicleModal
+        mode="create"
         open={openReg}
         title={t("vehicles.registerTitle")}
         vehicleTypes={vehicleTypes}
         form={vehicleForm}
+        error={formError}
+        fieldErrors={fieldErrors}
         imageFiles={vehicleImageFiles}
         onChange={updateVehicleForm}
         onImageFilesChange={updateVehicleImageFiles}
         onImageError={handleVehicleImageError}
-        onClose={() => setOpenReg(false)}
+        onClose={() => closeVehicleModal("create")}
         onSubmit={handleCreateVehicle}
         isSubmitting={isSaving}
         submitLabel={t("vehicles.register")}
       />
 
       <VehicleModal
+        mode="edit"
         open={openEdit}
         title={t("vehicles.editTitle")}
         vehicleTypes={vehicleTypes}
         form={vehicleForm}
+        error={formError}
+        fieldErrors={fieldErrors}
         imageFiles={vehicleImageFiles}
         onChange={updateVehicleForm}
         onImageFilesChange={updateVehicleImageFiles}
         onImageError={handleVehicleImageError}
-        onClose={() => setOpenEdit(false)}
+        onClose={() => closeVehicleModal("edit")}
         onSubmit={handleUpdateVehicle}
         isSubmitting={isSaving}
         submitLabel={t("vehicles.saveChanges")}
       />
 
-      <VehicleDetailModal
-        open={openDetail}
-        vehicle={detailVehicle}
-        vehicleTypes={vehicleTypes}
-        isLoading={isDetailLoading}
-        onClose={() => setOpenDetail(false)}
-      />
+      {selectedVehicle && (
+        <VehicleDetailsPanel
+          vehicle={selectedVehicle}
+          vehicleTypes={vehicleTypes}
+          mode={panelMode}
+          canManageSeats={canManageVehicles}
+          isEditingSeats={isSeatEditing}
+          layout={draftLayout ?? selectedLayout}
+          isLoadingSeats={isSeatDetailLoading}
+          isSavingSeats={isSeatSaving}
+          isDirty={isSeatDirty}
+          error={seatError}
+          discardPrompt={discardPrompt}
+          onModeChange={setPanelMode}
+          onCloseRequest={requestCloseVehiclePanel}
+          onDiscardAndClose={discardAndCloseVehiclePanel}
+          onKeepEditing={() => setDiscardPrompt(false)}
+          onEditInfo={() => openEditModal(selectedVehicle)}
+          onStartSeatEdit={beginSeatEdit}
+          onToggleSeat={toggleSeat}
+          onSaveSeats={saveSeatLayout}
+          onCancelSeatEdit={cancelSeatEdit}
+        />
+      )}
     </div>
   );
 }

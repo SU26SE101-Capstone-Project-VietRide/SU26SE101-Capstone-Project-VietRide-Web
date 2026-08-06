@@ -1,14 +1,22 @@
-// Modal phân công xe trung chuyển cho một yêu cầu — tách từ index.tsx.
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import Modal from "../../../components/Modal";
-import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
-import CustomSelect from "../../../components/CustomSelect";
-import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import type {
-  RequestType,
-  ShuttleDriver,
-  ShuttleRequest,
-  ShuttleVehicle,
+  ShuttleDirection,
+  ShuttleRequestGroup,
+} from "../../../api/vietride";
+import CustomSelect from "../../../components/CustomSelect";
+import Modal from "../../../components/Modal";
+import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
+import {
+  formatDistance,
+  formatTime,
+  getBookingDistance,
+  getOrderedBookingGroups,
+  getOrderedSelectedBookingIds,
+  getSelectedPassengerCount,
+  isInboundDirection,
+  type ShuttleDriver,
+  type ShuttleVehicle,
 } from "./dispatchHelpers";
 
 export type AssignVehicleForm = {
@@ -16,34 +24,88 @@ export type AssignVehicleForm = {
   driverId: string;
   scheduledDepartureTime: string;
   scheduledEndTime: string;
+  selectedBookingIds: string[];
   notes: string;
 };
 
 type AssignVehicleModalProps = {
   open: boolean;
   onClose: () => void;
-  request: ShuttleRequest | null;
+  group: ShuttleRequestGroup | null;
   vehicles: ShuttleVehicle[];
   drivers: ShuttleDriver[];
   form: AssignVehicleForm;
   onFormChange: (form: AssignVehicleForm) => void;
   onSubmit: () => void;
-  requestTypeLabel: (type: RequestType) => string;
+  onRefreshResources: () => void;
+  directionLabel: (direction: ShuttleDirection) => string;
+  resourceError: string;
+  submitError: string;
+  isLoadingResources: boolean;
+  isSubmitting: boolean;
 };
 
 export default function AssignVehicleModal({
   open,
   onClose,
-  request,
+  group,
   vehicles,
   drivers,
   form,
   onFormChange,
   onSubmit,
-  requestTypeLabel,
+  onRefreshResources,
+  directionLabel,
+  resourceError,
+  submitError,
+  isLoadingResources,
+  isSubmitting,
 }: AssignVehicleModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const bookings = useMemo(
+    () => (group ? getOrderedBookingGroups(group) : []),
+    [group],
+  );
+  const selectableBookingIds = useMemo(
+    () =>
+      bookings
+        .filter((booking) => getBookingDistance(booking) !== null)
+        .map((booking) => booking.bookingId),
+    [bookings],
+  );
+  const selectedVehicle = vehicles.find(
+    (vehicle) => vehicle.id === form.vehicleId,
+  );
+  const selectedPassengerCount = group
+    ? getSelectedPassengerCount(group, form.selectedBookingIds)
+    : 0;
+  const exceedsCapacity = Boolean(
+    selectedVehicle && selectedPassengerCount > selectedVehicle.capacity,
+  );
+  const allSelectableBookingsSelected =
+    selectableBookingIds.length > 0 &&
+    selectableBookingIds.every((bookingId) =>
+      form.selectedBookingIds.includes(bookingId),
+    );
+
+  function updateSelectedBookings(nextIds: string[]) {
+    if (!group) {
+      return;
+    }
+
+    onFormChange({
+      ...form,
+      selectedBookingIds: getOrderedSelectedBookingIds(group, nextIds),
+    });
+  }
+
+  function toggleBooking(bookingId: string, checked: boolean) {
+    const nextIds = checked
+      ? [...form.selectedBookingIds, bookingId]
+      : form.selectedBookingIds.filter((id) => id !== bookingId);
+    updateSelectedBookings(nextIds);
+  }
 
   return (
     <Modal
@@ -52,162 +114,329 @@ export default function AssignVehicleModal({
       title={t("dispatch.assignTitle")}
       wide
     >
-      {request && (
-        <div className="space-y-4">
-          <div className="bg-vr-50 border border-vr-200 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-900">
-              {t("dispatch.requestInfo")}
-            </h4>
-            <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+      {group && (
+        <form
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <section className="rounded-xl border border-vr-200 bg-vr-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <span className="text-gray-600">
-                  {t("dispatch.requestCode")}
-                </span>{" "}
-                {request.id}
+                <p className="text-xs font-semibold uppercase tracking-wide text-vr-700">
+                  {directionLabel(group.direction)}
+                </p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {group.stationName}
+                </p>
+                <p className="mt-1 break-all font-mono text-xs text-gray-500">
+                  {t("dispatch.tripLabel")} {group.mainTripId}
+                </p>
               </div>
-              <div>
-                <span className="text-gray-600">
-                  {t("dispatch.customerLabel")}
-                </span>{" "}
-                {request.customerName}
-              </div>
-              <div>
-                <span className="text-gray-600">
-                  {t("dispatch.tripLabel")}
-                </span>{" "}
-                {request.trip}
-              </div>
-              <div>
-                <span className="text-gray-600">
-                  {t("dispatch.typeLabel")}
-                </span>{" "}
-                {requestTypeLabel(request.type)}
-              </div>
-              <div>
-                <span className="text-gray-600">
-                  {t("dispatch.addressLabel")}
-                </span>{" "}
-                {request.address}
-              </div>
-              <div>
-                <span className="text-gray-600">
-                  {t("dispatch.timeLabel")}
-                </span>{" "}
-                {request.time}
+              <div className="text-right text-xs text-gray-600">
+                <p>
+                  {isInboundDirection(group.direction)
+                    ? t("dispatch.dispatchCutoff", {
+                        defaultValue: "Hạn hoàn tất trung chuyển",
+                      })
+                    : t("dispatch.earliestDispatch", {
+                        defaultValue: "Bắt đầu trung chuyển từ",
+                      })}
+                </p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {formatTime(group.hardCutoffAt)}
+                </p>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t("dispatch.selectVehicle")}
-            </label>
-            <CustomSelect
-              value={form.vehicleId}
-              onChange={(e) =>
-                onFormChange({ ...form, vehicleId: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+          {(resourceError || submitError) && (
+            <div
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              role="alert"
             >
-              <option value="">{t("dispatch.selectVehiclePlaceholder")}</option>
-              {vehicles.filter((v) => v.status !== "idle").map((v) => (
-                <option key={v.id} value={v.id}>
-                  {t("dispatch.vehicleOption", {
-                    plate: v.plate,
-                    model: v.vehicleModel,
-                    capacity: v.capacity,
-                    driver: "",
+              <p>{submitError || resourceError}</p>
+              {resourceError && (
+                <button
+                  type="button"
+                  onClick={onRefreshResources}
+                  disabled={isLoadingResources || isSubmitting}
+                  className="mt-2 font-semibold underline underline-offset-2 disabled:opacity-50"
+                >
+                  {tc("refresh")}
+                </button>
+              )}
+            </div>
+          )}
+
+          <section aria-labelledby="dispatch-booking-selection">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3
+                  id="dispatch-booking-selection"
+                  className="text-sm font-semibold text-gray-900"
+                >
+                  {t("dispatch.selectBookings", {
+                    defaultValue: "Chọn lượt đặt vé cần điều phối",
                   })}
-                </option>
-              ))}
-            </CustomSelect>
-          </div>
+                </h3>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {t("dispatch.selectionFollowsSuggestion", {
+                    defaultValue:
+                      "Thứ tự gửi sang hệ thống luôn theo lộ trình được đề xuất.",
+                  })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  updateSelectedBookings(
+                    allSelectableBookingsSelected ? [] : selectableBookingIds,
+                  )
+                }
+                disabled={isSubmitting || selectableBookingIds.length === 0}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {allSelectableBookingsSelected
+                  ? t("dispatch.clearSelection", {
+                      defaultValue: "Bỏ chọn tất cả",
+                    })
+                  : t("dispatch.selectAll", { defaultValue: "Chọn tất cả" })}
+              </button>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t("dispatch.driverLabel")}
-            </label>
-            <CustomSelect
-              value={form.driverId}
-              onChange={(e) =>
-                onFormChange({ ...form, driverId: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
-            >
-              <option value="">{t("dispatch.selectDriverPlaceholder")}</option>
-              {drivers.map((driver) => (
-                <option key={driver.id} value={driver.id}>
-                  {driver.name} {driver.phone ? `- ${formatVietnamPhoneForDisplay(driver.phone)}` : ""}
+            <ol className="max-h-64 space-y-2 overflow-y-auto pr-1">
+              {bookings.map((booking, index) => {
+                const distance = getBookingDistance(booking);
+                const checkboxId = `dispatch-booking-${booking.bookingId}`;
+                const distanceUnavailable = distance === null;
+
+                return (
+                  <li key={booking.bookingId}>
+                    <label
+                      htmlFor={checkboxId}
+                      className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${
+                        form.selectedBookingIds.includes(booking.bookingId)
+                          ? "border-vr-300 bg-vr-50"
+                          : "border-gray-200 bg-white"
+                      } ${distanceUnavailable ? "cursor-not-allowed opacity-60" : ""}`}
+                    >
+                      <input
+                        id={checkboxId}
+                        type="checkbox"
+                        checked={form.selectedBookingIds.includes(
+                          booking.bookingId,
+                        )}
+                        onChange={(event) =>
+                          toggleBooking(booking.bookingId, event.target.checked)
+                        }
+                        disabled={distanceUnavailable || isSubmitting}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-vr-700">
+                            {index + 1}
+                          </span>
+                          <span className="break-all font-mono text-xs text-gray-500">
+                            {booking.bookingId}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-sm font-medium text-gray-900">
+                          {booking.pickupAddress}
+                        </span>
+                        <span className="mt-1 block text-xs text-gray-500">
+                          {booking.passengerCount}{" "}
+                          {t("dispatch.passengers", { defaultValue: "khách" })}
+                          {" · "}
+                          {distanceUnavailable
+                            ? t("dispatch.distanceUnavailable", {
+                                defaultValue: "Chưa có khoảng cách đường bộ",
+                              })
+                            : formatDistance(distance)}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+
+          <section className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                {t("dispatch.selectVehicle")}
+              </label>
+              <CustomSelect
+                value={form.vehicleId}
+                onChange={(event) =>
+                  onFormChange({ ...form, vehicleId: event.target.value })
+                }
+                disabled={isLoadingResources || isSubmitting}
+                aria-label={t("dispatch.selectVehicle")}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500"
+              >
+                <option value="">
+                  {isLoadingResources
+                    ? t("dispatch.loading", { defaultValue: "Đang tải..." })
+                    : t("dispatch.selectVehiclePlaceholder")}
                 </option>
-              ))}
-            </CustomSelect>
+                {vehicles.map((vehicle) => (
+                  <option key={vehicle.id} value={vehicle.id}>
+                    {t("dispatch.vehicleOption", {
+                      plate: vehicle.plate,
+                      model: vehicle.vehicleModel,
+                      capacity: vehicle.capacity,
+                    })}
+                  </option>
+                ))}
+              </CustomSelect>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                {t("dispatch.driverLabel")}
+              </label>
+              <CustomSelect
+                value={form.driverId}
+                onChange={(event) =>
+                  onFormChange({ ...form, driverId: event.target.value })
+                }
+                disabled={isLoadingResources || isSubmitting}
+                aria-label={t("dispatch.driverLabel")}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500"
+              >
+                <option value="">
+                  {isLoadingResources
+                    ? t("dispatch.loading", { defaultValue: "Đang tải..." })
+                    : t("dispatch.selectDriverPlaceholder")}
+                </option>
+                {drivers.map((driver) => (
+                  <option key={driver.id} value={driver.id}>
+                    {driver.name} - {formatVietnamPhoneForDisplay(driver.phone)}
+                  </option>
+                ))}
+              </CustomSelect>
+            </div>
+          </section>
+
+          <div
+            className={`rounded-lg px-3 py-2 text-sm ${
+              exceedsCapacity
+                ? "border border-red-200 bg-red-50 text-red-700"
+                : "border border-gray-200 bg-gray-50 text-gray-700"
+            }`}
+            role={exceedsCapacity ? "alert" : "status"}
+          >
+            {t("dispatch.selectedCapacity", {
+              defaultValue: "Đã chọn {{passengers}} khách / {{capacity}} chỗ",
+              passengers: selectedPassengerCount,
+              capacity: selectedVehicle?.capacity ?? "-",
+            })}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="dispatch-scheduled-departure"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 {t("dispatch.scheduledDeparture")}
               </label>
-              <CustomDateTimeInput
+              <input
+                id="dispatch-scheduled-departure"
+                name="scheduledDepartureTime"
                 type="datetime-local"
                 value={form.scheduledDepartureTime}
-                onChange={(e) =>
+                onChange={(event) =>
                   onFormChange({
                     ...form,
-                    scheduledDepartureTime: e.target.value,
+                    scheduledDepartureTime: event.target.value,
                   })
                 }
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+                disabled={isSubmitting}
+                required
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500 disabled:bg-gray-100"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="dispatch-scheduled-end"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 {t("dispatch.scheduledEnd")}
               </label>
-              <CustomDateTimeInput
+              <input
+                id="dispatch-scheduled-end"
+                name="scheduledEndTime"
                 type="datetime-local"
                 value={form.scheduledEndTime}
-                onChange={(e) =>
+                onChange={(event) =>
                   onFormChange({
                     ...form,
-                    scheduledEndTime: e.target.value,
+                    scheduledEndTime: event.target.value,
                   })
                 }
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+                disabled={isSubmitting}
+                required
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500 disabled:bg-gray-100"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="dispatch-notes"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
               {tc("note")}
             </label>
             <textarea
+              id="dispatch-notes"
+              name="notes"
               value={form.notes}
-              onChange={(e) =>
-                onFormChange({ ...form, notes: e.target.value })
+              onChange={(event) =>
+                onFormChange({ ...form, notes: event.target.value })
               }
               placeholder={t("dispatch.driverNotesPlaceholder")}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-vr-500"
+              maxLength={1_000}
+              disabled={isSubmitting}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500 disabled:bg-gray-100"
             />
+            <p className="mt-1 text-right text-xs text-gray-400">
+              {form.notes.length}/1000
+            </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row">
             <button
+              type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
+              disabled={isSubmitting}
+              className="min-h-11 flex-1 rounded-lg border border-gray-200 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {tc("cancel")}
             </button>
             <button
-              onClick={onSubmit}
-              className="flex-1 px-4 py-2 bg-vr-500 hover:bg-vr-600 text-white font-medium rounded-lg transition"
+              type="submit"
+              disabled={
+                isSubmitting ||
+                isLoadingResources ||
+                form.selectedBookingIds.length === 0 ||
+                exceedsCapacity
+              }
+              className="min-h-11 flex-1 rounded-lg bg-vr-600 px-4 py-2 font-semibold text-white transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {t("dispatch.assignVehicle")}
+              {isSubmitting
+                ? t("dispatch.assigning", { defaultValue: "Đang phân công..." })
+                : t("dispatch.assignVehicle")}
             </button>
           </div>
-        </div>
+        </form>
       )}
     </Modal>
   );

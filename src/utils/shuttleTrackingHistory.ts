@@ -50,3 +50,14 @@ export function addRecentShuttleTrip(entry: RecentShuttleTrip) {
     // localStorage có thể đầy hoặc bị chặn; danh sách gần đây là tiện ích phụ, bỏ qua lỗi.
   }
 }
+
+export function removeRecentShuttleTrip(shuttleTripId: string) {
+  try {
+    const next = getRecentShuttleTrips().filter(
+      (item) => item.shuttleTripId !== shuttleTripId,
+    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // localStorage is a convenience cache; a failed cleanup must not block the UI.
+  }
+}

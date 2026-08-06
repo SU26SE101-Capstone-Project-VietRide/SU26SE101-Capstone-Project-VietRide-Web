@@ -7,7 +7,7 @@ import { isRecord } from "../utils/typeGuards";
 
 type QueryValue = string | number | boolean | null | undefined;
 
-type ApiErrorField = {
+export type ApiErrorField = {
   field?: string;
   message?: string;
 };
@@ -29,12 +29,19 @@ type ApiEnvelope<T> = {
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code?: string;
+  readonly fields: ApiErrorField[];
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    fields: ApiErrorField[] = [],
+  ) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
+    this.fields = fields;
   }
 }
 type RequestOptions = {
@@ -43,6 +50,7 @@ type RequestOptions = {
   authenticated?: boolean;
   headers?: Record<string, string>;
   cache?: RequestCache;
+  signal?: AbortSignal;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -79,10 +87,18 @@ function parseErrorCode(payload: unknown): string | undefined {
 }
 
 function createApiRequestError(payload: unknown, status: number): ApiRequestError {
+  const fields = isRecord(payload) && isRecord(payload.error) && Array.isArray(payload.error.fields)
+    ? payload.error.fields.filter(isRecord).map((field) => ({
+        field: asString(field.field) || undefined,
+        message: asString(field.message) || undefined,
+      }))
+    : [];
+
   return new ApiRequestError(
     parseErrorMessage(payload, `Request failed: ${status}`),
     status,
     parseErrorCode(payload),
+    fields,
   );
 }
 async function parseResponse(response: Response): Promise<unknown> {
@@ -353,5 +369,6 @@ function sendRequest(
     headers: buildHeaders(options, accessToken),
     body: body as BodyInit | undefined,
     ...(options.cache ? { cache: options.cache } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 }

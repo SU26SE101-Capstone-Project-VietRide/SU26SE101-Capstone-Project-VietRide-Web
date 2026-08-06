@@ -1,8 +1,11 @@
-import { useEffect, useMemo } from "react";
-import type { ChangeEvent, DragEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  type ChangeEvent,
+  type DragEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { FiTruck, FiUpload, FiX } from "react-icons/fi";
-import { FaChair } from "react-icons/fa";
 import Modal from "../../../components/Modal";
 import CustomSelect from "../../../components/CustomSelect";
 import { type VehicleType } from "../../../api/vietride";
@@ -10,20 +13,26 @@ import { validateVehicleImageFiles } from "./vehicleImageUpload";
 import { VehicleImage } from "./VehicleImage";
 import { labelClass } from "../../../components/form/formClasses";
 import {
-  countSeats,
-  createDecks,
+  createSeatLayoutPreview,
   getImageEntries,
   getUniquePublicImageUrls,
   inputClass,
-  toSeatLayoutOptions,
+  MAX_COLUMNS_PER_ROW,
+  MAX_ROWS_PER_DECK,
+  MAX_VEHICLE_DECKS,
   type VehicleForm,
+  type VehicleFormErrors,
 } from "./vehicleForm";
+import { VehicleSeatLayout } from "./VehicleSeatLayout";
 
 type VehicleModalProps = {
+  mode: "create" | "edit";
   open: boolean;
   title: string;
   vehicleTypes: VehicleType[];
   form: VehicleForm;
+  error: string;
+  fieldErrors: VehicleFormErrors;
   imageFiles: File[];
   onChange: (key: keyof VehicleForm, value: string) => void;
   onImageFilesChange: (files: File[]) => void;
@@ -34,11 +43,26 @@ type VehicleModalProps = {
   submitLabel: string;
 };
 
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <p id={id} className="mt-1 text-xs font-medium text-red-600">
+      {message}
+    </p>
+  );
+}
+
 export default function VehicleModal({
+  mode,
   open,
   title,
   vehicleTypes,
   form,
+  error,
+  fieldErrors,
   imageFiles,
   onChange,
   onImageFilesChange,
@@ -50,9 +74,12 @@ export default function VehicleModal({
 }: VehicleModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const previewDecks = createDecks(form);
-  const generatedSeats = countSeats(previewDecks);
-  const layoutOptions = toSeatLayoutOptions(form);
+  const isCreate = mode === "create";
+  const previewLayout = isCreate
+    ? createSeatLayoutPreview(form, vehicleTypes)
+    : null;
+  const generatedSeats = previewLayout?.totalSeats ?? (Number(form.totalSeats) || 0);
+  const columnsPerRow = Math.max(Number(form.columnsPerRow) || 1, 1);
   const existingImages = getUniquePublicImageUrls(
     getImageEntries(form.imageUrls),
   );
@@ -68,6 +95,8 @@ export default function VehicleModal({
     ...existingImages.map((src) => ({ src, file: null })),
     ...localImagePreviews,
   ];
+  const fieldClass = (key: keyof VehicleForm) =>
+    `${inputClass} ${fieldErrors[key] ? "border-red-300 focus:border-red-500 focus:ring-red-500/30" : ""}`;
 
   useEffect(
     () => () => {
@@ -167,22 +196,54 @@ export default function VehicleModal({
         </>
       }
     >
+      {error && (
+        <div
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+          aria-live="assertive"
+        >
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelClass}>{t("vehicles.plate")}</label>
+          <label className={labelClass} htmlFor="vehicle-license-plate">
+            {t("vehicles.plate")}
+          </label>
           <input
-            className={inputClass}
+            id="vehicle-license-plate"
+            name="licensePlate"
+            className={fieldClass("licensePlate")}
             value={form.licensePlate}
             onChange={(event) => onChange("licensePlate", event.target.value)}
             placeholder="51B-12345"
+            maxLength={20}
+            autoComplete="off"
+            aria-invalid={Boolean(fieldErrors.licensePlate)}
+            aria-describedby={
+              fieldErrors.licensePlate
+                ? "vehicle-license-plate-error"
+                : undefined
+            }
+          />
+          <FieldError
+            id="vehicle-license-plate-error"
+            message={fieldErrors.licensePlate}
           />
         </div>
-        <div>
-          <label className={labelClass}>{t("vehicles.vehicleType")}</label>
+        <div role="group" aria-labelledby="vehicle-type-label">
+          <span id="vehicle-type-label" className={labelClass}>
+            {t("vehicles.vehicleType")}
+          </span>
           <CustomSelect
-            className={inputClass}
+            className={fieldClass("vehicleTypeId")}
             value={form.vehicleTypeId}
             onChange={(event) => onChange("vehicleTypeId", event.target.value)}
+            disabled={!isCreate || isSubmitting}
+            aria-label={`${t("vehicles.vehicleType")}${
+              fieldErrors.vehicleTypeId ? `: ${fieldErrors.vehicleTypeId}` : ""
+            }`}
           >
             <option value="">{t("vehicles.selectVehicleType")}</option>
             {vehicleTypes.map((type) => (
@@ -191,34 +252,68 @@ export default function VehicleModal({
               </option>
             ))}
           </CustomSelect>
+          <FieldError
+            id="vehicle-type-error"
+            message={fieldErrors.vehicleTypeId}
+          />
         </div>
         <div>
-          <label className={labelClass}>{t("vehicles.capacitySeats")}</label>
+          <label className={labelClass} htmlFor="vehicle-seat-count">
+            {t("vehicles.capacitySeats")}
+          </label>
           <input
+            id="vehicle-seat-count"
+            name="totalSeats"
             className={inputClass}
             type="number"
             value={generatedSeats}
             readOnly
           />
-          <p className="mt-1 text-xs text-gray-500">
-            {t("vehicles.autoSeatCountHint")}
-          </p>
+          {isCreate && (
+            <p className="mt-1 text-xs text-gray-500">
+              {t("vehicles.autoSeatCountHint")}
+            </p>
+          )}
+          <FieldError
+            id="vehicle-total-seats-error"
+            message={fieldErrors.totalSeats}
+          />
         </div>
         <div>
-          <label className={labelClass}>{t("vehicles.cargoWeight")}</label>
+          <label className={labelClass} htmlFor="vehicle-cargo-weight">
+            {t("vehicles.cargoWeight")}
+          </label>
           <input
-            className={inputClass}
+            id="vehicle-cargo-weight"
+            name="maxCargoWeightKg"
+            className={fieldClass("maxCargoWeightKg")}
             type="number"
+            min={0}
+            step="0.1"
             value={form.maxCargoWeightKg}
             onChange={(event) =>
               onChange("maxCargoWeightKg", event.target.value)
             }
+            aria-invalid={Boolean(fieldErrors.maxCargoWeightKg)}
+            aria-describedby={
+              fieldErrors.maxCargoWeightKg
+                ? "vehicle-cargo-weight-error"
+                : undefined
+            }
+          />
+          <FieldError
+            id="vehicle-cargo-weight-error"
+            message={fieldErrors.maxCargoWeightKg}
           />
         </div>
         <div>
-          <label className={labelClass}>{t("vehicles.cargoVolumeM3")}</label>
+          <label className={labelClass} htmlFor="vehicle-cargo-volume">
+            {t("vehicles.cargoVolumeM3")}
+          </label>
           <input
-            className={inputClass}
+            id="vehicle-cargo-volume"
+            name="maxCargoVolumeM3"
+            className={fieldClass("maxCargoVolumeM3")}
             min={0}
             step="0.1"
             type="number"
@@ -226,22 +321,46 @@ export default function VehicleModal({
             onChange={(event) =>
               onChange("maxCargoVolumeM3", event.target.value)
             }
+            aria-invalid={Boolean(fieldErrors.maxCargoVolumeM3)}
+            aria-describedby={
+              fieldErrors.maxCargoVolumeM3
+                ? "vehicle-cargo-volume-error"
+                : undefined
+            }
+          />
+          <FieldError
+            id="vehicle-cargo-volume-error"
+            message={fieldErrors.maxCargoVolumeM3}
           />
         </div>
-        <div>
-          <label className={labelClass}>{tc("status")}</label>
-          <CustomSelect
-            className={inputClass}
-            value={form.status}
-            onChange={(event) => onChange("status", event.target.value)}
-          >
-            <option value="ACTIVE">{t("vehicles.statusActive")}</option>
-            <option value="MAINTENANCE">
-              {t("vehicles.statusMaintenance")}
-            </option>
-            <option value="INACTIVE">{t("vehicles.inactive")}</option>
-          </CustomSelect>
-        </div>
+        {!isCreate && (
+          <div role="group" aria-labelledby="vehicle-status-label">
+            <span id="vehicle-status-label" className={labelClass}>
+              {tc("status")}
+            </span>
+            <CustomSelect
+              className={fieldClass("status")}
+              value={form.status}
+              onChange={(event) => onChange("status", event.target.value)}
+              aria-label={`${tc("status")}${
+                fieldErrors.status ? `: ${fieldErrors.status}` : ""
+              }`}
+            >
+              <option value="ACTIVE">{t("vehicles.statusActive")}</option>
+              <option value="MAINTENANCE">
+                {t("vehicles.statusMaintenance")}
+              </option>
+              <option value="OFF_DUTY">{t("vehicles.inactive")}</option>
+              <option value="RETIRED">
+                {tc("enumLabels.RETIRED", { defaultValue: "RETIRED" })}
+              </option>
+            </CustomSelect>
+            <FieldError
+              id="vehicle-status-error"
+              message={fieldErrors.status}
+            />
+          </div>
+        )}
         <div className="sm:col-span-2">
           <label className={labelClass}>{t("vehicles.images")}</label>
           <div
@@ -307,112 +426,136 @@ export default function VehicleModal({
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">
-              {t("vehicles.seatLayoutDesign")}
-            </h3>
-            <p className="text-xs text-gray-500">
-              {t("vehicles.seatLayoutApiHint")}
-            </p>
-          </div>
-          <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">
-            {t("vehicles.generatedSeats", { count: generatedSeats })}
-          </span>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-5">
-          <div>
-            <label className={labelClass}>{t("vehicles.deckCount")}</label>
-            <input
-              className={inputClass}
-              min={1}
-              type="number"
-              value={form.deckCount}
-              onChange={(event) => onChange("deckCount", event.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>{t("vehicles.rowsPerDeck")}</label>
-            <input
-              className={inputClass}
-              min={1}
-              type="number"
-              value={form.rowsPerDeck}
-              onChange={(event) => onChange("rowsPerDeck", event.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>{t("vehicles.columnsPerRow")}</label>
-            <input
-              className={inputClass}
-              min={1}
-              type="number"
-              value={form.columnsPerRow}
-              onChange={(event) =>
-                onChange("columnsPerRow", event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <label className={labelClass}>{t("vehicles.aisleAfterCol")}</label>
-            <input
-              className={inputClass}
-              min={1}
-              type="number"
-              value={form.aisleAfterCol}
-              onChange={(event) =>
-                onChange("aisleAfterCol", event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <label className={labelClass}>{t("vehicles.seatPrefix")}</label>
-            <input
-              className={inputClass}
-              value={form.seatPrefix}
-              onChange={(event) => onChange("seatPrefix", event.target.value)}
-              placeholder="A"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          {previewDecks.map((deck) => (
-            <div
-              key={deck.deck}
-              className="rounded-lg border border-gray-200 bg-white p-3"
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  {t("vehicles.deckLabel", { deck: deck.deck })}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {t("vehicles.generatedSeats", { count: deck.seats.length })}
-                </p>
-              </div>
-              <div
-                className="grid gap-2"
-                style={{
-                  gridTemplateColumns: `repeat(${layoutOptions.columnsPerRow}, minmax(2.5rem, 1fr))`,
-                }}
-              >
-                {deck.seats.map((seat) => (
-                  <div
-                    key={`${deck.deck}-${seat.seatNumber}`}
-                    className="flex flex-col items-center gap-1 rounded-md border border-vr-200 bg-vr-50 px-2 py-2 text-center text-xs font-semibold text-vr-700"
-                    title={`row ${seat.row}, col ${seat.col}`}
-                  >
-                    <FaChair size={16} />
-                    <span>{seat.seatNumber}</span>
-                  </div>
-                ))}
-              </div>
+      {isCreate && (
+        <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">
+                {t("vehicles.seatLayoutDesign")}
+              </h3>
+              <p className="text-xs text-gray-500">
+                {t("vehicles.seatLayoutApiHint")}
+              </p>
             </div>
-          ))}
+            <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">
+              {t("vehicles.generatedSeats", { count: generatedSeats })}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-5">
+            <div>
+              <label className={labelClass} htmlFor="vehicle-deck-count">
+                {t("vehicles.deckCount")}
+              </label>
+              <input
+                id="vehicle-deck-count"
+                name="deckCount"
+                className={fieldClass("deckCount")}
+                min={1}
+                max={MAX_VEHICLE_DECKS}
+                type="number"
+                value={form.deckCount}
+                onChange={(event) => onChange("deckCount", event.target.value)}
+                aria-invalid={Boolean(fieldErrors.deckCount)}
+              />
+              <FieldError
+                id="vehicle-deck-count-error"
+                message={fieldErrors.deckCount}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="vehicle-row-count">
+                {t("vehicles.rowsPerDeck")}
+              </label>
+              <input
+                id="vehicle-row-count"
+                name="rowsPerDeck"
+                className={fieldClass("rowsPerDeck")}
+                min={1}
+                max={MAX_ROWS_PER_DECK}
+                type="number"
+                value={form.rowsPerDeck}
+                onChange={(event) =>
+                  onChange("rowsPerDeck", event.target.value)
+                }
+                aria-invalid={Boolean(fieldErrors.rowsPerDeck)}
+              />
+              <FieldError
+                id="vehicle-row-count-error"
+                message={fieldErrors.rowsPerDeck}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="vehicle-column-count">
+                {t("vehicles.columnsPerRow")}
+              </label>
+              <input
+                id="vehicle-column-count"
+                name="columnsPerRow"
+                className={fieldClass("columnsPerRow")}
+                min={1}
+                max={MAX_COLUMNS_PER_ROW}
+                type="number"
+                value={form.columnsPerRow}
+                onChange={(event) =>
+                  onChange("columnsPerRow", event.target.value)
+                }
+                aria-invalid={Boolean(fieldErrors.columnsPerRow)}
+              />
+              <FieldError
+                id="vehicle-column-count-error"
+                message={fieldErrors.columnsPerRow}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="vehicle-aisle-column">
+                {t("vehicles.aisleAfterCol")}
+              </label>
+              <input
+                id="vehicle-aisle-column"
+                name="aisleAfterCol"
+                className={fieldClass("aisleAfterCol")}
+                min={1}
+                max={Math.max(columnsPerRow - 1, 1)}
+                type="number"
+                value={form.aisleAfterCol}
+                onChange={(event) =>
+                  onChange("aisleAfterCol", event.target.value)
+                }
+                aria-invalid={Boolean(fieldErrors.aisleAfterCol)}
+              />
+              <FieldError
+                id="vehicle-aisle-column-error"
+                message={fieldErrors.aisleAfterCol}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="vehicle-seat-prefix">
+                {t("vehicles.seatPrefix")}
+              </label>
+              <input
+                id="vehicle-seat-prefix"
+                name="seatPrefix"
+                className={fieldClass("seatPrefix")}
+                value={form.seatPrefix}
+                onChange={(event) => onChange("seatPrefix", event.target.value)}
+                placeholder="A"
+                maxLength={4}
+                autoComplete="off"
+                aria-invalid={Boolean(fieldErrors.seatPrefix)}
+              />
+              <FieldError
+                id="vehicle-seat-prefix-error"
+                message={fieldErrors.seatPrefix}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <VehicleSeatLayout layout={previewLayout} />
+          </div>
         </div>
-      </div>
+      )}
     </Modal>
   );
 }
