@@ -113,6 +113,8 @@ export function formatCompactMoney(value: number) {
 
 export function statusColor(key: string, index: number) {
   const normalized = key.toUpperCase();
+  if (normalized.includes("EXPIRED")) return "#f97316";
+  if (normalized.includes("REJECT")) return "#dc2626";
   if (normalized.includes("CANCEL") || normalized.includes("FAIL")) return "#ef4444";
   if (normalized.includes("DELIVER") || normalized.includes("COMPLETE")) return "#10b981";
   if (normalized.includes("TRANSIT") || normalized.includes("LOADED")) return "#0ea5e9";

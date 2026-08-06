@@ -140,6 +140,7 @@
     "REJECTED": "Rejected",
     "SUSPENDED": "Suspended",
     "LOCKED": "Locked",
+    "DELETED": "Deleted",
     "CANCELLED": "Cancelled",
     "EXPIRED": "Expired",
     "DRAFT": "Draft",

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiRefreshCw, FiTrash2 } from "react-icons/fi";
+import { FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiTag } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import CustomSelect from "../../../components/CustomSelect";
+import { StatCard } from "../../../components/StatCard";
 import {
   activateOperatorVoucher,
   createOperatorVoucher,
@@ -14,7 +16,6 @@ import {
   type OperatorVoucher,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
-import { MetricCard } from "./formControls";
 import VoucherModal from "./VoucherModal";
 import VoucherTable from "./VoucherTable";
 import {
@@ -57,6 +58,9 @@ export default function ManagerVouchers() {
   const isOperatorAdmin = getAuthUser()?.role === "OPERATOR_ADMIN";
   const [activeServiceTab, setActiveServiceTab] =
     useState<VoucherServiceTab>("BOOKING");
+  const [voucherSearch, setVoucherSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [voucherTypeFilter, setVoucherTypeFilter] = useState("");
   const [vouchers, setVouchers] = useState<OperatorVoucher[]>([]);
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [form, setForm] = useState<VoucherForm>(emptyForm);
@@ -114,6 +118,20 @@ export default function ManagerVouchers() {
   const currentServiceVouchers =
     activeServiceTab === "BOOKING" ? bookingVouchers : parcelVouchers;
 
+  const filteredVouchers = useMemo(() => {
+    const source = isOperatorAdmin ? currentServiceVouchers : vouchers;
+    const query = voucherSearch.trim().toLowerCase();
+    return source.filter((voucher) => {
+      const matchesSearch = !query || voucher.code.toLowerCase().includes(query) || voucher.name.toLowerCase().includes(query);
+      const matchesStatus = !statusFilter || (statusFilter === "ACTIVE" ? voucher.isActive : !voucher.isActive);
+      const matchesType = !voucherTypeFilter || voucher.type === voucherTypeFilter;
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [currentServiceVouchers, isOperatorAdmin, statusFilter, voucherSearch, voucherTypeFilter, vouchers]);
+
+  const voucherToolbar = (
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" placeholder={t("vouchers.searchPlaceholder")} value={voucherSearch} onChange={(event) => setVoucherSearch(event.target.value)} /></div><CustomSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[210px]" aria-label={t("vouchers.filterStatus")}><option value="">{t("vouchers.allStatuses")}</option><option value="ACTIVE">{t("vouchers.enabled")}</option><option value="INACTIVE">{t("vouchers.disabled")}</option></CustomSelect><CustomSelect value={voucherTypeFilter} onChange={(event) => setVoucherTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[240px]" aria-label={t("vouchers.filterType")}><option value="">{t("vouchers.allTypes")}</option><option value="PERCENT_OFF">{tc("voucherTypes.PERCENT_OFF")}</option><option value="FIXED_AMOUNT">{tc("voucherTypes.FIXED_AMOUNT")}</option></CustomSelect></div>
+  );
   function openCreateModal() {
     setSelectedVoucher(null);
     setForm({ ...emptyForm, applicableService: activeServiceTab });
@@ -242,15 +260,7 @@ export default function ManagerVouchers() {
         </div>
       </div>
 
-      {isOperatorAdmin && (
-        <div className="grid gap-4 sm:grid-cols-2">
-        <MetricCard
-          label={t("vouchers.totalVouchers")}
-          value={vouchers.length}
-        />
-        <MetricCard label={t("vouchers.activeVouchers")} value={activeCount} />
-        </div>
-      )}
+      {isOperatorAdmin && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label={t("vouchers.totalVouchers")} value={vouchers.length} icon={<FiTag size={20} />} iconClassName="bg-vr-50 text-vr-700" /><StatCard label={t("vouchers.activeVouchers")} value={activeCount} icon={<FiTag size={20} />} iconClassName="bg-emerald-50 text-emerald-700" /><StatCard label={t("vouchers.bookingVouchers")} value={bookingVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-blue-50 text-blue-700" /><StatCard label={t("vouchers.parcelVouchers")} value={parcelVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-amber-50 text-amber-700" /></div>}
 
       {message && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -319,8 +329,9 @@ export default function ManagerVouchers() {
               </button>
             </div>
           </div>
-          <VoucherTable
-            vouchers={currentServiceVouchers}
+          <VoucherTable
+            toolbar={voucherToolbar}
+            vouchers={filteredVouchers}
             isLoading={isLoading}
             onEdit={openEditModal}
             onToggle={handleToggle}
@@ -328,8 +339,9 @@ export default function ManagerVouchers() {
           />
         </div>
       ) : (
-        <VoucherTable
-          vouchers={vouchers}
+        <VoucherTable
+          toolbar={voucherToolbar}
+          vouchers={filteredVouchers}
           isLoading={isLoading}
           onEdit={openEditModal}
           onToggle={handleToggle}

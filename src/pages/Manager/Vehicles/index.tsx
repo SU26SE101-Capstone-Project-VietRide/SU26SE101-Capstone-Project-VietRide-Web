@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiEdit2,
+  FiAlertTriangle,
   FiEye,
   FiPlus,
   FiRefreshCw,
   FiSearch,
   FiShield,
-  FiTool,
   FiTruck,
 } from "react-icons/fi";
-import Pagination from "../../../components/Pagination";
+import CustomSelect from "../../../components/CustomSelect";
+import { PersonnelTable } from "../../../components/PersonnelTable";
+import { StatCard } from "../../../components/StatCard";
 import { getAuthUser } from "../../../auth";
 import {
   createOperatorVehicle,
@@ -55,6 +57,9 @@ export default function VehiclesPage() {
   const canManageVehicles = authUser?.role === "OPERATOR_ADMIN";
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState("");
   const [openReg, setOpenReg] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
@@ -73,7 +78,6 @@ export default function VehiclesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
   const pageSize = 8;
 
   // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Bookings)
@@ -93,13 +97,12 @@ export default function VehiclesPage() {
 
     try {
       const vehicleResult = await getOperatorVehicles({
-        page,
-        pageSize,
+        page: 1,
+        pageSize: 100,
         search: debouncedSearch,
       });
 
       setVehicles(vehicleResult.items);
-      setTotalItems(vehicleResult.totalItems);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : tRef.current("vehicles.loadFailed"),
@@ -107,7 +110,7 @@ export default function VehiclesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, debouncedSearch]);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     async function run() {
@@ -122,7 +125,7 @@ export default function VehiclesPage() {
     let ignore = false;
 
     async function loadTypes() {
-      try {
+        try {
         const typeResult = await getVehicleTypes({ page: 1, pageSize: 50 });
 
         if (ignore) {
@@ -161,13 +164,15 @@ export default function VehiclesPage() {
     };
   }, []);
 
+  const filteredVehicles = vehicles.filter((vehicle) => (!statusFilter || vehicle.status === statusFilter) && (!vehicleTypeFilter || vehicle.vehicleTypeId === vehicleTypeFilter) && (!attentionOnly || vehicle.status === "MAINTENANCE" || vehicle.status === "INACTIVE"));
+  const paginatedVehicles = filteredVehicles.slice((page - 1) * pageSize, page * pageSize);
   const total = vehicles.length;
   const active = vehicles.filter(
     (vehicle) => vehicle.status === "ACTIVE",
   ).length;
-  const maint = vehicles.filter(
-    (vehicle) => vehicle.status === "MAINTENANCE",
-  ).length;
+  const maint = vehicles.filter((vehicle) => vehicle.status === "MAINTENANCE").length;
+  const inactive = vehicles.filter((vehicle) => vehicle.status === "INACTIVE").length;
+  const attention = maint + inactive;
 
   function updateVehicleForm(key: keyof VehicleForm, value: string) {
     setVehicleForm((prev) => ({ ...prev, [key]: value }));
@@ -391,6 +396,7 @@ export default function VehiclesPage() {
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
             {t("vehicles.title")}
           </h1>
+          <p className="mt-1 text-sm text-gray-600">{t("vehicles.subtitle")}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -425,126 +431,32 @@ export default function VehiclesPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <MetricCard
-          label={t("vehicles.total")}
-          value={total}
-          icon={<FiTruck size={20} />}
-        />
-        <MetricCard
-          label={t("vehicles.active")}
-          value={active}
-          icon={<FiShield size={20} />}
-        />
-        <MetricCard
-          label={t("vehicles.maintenance")}
-          value={maint}
-          icon={<FiTool size={20} />}
-        />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard label={t("vehicles.total")} value={total} icon={<FiTruck size={20} />} iconClassName="bg-vr-50 text-vr-700" onClick={() => { setStatusFilter(""); setAttentionOnly(false); setPage(1); }} />
+        <StatCard label={t("vehicles.active")} value={active} icon={<FiShield size={20} />} iconClassName="bg-emerald-50 text-emerald-700" onClick={() => { setStatusFilter("ACTIVE"); setAttentionOnly(false); setPage(1); }} />
+        <StatCard label={t("vehicles.needsAttention")} value={attention} helper={t("vehicles.attentionHint", { maintenance: maint, inactive })} icon={<FiAlertTriangle size={20} />} iconClassName="bg-amber-50 text-amber-700" onClick={() => { setStatusFilter(""); setAttentionOnly(true); setPage(1); }} />
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              className={inputClass + " pl-10"}
-              placeholder={t("vehicles.searchPlaceholder")}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3">{t("vehicles.photo")}</th>
-                <th className="px-5 py-3">{t("vehicles.plate")}</th>
-                <th className="px-5 py-3">{t("vehicles.model")}</th>
-                <th className="px-5 py-3">{t("vehicles.capacity")}</th>
-                <th className="px-5 py-3">{t("vehicles.cargoKg")}</th>
-                <th className="px-5 py-3">{tc("status")}</th>
-                <th className="px-5 py-3">{tc("actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vehicles.map((vehicle) => (
-                <tr
-                  key={getVehicleId(vehicle) || vehicle.licensePlate}
-                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
-                >
-                  <td className="px-5 py-4">
-                    <VehicleImage
-                      src={getVehiclePhoto(vehicle).src}
-                      alt={getVehiclePhoto(vehicle).alt}
-                      width={96}
-                      height={64}
-                      containerClassName="h-16 w-24 rounded-lg border border-gray-200"
-                      loadingLabel={t("vehicles.imageLoading")}
-                      errorLabel={t("vehicles.imageLoadFailed")}
-                    />
-                  </td>
-                  <td className="px-5 py-4 text-sm font-semibold text-gray-900">
-                    {vehicle.licensePlate}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {getVehicleTypeLabel(vehicle, vehicleTypes)}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {vehicle.totalSeats}
-                    {t("vehicles.seats")}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-700">
-                    {vehicle.maxCargoWeightKg}
-                  </td>
-                  <td className="px-5 py-4">
-                    {vehicleStatusBadge(vehicle.status)}
-                  </td>
-                  <td className="px-5 py-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openDetailModal(vehicle)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
-                        title={t("vehicles.viewDetail")}
-                        aria-label={t("vehicles.viewDetail")}
-                      >
-                        <FiEye size={16} />
-                      </button>
-                      {canManageVehicles && (
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(vehicle)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                          title={tc("edit")}
-                          aria-label={tc("edit")}
-                        >
-                          <FiEdit2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {isLoading && (
-          <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
-            {t("vehicles.loading")}
-          </div>
-        )}
-        <Pagination
-          page={page}
-          pageSize={pageSize}
-          totalItems={totalItems}
-          onPageChange={setPage}
-        />
-      </div>
+      <PersonnelTable
+        toolbar={<div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("vehicles.searchPlaceholder")} value={search} onChange={(event) => setSearch(event.target.value)} /></div><CustomSelect value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setAttentionOnly(false); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[220px]" aria-label={t("vehicles.filterStatus")}><option value="">{t("vehicles.allStatuses")}</option><option value="ACTIVE">{t("vehicles.statusActive")}</option><option value="MAINTENANCE">{t("vehicles.statusMaintenance")}</option><option value="INACTIVE">{t("vehicles.inactive")}</option></CustomSelect><CustomSelect value={vehicleTypeFilter} onChange={(event) => { setVehicleTypeFilter(event.target.value); setAttentionOnly(false); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[240px]" aria-label={t("vehicles.filterType")}><option value="">{t("vehicles.allTypes")}</option>{vehicleTypes.map((type) => <option key={type.id} value={type.id}>{type.displayName}</option>)}</CustomSelect></div>}
+        columns={[
+          { key: "photo", header: t("vehicles.photo"), headerClassName: "w-[84px] px-3 py-3", cellClassName: "w-[84px] px-3 py-4", render: (vehicle) => <VehicleImage src={getVehiclePhoto(vehicle).src} alt={getVehiclePhoto(vehicle).alt} width={64} height={44} containerClassName="h-11 w-16 rounded-lg border border-gray-200" loadingLabel={t("vehicles.imageLoading")} errorLabel={t("vehicles.imageLoadFailed")} /> },
+          { key: "identity", header: t("vehicles.vehicleIdentity"), headerClassName: "w-[30%] px-3 py-3", cellClassName: "w-[30%] px-3 py-4", render: (vehicle) => <><p className="font-semibold text-gray-900">{vehicle.licensePlate}</p><p className="mt-1 truncate text-xs text-gray-500">{getVehicleTypeLabel(vehicle, vehicleTypes)}</p></> },
+          { key: "capacity", header: t("vehicles.capacity"), headerClassName: "w-[22%] px-3 py-3", cellClassName: "w-[22%] px-3 py-4 text-sm text-gray-700", render: (vehicle) => <><p>{vehicle.totalSeats}{t("vehicles.seats")}</p><p className="mt-1 text-xs text-gray-500">{vehicle.maxCargoWeightKg} kg - {vehicle.maxCargoVolumeM3 ?? 0} m3</p></> },
+          { key: "status", header: tc("status"), headerClassName: "w-[22%] px-3 py-3", cellClassName: "w-[22%] px-3 py-4", render: (vehicle) => vehicleStatusBadge(vehicle.status) },
+          { key: "actions", header: tc("actions"), headerClassName: "w-[110px] px-3 py-3", cellClassName: "w-[110px] px-3 py-4 text-sm", render: (vehicle) => <div className="flex items-center gap-2"><button type="button" onClick={() => void openDetailModal(vehicle)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700" title={t("vehicles.viewDetail")} aria-label={t("vehicles.viewDetail")}><FiEye size={16} /></button>{canManageVehicles && <button type="button" onClick={() => openEditModal(vehicle)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700" title={tc("edit")} aria-label={tc("edit")}><FiEdit2 size={16} /></button>}</div> },
+        ]}
+        rows={paginatedVehicles}
+        getRowKey={(vehicle) => getVehicleId(vehicle) || vehicle.licensePlate}
+        isLoading={isLoading}
+        loadingMessage={t("vehicles.loading")}
+        emptyMessage={t("vehicles.noMatch")}
+        page={page}
+        pageSize={pageSize}
+        totalItems={filteredVehicles.length}
+        onPageChange={setPage}
+        className="w-full min-w-[720px] table-fixed whitespace-nowrap"
+      />
 
       <VehicleModal
         open={openReg}
@@ -583,25 +495,6 @@ export default function VehiclesPage() {
         isLoading={isDetailLoading}
         onClose={() => setOpenDetail(false)}
       />
-    </div>
-  );
-}
-
-// Sub-component nhỏ (≤ 50 dòng) chỉ màn này dùng — được phép inline sau component page
-type MetricCardProps = { label: string; value: number; icon: ReactNode };
-
-function MetricCard({ label, value, icon }: MetricCardProps) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-gray-500">{label}</p>
-          <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
-          {icon}
-        </div>
-      </div>
     </div>
   );
 }

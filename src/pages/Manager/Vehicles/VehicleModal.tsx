@@ -11,6 +11,7 @@ import { VehicleImage } from "./VehicleImage";
 import { labelClass } from "../../../components/form/formClasses";
 import {
   countSeats,
+  normalizeSeatLayout,
   createDecks,
   getImageEntries,
   getUniquePublicImageUrls,
@@ -50,9 +51,11 @@ export default function VehicleModal({
 }: VehicleModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const previewDecks = createDecks(form);
+  const selectedVehicleType = vehicleTypes.find((type) => type.id === form.vehicleTypeId);
+  const seatLimit = selectedVehicleType?.defaultSeatCount ?? Number.MAX_SAFE_INTEGER;
+  const previewDecks = createDecks(form, seatLimit);
   const generatedSeats = countSeats(previewDecks);
-  const layoutOptions = toSeatLayoutOptions(form);
+  const layoutOptions = toSeatLayoutOptions(form, seatLimit);
   const existingImages = getUniquePublicImageUrls(
     getImageEntries(form.imageUrls),
   );
@@ -76,6 +79,22 @@ export default function VehicleModal({
     [localImagePreviews],
   );
 
+  function handleVehicleTypeChange(value: string) {
+    onChange("vehicleTypeId", value);
+    const selectedType = vehicleTypes.find((type) => type.id === value);
+    if (!selectedType) return;
+    const columns = Math.min(4, Math.max(1, selectedType.defaultSeatCount));
+    onChange("deckCount", "1");
+    onChange("columnsPerRow", String(columns));
+    onChange("rowsPerDeck", String(Math.ceil(selectedType.defaultSeatCount / columns)));
+  }
+
+  function handleLayoutChange(key: "deckCount" | "rowsPerDeck" | "columnsPerRow", value: string) {
+    const normalized = normalizeSeatLayout({ ...form, [key]: value }, seatLimit);
+    onChange("deckCount", String(normalized.deckCount));
+    onChange("rowsPerDeck", String(normalized.rowsPerDeck));
+    onChange("columnsPerRow", String(normalized.columnsPerRow));
+  }
   function addImageFiles(files: FileList | File[]) {
     const nextFiles = Array.from(files);
 
@@ -182,7 +201,7 @@ export default function VehicleModal({
           <CustomSelect
             className={inputClass}
             value={form.vehicleTypeId}
-            onChange={(event) => onChange("vehicleTypeId", event.target.value)}
+            onChange={(event) => handleVehicleTypeChange(event.target.value)}
           >
             <option value="">{t("vehicles.selectVehicleType")}</option>
             {vehicleTypes.map((type) => (
@@ -202,6 +221,7 @@ export default function VehicleModal({
           />
           <p className="mt-1 text-xs text-gray-500">
             {t("vehicles.autoSeatCountHint")}
+            {selectedVehicleType && t("vehicles.seatLimitHint", { count: selectedVehicleType.defaultSeatCount })}
           </p>
         </div>
         <div>
@@ -330,7 +350,8 @@ export default function VehicleModal({
               min={1}
               type="number"
               value={form.deckCount}
-              onChange={(event) => onChange("deckCount", event.target.value)}
+              max={2}
+              onChange={(event) => handleLayoutChange("deckCount", event.target.value)}
             />
           </div>
           <div>
@@ -340,7 +361,7 @@ export default function VehicleModal({
               min={1}
               type="number"
               value={form.rowsPerDeck}
-              onChange={(event) => onChange("rowsPerDeck", event.target.value)}
+              onChange={(event) => handleLayoutChange("rowsPerDeck", event.target.value)}
             />
           </div>
           <div>
@@ -350,9 +371,7 @@ export default function VehicleModal({
               min={1}
               type="number"
               value={form.columnsPerRow}
-              onChange={(event) =>
-                onChange("columnsPerRow", event.target.value)
-              }
+              onChange={(event) => handleLayoutChange("columnsPerRow", event.target.value)}
             />
           </div>
           <div>
@@ -378,11 +397,11 @@ export default function VehicleModal({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className={previewDecks.length === 1 ? "mt-4 flex justify-center" : "mt-4 grid gap-4 lg:grid-cols-2"}>
           {previewDecks.map((deck) => (
             <div
               key={deck.deck}
-              className="rounded-lg border border-gray-200 bg-white p-3"
+              className={`w-full rounded-lg border border-gray-200 bg-white p-3 ${previewDecks.length === 1 ? "max-w-[520px]" : ""}`}
             >
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -393,9 +412,9 @@ export default function VehicleModal({
                 </p>
               </div>
               <div
-                className="grid gap-2"
+                className="mx-auto grid w-fit max-w-full gap-2"
                 style={{
-                  gridTemplateColumns: `repeat(${layoutOptions.columnsPerRow}, minmax(2.5rem, 1fr))`,
+                  gridTemplateColumns: `repeat(${layoutOptions.columnsPerRow}, minmax(2.5rem, 4.5rem))`,
                 }}
               >
                 {deck.seats.map((seat) => (

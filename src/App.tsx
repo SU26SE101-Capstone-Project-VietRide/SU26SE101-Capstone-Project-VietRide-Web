@@ -14,7 +14,6 @@ const StaffList = lazy(() => import("./pages/Manager/Staff/index"));
 const VehiclesList = lazy(() => import("./pages/Manager/Vehicles/index"));
 const RoutesList = lazy(() => import("./pages/Manager/Routes/index"));
 const OperationsCenter = lazy(() => import("./pages/Manager/Operations/index"));
-const Reports = lazy(() => import("./pages/Manager/Reports/index"));
 const DispatchPanel = lazy(() => import("./pages/Manager/Dispatch/index"));
 const ManagerWallet = lazy(() => import("./pages/Manager/Wallet/index"));
 const ManagerVouchers = lazy(() => import("./pages/Manager/Vouchers/index"));
@@ -24,7 +23,6 @@ const SubscriptionPaymentReturn = lazy(
 );
 const ManagerPolicies = lazy(() => import("./pages/Manager/Policies/index"));
 const ManagerSettings = lazy(() => import("./pages/Manager/Settings/index"));
-const ManagerCapacity = lazy(() => import("./pages/Manager/Capacity/index"));
 const VehicleBuilderPage = lazy(() =>
   import("./modules/vehicle-builder").then((module) => ({
     default: module.VehicleBuilderPage,
@@ -34,7 +32,6 @@ const Operators = lazy(() => import("./pages/Admin/Operators"));
 const Users = lazy(() => import("./pages/Admin/Users"));
 const Vouchers = lazy(() => import("./pages/Admin/Vouchers"));
 const Packages = lazy(() => import("./pages/Admin/Packages"));
-const Revenue = lazy(() => import("./pages/Admin/Revenue"));
 const AdminReports = lazy(() => import("./pages/Admin/Reports"));
 const AdminPolicies = lazy(() => import("./pages/Admin/Policies"));
 const AdminStations = lazy(() => import("./pages/Admin/Stations"));
@@ -107,7 +104,7 @@ export default function App() {
               <Route path="profile" element={<Profile />} />
               <Route path="vouchers" element={<ManagerVouchers />} />
               <Route path="wallet" element={<ManagerWallet />} />
-              <Route path="reports" element={<Reports />} />
+              <Route path="reports" element={<Navigate to="/manager/dashboard" replace />} />
               <Route path="assistant" element={<RagAssistant />} />
               <Route
                 element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
@@ -122,7 +119,7 @@ export default function App() {
                   element={<VehicleBuilderPage />}
                 />
                 <Route path="staff" element={<StaffList />} />
-                <Route path="capacity" element={<ManagerCapacity />} />
+                <Route path="capacity" element={<Navigate to="/manager/vehicles" replace />} />
                 <Route path="packages" element={<ManagerPackages />} />
                 <Route path="policies" element={<ManagerPolicies />} />
                 <Route path="settings" element={<ManagerSettings />} />
@@ -141,7 +138,6 @@ export default function App() {
               <Route path="users" element={<Users />} />
               <Route path="vouchers" element={<Vouchers />} />
               <Route path="packages" element={<Packages />} />
-              <Route path="revenue" element={<Revenue />} />
               <Route path="reports" element={<AdminReports />} />
 
               <Route

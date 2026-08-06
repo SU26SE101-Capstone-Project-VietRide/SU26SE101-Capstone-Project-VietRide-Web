@@ -1107,6 +1107,7 @@ export type ParcelDetail = {
   voucherUsageId?: string | null;
   additionalAmount?: number;
   createdAt: string;
+  updatedAt?: string | null;
   loadedAt?: string | null;
   unloadedAt?: string | null;
   deliveredPendingConfirmAt?: string | null;
@@ -1117,6 +1118,33 @@ export type ParcelDetail = {
   eta?: string | null;
   pendingActionType?: string | null;
   refundAmount?: number | null;
+  routeName?: string | null;
+  senderName?: string | null;
+  senderPhone?: string | null;
+  pendingActionReason?: string | null;
+  photoUrl?: string | null;
+  estimatedChargeableWeightKg?: number | null;
+  estimatedVolumeM3?: number | null;
+  actualChargeableWeightKg?: number | null;
+  actualVolumeM3?: number | null;
+  estimatedSizeCategory?: string | null;
+  actualSizeCategory?: string | null;
+  estimatedTotalPriceVnd?: number | null;
+  finalTotalPriceVnd?: number | null;
+  depositPaidVnd?: number | null;
+  depositRequiredVnd?: number | null;
+  balancePaidVnd?: number | null;
+  balanceRequiredVnd?: number | null;
+  forfeitedDepositVnd?: number | null;
+  refundDueVnd?: number | null;
+  refundedAmountVnd?: number | null;
+  finalPaymentDeadline?: string | null;
+  latestCheckInAt?: string | null;
+  loadCutoffAt?: string | null;
+  sender?: { userId?: string | null; displayName?: string | null; phone?: string | null } | null;
+  recipient?: { userId?: string | null; displayName?: string | null; phone?: string | null } | null;
+  route?: { routeId?: string | null; routeName?: string | null; originStationName?: string | null; destinationStationName?: string | null } | null;
+  trip?: { tripId?: string | null; status?: string | null; departureAt?: string | null; arrivalEstimate?: string | null; vehicle?: { vehicleId?: string | null; licensePlate?: string | null } | null } | null;
 };
 
 export type ParcelDeliveryTokenRequest = {
@@ -1181,6 +1209,7 @@ export type OperatorParcelListItem = {
   parcelCode: string;
   status: string;
   pendingActionType?: string | null;
+  pendingActionReason?: string | null;
   tripId?: string | null;
   tripCode?: string | null;
   routeName?: string | null;
@@ -1192,12 +1221,29 @@ export type OperatorParcelListItem = {
   estimatedWeightKg?: number | null;
   estimatedVolumeM3?: number | null;
   actualWeightKg?: number | null;
+  actualSizeCategory?: string | null;
+  actualChargeableWeightKg?: number | null;
   actualVolumeM3?: number | null;
+  estimatedSizeCategory?: string | null;
+  estimatedChargeableWeightKg?: number | null;
   chargeableWeightKg?: number | null;
   depositAmount?: number | null;
   balanceAmount?: number | null;
   refundAmount?: number | null;
   forfeitureAmount?: number | null;
+  estimatedTotalPriceVnd?: number | null;
+  finalTotalPriceVnd?: number | null;
+  depositPaidVnd?: number | null;
+  depositRequiredVnd?: number | null;
+  balancePaidVnd?: number | null;
+  balanceRequiredVnd?: number | null;
+  discountAmount?: number | null;
+  forfeitedDepositVnd?: number | null;
+  refundDueVnd?: number | null;
+  refundedAmountVnd?: number | null;
+  finalPaymentDeadline?: string | null;
+  latestCheckInAt?: string | null;
+  loadCutoffAt?: string | null;
   operatorActionDeadline?: string | null;
   photoUrl?: string | null;
   createdAt: string;
@@ -1215,8 +1261,8 @@ export type OperatorParcelListItem = {
     originStationName: string;
     destinationStationName: string;
   } | null;
-  sender?: { userId?: string | null; name: string; phone: string } | null;
-  recipient?: { userId?: string | null; name: string; phone: string } | null;
+  sender?: { userId?: string | null; name?: string | null; displayName?: string | null; phone?: string | null } | null;
+  recipient?: { userId?: string | null; name?: string | null; displayName?: string | null; phone?: string | null } | null;
 };
 
 export type OperatorParcelReviewRequest = {
@@ -4573,6 +4619,5 @@ export const updateOperatorPolicy = (
 ) => updatePolicy("/v1/operator/policies", policyId, request);
 export const deleteOperatorPolicy = (policyId: string) =>
   deletePolicy("/v1/operator/policies", policyId);
-
 
 

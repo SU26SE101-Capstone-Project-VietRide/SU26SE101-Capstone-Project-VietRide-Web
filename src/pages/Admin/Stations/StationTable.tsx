@@ -14,7 +14,8 @@ type StationTableProps = {
   pageSize: number;
   totalItems: number;
   onPageChange: (page: number) => void;
-  onSelect: (station: AdminStation) => void;
+  onEdit: (station: AdminStation) => void;
+  onMerge: (station: AdminStation) => void;
   onToggle: (station: AdminStation) => void;
 };
 
@@ -26,7 +27,8 @@ export default function StationTable({
   pageSize,
   totalItems,
   onPageChange,
-  onSelect,
+  onEdit,
+  onMerge,
   onToggle,
 }: StationTableProps) {
   const { t } = useTranslation("admin");
@@ -70,7 +72,7 @@ export default function StationTable({
                     "-"}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-gray-700">
-                  {station.supportsShuttle ? tc("yes") : tc("no")}
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${station.supportsShuttle ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{station.supportsShuttle ? t("stations.shuttleVehicle") : t("stations.nonShuttleVehicle")}</span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
                   <span
@@ -88,7 +90,7 @@ export default function StationTable({
                     <button
                       type="button"
                       className={`${iconButtonClass} text-vr-700 hover:bg-vr-50`}
-                      onClick={() => onSelect(station)}
+                      onClick={() => onEdit(station)}
                       title={tc("edit")}
                       aria-label={tc("edit")}
                     >
@@ -97,7 +99,7 @@ export default function StationTable({
                     <button
                       type="button"
                       className={`${iconButtonClass} text-amber-700 hover:bg-amber-50`}
-                      onClick={() => onSelect(station)}
+                      onClick={() => onMerge(station)}
                       title={t("stations.merge")}
                       aria-label={t("stations.merge")}
                     >

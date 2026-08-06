@@ -26,9 +26,12 @@ import {
   type TripSettlement,
   type TripSettlementStatus,
   type WalletTransaction,
+  type WalletTransactionType,
 } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
+import CustomSelect from "../../../components/CustomSelect";
+import { StatCard } from "../../../components/StatCard";
 
 const pageSize = 10;
 
@@ -119,6 +122,7 @@ export default function WalletSettlement() {
   const [transactionPage, setTransactionPage] = useState(1);
   const [transactionTotalItems, setTransactionTotalItems] = useState(0);
   const [search, setSearch] = useState("");
+  const [transactionType, setTransactionType] = useState<WalletTransactionType | "">("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -180,10 +184,11 @@ export default function WalletSettlement() {
       pageSize,
       sortBy: "createdAt",
       sortDir: "desc",
+      type: transactionType || undefined,
     });
     setTransactions(transactionResult.items);
     setTransactionTotalItems(transactionResult.totalItems);
-  }, [transactionPage]);
+  }, [transactionPage, transactionType]);
 
   // Refresh toàn bộ: dùng cho nút refresh và sau khi settle thủ công
   const loadData = useCallback(
@@ -248,6 +253,14 @@ export default function WalletSettlement() {
     );
   }, [records, search]);
 
+  const filteredTransactions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return transactions;
+    return transactions.filter((item) => [
+      item.transactionId, item.referenceType, item.note, item.actor?.displayName,
+    ].filter(Boolean).join(" ").toLowerCase().includes(query));
+  }, [search, transactions]);
+
   const totals = useMemo(
     () => ({
       amount: records.reduce((sum, record) => sum + record.netAmount, 0),
@@ -268,15 +281,6 @@ export default function WalletSettlement() {
     }),
     [records],
   );
-
-  const settlementViewCounts: Record<SettlementView, number> = {
-    ALL: totalItems,
-    NEEDS_ATTENTION: totals.attention,
-    PENDING_HOLD: totals.byStatus.PENDING_HOLD,
-    ELIGIBLE: totals.byStatus.ELIGIBLE,
-    SETTLED: totals.byStatus.SETTLED,
-    CANCELLED: totals.byStatus.CANCELLED,
-  };
 
   function selectTab(tab: FinanceTab) {
     const next = new URLSearchParams(searchParams);
@@ -392,35 +396,8 @@ export default function WalletSettlement() {
       {activeTab === "settlements" && (
         <>
           <section className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {settlementViews.map((view) => (
-              <button
-                key={view}
-                type="button"
-                aria-pressed={settlementView === view}
-                onClick={() => selectSettlementView(view)}
-                className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
-                  settlementView === view
-                    ? "border-vr-500 bg-vr-50 text-vr-700"
-                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                <span>{t(`walletSettlement.filters.${view}`)}</span>
-                <span
-                  className={`ml-1.5 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
-                    settlementView === view
-                      ? "bg-vr-100 text-vr-800"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {settlementViewCounts[view]}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <div className="relative max-w-md">
+<div className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
@@ -428,6 +405,17 @@ export default function WalletSettlement() {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("walletSettlement.searchPlaceholder")}
               />
+            </div>
+            <CustomSelect
+              value={settlementView}
+              onChange={(event) => selectSettlementView(event.target.value as SettlementView)}
+              aria-label={tc("status")}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 lg:w-64"
+            >
+              {settlementViews.map((view) => (
+                <option key={view} value={view}>{t(`walletSettlement.filters.${view}`)}</option>
+              ))}
+            </CustomSelect>
             </div>
 
             <div className="mt-4 overflow-x-auto">
@@ -563,11 +551,15 @@ export default function WalletSettlement() {
       {activeTab === "transactions" && (
         <>
           <WalletTransactionTable
-            items={transactions}
+            items={filteredTransactions}
             page={transactionPage}
             totalItems={transactionTotalItems}
             onPageChange={setTransactionPage}
             t={t}
+            search={search}
+            onSearch={setSearch}
+            transactionType={transactionType}
+            onTransactionTypeChange={(value) => { setTransactionType(value); setTransactionPage(1); }}
           />
         </>
       )}
@@ -648,72 +640,25 @@ function OverviewTab({
   onOpenSettlements: () => void;
 }) {
   const { t } = useTranslation("admin");
+  const cards = [
+    { label: t("walletSettlement.platformBalance"), value: formatMoney(platformBalance), icon: <FiDollarSign />, iconClassName: "bg-emerald-50 text-emerald-700" },
+    { label: t("walletSettlement.pageSettlementTotal"), value: formatMoney(totals.amount), icon: <FiArrowDown />, iconClassName: "bg-blue-50 text-blue-700" },
+    { label: t("walletSettlement.eligible"), value: String(totals.eligible), icon: <FiCheckCircle />, iconClassName: "bg-violet-50 text-violet-700" },
+    { label: t("walletSettlement.needsAttention"), value: String(totals.attention), icon: <FiAlertTriangle />, iconClassName: "bg-amber-50 text-amber-700" },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          label={t("walletSettlement.platformBalance")}
-          value={formatMoney(platformBalance)}
-          isLoading={loading}
-        />
-        <Metric
-          label={t("walletSettlement.pageSettlementTotal")}
-          value={formatMoney(totals.amount)}
-          isLoading={loading}
-        />
-        <Metric
-          label={t("walletSettlement.eligible")}
-          value={String(totals.eligible)}
-          isLoading={loading}
-        />
-        <Metric
-          label={t("walletSettlement.needsAttention")}
-          value={String(totals.attention)}
-          isLoading={loading}
-          action={onOpenSettlements}
-        />
-      </div>
-
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  isLoading,
-  action,
-}: {
-  label: string;
-  value: string;
-  isLoading: boolean;
-  action?: () => void;
-}) {
-  const content = (
-    <>
-      <p className="text-sm text-gray-600">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-gray-900">
-        {isLoading ? "…" : value}
-      </p>
-    </>
-  );
-
-  if (action) {
-    return (
-      <button
-        type="button"
-        onClick={action}
-        className="rounded-lg border border-gray-200 bg-white p-5 text-left transition hover:border-vr-300 hover:bg-vr-50/40"
-      >
-        {content}
-      </button>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5">
-      {content}
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {cards.map((card, index) => (
+        <button
+          key={card.label}
+          type="button"
+          onClick={index === 3 ? onOpenSettlements : undefined}
+          className={index === 3 ? "text-left" : "cursor-default text-left"}
+        >
+          <StatCard {...card} value={loading ? "…" : card.value} />
+        </button>
+      ))}
     </div>
   );
 }
@@ -726,106 +671,81 @@ function WalletTransactionTable({
   totalItems,
   onPageChange,
   t,
+  search,
+  onSearch,
+  transactionType,
+  onTransactionTypeChange,
 }: {
   items: WalletTransaction[];
   page: number;
   totalItems: number;
   onPageChange: (page: number) => void;
   t: Translate;
+  search: string;
+  onSearch: (value: string) => void;
+  transactionType: WalletTransactionType | "";
+  onTransactionTypeChange: (value: WalletTransactionType | "") => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-      <div className="p-4">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("walletSettlement.latestTransactions")}
-        </h2>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
-            <thead>
-              <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                <th className="px-4 py-3">{t("walletSettlement.createdAt")}</th>
-                <th className="px-4 py-3">{t("walletSettlement.cashFlow")}</th>
-                <th className="px-4 py-3">{t("walletSettlement.amount")}</th>
-                <th className="px-4 py-3">
-                  {t("walletSettlement.balanceBefore")}
-                </th>
-                <th className="px-4 py-3">
-                  {t("walletSettlement.balanceAfter")}
-                </th>
-                <th className="px-4 py-3">{t("walletSettlement.reference")}</th>
-                <th className="px-4 py-3">{t("walletSettlement.actor")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                    {t("walletSettlement.empty")}
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => {
-                  const isCredit = item.type === "CREDIT";
-
-                  return (
-                    <tr key={item.transactionId} className="border-t border-gray-100">
-                      <td className="whitespace-nowrap px-4 py-3">
-                        {formatDate(item.createdAt)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center gap-2 font-semibold ${
-                            isCredit ? "text-emerald-700" : "text-red-700"
-                          }`}
-                        >
-                          {isCredit ? <FiArrowDown /> : <FiArrowUp />}
-                          {t(
-                            isCredit
-                              ? "walletSettlement.moneyIn"
-                              : "walletSettlement.moneyOut",
-                          )}
-                        </span>
-                      </td>
-                      <td
-                        className={`whitespace-nowrap px-4 py-3 font-semibold ${
-                          isCredit ? "text-emerald-700" : "text-red-700"
-                        }`}
-                      >
-                        {isCredit ? "+" : "-"}
-                        {formatMoney(item.amount)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-gray-600">
-                        {formatMoney(item.balanceBefore)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-semibold">
-                        {formatMoney(item.balanceAfter)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-gray-700">
-                          {t(`walletSettlement.references.${item.referenceType}`, {
-                            defaultValue: item.referenceType,
-                          })}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3">
-                        {item.actorType === "SYSTEM"
-                          ? t("walletSettlement.systemActor")
-                          : (item.actor?.displayName ?? "-")}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-100 p-4">
+        <h2 className="text-lg font-semibold text-gray-900">{t("walletSettlement.latestTransactions")}</h2>
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={(event) => onSearch(event.target.value)}
+              placeholder={t("walletSettlement.searchPlaceholder")}
+              className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
+            />
+          </div>
+          <CustomSelect
+            value={transactionType}
+            onChange={(event) => onTransactionTypeChange(event.target.value as WalletTransactionType | "")}
+            aria-label={t("walletSettlement.allTransactionTypes")}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 lg:w-56"
+          >
+            <option value="">{t("walletSettlement.allTransactionTypes")}</option>
+            <option value="CREDIT">{t("walletSettlement.moneyIn")}</option>
+            <option value="DEBIT">{t("walletSettlement.moneyOut")}</option>
+          </CustomSelect>
         </div>
       </div>
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        totalItems={totalItems}
-        onPageChange={onPageChange}
-      />
+      <div className="overflow-x-auto p-4">
+        <table className="w-full min-w-[980px] text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+              <th className="px-4 py-3">{t("walletSettlement.createdAt")}</th>
+              <th className="px-4 py-3">{t("walletSettlement.cashFlow")}</th>
+              <th className="px-4 py-3">{t("walletSettlement.amount")}</th>
+              <th className="px-4 py-3">{t("walletSettlement.balanceBefore")}</th>
+              <th className="px-4 py-3">{t("walletSettlement.balanceAfter")}</th>
+              <th className="px-4 py-3">{t("walletSettlement.reference")}</th>
+              <th className="px-4 py-3">{t("walletSettlement.actor")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">{t("walletSettlement.empty")}</td></tr>
+            ) : items.map((item) => {
+              const isCredit = item.type === "CREDIT";
+              return (
+                <tr key={item.transactionId} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="whitespace-nowrap px-4 py-3">{formatDate(item.createdAt)}</td>
+                  <td className="px-4 py-3"><span className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? <FiArrowDown /> : <FiArrowUp />}{t(isCredit ? "walletSettlement.moneyIn" : "walletSettlement.moneyOut")}</span></td>
+                  <td className={`whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? "+" : "-"}{formatMoney(item.amount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatMoney(item.balanceBefore)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatMoney(item.balanceAfter)}</td>
+                  <td className="px-4 py-3 text-gray-700">{t(`walletSettlement.references.${item.referenceType}`, { defaultValue: item.referenceType })}</td>
+                  <td className="px-4 py-3">{item.actorType === "SYSTEM" ? t("walletSettlement.systemActor") : (item.actor?.displayName ?? "-")}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <Pagination page={page} pageSize={pageSize} totalItems={totalItems} onPageChange={onPageChange} />
     </section>
   );
 }

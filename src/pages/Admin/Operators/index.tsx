@@ -8,8 +8,13 @@ import {
   FiX,
   FiEye,
   FiFilter,
+  FiUsers,
+  FiClock,
+  FiCheckCircle,
+  FiAlertCircle,
 } from "react-icons/fi";
 import Pagination from "../../../components/Pagination";
+import { StatCard } from "../../../components/StatCard";
 import {
   approveAdminOperator,
   createAdminOperator,
@@ -132,6 +137,13 @@ export default function Operators() {
   const pendingCount = operators.filter(
     (operator) => toKnownStatus(operator.registrationStatus) === "PENDING",
   ).length;
+  const approvedCount = operators.filter(
+    (operator) => toKnownStatus(operator.registrationStatus) === "APPROVED",
+  ).length;
+  const restrictedCount = operators.filter((operator) => {
+    const status = toKnownStatus(operator.registrationStatus);
+    return status === "SUSPENDED" || status === "REJECTED";
+  }).length;
 
   const handleApprove = async () => {
     if (!selectedOperator) {
@@ -266,6 +278,32 @@ export default function Operators() {
         </div>
       )}
 
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={<FiUsers size={20} />}
+          label={t("operators.total")}
+          value={operators.length}
+          iconClassName="bg-vr-50 text-vr-700"
+        />
+        <StatCard
+          icon={<FiCheckCircle size={20} />}
+          label={t("operators.approved")}
+          value={approvedCount}
+          iconClassName="bg-emerald-50 text-emerald-700"
+        />
+        <StatCard
+          icon={<FiClock size={20} />}
+          label={t("operators.pending")}
+          value={pendingCount}
+          iconClassName="bg-amber-50 text-amber-700"
+        />
+        <StatCard
+          icon={<FiAlertCircle size={20} />}
+          label={t("operators.restricted")}
+          value={restrictedCount}
+          iconClassName="bg-red-50 text-red-700"
+        />
+      </div>
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex-1 relative min-w-50">

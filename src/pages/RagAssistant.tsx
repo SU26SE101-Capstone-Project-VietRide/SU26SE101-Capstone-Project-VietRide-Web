@@ -13,6 +13,10 @@ import {
 } from "../api/vietride";
 import { getAuthUser } from "../auth";
 
+type RagAssistantProps = {
+  embedded?: boolean;
+};
+
 type ChatMessage = {
   id: string;
   role: "user" | "assistant";
@@ -28,7 +32,7 @@ const starterQuestions = [
   "Cách đối soát ví và settlement?",
 ];
 
-export default function RagAssistant() {
+export default function RagAssistant({ embedded = false }: RagAssistantProps) {
   const { t } = useTranslation("common");
   const user = getAuthUser();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -133,8 +137,8 @@ export default function RagAssistant() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-5xl flex-col gap-5">
-      <header>
+    <div className={embedded ? "flex h-full min-h-0 flex-col" : "mx-auto flex min-h-[calc(100vh-8rem)] max-w-5xl flex-col gap-5"}>
+      {!embedded && <header>
         <h1 className="flex items-center gap-3 text-3xl font-bold text-gray-900">
           <span className="rounded-xl bg-vr-50 p-2 text-vr-700">
             <FiBookOpen />
@@ -144,9 +148,9 @@ export default function RagAssistant() {
         <p className="mt-2 text-sm text-gray-600">
           Hỏi đáp theo knowledge base và phạm vi role/operator đang đăng nhập.
         </p>
-      </header>
+      </header>}
 
-      {canScopeOperator && (
+      {canScopeOperator && !embedded && (
         <label className="block max-w-xl">
           <span className="mb-1 block text-xs font-semibold text-gray-600">
             Giới hạn theo mã nhà xe (không bắt buộc)
@@ -164,7 +168,7 @@ export default function RagAssistant() {
         </label>
       )}
 
-      <section className="flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <section className={embedded ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white" : "flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white"}>
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
           {latestMessages.length === 0 && (
             <div className="flex h-full min-h-72 flex-col items-center justify-center text-center">

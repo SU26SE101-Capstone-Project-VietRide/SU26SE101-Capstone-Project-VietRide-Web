@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { FiEye } from "react-icons/fi";
+import { FiEdit2, FiEye } from "react-icons/fi";
 import { FaChair } from "react-icons/fa";
 import { DetailItem } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
@@ -21,6 +21,7 @@ type VehicleDetailModalProps = {
   vehicleTypes: VehicleType[];
   isLoading: boolean;
   onClose: () => void;
+  onEdit?: (vehicle: OperatorVehicle) => void;
 };
 
 export default function VehicleDetailModal({
@@ -29,6 +30,7 @@ export default function VehicleDetailModal({
   vehicleTypes,
   isLoading,
   onClose,
+  onEdit,
 }: VehicleDetailModalProps) {
   const { t: tc } = useTranslation("common");
   const { t } = useTranslation("manager");
@@ -58,6 +60,17 @@ export default function VehicleDetailModal({
       icon={<FiEye size={20} />}
       title={t("vehicles.detailTitle")}
       footer={
+        <>
+        {vehicle && onEdit && (
+          <button
+            type="button"
+            onClick={() => onEdit(vehicle)}
+            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+          >
+            <FiEdit2 size={16} />
+            {tc("edit")}
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -65,6 +78,7 @@ export default function VehicleDetailModal({
         >
           {tc("close")}
         </button>
+        </>
       }
     >
       {isLoading && (
@@ -156,11 +170,13 @@ export default function VehicleDetailModal({
                 {t("vehicles.noSeatMap")}
               </p>
             ) : (
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                {decks.map((deck) => (
-                  <div
+              <div className={decks.length === 1 ? "mt-4 flex justify-center" : "mt-4 grid gap-4 lg:grid-cols-2"}>
+                {decks.map((deck) => {
+                  const rowSeatCounts = deck.seats.reduce<Record<number, number>>((counts, seat) => ({ ...counts, [seat.row]: (counts[seat.row] ?? 0) + 1 }), {});
+                  const isSingleRow = new Set(deck.seats.map((seat) => seat.row)).size === 1;
+                  return (<div
                     key={deck.deck}
-                    className="rounded-lg border border-gray-200 bg-white p-3"
+                    className={"rounded-lg border border-gray-200 bg-white p-3 " + (decks.length === 1 ? "w-full max-w-xl" : "")}
                   >
                     <div className="mb-3 flex items-center justify-between">
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -173,7 +189,7 @@ export default function VehicleDetailModal({
                       </p>
                     </div>
                     <div
-                      className="grid gap-2"
+                      className={isSingleRow ? "flex flex-wrap justify-center gap-2" : "grid gap-2"}
                       style={{
                         gridTemplateColumns: `repeat(${columnCount}, minmax(2.5rem, 1fr))`,
                       }}
@@ -186,6 +202,14 @@ export default function VehicleDetailModal({
                               ? "border-gray-200 bg-gray-100 text-gray-400"
                               : "border-vr-200 bg-vr-50 text-vr-700"
                           }`}
+                          style={!isSingleRow && rowSeatCounts[seat.row] === 1
+                            ? {
+                                gridColumn: "1 / -1",
+                                gridRow: seat.row,
+                                justifySelf: "center",
+                                width: "calc((100% - " + ((columnCount - 1) * 0.5) + "rem) / " + columnCount + ")",
+                              }
+                            : { gridColumnStart: seat.col, gridRow: seat.row }}
                           title={t("vehicles.seatTitle", {
                             row: seat.row,
                             col: seat.col,
@@ -198,7 +222,8 @@ export default function VehicleDetailModal({
                       ))}
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             )}
           </div>

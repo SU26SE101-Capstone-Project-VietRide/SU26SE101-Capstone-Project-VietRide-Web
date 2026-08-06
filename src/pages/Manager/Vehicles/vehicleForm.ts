@@ -66,59 +66,42 @@ export const emptyVehicleForm: VehicleForm = {
   seatPrefix: "A",
 };
 
-function toPositiveInteger(value: string, fallback: number) {
-  const next = Math.floor(Number(value));
-  return Number.isFinite(next) && next > 0 ? next : fallback;
+export function getVehicleSeatLimit(vehicleTypes: VehicleType[], vehicleTypeId: string) {
+  return vehicleTypes.find((type) => type.id === vehicleTypeId)?.defaultSeatCount ?? 0;
 }
 
-export function toSeatLayoutOptions(form: VehicleForm) {
-  const seatPrefix = form.seatPrefix?.trim() || "A";
-  const columnsPerRow = toPositiveInteger(form.columnsPerRow, 4);
-  const aisleAfterCol = Math.min(
-    toPositiveInteger(form.aisleAfterCol, 2),
-    Math.max(columnsPerRow - 1, 1),
-  );
-
-  return {
-    deckCount: toPositiveInteger(form.deckCount, 1),
-    rowsPerDeck: toPositiveInteger(form.rowsPerDeck, 10),
-    columnsPerRow,
-    aisleAfterCol,
-    seatPrefix,
-  };
+export function normalizeSeatLayout(form: Pick<VehicleForm, "deckCount" | "rowsPerDeck" | "columnsPerRow">, seatLimit: number) {
+  const limit = Math.max(1, Math.floor(seatLimit));
+  const deckCount = Math.min(Math.max(Math.floor(Number(form.deckCount)) || 1, 1), 2);
+  const columnsPerRow = Math.max(1, Math.floor(Number(form.columnsPerRow)) || 1);
+  const rowsPerDeck = Math.max(1, Math.floor(Number(form.rowsPerDeck)) || 1);
+  const seatsPerDeck = Math.max(1, Math.floor(limit / deckCount));
+  if (rowsPerDeck * columnsPerRow <= seatsPerDeck) return { deckCount, rowsPerDeck, columnsPerRow };
+  if (columnsPerRow > seatsPerDeck) return { deckCount, rowsPerDeck: 1, columnsPerRow: seatsPerDeck };
+  return { deckCount, rowsPerDeck: Math.max(1, Math.floor(seatsPerDeck / columnsPerRow)), columnsPerRow };
 }
 
-export function createDecks(form: VehicleForm): VehicleDeck[] {
-  const options = toSeatLayoutOptions(form);
+export function toSeatLayoutOptions(form: VehicleForm, seatLimit = Number.MAX_SAFE_INTEGER) {
+  const normalized = normalizeSeatLayout(form, seatLimit);
+  const aisleAfterCol = Math.min(Math.max(1, Math.floor(Number(form.aisleAfterCol)) || 1), Math.max(normalized.columnsPerRow - 1, 1));
+  return { ...normalized, aisleAfterCol, seatPrefix: form.seatPrefix.trim() || "A" };
+}
 
+export function createDecks(form: VehicleForm, seatLimit = Number.MAX_SAFE_INTEGER): VehicleDeck[] {
+  const options = toSeatLayoutOptions(form, seatLimit);
+  let remainingSeats = Math.max(0, Math.floor(seatLimit));
   return Array.from({ length: options.deckCount }, (_, deckIndex) => {
-    const seats = Array.from(
-      { length: options.rowsPerDeck * options.columnsPerRow },
-      (_, seatIndex) => {
-        const row = Math.floor(seatIndex / options.columnsPerRow) + 1;
-        const col = (seatIndex % options.columnsPerRow) + 1;
-        const number = seatIndex + 1;
-
-        return {
-          seatNumber:
-            options.deckCount > 1
-              ? `${options.seatPrefix}${deckIndex + 1}-${number}`
-              : `${options.seatPrefix}${number}`,
-          row,
-          col,
-          deck: deckIndex + 1,
-          type: "STANDARD",
-          isWindow: col === 1 || col === options.columnsPerRow,
-          isAisle: false,
-          disabled: false,
-        };
-      },
-    );
-
+    const seatsInDeck = Math.min(options.rowsPerDeck * options.columnsPerRow, remainingSeats);
+    remainingSeats -= seatsInDeck;
+    const seats = Array.from({ length: seatsInDeck }, (_, seatIndex) => {
+      const row = Math.floor(seatIndex / options.columnsPerRow) + 1;
+      const col = (seatIndex % options.columnsPerRow) + 1;
+      const number = seatIndex + 1;
+      return { seatNumber: options.deckCount > 1 ? `${options.seatPrefix}${deckIndex + 1}-${number}` : `${options.seatPrefix}${number}`, row, col, deck: deckIndex + 1, type: "STANDARD", isWindow: col === 1 || col === options.columnsPerRow, isAisle: false, disabled: false };
+    });
     return { deck: deckIndex + 1, seats };
   });
 }
-
 export function countSeats(decks: VehicleDeck[]) {
   return decks.reduce((total, deck) => total + deck.seats.length, 0);
 }
@@ -126,9 +109,10 @@ export function countSeats(decks: VehicleDeck[]) {
 function toSeatLayoutJson(
   form: VehicleForm,
   vehicleTypes: VehicleType[] = [],
+  seatLimit = Number.MAX_SAFE_INTEGER,
 ): SeatLayoutJson {
-  const decks = createDecks(form);
-  const options = toSeatLayoutOptions(form);
+  const decks = createDecks(form, seatLimit);
+  const options = toSeatLayoutOptions(form, seatLimit);
   const seats = decks.flatMap((deck) => deck.seats);
   const vehicleType = vehicleTypes.find(
     (type) => type.id === form.vehicleTypeId,
@@ -212,7 +196,8 @@ export function toVehicleRequest(
   vehicleTypes: VehicleType[],
   imageUrls = getUniquePublicImageUrls(getImageEntries(form.imageUrls)),
 ): OperatorVehicleRequest {
-  const seatLayoutJson = toSeatLayoutJson(form, vehicleTypes);
+  const seatLimit = getVehicleSeatLimit(vehicleTypes, form.vehicleTypeId) || Number.MAX_SAFE_INTEGER;
+  const seatLayoutJson = toSeatLayoutJson(form, vehicleTypes, seatLimit);
 
   return {
     vehicleTypeId: form.vehicleTypeId,

@@ -22,7 +22,7 @@ export default function FleetFilterBar({
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center p-4">
         <div className="relative min-w-0 flex-1">
           <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
