@@ -110,7 +110,7 @@ export function toStationOption(operatorStation: OperatorStation): StationOption
     addressStreet:
       station?.addressStreet || operatorStation.addressStreet || "",
     city: station?.city || operatorStation.city || "",
-    province: station?.province || operatorStation.province || "",
+    ward: station?.ward || operatorStation.ward || "",
     latitude: station?.latitude ?? operatorStation.latitude ?? 0,
     longitude: station?.longitude ?? operatorStation.longitude ?? 0,
     supportsShuttle:

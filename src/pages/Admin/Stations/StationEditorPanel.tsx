@@ -105,12 +105,12 @@ export default function StationEditorPanel({
             />
           </label>
           <label>
-            <span className={labelClass}>{t("stations.province")}</span>
+            <span className={labelClass}>{t("stations.ward")}</span>
             <input
               className={inputClass}
-              value={form.province}
+              value={form.ward}
               onChange={(event) =>
-                onFormChange({ ...form, province: event.target.value })
+                onFormChange({ ...form, ward: event.target.value })
               }
             />
           </label>

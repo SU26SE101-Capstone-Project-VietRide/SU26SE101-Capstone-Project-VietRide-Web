@@ -54,9 +54,9 @@ export function useStationManagement({
       name: station.name,
       address:
         station.address ??
-        `${station.name}, ${station.city || station.province}`,
+        `${station.name}, ${station.city || station.ward}`,
       city: station.city,
-      province: station.province,
+      ward: station.ward ?? "",
       latitude: station.latitude,
       longitude: station.longitude,
     };
@@ -77,7 +77,7 @@ export function useStationManagement({
     const result = await searchStations({
       q: place.name,
       city: place.city,
-      province: place.province,
+      ward: place.ward,
     });
 
     if (!result.length) {
@@ -133,9 +133,9 @@ export function useStationManagement({
     }
 
     const city = stationPlaceDraft.city.trim();
-    const province = stationPlaceDraft.province.trim() || city;
+    const ward = stationPlaceDraft.ward.trim() || city;
 
-    if (!city || !province) {
+    if (!city || !ward) {
       setError(t("routes.stationLocationRequired"));
       return;
     }
@@ -148,7 +148,7 @@ export function useStationManagement({
     const created = await createOperatorStation({
       name: stationPlaceDraft.name,
       city,
-      province,
+      ward,
       latitude: stationPlaceDraft.latitude,
       longitude: stationPlaceDraft.longitude,
       addressStreet: stationPlaceDraft.address,
@@ -160,7 +160,7 @@ export function useStationManagement({
       id: created.stationId,
       name: created.name ?? stationPlaceDraft.name,
       city: created.city ?? city,
-      province: created.province ?? province,
+      ward: created.ward ?? ward,
       latitude: created.latitude ?? stationPlaceDraft.latitude,
       longitude: created.longitude ?? stationPlaceDraft.longitude,
       address: created.addressStreet ?? stationPlaceDraft.address,

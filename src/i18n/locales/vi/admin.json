@@ -388,8 +388,8 @@
     "slug": "Đường dẫn định danh (slug)",
     "slugHint": "Hệ thống tự tạo slug từ tên và khu vực của bến; trường này không thể chỉnh sửa trực tiếp.",
     "city": "Khu vực",
-    "cityOnly": "Thành phố",
-    "province": "Tỉnh",
+    "cityOnly": "Phường/Xã",
+    "ward": "Tỉnh/Thành phố",
     "location": "Khu vực",
     "noLocation": "Chưa gắn khu vực",
     "shuttle": "Trung chuyển",
@@ -634,6 +634,7 @@
       "PARCEL_PAYMENT_HOLD": "Khách gửi hàng",
       "PARCEL_ADDITIONAL_PAYMENT_HOLD": "Thu thêm phí gửi hàng",
       "SETTLEMENT_TO_OPERATOR": "Thanh toán cho nhà xe",
+      "TRIP_SETTLEMENT": "Đối soát chuyến đi",
       "SYSTEM_ADJUSTMENT": "Điều chỉnh số dư",
       "REFUND": "Hoàn tiền khách hàng"
     },

@@ -74,7 +74,7 @@ export function StationSelect({
         {hasSelectedValue && <option value={value}>{value}</option>}
         {stations.map((station) => (
           <option key={station.id} value={station.id}>
-            {station.name} · {station.city || station.province}
+            {station.name} · {station.city || station.ward}
           </option>
         ))}
       </CustomSelect>

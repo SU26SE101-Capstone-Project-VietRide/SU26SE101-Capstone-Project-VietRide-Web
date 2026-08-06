@@ -591,7 +591,7 @@ export type Station = {
   addressStreet?: string;
   locationId?: string;
   city: string;
-  province: string;
+  ward?: string | null;
   latitude: number;
   longitude: number;
   contactPhone?: string;
@@ -611,7 +611,7 @@ export type AdminStation = {
   addressStreet?: string | null;
   locationId?: string | null;
   city: string;
-  province: string;
+  ward?: string | null;
   latitude: number;
   longitude: number;
   contactPhone?: string | null;
@@ -627,7 +627,7 @@ export type AdminStation = {
 export type StationSearchParams = {
   q?: string;
   city?: string;
-  province?: string;
+  ward?: string;
 };
 
 export type AdminStationParams = PageParams & {
@@ -641,7 +641,7 @@ export type AdminStationRequest = Partial<
     | "addressStreet"
     | "locationId"
     | "city"
-    | "province"
+    | "ward"
     | "latitude"
     | "longitude"
     | "contactPhone"
@@ -768,7 +768,7 @@ export type OperatorStationRequest = {
   instructions?: string;
   name?: string;
   city?: string;
-  province?: string;
+  ward?: string;
   latitude?: number;
   longitude?: number;
   addressStreet?: string;

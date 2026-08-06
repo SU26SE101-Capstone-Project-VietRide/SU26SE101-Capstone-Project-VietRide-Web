@@ -57,6 +57,7 @@ export default function KpiGrid({ summary }: KpiGridProps) {
           icon={kpi.icon}
           iconClassName={kpi.iconClassName}
         />
+
       ))}
     </div>
   );

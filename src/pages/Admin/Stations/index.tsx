@@ -96,17 +96,9 @@ export default function AdminStations() {
 
         setStations(result.items);
         setLocations(locationResult.items);
-        setSelectedStationId((currentId) => {
-          const selected =
-            result.items.find((station) => station.id === currentId) ??
-            result.items[0];
-          setForm(selected ? toForm(selected) : null);
-          setMergeTargetId(
-            result.items.find((station) => station.id !== selected?.id)?.id ??
-              "",
-          );
-          return selected?.id ?? "";
-        });
+        const selected = result.items.find((station) => station.id === selectedStationId) ?? result.items[0];
+        setSelectedStationId(selected?.id ?? "");
+        setForm(selected ? toForm(selected) : null);
       } catch (error) {
         if (!ignore) {
           setStations([]);
@@ -144,7 +136,7 @@ export default function AdminStations() {
           station.slug,
           station.addressStreet,
           station.city,
-          station.province,
+          station.ward,
         ]
           .filter(Boolean)
           .some((value) => value?.toLowerCase().includes(query));
@@ -166,9 +158,8 @@ export default function AdminStations() {
     (page - 1) * pageSize,
     page * pageSize,
   );
-  const selectedStation = stations.find(
-    (station) => station.id === selectedStationId,
-  );
+  const selectedStation = stations.find((station) => station.id === selectedStationId) ?? stations[0];
+  const editableForm = form ?? (selectedStation ? toForm(selectedStation) : null);
   const activeCount = stations.filter(
     (station) => station.isActive !== false,
   ).length;
@@ -193,7 +184,7 @@ export default function AdminStations() {
       name: form.name,
       address: form.addressStreet,
       city: form.city,
-      province: form.province,
+      ward: form.ward,
       latitude,
       longitude,
     };
@@ -262,10 +253,10 @@ export default function AdminStations() {
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
     if (
-      !form.name.trim() ||
-      !form.addressStreet.trim() ||
-      !form.city.trim() ||
-      !form.province.trim()
+      !(form.name ?? "").trim() ||
+      !(form.addressStreet ?? "").trim() ||
+      !(form.city ?? "").trim() ||
+      !(form.ward ?? "").trim()
     ) {
       setAlert({ tone: "error", message: t("stations.requiredFields") });
       return;
@@ -305,7 +296,7 @@ export default function AdminStations() {
         addressStreet: form.addressStreet.trim(),
         locationId: form.locationId || null,
         city: form.city.trim(),
-        province: form.province.trim(),
+        ward: form.ward.trim(),
         latitude,
         longitude,
         contactPhone: form.contactPhone.trim() || null,
@@ -529,7 +520,7 @@ export default function AdminStations() {
           />
         </div>
       </section>
-      {selectedStation && form && (
+      {selectedStation && editableForm && (
         <Modal
           open={openEditor}
           onClose={() => setOpenEditor(false)}
@@ -539,7 +530,7 @@ export default function AdminStations() {
           wide
         >
           <StationEditorPanel
-            form={form}
+            form={editableForm}
             locations={locations}
             selectedPlace={selectedPlace}
             customFacility={customFacility}

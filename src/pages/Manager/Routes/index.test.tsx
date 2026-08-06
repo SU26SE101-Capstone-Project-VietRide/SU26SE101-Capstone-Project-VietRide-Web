@@ -47,7 +47,7 @@ vi.mock("../../../components/PlacePicker", () => ({
       name: string;
       address: string;
       city: string;
-      province: string;
+      ward: string;
       latitude: number;
       longitude: number;
     }) => void;
@@ -60,7 +60,7 @@ vi.mock("../../../components/PlacePicker", () => ({
           name: "Bến xe Trung tâm",
           address: "1 Đường Chính",
           city: "Hồ Chí Minh",
-          province: "Hồ Chí Minh",
+          ward: "Hồ Chí Minh",
           latitude: 10.77,
           longitude: 106.69,
         })
@@ -140,7 +140,7 @@ const operatorStations: OperatorStation[] = [
       id: originStationId,
       name: "Bến A",
       city: "Hồ Chí Minh",
-      province: "Hồ Chí Minh",
+      ward: "Hồ Chí Minh",
       latitude: 10.77,
       longitude: 106.69,
     },
@@ -153,7 +153,7 @@ const operatorStations: OperatorStation[] = [
       id: destinationStationId,
       name: "Bến B",
       city: "Đà Lạt",
-      province: "Lâm Đồng",
+      ward: "Lâm Đồng",
       latitude: 11.94,
       longitude: 108.44,
     },
@@ -272,7 +272,7 @@ describe("Manager route setup workflow", () => {
         id: "station-1",
         name: "Bến xe Trung tâm",
         city: "Hồ Chí Minh",
-        province: "Hồ Chí Minh",
+        ward: "Hồ Chí Minh",
         latitude: 10.77,
         longitude: 106.69,
         supportsShuttle: true,

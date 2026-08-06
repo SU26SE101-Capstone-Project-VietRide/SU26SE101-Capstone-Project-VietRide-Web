@@ -118,11 +118,6 @@ async function fetchAdminBookingStats() {
   return getAdminBookingStatsAggregate({ from, to, groupBy: "month" });
 }
 
-function formatDateValue(value: string) {
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
-}
-
 type MetricTrend = { label: string; className: string; hint?: string };
 
 function metricTrend(
@@ -224,13 +219,7 @@ export default function AdminDashboard() {
     };
   }, []);
   const metrics = dashboardSummary;
-  const period = metrics
-    ? t("dashboard.period", {
-        from: formatDateValue(metrics.period.from),
-        to: formatDateValue(metrics.period.to),
-        timezone: metrics.period.timezone,
-      })
-    : t("dashboard.loadingPeriod");
+
   const adminKPIs = [
     {
       label: t("dashboard.totalRevenue"),
@@ -388,7 +377,6 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold text-gray-900">
             {t("dashboard.title")}
           </h1>
-          <p className="text-gray-600 mt-1">{period}</p>
         </div>
         <button
           onClick={handleRefresh}
@@ -408,6 +396,8 @@ export default function AdminDashboard() {
             value={kpi.value}
             icon={kpi.icon}
             iconClassName={kpi.iconClassName}
+            trendClassName={kpi.trend?.className}
+            trendTitle={kpi.trend?.hint}
             labelInline
           />
         ))}

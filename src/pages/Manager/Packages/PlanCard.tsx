@@ -22,6 +22,11 @@ export default function PlanCard({
 }: PlanCardProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const moduleLabels: Record<string, string> = {
+    enableParcel: t("packages.parcelModule"),
+    enableShuttle: t("packages.shuttleModule"),
+    enableRag: t("packages.ragModule"),
+  };
 
   return (
     <div className="flex flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md">
@@ -90,7 +95,7 @@ export default function PlanCard({
                   : "bg-gray-100 text-gray-500"
               }`}
             >
-              {key}
+              {moduleLabels[key] ?? key}
             </span>
           ))}
         </div>

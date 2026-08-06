@@ -46,7 +46,7 @@ export function useStopForm({
       name: stopForm.name,
       address: stopForm.address ?? "",
       city: "",
-      province: "",
+      ward: "",
       latitude: stopForm.latitude,
       longitude: stopForm.longitude,
     };

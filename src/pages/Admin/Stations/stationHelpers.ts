@@ -27,7 +27,7 @@ export type StationForm = {
   addressStreet: string;
   locationId: string;
   city: string;
-  province: string;
+  ward: string;
   latitude: string;
   longitude: string;
   contactPhone: string;
@@ -129,18 +129,18 @@ function toFacilities(value: unknown) {
 
 export function toForm(station: AdminStation): StationForm {
   return {
-    name: station.name,
+    name: station.name ?? "",
     addressStreet: station.addressStreet ?? "",
     locationId: station.locationId ?? "",
-    city: station.city,
-    province: station.province,
+    city: station.city ?? "",
+    ward: station.ward ?? "",
     latitude: String(station.latitude),
     longitude: String(station.longitude),
     contactPhone: station.contactPhone ?? "",
     contactEmail: station.contactEmail ?? "",
     operatingHours: toOperatingHoursForm(station.operatingHours),
     facilities: toFacilities(station.facilities),
-    supportsShuttle: station.supportsShuttle,
+    supportsShuttle: station.supportsShuttle ?? false,
   };
 }
 
@@ -154,7 +154,7 @@ export function applyPlaceToForm(
     name: place.name,
     addressStreet: place.address,
     city: place.city,
-    province: place.province,
+    ward: place.ward,
     latitude: String(place.latitude),
     longitude: String(place.longitude),
   };
