@@ -94,11 +94,6 @@ const operatorAdminMenuConfig: MenuSection[] = [
     titleKey: "sections.support",
     items: [
       {
-        labelKey: "manager.reports",
-        path: "/manager/reports",
-        icon: <FiBarChart2 />,
-      },
-      {
         labelKey: "manager.wallet",
         path: "/manager/wallet",
         icon: <FiDollarSign />,
@@ -108,12 +103,7 @@ const operatorAdminMenuConfig: MenuSection[] = [
         path: "/manager/settings",
         icon: <FiSettings />,
       },
-      {
-        labelKey: "manager.assistant",
-        path: "/manager/assistant",
-        icon: <FiDatabase />,
-      },
-    ],
+],
   },
 ];
 
@@ -168,21 +158,11 @@ const operatorStaffMenuConfig: MenuSection[] = [
     titleKey: "sections.support",
     items: [
       {
-        labelKey: "manager.reports",
-        path: "/manager/reports",
-        icon: <FiBarChart2 />,
-      },
-      {
         labelKey: "manager.wallet",
         path: "/manager/wallet",
         icon: <FiDollarSign />,
       },
-      {
-        labelKey: "manager.assistant",
-        path: "/manager/assistant",
-        icon: <FiDatabase />,
-      },
-    ],
+],
   },
 ];
 
@@ -237,11 +217,6 @@ const adminMenuConfig: MenuSection[] = [
     titleKey: "sections.support",
     items: [
       {
-        labelKey: "admin.revenue",
-        path: "/admin/revenue",
-        icon: <FiBarChart2 />,
-      },
-      {
         labelKey: "admin.reports",
         path: "/admin/reports",
         icon: <FiBarChart2 />,
@@ -252,12 +227,7 @@ const adminMenuConfig: MenuSection[] = [
         icon: <FiDatabase />,
       },
 
-      {
-        labelKey: "admin.assistant",
-        path: "/admin/assistant",
-        icon: <FiDatabase />,
-      },
-    ],
+],
   },
 ];
 

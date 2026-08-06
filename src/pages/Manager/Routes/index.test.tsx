@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -50,7 +56,7 @@ vi.mock("../../../components/PlacePicker", () => ({
       name: string;
       address: string;
       city: string;
-      province: string;
+      ward: string;
       latitude: number;
       longitude: number;
     }) => void;
@@ -63,7 +69,7 @@ vi.mock("../../../components/PlacePicker", () => ({
           name: "Bến xe Trung tâm",
           address: "1 Đường Chính",
           city: "Hồ Chí Minh",
-          province: "Hồ Chí Minh",
+          ward: "Hồ Chí Minh",
           latitude: 10.77,
           longitude: 106.69,
         })
@@ -298,9 +304,7 @@ describe("Manager route setup workflow", () => {
       name: "routes.searchLocation",
     });
     fireEvent.click(locationSelect);
-    fireEvent.click(
-      screen.getByRole("option", { name: "Hồ Chí Minh · HCM" }),
-    );
+    fireEvent.click(screen.getByRole("option", { name: "Hồ Chí Minh · HCM" }));
     fireEvent.click(
       screen.getByRole("checkbox", { name: /routes\.supportsShuttle/ }),
     );
@@ -426,10 +430,9 @@ describe("Manager route setup workflow", () => {
       await screen.findByText("routes.createRouteModalTitle"),
     ).toBeInTheDocument();
 
-    fireEvent.change(
-      screen.getByPlaceholderText("routes.namePlaceholder"),
-      { target: { value: "Tuyến mới" } },
-    );
+    fireEvent.change(screen.getByPlaceholderText("routes.namePlaceholder"), {
+      target: { value: "Tuyến mới" },
+    });
     fireEvent.click(
       screen.getByRole("button", { name: "routes.selectOriginStation" }),
     );
@@ -449,9 +452,7 @@ describe("Manager route setup workflow", () => {
     expect(
       await screen.findByText("routes.autoMetricsFallbackHint"),
     ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: /routes.createRoute/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /routes.createRoute/ }));
 
     const expectedDistance = Number(
       distanceKmBetween(
@@ -541,9 +542,7 @@ describe("Manager route setup workflow", () => {
           originStationId,
           destinationStationId,
           // Replace-all: gửi TOÀN BỘ stops hiện tại, orderIndex đánh lại 1..N
-          stops: [
-            expect.objectContaining({ stopId: "stop-9", orderIndex: 1 }),
-          ],
+          stops: [expect.objectContaining({ stopId: "stop-9", orderIndex: 1 })],
           // Không có polyline cục bộ → gửi manualMetrics từ form
           pathPolyline: null,
           manualMetrics: {
@@ -606,9 +605,7 @@ describe("Manager route setup workflow", () => {
         name: "Bến B · Phường Xuân Hương - Đà Lạt, Lâm Đồng",
       }),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: /routes.createRoute/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /routes.createRoute/ }));
 
     // 409 ROUTE_DUPLICATED → message + nút mở tuyến có sẵn ngay trong modal
     expect(

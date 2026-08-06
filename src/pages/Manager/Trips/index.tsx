@@ -640,7 +640,7 @@ export default function TripsPage() {
         />
         <MetricCard
           label={t("trips.availableDrivers")}
-          value={drivers.filter((driver) => driver.status === "active").length}
+          value={drivers.filter((driver) => driver.status === "active" || driver.status === "available").length}
           helper={t("trips.activeDriversHelper")}
           isLoading={isLoadingResources}
         />

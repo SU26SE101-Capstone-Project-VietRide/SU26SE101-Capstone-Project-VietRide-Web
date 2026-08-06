@@ -130,7 +130,7 @@ function toFacilities(value: unknown) {
 
 export function toForm(station: AdminStation): StationForm {
   return {
-    name: station.name,
+    name: station.name ?? "",
     addressStreet: station.addressStreet ?? "",
     locationId: station.locationId ?? "",
     city: station.city,
@@ -141,7 +141,7 @@ export function toForm(station: AdminStation): StationForm {
     contactEmail: station.contactEmail ?? "",
     operatingHours: toOperatingHoursForm(station.operatingHours),
     facilities: toFacilities(station.facilities),
-    supportsShuttle: station.supportsShuttle,
+    supportsShuttle: station.supportsShuttle ?? false,
   };
 }
 
@@ -154,10 +154,8 @@ export function applyPlaceToForm(
     ...form,
     name: place.name,
     addressStreet: place.address,
-    // PlaceSelection giữ semantics Google: province = admin_area_1 (tỉnh/TP),
-    // city = locality/ward-level → map province→city, city→ward theo contract mới
-    city: place.province || place.city,
-    ward: place.city !== place.province ? place.city : "",
+    city: place.city,
+    ward: place.ward,
     latitude: String(place.latitude),
     longitude: String(place.longitude),
   };

@@ -19,6 +19,7 @@ import {
   toExclusiveUtcDayEnd,
   toUtcDayStart,
 } from "../../utils/date";
+import { formatCurrency } from "../../utils/currency";
 
 type ReportFilters = {
   from: string;
@@ -99,16 +100,6 @@ export default function AdminReports() {
     () => new Intl.NumberFormat(i18n.language === "vi" ? "vi-VN" : "en-US"),
     [i18n.language],
   );
-  const currencyFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat(i18n.language === "vi" ? "vi-VN" : "en-US", {
-        style: "currency",
-        currency: "VND",
-        maximumFractionDigits: 0,
-      }),
-    [i18n.language],
-  );
-
   const operatorRows = report?.byOperator ?? [];
   const paginatedRows = operatorRows.slice(
     (page - 1) * pageSize,
@@ -157,17 +148,17 @@ export default function AdminReports() {
         },
         {
           label: t("reports.bookingRevenue"),
-          value: currencyFormatter.format(report.totals.bookingRevenueVnd),
+          value: formatCurrency(report.totals.bookingRevenueVnd),
           icon: <FiDollarSign />,
         },
         {
           label: t("reports.parcelRevenue"),
-          value: currencyFormatter.format(report.totals.parcelRevenueVnd),
+          value: formatCurrency(report.totals.parcelRevenueVnd),
           icon: <FiDollarSign />,
         },
         {
           label: t("reports.netRevenue"),
-          value: currencyFormatter.format(report.totals.netRevenueVnd),
+          value: formatCurrency(report.totals.netRevenueVnd),
           icon: <FiDollarSign />,
         },
       ]
@@ -348,13 +339,13 @@ export default function AdminReports() {
                         {numberFormatter.format(row.deliveredParcelCount)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm text-gray-700">
-                        {currencyFormatter.format(row.bookingRevenueVnd)}
+                        {formatCurrency(row.bookingRevenueVnd)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm text-gray-700">
-                        {currencyFormatter.format(row.parcelRevenueVnd)}
+                        {formatCurrency(row.parcelRevenueVnd)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm font-semibold text-gray-900">
-                        {currencyFormatter.format(row.netRevenueVnd)}
+                        {formatCurrency(row.netRevenueVnd)}
                       </td>
                     </tr>
                   ))}

@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  type ChangeEvent,
-  type DragEvent,
-} from "react";
+import { useEffect, useMemo, type ChangeEvent, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { FiUpload, FiX } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
@@ -369,7 +364,8 @@ export function VehicleInfoForm({
         {isCreate
           ? t("vehicles.seatLayoutApiHint")
           : t("vehicles.infoEditHint", {
-              defaultValue: "Chỉ các trường thông tin xe được thay đổi trong tab này.",
+              defaultValue:
+                "Chỉ các trường thông tin xe được thay đổi trong tab này.",
             })}
       </div>
     </div>

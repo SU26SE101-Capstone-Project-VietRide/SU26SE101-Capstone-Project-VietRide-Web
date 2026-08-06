@@ -2,7 +2,7 @@ import type { GoogleAddressComponent } from "./googleMaps";
 
 export type GoogleAddressParts = {
   city: string;
-  province: string;
+  ward: string;
 };
 
 function componentText(component: GoogleAddressComponent) {
@@ -30,18 +30,20 @@ export function extractGoogleAddressParts(
   components: GoogleAddressComponent[] | undefined,
 ): GoogleAddressParts {
   const cityComponent = findComponent(components, [
-    "locality",
-    "administrative_area_level_2",
-    "sublocality_level_1",
-  ]);
-  const provinceComponent = findComponent(components, [
     "administrative_area_level_1",
+    "locality",
+  ]);
+  const wardComponent = findComponent(components, [
+    "administrative_area_level_3",
+    "sublocality_level_1",
+    "sublocality",
+    "administrative_area_level_2",
   ]);
   const city = cityComponent ? componentText(cityComponent) : "";
-  const province = provinceComponent ? componentText(provinceComponent) : "";
+  const ward = wardComponent ? componentText(wardComponent) : "";
 
   return {
-    city: city || province,
-    province: province || city,
+    city,
+    ward,
   };
 }

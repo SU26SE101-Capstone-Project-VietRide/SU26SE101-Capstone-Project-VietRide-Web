@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import { getAuthUser } from "../auth";
+import AssistantBubble from "../components/AssistantBubble";
 
 export default function ManagerLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -32,6 +33,7 @@ export default function ManagerLayout() {
           </div>
         </main>
       </div>
+      <AssistantBubble />
     </div>
   );
 }

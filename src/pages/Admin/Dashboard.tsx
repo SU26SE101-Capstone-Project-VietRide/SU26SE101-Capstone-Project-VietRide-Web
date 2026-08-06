@@ -35,6 +35,7 @@ import {
 } from "../../api/vietride";
 import { downloadCsv } from "../../utils/csv";
 import { formatCurrency } from "../../utils/currency";
+import { StatCard } from "../../components/StatCard";
 
 import { downloadRevenueCsv } from "./revenueCsv";
 type BookingChartPoint = {
@@ -115,11 +116,6 @@ function mapDashboardChart(
 async function fetchAdminBookingStats() {
   const { from, to } = currentYearRange();
   return getAdminBookingStatsAggregate({ from, to, groupBy: "month" });
-}
-
-function formatDateValue(value: string) {
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
 }
 
 type MetricTrend = { label: string; className: string; hint?: string };
@@ -223,13 +219,7 @@ export default function AdminDashboard() {
     };
   }, []);
   const metrics = dashboardSummary;
-  const period = metrics
-    ? t("dashboard.period", {
-        from: formatDateValue(metrics.period.from),
-        to: formatDateValue(metrics.period.to),
-        timezone: metrics.period.timezone,
-      })
-    : t("dashboard.loadingPeriod");
+
   const adminKPIs = [
     {
       label: t("dashboard.totalRevenue"),
@@ -245,6 +235,7 @@ export default function AdminDashboard() {
           )
         : null,
       icon: <FiDollarSign className="w-6 h-6" />,
+      iconClassName: "bg-emerald-50 text-emerald-700",
     },
     {
       label: t("dashboard.activeOperators"),
@@ -262,6 +253,7 @@ export default function AdminDashboard() {
           )
         : null,
       icon: <FiTruck className="w-6 h-6" />,
+      iconClassName: "bg-blue-50 text-blue-700",
     },
     {
       label: t("dashboard.activeUsers"),
@@ -279,6 +271,7 @@ export default function AdminDashboard() {
           )
         : null,
       icon: <FiUsers className="w-6 h-6" />,
+      iconClassName: "bg-violet-50 text-violet-700",
     },
     {
       label: t("dashboard.periodBookings"),
@@ -294,6 +287,7 @@ export default function AdminDashboard() {
           )
         : null,
       icon: <FiBarChart2 className="w-6 h-6" />,
+      iconClassName: "bg-amber-50 text-amber-700",
     },
   ];
 
@@ -383,10 +377,6 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold text-gray-900">
             {t("dashboard.title")}
           </h1>
-          <p className="text-gray-600 mt-1">{period}</p>
-          <p className="mt-1 text-xs text-gray-500">
-            {t("dashboard.comparisonNote")}
-          </p>
         </div>
         <button
           onClick={handleRefresh}
@@ -398,27 +388,20 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {adminKPIs.map((kpi) => (
-          <div
+          <StatCard
             key={kpi.label}
-            className="p-4 bg-white border border-gray-200 rounded-xl hover:shadow-md transition"
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div className="text-vr-600">{kpi.icon}</div>
-              <span
-                className={`text-xs font-semibold ${kpi.trend?.className ?? "text-gray-400"}`}
-                title={kpi.trend?.hint}
-              >
-                {kpi.trend?.label ?? "-"}
-              </span>
-            </div>
-            <p className="text-gray-600 text-xs mb-1">{kpi.label}</p>
-            <p className="text-2xl font-bold text-gray-900">{kpi.value}</p>
-          </div>
+            label={kpi.label}
+            value={kpi.value}
+            icon={kpi.icon}
+            iconClassName={kpi.iconClassName}
+            trendClassName={kpi.trend?.className}
+            trendTitle={kpi.trend?.hint}
+            labelInline
+          />
         ))}
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -602,49 +585,47 @@ export default function AdminDashboard() {
                     ? (item.revenue / totalOperatorRevenue) * 100
                     : 0;
                 const color =
-                  operatorRevenueColors[
-                    index % operatorRevenueColors.length
-                  ];
+                  operatorRevenueColors[index % operatorRevenueColors.length];
 
                 return (
-                    <div
-                      key={item.operator}
-                      className="rounded-lg border border-gray-200 px-4 py-3"
-                    >
-                      <div className="flex min-w-0 items-start justify-between gap-4">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span
-                            className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: color }}
-                          />
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-gray-900">
-                              {item.operator}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {t("dashboard.revenueShare", {
-                                value: percentage.toLocaleString("vi-VN", {
-                                  maximumFractionDigits: 1,
-                                }),
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                        <strong className="shrink-0 text-sm text-gray-900">
-                          {formatCurrency(item.revenue)}
-                        </strong>
-                      </div>
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            backgroundColor: color,
-                            width: `${Math.max(percentage, 2)}%`,
-                          }}
+                  <div
+                    key={item.operator}
+                    className="rounded-lg border border-gray-200 px-4 py-3"
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: color }}
                         />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-gray-900">
+                            {item.operator}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {t("dashboard.revenueShare", {
+                              value: percentage.toLocaleString("vi-VN", {
+                                maximumFractionDigits: 1,
+                              }),
+                            })}
+                          </p>
+                        </div>
                       </div>
+                      <strong className="shrink-0 text-sm text-gray-900">
+                        {formatCurrency(item.revenue)}
+                      </strong>
                     </div>
-                  );
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          backgroundColor: color,
+                          width: `${Math.max(percentage, 2)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
               })}
             </div>
           </div>

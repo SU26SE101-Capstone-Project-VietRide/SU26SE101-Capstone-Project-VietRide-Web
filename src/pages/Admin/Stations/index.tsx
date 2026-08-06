@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiRefreshCw, FiSearch } from "react-icons/fi";
+import {
+  FiCheckCircle,
+  FiGitMerge,
+  FiMapPin,
+  FiPower,
+  FiRefreshCw,
+  FiSearch,
+  FiTruck,
+} from "react-icons/fi";
 import {
   getAdminLocations,
   getAdminStations,
@@ -10,6 +18,9 @@ import {
   type AdminStation,
 } from "../../../api/vietride";
 import { type PlaceSelection } from "../../../components/PlacePicker";
+import { StatCard } from "../../../components/StatCard";
+import Modal from "../../../components/Modal";
+import CustomSelect from "../../../components/CustomSelect";
 import StationEditorPanel from "./StationEditorPanel";
 import StationMergePanel from "./StationMergePanel";
 import StationTable from "./StationTable";
@@ -38,7 +49,15 @@ export default function AdminStations() {
   const [stations, setStations] = useState<AdminStation[]>([]);
   const [locations, setLocations] = useState<AdminLocation[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<
+    "ALL" | "ACTIVE" | "INACTIVE"
+  >("ALL");
+  const [filterType, setFilterType] = useState<
+    "ALL" | "SHUTTLE" | "NON_SHUTTLE"
+  >("ALL");
   const [selectedStationId, setSelectedStationId] = useState("");
+  const [openEditor, setOpenEditor] = useState(false);
+  const [openMerge, setOpenMerge] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [form, setForm] = useState<StationForm | null>(null);
   const [customFacility, setCustomFacility] = useState("");
@@ -77,17 +96,11 @@ export default function AdminStations() {
 
         setStations(result.items);
         setLocations(locationResult.items);
-        setSelectedStationId((currentId) => {
-          const selected =
-            result.items.find((station) => station.id === currentId) ??
-            result.items[0];
-          setForm(selected ? toForm(selected) : null);
-          setMergeTargetId(
-            result.items.find((station) => station.id !== selected?.id)?.id ??
-              "",
-          );
-          return selected?.id ?? "";
-        });
+        const selected =
+          result.items.find((station) => station.id === selectedStationId) ??
+          result.items[0];
+        setSelectedStationId(selected?.id ?? "");
+        setForm(selected ? toForm(selected) : null);
       } catch (error) {
         if (!ignore) {
           setStations([]);
@@ -116,34 +129,48 @@ export default function AdminStations() {
 
   const filteredStations = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) {
-      return stations;
-    }
 
-    return stations.filter((station) =>
-      [
-        station.name,
-        station.slug,
-        station.addressStreet,
-        station.city,
-        station.ward,
-      ]
-        .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(query)),
-    );
-  }, [searchTerm, stations]);
+    return stations.filter((station) => {
+      const matchesSearch =
+        !query ||
+        [
+          station.name,
+          station.slug,
+          station.addressStreet,
+          station.city,
+          station.ward,
+        ]
+          .filter(Boolean)
+          .some((value) => value?.toLowerCase().includes(query));
+      const matchesStatus =
+        filterStatus === "ALL" ||
+        (filterStatus === "ACTIVE"
+          ? station.isActive !== false
+          : station.isActive === false);
+      const matchesType =
+        filterType === "ALL" ||
+        (filterType === "SHUTTLE"
+          ? station.supportsShuttle
+          : !station.supportsShuttle);
 
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [filterStatus, filterType, searchTerm, stations]);
   const paginatedStations = filteredStations.slice(
     (page - 1) * pageSize,
     page * pageSize,
   );
-  const selectedStation = stations.find(
-    (station) => station.id === selectedStationId,
-  );
+  const selectedStation =
+    stations.find((station) => station.id === selectedStationId) ?? stations[0];
+  const editableForm =
+    form ?? (selectedStation ? toForm(selectedStation) : null);
   const activeCount = stations.filter(
     (station) => station.isActive !== false,
   ).length;
   const inactiveCount = stations.length - activeCount;
+  const shuttleCount = stations.filter(
+    (station) => station.supportsShuttle,
+  ).length;
 
   const selectedPlace = useMemo<PlaceSelection | null>(() => {
     if (!form) {
@@ -160,9 +187,8 @@ export default function AdminStations() {
       placeId: selectedStationId || `${latitude},${longitude}`,
       name: form.name,
       address: form.addressStreet,
-      // PlaceSelection semantics: province = tỉnh/TP (form.city), city = ward-level
-      city: form.ward,
-      province: form.city,
+      city: form.city,
+      ward: form.ward,
       latitude,
       longitude,
     };
@@ -174,6 +200,16 @@ export default function AdminStations() {
     setMergeTargetId(stations.find((item) => item.id !== station.id)?.id ?? "");
     setCustomFacility("");
     setAlert(null);
+  }
+
+  function openStationEditor(station: AdminStation) {
+    selectStation(station);
+    setOpenEditor(true);
+  }
+
+  function openStationMerge(station: AdminStation) {
+    selectStation(station);
+    setOpenMerge(true);
   }
 
   function applyPlace(place: PlaceSelection) {
@@ -220,11 +256,7 @@ export default function AdminStations() {
 
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
-    if (
-      !form.name.trim() ||
-      !form.addressStreet.trim() ||
-      !form.city.trim()
-    ) {
+    if (!form.name.trim() || !form.addressStreet.trim() || !form.city.trim()) {
       setAlert({ tone: "error", message: t("stations.requiredFields") });
       return;
     }
@@ -263,8 +295,7 @@ export default function AdminStations() {
         addressStreet: form.addressStreet.trim(),
         locationId: form.locationId || null,
         city: form.city.trim(),
-        // BE không nhận ward rỗng; null = giữ nguyên giá trị hiện tại (legacy row)
-        ward: form.ward.trim() || null,
+        ward: form.ward.trim(),
         latitude,
         longitude,
         contactPhone: form.contactPhone.trim() || null,
@@ -279,6 +310,7 @@ export default function AdminStations() {
         ),
       );
       setForm(toForm(updated));
+      setOpenEditor(false);
       setAlert({
         tone: "success",
         message: t("stations.savedMessage", { station: updated.name }),
@@ -368,6 +400,7 @@ export default function AdminStations() {
           count: relinkedTotal,
         }),
       });
+      setOpenMerge(false);
       setReloadKey((value) => value + 1);
     } catch (error) {
       setAlert({
@@ -400,56 +433,78 @@ export default function AdminStations() {
           {tc("refresh")}
         </button>
       </header>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-600">{t("stations.totalStations")}</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">
-            {stations.length}
-          </p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-600">
-            {t("stations.activeStations")}
-          </p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">
-            {activeCount}
-          </p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-600">
-            {t("stations.inactiveStations")}
-          </p>
-          <p className="mt-1 text-2xl font-bold text-slate-700">
-            {inactiveCount}
-          </p>
-        </div>
-      </section>
-
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={<FiMapPin size={20} />}
+          label={t("stations.totalStations")}
+          value={stations.length}
+          iconClassName="bg-vr-50 text-vr-700"
+        />
+        <StatCard
+          icon={<FiCheckCircle size={20} />}
+          label={t("stations.activeStations")}
+          value={activeCount}
+          iconClassName="bg-emerald-50 text-emerald-700"
+        />
+        <StatCard
+          icon={<FiPower size={20} />}
+          label={t("stations.inactiveStations")}
+          value={inactiveCount}
+          iconClassName="bg-slate-100 text-slate-700"
+        />
+        <StatCard
+          icon={<FiTruck size={20} />}
+          label={t("stations.shuttleStations")}
+          value={shuttleCount}
+          iconClassName="bg-blue-50 text-blue-700"
+        />
+      </div>
       <section className="space-y-5">
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-          <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                {t("stations.registry")}
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                {t("stations.registryHint")}
-              </p>
-            </div>
-            <div className="relative min-w-72">
-              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={searchTerm}
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-100 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative min-w-0 flex-1">
+                <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={searchTerm}
+                  onChange={(event) => {
+                    setSearchTerm(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder={t("stations.searchPlaceholder")}
+                  className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
+                />
+              </div>
+              <CustomSelect
+                value={filterStatus}
                 onChange={(event) => {
-                  setSearchTerm(event.target.value);
+                  setFilterStatus(event.target.value as typeof filterStatus);
                   setPage(1);
                 }}
-                placeholder={t("stations.searchPlaceholder")}
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
-              />
+                aria-label={t("stations.allStatuses")}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 lg:w-48"
+              >
+                <option value="ALL">{t("stations.allStatuses")}</option>
+                <option value="ACTIVE">{tc("active")}</option>
+                <option value="INACTIVE">{tc("inactive")}</option>
+              </CustomSelect>
+              <CustomSelect
+                value={filterType}
+                onChange={(event) => {
+                  setFilterType(event.target.value as typeof filterType);
+                  setPage(1);
+                }}
+                aria-label={t("stations.allVehicleTypes")}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 lg:w-56"
+              >
+                <option value="ALL">{t("stations.allVehicleTypes")}</option>
+                <option value="SHUTTLE">{t("stations.shuttleVehicle")}</option>
+                <option value="NON_SHUTTLE">
+                  {t("stations.nonShuttleVehicle")}
+                </option>
+              </CustomSelect>
             </div>
-          </div>
+          </div>{" "}
           <StationTable
             stations={paginatedStations}
             isLoading={isLoading}
@@ -458,40 +513,57 @@ export default function AdminStations() {
             pageSize={pageSize}
             totalItems={filteredStations.length}
             onPageChange={setPage}
-            onSelect={selectStation}
+            onEdit={openStationEditor}
+            onMerge={openStationMerge}
             onToggle={(station) => void toggleStation(station)}
           />
         </div>
-
-        {selectedStation && form && (
-          <aside className="grid gap-5 lg:grid-cols-2">
-            <StationEditorPanel
-              form={form}
-              locations={locations}
-              selectedPlace={selectedPlace}
-              customFacility={customFacility}
-              alert={alert}
-              isSaving={isSaving}
-              onFormChange={setForm}
-              onApplyPlace={applyPlace}
-              onUpdateOperatingDay={updateOperatingDay}
-              onToggleFacility={toggleFacility}
-              onRemoveFacility={removeFacility}
-              onAddCustomFacility={addCustomFacility}
-              onCustomFacilityChange={setCustomFacility}
-              onSave={() => void saveStation()}
-            />
-            <StationMergePanel
-              selectedStation={selectedStation}
-              stations={stations}
-              mergeTargetId={mergeTargetId}
-              isSaving={isSaving}
-              onMergeTargetChange={setMergeTargetId}
-              onMerge={() => void mergeStation()}
-            />
-          </aside>
-        )}
       </section>
+      {selectedStation && editableForm && (
+        <Modal
+          open={openEditor}
+          onClose={() => setOpenEditor(false)}
+          title={t("stations.normalizeTitle")}
+          subtitle={t("stations.registryHint")}
+          icon={<FiMapPin size={20} />}
+          wide
+        >
+          <StationEditorPanel
+            form={editableForm}
+            locations={locations}
+            selectedPlace={selectedPlace}
+            customFacility={customFacility}
+            alert={alert}
+            isSaving={isSaving}
+            onFormChange={setForm}
+            onApplyPlace={applyPlace}
+            onUpdateOperatingDay={updateOperatingDay}
+            onToggleFacility={toggleFacility}
+            onRemoveFacility={removeFacility}
+            onAddCustomFacility={addCustomFacility}
+            onCustomFacilityChange={setCustomFacility}
+            onSave={() => void saveStation()}
+          />
+        </Modal>
+      )}
+      {selectedStation && (
+        <Modal
+          open={openMerge}
+          onClose={() => setOpenMerge(false)}
+          title={t("stations.mergeTitle")}
+          subtitle={t("stations.mergeHint")}
+          icon={<FiGitMerge size={20} />}
+        >
+          <StationMergePanel
+            selectedStation={selectedStation}
+            stations={stations}
+            mergeTargetId={mergeTargetId}
+            isSaving={isSaving}
+            onMergeTargetChange={setMergeTargetId}
+            onMerge={() => void mergeStation()}
+          />
+        </Modal>
+      )}{" "}
     </div>
   );
 }

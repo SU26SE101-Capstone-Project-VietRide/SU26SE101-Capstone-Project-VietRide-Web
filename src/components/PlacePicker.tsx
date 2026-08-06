@@ -26,7 +26,7 @@ export type PlaceSelection = {
   name: string;
   address: string;
   city: string;
-  province: string;
+  ward: string;
   latitude: number;
   longitude: number;
 };
@@ -89,7 +89,7 @@ function placeToSelection(
     name,
     address,
     city: addressParts.city,
-    province: addressParts.province,
+    ward: addressParts.ward,
     latitude: coordinate.latitude,
     longitude: coordinate.longitude,
   } satisfies PlaceSelection;
@@ -110,7 +110,7 @@ function geocoderResultToSelection(
     name,
     address,
     city: addressParts.city,
-    province: addressParts.province,
+    ward: addressParts.ward,
     latitude,
     longitude,
   } satisfies PlaceSelection;

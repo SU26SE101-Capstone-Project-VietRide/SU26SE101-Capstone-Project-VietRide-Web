@@ -100,19 +100,13 @@ export function monthLabel(monthKey: string) {
 }
 
 export function formatCompactMoney(value: number) {
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(1)}B`;
-  }
-
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-
-  return value.toLocaleString("vi-VN");
+  return `${value.toLocaleString("vi-VN")} ₫`;
 }
 
 export function statusColor(key: string, index: number) {
   const normalized = key.toUpperCase();
+  if (normalized.includes("EXPIRED")) return "#f97316";
+  if (normalized.includes("REJECT")) return "#dc2626";
   if (normalized.includes("CANCEL") || normalized.includes("FAIL")) return "#ef4444";
   if (normalized.includes("DELIVER") || normalized.includes("COMPLETE")) return "#10b981";
   if (normalized.includes("TRANSIT") || normalized.includes("LOADED")) return "#0ea5e9";

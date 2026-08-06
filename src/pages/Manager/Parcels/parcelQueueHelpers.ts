@@ -74,7 +74,9 @@ export function statusTone(item: OperatorParcelListItem) {
   if (needsAction(item)) return "bg-amber-50 text-amber-700 ring-amber-200";
   if (["DELIVERY_CONFIRMED", "RETURNED"].includes(item.status))
     return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-  if (["CANCELLED", "REJECTED", "EXPIRED"].includes(item.status))
+  if (["CANCELLED", "REJECTED"].includes(item.status))
+    return "bg-red-50 text-red-700 ring-red-200";
+  if (item.status === "EXPIRED")
     return "bg-gray-100 text-gray-600 ring-gray-200";
   return "bg-blue-50 text-blue-700 ring-blue-200";
 }

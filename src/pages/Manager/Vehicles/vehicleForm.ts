@@ -64,9 +64,7 @@ function toBoundedPositiveInteger(
   maximum: number,
 ) {
   const next = Math.floor(Number(value));
-  return Number.isFinite(next) && next > 0
-    ? Math.min(next, maximum)
-    : fallback;
+  return Number.isFinite(next) && next > 0 ? Math.min(next, maximum) : fallback;
 }
 
 export function toSeatLayoutOptions(form: VehicleForm) {
@@ -86,11 +84,7 @@ export function toSeatLayoutOptions(form: VehicleForm) {
   );
 
   return {
-    deckCount: toBoundedPositiveInteger(
-      form.deckCount,
-      1,
-      MAX_VEHICLE_DECKS,
-    ),
+    deckCount: toBoundedPositiveInteger(form.deckCount, 1, MAX_VEHICLE_DECKS),
     rowsPerDeck: toBoundedPositiveInteger(
       form.rowsPerDeck,
       10,
@@ -99,11 +93,7 @@ export function toSeatLayoutOptions(form: VehicleForm) {
     columnsPerRow,
     aisleAfterCol,
     seatPrefix,
-    totalSeats: toBoundedPositiveInteger(
-      form.totalSeats,
-      1,
-      MAX_VEHICLE_SEATS,
-    ),
+    totalSeats: toBoundedPositiveInteger(form.totalSeats, 1, MAX_VEHICLE_SEATS),
   };
 }
 
@@ -122,31 +112,28 @@ export function createDecks(form: VehicleForm): VehicleDeck[] {
       0,
       Math.min(seatsPerDeck, totalSeats - firstSeatIndex),
     );
-    const seats = Array.from(
-      { length: deckSeatCount },
-      (_, seatIndex) => {
-        const row = Math.floor(seatIndex / options.columnsPerRow) + 1;
-        const col = (seatIndex % options.columnsPerRow) + 1;
-        const number = seatIndex + 1;
+    const seats = Array.from({ length: deckSeatCount }, (_, seatIndex) => {
+      const row = Math.floor(seatIndex / options.columnsPerRow) + 1;
+      const col = (seatIndex % options.columnsPerRow) + 1;
+      const number = seatIndex + 1;
 
-        const isAisle =
-          col === options.aisleAfterCol || col === options.aisleAfterCol + 1;
+      const isAisle =
+        col === options.aisleAfterCol || col === options.aisleAfterCol + 1;
 
-        return {
-          seatNumber:
-            options.deckCount > 1
-              ? `${options.seatPrefix}${deckIndex + 1}-${number}`
-              : `${options.seatPrefix}${number}`,
-          row,
-          col,
-          deck: deckIndex + 1,
-          type: "STANDARD" as VehicleSeatType,
-          isWindow: col === 1 || col === options.columnsPerRow,
-          isAisle,
-          disabled: false,
-        };
-      },
-    );
+      return {
+        seatNumber:
+          options.deckCount > 1
+            ? `${options.seatPrefix}${deckIndex + 1}-${number}`
+            : `${options.seatPrefix}${number}`,
+        row,
+        col,
+        deck: deckIndex + 1,
+        type: "STANDARD" as VehicleSeatType,
+        isWindow: col === 1 || col === options.columnsPerRow,
+        isAisle,
+        disabled: false,
+      };
+    });
 
     return { deck: deckIndex + 1, seats };
   }).filter((deck) => deck.seats.length > 0);
@@ -185,7 +172,10 @@ export function createVehicleFormForType(
   );
   const columnsPerRow = Math.min(
     MAX_COLUMNS_PER_ROW,
-    Math.max(Math.min(4, totalSeats), Math.ceil(totalSeats / MAX_ROWS_PER_DECK)),
+    Math.max(
+      Math.min(4, totalSeats),
+      Math.ceil(totalSeats / MAX_ROWS_PER_DECK),
+    ),
   );
   const rowsPerDeck = Math.ceil(totalSeats / columnsPerRow);
 
@@ -207,11 +197,7 @@ export function updateVehicleFormValue(
 ) {
   const nextForm = { ...form, [key]: value };
 
-  if (
-    key !== "deckCount" &&
-    key !== "rowsPerDeck" &&
-    key !== "columnsPerRow"
-  ) {
+  if (key !== "deckCount" && key !== "rowsPerDeck" && key !== "columnsPerRow") {
     return nextForm;
   }
 
@@ -233,10 +219,7 @@ export function updateVehicleFormValue(
   return {
     ...nextForm,
     totalSeats: String(
-      Math.min(
-        deckCount * rowsPerDeck * columnsPerRow,
-        MAX_VEHICLE_SEATS,
-      ),
+      Math.min(deckCount * rowsPerDeck * columnsPerRow, MAX_VEHICLE_SEATS),
     ),
   };
 }
@@ -256,7 +239,9 @@ function groupSeatsByDeck(seats: VehicleSeat[]): VehicleDeck[] {
     .sort((left, right) => left.deck - right.deck);
 }
 
-export function parseSeatLayoutDecks(layout: OperatorVehicle["seatLayoutJson"]) {
+export function parseSeatLayoutDecks(
+  layout: OperatorVehicle["seatLayoutJson"],
+) {
   if (!layout) {
     return [];
   }

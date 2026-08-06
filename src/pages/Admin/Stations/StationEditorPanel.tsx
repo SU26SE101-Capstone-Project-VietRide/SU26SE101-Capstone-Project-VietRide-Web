@@ -95,23 +95,22 @@ export default function StationEditorPanel({
             </CustomSelect>
           </label>
           <label>
+            <span className={labelClass}>{t("stations.ward")}</span>
+            <input
+              className={inputClass}
+              value={form.ward}
+              onChange={(event) =>
+                onFormChange({ ...form, ward: event.target.value })
+              }
+            />
+          </label>
+          <label>
             <span className={labelClass}>{t("stations.city")}</span>
             <input
               className={inputClass}
               value={form.city}
               onChange={(event) =>
                 onFormChange({ ...form, city: event.target.value })
-              }
-            />
-          </label>
-          <label>
-            <span className={labelClass}>{t("stations.ward")}</span>
-            <input
-              className={inputClass}
-              value={form.ward}
-              placeholder="—"
-              onChange={(event) =>
-                onFormChange({ ...form, ward: event.target.value })
               }
             />
           </label>

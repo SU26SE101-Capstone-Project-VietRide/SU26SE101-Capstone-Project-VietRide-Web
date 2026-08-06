@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { FiEdit2, FiEye, FiTrash2 } from "react-icons/fi";
 import type { AdminVoucher } from "../../../api/vietride";
@@ -12,6 +13,7 @@ import {
 } from "./voucherHelpers";
 
 type VoucherTableProps = {
+  toolbar: ReactNode;
   vouchers: AdminVoucher[];
   page: number;
   pageSize: number;
@@ -25,6 +27,7 @@ type VoucherTableProps = {
 };
 
 export default function VoucherTable({
+  toolbar,
   vouchers,
   page,
   pageSize,
@@ -41,6 +44,8 @@ export default function VoucherTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-100 p-4">{toolbar}</div>
+      <div className="overflow-hidden px-2">
       <table className="w-full table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
         <colgroup>
           <col className="w-[10%]" />
@@ -189,6 +194,7 @@ export default function VoucherTable({
           })}
         </tbody>
       </table>
+      </div>
       <Pagination
         page={page}
         pageSize={pageSize}

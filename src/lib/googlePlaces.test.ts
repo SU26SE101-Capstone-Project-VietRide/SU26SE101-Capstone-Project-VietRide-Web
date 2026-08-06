@@ -17,8 +17,8 @@ describe("extractGoogleAddressParts", () => {
         },
       ]),
     ).toEqual({
-      city: "Thành phố Thủ Đức",
-      province: "Thành phố Hồ Chí Minh",
+      city: "Thành phố Hồ Chí Minh",
+      ward: "Thành phố Thủ Đức",
     });
   });
 
@@ -38,7 +38,7 @@ describe("extractGoogleAddressParts", () => {
       ]),
     ).toEqual({
       city: "Đà Lạt",
-      province: "Lâm Đồng",
+      ward: "",
     });
   });
 
@@ -52,7 +52,7 @@ describe("extractGoogleAddressParts", () => {
       ]),
     ).toEqual({
       city: "Khánh Hòa",
-      province: "Khánh Hòa",
+      ward: "",
     });
   });
 });
