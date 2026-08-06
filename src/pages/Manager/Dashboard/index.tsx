@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -28,7 +29,6 @@ import {
   errorMessage,
   mapDashboardChart,
   mapShipment,
-  previousMonth,
   statusColor,
   sumStats,
   vehicleId,
@@ -39,6 +39,22 @@ import {
   type RevenueChartPoint,
   type Shipment,
 } from "./dashboardHelpers";
+
+function revenueMonthOptions() {
+  const now = new Date();
+  return Array.from({ length: 12 }, (_, offset) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return { value: `${year}-${month}`, label: `${month}/${year}` };
+  });
+}
+
+function previousMonthOf(monthValue: string) {
+  const [year, month] = monthValue.split("-").map(Number);
+  const date = new Date(year, month - 2, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
 
 export default function ManagerDashboard() {
   const { t } = useTranslation("manager");
@@ -52,6 +68,8 @@ export default function ManagerDashboard() {
   const role = getAuthUser()?.role;
   const isOperatorAdmin = role === "OPERATOR_ADMIN";
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRevenueMonth, setSelectedRevenueMonth] = useState(currentMonth);
+  const revenueMonths = useMemo(() => revenueMonthOptions(), []);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueChartPoint[]>([]);
   const [parcelStatusData, setParcelStatusData] = useState<ParcelStatusPoint[]>([]);
@@ -113,8 +131,8 @@ export default function ManagerDashboard() {
       });
       bookingItems = bookingStats.items;
       const monthlyStats = aggregateBookingStats(bookingItems);
-      const thisMonthStats = monthlyStats.get(currentMonth());
-      const lastMonthStats = monthlyStats.get(previousMonth());
+      const thisMonthStats = monthlyStats.get(selectedRevenueMonth);
+      const lastMonthStats = monthlyStats.get(previousMonthOf(selectedRevenueMonth));
 
       setRevenueData(mapDashboardChart(bookingItems));
       setSummary((current) => ({
@@ -166,7 +184,7 @@ export default function ManagerDashboard() {
       const { from, to } = currentYearRange();
 
       try {
-        const analytics = await getOperatorRevenueAnalytics(currentMonth());
+        const analytics = await getOperatorRevenueAnalytics(selectedRevenueMonth);
         routePerformance = analytics.routePerformance;
         setRevenueData(mapDashboardChart(bookingItems, analytics.monthly));
         setSummary((current) => ({
@@ -288,7 +306,7 @@ export default function ManagerDashboard() {
     }
 
     setIsLoading(false);
-  }, [appendError, isOperatorAdmin]);
+  }, [appendError, isOperatorAdmin, selectedRevenueMonth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -343,17 +361,9 @@ export default function ManagerDashboard() {
     );
   };
 
+  useToastFeedback({ error: loadErrors[0] ?? "" });
   return (
     <div className="space-y-6 pb-4">
-      {loadErrors.length > 0 && (
-        <div
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-        >
-          <p className="font-medium">{t("dashboard.someDataFailed")}</p>
-          <p className="mt-1">{loadErrors.join(" | ")}</p>
-        </div>
-      )}
 
       {!isOperatorAdmin && (
         <div
@@ -369,20 +379,37 @@ export default function ManagerDashboard() {
           <h1 className="text-3xl font-bold text-gray-900">{t("dashboard.title")}</h1>
           <p className="mt-1 text-gray-600">
             {t("dashboard.periodContext", {
-              month: new Date().getMonth() + 1,
-              year: new Date().getFullYear(),
+              month: Number(selectedRevenueMonth.slice(5, 7)),
+              year: Number(selectedRevenueMonth.slice(0, 4)),
             })}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void handleRefresh()}
-          disabled={isLoading}
-          className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-white transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <FiRefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
-          {tc("refresh")}
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {isOperatorAdmin && (
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <span className="whitespace-nowrap">{t("dashboard.revenueMonth")}</span>
+              <select
+                value={selectedRevenueMonth}
+                onChange={(event) => setSelectedRevenueMonth(event.target.value)}
+                className="cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-medium text-gray-800 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+                aria-label={t("dashboard.revenueMonth")}
+              >
+                {revenueMonths.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={isLoading}
+            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-white transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FiRefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
+            {tc("refresh")}
+          </button>
+        </div>
       </div>
 
       <KpiGrid summary={summary} />
@@ -391,7 +418,7 @@ export default function ManagerDashboard() {
         <RevenueChart
           data={revenueData}
           isLoading={isLoading}
-          onViewAll={() => navigate("/manager/reports")}
+
         />
 
         <ParcelStatusChart

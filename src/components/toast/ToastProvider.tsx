@@ -67,12 +67,18 @@ export default function ToastProvider({ children }: ToastProviderProps) {
 
   const push = useCallback(
     (tone: ToastTone, message: string) => {
+      const content = message.trim()
+        ? message
+        : tone === "error"
+          ? "Đã xảy ra lỗi, vui lòng thử lại."
+          : "Thao tác đã hoàn tất.";
+
       nextIdRef.current += 1;
       const id = nextIdRef.current;
       // Vượt MAX_TOASTS thì cắt cái cũ nhất; timer mồ côi của nó tự nổ
       // thành no-op trong dismiss nên không cần dọn tay ở đây.
       setToasts((current) =>
-        [...current, { id, tone, message }].slice(-MAX_TOASTS),
+        [...current, { id, tone, message: content }].slice(-MAX_TOASTS),
       );
       startTimer(id);
     },

@@ -1,11 +1,14 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  FiDownload,
+  FiActivity,
   FiEye,
+  FiKey,
   FiMail,
   FiPlus,
   FiSearch,
+  FiTruck,
   FiUser,
   FiUsers,
 } from "react-icons/fi";
@@ -25,9 +28,9 @@ import {
   normalizeVietnamPhoneForApi,
 } from "../../../utils/phone";
 import CustomSelect from "../../../components/CustomSelect";
-import Pagination from "../../../components/Pagination";
-import { downloadCsv } from "../../../utils/csv";
+import { PersonnelTable } from "../../../components/PersonnelTable";
 import { labelClass } from "../../../components/form/formClasses";
+import { StatCard } from "../../../components/StatCard";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -40,13 +43,6 @@ const emptyUserForm: CreateOperatorUserRequest = {
   phone: "",
   role: "OPERATOR_STAFF",
 };
-
-// Label/description là key i18n namespace manager, dịch tại nơi render
-const staffGroups = [
-  { key: "ALL", labelKey: "staff.groupAll" },
-  { key: "FIELD", labelKey: "staff.groupField" },
-  { key: "OPS", labelKey: "staff.groupOps" },
-] as const;
 
 const roleOptions: Array<{
   value: AdminUserRole;
@@ -78,14 +74,6 @@ function getUserId(user: Pick<OperatorUser, "userId"> & { id?: string }) {
   return user.userId || user.id || "";
 }
 
-function isFieldRole(role: AdminUserRole) {
-  return role === "DRIVER" || role === "ASSISTANT";
-}
-
-function isOpsRole(role: AdminUserRole) {
-  return role === "OPERATOR_ADMIN" || role === "OPERATOR_STAFF";
-}
-
 export default function StaffPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -96,8 +84,6 @@ export default function StaffPage() {
   });
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [activeGroup, setActiveGroup] =
-    useState<(typeof staffGroups)[number]["key"]>("ALL");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [openAdd, setOpenAdd] = useState(false);
@@ -161,32 +147,13 @@ export default function StaffPage() {
         const matchesSearch =
           user.displayName.toLowerCase().includes(search.toLowerCase()) ||
           user.email.toLowerCase().includes(search.toLowerCase());
-        const matchesGroup =
-          activeGroup === "ALL" ||
-          (activeGroup === "FIELD" && isFieldRole(user.role)) ||
-          (activeGroup === "OPS" && isOpsRole(user.role));
         const matchesRole = !roleFilter || user.role === roleFilter;
         const matchesStatus = !statusFilter || user.status === statusFilter;
 
-        return matchesSearch && matchesGroup && matchesRole && matchesStatus;
+        return matchesSearch && matchesRole && matchesStatus;
       }),
-    [activeGroup, roleFilter, search, statusFilter, users],
+    [roleFilter, search, statusFilter, users],
   );
-
-
-  function handleExportCsv() {
-    downloadCsv(
-      "staff.csv",
-      [tc("name"), tc("email"), tc("phone"), t("staff.role"), tc("status")],
-      filtered.map((user) => [
-        user.displayName,
-        user.email,
-        user.phone,
-        roleLabel(user.role),
-        user.status,
-      ]),
-    );
-  }
   function roleLabel(role: AdminUserRole) {
     const roleOption = roleOptions.find((option) => option.value === role);
 
@@ -227,7 +194,9 @@ export default function StaffPage() {
       setOpenAdd(false);
       setMessage(t("staff.createInitialPasswordSuccess"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("staff.createUserFailed"));
+      setError(
+        err instanceof Error ? err.message : t("staff.createUserFailed"),
+      );
     }
   }
 
@@ -243,10 +212,14 @@ export default function StaffPage() {
     setMessage("");
     try {
       await resendInitialPassword(userId);
-      setMessage(t("staff.resendInitialPasswordSuccess", { email: user.email }));
+      setMessage(
+        t("staff.resendInitialPasswordSuccess", { email: user.email }),
+      );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : t("staff.resendInitialPasswordFailed"),
+        err instanceof Error
+          ? err.message
+          : t("staff.resendInitialPasswordFailed"),
       );
     }
   }
@@ -268,6 +241,7 @@ export default function StaffPage() {
     setUserForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -289,234 +263,54 @@ export default function StaffPage() {
         </button>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
-        <div className="grid gap-2 md:grid-cols-3">
-          {staffGroups.map((group) => (
-            <button
-              key={group.key}
-              type="button"
-              onClick={() => {
-                setActiveGroup(group.key);
-                setPage(1);
-              }}
-              className={`rounded-lg px-4 py-3 text-left text-sm font-semibold transition ${
-                activeGroup === group.key
-                  ? "bg-vr-50 text-vr-800 ring-1 ring-vr-200"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              {t(group.labelKey)}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-sm text-gray-500">{t("staff.total")}</p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
-                {users.length}
-              </p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
-              <FiUsers size={20} />
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">{t("staff.onDuty")}</p>
-          <p className="mt-1 text-3xl font-bold text-gray-900">
-            {users.filter((user) => isActiveStatus(user.status)).length}
-          </p>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">{t("staff.drivers")}</p>
-          <p className="mt-1 text-3xl font-bold text-gray-900">
-            {users.filter((user) => user.role === "DRIVER").length}
-          </p>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">
-            {t("staff.needsInitialPassword")}
-          </p>
-          <p className="mt-1 text-3xl font-bold text-gray-900">
-            {users.filter((user) => !isActiveStatus(user.status)).length}
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              className={inputClass + " pl-10"}
-              placeholder={t("staff.searchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <CustomSelect
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
-              value={roleFilter}
-              onChange={(event) => {
-                setRoleFilter(event.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">{t("staff.allRoles")}</option>
-              {roleOptions.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {t(role.labelKey)}
-                </option>
-              ))}
-            </CustomSelect>
-            <CustomSelect
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
-              value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">{t("staff.allStatuses")}</option>
-              {[
-                ...new Set(users.map((user) => user.status).filter(Boolean)),
-              ].map((status) => (
-                <option key={status} value={status}>
-                  {tc(`enumLabels.${status}`, { defaultValue: status })}
-                </option>
-              ))}
-            </CustomSelect>
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="ml-auto inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:ml-0"
-            >
-              <FiDownload size={16} />
-              {tc("exportCsv")}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {message && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {message}
-        </div>
-      )}
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold text-gray-700">
-                <th className="px-6 py-3">{t("staff.fullName")}</th>
-                <th className="px-6 py-3">{tc("email")}</th>
-                <th className="px-6 py-3">{tc("phone")}</th>
-                <th className="px-6 py-3">{t("staff.role")}</th>
-                <th className="px-6 py-3">{t("staff.joined")}</th>
-                <th className="px-6 py-3">{tc("status")}</th>
-                <th className="px-6 py-3 text-center">{tc("actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((user) => (
-                <tr
-                  key={user.userId}
-                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={user.avatarUrl || staffAvatarUrl}
-                        alt={user.displayName || user.email}
-                        width={40}
-                        height={40}
-                        loading="lazy"
-                        className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover"
-                      />
-                      <span className="text-sm font-semibold text-gray-900">
-                        {user.displayName || "-"}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {user.email}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatVietnamPhoneForDisplay(user.phone)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {roleLabel(user.role)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateTime(user.createdAt)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        isActiveStatus(user.status)
-                          ? "bg-emerald-50 text-emerald-800"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {tc(`enumLabels.${user.status}`, { defaultValue: user.status })}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center text-sm">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDetail(user)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
-                        title={t("staff.viewDetail")}
-                        aria-label={t("staff.viewDetail")}
-                      >
-                        <FiEye size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleResendInitialPassword(user)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                        title={t("staff.resendInitialPassword")}
-                        aria-label={t("staff.resendInitialPassword")}
-                      >
-                        <FiMail size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {isLoading && (
-          <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">
-            {t("staff.loading")}
-          </div>
-        )}
-
-        <Pagination
-          page={page}
-          pageSize={pageSize}
-          totalItems={totalItems}
-          onPageChange={setPage}
+        <StatCard
+          label={t("staff.total")}
+          value={users.length}
+          icon={<FiUsers size={20} />}
+          iconClassName="bg-vr-50 text-vr-700"
+        />
+        <StatCard
+          label={t("staff.onDuty")}
+          value={users.filter((user) => isActiveStatus(user.status)).length}
+          icon={<FiActivity size={20} />}
+          iconClassName="bg-emerald-50 text-emerald-700"
+        />
+        <StatCard
+          label={t("staff.drivers")}
+          value={users.filter((user) => user.role === "DRIVER").length}
+          icon={<FiTruck size={20} />}
+          iconClassName="bg-blue-50 text-blue-700"
+        />
+        <StatCard
+          label={t("staff.needsInitialPassword")}
+          value={users.filter((user) => !isActiveStatus(user.status)).length}
+          icon={<FiKey size={20} />}
+          iconClassName="bg-amber-50 text-amber-700"
         />
       </div>
+      <PersonnelTable
+        toolbar={<div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="flex flex-wrap gap-2"><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect></div></div>}
+        columns={[
+          { key: "name", header: t("staff.fullName"), headerClassName: "w-[20%] px-4 py-3", cellClassName: "w-[20%] px-4 py-4", render: (user) => <div className="flex items-center gap-3"><img src={user.avatarUrl || staffAvatarUrl} alt={user.displayName || user.email} width={40} height={40} loading="lazy" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover" /><span className="text-sm font-semibold text-gray-900">{user.displayName || "-"}</span></div> },
+          { key: "email", header: tc("email"), headerClassName: "w-[24%] px-4 py-3", cellClassName: "w-[24%] px-4 py-4 text-sm text-gray-600", render: (user) => user.email },
+          { key: "phone", header: tc("phone"), headerClassName: "w-[12%] px-4 py-3", cellClassName: "w-[12%] px-4 py-4 text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
+          { key: "role", header: t("staff.role"), headerClassName: "w-[18%] px-4 py-3", cellClassName: "w-[18%] px-4 py-4 text-sm text-gray-700", render: (user) => roleLabel(user.role) },
+          { key: "status", header: tc("status"), headerClassName: "w-[16%] px-4 py-3", cellClassName: "w-[16%] px-4 py-4", render: (user) => <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-700"}`}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</span> },
+          { key: "actions", header: tc("actions"), headerClassName: "w-[120px] px-2 py-3 text-center", cellClassName: "w-[120px] px-2 py-4 text-center text-sm", render: (user) => <div className="flex items-center justify-center gap-2"><button type="button" onClick={() => handleOpenDetail(user)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700" title={t("staff.viewDetail")} aria-label={t("staff.viewDetail")}><FiEye size={16} /></button><button type="button" onClick={() => handleResendInitialPassword(user)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700" title={t("staff.resendInitialPassword")} aria-label={t("staff.resendInitialPassword")}><FiMail size={16} /></button></div> },
+        ]}
+        rows={filtered}
+        getRowKey={(user) => getUserId(user)}
+        isLoading={isLoading}
+        loadingMessage={t("staff.loading")}
+        emptyMessage="Không có nhân sự phù hợp"
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        onPageChange={setPage}
+      />
 
-      <Modal
-        open={openAdd}
+      <Modal        open={openAdd}
         onClose={() => setOpenAdd(false)}
         wide
         icon={<FiUser size={20} />}
@@ -717,7 +511,12 @@ function StaffDetailModal({
               value={formatVietnamPhoneForDisplay(user.phone)}
             />
             <DetailItem label={t("staff.role")} value={roleLabel(user.role)} />
-            <DetailItem label={tc("status")} value={tc(`enumLabels.${user.status}`, { defaultValue: user.status })} />
+            <DetailItem
+              label={tc("status")}
+              value={tc(`enumLabels.${user.status}`, {
+                defaultValue: user.status,
+              })}
+            />
             <DetailItem
               label={t("staff.createdAt")}
               value={formatDateTime(user.createdAt)}

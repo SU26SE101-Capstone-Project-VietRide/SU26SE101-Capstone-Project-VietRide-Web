@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -8,8 +9,13 @@ import {
   FiX,
   FiEye,
   FiFilter,
+  FiUsers,
+  FiClock,
+  FiCheckCircle,
+  FiAlertCircle,
 } from "react-icons/fi";
 import Pagination from "../../../components/Pagination";
+import { StatCard } from "../../../components/StatCard";
 import {
   approveAdminOperator,
   createAdminOperator,
@@ -132,6 +138,13 @@ export default function Operators() {
   const pendingCount = operators.filter(
     (operator) => toKnownStatus(operator.registrationStatus) === "PENDING",
   ).length;
+  const approvedCount = operators.filter(
+    (operator) => toKnownStatus(operator.registrationStatus) === "APPROVED",
+  ).length;
+  const restrictedCount = operators.filter((operator) => {
+    const status = toKnownStatus(operator.registrationStatus);
+    return status === "SUSPENDED" || status === "REJECTED";
+  }).length;
 
   const handleApprove = async () => {
     if (!selectedOperator) {
@@ -218,6 +231,7 @@ export default function Operators() {
     setOperatorForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -260,12 +274,33 @@ export default function Operators() {
         </div>
       )}
 
-      {message && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {message}
-        </div>
-      )}
 
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={<FiUsers size={20} />}
+          label={t("operators.total")}
+          value={operators.length}
+          iconClassName="bg-vr-50 text-vr-700"
+        />
+        <StatCard
+          icon={<FiCheckCircle size={20} />}
+          label={t("operators.approved")}
+          value={approvedCount}
+          iconClassName="bg-emerald-50 text-emerald-700"
+        />
+        <StatCard
+          icon={<FiClock size={20} />}
+          label={t("operators.pending")}
+          value={pendingCount}
+          iconClassName="bg-amber-50 text-amber-700"
+        />
+        <StatCard
+          icon={<FiAlertCircle size={20} />}
+          label={t("operators.restricted")}
+          value={restrictedCount}
+          iconClassName="bg-red-50 text-red-700"
+        />
+      </div>
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex-1 relative min-w-50">
@@ -307,11 +342,6 @@ export default function Operators() {
           </button>
         </div>
 
-        {error && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
 
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
@@ -343,7 +373,7 @@ export default function Operators() {
             <tbody>
               {paginatedOperators.map((operator, idx) => {
                 const status = toKnownStatus(operator.registrationStatus);
-                return (
+  return (
                   <tr
                     key={operator.operatorId}
                     className="border-b border-gray-100 hover:bg-gray-50 transition"

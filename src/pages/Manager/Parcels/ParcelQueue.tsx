@@ -1,7 +1,9 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
+import CustomSelect from "../../../components/CustomSelect";
 import { useTranslation } from "react-i18next";
-import { FiCheckCircle, FiPackage, FiRefreshCw, FiSearch } from "react-icons/fi";
+import { FiCheckCircle, FiSearch } from "react-icons/fi";
 import {
   getOperatorParcels,
   getParcelDetail,
@@ -10,12 +12,11 @@ import {
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
 import Modal from "../../../components/Modal";
-import Pagination from "../../../components/Pagination";
+import { PersonnelTable } from "../../../components/PersonnelTable";
 import { formatDateTime } from "../../../utils/date";
 import ParcelDetailModal from "./ParcelDetailModal";
 import {
   actionLabel,
-  inputClass,
   pageSize,
   queueTabs,
   statusTone,
@@ -88,7 +89,41 @@ export default function ParcelQueue() {
     setTargetTripId("");
     try {
       const detail = await getParcelDetail(item.parcelId);
-      setSelected(detail);
+      setSelected({
+        ...detail,
+        route: detail.route ?? item.route,
+        trip: detail.trip ?? item.trip,
+        routeName: detail.routeName ?? item.route?.routeName ?? item.routeName,
+        senderName: detail.senderName ?? item.sender?.displayName ?? item.sender?.name ?? item.senderName,
+        senderPhone: detail.senderPhone ?? item.sender?.phone ?? item.senderPhone,
+        recipientName: detail.recipientName ?? item.recipient?.displayName ?? item.recipient?.name ?? item.recipientName,
+        recipientPhone: detail.recipientPhone ?? item.recipient?.phone ?? item.recipientPhone ?? undefined,
+        pendingActionType: detail.pendingActionType ?? item.pendingActionType,
+        pendingActionReason: detail.pendingActionReason ?? item.pendingActionReason,
+        photoUrl: detail.photoUrl ?? item.photoUrl,
+        estimatedSizeCategory: detail.estimatedSizeCategory ?? item.estimatedSizeCategory,
+        actualSizeCategory: detail.actualSizeCategory ?? item.actualSizeCategory,
+        estimatedWeightKg: detail.estimatedWeightKg ?? item.estimatedWeightKg ?? 0,
+        actualWeightKg: detail.actualWeightKg ?? item.actualWeightKg,
+        estimatedChargeableWeightKg: detail.estimatedChargeableWeightKg ?? item.estimatedChargeableWeightKg,
+        actualChargeableWeightKg: detail.actualChargeableWeightKg ?? item.actualChargeableWeightKg,
+        estimatedVolumeM3: detail.estimatedVolumeM3 ?? item.estimatedVolumeM3,
+        actualVolumeM3: detail.actualVolumeM3 ?? item.actualVolumeM3,
+        estimatedTotalPriceVnd: detail.estimatedTotalPriceVnd ?? item.estimatedTotalPriceVnd,
+        finalTotalPriceVnd: detail.finalTotalPriceVnd ?? item.finalTotalPriceVnd,
+        depositPaidVnd: detail.depositPaidVnd ?? item.depositPaidVnd,
+        depositRequiredVnd: detail.depositRequiredVnd ?? item.depositRequiredVnd,
+        balancePaidVnd: detail.balancePaidVnd ?? item.balancePaidVnd,
+        balanceRequiredVnd: detail.balanceRequiredVnd ?? item.balanceRequiredVnd,
+        discountAmount: detail.discountAmount ?? item.discountAmount ?? undefined,
+        forfeitedDepositVnd: detail.forfeitedDepositVnd ?? item.forfeitedDepositVnd,
+        refundDueVnd: detail.refundDueVnd ?? item.refundDueVnd,
+        refundedAmountVnd: detail.refundedAmountVnd ?? item.refundedAmountVnd,
+        finalPaymentDeadline: detail.finalPaymentDeadline ?? item.finalPaymentDeadline,
+        latestCheckInAt: detail.latestCheckInAt ?? item.latestCheckInAt,
+        loadCutoffAt: detail.loadCutoffAt ?? item.loadCutoffAt,
+        updatedAt: detail.updatedAt ?? item.updatedAt,
+      });
     } catch (error) {
       setSelected(null);
       setActionError(
@@ -126,201 +161,30 @@ export default function ParcelQueue() {
     setConfirmState({ label, run: action });
   }
 
+  useToastFeedback({ message, error: actionError || listError });
   return (
     <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="border-b border-gray-100 p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">
-              {t("parcels.queue.title")}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {t("parcels.queue.subtitle")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void loadList()}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <FiRefreshCw /> {tc("refresh")}
-          </button>
-        </div>
 
-        <div
-          className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-4"
-          role="tablist"
-          aria-label={t("parcels.queue.tabListAriaLabel")}
-        >
-          {queueTabs.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              role="tab"
-              aria-selected={queue === tab.value}
-              onClick={() => {
-                setQueue(tab.value);
-                setPage(1);
-              }}
-              className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left text-sm font-semibold transition-colors ${queue === tab.value ? "border-vr-400 bg-vr-50 text-vr-800" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}
-            >
-              <span>
-                {tab.labelKey === "all"
-                  ? tc("all")
-                  : tab.labelKey.startsWith("enumLabels.")
-                    ? tc(tab.labelKey)
-                    : t(tab.labelKey)}
-              </span>
-            </button>
-          ))}
-        </div>
-        <form
-          className="mt-4 flex flex-col gap-2 sm:flex-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setTripId(tripIdDraft.trim());
-            setPage(1);
-          }}
-        >
-          <label className="relative min-w-0 flex-1">
-            <span className="sr-only">{t("parcels.queue.filterByTripSr")}</span>
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={tripIdDraft}
-              onChange={(event) => setTripIdDraft(event.target.value)}
-              className={`${inputClass} pl-9`}
-              placeholder={t("parcels.queue.tripIdPlaceholder")}
-            />
-          </label>
-          <button
-            type="submit"
-            className="rounded-lg bg-vr-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-vr-600"
-          >
-            {tc("search")}
-          </button>
-        </form>
-      </div>
-
-      {message && (
-        <p
-          className="mx-5 mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-          role="status"
-        >
-          {message}
-        </p>
-      )}
-      {listError && (
-        <p
-          className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-        >
-          {listError}
-        </p>
-      )}
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px]">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
-              <th className="px-5 py-3">{t("parcels.orderCode")}</th>
-              <th className="px-5 py-3">{t("parcels.queue.colRoute")}</th>
-              <th className="px-5 py-3">{t("parcels.recipient")}</th>
-              <th className="px-5 py-3">{t("parcels.sizeCategory")}</th>
-              <th className="px-5 py-3">{t("parcels.queue.colStatus")}</th>
-              <th className="px-5 py-3 text-right">{tc("actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr
-                key={item.parcelId}
-                onClick={() => void openDetail(item)}
-                className="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-vr-50/40"
-              >
-                <td className="px-5 py-4">
-                  <p className="font-semibold text-gray-900">
-                    {item.parcelCode}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {formatDateTime(item.createdAt)}
-                  </p>
-                </td>
-                <td className="px-5 py-4 text-sm">
-                  <p className="font-medium text-gray-800">
-                    {item.routeName || t("parcels.queue.noRouteName")}
-                  </p>
-                  <p className="mt-1 text-gray-500">
-                    {item.tripCode ||
-                      item.tripId ||
-                      t("parcels.queue.noTripAssigned")}
-                  </p>
-                </td>
-                <td className="px-5 py-4 text-sm">
-                  <p className="font-medium text-gray-800">
-                    {item.recipientName || "-"}
-                  </p>
-                  <p className="mt-1 text-gray-500">
-                    {formatVietnamPhoneForDisplay(item.recipientPhone)}
-                  </p>
-                </td>
-                <td className="px-5 py-4 text-sm text-gray-700">
-                  {item.sizeCategory
-                    ? t(`parcels.sizeCategories.${item.sizeCategory}`, {
-                        defaultValue: item.sizeCategory,
-                      })
-                    : "-"}
-                  <br />
-                  <span className="text-xs text-gray-500">
-                    {item.estimatedWeightKg == null
-                      ? "-"
-                      : `${item.estimatedWeightKg} kg`}
-                  </span>
-                </td>
-                <td className="px-5 py-4">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusTone(item)}`}
-                  >
-                    {actionLabel(item, t, tc)}
-                  </span>
-                </td>
-                <td className="px-5 py-4 text-right">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void openDetail(item);
-                    }}
-                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:border-vr-300 hover:text-vr-700"
-                  >
-                    {t("parcels.queue.openAction")}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {loading && (
-        <div className="px-5 py-12 text-center text-sm text-gray-500">
-          {t("parcels.queue.loadingList")}
-        </div>
-      )}
-      {!loading && !listError && items.length === 0 && (
-        <div className="px-5 py-12 text-center">
-          <FiPackage className="mx-auto text-gray-300" size={34} />
-          <p className="mt-3 font-medium text-gray-700">
-            {t("parcels.queue.emptyTitle")}
-          </p>
-          <p className="mt-1 text-sm text-gray-500">
-            {t("parcels.queue.emptyHint")}
-          </p>
-        </div>
-      )}
-      <Pagination
+      <PersonnelTable
+        toolbar={<div className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_280px]"><form className="flex min-w-0 flex-col gap-2 sm:flex-row" onSubmit={(event) => { event.preventDefault(); setTripId(tripIdDraft.trim()); setPage(1); }}><label className="relative min-w-0 flex-1"><span className="sr-only">{t("parcels.queue.filterByTripSr")}</span><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={tripIdDraft} onChange={(event) => setTripIdDraft(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 pl-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35" placeholder={t("parcels.queue.tripIdPlaceholder")} /></label><button type="submit" className="inline-flex items-center justify-center rounded-lg bg-vr-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-vr-600">{tc("search")}</button></form><CustomSelect value={queue} onChange={(event) => { setQueue(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35" aria-label={t("parcels.queue.tabListAriaLabel")}>{queueTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.labelKey === "all" ? tc("all") : tab.labelKey.startsWith("enumLabels.") ? tc(tab.labelKey) : t(tab.labelKey)}</option>)}</CustomSelect></div>}
+        columns={[
+          { key: "code", header: t("parcels.orderCode"), headerClassName: "w-[22%] px-5 py-3", cellClassName: "w-[22%] px-5 py-4 pr-8", render: (item) => <p className="whitespace-nowrap font-semibold text-gray-900">{item.parcelCode}</p> },
+          { key: "route", header: t("parcels.queue.routeNameLabel"), headerClassName: "w-[21%] px-5 py-3 pl-8", cellClassName: "w-[21%] px-5 py-4 pl-8 text-sm", render: (item) => <><p className="font-medium text-gray-800">{item.route?.routeName || item.routeName || t("parcels.queue.noRouteName")}</p><p className="mt-1 text-xs text-gray-500">{formatDateTime(item.createdAt)}</p></> },
+          { key: "recipient", header: t("parcels.recipient"), headerClassName: "w-[18%] px-5 py-3", cellClassName: "w-[18%] px-5 py-4 text-sm", render: (item) => <><p className="font-medium text-gray-800">{item.recipientName || "-"}</p><p className="mt-1 text-gray-500">{formatVietnamPhoneForDisplay(item.recipientPhone)}</p></> },
+          { key: "size", header: t("parcels.sizeCategory"), headerClassName: "w-[13%] px-2 py-3", cellClassName: "w-[13%] px-2 py-4 text-sm text-gray-700", render: (item) => <>{item.sizeCategory ? t(`parcels.sizeCategories.${item.sizeCategory}`, { defaultValue: item.sizeCategory }) : "-"}<br /><span className="text-xs text-gray-500">{item.actualWeightKg == null ? "-" : `${item.actualWeightKg} kg`}</span></> },
+          { key: "status", header: t("parcels.queue.colStatus"), headerClassName: "w-[16%] px-5 py-3", cellClassName: "w-[16%] px-5 py-4", render: (item) => <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusTone(item)}`}>{actionLabel(item, t, tc)}</span> },
+          { key: "actions", header: tc("actions"), headerClassName: "w-[10%] px-3 py-3 pr-6 text-right", cellClassName: "w-[10%] px-3 py-4 pr-6 text-right", render: (item) => <button type="button" onClick={() => void openDetail(item)} className="min-w-[104px] whitespace-nowrap rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:border-vr-300 hover:text-vr-700">{t("parcels.queue.openAction")}</button> },
+        ]}
+        rows={items}
+        getRowKey={(item) => item.parcelId}
+        isLoading={loading}
+        loadingMessage={t("parcels.queue.loadingList")}
+        emptyMessage={<div className="py-4"><p className="font-medium text-gray-700">{t("parcels.queue.emptyTitle")}</p><p className="mt-1 text-sm text-gray-500">{t("parcels.queue.emptyHint")}</p></div>}
         page={page}
         pageSize={pageSize}
         totalItems={totalItems}
         onPageChange={setPage}
+        className="w-full table-fixed"
       />
 
       <ParcelDetailModal

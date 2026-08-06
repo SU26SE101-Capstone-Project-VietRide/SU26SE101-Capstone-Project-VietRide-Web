@@ -11,9 +11,14 @@ import {
   type SubscriptionPlan,
 } from "../../../api/vietride";
 import ManagerPackages from "./index";
+import ToastProvider from "../../../components/toast/ToastProvider";
 
 const translate = (key: string, options?: Record<string, string>) =>
   options?.name ? `${key} ${options.name}` : key;
+
+function renderPackages() {
+  return render(<ToastProvider><ManagerPackages /></ToastProvider>);
+}
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: translate }),
@@ -126,7 +131,7 @@ describe("ManagerPackages", () => {
       },
     });
 
-    render(<ManagerPackages />);
+    renderPackages();
 
     await user.click(await screen.findByRole("button", { name: "packages.buyPackage" }));
     await user.click(
@@ -143,7 +148,7 @@ describe("ManagerPackages", () => {
       expect.any(String),
     );
     expect(upgradeOperatorSubscription).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("packages.missingPaymentRedirect")).toBeInTheDocument();
+    expect(await screen.findByTestId("toast")).toHaveTextContent("packages.missingPaymentRedirect");
   });
 
   it("shows the one-time trial notice without listing the free plan for purchase", async () => {
@@ -152,7 +157,7 @@ describe("ManagerPackages", () => {
       plan,
     ]);
 
-    render(<ManagerPackages />);
+    renderPackages();
 
     expect(
       await screen.findByText("packages.freeTrialNotice"),
@@ -176,7 +181,7 @@ describe("ManagerPackages", () => {
     });
     vi.mocked(getOperatorSubscriptionPlans).mockResolvedValue([plan]);
 
-    render(<ManagerPackages />);
+    renderPackages();
 
     expect(
       await screen.findByText("packages.currentPackage Professional"),
@@ -228,7 +233,7 @@ describe("ManagerPackages", () => {
       dueAt: null,
     });
 
-    render(<ManagerPackages />);
+    renderPackages();
 
     expect(
       await screen.findByText("packages.currentPackage Starter (Free Trial)"),
@@ -274,7 +279,7 @@ describe("ManagerPackages", () => {
       .mockResolvedValueOnce(pendingSubscription)
       .mockResolvedValue({ ...subscription, plan });
 
-    render(<ManagerPackages />);
+    renderPackages();
 
     await act(async () => {
       await Promise.resolve();
@@ -324,7 +329,7 @@ describe("ManagerPackages", () => {
         },
       });
 
-      render(<ManagerPackages />);
+      renderPackages();
 
       expect(
         await screen.findByText(
@@ -368,7 +373,7 @@ describe("ManagerPackages", () => {
       plan,
     });
 
-    render(<ManagerPackages />);
+    renderPackages();
 
     expect(
       await screen.findByText("packages.subscriptionPeriodMismatch"),

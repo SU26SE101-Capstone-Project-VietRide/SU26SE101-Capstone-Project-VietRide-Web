@@ -53,11 +53,9 @@ export function useStationManagement({
       placeId: station.id,
       name: station.name,
       address:
-        station.address ??
-        `${station.name}, ${station.city}`,
-      // PlaceSelection semantics Google: province = tỉnh/TP, city = ward-level
-      city: station.ward ?? station.city,
-      province: station.city,
+        station.address ?? `${station.name}, ${station.city || station.ward}`,
+      city: station.city,
+      ward: station.ward ?? "",
       latitude: station.latitude,
       longitude: station.longitude,
     };
@@ -66,7 +64,8 @@ export function useStationManagement({
   function handleSelectStation(nextStationId: string) {
     setSelectedStationId(nextStationId);
     setStationSupportsShuttle(
-      stations.find((station) => station.id === nextStationId)?.supportsShuttle ?? false,
+      stations.find((station) => station.id === nextStationId)
+        ?.supportsShuttle ?? false,
     );
   }
 
@@ -78,7 +77,8 @@ export function useStationManagement({
     // Search theo contract mới: city = tỉnh/TP (Google admin_area_1 = place.province)
     const result = await searchStations({
       q: place.name,
-      city: place.province || place.city,
+      city: place.city,
+      ward: place.ward,
     });
 
     if (!result.length) {
@@ -89,7 +89,10 @@ export function useStationManagement({
     setStations((current) => mergeStations(current, result));
     setSelectedStationId(result[0]?.id ?? "");
     setStationSupportsShuttle(result[0]?.supportsShuttle ?? false);
-    showMessage("station", t("routes.stationSearchFound", { count: result.length }));
+    showMessage(
+      "station",
+      t("routes.stationSearchFound", { count: result.length }),
+    );
   }
 
   function assignStationToRoute(stationId: string) {
@@ -104,13 +107,23 @@ export function useStationManagement({
   }
 
   async function handleConfirmShuttleSupport() {
-    const selected = stations.find((station) => station.id === selectedStationId);
+    const selected = stations.find(
+      (station) => station.id === selectedStationId,
+    );
     if (!selected?.operatorStationId) {
       setError(t("routes.stationSelectForShuttle"));
       return;
     }
-    await updateOperatorStation(selected.operatorStationId, { supportsShuttle: stationSupportsShuttle });
-    setStations((current) => current.map((station) => station.id === selectedStationId ? { ...station, supportsShuttle: stationSupportsShuttle } : station));
+    await updateOperatorStation(selected.operatorStationId, {
+      supportsShuttle: stationSupportsShuttle,
+    });
+    setStations((current) =>
+      current.map((station) =>
+        station.id === selectedStationId
+          ? { ...station, supportsShuttle: stationSupportsShuttle }
+          : station,
+      ),
+    );
     showMessage("station", t("routes.shuttleSupportSaved"));
   }
 
@@ -133,11 +146,8 @@ export function useStationManagement({
       return;
     }
 
-    // Contract mới: city = tỉnh/TP (place.province), ward = xã/phường (place.city);
-    // cả hai bắt buộc khi tạo Station mới
-    const city =
-      stationPlaceDraft.province.trim() || stationPlaceDraft.city.trim();
-    const ward = stationPlaceDraft.city.trim();
+    const city = stationPlaceDraft.city.trim();
+    const ward = stationPlaceDraft.ward.trim() || city;
 
     if (!city || !ward) {
       setError(t("routes.stationLocationRequired"));
@@ -168,8 +178,7 @@ export function useStationManagement({
       latitude: created.latitude ?? stationPlaceDraft.latitude,
       longitude: created.longitude ?? stationPlaceDraft.longitude,
       address: created.addressStreet ?? stationPlaceDraft.address,
-      supportsShuttle:
-        created.supportsShuttle ?? stationSupportsShuttle,
+      supportsShuttle: created.supportsShuttle ?? stationSupportsShuttle,
     };
 
     setStations((current) => mergeStations(current, [station]));
@@ -198,4 +207,6 @@ export function useStationManagement({
   };
 }
 
-export type UseStationManagementResult = ReturnType<typeof useStationManagement>;
+export type UseStationManagementResult = ReturnType<
+  typeof useStationManagement
+>;

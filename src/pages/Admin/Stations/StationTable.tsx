@@ -14,7 +14,8 @@ type StationTableProps = {
   pageSize: number;
   totalItems: number;
   onPageChange: (page: number) => void;
-  onSelect: (station: AdminStation) => void;
+  onEdit: (station: AdminStation) => void;
+  onMerge: (station: AdminStation) => void;
   onToggle: (station: AdminStation) => void;
 };
 
@@ -26,7 +27,8 @@ export default function StationTable({
   pageSize,
   totalItems,
   onPageChange,
-  onSelect,
+  onEdit,
+  onMerge,
   onToggle,
 }: StationTableProps) {
   const { t } = useTranslation("admin");
@@ -37,18 +39,18 @@ export default function StationTable({
       <div>
         <table className="w-full table-fixed text-sm">
           <colgroup>
-            <col className="w-[28%]" />
-            <col className="w-[24%]" />
-            <col className="w-[12%]" />
-            <col className="w-[12%]" />
-            <col className="w-[24%]" />
+            <col className="w-[27%]" />
+            <col className="w-[21%]" />
+            <col className="w-[17%]" />
+            <col className="w-[13%]" />
+            <col className="w-[21%]" />
           </colgroup>
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold whitespace-nowrap text-gray-600">
               <th className="px-4 py-3">{t("stations.stationName")}</th>
-              <th className="px-4 py-3">{t("stations.city")}</th>
-              <th className="px-4 py-3">{t("stations.shuttle")}</th>
-              <th className="px-4 py-3">{tc("status")}</th>
+              <th className="px-4 py-3 text-center">{t("stations.city")}</th>
+              <th className="px-4 py-3 text-center">{t("stations.shuttle")}</th>
+              <th className="px-4 py-3 text-center">{tc("status")}</th>
               <th className="px-4 py-3 text-center">{tc("actions")}</th>
             </tr>
           </thead>
@@ -65,14 +67,20 @@ export default function StationTable({
                     {formatDateTime(station.updatedAt)}
                   </p>
                 </td>
-                <td className="px-4 py-3 text-gray-700">
-                  {[station.ward, station.city].filter(Boolean).join(", ") ||
+                <td className="px-4 py-3 text-center text-gray-700">
+                  {station.city ||
                     "-"}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-gray-700">
-                  {station.supportsShuttle ? tc("yes") : tc("no")}
+                <td className="whitespace-nowrap px-4 py-3 pr-6 text-center text-gray-700">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${station.supportsShuttle ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}
+                  >
+                    {station.supportsShuttle
+                      ? t("stations.shuttleVehicle")
+                      : t("stations.nonShuttleVehicle")}
+                  </span>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3 pl-6 text-center">
                   <span
                     className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${
                       station.isActive === false
@@ -88,7 +96,7 @@ export default function StationTable({
                     <button
                       type="button"
                       className={`${iconButtonClass} text-vr-700 hover:bg-vr-50`}
-                      onClick={() => onSelect(station)}
+                      onClick={() => onEdit(station)}
                       title={tc("edit")}
                       aria-label={tc("edit")}
                     >
@@ -97,7 +105,7 @@ export default function StationTable({
                     <button
                       type="button"
                       className={`${iconButtonClass} text-amber-700 hover:bg-amber-50`}
-                      onClick={() => onSelect(station)}
+                      onClick={() => onMerge(station)}
                       title={t("stations.merge")}
                       aria-label={t("stations.merge")}
                     >
@@ -109,10 +117,14 @@ export default function StationTable({
                       className={`${iconButtonClass} text-rose-600 hover:bg-rose-50`}
                       onClick={() => onToggle(station)}
                       title={
-                        station.isActive === false ? tc("enable") : tc("disable")
+                        station.isActive === false
+                          ? tc("enable")
+                          : tc("disable")
                       }
                       aria-label={
-                        station.isActive === false ? tc("enable") : tc("disable")
+                        station.isActive === false
+                          ? tc("enable")
+                          : tc("disable")
                       }
                     >
                       <FiPower />

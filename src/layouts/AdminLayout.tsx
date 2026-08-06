@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
+import AssistantBubble from "../components/AssistantBubble";
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -28,6 +29,7 @@ export default function AdminLayout() {
           </div>
         </main>
       </div>
+      <AssistantBubble />
     </div>
   );
 }

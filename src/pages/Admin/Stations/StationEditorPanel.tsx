@@ -11,7 +11,6 @@ import StationScheduleFields from "./StationScheduleFields";
 import {
   inputClass,
   labelClass,
-  type AlertState,
   type OperatingDayKey,
   type OperatingDaySchedule,
   type StationForm,
@@ -22,7 +21,6 @@ type StationEditorPanelProps = {
   locations: AdminLocation[];
   selectedPlace: PlaceSelection | null;
   customFacility: string;
-  alert: AlertState | null;
   isSaving: boolean;
   onFormChange: (form: StationForm) => void;
   onApplyPlace: (place: PlaceSelection) => void;
@@ -42,7 +40,6 @@ export default function StationEditorPanel({
   locations,
   selectedPlace,
   customFacility,
-  alert,
   isSaving,
   onFormChange,
   onApplyPlace,
@@ -95,23 +92,22 @@ export default function StationEditorPanel({
             </CustomSelect>
           </label>
           <label>
+            <span className={labelClass}>{t("stations.ward")}</span>
+            <input
+              className={inputClass}
+              value={form.ward}
+              onChange={(event) =>
+                onFormChange({ ...form, ward: event.target.value })
+              }
+            />
+          </label>
+          <label>
             <span className={labelClass}>{t("stations.city")}</span>
             <input
               className={inputClass}
               value={form.city}
               onChange={(event) =>
                 onFormChange({ ...form, city: event.target.value })
-              }
-            />
-          </label>
-          <label>
-            <span className={labelClass}>{t("stations.ward")}</span>
-            <input
-              className={inputClass}
-              value={form.ward}
-              placeholder="—"
-              onChange={(event) =>
-                onFormChange({ ...form, ward: event.target.value })
               }
             />
           </label>
@@ -175,13 +171,6 @@ export default function StationEditorPanel({
         {t("stations.saveStation")}
       </button>
 
-      {alert && (
-        <div
-          className={`mt-3 rounded-lg border px-3 py-2.5 text-sm ${alert.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}
-        >
-          {alert.message}
-        </div>
-      )}
     </div>
   );
 }

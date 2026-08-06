@@ -7,15 +7,13 @@ import {
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  FiPlus,
-  FiRefreshCw,
-  FiSearch,
-  FiTruck,
-} from "react-icons/fi";
+import { FiPlus, FiRefreshCw, FiSearch, FiTruck } from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
 import { getAuthUser } from "../../../auth";
-import { readSessionCache, writeSessionCache } from "../../../utils/sessionCache";
+import {
+  readSessionCache,
+  writeSessionCache,
+} from "../../../utils/sessionCache";
 import {
   createOperatorVehicle,
   getOperatorVehicle,
@@ -98,8 +96,10 @@ export default function VehiclesPage() {
   const [selectedVehicle, setSelectedVehicle] =
     useState<OperatorVehicle | null>(null);
   const [panelMode, setPanelMode] = useState<VehiclePanelMode>("info");
-  const [seatDraft, setSeatDraft] = useState<OperatorVehicle["seatLayoutJson"]>();
-  const [originalSeatLayout, setOriginalSeatLayout] = useState<OperatorVehicle["seatLayoutJson"]>();
+  const [seatDraft, setSeatDraft] =
+    useState<OperatorVehicle["seatLayoutJson"]>();
+  const [originalSeatLayout, setOriginalSeatLayout] =
+    useState<OperatorVehicle["seatLayoutJson"]>();
   const [isSeatDetailLoading, setIsSeatDetailLoading] = useState(false);
   const [isSeatSaving, setIsSeatSaving] = useState(false);
   const [seatError, setSeatError] = useState("");
@@ -174,12 +174,15 @@ export default function VehiclesPage() {
     setError("");
 
     try {
-      const vehicleResult = await getOperatorVehicles({
-        page,
-        pageSize,
-        search: querySearch,
-        searchIn: "licensePlate",
-      }, controller.signal);
+      const vehicleResult = await getOperatorVehicles(
+        {
+          page,
+          pageSize,
+          search: querySearch,
+          searchIn: "licensePlate",
+        },
+        controller.signal,
+      );
 
       if (controller.signal.aborted) {
         return;
@@ -196,7 +199,9 @@ export default function VehiclesPage() {
       }
 
       setError(
-        err instanceof Error ? err.message : tRef.current("vehicles.loadFailed"),
+        err instanceof Error
+          ? err.message
+          : tRef.current("vehicles.loadFailed"),
       );
     } finally {
       if (!controller.signal.aborted) {
@@ -484,7 +489,12 @@ export default function VehiclesPage() {
   function changePanelMode(nextMode: VehiclePanelMode) {
     setPanelMode(nextMode);
 
-    if (nextMode === "seats" && canManageVehicles && selectedVehicle && !draftLayout) {
+    if (
+      nextMode === "seats" &&
+      canManageVehicles &&
+      selectedVehicle &&
+      !draftLayout
+    ) {
       void loadSeatLayout(selectedVehicle);
     }
   }
@@ -519,7 +529,8 @@ export default function VehiclesPage() {
       setOriginalSeatLayout(updatedVehicle.seatLayoutJson);
       setMessage(
         t("vehicles.seatUpdateSuccess", {
-          defaultValue: "Đã cập nhật trạng thái ghế. Trip tạo sau khi lưu sẽ dùng layout mới.",
+          defaultValue:
+            "Đã cập nhật trạng thái ghế. Trip tạo sau khi lưu sẽ dùng layout mới.",
         }),
       );
       invalidateTripResourcesCache(authUser?.id);
@@ -527,7 +538,9 @@ export default function VehiclesPage() {
       setSeatError(
         err instanceof Error
           ? err.message
-          : t("vehicles.updateFailed", { defaultValue: "Không thể lưu thay đổi." }),
+          : t("vehicles.updateFailed", {
+              defaultValue: "Không thể lưu thay đổi.",
+            }),
       );
     } finally {
       setIsSeatSaving(false);
@@ -676,7 +689,10 @@ export default function VehiclesPage() {
   }
 
   function handleVehicleSubmitError(submitError: unknown) {
-    if (submitError instanceof ApiRequestError && submitError.fields.length > 0) {
+    if (
+      submitError instanceof ApiRequestError &&
+      submitError.fields.length > 0
+    ) {
       const fieldMap: Record<string, keyof VehicleForm> = {
         licenseplate: "licensePlate",
         vehicletypeid: "vehicleTypeId",
@@ -688,7 +704,9 @@ export default function VehiclesPage() {
       };
       const nextErrors: VehicleFormErrors = {};
       submitError.fields.forEach((field) => {
-        const normalized = field.field?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        const normalized = field.field
+          ?.replace(/[^a-zA-Z0-9]/g, "")
+          .toLowerCase();
         const key = normalized ? fieldMap[normalized] : undefined;
         if (key && field.message) {
           nextErrors[key] = field.message;
@@ -697,7 +715,9 @@ export default function VehiclesPage() {
 
       if (Object.keys(nextErrors).length > 0) {
         setFieldErrors(nextErrors);
-        setFormError(Object.values(nextErrors).find(Boolean) ?? submitError.message);
+        setFormError(
+          Object.values(nextErrors).find(Boolean) ?? submitError.message,
+        );
         return;
       }
     }
@@ -753,7 +773,12 @@ export default function VehiclesPage() {
     try {
       const imageUrls = await prepareVehicleImageUrls();
       await createOperatorVehicle(
-        toVehicleCreateRequest(vehicleForm, vehicleTypes, imageUrls, seatLayoutJson),
+        toVehicleCreateRequest(
+          vehicleForm,
+          vehicleTypes,
+          imageUrls,
+          seatLayoutJson,
+        ),
       );
       setMessage(t("vehicles.createSuccess"));
       setVehicleImageFiles([]);

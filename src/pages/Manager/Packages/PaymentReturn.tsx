@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -212,6 +213,7 @@ export default function SubscriptionPaymentReturn() {
 
   const canRetry = status === "processing" || status === "error";
 
+  useToastFeedback({ error });
   return (
     <main className="relative flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10 sm:px-6">
       <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
@@ -249,14 +251,6 @@ export default function SubscriptionPaymentReturn() {
             </p>
           </div>
 
-          {error ? (
-            <div
-              role="alert"
-              className="mt-5 border-y border-red-200 bg-red-50 px-4 py-3 text-left text-sm text-red-700"
-            >
-              {error}
-            </div>
-          ) : null}
 
           {responseCode || transactionReference || subscription?.plan.name ? (
             <dl className="mt-7 divide-y divide-gray-100 border-y border-gray-200 text-left text-sm">

@@ -68,10 +68,9 @@ describe("Admin Users", () => {
 
     const table = email.closest("table");
     expect(table).toHaveClass("table-fixed");
-    expect(table?.parentElement).toHaveClass("overflow-hidden");
+    expect(table?.parentElement).toHaveClass("overflow-x-auto");
 
-    const joinedCell = screen.getByText(/01-07-2026/).closest("td");
-    expect(joinedCell).toHaveClass("whitespace-nowrap");
+    expect(screen.queryByText("users.joined" )).not.toBeInTheDocument();
   });
 
   it("shows only table skeleton rows while keeping pagination visible", async () => {

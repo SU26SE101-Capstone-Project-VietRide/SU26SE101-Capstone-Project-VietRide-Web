@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../hooks/useToastFeedback";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -19,6 +20,7 @@ import {
   toExclusiveUtcDayEnd,
   toUtcDayStart,
 } from "../../utils/date";
+import { formatCurrency } from "../../utils/currency";
 
 type ReportFilters = {
   from: string;
@@ -99,25 +101,11 @@ export default function AdminReports() {
     () => new Intl.NumberFormat(i18n.language === "vi" ? "vi-VN" : "en-US"),
     [i18n.language],
   );
-  const currencyFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat(i18n.language === "vi" ? "vi-VN" : "en-US", {
-        style: "currency",
-        currency: "VND",
-        maximumFractionDigits: 0,
-      }),
-    [i18n.language],
-  );
-
   const operatorRows = report?.byOperator ?? [];
   const paginatedRows = operatorRows.slice(
     (page - 1) * pageSize,
     page * pageSize,
   );
-  const isUpstreamUnavailable =
-    error.toLowerCase().includes("platform report source") ||
-    error.toLowerCase().includes("upstream");
-
   function applyFilters(event: FormEvent) {
     event.preventDefault();
     const fromDate = new Date(`${draftFilters.from}T00:00:00Z`);
@@ -157,22 +145,23 @@ export default function AdminReports() {
         },
         {
           label: t("reports.bookingRevenue"),
-          value: currencyFormatter.format(report.totals.bookingRevenueVnd),
+          value: formatCurrency(report.totals.bookingRevenueVnd),
           icon: <FiDollarSign />,
         },
         {
           label: t("reports.parcelRevenue"),
-          value: currencyFormatter.format(report.totals.parcelRevenueVnd),
+          value: formatCurrency(report.totals.parcelRevenueVnd),
           icon: <FiDollarSign />,
         },
         {
           label: t("reports.netRevenue"),
-          value: currencyFormatter.format(report.totals.netRevenueVnd),
+          value: formatCurrency(report.totals.netRevenueVnd),
           icon: <FiDollarSign />,
         },
       ]
     : [];
 
+  useToastFeedback({ error });
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -237,34 +226,6 @@ export default function AdminReports() {
         </button>
       </form>
 
-      {error && (
-        <section
-          role="alert"
-          className="rounded-lg border border-rose-200 bg-rose-50 px-5 py-4 text-rose-800"
-        >
-          <h2 className="text-sm font-bold">
-            {isUpstreamUnavailable
-              ? t("reports.upstreamUnavailableTitle")
-              : t("reports.loadFailed")}
-          </h2>
-          <p className="mt-1 text-sm">
-            {isUpstreamUnavailable
-              ? t("reports.upstreamUnavailableHint")
-              : error}
-          </p>
-          {isUpstreamUnavailable && (
-            <p className="mt-2 text-xs text-rose-700">{error}</p>
-          )}
-          <button
-            type="button"
-            onClick={() => setReloadKey((value) => value + 1)}
-            className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-          >
-            <FiRefreshCw />
-            {t("reports.retry")}
-          </button>
-        </section>
-      )}
 
       {isLoading ? (
         <div className="rounded-lg border border-gray-200 bg-white px-5 py-16 text-center text-sm text-gray-500">
@@ -348,13 +309,13 @@ export default function AdminReports() {
                         {numberFormatter.format(row.deliveredParcelCount)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm text-gray-700">
-                        {currencyFormatter.format(row.bookingRevenueVnd)}
+                        {formatCurrency(row.bookingRevenueVnd)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm text-gray-700">
-                        {currencyFormatter.format(row.parcelRevenueVnd)}
+                        {formatCurrency(row.parcelRevenueVnd)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm font-semibold text-gray-900">
-                        {currencyFormatter.format(row.netRevenueVnd)}
+                        {formatCurrency(row.netRevenueVnd)}
                       </td>
                     </tr>
                   ))}

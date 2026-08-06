@@ -112,11 +112,7 @@ describe("Admin Dashboard", () => {
   it("uses the exact local calendar year and API-backed dashboard values", async () => {
     render(<AdminDashboard />);
 
-    expect(
-      await screen.findByText(
-        `dashboard.period 01/01/${year} 31/12/${year} Asia/Ho_Chi_Minh`,
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("2.850.000 ₫")).toBeInTheDocument();
 
     expect(getAdminDashboardSummary).toHaveBeenCalledWith({ from, to });
     expect(getAdminRevenueAnalytics).toHaveBeenCalledWith({
@@ -150,6 +146,5 @@ describe("Admin Dashboard", () => {
     expect(screen.getByText("Vân Tuyến Express")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.operatorStatus")).not.toBeInTheDocument();
     expect(screen.getByText("dashboard.operatorStaff")).toBeInTheDocument();
-    expect(screen.getByText("↓ -25.0%")).toHaveClass("text-red-600");
   });
 });

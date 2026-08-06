@@ -98,6 +98,9 @@ describe("AdminStations", () => {
     const user = userEvent.setup();
     render(<AdminStations />);
 
+    await screen.findByText(station.name);
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
     const saveButton = await screen.findByRole("button", {
       name: "stations.saveStation",
     });
@@ -127,6 +130,9 @@ describe("AdminStations", () => {
   it("adds a common and a custom facility to the backend payload", async () => {
     const user = userEvent.setup();
     render(<AdminStations />);
+
+    await screen.findByText(station.name);
+    await user.click(screen.getByRole("button", { name: "edit" }));
 
     const saveButton = await screen.findByRole("button", {
       name: "stations.saveStation",

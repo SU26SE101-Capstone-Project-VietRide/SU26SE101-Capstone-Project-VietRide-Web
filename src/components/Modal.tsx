@@ -11,6 +11,7 @@ type ModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  drawer?: boolean;
 };
 
 export default function Modal({
@@ -22,13 +23,14 @@ export default function Modal({
   children,
   footer,
   wide,
+  drawer = false,
 }: ModalProps) {
   const { t } = useTranslation("common");
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={"fixed inset-0 z-50 flex " + (drawer ? "items-stretch justify-end" : "items-center justify-center p-4")}
       role="dialog"
       aria-modal="true"
     >

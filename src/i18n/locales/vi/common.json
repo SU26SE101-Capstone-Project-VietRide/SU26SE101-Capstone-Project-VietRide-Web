@@ -130,6 +130,8 @@
     "FIXED_AMOUNT": "Giảm số tiền cố định"
   },
   "enumLabels": {
+    "PENDING_EMAIL_VERIFICATION": "Chờ xác thực email",
+    "PENDING_INITIAL_PASSWORD": "Chờ đặt mật khẩu lần đầu",
     "ACTIVE": "Đang hoạt động",
     "INACTIVE": "Ngừng hoạt động",
     "MAINTENANCE": "Đang bảo trì",
@@ -142,6 +144,7 @@
     "REJECTED": "Đã từ chối",
     "SUSPENDED": "Tạm khóa",
     "LOCKED": "Đã khóa",
+    "DELETED": "Đã xóa",
     "CANCELLED": "Đã hủy",
     "EXPIRED": "Đã hết hạn",
     "DRAFT": "Bản nháp",

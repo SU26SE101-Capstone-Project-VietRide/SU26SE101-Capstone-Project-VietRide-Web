@@ -98,7 +98,9 @@ export function alternativeRouteToForm(
   };
 }
 
-export function toStationOption(operatorStation: OperatorStation): StationOption {
+export function toStationOption(
+  operatorStation: OperatorStation,
+): StationOption {
   const station = operatorStation.station;
 
   return {
