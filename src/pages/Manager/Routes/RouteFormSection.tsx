@@ -1,6 +1,8 @@
-// Section thông tin tuyến: form sửa tuyến đang chọn (chọn tuyến do sidebar đảm nhiệm)
+// Section thông tin tuyến: form sửa tuyến đang chọn (chọn tuyến do sidebar đảm nhiệm).
+// Không còn nút lưu riêng — mọi thay đổi được lưu atomic qua nút "Lưu tuyến" ở header.
+// Bến đi/bến đến bất biến sau khi tạo (PUT /full trả ROUTE_STATION_IMMUTABLE) → 2 ô khóa.
 import { useTranslation } from "react-i18next";
-import { FiEdit2, FiGitBranch, FiLoader, FiPlus, FiSave } from "react-icons/fi";
+import { FiEdit2, FiGitBranch, FiLoader } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import {
   inputClass,
@@ -26,8 +28,6 @@ type RouteFormSectionProps = {
     key: K,
     value: OperatorRouteRequest[K],
   ) => void;
-  onUpdateRoute: () => void;
-  onOpenStationManagement: () => void;
   feedbackMessage: string;
   // Trạng thái auto-fill km/thời lượng theo đường đi (tính từ index)
   isAutoCalculatingMetrics: boolean;
@@ -43,8 +43,6 @@ export default function RouteFormSection({
   selectedRouteId,
   form,
   onUpdateField,
-  onUpdateRoute,
-  onOpenStationManagement,
   feedbackMessage,
   isAutoCalculatingMetrics,
   autoMetricsFallback,
@@ -61,16 +59,6 @@ export default function RouteFormSection({
   const lockedMinutes = lockedTotalMinutes % 60;
   const lockedValueClass =
     "flex min-h-10.5 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-800";
-  const createStationShortcut = canManageRoutes && (
-    <button
-      type="button"
-      onClick={onOpenStationManagement}
-      className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-vr-700 hover:underline"
-    >
-      <FiPlus size={12} />
-      {t("routes.createStationShortcut")}
-    </button>
-  );
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -94,9 +82,8 @@ export default function RouteFormSection({
             value={form.originStationId}
             placeholder={t("routes.selectOriginStation")}
             onChange={(value) => onUpdateField("originStationId", value)}
-            disabled={!canManageRoutes}
+            disabled
           />
-          {createStationShortcut}
         </div>
         <div>
           <StationSelect
@@ -105,9 +92,11 @@ export default function RouteFormSection({
             value={form.destinationStationId}
             placeholder={t("routes.selectDestinationStation")}
             onChange={(value) => onUpdateField("destinationStationId", value)}
-            disabled={!canManageRoutes}
+            disabled
           />
-          {createStationShortcut}
+          <p className="mt-1 text-xs text-gray-500">
+            {t("routes.stationsLockedHint")}
+          </p>
         </div>
         <div>
           <label className={labelClass}>
@@ -213,18 +202,6 @@ export default function RouteFormSection({
           {t("routes.activeRoute")}
         </label>
       </div>
-      {canManageRoutes && (
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={onUpdateRoute}
-            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-          >
-            <FiSave size={16} />
-            {t("routes.updateRoute")}
-          </button>
-        </div>
-      )}
       <InlineFeedback message={feedbackMessage} />
     </section>
   );

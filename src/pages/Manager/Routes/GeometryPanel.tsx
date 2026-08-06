@@ -4,7 +4,6 @@ import {
   FiCornerUpLeft,
   FiEdit2,
   FiNavigation,
-  FiSave,
   FiTrash2,
 } from "react-icons/fi";
 import RouteDesignMap from "./RouteDesignMap";
@@ -41,7 +40,6 @@ export default function GeometryPanel({
     handleStartManualGeometry,
     handleAppendGeometryPoint,
     handleUndoGeometryPoint,
-    handleSaveGeometry,
     handleClearGeometry,
   } = geometry;
 
@@ -114,22 +112,11 @@ export default function GeometryPanel({
                 {t("routes.undoGeometryPoint")}
               </button>
             )}
+            {/* Nút "Lưu đường đi" riêng đã bỏ — polyline lưu atomic cùng form/stops
+                qua nút "Lưu tuyến" ở header (PUT /routes/{id}/full) */}
             <button
               type="button"
-              onClick={() => onRunAction(handleSaveGeometry)}
-              disabled={
-                !hasSelectedRoute ||
-                routePathPoints.length < 2 ||
-                !isGeometryDirty
-              }
-              className="inline-flex items-center gap-2 rounded-lg border border-vr-200 px-3 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <FiSave size={16} />
-              {t("routes.saveGeometry")}
-            </button>
-            <button
-              type="button"
-              onClick={() => onRunAction(handleClearGeometry)}
+              onClick={handleClearGeometry}
               disabled={!hasSelectedRoute || routePathPoints.length === 0}
               className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             >

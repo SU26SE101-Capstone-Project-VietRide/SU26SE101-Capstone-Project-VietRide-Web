@@ -34,6 +34,14 @@ This note maps the Swagger screenshots to frontend usage.
 - `PATCH /v1/operator/routes/{id}`: update a route.
 - `POST /v1/operator/routes/{id}/stops`: add a stop to a route.
 - `DELETE /v1/operator/routes/{id}/stops/{stopId}`: remove a stop from a route.
+- `POST /v1/operator/routes/full`: atomic create route + stops + geometry (`OPERATOR_ADMIN` only).
+- `PUT /v1/operator/routes/{id}/full`: atomic replace-all update of route stops/geometry (`OPERATOR_ADMIN` only).
+- `GET /v1/operator/routes/{id}/stop-metrics`: ordered persisted stop metrics for a route.
+- `PATCH /v1/operator/driver-schedules/{id}`: update a driver schedule with `applyTo=FUTURE_ONLY|ALL_PENDING` (`OPERATOR_ADMIN` only).
+- `PATCH /v1/operator/driver-schedules/{id}/deactivate`: deactivate a driver schedule; no `Idempotency-Key` (backend SkipIdempotency) (`OPERATOR_ADMIN` only).
+- `DELETE /v1/operator/driver-schedules/{id}`: soft-delete a driver schedule when no trips reference it; requires `Idempotency-Key` (`OPERATOR_ADMIN` only).
+- `GET /v1/tracking/operator/fleet-latest`: latest GPS batch for the operator fleet, optional `status` filter.
+- `GET /v1/tracking/trips/{tripId}/eta`: trip ETA; `stopId` optional, omitted means the next pending stop is auto-selected.
 - `GET /v1/operator/routes/{id}/fare-templates`: list future/override fares for route stops.
 - `POST /v1/operator/routes/{id}/fare-templates`: create a route stop fare override.
 - `GET /v1/operator/routes/{id}/alternative-routes`: list alternative routes.

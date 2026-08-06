@@ -18,7 +18,21 @@ const IDEMPOTENCY_EXEMPT_OPERATIONS = new Set([
   "POST /v1/payments/subscription-vnpay-ipn",
   "POST /internal/v1/operators/summaries/batch",
   "POST /internal/v1/vouchers/validate",
+  // BE SkipIdempotency (contract mục 4.4): create driver-schedule.
+  "POST /v1/operator/driver-schedules",
 ]);
+
+// Exempt theo pattern cho path có id động — BE SkipIdempotency (mục 4.4):
+// activate/deactivate driver-schedule.
+const IDEMPOTENCY_EXEMPT_PATTERNS: ReadonlyArray<{
+  method: HttpMethod;
+  pattern: RegExp;
+}> = [
+  {
+    method: "PATCH",
+    pattern: /^\/v1\/operator\/driver-schedules\/[^/]+\/(?:activate|deactivate)$/,
+  },
+];
 
 function normalizePath(path: string): string {
   const pathname = new URL(path, "https://client.vietride.local").pathname;
@@ -36,8 +50,14 @@ function requiresIdempotencyKey(path: string, method: HttpMethod): boolean {
     return false;
   }
 
-  return !IDEMPOTENCY_EXEMPT_OPERATIONS.has(
-    `${method} ${normalizePath(path)}`,
+  const pathname = normalizePath(path);
+
+  if (IDEMPOTENCY_EXEMPT_OPERATIONS.has(`${method} ${pathname}`)) {
+    return false;
+  }
+
+  return !IDEMPOTENCY_EXEMPT_PATTERNS.some(
+    (exempt) => exempt.method === method && exempt.pattern.test(pathname),
   );
 }
 

@@ -126,7 +126,7 @@ export default function AdminStations() {
         station.slug,
         station.addressStreet,
         station.city,
-        station.province,
+        station.ward,
       ]
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(query)),
@@ -160,8 +160,9 @@ export default function AdminStations() {
       placeId: selectedStationId || `${latitude},${longitude}`,
       name: form.name,
       address: form.addressStreet,
-      city: form.city,
-      province: form.province,
+      // PlaceSelection semantics: province = tỉnh/TP (form.city), city = ward-level
+      city: form.ward,
+      province: form.city,
       latitude,
       longitude,
     };
@@ -222,8 +223,7 @@ export default function AdminStations() {
     if (
       !form.name.trim() ||
       !form.addressStreet.trim() ||
-      !form.city.trim() ||
-      !form.province.trim()
+      !form.city.trim()
     ) {
       setAlert({ tone: "error", message: t("stations.requiredFields") });
       return;
@@ -263,7 +263,8 @@ export default function AdminStations() {
         addressStreet: form.addressStreet.trim(),
         locationId: form.locationId || null,
         city: form.city.trim(),
-        province: form.province.trim(),
+        // BE không nhận ward rỗng; null = giữ nguyên giá trị hiện tại (legacy row)
+        ward: form.ward.trim() || null,
         latitude,
         longitude,
         contactPhone: form.contactPhone.trim() || null,

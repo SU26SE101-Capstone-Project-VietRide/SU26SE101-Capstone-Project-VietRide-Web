@@ -14,9 +14,12 @@ import {
   deleteAdminVoucher,
   createAdminUser,
   createOperatorDriverSchedule,
+  createOperatorRouteFull,
   createOperatorVoucher,
   createParcel,
   deactivateAdminCampaign,
+  deactivateOperatorDriverSchedule,
+  deleteOperatorDriverSchedule,
   exportOperatorReport,
   exportOperatorParcelReport,
   getAdminCampaigns,
@@ -41,7 +44,9 @@ import {
   getInternalTripCargoCapacity,
   getInternalTripParcelAvailability,
   getOperatorRoute,
+  getOperatorRouteStopMetrics,
   getOperatorDriverSchedules,
+  getOperatorFleetLatest,
   getOperatorInvoice,
   getOperatorInvoices,
   getOperatorBooking,
@@ -99,6 +104,7 @@ import {
   disruptOperatorTripNoSubstitution,
   reweighAssistantParcel,
   searchPublicTrips,
+  searchStations,
   settleAdminTripSettlement,
   updateAdminLocation,
   updateAdminPolicy,
@@ -107,7 +113,9 @@ import {
   updateAdminVoucher,
   updateAlternativeRouteGeometry,
   updateOperatorVoucher,
+  updateOperatorDriverSchedule,
   updateOperatorParcelStatus,
+  updateOperatorRouteFull,
   updateOperatorRouteGeometry,
   retryAdminInvoice,
   substituteOperatorTripVehicle,
@@ -277,7 +285,12 @@ describe("vietride API", () => {
     });
     await updateAdminStation(
       "station-1",
-      { name: "Ben xe Mien Dong", supportsShuttle: true },
+      {
+        name: "Ben xe Mien Dong",
+        city: "Thành phố Hồ Chí Minh",
+        ward: "Phường Bến Nghé",
+        supportsShuttle: true,
+      },
       "station-key",
     );
     await mergeAdminStations("station-1", "station-2", "merge-key");
@@ -323,6 +336,8 @@ describe("vietride API", () => {
         method: "PATCH",
         body: JSON.stringify({
           name: "Ben xe Mien Dong",
+          city: "Thành phố Hồ Chí Minh",
+          ward: "Phường Bến Nghé",
           supportsShuttle: true,
         }),
         headers: expect.objectContaining({ "Idempotency-Key": "station-key" }),
@@ -796,6 +811,24 @@ describe("vietride API", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       12,
       "https://api.vietride.online/v1/booking/health",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("searches public stations with the city/ward contract", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await searchStations({
+      q: "Bến Thành",
+      city: "Thành phố Hồ Chí Minh",
+      ward: "Phường Bến Nghé",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/stations/search?q=B%E1%BA%BFn+Th%C3%A0nh&city=Th%C3%A0nh+ph%E1%BB%91+H%E1%BB%93+Ch%C3%AD+Minh&ward=Ph%C6%B0%E1%BB%9Dng+B%E1%BA%BFn+Ngh%C3%A9",
       expect.objectContaining({ method: "GET" }),
     );
   });
@@ -2582,6 +2615,314 @@ describe("UI gaps API contracts", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       5,
       "https://api.vietride.online/v1/operator/policies?page=2&pageSize=10",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("loads operator fleet latest positions", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: { items: [], generatedAt: "2026-08-06T03:00:02Z" },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorFleetLatest({ status: "IN_PROGRESS" });
+    await getOperatorFleetLatest();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/tracking/operator/fleet-latest?status=IN_PROGRESS",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/tracking/operator/fleet-latest",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("requests trip eta without stopId to auto-select the next stop", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Staff",
+          role: "OPERATOR_STAFF",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: { eta: null } }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getTrackingTripEta("11111111-1111-4111-8111-111111111111");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/tracking/trips/11111111-1111-4111-8111-111111111111/eta",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("updates a driver schedule with applyTo scope", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: { id: "schedule-1" } }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await updateOperatorDriverSchedule("schedule-1", "ALL_PENDING", {
+      departureTime: "08:00:00",
+      dayOfWeek: [1, 3, 5],
+      assistantUserId: null,
+      vehicleId: "vehicle-1",
+      validUntil: null,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/driver-schedules/schedule-1?applyTo=ALL_PENDING",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({
+          departureTime: "08:00:00",
+          dayOfWeek: [1, 3, 5],
+          assistantUserId: null,
+          vehicleId: "vehicle-1",
+          validUntil: null,
+        }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("deactivates a driver schedule without an idempotency key", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({ data: { id: "schedule-1", isActive: false } }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await deactivateOperatorDriverSchedule("schedule-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/driver-schedules/schedule-1/deactivate",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    const [, requestInit] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      { headers: Record<string, string> },
+    ];
+    expect(
+      Object.keys(requestInit.headers).some(
+        (header) => header.toLowerCase() === "idempotency-key",
+      ),
+    ).toBe(false);
+  });
+
+  it("soft-deletes a driver schedule with an idempotency key", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: { deleted: true } }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await deleteOperatorDriverSchedule("schedule-1");
+
+    expect(result).toEqual({ deleted: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/driver-schedules/schedule-1",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("creates and replaces a route atomically via the full endpoints", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({ data: { id: "route-1", stops: [] } }),
+        { status: 201 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const fullRequest = {
+      name: "Hồ Chí Minh - Đà Lạt",
+      originStationId: "station-1",
+      destinationStationId: "station-2",
+      returnRouteId: null,
+      baseFare: 250000,
+      isActive: true,
+      pathPolyline: "_p~iF~ps|U_ulLnnqC_mqNvxq`@",
+      manualMetrics: null,
+      stops: [
+        {
+          stopId: "stop-1",
+          orderIndex: 1,
+          estimatedDurationFromOriginMinutes: null,
+          distanceFromOriginKm: null,
+          allowPickup: true,
+          allowDropoff: true,
+        },
+      ],
+    };
+
+    await createOperatorRouteFull(fullRequest);
+    await updateOperatorRouteFull("route-1", fullRequest);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/routes/full",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(fullRequest),
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/routes/route-1/full",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(fullRequest),
+      }),
+    );
+  });
+
+  it("loads ordered route stop metrics", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Staff",
+          role: "OPERATOR_STAFF",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              stopId: "stop-1",
+              stopName: "Điểm đón Quận 1",
+              orderIndex: 1,
+              distanceFromOriginKm: 32.5,
+              estimatedDurationFromOriginMinutes: 45,
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorRouteStopMetrics("route-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/routes/route-1/stop-metrics",
       expect.objectContaining({ method: "GET" }),
     );
   });

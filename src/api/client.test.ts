@@ -35,6 +35,67 @@ describe("api client", () => {
       message: "Tracking access denied.",
     });
   });
+  it("parses field-level details from the error envelope", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          statusCode: 409,
+          error: {
+            code: "ROUTE_DUPLICATED",
+            message: "Route already exists.",
+            fields: [
+              {
+                field: "existingRouteId",
+                message: "2829ae3f-97f8-49d1-9b1a-35623fd96d80",
+              },
+              "not-a-record",
+            ],
+          },
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = apiRequest("/v1/operator/routes/full", {
+      method: "POST",
+      body: {},
+    });
+
+    await expect(request).rejects.toMatchObject({
+      status: 409,
+      code: "ROUTE_DUPLICATED",
+      fields: [
+        {
+          field: "existingRouteId",
+          message: "2829ae3f-97f8-49d1-9b1a-35623fd96d80",
+        },
+      ],
+    });
+  });
+
+  it("defaults fields to an empty array when the error envelope has none", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          statusCode: 404,
+          error: { code: "ROUTE_NOT_FOUND", message: "Route not found." },
+        }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(apiRequest("/v1/operator/routes/missing")).rejects.toMatchObject(
+      {
+        code: "ROUTE_NOT_FOUND",
+        fields: [],
+      },
+    );
+  });
+
   it("builds query strings without empty values", () => {
     expect(
       buildQuery({

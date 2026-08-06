@@ -1,13 +1,16 @@
-// Modal tạo tuyến nhanh: chỉ gồm các field bắt buộc của createOperatorRoute
-// (tên + bến đi + bến đến). Field nâng cao chỉnh sau trong tab Thông tin.
-// Chọn đủ 2 bến có tọa độ → tự tính km/thời lượng (Google Routes, fallback haversine)
-// và gửi kèm khi tạo — không bắt user nhập tay số liệu máy tính được.
+// Modal tạo tuyến nhanh: chỉ gồm các field bắt buộc (tên + bến đi + bến đến).
+// Field nâng cao chỉnh sau trong tab Thông tin.
+// Chọn đủ 2 bến có tọa độ → tự tính đường (Google Routes) và gửi kèm pathPolyline
+// khi tạo qua POST /routes/full — có polyline thì KHÔNG gửi manualMetrics (server
+// tự tính, contract 12.1). Fallback haversine (thiếu key/lỗi mạng) → gửi manualMetrics.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiGitBranch, FiLoader, FiPlus } from "react-icons/fi";
+import { FiExternalLink, FiGitBranch, FiLoader, FiPlus } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import { ApiRequestError } from "../../../api/client";
+import type { RouteManualMetrics } from "../../../api/vietride";
 import { distanceKmBetween, requestRoadGeometry } from "./geometry";
-import { estimateCoachDurationMinutes } from "./polyline";
+import { encodeGooglePolyline, estimateCoachDurationMinutes } from "./polyline";
 import { Input, StationSelect } from "./formControls";
 import type { StationOption } from "./types";
 
@@ -15,9 +18,10 @@ export type CreateRouteBasics = {
   name: string;
   originStationId: string;
   destinationStationId: string;
-  // Số liệu tự tính (nếu có) — prefill totalDistanceKm/estimatedDurationMinutes lúc tạo
-  totalDistanceKm?: number;
-  estimatedDurationMinutes?: number;
+  // Đường đã auto-tính (Google Routes) — gửi thẳng vào POST /routes/full
+  pathPolyline?: string;
+  // Chỉ gửi khi KHÔNG có polyline (fallback nhập ước lượng haversine)
+  manualMetrics?: RouteManualMetrics;
 };
 
 type AutoMetrics = {
@@ -25,6 +29,8 @@ type AutoMetrics = {
   pairKey: string;
   totalDistanceKm: number;
   estimatedDurationMinutes: number;
+  // Polyline mã hóa từ Google Routes; rỗng khi rơi vào fallback haversine
+  pathPolyline: string;
 };
 
 type CreateRouteModalProps = {
@@ -32,6 +38,8 @@ type CreateRouteModalProps = {
   onClose: () => void;
   stations: StationOption[];
   onSubmit: (basics: CreateRouteBasics) => Promise<void>;
+  // 409 ROUTE_DUPLICATED → mở tuyến có sẵn (điều hướng ?routeId=)
+  onOpenExistingRoute: (routeId: string) => void;
 };
 
 const emptyBasics: CreateRouteBasics = {
@@ -45,11 +53,14 @@ export default function CreateRouteModal({
   onClose,
   stations,
   onSubmit,
+  onOpenExistingRoute,
 }: CreateRouteModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [basics, setBasics] = useState<CreateRouteBasics>(emptyBasics);
   const [error, setError] = useState("");
+  // Id tuyến trùng lấy từ error.fields[].existingRouteId của 409 ROUTE_DUPLICATED
+  const [duplicateRouteId, setDuplicateRouteId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [computedMetrics, setComputedMetrics] = useState<AutoMetrics | null>(
     null,
@@ -130,6 +141,7 @@ export default function CreateRouteModal({
             pairKey,
             totalDistanceKm: result.totalDistanceKm,
             estimatedDurationMinutes: result.estimatedDurationMinutes,
+            pathPolyline: encodeGooglePolyline(result.points),
           });
         }
       } catch {
@@ -140,6 +152,7 @@ export default function CreateRouteModal({
             pairKey,
             totalDistanceKm: Number(distance.toFixed(1)),
             estimatedDurationMinutes: estimateCoachDurationMinutes(distance),
+            pathPolyline: "",
           });
           setFailedPairKey(pairKey);
         }
@@ -173,6 +186,7 @@ export default function CreateRouteModal({
   function resetForm() {
     setBasics(emptyBasics);
     setError("");
+    setDuplicateRouteId("");
     setComputedMetrics(null);
     setCalculatingPairKey("");
     setFailedPairKey("");
@@ -186,22 +200,38 @@ export default function CreateRouteModal({
 
   async function handleSubmit() {
     setError("");
+    setDuplicateRouteId("");
     setIsSubmitting(true);
 
     try {
-      // Gửi kèm số liệu tự tính (nếu có) để tuyến mới không bị 0 km / 0 phút
+      // Có polyline tự tính → gửi polyline, KHÔNG gửi manualMetrics (server tự
+      // tính — contract 12.1). Fallback không polyline → gửi manualMetrics.
       await onSubmit(
         autoMetrics
-          ? {
-              ...basics,
-              totalDistanceKm: autoMetrics.totalDistanceKm,
-              estimatedDurationMinutes: autoMetrics.estimatedDurationMinutes,
-            }
+          ? autoMetrics.pathPolyline
+            ? { ...basics, pathPolyline: autoMetrics.pathPolyline }
+            : {
+                ...basics,
+                manualMetrics: {
+                  totalDistanceKm: autoMetrics.totalDistanceKm,
+                  estimatedDurationMinutes:
+                    autoMetrics.estimatedDurationMinutes,
+                },
+              }
           : basics,
       );
       resetForm();
       onClose();
     } catch (err) {
+      if (err instanceof ApiRequestError && err.code === "ROUTE_DUPLICATED") {
+        const existingRouteId = err.fields?.find(
+          (field) => field.field === "existingRouteId",
+        )?.message;
+        setDuplicateRouteId(existingRouteId ?? "");
+        setError(err.message || t("routes.duplicateRoute"));
+        return;
+      }
+
       setError(
         err instanceof Error ? err.message : t("routes.actionFailed"),
       );
@@ -291,8 +321,23 @@ export default function CreateRouteModal({
           </div>
         )}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+          <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p>{error}</p>
+            {duplicateRouteId && (
+              <button
+                type="button"
+                onClick={() => {
+                  const routeId = duplicateRouteId;
+                  resetForm();
+                  onClose();
+                  onOpenExistingRoute(routeId);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+              >
+                <FiExternalLink size={14} />
+                {t("routes.openExistingRoute")}
+              </button>
+            )}
           </div>
         )}
       </div>

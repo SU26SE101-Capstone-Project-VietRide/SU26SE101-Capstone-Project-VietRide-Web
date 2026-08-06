@@ -1,7 +1,9 @@
-// Header cột phải: tên tuyến đang chọn + nút Quản lý bến + thanh tab
+// Header cột phải: tên tuyến đang chọn + nút Quản lý bến + nút "Lưu tuyến" atomic
+// (sticky theo scroll, nổi bật khi có thay đổi chưa lưu) + thanh tab
 // (style tab đồng bộ với WalletSettlement)
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiMapPin } from "react-icons/fi";
+import { FiMapPin, FiSave } from "react-icons/fi";
 import { routeTabs, type RouteTab } from "./routeFormUtils";
 
 type RouteDetailHeaderProps = {
@@ -9,6 +11,10 @@ type RouteDetailHeaderProps = {
   activeTab: RouteTab;
   onSelectTab: (tab: RouteTab) => void;
   onOpenStationManagement: () => void;
+  canManageRoutes: boolean;
+  isDirty: boolean;
+  isSaving: boolean;
+  onSaveRoute: () => void;
 };
 
 export default function RouteDetailHeader({
@@ -16,45 +22,103 @@ export default function RouteDetailHeader({
   activeTab,
   onSelectTab,
   onOpenStationManagement,
+  canManageRoutes,
+  isDirty,
+  isSaving,
+  onSaveRoute,
 }: RouteDetailHeaderProps) {
   const { t } = useTranslation("manager");
+  // Sentinel 1px phía trên header: rời khỏi scrollport nghĩa là header đang "dính"
+  // → bật shadow nhẹ để tách khỏi nội dung cuộn bên dưới. jsdom không có
+  // IntersectionObserver nên guard lại (test không cần hiệu ứng này).
+  const [isStuck, setIsStuck] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+
+    if (!node || typeof IntersectionObserver === "undefined") {
+      return;
+    }
+
+    const observer = new IntersectionObserver(([entry]) =>
+      setIsStuck(!entry.isIntersecting),
+    );
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
+    // Fragment: sentinel + khối sticky phải là con trực tiếp của <main> để sticky
+    // chạy hết chiều cao cột phải. Bỏ hack -mx-1/px-1/pt-1 cũ — đỉnh header thẳng
+    // hàng với mép trên card "Danh sách tuyến" (grid items-start), nền bg-gray-50
+    // phủ kín khi cuộn, z-20 dưới dropdown/modal (z-50). -mt-px chỉ bù chiều cao
+    // sentinel để giữ thẳng hàng.
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="min-w-0 truncate text-lg font-bold text-gray-900">
-          {routeName}
-        </h2>
-        <button
-          type="button"
-          onClick={onOpenStationManagement}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
-          <FiMapPin size={16} />
-          {t("routes.stationManagement")}
-        </button>
-      </div>
-
-      <nav
-        aria-label={t("routes.manageTitle")}
-        className="flex flex-wrap gap-2 border-b border-gray-200"
+      <div ref={sentinelRef} aria-hidden="true" className="h-px" />
+      <div
+        className={`sticky top-0 z-20 -mt-px space-y-4 bg-gray-50 transition-shadow ${
+          isStuck ? "shadow-[0_10px_8px_-8px_rgba(15,23,42,0.12)]" : ""
+        }`}
       >
-        {routeTabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            aria-pressed={activeTab === tab}
-            onClick={() => onSelectTab(tab)}
-            className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${
-              activeTab === tab
-                ? "border-vr-500 text-vr-700"
-                : "border-transparent text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            {t(`routes.tabs.${tab}`)}
-          </button>
-        ))}
-      </nav>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="min-w-0 truncate text-lg font-bold text-gray-900">
+            {routeName}
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {isDirty && (
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                {t("routes.unsavedChanges")}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={onOpenStationManagement}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <FiMapPin size={16} />
+              {t("routes.stationManagement")}
+            </button>
+            {canManageRoutes && (
+              <button
+                type="button"
+                onClick={onSaveRoute}
+                disabled={!isDirty || isSaving}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed ${
+                  isDirty
+                    ? "bg-vr-500 text-white shadow-sm hover:bg-vr-600 disabled:opacity-70"
+                    : "border border-gray-200 bg-white text-gray-400"
+                }`}
+              >
+                <FiSave size={16} />
+                {isSaving ? t("routes.savingRoute") : t("routes.saveRoute")}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <nav
+          aria-label={t("routes.manageTitle")}
+          className="flex flex-wrap gap-2 border-b border-gray-200"
+        >
+          {routeTabs.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              aria-pressed={activeTab === tab}
+              onClick={() => onSelectTab(tab)}
+              className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${
+                activeTab === tab
+                  ? "border-vr-500 text-vr-700"
+                  : "border-transparent text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              {t(`routes.tabs.${tab}`)}
+            </button>
+          ))}
+        </nav>
+      </div>
     </>
   );
 }

@@ -1,12 +1,16 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiRequestError } from "../../../api/client";
 import {
+  deleteOperatorDriverSchedule,
   getOperatorDriverSchedules,
   getOperatorRoutes,
   getOperatorUsers,
   getOperatorVehicles,
+  updateOperatorDriverSchedule,
 } from "../../../api/vietride";
+import ToastProvider from "../../../components/toast/ToastProvider";
 import TripsPage from "./index";
 
 vi.mock("react-i18next", () => ({
@@ -16,18 +20,33 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+// client.ts cũng import auth — mock đủ export để import chain không vỡ.
 vi.mock("../../../auth", () => ({
   getAuthUser: () => ({ id: "operator-admin-1", role: "OPERATOR_ADMIN" }),
+  getAuthSession: () => null,
+  refreshAuthSession: async () => null,
 }));
 
 vi.mock("../../../api/vietride", () => ({
   activateOperatorDriverSchedule: vi.fn(),
   createOperatorDriverSchedule: vi.fn(),
+  deactivateOperatorDriverSchedule: vi.fn(),
+  deleteOperatorDriverSchedule: vi.fn(),
   getOperatorDriverSchedules: vi.fn(),
   getOperatorRoutes: vi.fn(),
   getOperatorUsers: vi.fn(),
   getOperatorVehicles: vi.fn(),
+  updateOperatorDriverSchedule: vi.fn(),
 }));
+
+// TripsPage gọi useToast — phải render trong ToastProvider như trên App thật.
+function renderPage() {
+  return render(
+    <ToastProvider>
+      <TripsPage />
+    </ToastProvider>,
+  );
+}
 
 describe("TripsPage", () => {
   beforeEach(() => {
@@ -114,6 +133,18 @@ describe("TripsPage", () => {
           effectiveFrom: "2026-09-01",
           validFrom: "2026-09-01",
           isActive: true,
+          // Route đính kèm để màn tính được giá vé + giờ đến (điều kiện lưu khi sửa)
+          route: {
+            id: "route-1",
+            operatorId: "operator-1",
+            name: "Hồ Chí Minh - Đà Lạt",
+            originStationId: "origin-1",
+            destinationStationId: "destination-1",
+            totalDistanceKm: 300,
+            estimatedDurationMinutes: 420,
+            baseFare: 250_000,
+            isActive: true,
+          },
         },
       ],
       page: 1,
@@ -136,7 +167,7 @@ describe("TripsPage", () => {
       new Promise<never>(() => {}),
     );
 
-    render(<TripsPage />);
+    renderPage();
 
     // 4 thẻ KPI đều là skeleton, không thẻ nào hiện số 0
     expect(screen.getAllByTestId("metric-card-skeleton")).toHaveLength(4);
@@ -157,7 +188,7 @@ describe("TripsPage", () => {
       hasPreviousPage: false,
     });
 
-    render(<TripsPage />);
+    renderPage();
 
     expect(await screen.findByText("trips.noSchedules")).toBeInTheDocument();
     expect(
@@ -208,7 +239,7 @@ describe("TripsPage", () => {
     );
     vi.mocked(getOperatorUsers).mockReturnValue(new Promise<never>(() => {}));
 
-    render(<TripsPage />);
+    renderPage();
 
     // 3 thẻ danh mục hiện số từ cache ngay, không skeleton
     for (const labelKey of [
@@ -233,7 +264,7 @@ describe("TripsPage", () => {
   });
 
   it("counts ACTIVE driver accounts instead of only AVAILABLE resources", async () => {
-    render(<TripsPage />);
+    renderPage();
 
     const label = await screen.findByText("trips.availableDrivers");
     const card = label.parentElement;
@@ -246,7 +277,7 @@ describe("TripsPage", () => {
 
   it("opens the schedule form modal from the create button", async () => {
     const user = userEvent.setup();
-    render(<TripsPage />);
+    renderPage();
 
     await screen.findByText("SCH-SCHEDULE");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -266,7 +297,7 @@ describe("TripsPage", () => {
 
   it("opens the modal prefilled with the schedule when edit is selected", async () => {
     const user = userEvent.setup();
-    render(<TripsPage />);
+    renderPage();
 
     await screen.findByText("SCH-SCHEDULE");
     await user.click(screen.getByRole("button", { name: "trips.edit" }));
@@ -283,5 +314,116 @@ describe("TripsPage", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
+  });
+
+  it("saves an edited schedule through the PATCH API with applyTo and a diff-only patch", async () => {
+    vi.mocked(updateOperatorDriverSchedule).mockResolvedValue({
+      id: "schedule-12345678",
+      operatorId: "operator-1",
+      routeId: "route-1",
+      vehicleId: "vehicle-1",
+      driverUserId: "driver-inactive",
+      assistantUserId: null,
+      departureTime: "08:00:00",
+      effectiveFrom: "2026-09-01",
+      validFrom: "2026-09-01",
+      isActive: true,
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("SCH-SCHEDULE");
+    await user.click(screen.getByRole("button", { name: "trips.edit" }));
+    const dialog = await screen.findByRole("dialog");
+
+    // Đổi phạm vi áp dụng sang ALL_PENDING
+    await user.click(
+      within(dialog).getByRole("radio", { name: /trips\.applyToAllPending/ }),
+    );
+
+    // Đổi tài xế — field duy nhất thay đổi so với bản gốc
+    await user.click(
+      within(dialog).getByRole("button", { name: /Tài xế đang hoạt động/ }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: /Tài xế ngừng hoạt động/ }),
+    );
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "trips.openForOperation" }),
+    );
+
+    // Patch chỉ chứa field đã đổi (driverUserId), không gửi field giữ nguyên
+    await waitFor(() => {
+      expect(updateOperatorDriverSchedule).toHaveBeenCalledWith(
+        "schedule-12345678",
+        "ALL_PENDING",
+        { driverUserId: "driver-inactive" },
+      );
+    });
+    // Feedback thành công hiện dạng toast (portal vào body), không còn banner inline
+    const toast = await screen.findByTestId("toast");
+    expect(toast).toHaveTextContent("trips.scheduleUpdated");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("deletes a schedule after confirming in the modal", async () => {
+    vi.mocked(deleteOperatorDriverSchedule).mockResolvedValue({
+      deleted: true,
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("SCH-SCHEDULE");
+    await user.click(
+      screen.getByRole("button", { name: "trips.deleteSchedule" }),
+    );
+
+    // Modal confirm hiện mã lịch — chưa gọi API cho tới khi xác nhận
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("trips.deleteScheduleConfirm SCH-SCHEDULE"),
+    ).toBeInTheDocument();
+    expect(deleteOperatorDriverSchedule).not.toHaveBeenCalled();
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "trips.deleteSchedule" }),
+    );
+
+    await waitFor(() => {
+      expect(deleteOperatorDriverSchedule).toHaveBeenCalledWith(
+        "schedule-12345678",
+      );
+    });
+    // Toast xác nhận xoá thành công thay cho banner inline
+    const toast = await screen.findByTestId("toast");
+    expect(toast).toHaveTextContent("trips.scheduleDeleted");
+    expect(screen.queryByText("SCH-SCHEDULE")).not.toBeInTheDocument();
+  });
+
+  it("shows the has-trips message when delete fails with 409 SCHEDULE_HAS_TRIPS", async () => {
+    vi.mocked(deleteOperatorDriverSchedule).mockRejectedValue(
+      new ApiRequestError("Schedule has generated trips", 409, "SCHEDULE_HAS_TRIPS"),
+    );
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("SCH-SCHEDULE");
+    await user.click(
+      screen.getByRole("button", { name: "trips.deleteSchedule" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "trips.deleteSchedule" }),
+    );
+
+    // Toast lỗi rõ ràng: lịch đã sinh chuyến — gợi ý tắt thay vì xoá; lịch vẫn còn
+    const toast = await screen.findByTestId("toast");
+    expect(toast).toHaveTextContent("trips.deleteHasTrips");
+    expect(toast).toHaveAttribute("role", "alert");
+    expect(screen.getByText("SCH-SCHEDULE")).toBeInTheDocument();
   });
 });
