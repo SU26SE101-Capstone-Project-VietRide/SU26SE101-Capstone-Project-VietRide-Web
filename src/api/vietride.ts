@@ -1619,12 +1619,18 @@ export type ShuttleBookingGroup = {
   pickupAddress: string;
   pickupLat: number;
   pickupLng: number;
-  distanceToStationMeters: number;
+  distanceToStationMeters: number | null;
+  roadDistanceMeters?: number | null;
   requestedAt: string;
 };
 
+export type ShuttleDirection =
+  | "INBOUND_TO_STATION"
+  | "OUTBOUND_FROM_STATION";
+
 export type ShuttleRequestGroup = {
   mainTripId: string;
+  direction: ShuttleDirection;
   departureDateTime: string;
   hardCutoffAt: string;
   stationId: string;
@@ -1636,6 +1642,7 @@ export type ShuttleRequestGroup = {
 
 export type CreateShuttleTripRequest = {
   mainTripId: string;
+  direction: ShuttleDirection;
   driverUserId: string;
   vehicleId: string;
   scheduledDepartureTime: string;
@@ -2186,12 +2193,19 @@ export type FareSurchargeStatus = "DISABLED" | "UPCOMING" | "EXPIRED" | "APPLYIN
 export type FareSurchargePeriod = { periodId: string; name: string; startDate: string; endDate: string; surchargePercent: number; isActive: boolean; status: FareSurchargeStatus; createdAt: string; updatedAt: string };
 export type FareSurchargePeriodRequest = { name: string; startDate: string; endDate: string; surchargePercent: number; isActive?: boolean | null };
 export type FareSurchargePeriodPatch = Partial<FareSurchargePeriodRequest>;
+export type VehicleSeatType =
+  | "STANDARD"
+  | "SLEEPER_LOWER"
+  | "SLEEPER_UPPER"
+  | "VIP"
+  | "DRIVER_AREA";
+
 export type VehicleSeat = {
   seatNumber: string;
   row: number;
   col: number;
   deck?: number;
-  type: string;
+  type: VehicleSeatType;
   isWindow?: boolean;
   isAisle?: boolean;
   disabled?: boolean;
@@ -2236,7 +2250,13 @@ export type OperatorVehicle = {
   updatedAt?: string;
 };
 
-export type OperatorVehicleRequest = {
+export type VehicleStatus =
+  | "ACTIVE"
+  | "MAINTENANCE"
+  | "OFF_DUTY"
+  | "RETIRED";
+
+export type OperatorVehicleCreateRequest = {
   vehicleTypeId: string;
   licensePlate: string;
   totalSeats: number;
@@ -2244,6 +2264,33 @@ export type OperatorVehicleRequest = {
   maxCargoVolumeM3: number;
   seatLayoutJson: SeatLayoutJson;
   imageUrls: string[];
+};
+
+export type OperatorVehicleUpdateRequest = {
+  vehicleTypeId?: string;
+  licensePlate?: string;
+  seatLayoutJson?: SeatLayoutJson | null;
+  totalSeats?: number;
+  maxCargoWeightKg?: number | null;
+  maxCargoVolumeM3?: number | null;
+  imageUrls?: string[] | null;
+  status?: VehicleStatus;
+  isActive?: boolean;
+};
+
+export type TripSeatMapSeat = {
+  seatNumber: string;
+  status: string;
+  type: string;
+  row: number;
+  col: number;
+  deck: number;
+};
+
+export type TripSeatMap = {
+  tripId: string;
+  vehicleType: string;
+  seats: TripSeatMapSeat[];
 };
 
 export type FirebaseUploadPurpose =
@@ -2411,10 +2458,15 @@ export type TripRouteGeometry = {
 export type CargoCapacity = {
   tripId: string;
   reservedWeightKg?: number;
+  reservedVolumeM3?: number;
   loadedWeightKg?: number;
-  percentFull?: number;
+  loadedVolumeM3?: number;
   maxCargoWeightKg: number;
   maxCargoVolumeM3?: number;
+  availableWeightKg?: number;
+  availableVolumeM3?: number;
+  percentFull?: number;
+  // Legacy aliases kept for existing operations UI consumers.
   reservedCargoWeightKg?: number;
   reservedCargoVolumeM3?: number;
   loadedCargoWeightKg?: number;
@@ -2881,9 +2933,13 @@ export function registerOperator(request: RegisterOperatorRequest) {
   });
 }
 
-export async function getOperatorUsers(params: AdminUserParams = {}) {
+export async function getOperatorUsers(
+  params: AdminUserParams = {},
+  signal?: AbortSignal,
+) {
   const response = await apiRequest<PagedResult<OperatorUser> | OperatorUser[]>(
     `/v1/operator/users${buildQuery(params)}`,
+    { signal },
   );
 
   if (Array.isArray(response)) {
@@ -4065,17 +4121,23 @@ export function deleteAlternativeRoute(alternativeRouteId: string) {
   );
 }
 
-export function getOperatorVehicles(params: PageParams & { searchIn?: string } = {}) {
+export function getOperatorVehicles(
+  params: PageParams & { searchIn?: string } = {},
+  signal?: AbortSignal,
+) {
   return apiRequest<PagedResult<OperatorVehicle>>(
     `/v1/operator/vehicles${buildQuery(params)}`,
+    { signal },
   );
 }
 
-export function getOperatorVehicle(id: string) {
-  return apiRequest<OperatorVehicle>(`/v1/operator/vehicles/${id}`);
+export function getOperatorVehicle(id: string, signal?: AbortSignal) {
+  return apiRequest<OperatorVehicle>(`/v1/operator/vehicles/${id}`, {
+    signal,
+  });
 }
 
-export function createOperatorVehicle(request: OperatorVehicleRequest) {
+export function createOperatorVehicle(request: OperatorVehicleCreateRequest) {
   return apiRequest<OperatorVehicle>("/v1/operator/vehicles", {
     method: "POST",
     body: request,
@@ -4084,7 +4146,7 @@ export function createOperatorVehicle(request: OperatorVehicleRequest) {
 
 export function updateOperatorVehicle(
   id: string,
-  request: OperatorVehicleRequest,
+  request: OperatorVehicleUpdateRequest,
 ) {
   return apiRequest<OperatorVehicle>(`/v1/operator/vehicles/${id}`, {
     method: "PATCH",
@@ -4106,9 +4168,13 @@ export function updateMyAvatar(avatarUrl: string | null) {
   });
 }
 
-export function getVehicleTypes(params: PageParams & { searchIn?: string } = {}) {
+export function getVehicleTypes(
+  params: PageParams & { searchIn?: string } = {},
+  signal?: AbortSignal,
+) {
   return apiRequest<PagedResult<VehicleType>>(
     `/v1/vehicle-types${buildQuery(params)}`,
+    { signal },
   );
 }
 
@@ -4121,7 +4187,7 @@ export function getPublicTrip(tripId: string) {
 }
 
 export function getPublicTripSeatMap(tripId: string) {
-  return apiRequest<unknown>(`/v1/trips/${tripId}/seat-map`);
+  return apiRequest<TripSeatMap>(`/v1/trips/${tripId}/seat-map`);
 }
 
 export type ServiceHealth = {
@@ -4416,9 +4482,13 @@ export function getTrackingTripRouteGeometry(tripId: string) {
   );
 }
 
-export function getOperatorShuttleRequests(params: PageParams = {}) {
+export function getOperatorShuttleRequests(
+  params: PageParams = {},
+  signal?: AbortSignal,
+) {
   return apiRequest<PagedResult<ShuttleRequestGroup>>(
     `/v1/operator/shuttle-requests${buildQuery(params)}`,
+    { signal },
   );
 }
 
@@ -4651,9 +4721,13 @@ export function getOperatorRevenueAnalytics(month: string) {
   );
 }
 
-export function getOperatorTrips(params: OperatorTripListParams = {}) {
+export function getOperatorTrips(
+  params: OperatorTripListParams = {},
+  signal?: AbortSignal,
+) {
   return apiRequest<PagedResult<OperatorTripListItem>>(
     `/v1/operator/trips${buildQuery(params)}`,
+    { signal },
   );
 }
 

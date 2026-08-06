@@ -133,6 +133,8 @@
     "ACTIVE": "Active",
     "INACTIVE": "Inactive",
     "MAINTENANCE": "Under maintenance",
+    "OFF_DUTY": "Off duty",
+    "RETIRED": "Retired",
     "PENDING": "Pending",
     "PENDING_PAYMENT": "Pending payment",
     "PENDING_HOLD": "Pending hold",

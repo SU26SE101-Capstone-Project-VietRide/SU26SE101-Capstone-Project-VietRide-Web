@@ -1,20 +1,14 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { useTranslation } from "react-i18next";
-import { ApiRequestError } from "../../../api/client";
 import {
-  FiSearch,
-  FiDownload,
-  FiCheck,
-  FiClock,
-  FiTrendingUp,
-  FiTruck,
-  FiRefreshCw,
-} from "react-icons/fi";
-import CustomSelect from "../../../components/CustomSelect";
-import Pagination from "../../../components/Pagination";
-import { downloadCsv } from "../../../utils/csv";
-import { addRecentShuttleTrip } from "../../../utils/shuttleTrackingHistory";
-import { getAuthUser } from "../../../auth";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useTranslation } from "react-i18next";
+import { FiClock, FiRefreshCw, FiUsers } from "react-icons/fi";
+import { ApiRequestError } from "../../../api/client";
+import { createIdempotencyKey } from "../../../api/idempotency";
 import {
   createOperatorShuttleTrip,
   getOperatorShuttleRequests,
@@ -22,308 +16,590 @@ import {
   getOperatorVehicles,
   getShuttleTripEta,
   getShuttleTripLatest,
+  type OperatorUser,
+  type OperatorVehicle,
+  type PagedResult,
+  type ShuttleDirection,
+  type ShuttleRequestGroup,
 } from "../../../api/vietride";
-import AssignVehicleModal, { type AssignVehicleForm } from "./AssignVehicleModal";
+import { getAuthUser } from "../../../auth";
+import Pagination from "../../../components/Pagination";
+import {
+  addRecentShuttleTrip,
+  getRecentShuttleTrips,
+  removeRecentShuttleTrip,
+} from "../../../utils/shuttleTrackingHistory";
+import AssignVehicleModal, {
+  type AssignVehicleForm,
+} from "./AssignVehicleModal";
 import RequestDetailModal from "./RequestDetailModal";
 import RequestTable from "./RequestTable";
 import ShuttleTrackingCard from "./ShuttleTrackingCard";
 import {
-  V_DOT_CLASS,
-  V_STATUS_CLASS,
-  isDriverRole,
+  buildInitialSchedule,
+  getBookingDistance,
+  getOrderedBookingGroups,
+  getOrderedSelectedBookingIds,
+  getSelectedPassengerCount,
+  isInboundDirection,
   toDriverOption,
-  toRequestRows,
   toVehicleOption,
-  type RequestStatus,
-  type RequestType,
   type ShuttleDriver,
-  type ShuttleRequest,
   type ShuttleVehicle,
   type TrackedShuttleTrip,
-  type VehicleStatus,
 } from "./dispatchHelpers";
+
+const REQUEST_PAGE_SIZE = 8;
+const RESOURCE_PAGE_SIZE = 50;
+
+const EMPTY_ASSIGN_FORM: AssignVehicleForm = {
+  vehicleId: "",
+  driverId: "",
+  scheduledDepartureTime: "",
+  scheduledEndTime: "",
+  selectedBookingIds: [],
+  notes: "",
+};
+
+async function loadEveryPage<T>(
+  loadPage: (page: number) => Promise<PagedResult<T>>,
+) {
+  const firstPage = await loadPage(1);
+  const items = [...firstPage.items];
+
+  for (let page = 2; page <= firstPage.totalPages; page += 1) {
+    const result = await loadPage(page);
+    items.push(...result.items);
+  }
+
+  return items;
+}
+
+function uniqueById<T extends { id: string }>(items: T[]) {
+  return [...new Map(items.map((item) => [item.id, item])).values()];
+}
 
 export default function DispatchPanel() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  // Giữ tham chiếu t mới nhất để callback tải dữ liệu không refetch khi đổi ngôn ngữ
-  const tRef = useRef(t);
-  useEffect(() => {
-    tRef.current = t;
-  });
   const authUser = getAuthUser();
   const canDispatchShuttle = authUser?.role === "OPERATOR_ADMIN";
+  const tRef = useRef(t);
 
-  const statusLabel = useCallback(
-    (status: RequestStatus) => {
-      const map: Record<RequestStatus, string> = {
-        pending: t("dispatch.statusPending"),
-        assigned: t("dispatch.statusAssigned"),
-        picking: t("dispatch.statusPicking"),
-        completed: t("dispatch.statusCompleted"),
-        cancelled: t("dispatch.statusCancelled"),
-      };
-      return map[status];
-    },
-    [t],
-  );
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
-  const vehicleStatusLabel = useCallback(
-    (status: VehicleStatus) => {
-      const map: Record<VehicleStatus, string> = {
-        active: t("dispatch.vehicleActive"),
-        picking: t("dispatch.vehiclePicking"),
-        idle: t("dispatch.vehicleIdle"),
-      };
-      return map[status];
-    },
-    [t],
-  );
+  const [groups, setGroups] = useState<ShuttleRequestGroup[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [message, setMessage] = useState("");
 
-  const requestTypeLabel = useCallback(
-    (type: RequestType) =>
-      type === "Đón" ? t("dispatch.pickup") : t("dispatch.dropoff"),
-    [t],
-  );
-
-  const [requests, setRequests] = useState<ShuttleRequest[]>([]);
   const [vehicles, setVehicles] = useState<ShuttleVehicle[]>([]);
   const [drivers, setDrivers] = useState<ShuttleDriver[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">("all");
-  const [page, setPage] = useState(1);
-  const pageSize = 8;
+  const [resourcesLoaded, setResourcesLoaded] = useState(false);
+  const [isLoadingResources, setIsLoadingResources] = useState(false);
+  const [resourceError, setResourceError] = useState("");
+  const resourcesLoadingRef = useRef(false);
 
   const [openAssignVehicle, setOpenAssignVehicle] = useState(false);
   const [openRequestDetail, setOpenRequestDetail] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<ShuttleRequest | null>(
-    null,
-  );
-
-  const [assignForm, setAssignForm] = useState<AssignVehicleForm>({
-    vehicleId: "",
-    driverId: "",
-    scheduledDepartureTime: "",
-    scheduledEndTime: "",
-    notes: "",
-  });
+  const [selectedGroup, setSelectedGroup] =
+    useState<ShuttleRequestGroup | null>(null);
+  const [assignForm, setAssignForm] =
+    useState<AssignVehicleForm>(EMPTY_ASSIGN_FORM);
+  const [assignError, setAssignError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const [trackedShuttleTrips, setTrackedShuttleTrips] = useState<
     TrackedShuttleTrip[]
-  >([]);
+  >(() =>
+    getRecentShuttleTrips().map((item) => ({
+      ...item,
+      isRefreshing: false,
+    })),
+  );
 
-  const loadDispatchData = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const [requestResult, vehicleResult, userResult] = await Promise.all([
-        getOperatorShuttleRequests({ page: 1, pageSize: 100 }),
-        getOperatorVehicles({ page: 1, pageSize: 100 }),
-        getOperatorUsers({ page: 1, pageSize: 100 }),
-      ]);
-
-      const nextRequests = requestResult.items.flatMap(toRequestRows);
-      const nextVehicles = vehicleResult.items.map(toVehicleOption).filter((vehicle) => vehicle.id);
-      const nextDrivers = userResult.items
-        .filter((user) => isDriverRole(user.role))
-        .map(toDriverOption)
-        .filter((driver) => driver.id);
-
-      setRequests(nextRequests);
-      setVehicles(nextVehicles);
-      setDrivers(nextDrivers);
-      setAssignForm((current) => ({
-        ...current,
-        vehicleId: current.vehicleId || nextVehicles[0]?.id || "",
-        driverId: current.driverId || nextDrivers[0]?.id || "",
-      }));
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tRef.current("dispatch.loadFailed"),
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const directionLabel = useCallback(
+    (direction: ShuttleDirection) =>
+      isInboundDirection(direction)
+        ? t("dispatch.pickup")
+        : t("dispatch.dropoff"),
+    [t],
+  );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadDispatchData();
-    }, 0);
+    let ignore = false;
 
-    return () => window.clearTimeout(timer);
-  }, [loadDispatchData]);
+    async function loadRequests() {
+      setIsLoading(true);
+      setLoadError("");
 
-  const filtered = useMemo(() => {
-    return requests.filter((r) => {
-      const q = query.toLowerCase();
-      const statusMatch = statusFilter === "all" || r.status === statusFilter;
-      const queryMatch =
-        !q ||
-        r.id.toLowerCase().includes(q) ||
-        r.customerName.toLowerCase().includes(q) ||
-        r.trip.toLowerCase().includes(q);
-      return statusMatch && queryMatch;
-    });
-  }, [requests, query, statusFilter]);
+      try {
+        const result = await getOperatorShuttleRequests({
+          page,
+          pageSize: REQUEST_PAGE_SIZE,
+        });
 
-  function handleExportCsv() {
-    downloadCsv(
-      "dispatch-requests.csv",
-      [
-        t("dispatch.code"),
-        t("dispatch.csvCustomer"),
-        t("dispatch.trip"),
-        t("dispatch.type"),
-        t("dispatch.csvAddress"),
-        tc("status"),
-      ],
-      filtered.map((request) => [
-        request.id,
-        request.customerName,
-        request.trip,
-        request.type,
-        request.address,
-        request.status,
-      ]),
-    );
-  }
+        if (ignore) {
+          return;
+        }
 
-  const stats = useMemo(
-    () => ({
-      pending: requests.filter((r) => r.status === "pending").length,
-      assigned: requests.filter(
-        (r) => r.status === "assigned" || r.status === "picking",
-      ).length,
-      completed: requests.filter((r) => r.status === "completed").length,
-      ready: vehicles.filter((v) => v.status === "active").length,
-    }),
-    [requests, vehicles],
-  );
+        const lastPage = Math.max(
+          1,
+          Math.ceil(result.totalItems / REQUEST_PAGE_SIZE),
+        );
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
 
-  const paginatedRequests = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page],
-  );
-
-  const refreshShuttleTracking = useCallback(async (shuttleTripId: string) => {
-    setTrackedShuttleTrips((current) =>
-      current.map((item) =>
-        item.shuttleTripId === shuttleTripId
-          ? { ...item, isRefreshing: true, error: undefined }
-          : item,
-      ),
-    );
-
-    try {
-      const [latest, eta] = await Promise.all([
-        getShuttleTripLatest(shuttleTripId),
-        getShuttleTripEta(shuttleTripId),
-      ]);
-      setTrackedShuttleTrips((current) =>
-        current.map((item) =>
-          item.shuttleTripId === shuttleTripId
-            ? { ...item, latest, eta, isRefreshing: false }
-            : item,
-        ),
-      );
-    } catch (err) {
-      setTrackedShuttleTrips((current) =>
-        current.map((item) =>
-          item.shuttleTripId === shuttleTripId
-            ? {
-                ...item,
-                isRefreshing: false,
-                error:
-                  err instanceof ApiRequestError && err.code === "TRACKING_ACCESS_DENIED"
-                    ? t("dispatch.operatorTrackingDenied")
-                    : err instanceof Error
-                      ? err.message
-                      : t("dispatch.trackingFailed"),
-              }
-            : item,
-        ),
-      );
+        setGroups(result.items);
+        setTotalItems(result.totalItems);
+      } catch (error) {
+        if (!ignore) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : tRef.current("dispatch.loadFailed"),
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
     }
-  }, [t]);
+
+    void loadRequests();
+    return () => {
+      ignore = true;
+    };
+  }, [page, refreshVersion]);
+
+  const loadAssignmentResources = useCallback(
+    async (force = false) => {
+      if (!canDispatchShuttle || resourcesLoadingRef.current) {
+        return;
+      }
+
+      if (resourcesLoaded && !force) {
+        return;
+      }
+
+      resourcesLoadingRef.current = true;
+      setIsLoadingResources(true);
+      setResourceError("");
+
+      try {
+        const [vehicleItems, userItems] = await Promise.all([
+          loadEveryPage<OperatorVehicle>((resourcePage) =>
+            getOperatorVehicles({
+              page: resourcePage,
+              pageSize: RESOURCE_PAGE_SIZE,
+              status: "ACTIVE",
+              sortBy: "licensePlate",
+              sortDir: "asc",
+            }),
+          ),
+          loadEveryPage<OperatorUser>((resourcePage) =>
+            getOperatorUsers({
+              page: resourcePage,
+              pageSize: RESOURCE_PAGE_SIZE,
+              role: "DRIVER",
+              status: "ACTIVE",
+              sortBy: "displayName",
+              sortDir: "asc",
+            }),
+          ),
+        ]);
+
+        const nextVehicles = uniqueById(
+          vehicleItems
+            .map(toVehicleOption)
+            .filter((vehicle): vehicle is ShuttleVehicle => vehicle !== null),
+        );
+        const nextDrivers = uniqueById(
+          userItems
+            .map(toDriverOption)
+            .filter((driver): driver is ShuttleDriver => driver !== null),
+        );
+
+        setVehicles(nextVehicles);
+        setDrivers(nextDrivers);
+        setResourcesLoaded(true);
+        setAssignForm((current) => ({
+          ...current,
+          vehicleId: nextVehicles.some(
+            (vehicle) => vehicle.id === current.vehicleId,
+          )
+            ? current.vehicleId
+            : nextVehicles[0]?.id || "",
+          driverId: nextDrivers.some(
+            (driver) => driver.id === current.driverId,
+          )
+            ? current.driverId
+            : nextDrivers[0]?.id || "",
+        }));
+      } catch (error) {
+        setResourceError(
+          error instanceof Error
+            ? error.message
+            : t("dispatch.resourceLoadFailed", {
+                defaultValue: "Không thể tải danh sách xe và tài xế.",
+              }),
+        );
+      } finally {
+        resourcesLoadingRef.current = false;
+        setIsLoadingResources(false);
+      }
+    },
+    [canDispatchShuttle, resourcesLoaded, t],
+  );
+
+  const refreshShuttleTracking = useCallback(
+    async (shuttleTripId: string) => {
+      setTrackedShuttleTrips((current) =>
+        current.map((item) =>
+          item.shuttleTripId === shuttleTripId
+            ? { ...item, isRefreshing: true, error: undefined }
+            : item,
+        ),
+      );
+
+      try {
+        const [latest, eta] = await Promise.all([
+          getShuttleTripLatest(shuttleTripId),
+          getShuttleTripEta(shuttleTripId),
+        ]);
+        setTrackedShuttleTrips((current) =>
+          current.map((item) =>
+            item.shuttleTripId === shuttleTripId
+              ? { ...item, latest, eta, isRefreshing: false }
+              : item,
+          ),
+        );
+      } catch (error) {
+        setTrackedShuttleTrips((current) =>
+          current.map((item) =>
+            item.shuttleTripId === shuttleTripId
+              ? {
+                  ...item,
+                  isRefreshing: false,
+                  error:
+                    error instanceof ApiRequestError &&
+                    error.code === "TRACKING_ACCESS_DENIED"
+                      ? t("dispatch.operatorTrackingDenied")
+                      : error instanceof Error
+                        ? error.message
+                        : t("dispatch.trackingFailed"),
+                }
+              : item,
+          ),
+        );
+      }
+    },
+    [t],
+  );
 
   const removeShuttleTracking = useCallback((shuttleTripId: string) => {
+    removeRecentShuttleTrip(shuttleTripId);
     setTrackedShuttleTrips((current) =>
       current.filter((item) => item.shuttleTripId !== shuttleTripId),
     );
   }, []);
 
-  const handleAssignVehicle = async () => {
-    if (
-      !selectedRequest ||
-      !assignForm.vehicleId ||
-      !assignForm.driverId ||
-      !assignForm.scheduledDepartureTime ||
-      !assignForm.scheduledEndTime
-    ) {
-      setError(t("dispatch.fillRequired"));
+  function openDetail(group: ShuttleRequestGroup) {
+    setSelectedGroup(group);
+    setOpenRequestDetail(true);
+  }
+
+  function openAssign(group: ShuttleRequestGroup) {
+    if (!canDispatchShuttle) {
       return;
     }
 
-    try {
-      const result = await createOperatorShuttleTrip({
-        mainTripId: selectedRequest.mainTripId,
-        vehicleId: assignForm.vehicleId,
-        driverUserId: assignForm.driverId,
-        scheduledDepartureTime: new Date(assignForm.scheduledDepartureTime).toISOString(),
-        scheduledEndTime: new Date(assignForm.scheduledEndTime).toISOString(),
-        orderedBookingIds: [selectedRequest.bookingId],
-        notes: assignForm.notes || undefined,
-      });
+    const schedule = buildInitialSchedule(group);
+    const selectedBookingIds = getOrderedBookingGroups(group)
+      .filter((booking) => getBookingDistance(booking) !== null)
+      .map((booking) => booking.bookingId);
 
-      setOpenAssignVehicle(false);
-      setAssignForm({
-        vehicleId: vehicles[0]?.id || "",
-        driverId: drivers[0]?.id || "",
-        scheduledDepartureTime: "",
-        scheduledEndTime: "",
-        notes: "",
+    setSelectedGroup(group);
+    setAssignError("");
+    setResourceError("");
+    setAssignForm({
+      vehicleId: vehicles[0]?.id || "",
+      driverId: drivers[0]?.id || "",
+      selectedBookingIds,
+      notes: "",
+      ...schedule,
+    });
+    idempotencyKeyRef.current = createIdempotencyKey();
+    setOpenAssignVehicle(true);
+    void loadAssignmentResources();
+  }
+
+  function closeAssign() {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    setOpenAssignVehicle(false);
+    setAssignError("");
+    idempotencyKeyRef.current = null;
+  }
+
+  function getAssignmentValidationError() {
+    if (!selectedGroup) {
+      return t("dispatch.invalidRequest", {
+        defaultValue: "Nhóm yêu cầu không còn hợp lệ.",
       });
-      setMessage(
-        `${t("dispatch.assignSuccess")} ${result.shuttleTripId} (${result.assignedPassengerCount})`,
-      );
-      const createdAt = new Date().toISOString();
-      setTrackedShuttleTrips((current) => [
+    }
+
+    const orderedBookingIds = getOrderedSelectedBookingIds(
+      selectedGroup,
+      assignForm.selectedBookingIds,
+    );
+    if (orderedBookingIds.length === 0) {
+      return t("dispatch.selectAtLeastOneBooking", {
+        defaultValue: "Chọn ít nhất một lượt đặt vé để điều phối.",
+      });
+    }
+
+    if (
+      orderedBookingIds.some((bookingId) => {
+        const booking = selectedGroup.bookingGroups.find(
+          (item) => item.bookingId === bookingId,
+        );
+        return !booking || getBookingDistance(booking) === null;
+      })
+    ) {
+      return t("dispatch.distanceRequired", {
+        defaultValue:
+          "Không thể điều phối lượt đặt vé chưa có khoảng cách đường bộ.",
+      });
+    }
+
+    const selectedVehicle = vehicles.find(
+      (vehicle) => vehicle.id === assignForm.vehicleId,
+    );
+    if (!selectedVehicle) {
+      return t("dispatch.selectVehiclePlaceholder");
+    }
+
+    if (!drivers.some((driver) => driver.id === assignForm.driverId)) {
+      return t("dispatch.selectDriverPlaceholder");
+    }
+
+    const passengerCount = getSelectedPassengerCount(
+      selectedGroup,
+      orderedBookingIds,
+    );
+    if (passengerCount > selectedVehicle.capacity) {
+      return t("dispatch.capacityExceeded", {
+        defaultValue:
+          "Số khách đã chọn vượt quá sức chứa {{capacity}} chỗ của xe.",
+        capacity: selectedVehicle.capacity,
+      });
+    }
+
+    const departure = new Date(assignForm.scheduledDepartureTime);
+    const end = new Date(assignForm.scheduledEndTime);
+    if (
+      !assignForm.scheduledDepartureTime ||
+      !assignForm.scheduledEndTime ||
+      Number.isNaN(departure.getTime()) ||
+      Number.isNaN(end.getTime())
+    ) {
+      return t("dispatch.fillRequired");
+    }
+
+    if (departure.getTime() <= Date.now()) {
+      return t("dispatch.departureMustBeFuture", {
+        defaultValue: "Giờ xuất phát trung chuyển phải ở tương lai.",
+      });
+    }
+
+    if (end <= departure) {
+      return t("dispatch.endAfterDeparture", {
+        defaultValue: "Giờ kết thúc phải sau giờ xuất phát.",
+      });
+    }
+
+    const boundary = new Date(selectedGroup.hardCutoffAt);
+    if (!Number.isNaN(boundary.getTime())) {
+      if (
+        isInboundDirection(selectedGroup.direction) &&
+        Date.now() >= boundary.getTime()
+      ) {
+        return t("dispatch.cutoffPassed", {
+          defaultValue: "Đã quá hạn điều phối.",
+        });
+      }
+
+      if (
+        isInboundDirection(selectedGroup.direction) &&
+        end.getTime() > boundary.getTime()
+      ) {
+        return t("dispatch.endBeforeCutoff", {
+          defaultValue:
+            "Chuyến trung chuyển phải kết thúc trước hạn của chuyến chính.",
+        });
+      }
+
+      if (
+        !isInboundDirection(selectedGroup.direction) &&
+        departure.getTime() < boundary.getTime()
+      ) {
+        return t("dispatch.departureAfterBoundary", {
+          defaultValue:
+            "Chuyến trả khách chỉ được xuất phát sau thời điểm chuyến chính đến bến.",
+        });
+      }
+    }
+
+    if (assignForm.notes.length > 1_000) {
+      return t("dispatch.notesTooLong", {
+        defaultValue: "Ghi chú không được vượt quá 1.000 ký tự.",
+      });
+    }
+
+    return null;
+  }
+
+  function getSubmitError(error: unknown) {
+    if (!(error instanceof ApiRequestError)) {
+      return error instanceof Error ? error.message : t("dispatch.assignFailed");
+    }
+
+    const messages: Record<string, string> = {
+      SHUTTLE_REQUEST_CUTOFF_PASSED: t("dispatch.cutoffPassed", {
+        defaultValue: "Đã quá hạn điều phối.",
+      }),
+      SHUTTLE_DRIVER_CONFLICT: t("dispatch.driverConflict", {
+        defaultValue: "Tài xế đã có chuyến trùng thời gian.",
+      }),
+      SHUTTLE_VEHICLE_CONFLICT: t("dispatch.vehicleConflict", {
+        defaultValue: "Xe đã có chuyến trùng thời gian hoặc không còn hoạt động.",
+      }),
+      SHUTTLE_REQUEST_SET_CHANGED: t("dispatch.requestSetChanged", {
+        defaultValue:
+          "Danh sách yêu cầu vừa thay đổi. Hãy đóng biểu mẫu và tải lại trang.",
+      }),
+      SHUTTLE_CAPACITY_EXCEEDED: t("dispatch.capacityChanged", {
+        defaultValue: "Sức chứa xe không còn đủ cho số khách đã chọn.",
+      }),
+      SHUTTLE_DISTANCE_UNAVAILABLE: t("dispatch.distanceRequired", {
+        defaultValue: "Một điểm đón/trả chưa có khoảng cách đường bộ.",
+      }),
+      SHUTTLE_DISTANCE_EXCEEDED: t("dispatch.distanceExceeded", {
+        defaultValue: "Một điểm đón/trả vượt quá phạm vi trung chuyển.",
+      }),
+      DRIVER_NOT_FOUND: t("dispatch.driverUnavailable", {
+        defaultValue: "Tài xế không còn sẵn sàng để điều phối.",
+      }),
+      VEHICLE_NOT_FOUND: t("dispatch.vehicleUnavailable", {
+        defaultValue: "Xe không còn sẵn sàng để điều phối.",
+      }),
+    };
+
+    return (error.code && messages[error.code]) || error.message;
+  }
+
+  async function handleAssignVehicle() {
+    if (isSubmittingRef.current || !selectedGroup) {
+      return;
+    }
+
+    const validationError = getAssignmentValidationError();
+    if (validationError) {
+      setAssignError(validationError);
+      return;
+    }
+
+    const orderedBookingIds = getOrderedSelectedBookingIds(
+      selectedGroup,
+      assignForm.selectedBookingIds,
+    );
+    const idempotencyKey =
+      idempotencyKeyRef.current ?? createIdempotencyKey();
+    idempotencyKeyRef.current = idempotencyKey;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setAssignError("");
+
+    try {
+      const result = await createOperatorShuttleTrip(
         {
-          shuttleTripId: result.shuttleTripId,
-          mainTripId: result.mainTripId,
-          createdAt,
-          isRefreshing: false,
+          mainTripId: selectedGroup.mainTripId,
+          direction: selectedGroup.direction,
+          vehicleId: assignForm.vehicleId,
+          driverUserId: assignForm.driverId,
+          scheduledDepartureTime: new Date(
+            assignForm.scheduledDepartureTime,
+          ).toISOString(),
+          scheduledEndTime: new Date(
+            assignForm.scheduledEndTime,
+          ).toISOString(),
+          orderedBookingIds,
+          notes: assignForm.notes.trim() || undefined,
         },
-        ...current,
-      ]);
-      addRecentShuttleTrip({
+        idempotencyKey,
+      );
+
+      const createdAt = new Date().toISOString();
+      const trackingEntry: TrackedShuttleTrip = {
         shuttleTripId: result.shuttleTripId,
         mainTripId: result.mainTripId,
         createdAt,
-      });
-      await loadDispatchData();
-      await refreshShuttleTracking(result.shuttleTripId);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t("dispatch.assignFailed"),
+        isRefreshing: false,
+      };
+      addRecentShuttleTrip(trackingEntry);
+      setTrackedShuttleTrips((current) => [
+        trackingEntry,
+        ...current.filter(
+          (item) => item.shuttleTripId !== result.shuttleTripId,
+        ),
+      ]);
+      setMessage(
+        t("dispatch.assignSuccessDetail", {
+          defaultValue:
+            "Đã tạo chuyến trung chuyển {{tripId}} cho {{count}} khách.",
+          tripId: result.shuttleTripId,
+          count: result.assignedPassengerCount,
+        }),
       );
+      setOpenAssignVehicle(false);
+      setSelectedGroup(null);
+      setAssignForm(EMPTY_ASSIGN_FORM);
+      idempotencyKeyRef.current = null;
+      if (page === 1) {
+        setRefreshVersion((current) => current + 1);
+      } else {
+        setPage(1);
+      }
+      void refreshShuttleTracking(result.shuttleTripId);
+    } catch (error) {
+      setAssignError(getSubmitError(error));
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
-  };
+  }
 
-  const openDetail = (request: ShuttleRequest) => {
-    setSelectedRequest(request);
-    setOpenRequestDetail(true);
-  };
-
-  const openAssign = (request: ShuttleRequest) => {
-    setSelectedRequest(request);
-    setOpenAssignVehicle(true);
-  };
+  const passengersOnPage = useMemo(
+    () =>
+      groups.reduce(
+        (total, group) => total + group.pendingPassengerCount,
+        0,
+      ),
+    [groups],
+  );
 
   return (
     <div className="space-y-6">
@@ -332,176 +608,130 @@ export default function DispatchPanel() {
           <h1 className="text-3xl font-bold text-gray-900">
             {t("dispatch.title")}
           </h1>
-          <p className="text-gray-600 mt-1 text-sm">{t("dispatch.subtitle")}</p>
+          <p className="mt-1 max-w-3xl text-sm text-gray-600">
+            {t("dispatch.pendingSubtitle", {
+              defaultValue:
+                "Điều phối các nhóm yêu cầu đang chờ theo chuyến chính và chiều trung chuyển.",
+            })}
+          </p>
         </div>
         <button
           type="button"
-          onClick={() => void loadDispatchData()}
-          className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50"
+          onClick={() => {
+            setMessage("");
+            setRefreshVersion((current) => current + 1);
+          }}
+          disabled={isLoading}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <FiRefreshCw size={18} /> {tc("refresh")}
+          <FiRefreshCw
+            size={18}
+            className={isLoading ? "animate-spin" : ""}
+            aria-hidden="true"
+          />
+          {tc("refresh")}
         </button>
       </div>
 
       {message && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+          role="status"
+        >
           {message}
         </div>
       )}
 
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+      {loadError && (
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+        >
+          {loadError}
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: t("dispatch.awaiting"),
-            value: stats.pending,
-            icon: FiClock,
-            color: "text-amber-600",
-          },
-          {
-            label: t("dispatch.processing"),
-            value: stats.assigned,
-            icon: FiTrendingUp,
-            color: "text-blue-600",
-          },
-          {
-            label: t("dispatch.completed"),
-            value: stats.completed,
-            icon: FiCheck,
-            color: "text-green-600",
-          },
-          {
-            label: t("dispatch.vehiclesReady"),
-            value: `${stats.ready}/${vehicles.length}`,
-            icon: FiTruck,
-            color: "text-vr-600",
-          },
-        ].map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <div
-              key={idx}
-              className="bg-white border border-gray-200 rounded-lg p-4"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-gray-600 font-medium">
-                  {stat.label}
-                </p>
-                <Icon className={`${stat.color}`} size={18} />
-              </div>
-              <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex flex-col sm:flex-row gap-3 mb-4">
-            <div className="flex-1 relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
-                placeholder={t("dispatch.searchPlaceholder")}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
-              />
-            </div>
-            <CustomSelect
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as RequestStatus | "all");
-                setPage(1);
-              }}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-vr-500"
-            >
-              <option value="all">{tc("all")}</option>
-              <option value="pending">{t("dispatch.filterPending")}</option>
-              <option value="assigned">{t("dispatch.filterAssigned")}</option>
-              <option value="picking">{t("dispatch.statusPicking")}</option>
-              <option value="completed">{t("dispatch.statusCompleted")}</option>
-              <option value="cancelled">{t("dispatch.filterCancelled")}</option>
-            </CustomSelect>
-            <button type="button" onClick={handleExportCsv} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-              <FiDownload size={16} /> {tc("exportCsv")}
-            </button>
-          </div>
-
-          <RequestTable
-            requests={paginatedRequests}
-            isLoading={isLoading}
-            canDispatchShuttle={canDispatchShuttle}
-            onAssign={openAssign}
-            onOpenDetail={openDetail}
-            statusLabel={statusLabel}
-            requestTypeLabel={requestTypeLabel}
-          />
-
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={filtered.length}
-            onPageChange={setPage}
-          />
+      {!canDispatchShuttle && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          {t("dispatch.staffReadOnly", {
+            defaultValue:
+              "Nhân viên có thể theo dõi các yêu cầu chờ. Chỉ quản trị viên nhà xe được phân công xe và tài xế.",
+          })}
         </div>
+      )}
 
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {t("dispatch.shuttleFleet")}
-          </h3>
-          <div className="space-y-3">
-            {vehicles.map((v) => (
-              <div
-                key={v.id}
-                className="p-3 border border-gray-200 rounded-lg"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm">
-                      {v.plate}
-                    </p>
-                    <p className="text-xs text-gray-600">{v.vehicleModel}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {t("dispatch.capacity", { n: v.capacity })}
-                    </p>
-                  </div>
-                  <div className="shrink-0">
-                    <span
-                      className={`flex items-center gap-1 text-xs font-medium ${V_STATUS_CLASS[v.status]}`}
-                    >
-                      <span
-                        className={`w-2 h-2 rounded-full ${V_DOT_CLASS[v.status]}`}
-                      />
-                      {vehicleStatusLabel(v.status)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {vehicles.length === 0 && (
-              <p className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-sm text-gray-500">
-                {isLoading ? t("dispatch.loading") : t("dispatch.noVehicles")}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-gray-500">
+                {t("dispatch.pendingGroups", {
+                  defaultValue: "Nhóm yêu cầu đang chờ",
+                })}
               </p>
-            )}
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {totalItems}
+              </p>
+            </div>
+            <FiClock className="text-amber-600" size={22} aria-hidden="true" />
+          </div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-gray-500">
+                {t("dispatch.passengersOnPage", {
+                  defaultValue: "Khách chờ trên trang hiện tại",
+                })}
+              </p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {passengersOnPage}
+              </p>
+            </div>
+            <FiUsers className="text-vr-600" size={22} aria-hidden="true" />
           </div>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-gray-900">
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="border-b border-gray-100 px-4 py-4 sm:px-5">
+          <h2 className="font-semibold text-gray-900">
+            {t("dispatch.awaiting")}
+          </h2>
+          <p className="mt-1 text-xs text-gray-500">
+            {t("dispatch.serverPaginationHint", {
+              defaultValue:
+                "Danh sách được phân trang trực tiếp từ hệ thống; mỗi thẻ là một chuyến chính và một chiều trung chuyển.",
+            })}
+          </p>
+        </div>
+
+        <RequestTable
+          groups={groups}
+          isLoading={isLoading}
+          canDispatchShuttle={canDispatchShuttle}
+          onAssign={openAssign}
+          onOpenDetail={openDetail}
+          directionLabel={directionLabel}
+        />
+
+        <Pagination
+          page={page}
+          pageSize={REQUEST_PAGE_SIZE}
+          totalItems={totalItems}
+          onPageChange={setPage}
+        />
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
+        <h2 className="text-lg font-semibold text-gray-900">
           {t("dispatch.shuttleTracking")}
-        </h3>
+        </h2>
         <p className="mt-1 text-sm text-gray-500">
-          {t("dispatch.shuttleTrackingHint")}
+          {t("dispatch.shuttleTrackingBrowserHint", {
+            defaultValue:
+              "Các chuyến trung chuyển gần đây được lưu trên trình duyệt này. Chỉ tải vị trí khi bạn yêu cầu.",
+          })}
         </p>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -521,31 +751,43 @@ export default function DispatchPanel() {
             </p>
           )}
         </div>
-      </div>
+      </section>
 
       <AssignVehicleModal
         open={openAssignVehicle}
-        onClose={() => setOpenAssignVehicle(false)}
-        request={selectedRequest}
+        onClose={closeAssign}
+        group={selectedGroup}
         vehicles={vehicles}
         drivers={drivers}
         form={assignForm}
-        onFormChange={setAssignForm}
-        onSubmit={handleAssignVehicle}
-        requestTypeLabel={requestTypeLabel}
+        onFormChange={(nextForm) => {
+          setAssignError("");
+          setAssignForm(nextForm);
+        }}
+        onSubmit={() => void handleAssignVehicle()}
+        onRefreshResources={() => void loadAssignmentResources(true)}
+        directionLabel={directionLabel}
+        resourceError={resourceError}
+        submitError={assignError}
+        isLoadingResources={isLoadingResources}
+        isSubmitting={isSubmitting}
       />
 
       <RequestDetailModal
         open={openRequestDetail}
         onClose={() => setOpenRequestDetail(false)}
-        request={selectedRequest}
+        group={selectedGroup}
         canDispatchShuttle={canDispatchShuttle}
         onAssign={() => {
+          if (!selectedGroup) {
+            return;
+          }
+
+          const group = selectedGroup;
           setOpenRequestDetail(false);
-          setOpenAssignVehicle(true);
+          openAssign(group);
         }}
-        statusLabel={statusLabel}
-        requestTypeLabel={requestTypeLabel}
+        directionLabel={directionLabel}
       />
     </div>
   );

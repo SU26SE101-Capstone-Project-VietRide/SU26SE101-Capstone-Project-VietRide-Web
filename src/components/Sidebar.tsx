@@ -14,7 +14,6 @@ import {
   FiNavigation,
   FiDollarSign,
   FiFileText,
-  FiGrid,
   FiDatabase,
   FiCreditCard,
 } from "react-icons/fi";
@@ -54,11 +53,6 @@ const operatorAdminMenuConfig: MenuSection[] = [
         icon: <FiTruck />,
       },
       { labelKey: "manager.staff", path: "/manager/staff", icon: <FiUsers /> },
-      {
-        labelKey: "manager.capacity",
-        path: "/manager/capacity",
-        icon: <FiGrid />,
-      },
       {
         labelKey: "manager.bookings",
         path: "/manager/bookings",

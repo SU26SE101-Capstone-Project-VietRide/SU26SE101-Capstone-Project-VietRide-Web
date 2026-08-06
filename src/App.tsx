@@ -26,7 +26,6 @@ const SubscriptionPaymentReturn = lazy(
 );
 const ManagerPolicies = lazy(() => import("./pages/Manager/Policies/index"));
 const ManagerSettings = lazy(() => import("./pages/Manager/Settings/index"));
-const ManagerCapacity = lazy(() => import("./pages/Manager/Capacity/index"));
 const VehicleBuilderPage = lazy(() =>
   import("./modules/vehicle-builder").then((module) => ({
     default: module.VehicleBuilderPage,
@@ -87,51 +86,55 @@ export default function App() {
               />
             </Route>
 
-            {/* Manager routes */}
-            <Route
-              element={
-                <PrivateRoute
-                  allowedRoles={["OPERATOR_ADMIN", "OPERATOR_STAFF"]}
-                />
-              }
-            >
-              <Route path="/manager" element={<ManagerLayout />}>
-                <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<ManagerDashboard />} />
-                <Route path="trips" element={<TripsList />} />
-                <Route path="routes" element={<RoutesList />} />
-                <Route path="vehicles" element={<VehiclesList />} />
-                <Route path="bookings" element={<BookingsList />} />
-                <Route path="parcels" element={<ParcelsList />} />
-                <Route path="operations" element={<OperationsCenter />} />
-                <Route path="gps" element={<Navigate to="/manager/operations" replace />} />
-                <Route path="shuttle-tracking" element={<Navigate to="/manager/dispatch" replace />} />
-                <Route path="dispatch" element={<DispatchPanel />} />
-                <Route path="profile" element={<Profile />} />
-                <Route path="vouchers" element={<ManagerVouchers />} />
-                <Route path="wallet" element={<ManagerWallet />} />
-                <Route path="reports" element={<Reports />} />
-                <Route path="assistant" element={<RagAssistant />} />
-                <Route
-                  element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
-                >
-                  {/* Màn RouteETA cũ đã gộp vào Trung tâm vận hành (panel đề xuất lộ trình) */}
-                  <Route path="route-eta" element={<Navigate to="/manager/operations?panel=proposals" replace />} />
+          {/* Manager routes */}
+          <Route
+            element={
+              <PrivateRoute
+                allowedRoles={["OPERATOR_ADMIN", "OPERATOR_STAFF"]}
+              />
+            }
+          >
+            <Route path="/manager" element={<ManagerLayout />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<ManagerDashboard />} />
+              <Route path="trips" element={<TripsList />} />
+              <Route path="routes" element={<RoutesList />} />
+              <Route path="vehicles" element={<VehiclesList />} />
+              {/* Màn Capacity cũ đã gộp vào màn Vehicles */}
+              <Route
+                path="capacity"
+                element={<Navigate to="/manager/vehicles" replace />}
+              />
+              <Route path="bookings" element={<BookingsList />} />
+              <Route path="parcels" element={<ParcelsList />} />
+              <Route path="operations" element={<OperationsCenter />} />
+              <Route path="gps" element={<Navigate to="/manager/operations" replace />} />
+              <Route path="shuttle-tracking" element={<Navigate to="/manager/dispatch" replace />} />
+              <Route path="dispatch" element={<DispatchPanel />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="vouchers" element={<ManagerVouchers />} />
+              <Route path="wallet" element={<ManagerWallet />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="assistant" element={<RagAssistant />} />
+              <Route
+                element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
+              >
+                {/* Màn RouteETA cũ đã gộp vào Trung tâm vận hành (panel đề xuất lộ trình) */}
+                <Route path="route-eta" element={<Navigate to="/manager/operations?panel=proposals" replace />} />
 
                   <Route path="route-extensions" element={<Navigate to="/manager/operations?panel=proposals" replace />} />
 
-                  <Route
-                    path="vehicle-builder"
-                    element={<VehicleBuilderPage />}
-                  />
-                  <Route path="staff" element={<StaffList />} />
-                  <Route path="capacity" element={<ManagerCapacity />} />
-                  <Route path="packages" element={<ManagerPackages />} />
-                  <Route path="policies" element={<ManagerPolicies />} />
-                  <Route path="settings" element={<ManagerSettings />} />
-                </Route>
+                <Route
+                  path="vehicle-builder"
+                  element={<VehicleBuilderPage />}
+                />
+                <Route path="staff" element={<StaffList />} />
+                <Route path="packages" element={<ManagerPackages />} />
+                <Route path="policies" element={<ManagerPolicies />} />
+                <Route path="settings" element={<ManagerSettings />} />
               </Route>
             </Route>
+          </Route>
 
             {/* Admin routes */}
             <Route element={<PrivateRoute allowedRoles={["SYSTEM_ADMIN"]} />}>

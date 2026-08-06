@@ -7,7 +7,7 @@ import { isRecord } from "../utils/typeGuards";
 
 type QueryValue = string | number | boolean | null | undefined;
 
-type ApiErrorField = {
+export type ApiErrorField = {
   field?: string;
   message?: string;
 };
@@ -36,13 +36,13 @@ export class ApiRequestError extends Error {
   readonly code?: string;
   // Chi tiết lỗi theo field từ envelope `error.fields` (vd ROUTE_DUPLICATED
   // trả `existingRouteId` để FE dẫn tới tuyến có sẵn)
-  readonly fields?: ApiRequestErrorField[];
+  readonly fields: ApiRequestErrorField[];
 
   constructor(
     message: string,
     status: number,
     code?: string,
-    fields?: ApiRequestErrorField[],
+    fields: ApiRequestErrorField[] = [],
   ) {
     super(message);
     this.name = "ApiRequestError";
@@ -57,6 +57,7 @@ type RequestOptions = {
   authenticated?: boolean;
   headers?: Record<string, string>;
   cache?: RequestCache;
+  signal?: AbortSignal;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -117,7 +118,7 @@ function createApiRequestError(payload: unknown, status: number): ApiRequestErro
     parseErrorMessage(payload, `Request failed: ${status}`),
     status,
     parseErrorCode(payload),
-    parseErrorFields(payload),
+    parseErrorFields(payload) ?? [],
   );
 }
 async function parseResponse(response: Response): Promise<unknown> {
@@ -388,5 +389,6 @@ function sendRequest(
     headers: buildHeaders(options, accessToken),
     body: body as BodyInit | undefined,
     ...(options.cache ? { cache: options.cache } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 }
