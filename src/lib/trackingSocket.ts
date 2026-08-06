@@ -1,6 +1,7 @@
 import { io, type Socket } from "socket.io-client";
 import { getAuthSession } from "../auth";
 import type {
+  FleetLatestItem,
   ShuttleTrackingEta,
   ShuttleTrackingLatest,
   TrackingEta,
@@ -34,6 +35,16 @@ export type JoinShuttleTrackingAck =
   | { success: true; shuttleTripId: string; room: string; scope?: string }
   | { success: false; error: string; message: string };
 
+// Ack theo contract mục 11.2: success có room `operator:{operatorId}:fleet`;
+// failure chỉ chắc chắn có `error` (UNAUTHORIZED | ACCESS_DENIED).
+export type JoinOperatorFleetAck =
+  | { success: true; room: string; scope: string }
+  | { success: false; error: string; message?: string };
+
+// Payload event "fleet:gps:update" trùng shape item của fleet-latest REST
+// (mục 11.3): tripId, latitude, longitude, speedKmh?, headingDeg?, recordedAt, status.
+export type FleetGpsUpdateEvent = FleetLatestItem;
+
 // Tracking service không đi qua Gateway route table cho Socket.IO; kết nối
 // thẳng cùng origin với REST (Nginx proxy trực tiếp tới tracking:3001).
 export function createTrackingSocket(): Socket {
@@ -48,6 +59,11 @@ export function createTrackingSocket(): Socket {
 
 export function joinTripTracking(socket: Socket, tripId: string) {
   return socket.timeout(5000).emitWithAck("joinTripTracking", { tripId }) as Promise<JoinTripTrackingAck>;
+}
+
+// Join fleet room của operator lấy từ claim trên token; emit không payload.
+export function joinOperatorFleet(socket: Socket) {
+  return socket.timeout(5000).emitWithAck("joinOperatorFleet") as Promise<JoinOperatorFleetAck>;
 }
 
 export function joinShuttleTracking(socket: Socket, shuttleTripId: string) {

@@ -10,6 +10,7 @@ import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Modal from "../../../components/Modal";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { Input, Panel, Select } from "./formControls";
+import type { DriverScheduleApplyTo } from "../../../api/vietride";
 import type {
   RouteOption,
   ScheduleForm as ScheduleFormValues,
@@ -31,6 +32,8 @@ type ScheduleFormModalProps = {
   isSaving: boolean;
   isLoadingResources: boolean;
   error: string;
+  applyTo: DriverScheduleApplyTo;
+  onApplyToChange: (value: DriverScheduleApplyTo) => void;
   onFieldChange: <K extends keyof ScheduleFormValues>(
     key: K,
     value: ScheduleFormValues[K],
@@ -51,6 +54,8 @@ export default function ScheduleFormModal({
   isSaving,
   isLoadingResources,
   error,
+  applyTo,
+  onApplyToChange,
   onFieldChange,
   onSuggestDeparture,
   onSave,
@@ -100,6 +105,58 @@ export default function ScheduleFormModal({
           >
             {t("trips.editScheduleFocusNotice")}
           </div>
+        ) : null}
+
+        {editingSchedule ? (
+          // Phạm vi áp dụng khi sửa — bắt buộc (contract 9.1), mặc định FUTURE_ONLY.
+          <fieldset className="rounded-lg border border-gray-200 p-4">
+            <legend className="px-1 text-sm font-semibold text-gray-800">
+              {t("trips.applyToLabel")}
+            </legend>
+            <div className="grid gap-3 md:grid-cols-2">
+              {(
+                [
+                  {
+                    value: "FUTURE_ONLY",
+                    label: t("trips.applyToFutureOnly"),
+                    description: t("trips.applyToFutureOnlyDesc"),
+                  },
+                  {
+                    value: "ALL_PENDING",
+                    label: t("trips.applyToAllPending"),
+                    description: t("trips.applyToAllPendingDesc"),
+                  },
+                ] as const
+              ).map((option) => (
+                <label
+                  key={option.value}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition ${
+                    applyTo === option.value
+                      ? "border-vr-300 bg-vr-50"
+                      : "border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="schedule-apply-to"
+                    value={option.value}
+                    checked={applyTo === option.value}
+                    onChange={() => onApplyToChange(option.value)}
+                    className="mt-1 accent-vr-600"
+                    required
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-gray-900">
+                      {option.label}
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      {option.description}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         ) : null}
 
         {error ? (

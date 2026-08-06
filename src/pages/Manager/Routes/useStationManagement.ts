@@ -54,9 +54,10 @@ export function useStationManagement({
       name: station.name,
       address:
         station.address ??
-        `${station.name}, ${station.city || station.province}`,
-      city: station.city,
-      province: station.province,
+        `${station.name}, ${station.city}`,
+      // PlaceSelection semantics Google: province = tỉnh/TP, city = ward-level
+      city: station.ward ?? station.city,
+      province: station.city,
       latitude: station.latitude,
       longitude: station.longitude,
     };
@@ -74,10 +75,10 @@ export function useStationManagement({
     setSelectedStationId("");
     setStationSupportsShuttle(false);
 
+    // Search theo contract mới: city = tỉnh/TP (Google admin_area_1 = place.province)
     const result = await searchStations({
       q: place.name,
-      city: place.city,
-      province: place.province,
+      city: place.province || place.city,
     });
 
     if (!result.length) {
@@ -132,10 +133,13 @@ export function useStationManagement({
       return;
     }
 
-    const city = stationPlaceDraft.city.trim();
-    const province = stationPlaceDraft.province.trim() || city;
+    // Contract mới: city = tỉnh/TP (place.province), ward = xã/phường (place.city);
+    // cả hai bắt buộc khi tạo Station mới
+    const city =
+      stationPlaceDraft.province.trim() || stationPlaceDraft.city.trim();
+    const ward = stationPlaceDraft.city.trim();
 
-    if (!city || !province) {
+    if (!city || !ward) {
       setError(t("routes.stationLocationRequired"));
       return;
     }
@@ -148,7 +152,7 @@ export function useStationManagement({
     const created = await createOperatorStation({
       name: stationPlaceDraft.name,
       city,
-      province,
+      ward,
       latitude: stationPlaceDraft.latitude,
       longitude: stationPlaceDraft.longitude,
       addressStreet: stationPlaceDraft.address,
@@ -160,7 +164,7 @@ export function useStationManagement({
       id: created.stationId,
       name: created.name ?? stationPlaceDraft.name,
       city: created.city ?? city,
-      province: created.province ?? province,
+      ward: created.ward ?? ward,
       latitude: created.latitude ?? stationPlaceDraft.latitude,
       longitude: created.longitude ?? stationPlaceDraft.longitude,
       address: created.addressStreet ?? stationPlaceDraft.address,

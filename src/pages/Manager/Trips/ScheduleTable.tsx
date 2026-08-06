@@ -1,7 +1,7 @@
 // Section bảng lịch chuyến — tách từ index.tsx theo ngưỡng §2.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { FiEdit2, FiTruck } from "react-icons/fi";
+import { FiEdit2, FiPause, FiPlay, FiTrash2, FiTruck } from "react-icons/fi";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 import { formatMoney, optionLabel } from "./tripHelpers";
@@ -24,6 +24,8 @@ type ScheduleTableProps = {
   pageSize: number;
   onPageChange: (page: number) => void;
   onEdit: (schedule: TripSchedule) => void;
+  onToggleActive: (schedule: TripSchedule) => void;
+  onDelete: (schedule: TripSchedule) => void;
 };
 
 export default function ScheduleTable({
@@ -37,6 +39,8 @@ export default function ScheduleTable({
   pageSize,
   onPageChange,
   onEdit,
+  onToggleActive,
+  onDelete,
 }: ScheduleTableProps) {
   const { t } = useTranslation("manager");
   const paginatedSchedules = useMemo(
@@ -134,15 +138,47 @@ export default function ScheduleTable({
                   </td>
                   {canManageSchedules ? (
                     <td className="px-5 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => onEdit(schedule)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
-                        title={t("trips.edit")}
-                        aria-label={t("trips.edit")}
-                      >
-                        <FiEdit2 size={16} />
-                      </button>
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(schedule)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
+                          title={t("trips.edit")}
+                          aria-label={t("trips.edit")}
+                        >
+                          <FiEdit2 size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onToggleActive(schedule)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+                          title={
+                            schedule.status === "open"
+                              ? t("trips.deactivate")
+                              : t("trips.activate")
+                          }
+                          aria-label={
+                            schedule.status === "open"
+                              ? t("trips.deactivate")
+                              : t("trips.activate")
+                          }
+                        >
+                          {schedule.status === "open" ? (
+                            <FiPause size={16} />
+                          ) : (
+                            <FiPlay size={16} />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(schedule)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                          title={t("trips.deleteSchedule")}
+                          aria-label={t("trips.deleteSchedule")}
+                        >
+                          <FiTrash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   ) : null}
                 </tr>

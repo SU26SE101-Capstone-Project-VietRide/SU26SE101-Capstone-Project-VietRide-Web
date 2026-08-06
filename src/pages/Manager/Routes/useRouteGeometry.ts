@@ -1,4 +1,6 @@
-// Hook cục bộ: state + thao tác hình học tuyến (polyline) của màn Routes
+// Hook cục bộ: state + thao tác hình học tuyến (polyline) của màn Routes.
+// Mọi thao tác chỉ sửa state cục bộ + đánh dấu "chưa lưu" — polyline được lưu
+// atomic cùng form/stops qua nút "Lưu tuyến" (PUT /routes/{id}/full).
 import {
   useCallback,
   useEffect,
@@ -7,25 +9,16 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import {
-  updateOperatorRoute,
-  updateOperatorRouteGeometry,
-  type OperatorRoute,
-  type OperatorRouteRequest,
+import type {
+  OperatorRoute,
+  OperatorRouteRequest,
 } from "../../../api/vietride";
-import {
-  decodeGooglePolyline,
-  encodeGooglePolyline,
-  estimateCoachDurationMinutes,
-  type RouteCoordinate,
-} from "./polyline";
-import { calculatePathDistance, requestRoadGeometry } from "./geometry";
-import { routeToForm } from "./routeFormUtils";
+import { decodeGooglePolyline, type RouteCoordinate } from "./polyline";
+import { requestRoadGeometry } from "./geometry";
 import type { FeedbackScope, TranslateFn } from "./types";
 
 type UseRouteGeometryParams = {
   selectedRouteId: string;
-  routeForm: OperatorRouteRequest;
   routeWaypoints: RouteCoordinate[];
   setRouteForm: Dispatch<SetStateAction<OperatorRouteRequest>>;
   setRoutes: Dispatch<SetStateAction<OperatorRoute[]>>;
@@ -36,7 +29,6 @@ type UseRouteGeometryParams = {
 
 export function useRouteGeometry({
   selectedRouteId,
-  routeForm,
   routeWaypoints,
   setRouteForm,
   setRoutes,
@@ -131,66 +123,12 @@ export function useRouteGeometry({
     setIsGeometryDirty(true);
   }
 
-  async function handleSaveGeometry() {
-    if (!selectedRouteId) {
-      setError(t("routes.selectRouteFirst"));
-      return;
-    }
-
-    if (routePathPoints.length < 2) {
-      setError(t("routes.geometryRequiresTwoPoints"));
-      return;
-    }
-
-    const nextRouteForm = isEditingGeometry
-      ? (() => {
-          const totalDistanceKm = Number(
-            calculatePathDistance(routePathPoints).toFixed(1),
-          );
-          return {
-            ...routeForm,
-            totalDistanceKm,
-            estimatedDurationMinutes:
-              estimateCoachDurationMinutes(totalDistanceKm),
-          };
-        })()
-      : routeForm;
-    const updatedRoute = await updateOperatorRoute(selectedRouteId, {
-      ...nextRouteForm,
-      returnRouteId: nextRouteForm.returnRouteId || undefined,
-    });
-    const savedRoute = await updateOperatorRouteGeometry(selectedRouteId, {
-      pathPolyline: encodeGooglePolyline(routePathPoints),
-    });
-    const routeWithMetrics = {
-      ...savedRoute,
-      totalDistanceKm: updatedRoute.totalDistanceKm,
-      estimatedDurationMinutes: updatedRoute.estimatedDurationMinutes,
-    };
-
-    setRoutes((current) =>
-      current.map((route) =>
-        route.id === routeWithMetrics.id ? routeWithMetrics : route,
-      ),
-    );
-    setRouteForm(routeToForm(routeWithMetrics));
-    applySavedGeometry(routeWithMetrics);
-    showMessage("geometry", t("routes.geometrySaved"));
-  }
-
-  async function handleClearGeometry() {
-    if (!selectedRouteId) {
-      setError(t("routes.selectRouteFirst"));
-      return;
-    }
-
-    const updated = await updateOperatorRouteGeometry(selectedRouteId, {
-      pathPolyline: null,
-    });
-    setRoutes((current) =>
-      current.map((route) => (route.id === updated.id ? updated : route)),
-    );
-    applySavedGeometry(updated);
+  // Xóa đường chỉ trên state cục bộ; lưu qua "Lưu tuyến" sẽ gửi pathPolyline=null
+  // kèm manualMetrics từ form (server clear geometry + set metrics — contract 8.5)
+  function handleClearGeometry() {
+    setRoutePathPoints([]);
+    setIsEditingGeometry(false);
+    setIsGeometryDirty(true);
     showMessage("geometry", t("routes.geometryCleared"));
   }
 
@@ -205,7 +143,6 @@ export function useRouteGeometry({
     handleStartManualGeometry,
     handleAppendGeometryPoint,
     handleUndoGeometryPoint,
-    handleSaveGeometry,
     handleClearGeometry,
   };
 }

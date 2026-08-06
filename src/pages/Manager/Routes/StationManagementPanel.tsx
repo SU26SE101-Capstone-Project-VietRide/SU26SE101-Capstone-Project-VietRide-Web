@@ -47,7 +47,7 @@ export default function StationManagementPanel({
             <option value="">{t("routes.selectStation")}</option>
             {stations.map((station) => (
               <option key={station.id} value={station.id}>
-                {station.name} · {station.city || station.province}
+                {station.name} · {[station.ward, station.city].filter(Boolean).join(", ")}
               </option>
             ))}
           </CustomSelect>

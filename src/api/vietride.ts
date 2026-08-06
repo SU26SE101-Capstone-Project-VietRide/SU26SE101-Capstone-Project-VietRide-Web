@@ -590,8 +590,10 @@ export type Station = {
   address?: string;
   addressStreet?: string;
   locationId?: string;
+  // Contract mới: city = tỉnh/thành phố trực thuộc TƯ, ward = xã/phường/đặc khu
+  // (legacy row có thể null). Không còn field province FE-facing.
   city: string;
-  province: string;
+  ward?: string | null;
   latitude: number;
   longitude: number;
   contactPhone?: string;
@@ -611,7 +613,7 @@ export type AdminStation = {
   addressStreet?: string | null;
   locationId?: string | null;
   city: string;
-  province: string;
+  ward: string | null;
   latitude: number;
   longitude: number;
   contactPhone?: string | null;
@@ -627,7 +629,8 @@ export type AdminStation = {
 export type StationSearchParams = {
   q?: string;
   city?: string;
-  province?: string;
+  ward?: string;
+  locationId?: string;
 };
 
 export type AdminStationParams = PageParams & {
@@ -641,7 +644,7 @@ export type AdminStationRequest = Partial<
     | "addressStreet"
     | "locationId"
     | "city"
-    | "province"
+    | "ward"
     | "latitude"
     | "longitude"
     | "contactPhone"
@@ -767,8 +770,9 @@ export type OperatorStationRequest = {
   contactPhone?: string;
   instructions?: string;
   name?: string;
+  // Create mới: name/city/ward/latitude/longitude bắt buộc (BE validate); link chỉ cần stationId
   city?: string;
-  province?: string;
+  ward?: string;
   latitude?: number;
   longitude?: number;
   addressStreet?: string;
@@ -852,6 +856,63 @@ export type OperatorRouteRequest = {
   totalDistanceKm: number;
   estimatedDurationMinutes: number;
   isActive: boolean;
+};
+
+// Stop item trong Route detail (RouteDto mục 6.2): giữ map fields của stop
+// (name/address/latitude/longitude/isActive) bên cạnh metrics.
+export type OperatorRouteStop = {
+  routeId: string;
+  stopId: string;
+  orderIndex: number;
+  estimatedDurationFromOriginMinutes: number | null;
+  distanceFromOriginKm: number | null;
+  allowPickup: boolean;
+  allowDropoff: boolean;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type OperatorRouteDetail = OperatorRoute & {
+  stops: OperatorRouteStop[];
+};
+
+export type RouteManualMetrics = {
+  totalDistanceKm: number;
+  estimatedDurationMinutes: number;
+};
+
+export type OperatorRouteFullStopRequest = {
+  stopId: string;
+  orderIndex: number;
+  estimatedDurationFromOriginMinutes?: number | null;
+  distanceFromOriginKm?: number | null;
+  allowPickup: boolean;
+  allowDropoff: boolean;
+};
+
+export type OperatorRouteFullRequest = {
+  name: string;
+  originStationId: string;
+  destinationStationId: string;
+  returnRouteId?: string | null;
+  baseFare: number;
+  isActive?: boolean;
+  pathPolyline?: string | null;
+  manualMetrics?: RouteManualMetrics | null;
+  stops?: OperatorRouteFullStopRequest[];
+};
+
+export type OperatorRouteStopMetric = {
+  stopId: string;
+  stopName: string;
+  orderIndex: number;
+  distanceFromOriginKm: number | null;
+  estimatedDurationFromOriginMinutes: number | null;
 };
 
 export type RouteStop = {
@@ -1503,17 +1564,53 @@ export type TrackingTrailParams = {
   sortDir?: "asc" | "desc";
 };
 
+export type TrackingDelayStatus = "DELAYED" | "ON_TIME" | "UNKNOWN";
+
 export type TrackingEta = {
   tripId: string;
   stopId: string;
+  stopName: string | null;
   etaMinutes: number;
   estimatedArrivalTime: string;
   distanceMeters: number;
   updatedAt: string;
+  delayed: boolean | null;
+  delayStatus: TrackingDelayStatus;
+  delayMinutes: number | null;
 };
 
 export type TrackingEtaResponse = {
   eta: TrackingEta | null;
+};
+
+// Sáu status Trip operator (mục 9.4/9.5 contract); Zod phía Tracking so khớp
+// case-sensitive nên không nới bằng | string cho query param.
+export type OperatorTripStatus =
+  | "SCHEDULED"
+  | "BOARDING"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "DISRUPTED";
+
+export type FleetLatestParams = {
+  status?: OperatorTripStatus;
+};
+
+// speedKmh/headingDeg bị omit khỏi payload khi nguồn GPS không có.
+export type FleetLatestItem = {
+  tripId: string;
+  latitude: number;
+  longitude: number;
+  speedKmh?: number;
+  headingDeg?: number;
+  recordedAt: string;
+  status: OperatorTripStatus;
+};
+
+export type FleetLatestResponse = {
+  items: FleetLatestItem[];
+  generatedAt: string;
 };
 
 export type ShuttleBookingGroup = {
@@ -2426,7 +2523,25 @@ export type DriverScheduleItem = OperatorDriverSchedule & {
 
 export type RouteGeometryRequest = {
   pathPolyline: string | null;
+  // Chỉ dùng khi pathPolyline=null: set metrics thủ công rồi clear geometry
+  // (mục 8.5); có polyline thì server tự tính và bỏ qua manual metrics.
+  manualMetrics?: RouteManualMetrics | null;
 };
+
+// Phân biệt field vắng mặt (giữ nguyên) vs null (clear) theo contract 9.1:
+// assistantUserId/vehicleId/validUntil nhận null để clear, các field còn lại
+// không được null nếu xuất hiện.
+export type OperatorDriverSchedulePatch = {
+  departureTime?: string;
+  dayOfWeek?: number[];
+  driverUserId?: string;
+  assistantUserId?: string | null;
+  vehicleId?: string | null;
+  validUntil?: string | null;
+  isActive?: boolean;
+};
+
+export type DriverScheduleApplyTo = "FUTURE_ONLY" | "ALL_PENDING";
 
 export type SubstituteVehicleRequest = {
   replacementVehicleId: string;
@@ -3223,6 +3338,29 @@ export function updateOperatorRouteGeometry(
   });
 }
 
+export function createOperatorRouteFull(request: OperatorRouteFullRequest) {
+  return apiRequest<OperatorRouteDetail>("/v1/operator/routes/full", {
+    method: "POST",
+    body: request,
+  });
+}
+
+export function updateOperatorRouteFull(
+  id: string,
+  request: OperatorRouteFullRequest,
+) {
+  return apiRequest<OperatorRouteDetail>(`/v1/operator/routes/${id}/full`, {
+    method: "PUT",
+    body: request,
+  });
+}
+
+export function getOperatorRouteStopMetrics(routeId: string) {
+  return apiRequest<OperatorRouteStopMetric[]>(
+    `/v1/operator/routes/${routeId}/stop-metrics`,
+  );
+}
+
 export function addRouteStop(routeId: string, request: RouteStopRequest) {
   return apiRequest<RouteStop>(`/v1/operator/routes/${routeId}/stops`, {
     method: "POST",
@@ -3274,6 +3412,33 @@ export function activateOperatorDriverSchedule(id: string) {
   return apiRequest<OperatorDriverSchedule>(
     `/v1/operator/driver-schedules/${id}/activate`,
     { method: "PATCH" },
+  );
+}
+
+export function updateOperatorDriverSchedule(
+  id: string,
+  applyTo: DriverScheduleApplyTo,
+  request: OperatorDriverSchedulePatch,
+) {
+  return apiRequest<OperatorDriverSchedule>(
+    `/v1/operator/driver-schedules/${id}${buildQuery({ applyTo })}`,
+    { method: "PATCH", body: request },
+  );
+}
+
+// BE đánh dấu SkipIdempotency cho deactivate (mục 4.4 contract); path nằm trong
+// exempt list của src/api/idempotency.ts nên không có Idempotency-Key.
+export function deactivateOperatorDriverSchedule(id: string) {
+  return apiRequest<OperatorDriverSchedule>(
+    `/v1/operator/driver-schedules/${id}/deactivate`,
+    { method: "PATCH" },
+  );
+}
+
+export function deleteOperatorDriverSchedule(id: string) {
+  return apiRequest<{ deleted: boolean }>(
+    `/v1/operator/driver-schedules/${id}`,
+    { method: "DELETE" },
   );
 }
 
@@ -4232,9 +4397,16 @@ export function getTrackingTripTrail(
   );
 }
 
-export function getTrackingTripEta(tripId: string, stopId: string) {
+// Không truyền stopId thì Tracking tự chọn stop kế tiếp theo sequence (mục 9.6).
+export function getTrackingTripEta(tripId: string, stopId?: string) {
   return apiRequest<TrackingEtaResponse>(
     `/v1/tracking/trips/${tripId}/eta${buildQuery({ stopId })}`,
+  );
+}
+
+export function getOperatorFleetLatest(params: FleetLatestParams = {}) {
+  return apiRequest<FleetLatestResponse>(
+    `/v1/tracking/operator/fleet-latest${buildQuery(params)}`,
   );
 }
 

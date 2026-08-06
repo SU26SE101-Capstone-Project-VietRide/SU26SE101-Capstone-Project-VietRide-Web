@@ -26,8 +26,9 @@ export type StationForm = {
   name: string;
   addressStreet: string;
   locationId: string;
+  // city = tỉnh/thành phố trực thuộc TƯ, ward = xã/phường (rỗng với legacy row null)
   city: string;
-  province: string;
+  ward: string;
   latitude: string;
   longitude: string;
   contactPhone: string;
@@ -133,7 +134,7 @@ export function toForm(station: AdminStation): StationForm {
     addressStreet: station.addressStreet ?? "",
     locationId: station.locationId ?? "",
     city: station.city,
-    province: station.province,
+    ward: station.ward ?? "",
     latitude: String(station.latitude),
     longitude: String(station.longitude),
     contactPhone: station.contactPhone ?? "",
@@ -153,8 +154,10 @@ export function applyPlaceToForm(
     ...form,
     name: place.name,
     addressStreet: place.address,
-    city: place.city,
-    province: place.province,
+    // PlaceSelection giữ semantics Google: province = admin_area_1 (tỉnh/TP),
+    // city = locality/ward-level → map province→city, city→ward theo contract mới
+    city: place.province || place.city,
+    ward: place.city !== place.province ? place.city : "",
     latitude: String(place.latitude),
     longitude: String(place.longitude),
   };

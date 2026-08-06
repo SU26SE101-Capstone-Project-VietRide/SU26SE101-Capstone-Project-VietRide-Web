@@ -1,6 +1,7 @@
 // Hook cục bộ: form tạo/sửa điểm dừng (stop) của màn Routes
 import {
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -34,6 +35,9 @@ export function useStopForm({
   t,
 }: UseStopFormParams) {
   const [stopForm, setStopForm] = useState<OperatorStopRequest>(emptyStopForm);
+  // Chống race khi chọn điểm dừng (cùng pattern chọn tuyến): response về muộn
+  // của lần chọn cũ bị bỏ qua, không đè form của điểm dừng đang chọn
+  const selectStopSeqRef = useRef(0);
 
   const selectedStopPlace = useMemo<PlaceSelection | null>(() => {
     if (!stopForm.latitude || !stopForm.longitude) {
@@ -107,6 +111,7 @@ export function useStopForm({
   }
 
   async function handleSelectStop(stopId: string) {
+    const seq = ++selectStopSeqRef.current;
     setSelectedStopId(stopId);
 
     if (!stopId) {
@@ -115,6 +120,12 @@ export function useStopForm({
     }
 
     const stop = await getOperatorStop(stopId);
+
+    // Trong lúc chờ user đã chọn điểm dừng khác → bỏ qua response cũ
+    if (seq !== selectStopSeqRef.current) {
+      return;
+    }
+
     setStops((prev) =>
       prev.some((item) => item.id === stop.id)
         ? prev.map((item) => (item.id === stop.id ? stop : item))

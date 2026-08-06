@@ -66,7 +66,7 @@ export default function StationTable({
                   </p>
                 </td>
                 <td className="px-4 py-3 text-gray-700">
-                  {[station.city, station.province].filter(Boolean).join(" / ") ||
+                  {[station.ward, station.city].filter(Boolean).join(", ") ||
                     "-"}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-gray-700">

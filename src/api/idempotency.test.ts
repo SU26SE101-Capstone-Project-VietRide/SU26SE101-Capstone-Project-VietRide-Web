@@ -42,7 +42,36 @@ describe("idempotency", () => {
     "/v1/payments/subscription-vnpay-ipn",
     "/internal/v1/operators/summaries/batch",
     "/internal/v1/vouchers/validate",
+    "/v1/operator/driver-schedules",
   ])("does not add a key to exempt operation %s", (path) => {
     expect(addIdempotencyHeader(`${path}?source=test`, "POST")).toBeUndefined();
+  });
+
+  // BE SkipIdempotency (contract mục 4.4): activate/deactivate driver-schedule
+  // là path có id động nên exempt theo pattern.
+  it.each([
+    "/v1/operator/driver-schedules/11111111-1111-4111-8111-111111111111/activate",
+    "/v1/operator/driver-schedules/11111111-1111-4111-8111-111111111111/deactivate",
+  ])("does not add a key to exempt PATCH %s", (path) => {
+    expect(addIdempotencyHeader(path, "PATCH")).toBeUndefined();
+  });
+
+  it("still adds a key to driver-schedule DELETE and other mutations", () => {
+    expect(
+      addIdempotencyHeader(
+        "/v1/operator/driver-schedules/11111111-1111-4111-8111-111111111111",
+        "DELETE",
+      ),
+    ).toEqual({
+      "Idempotency-Key": expect.stringMatching(UUID_V4_PATTERN),
+    });
+    expect(
+      addIdempotencyHeader(
+        "/v1/operator/driver-schedules/11111111-1111-4111-8111-111111111111",
+        "PATCH",
+      ),
+    ).toEqual({
+      "Idempotency-Key": expect.stringMatching(UUID_V4_PATTERN),
+    });
   });
 });

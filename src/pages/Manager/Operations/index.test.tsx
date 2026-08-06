@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getOperatorFleetLatest,
   getOperatorRouteChangeProposals,
   getOperatorTrips,
   getOperatorUsers,
   getOperatorVehicles,
-  getTrackingTripLatest,
+  getTrackingTripEta,
   getTrackingTripRouteGeometry,
   type OperatorTripListItem,
 } from "../../../api/vietride";
@@ -30,16 +31,19 @@ vi.mock("../../../lib/trackingSocket", () => ({
     on: vi.fn(),
     disconnect: vi.fn(),
   })),
+  joinOperatorFleet: vi.fn(() => Promise.resolve({ success: true })),
   joinTripTracking: vi.fn(),
 }));
 
 vi.mock("../../../api/vietride", () => ({
   approveOperatorRouteChangeProposal: vi.fn(),
+  getOperatorFleetLatest: vi.fn(),
   getOperatorRouteChangeProposal: vi.fn(),
   getOperatorRouteChangeProposals: vi.fn(),
   getOperatorTrips: vi.fn(),
   getOperatorUsers: vi.fn(),
   getOperatorVehicles: vi.fn(),
+  getTrackingTripEta: vi.fn(),
   getTrackingTripLatest: vi.fn(),
   getTrackingTripRouteGeometry: vi.fn(),
   getTrackingTripTrail: vi.fn(),
@@ -88,15 +92,21 @@ describe("Manager Operations Center", () => {
       hasPreviousPage: false,
       hasNextPage: false,
     });
-    vi.mocked(getTrackingTripLatest).mockResolvedValue({
-      latest: {
-        tripId: "trip-1",
-        latitude: 10.77,
-        longitude: 106.7,
-        speedKmh: 42,
-        recordedAt: "2026-08-05T08:30:00Z",
-      },
+    vi.mocked(getOperatorFleetLatest).mockResolvedValue({
+      items: [
+        {
+          tripId: "trip-1",
+          latitude: 10.77,
+          longitude: 106.7,
+          speedKmh: 42,
+          headingDeg: 128,
+          recordedAt: "2026-08-05T08:30:00Z",
+          status: "IN_PROGRESS",
+        },
+      ],
+      generatedAt: "2026-08-05T08:30:02Z",
     });
+    vi.mocked(getTrackingTripEta).mockResolvedValue({ eta: null });
     vi.mocked(getTrackingTripRouteGeometry).mockResolvedValue({
       tripId: "trip-1",
       points: [],
@@ -165,10 +175,75 @@ describe("Manager Operations Center", () => {
     // Chưa chọn chuyến — panel theo dõi chưa hiển thị
     expect(screen.queryByText("gps.realTrackingTitle")).not.toBeInTheDocument();
 
+    // Đúng 2 request cho fleet: trips (metadata) + fleet-latest (vị trí batch), không còn N+1
     await waitFor(() => {
-      expect(getOperatorTrips).toHaveBeenCalledWith({ page: 1, pageSize: 100 });
-      expect(getTrackingTripLatest).toHaveBeenCalledWith("trip-1");
+      expect(getOperatorTrips).toHaveBeenCalledWith({
+        status: "IN_PROGRESS",
+        page: 1,
+        pageSize: 100,
+      });
+      expect(getOperatorFleetLatest).toHaveBeenCalledWith({
+        status: "IN_PROGRESS",
+      });
     });
+  });
+
+  it("chuyến thiếu trong fleet-latest (mất tín hiệu GPS) vẫn hiện trong danh sách xe", async () => {
+    vi.mocked(getOperatorTrips).mockResolvedValue({
+      items: [
+        tripItem,
+        {
+          ...tripItem,
+          tripId: "trip-2",
+          vehicle: {
+            vehicleId: "vehicle-3",
+            licensePlate: "51C-777.77",
+            status: "IN_USE",
+          },
+        },
+      ],
+      totalItems: 2,
+      page: 1,
+      pageSize: 100,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    });
+
+    renderPage();
+
+    // trip-2 không có GPS trong fleet-latest — vẫn nằm trong list với trạng thái mất tín hiệu
+    expect(await screen.findByText("51C-777.77")).toBeInTheDocument();
+    expect(screen.getByText("51A-123.45")).toBeInTheDocument();
+    expect(screen.getAllByText("gps.gpsSignalLost").length).toBeGreaterThan(0);
+  });
+
+  it("chọn chuyến thì gọi ETA và hiển thị stopName + trạng thái trễ", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getTrackingTripEta).mockResolvedValue({
+      eta: {
+        tripId: "trip-1",
+        stopId: "stop-1",
+        stopName: "Bến xe Đà Lạt",
+        etaMinutes: 37,
+        estimatedArrivalTime: "2026-08-05T09:07:00Z",
+        distanceMeters: 32000,
+        updatedAt: "2026-08-05T08:30:00Z",
+        delayed: true,
+        delayStatus: "DELAYED",
+        delayMinutes: 5,
+      },
+    });
+
+    renderPage();
+    await user.click(await screen.findByText("51A-123.45"));
+
+    expect(await screen.findByText("37 min · 32000 m")).toBeInTheDocument();
+    expect(screen.getByText("gps.etaToStop Bến xe Đà Lạt")).toBeInTheDocument();
+    expect(screen.getByText("gps.etaDelayed 5")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(getTrackingTripEta).toHaveBeenCalledWith("trip-1"),
+    );
   });
 
   it("vào màn với ?tripId= thì tự chọn chuyến đó sau khi load fleet", async () => {
