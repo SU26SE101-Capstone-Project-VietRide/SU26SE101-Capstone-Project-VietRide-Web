@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -413,6 +414,7 @@ export default function AdminStations() {
     }
   }
 
+  useToastFeedback({ message: alert?.tone === "success" ? alert.message : "", error: alert?.tone === "error" ? alert.message : "" });
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -533,7 +535,6 @@ export default function AdminStations() {
             locations={locations}
             selectedPlace={selectedPlace}
             customFacility={customFacility}
-            alert={alert}
             isSaving={isSaving}
             onFormChange={setForm}
             onApplyPlace={applyPlace}

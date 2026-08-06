@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import {
   useCallback,
   useEffect,
@@ -326,6 +327,7 @@ export default function WalletSettlement() {
     }
   }
 
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -348,22 +350,6 @@ export default function WalletSettlement() {
         </button>
       </div>
 
-      {message && (
-        <div
-          role="status"
-          className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-800"
-        >
-          {message}
-        </div>
-      )}
-      {error && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-        >
-          {error}
-        </div>
-      )}
 
       <OverviewTab
         platformBalance={platformWallet?.balance ?? 0}
@@ -730,7 +716,7 @@ function WalletTransactionTable({
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">{t("walletSettlement.empty")}</td></tr>
             ) : items.map((item) => {
               const isCredit = item.type === "CREDIT";
-              return (
+  return (
                 <tr key={item.transactionId} className="border-t border-gray-100 hover:bg-gray-50">
                   <td className="whitespace-nowrap px-4 py-3">{formatDate(item.createdAt)}</td>
                   <td className="px-4 py-3"><span className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? <FiArrowDown /> : <FiArrowUp />}{t(isCredit ? "walletSettlement.moneyIn" : "walletSettlement.moneyOut")}</span></td>

@@ -18,6 +18,12 @@ function ToastTrigger() {
       <button type="button" onClick={() => toast.error("delete failed")}>
         fire-error
       </button>
+      <button type="button" onClick={() => toast.success("")}>
+        fire-empty-success
+      </button>
+      <button type="button" onClick={() => toast.error("   ")}>
+        fire-empty-error
+      </button>
     </>
   );
 }
@@ -70,6 +76,20 @@ describe("ToastProvider", () => {
     const toast = screen.getByTestId("toast");
     expect(toast).toHaveTextContent("delete failed");
     expect(toast).toHaveAttribute("role", "alert");
+  });
+
+  it("provides content when a caller passes an empty message", () => {
+    render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "fire-empty-success" }));
+    expect(screen.getByTestId("toast")).toHaveTextContent("Thao tác đã hoàn tất.");
+
+    fireEvent.click(screen.getByRole("button", { name: "fire-empty-error" }));
+    expect(screen.getAllByTestId("toast")[1]).toHaveTextContent("Đã xảy ra lỗi, vui lòng thử lại.");
   });
 
   it("closes immediately via the X button", () => {

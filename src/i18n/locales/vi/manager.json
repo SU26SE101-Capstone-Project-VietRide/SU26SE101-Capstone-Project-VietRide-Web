@@ -1733,6 +1733,7 @@
     "settledAt": "Tất toán lúc",
     "actor": "Người thực hiện",
     "note": "Ghi chú",
+    "noNote": "Không có ghi chú",
     "tabs": {
       "transactions": "Lịch sử giao dịch",
       "settlements": "Doanh thu hàng tuần",

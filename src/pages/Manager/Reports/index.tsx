@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -286,6 +287,7 @@ export default function ManagerReports() {
       ]
     : [];
 
+  useToastFeedback({ message: exportMessage, error: loadError || exportError });
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -321,14 +323,6 @@ export default function ManagerReports() {
         </div>
       </div>
 
-      {loadError && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-        >
-          {loadError}
-        </div>
-      )}
 
       <section className="rounded-lg border border-gray-200 bg-white">
         <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 lg:flex-row lg:items-end lg:justify-between">
@@ -413,16 +407,6 @@ export default function ManagerReports() {
           <p className="text-xs text-gray-500">
             {t("reports.exportRangeHint")}
           </p>
-          {exportError && (
-            <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {exportError}
-            </p>
-          )}
-          {exportMessage && (
-            <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              {exportMessage}
-            </p>
-          )}
         </div>
       </section>
 
@@ -749,5 +733,3 @@ export default function ManagerReports() {
     </div>
   );
 }
-
-

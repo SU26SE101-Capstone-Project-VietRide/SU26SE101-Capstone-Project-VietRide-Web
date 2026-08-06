@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import CustomSelect from "../../../components/CustomSelect";
@@ -160,24 +161,9 @@ export default function ParcelQueue() {
     setConfirmState({ label, run: action });
   }
 
+  useToastFeedback({ message, error: actionError || listError });
   return (
     <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      {message && (
-        <p
-          className="mx-5 mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-          role="status"
-        >
-          {message}
-        </p>
-      )}
-      {listError && (
-        <p
-          className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-        >
-          {listError}
-        </p>
-      )}
 
       <PersonnelTable
         toolbar={<div className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_280px]"><form className="flex min-w-0 flex-col gap-2 sm:flex-row" onSubmit={(event) => { event.preventDefault(); setTripId(tripIdDraft.trim()); setPage(1); }}><label className="relative min-w-0 flex-1"><span className="sr-only">{t("parcels.queue.filterByTripSr")}</span><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={tripIdDraft} onChange={(event) => setTripIdDraft(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 pl-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35" placeholder={t("parcels.queue.tripIdPlaceholder")} /></label><button type="submit" className="inline-flex items-center justify-center rounded-lg bg-vr-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-vr-600">{tc("search")}</button></form><CustomSelect value={queue} onChange={(event) => { setQueue(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35" aria-label={t("parcels.queue.tabListAriaLabel")}>{queueTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.labelKey === "all" ? tc("all") : tab.labelKey.startsWith("enumLabels.") ? tc(tab.labelKey) : t(tab.labelKey)}</option>)}</CustomSelect></div>}

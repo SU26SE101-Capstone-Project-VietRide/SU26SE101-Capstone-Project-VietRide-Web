@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -154,6 +155,7 @@ export default function ManagerPolicies() {
     }
   };
 
+  useToastFeedback({ error });
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -176,11 +178,6 @@ export default function ManagerPolicies() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
       <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="w-full text-sm">
             <thead>
@@ -406,9 +403,6 @@ export default function ManagerPolicies() {
     </div>
   );
 }
-
-
-
 
 
 

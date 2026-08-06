@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -242,6 +243,7 @@ export default function AdminPolicies() {
     }
   };
 
+  useToastFeedback({ error });
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -267,11 +269,6 @@ export default function AdminPolicies() {
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
       <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:grid-cols-2">
         <button
           type="button"
@@ -652,9 +649,6 @@ function PolicyDetailModal({
     </Modal>
   );
 }
-
-
-
 
 
 

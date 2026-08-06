@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -220,6 +221,7 @@ export default function AdminLocations() {
     }
   }
 
+  useToastFeedback({ message: message?.tone === "success" ? message.text : "", error: formError || (message?.tone === "error" ? message.text : "") });
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -241,17 +243,6 @@ export default function AdminLocations() {
         </button>
       </header>
 
-      {message && (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            message.tone === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-rose-200 bg-rose-50 text-rose-700"
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-[1fr_220px]">
