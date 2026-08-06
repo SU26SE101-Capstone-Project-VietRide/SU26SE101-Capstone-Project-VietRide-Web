@@ -5,6 +5,7 @@ import type {
   SeatLayoutJson,
   VehicleDeck,
   VehicleSeat,
+  VehicleSeatType,
   VehicleStatus,
   VehicleType,
 } from "../../../api/vietride";
@@ -128,6 +129,9 @@ export function createDecks(form: VehicleForm): VehicleDeck[] {
         const col = (seatIndex % options.columnsPerRow) + 1;
         const number = seatIndex + 1;
 
+        const isAisle =
+          col === options.aisleAfterCol || col === options.aisleAfterCol + 1;
+
         return {
           seatNumber:
             options.deckCount > 1
@@ -136,9 +140,9 @@ export function createDecks(form: VehicleForm): VehicleDeck[] {
           row,
           col,
           deck: deckIndex + 1,
-          type: "STANDARD",
+          type: "STANDARD" as VehicleSeatType,
           isWindow: col === 1 || col === options.columnsPerRow,
-          isAisle: false,
+          isAisle,
           disabled: false,
         };
       },
@@ -280,9 +284,8 @@ export function toVehicleCreateRequest(
   form: VehicleForm,
   vehicleTypes: VehicleType[],
   imageUrls = getUniquePublicImageUrls(getImageEntries(form.imageUrls)),
+  seatLayoutJson = createSeatLayoutPreview(form, vehicleTypes),
 ): OperatorVehicleCreateRequest {
-  const seatLayoutJson = createSeatLayoutPreview(form, vehicleTypes);
-
   return {
     vehicleTypeId: form.vehicleTypeId,
     licensePlate: form.licensePlate.trim(),

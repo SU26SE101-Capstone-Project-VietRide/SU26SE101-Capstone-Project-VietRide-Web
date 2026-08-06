@@ -2096,12 +2096,19 @@ export type FareSurchargeStatus = "DISABLED" | "UPCOMING" | "EXPIRED" | "APPLYIN
 export type FareSurchargePeriod = { periodId: string; name: string; startDate: string; endDate: string; surchargePercent: number; isActive: boolean; status: FareSurchargeStatus; createdAt: string; updatedAt: string };
 export type FareSurchargePeriodRequest = { name: string; startDate: string; endDate: string; surchargePercent: number; isActive?: boolean | null };
 export type FareSurchargePeriodPatch = Partial<FareSurchargePeriodRequest>;
+export type VehicleSeatType =
+  | "STANDARD"
+  | "SLEEPER_LOWER"
+  | "SLEEPER_UPPER"
+  | "VIP"
+  | "DRIVER_AREA";
+
 export type VehicleSeat = {
   seatNumber: string;
   row: number;
   col: number;
   deck?: number;
-  type: string;
+  type: VehicleSeatType;
   isWindow?: boolean;
   isAisle?: boolean;
   disabled?: boolean;

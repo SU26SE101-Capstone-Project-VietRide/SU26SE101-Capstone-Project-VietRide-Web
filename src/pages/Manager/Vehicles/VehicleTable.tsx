@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { FiEdit2, FiEye, FiGrid } from "react-icons/fi";
+import { FiEye, FiGrid } from "react-icons/fi";
 import type { OperatorVehicle, VehicleType } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
 import { VehicleImage } from "./VehicleImage";
@@ -19,13 +19,11 @@ type VehicleTableProps = {
   vehicleTypes: VehicleType[];
   isLoading: boolean;
   search: string;
-  canManageVehicles: boolean;
   page: number;
   pageSize: number;
   totalItems: number;
   onPageChange: (page: number) => void;
   onOpenPanel: (vehicle: OperatorVehicle, mode: VehiclePanelMode) => void;
-  onEdit: (vehicle: OperatorVehicle) => void;
 };
 
 export function VehicleTable({
@@ -33,13 +31,11 @@ export function VehicleTable({
   vehicleTypes,
   isLoading,
   search,
-  canManageVehicles,
   page,
   pageSize,
   totalItems,
   onPageChange,
   onOpenPanel,
-  onEdit,
 }: VehicleTableProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -190,22 +186,11 @@ export function VehicleTable({
                           type="button"
                           onClick={() => onOpenPanel(vehicle, "seats")}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/40"
-                          title={t("vehicles.manageSeats", { defaultValue: "Quản lý ghế" })}
-                          aria-label={t("vehicles.manageSeats", { defaultValue: "Quản lý ghế" })}
+                          title={t("vehicles.seatMap", { defaultValue: "Sơ đồ ghế" })}
+                          aria-label={t("vehicles.seatMap", { defaultValue: "Sơ đồ ghế" })}
                         >
                           <FiGrid size={16} />
                         </button>
-                        {canManageVehicles && (
-                          <button
-                            type="button"
-                            onClick={() => onEdit(vehicle)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                            title={tc("edit")}
-                            aria-label={tc("edit")}
-                          >
-                            <FiEdit2 size={16} />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>

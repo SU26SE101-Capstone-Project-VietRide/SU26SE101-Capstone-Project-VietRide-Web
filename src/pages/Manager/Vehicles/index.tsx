@@ -23,6 +23,7 @@ import {
   getVehicleTypes,
   updateOperatorVehicle,
   type OperatorVehicle,
+  type SeatLayoutJson,
   type VehicleType,
 } from "../../../api/vietride";
 import {
@@ -31,7 +32,6 @@ import {
   VehicleImageError,
   type VehicleImageErrorCode,
 } from "./vehicleImageUpload";
-import VehicleModal from "./VehicleModal";
 import { VehicleTable } from "./VehicleTable";
 import {
   VehicleDetailsPanel,
@@ -56,7 +56,11 @@ import {
   type VehicleForm,
   type VehicleFormErrors,
 } from "./vehicleForm";
-import { parseVehicleSeatLayout, toggleVehicleSeat } from "./vehicleSeatHelpers";
+import {
+  countSeatChanges,
+  parseVehicleSeatLayout,
+  toggleVehicleSeat,
+} from "./vehicleSeatHelpers";
 
 const VEHICLE_PAGE_SIZE = 10;
 const VEHICLE_TYPES_CACHE_KEY = "vietride:vehicleTypes";
@@ -96,12 +100,13 @@ export default function VehiclesPage() {
   const [panelMode, setPanelMode] = useState<VehiclePanelMode>("info");
   const [seatDraft, setSeatDraft] = useState<OperatorVehicle["seatLayoutJson"]>();
   const [originalSeatLayout, setOriginalSeatLayout] = useState<OperatorVehicle["seatLayoutJson"]>();
-  const [isSeatEditing, setIsSeatEditing] = useState(false);
   const [isSeatDetailLoading, setIsSeatDetailLoading] = useState(false);
   const [isSeatSaving, setIsSeatSaving] = useState(false);
   const [seatError, setSeatError] = useState("");
   const [discardPrompt, setDiscardPrompt] = useState(false);
   const [vehicleForm, setVehicleForm] = useState<VehicleForm>(emptyVehicleForm);
+  const [vehicleFormBaseline, setVehicleFormBaseline] =
+    useState<VehicleForm>(emptyVehicleForm);
   const [vehicleImageFiles, setVehicleImageFiles] = useState<File[]>([]);
   const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
@@ -123,6 +128,10 @@ export default function VehiclesPage() {
   const isSeatDirty =
     Boolean(draftLayout && initialLayout) &&
     JSON.stringify(draftLayout) !== JSON.stringify(initialLayout);
+  const isInfoDirty =
+    (openReg || openEdit) &&
+    (JSON.stringify(vehicleForm) !== JSON.stringify(vehicleFormBaseline) ||
+      vehicleImageFiles.length > 0);
 
   useEffect(() => {
     // URL navigation is an external source; mirror it into the controlled input.
@@ -288,13 +297,22 @@ export default function VehiclesPage() {
   }
 
   function openCreateModal() {
+    if (isInfoDirty || isSeatDirty) {
+      setDiscardPrompt(true);
+      return;
+    }
+
     setSelectedVehicle(null);
     setVehicleImageFiles([]);
     setError("");
     setMessage("");
     setFormError("");
     setFieldErrors({});
-    setVehicleForm(createVehicleFormForType(vehicleTypes[0]));
+    const nextForm = createVehicleFormForType(vehicleTypes[0]);
+    setVehicleForm(nextForm);
+    setVehicleFormBaseline(nextForm);
+    resetSeatDraft();
+    setPanelMode("info");
     setOpenReg(true);
   }
 
@@ -305,7 +323,7 @@ export default function VehiclesPage() {
     setMessage("");
     setFormError("");
     setFieldErrors({});
-    setVehicleForm({
+    const nextForm = {
       ...emptyVehicleForm,
       vehicleTypeId: vehicle.vehicleTypeId,
       licensePlate: vehicle.licensePlate,
@@ -314,28 +332,24 @@ export default function VehiclesPage() {
       maxCargoVolumeM3: String(vehicle.maxCargoVolumeM3 ?? 0),
       imageUrls: vehicle.imageUrls?.join("\n") ?? "",
       status: normalizeVehicleStatus(vehicle.status),
-    });
+    };
+    setVehicleForm(nextForm);
+    setVehicleFormBaseline(nextForm);
     setOpenEdit(true);
   }
 
-  function closeVehicleModal(mode: "create" | "edit") {
-    if (mode === "create") {
-      setOpenReg(false);
-    } else {
-      setOpenEdit(false);
-      setSelectedVehicle(null);
-    }
-
+  function cancelInfoEdit() {
+    setVehicleForm(vehicleFormBaseline);
     setVehicleImageFiles([]);
     setFormError("");
     setFieldErrors({});
+    setOpenEdit(false);
   }
 
-  function resetSeatEditingState() {
+  function resetSeatDraft() {
     detailAbortControllerRef.current?.abort();
     setSeatDraft(undefined);
     setOriginalSeatLayout(undefined);
-    setIsSeatEditing(false);
     setIsSeatDetailLoading(false);
     setIsSeatSaving(false);
     setSeatError("");
@@ -343,21 +357,43 @@ export default function VehiclesPage() {
   }
 
   function openVehiclePanel(vehicle: OperatorVehicle, mode: VehiclePanelMode) {
-    if (isSeatEditing && isSeatDirty) {
+    if (isInfoDirty || isSeatDirty) {
       setDiscardPrompt(true);
       return;
     }
 
-    resetSeatEditingState();
+    resetSeatDraft();
+    setOpenEdit(false);
     setSelectedVehicle(vehicle);
+    const nextForm = {
+      ...emptyVehicleForm,
+      vehicleTypeId: vehicle.vehicleTypeId,
+      licensePlate: vehicle.licensePlate,
+      totalSeats: String(vehicle.totalSeats),
+      maxCargoWeightKg: String(vehicle.maxCargoWeightKg),
+      maxCargoVolumeM3: String(vehicle.maxCargoVolumeM3 ?? 0),
+      imageUrls: vehicle.imageUrls?.join("\n") ?? "",
+      status: normalizeVehicleStatus(vehicle.status),
+    };
+    setVehicleForm(nextForm);
+    setVehicleFormBaseline(nextForm);
     setPanelMode(mode);
     setMessage("");
     setError("");
+
+    if (mode === "seats" && canManageVehicles) {
+      void loadSeatLayout(vehicle);
+    }
   }
 
   function closeVehiclePanel() {
-    resetSeatEditingState();
+    resetSeatDraft();
+    setOpenReg(false);
+    setOpenEdit(false);
     setSelectedVehicle(null);
+    setVehicleImageFiles([]);
+    setFormError("");
+    setFieldErrors({});
   }
 
   function requestCloseVehiclePanel() {
@@ -365,7 +401,7 @@ export default function VehiclesPage() {
       return;
     }
 
-    if (isSeatEditing && isSeatDirty) {
+    if (isInfoDirty || isSeatDirty) {
       setDiscardPrompt(true);
       return;
     }
@@ -377,8 +413,9 @@ export default function VehiclesPage() {
     closeVehiclePanel();
   }
 
-  async function beginSeatEdit() {
-    const vehicleId = selectedVehicle ? getVehicleId(selectedVehicle) : "";
+  async function loadSeatLayout(vehicle?: OperatorVehicle) {
+    const sourceVehicle = vehicle ?? selectedVehicle;
+    const vehicleId = sourceVehicle ? getVehicleId(sourceVehicle) : "";
 
     if (!vehicleId) {
       setSeatError(t("vehicles.missingVehicleForDetail"));
@@ -388,8 +425,6 @@ export default function VehiclesPage() {
     detailAbortControllerRef.current?.abort();
     const controller = new AbortController();
     detailAbortControllerRef.current = controller;
-    setPanelMode("seats");
-    setIsSeatEditing(true);
     setIsSeatDetailLoading(true);
     setSeatError("");
 
@@ -406,6 +441,11 @@ export default function VehiclesPage() {
         );
       }
 
+      setVehicles((current) =>
+        current.map((vehicle) =>
+          getVehicleId(vehicle) === vehicleId ? detail : vehicle,
+        ),
+      );
       setSelectedVehicle(detail);
       setSeatDraft(freshLayout);
       setOriginalSeatLayout(freshLayout);
@@ -414,7 +454,6 @@ export default function VehiclesPage() {
         return;
       }
 
-      setIsSeatEditing(false);
       setSeatError(
         err instanceof Error ? err.message : t("vehicles.loadDetailFailed"),
       );
@@ -436,12 +475,18 @@ export default function VehiclesPage() {
   }
 
   function cancelSeatEdit() {
-    if (isSeatDirty) {
-      setDiscardPrompt(true);
-      return;
+    if (initialLayout) {
+      setSeatDraft(initialLayout);
     }
+    setSeatError("");
+  }
 
-    resetSeatEditingState();
+  function changePanelMode(nextMode: VehiclePanelMode) {
+    setPanelMode(nextMode);
+
+    if (nextMode === "seats" && canManageVehicles && selectedVehicle && !draftLayout) {
+      void loadSeatLayout(selectedVehicle);
+    }
   }
 
   async function saveSeatLayout() {
@@ -449,6 +494,10 @@ export default function VehiclesPage() {
     const nextLayout = parseVehicleSeatLayout(seatDraft);
 
     if (!vehicleId || !nextLayout || !isSeatDirty || isSeatSaving) {
+      return;
+    }
+
+    if (!window.confirm(t("vehicles.seatSaveConfirm"))) {
       return;
     }
 
@@ -468,7 +517,6 @@ export default function VehiclesPage() {
       setSelectedVehicle(updatedVehicle);
       setSeatDraft(updatedVehicle.seatLayoutJson);
       setOriginalSeatLayout(updatedVehicle.seatLayoutJson);
-      setIsSeatEditing(false);
       setMessage(
         t("vehicles.seatUpdateSuccess", {
           defaultValue: "Đã cập nhật trạng thái ghế. Trip tạo sau khi lưu sẽ dùng layout mới.",
@@ -689,7 +737,7 @@ export default function VehiclesPage() {
     ]);
   }
 
-  async function handleCreateVehicle() {
+  async function handleCreateVehicle(seatLayoutJson?: SeatLayoutJson) {
     if (isSaving) {
       return;
     }
@@ -705,11 +753,11 @@ export default function VehiclesPage() {
     try {
       const imageUrls = await prepareVehicleImageUrls();
       await createOperatorVehicle(
-        toVehicleCreateRequest(vehicleForm, vehicleTypes, imageUrls),
+        toVehicleCreateRequest(vehicleForm, vehicleTypes, imageUrls, seatLayoutJson),
       );
       setMessage(t("vehicles.createSuccess"));
       setVehicleImageFiles([]);
-      setOpenReg(false);
+      closeVehiclePanel();
 
       const shouldResetQuery = page !== 1 || querySearch.length > 0;
       setSearch("");
@@ -781,6 +829,7 @@ export default function VehiclesPage() {
       setMessage(t("vehicles.updateSuccess"));
       setVehicleImageFiles([]);
       setOpenEdit(false);
+      setVehicleFormBaseline(vehicleForm);
       await loadVehicles();
     } catch (submitError) {
       handleVehicleSubmitError(submitError);
@@ -871,7 +920,6 @@ export default function VehiclesPage() {
         vehicleTypes={vehicleTypes}
         isLoading={isLoading}
         search={querySearch}
-        canManageVehicles={canManageVehicles}
         page={page}
         pageSize={pageSize}
         totalItems={totalItems}
@@ -886,67 +934,49 @@ export default function VehiclesPage() {
           )
         }
         onOpenPanel={openVehiclePanel}
-        onEdit={openEditModal}
       />
 
-      <VehicleModal
-        mode="create"
-        open={openReg}
-        title={t("vehicles.registerTitle")}
-        vehicleTypes={vehicleTypes}
-        form={vehicleForm}
-        error={formError}
-        fieldErrors={fieldErrors}
-        imageFiles={vehicleImageFiles}
-        onChange={updateVehicleForm}
-        onImageFilesChange={updateVehicleImageFiles}
-        onImageError={handleVehicleImageError}
-        onClose={() => closeVehicleModal("create")}
-        onSubmit={handleCreateVehicle}
-        isSubmitting={isSaving}
-        submitLabel={t("vehicles.register")}
-      />
-
-      <VehicleModal
-        mode="edit"
-        open={openEdit}
-        title={t("vehicles.editTitle")}
-        vehicleTypes={vehicleTypes}
-        form={vehicleForm}
-        error={formError}
-        fieldErrors={fieldErrors}
-        imageFiles={vehicleImageFiles}
-        onChange={updateVehicleForm}
-        onImageFilesChange={updateVehicleImageFiles}
-        onImageError={handleVehicleImageError}
-        onClose={() => closeVehicleModal("edit")}
-        onSubmit={handleUpdateVehicle}
-        isSubmitting={isSaving}
-        submitLabel={t("vehicles.saveChanges")}
-      />
-
-      {selectedVehicle && (
+      {(openReg || selectedVehicle) && (
         <VehicleDetailsPanel
           vehicle={selectedVehicle}
           vehicleTypes={vehicleTypes}
           mode={panelMode}
-          canManageSeats={canManageVehicles}
-          isEditingSeats={isSeatEditing}
-          layout={draftLayout ?? selectedLayout}
-          isLoadingSeats={isSeatDetailLoading}
-          isSavingSeats={isSeatSaving}
-          isDirty={isSeatDirty}
-          error={seatError}
+          isCreate={openReg}
+          isInfoEditing={openEdit}
+          canManageVehicles={canManageVehicles}
+          form={vehicleForm}
+          formError={formError}
+          fieldErrors={fieldErrors}
+          imageFiles={vehicleImageFiles}
+          isInfoSaving={isSaving}
+          isInfoDirty={isInfoDirty}
+          isSeatLoading={isSeatDetailLoading}
+          isSeatSaving={isSeatSaving}
+          seatLayout={draftLayout ?? selectedLayout}
+          originalSeatLayout={initialLayout}
+          isSeatDirty={isSeatDirty}
+          seatChangeCount={countSeatChanges(draftLayout, initialLayout)}
+          seatError={seatError}
           discardPrompt={discardPrompt}
-          onModeChange={setPanelMode}
+          onModeChange={changePanelMode}
           onCloseRequest={requestCloseVehiclePanel}
           onDiscardAndClose={discardAndCloseVehiclePanel}
           onKeepEditing={() => setDiscardPrompt(false)}
-          onEditInfo={() => openEditModal(selectedVehicle)}
-          onStartSeatEdit={beginSeatEdit}
+          onEditInfo={() => {
+            if (selectedVehicle) {
+              openEditModal(selectedVehicle);
+            }
+          }}
+          onCancelInfo={cancelInfoEdit}
+          onSubmitInfo={handleUpdateVehicle}
+          onSubmitCreate={handleCreateVehicle}
+          onValidateCreateInfo={() => validateVehicleForm("create")}
+          onChange={updateVehicleForm}
+          onImageFilesChange={updateVehicleImageFiles}
+          onImageError={handleVehicleImageError}
           onToggleSeat={toggleSeat}
+          onResetSeats={cancelSeatEdit}
           onSaveSeats={saveSeatLayout}
-          onCancelSeatEdit={cancelSeatEdit}
         />
       )}
     </div>
