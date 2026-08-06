@@ -19,6 +19,10 @@ import {
 import { ApiRequestError } from "../../../api/client";
 import { getAuthUser } from "../../../auth";
 import {
+  readSessionCache,
+  writeSessionCache,
+} from "../../../utils/sessionCache";
+import {
   encodeGooglePolyline,
   estimateCoachDurationMinutes,
   type RouteCoordinate,
@@ -45,22 +49,36 @@ import { useRouteStopEditor } from "./useRouteStopEditor";
 import { useRouteMapPoints } from "./useRouteMapPoints";
 import RouteListSidebar from "./RouteListSidebar";
 import RouteDetailHeader from "./RouteDetailHeader";
-import RouteFormSection from "./RouteFormSection";
 import AlternativeRoutesSection from "./AlternativeRoutesSection";
-import RouteStopsSection from "./RouteStopsSection";
-import GeometryPanel from "./GeometryPanel";
+import RouteMapWorkspace from "./RouteMapWorkspace";
 import RouteEmptyState from "./RouteEmptyState";
+import RouteDetailSkeleton from "./RouteDetailSkeleton";
 import StationManagementModal from "./StationManagementModal";
 import CreateRouteModal, { type CreateRouteBasics } from "./CreateRouteModal";
 import RemoveRouteStopModal from "./RemoveRouteStopModal";
+
+// Cache danh sách tuyến (summary) theo phiên — stale-while-revalidate, hạn 10 phút.
+// KHÔNG cache chi tiết tuyến/stops/geometry (dữ liệu nặng + đổi thường xuyên).
+const routeListCacheMaxAgeMs = 10 * 60 * 1000;
+
+// Key chứa ID user hiện tại để đổi tài khoản không dính cache của nhà xe khác.
+function routeListCacheKey(userId?: string) {
+  return `vietride:routeList:${userId || "anonymous"}`;
+}
 
 export default function RoutesPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseRouteTab(searchParams.get("tab"));
-  const canManageRoutes = getAuthUser()?.role === "OPERATOR_ADMIN";
-  const [routes, setRoutes] = useState<OperatorRoute[]>([]);
+  const authUser = getAuthUser();
+  const canManageRoutes = authUser?.role === "OPERATOR_ADMIN";
+  const cacheKey = routeListCacheKey(authUser?.id);
+  // Đọc cache một lần khi mount (lazy initializer): có cache → sidebar hiện tên tuyến
+  // ngay, không skeleton; fetch nền vẫn chạy rồi cập nhật + ghi đè cache.
+  const [routes, setRoutes] = useState<OperatorRoute[]>(
+    () => readSessionCache<OperatorRoute[]>(cacheKey, routeListCacheMaxAgeMs) ?? [],
+  );
   const [stops, setStops] = useState<OperatorStop[]>([]);
   const [stations, setStations] = useState<StationOption[]>([]);
   const [locations, setLocations] = useState<AdminLocation[]>([]);
@@ -71,7 +89,9 @@ export default function RoutesPage() {
   const [message, setMessage] = useState("");
   const [messageScope, setMessageScope] = useState<FeedbackScope>("global");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  // Đang tải dữ liệu lần đầu (mount) — điều khiển skeleton sidebar + panel phải.
+  // True từ đầu để không nháy empty-state "không có tuyến" trước khi load xong.
+  const [isLoadingRoutes, setIsLoadingRoutes] = useState(true);
   // Đang tải chi tiết tuyến vừa chọn (backend có thể spike 3-10s) → overlay mờ
   // trên panel phải để user biết dữ liệu đang hiển thị là của tuyến cũ
   const [isLoadingRouteDetail, setIsLoadingRouteDetail] = useState(false);
@@ -86,11 +106,6 @@ export default function RoutesPage() {
   const [isAutoCalculatingMetrics, setIsAutoCalculatingMetrics] =
     useState(false);
   const [autoMetricsFallback, setAutoMetricsFallback] = useState(false);
-  // "Sửa tay": lưu identity mảng điểm đường đi đang được mở khóa — khi geometry đổi
-  // (tính lại/vẽ lại/tải tuyến khác) mảng mới khác identity nên tự khóa lại, không cần effect
-  const [unlockedGeometryPoints, setUnlockedGeometryPoints] = useState<
-    RouteCoordinate[] | null
-  >(null);
   // Chống race khi chọn tuyến: mỗi lần chọn/tải mở một "phiên" mới (tăng seq);
   // response về muộn của phiên cũ so seq thấy lệch thì bỏ qua, không đè form/geometry
   // của tuyến đang chọn hiện tại
@@ -161,10 +176,15 @@ export default function RoutesPage() {
   const geometry = useRouteGeometry({
     selectedRouteId,
     routeWaypoints,
+    // Auto-fetch phương án chỉ chạy khi tab gộp map-first đang mở và user sửa
+    // được tuyến — không đốt quota cho viewer hay tab khác. Chặn cả lúc đang tải
+    // chi tiết tuyến vừa chọn: form còn giữ bến của tuyến CŨ, fetch lúc này sẽ
+    // tính đường sai cặp bến và phí một lượt request
+    isWorkspaceActive:
+      activeTab === "info" && canManageRoutes && !isLoadingRouteDetail,
     setRouteForm,
     setRoutes,
     setError,
-    showMessage,
     t,
   });
   invalidateGeometryRef.current = geometry.invalidateLocalGeometry;
@@ -215,7 +235,6 @@ export default function RoutesPage() {
     // Refresh cũng mở phiên chọn mới: response chọn tuyến đang chờ trở thành stale,
     // và ngược lại nếu user chọn tuyến trong lúc refresh thì kết quả refresh bị bỏ qua
     const seq = ++selectRouteSeqRef.current;
-    setIsLoading(true);
     setError("");
 
     try {
@@ -226,6 +245,9 @@ export default function RoutesPage() {
           getOperatorStations({ page: 1, pageSize: 100 }),
           getPublicLocations(),
         ]);
+      // Ghi đè cache bằng danh sách mới nhất — kể cả khi phiên này thành stale
+      // (user vừa chọn tuyến khác) thì dữ liệu server vẫn tươi, cache dùng được
+      writeSessionCache<OperatorRoute[]>(cacheKey, routeResult.items);
       const nextRouteSummary =
         routeResult.items.find(
           (item) => item.id === selectedRouteIdRef.current,
@@ -293,9 +315,15 @@ export default function RoutesPage() {
         );
       }
     } finally {
-      setIsLoading(false);
+      setIsLoadingRoutes(false);
     }
-  }, [applyAlternatives, applySavedGeometry, setStopForm, syncRouteStopsFromServer]);
+  }, [
+    applyAlternatives,
+    applySavedGeometry,
+    cacheKey,
+    setStopForm,
+    syncRouteStopsFromServer,
+  ]);
 
   // Chỉ chạy khi mount — chi tiết tuyến/điểm dừng đang chọn do handleSelectRoute/handleSelectStop đảm nhiệm
   useEffect(() => {
@@ -303,6 +331,25 @@ export default function RoutesPage() {
       void loadData();
     });
   }, [loadData]);
+
+  // Back-compat deep-link: tab "Điểm dừng" cũ đã gộp vào tab Thông tin (map-first)
+  // → ?tab=stops trên URL được dọn về mặc định (info) để link share cũ không gãy
+  useEffect(() => {
+    if (searchParams.get("tab") !== "stops") {
+      return;
+    }
+
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+
+        next.delete("tab");
+
+        return next;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
 
   // Deep-link ?routeId=: sau khi danh sách tuyến đã tải, nếu URL trỏ tới tuyến tồn tại
   // thì chọn tuyến đó. Chỉ chạy khi URL/danh sách tuyến ĐỔI (không phải mỗi render):
@@ -390,7 +437,10 @@ export default function RoutesPage() {
     setAutoMetricsFallback(false);
     void (async () => {
       try {
-        const result = await requestRoadGeometry(
+        // requestRoadGeometry trả mảng phương án — auto-fill lấy phương án đầu
+        // (đề xuất chính của Google); các phương án khác do hook geometry tự
+        // fetch và vẽ lên bản đồ, bấm đường/bubble để đổi
+        const [firstOption] = await requestRoadGeometry(
           [
             { latitude: origin.latitude, longitude: origin.longitude },
             {
@@ -405,8 +455,11 @@ export default function RoutesPage() {
           return;
         }
 
-        applyComputedGeometryRef.current(result.points);
-        applyMetrics(result.totalDistanceKm, result.estimatedDurationMinutes);
+        applyComputedGeometryRef.current(firstOption.points);
+        applyMetrics(
+          firstOption.totalDistanceKm,
+          firstOption.estimatedDurationMinutes,
+        );
       } catch {
         if (cancelled) {
           return;
@@ -556,13 +609,14 @@ export default function RoutesPage() {
       ),
       ...detailStopsToDrafts(created),
     ]);
-    // Auto-select tuyến mới và chuyển sang tab Điểm dừng để bổ sung tiếp
+    // Auto-select tuyến mới, về tab gộp (mặc định) — điểm dừng bổ sung ngay
+    // trong panel nổi của khung bản đồ
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
 
         next.set("routeId", created.id);
-        next.set("tab", "stops");
+        next.delete("tab");
 
         return next;
       },
@@ -579,7 +633,6 @@ export default function RoutesPage() {
     // Đổi tuyến → reset trạng thái auto-fill + cờ "chưa lưu" của tuyến trước
     autoCalcAttemptedPairRef.current = "";
     setAutoMetricsFallback(false);
-    setUnlockedGeometryPoints(null);
     setIsRouteDirty(false);
     setDuplicateRouteId("");
     // Đồng bộ ?routeId= lên URL để share deep-link; replace để không spam history
@@ -708,7 +761,6 @@ export default function RoutesPage() {
         setRouteForm(routeToForm(saved));
         applySavedGeometry(saved);
         setIsRouteDirty(false);
-        setUnlockedGeometryPoints(null);
       }
 
       showMessage("global", t("routes.routeSaved"));
@@ -774,6 +826,7 @@ export default function RoutesPage() {
       <div className="grid items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
         <RouteListSidebar
           routes={routes}
+          isLoading={isLoadingRoutes && routes.length === 0}
           selectedRouteId={selectedRouteId}
           canManageRoutes={canManageRoutes}
           onSelectRoute={(routeId) =>
@@ -789,10 +842,6 @@ export default function RoutesPage() {
               activeTab={activeTab}
               onSelectTab={selectTab}
               onOpenStationManagement={() => setIsStationModalOpen(true)}
-              canManageRoutes={canManageRoutes}
-              isDirty={isRouteDirty || geometry.isGeometryDirty}
-              isSaving={isSavingRoute}
-              onSaveRoute={() => runAction(handleSaveRoute)}
             />
 
             {/* Vùng nội dung tab: relative để overlay loading phủ lên khi đang
@@ -811,71 +860,37 @@ export default function RoutesPage() {
               )}
 
               {activeTab === "info" && (
-                <div className="grid items-start gap-5 xl:grid-cols-2">
-                  <RouteFormSection
-                    canManageRoutes={canManageRoutes}
-                    routes={routes}
-                    stations={stations}
-                    selectedRouteId={selectedRouteId}
-                    form={routeForm}
-                    onUpdateField={updateRoute}
-                    feedbackMessage={messageScope === "route" ? message : ""}
-                    isAutoCalculatingMetrics={isAutoCalculatingMetrics}
-                    autoMetricsFallback={autoMetricsFallback}
-                    metricsLocked={
-                      geometry.routePathPoints.length >= 2 &&
-                      !geometry.isEditingGeometry &&
-                      unlockedGeometryPoints !== geometry.routePathPoints
-                    }
-                    onUnlockMetrics={() =>
-                      setUnlockedGeometryPoints(geometry.routePathPoints)
-                    }
-                  />
-                  <GeometryPanel
-                    canManageRoutes={canManageRoutes}
-                    geometry={geometry}
-                    points={routeMapPoints}
-                    waypointCount={routeWaypoints.length}
-                    hasSelectedRoute={Boolean(selectedRouteId)}
-                    hasSavedPolyline={Boolean(selectedRoute.pathPolyline)}
-                    onRunAction={runAction}
-                    feedbackMessage={messageScope === "geometry" ? message : ""}
-                  />
-                </div>
-              )}
-  
-              {activeTab === "stops" && (
-                <RouteStopsSection
+                <RouteMapWorkspace
                   canManageRoutes={canManageRoutes}
+                  routes={routes}
+                  stations={stations}
+                  selectedRouteId={selectedRouteId}
+                  routeForm={routeForm}
+                  onUpdateField={updateRoute}
+                  routeFeedbackMessage={messageScope === "route" ? message : ""}
+                  isAutoCalculatingMetrics={isAutoCalculatingMetrics}
+                  autoMetricsFallback={autoMetricsFallback}
+                  geometry={geometry}
+                  routeMapPoints={routeMapPoints}
                   stops={stops}
                   selectedStopId={selectedStopId}
-                  stopFormControl={stopFormControl}
-                  routeStopOrder={stopEditor.routeStopOrder}
-                  onChangeRouteStopOrder={stopEditor.setRouteStopOrder}
-                  routeStopDuration={stopEditor.routeStopDuration}
-                  onChangeRouteStopDuration={stopEditor.setRouteStopDuration}
-                  routeStopDistance={stopEditor.routeStopDistance}
-                  onChangeRouteStopDistance={stopEditor.setRouteStopDistance}
-                  allowPickup={stopEditor.allowPickup}
-                  onChangeAllowPickup={stopEditor.setAllowPickup}
-                  allowDropoff={stopEditor.allowDropoff}
-                  onChangeAllowDropoff={stopEditor.setAllowDropoff}
-                  canEstimate={Boolean(routeForm.originStationId)}
-                  activeRouteName={activeRouteName}
-                  currentRouteStops={stopEditor.currentRouteStops}
-                  onAddRouteStop={() => runAction(stopEditor.handleAddRouteStop)}
-                  onEstimateRouteStopMetrics={() =>
-                    runAction(stopEditor.handleEstimateRouteStopMetrics)
+                  onSelectStop={(stopId) =>
+                    runAction(() => stopFormControl.handleSelectStop(stopId))
                   }
-                  onRequestRemove={stopEditor.setRouteStopPendingRemoval}
-                  onRunAction={runAction}
+                  stopFormControl={stopFormControl}
+                  stopEditor={stopEditor}
+                  canEstimate={Boolean(routeForm.originStationId)}
                   stopFeedbackMessage={messageScope === "stop" ? message : ""}
                   routeStopFeedbackMessage={
                     messageScope === "routeStop" ? message : ""
                   }
+                  isDirty={isRouteDirty || geometry.isGeometryDirty}
+                  isSaving={isSavingRoute}
+                  onSaveRoute={() => runAction(handleSaveRoute)}
+                  onRunAction={runAction}
                 />
               )}
-  
+
               {activeTab === "alternatives" && (
                 <AlternativeRoutesSection
                   canManageRoutes={canManageRoutes}
@@ -891,6 +906,10 @@ export default function RoutesPage() {
               )}
             </div>
           </main>
+        ) : isLoadingRoutes ? (
+          // Đang tải lần đầu mà chưa có tuyến để hiển thị → skeleton panel phải,
+          // không hiện empty-state "chưa chọn tuyến" gây hiểu nhầm không có dữ liệu
+          <RouteDetailSkeleton />
         ) : (
           <RouteEmptyState
             canManageRoutes={canManageRoutes}
@@ -899,10 +918,6 @@ export default function RoutesPage() {
           />
         )}
       </div>
-
-      {isLoading && (
-        <p className="text-sm text-gray-500">{t("routes.loading")}</p>
-      )}
 
       <StationManagementModal
         open={isStationModalOpen}

@@ -16,6 +16,14 @@ export type GoogleMapMouseEvent = {
   latLng: GoogleLatLngValue | null;
 };
 
+// Tập option đổi được lúc runtime qua map.setOptions (kéo nắn đường tuỳ chỉnh:
+// tạm khoá kéo bản đồ + đổi con trỏ trong lúc túm thân đường)
+export type GoogleMapOptionUpdates = {
+  draggable?: boolean;
+  draggableCursor?: string;
+  draggingCursor?: string;
+};
+
 export type GoogleMapInstance = {
   addListener: (
     eventName: string,
@@ -24,6 +32,8 @@ export type GoogleMapInstance = {
   fitBounds: (bounds: GoogleLatLngBoundsInstance, padding?: number) => void;
   panTo: (position: GoogleMapCoordinate) => void;
   setCenter: (position: GoogleMapCoordinate) => void;
+  // Optional để mock/test cũ không gãy — caller phải guard trước khi dùng
+  setOptions?: (options: GoogleMapOptionUpdates) => void;
   setZoom: (zoom: number) => void;
 };
 
@@ -74,10 +84,58 @@ type GooglePolylineOptions = {
   strokeColor?: string;
   strokeOpacity?: number;
   strokeWeight?: number;
+  zIndex?: number;
 };
 
 export type GooglePolylineInstance = {
+  addListener: (
+    eventName: string,
+    handler: (event?: GoogleMapMouseEvent) => void,
+  ) => GoogleMapsEventListener;
   setMap: (map: GoogleMapInstance | null) => void;
+};
+
+// Nhãn chữ hiển thị trên marker (bubble thời lượng phương án đường)
+type GoogleMarkerLabel = {
+  color?: string;
+  fontFamily?: string;
+  fontSize?: string;
+  fontWeight?: string;
+  text: string;
+};
+
+// Icon dạng Symbol (path SVG) — dùng vẽ bubble/điểm kéo thay pin mặc định
+type GoogleMarkerIcon = {
+  fillColor?: string;
+  fillOpacity?: number;
+  path: string;
+  scale?: number;
+  strokeColor?: string;
+  strokeOpacity?: number;
+  strokeWeight?: number;
+};
+
+type GoogleMarkerOptions = {
+  clickable?: boolean;
+  cursor?: string;
+  draggable?: boolean;
+  icon?: GoogleMarkerIcon;
+  label?: GoogleMarkerLabel;
+  map: GoogleMapInstance;
+  position: GoogleMapCoordinate;
+  title?: string;
+  zIndex?: number;
+};
+
+export type GoogleMarkerInstance = {
+  addListener: (
+    eventName: string,
+    handler: (event?: GoogleMapMouseEvent) => void,
+  ) => GoogleMapsEventListener;
+  setMap: (map: GoogleMapInstance | null) => void;
+  // Optional (mock/test cũ không gãy): dời marker tại chỗ thay vì gỡ + vẽ lại —
+  // giữ nguyên instance để không cắt đứt thao tác kéo đang diễn ra
+  setPosition?: (position: GoogleMapCoordinate) => void;
 };
 
 export type GoogleInfoWindowInstance = {
@@ -95,6 +153,9 @@ export type GoogleMapsLibrary = {
     element: HTMLElement,
     options: GoogleMapOptions,
   ) => GoogleMapInstance;
+  // Marker (legacy) đến từ importLibrary("marker") — optional để không gãy khi
+  // thư viện marker không tải được; caller phải tự guard trước khi dùng
+  Marker?: new (options: GoogleMarkerOptions) => GoogleMarkerInstance;
   Polyline: new (options: GooglePolylineOptions) => GooglePolylineInstance;
 };
 
@@ -305,11 +366,18 @@ function loadGoogleMapsBootstrap() {
   return bootstrapPromise;
 }
 
-export async function loadGoogleMapsLibrary() {
+function hasMarkerLibraryShape(
+  value: unknown,
+): value is Pick<Required<GoogleMapsLibrary>, "Marker"> {
+  return hasCallableProperty(value, "Marker");
+}
+
+export async function loadGoogleMapsLibrary(): Promise<GoogleMapsLibrary> {
   const maps = await loadGoogleMapsBootstrap();
-  const [library, coreLibrary] = await Promise.all([
+  const [library, coreLibrary, markerLibrary] = await Promise.all([
     maps.importLibrary("maps"),
     maps.importLibrary("core"),
+    maps.importLibrary("marker"),
   ]);
 
   if (!hasMapsLibraryShape(library) || !hasCoreLibraryShape(coreLibrary)) {
@@ -319,6 +387,10 @@ export async function loadGoogleMapsLibrary() {
   return {
     ...library,
     LatLngBounds: coreLibrary.LatLngBounds,
+    // Marker là optional: thiếu thì bản đồ vẫn chạy, chỉ không có nhãn/điểm kéo
+    Marker: hasMarkerLibraryShape(markerLibrary)
+      ? markerLibrary.Marker
+      : undefined,
   };
 }
 

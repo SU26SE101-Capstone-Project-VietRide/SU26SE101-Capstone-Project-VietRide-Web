@@ -193,6 +193,140 @@ describe("GoogleMapCanvas", () => {
       ),
     );
   });
+  // Marker Symbol reconcile theo id: mảng pointMarkers đổi identity (preview
+  // reroute trong lúc kéo làm nhãn bubble đổi liên tục) thì marker giữ nguyên
+  // id + hình dạng KHÔNG được gỡ + vẽ lại — recreate giữa gesture là đứt kéo;
+  // chỉ đổi vị trí thì dời tại chỗ bằng setPosition.
+  it("keeps unchanged point markers alive when the marker array identity changes", async () => {
+    type MarkerOptions = {
+      draggable?: boolean;
+      label?: { text: string };
+      position: { lat: number; lng: number };
+    };
+
+    const markerInstances: Marker[] = [];
+
+    class Marker {
+      options: MarkerOptions;
+      setMap = vi.fn();
+      setPosition = vi.fn();
+
+      constructor(options: MarkerOptions) {
+        this.options = options;
+        markerInstances.push(this);
+      }
+
+      addListener() {
+        return { remove: vi.fn() };
+      }
+    }
+
+    class Map {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      fitBounds() {}
+
+      panTo() {}
+
+      setCenter() {}
+
+      setZoom() {}
+    }
+
+    class InfoWindow {
+      close() {}
+
+      open() {}
+
+      setContent() {}
+
+      setPosition() {}
+    }
+
+    class LatLngBounds {
+      extend() {}
+
+      isEmpty() {
+        return true;
+      }
+    }
+
+    class Circle {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      setMap() {}
+    }
+
+    class Polyline {
+      setMap() {}
+    }
+
+    loadGoogleMapsLibraryMock.mockResolvedValue({
+      Circle,
+      InfoWindow,
+      LatLngBounds,
+      Map,
+      Marker,
+      Polyline,
+    } as unknown as GoogleMapsLibrary);
+
+    const viaMarker = {
+      draggable: true,
+      id: "via-point-0",
+      position: { lat: 11.0, lng: 107.0 },
+    };
+    const buildLabel = (text: string) => ({
+      id: "route-option-label-0",
+      label: { text },
+      position: { lat: 11.2, lng: 107.4 },
+    });
+
+    const view = render(
+      <GoogleMapCanvas
+        ariaLabel="Route map"
+        center={{ lat: 10.8, lng: 106.7 }}
+        pointMarkers={[viaMarker, buildLabel("5 giờ 10 phút")]}
+        zoom={12}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(markerInstances).toHaveLength(2);
+    });
+    const viaInstance = markerInstances.find(
+      (instance) => instance.options.draggable,
+    );
+    expect(viaInstance).toBeDefined();
+
+    // Preview trong lúc kéo: mảng mới hoàn toàn — via marker cùng id + hình
+    // dạng nhưng vị trí mới, nhãn bubble đổi text (hình dạng đổi → vẽ lại)
+    view.rerender(
+      <GoogleMapCanvas
+        ariaLabel="Route map"
+        center={{ lat: 10.8, lng: 106.7 }}
+        pointMarkers={[
+          { ...viaMarker, position: { lat: 11.05, lng: 107.05 } },
+          buildLabel("5 giờ 25 phút"),
+        ]}
+        zoom={12}
+      />,
+    );
+
+    await waitFor(() => {
+      // Chỉ nhãn bubble bị vẽ lại (instance thứ 3) — via marker giữ nguyên
+      expect(markerInstances).toHaveLength(3);
+    });
+    expect(viaInstance?.setMap).not.toHaveBeenCalledWith(null);
+    expect(viaInstance?.setPosition).toHaveBeenCalledWith({
+      lat: 11.05,
+      lng: 107.05,
+    });
+  });
+
   it("cancels initialization when the map element is removed", async () => {
     let initializeMap: FrameRequestCallback | undefined;
     const cancelAnimationFrameMock = vi

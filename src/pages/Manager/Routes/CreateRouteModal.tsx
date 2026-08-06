@@ -125,7 +125,10 @@ export default function CreateRouteModal({
       setCalculatingPairKey(pairKey);
 
       try {
-        const result = await requestRoadGeometry(
+        // requestRoadGeometry trả mảng phương án — modal giữ đơn giản, luôn dùng
+        // phương án ĐẦU TIÊN (đề xuất chính của Google); đổi phương án làm sau
+        // trong tab Thông tin
+        const [firstOption] = await requestRoadGeometry(
           [
             { latitude: origin.latitude, longitude: origin.longitude },
             {
@@ -139,9 +142,9 @@ export default function CreateRouteModal({
         if (!cancelled) {
           setComputedMetrics({
             pairKey,
-            totalDistanceKm: result.totalDistanceKm,
-            estimatedDurationMinutes: result.estimatedDurationMinutes,
-            pathPolyline: encodeGooglePolyline(result.points),
+            totalDistanceKm: firstOption.totalDistanceKm,
+            estimatedDurationMinutes: firstOption.estimatedDurationMinutes,
+            pathPolyline: encodeGooglePolyline(firstOption.points),
           });
         }
       } catch {

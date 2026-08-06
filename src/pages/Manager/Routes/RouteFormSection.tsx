@@ -1,8 +1,9 @@
-// Section thông tin tuyến: form sửa tuyến đang chọn (chọn tuyến do sidebar đảm nhiệm).
-// Không còn nút lưu riêng — mọi thay đổi được lưu atomic qua nút "Lưu tuyến" ở header.
+// Form thông tin tuyến dạng gọn dọc — nhúng trong panel nổi trên bản đồ
+// (RouteFloatingPanel), không tự mang card chrome. Không còn nút lưu riêng —
+// mọi thay đổi lưu atomic qua nút "Lưu tuyến" nổi góc phải-dưới bản đồ.
 // Bến đi/bến đến bất biến sau khi tạo (PUT /full trả ROUTE_STATION_IMMUTABLE) → 2 ô khóa.
 import { useTranslation } from "react-i18next";
-import { FiEdit2, FiGitBranch, FiLoader } from "react-icons/fi";
+import { FiGitBranch, FiLoader } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import {
   inputClass,
@@ -32,8 +33,9 @@ type RouteFormSectionProps = {
   // Trạng thái auto-fill km/thời lượng theo đường đi (tính từ index)
   isAutoCalculatingMetrics: boolean;
   autoMetricsFallback: boolean;
+  // Có đường đi (tính/vẽ) → khóa 2 ô số liệu: server bỏ qua manualMetrics khi có
+  // pathPolyline nên số nhập tay sẽ bị ghi đè — muốn nhập tay phải xóa đường đi trước
   metricsLocked: boolean;
-  onUnlockMetrics: () => void;
 };
 
 export default function RouteFormSection({
@@ -47,7 +49,6 @@ export default function RouteFormSection({
   isAutoCalculatingMetrics,
   autoMetricsFallback,
   metricsLocked,
-  onUnlockMetrics,
 }: RouteFormSectionProps) {
   const { t } = useTranslation("manager");
   // Hiển thị chỉ đọc khi số liệu được khóa theo đường đi đã tính/vẽ
@@ -61,7 +62,7 @@ export default function RouteFormSection({
     "flex min-h-10.5 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-800";
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <section>
       <SectionHeader
         icon={<FiGitBranch />}
         title={t("routes.routeManagement")}
@@ -170,19 +171,16 @@ export default function RouteFormSection({
             {t("routes.autoMetricsCalculating")}
           </p>
         ) : metricsLocked ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+          <div className="space-y-1">
+            <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
               {t("routes.autoMetricsBadge")}
             </span>
+            {/* Không còn nút "Sửa tay": có pathPolyline thì server bỏ qua manualMetrics
+                (số nhập tay bị ghi đè sau khi lưu) — muốn nhập tay phải xóa đường đi */}
             {canManageRoutes && (
-              <button
-                type="button"
-                onClick={onUnlockMetrics}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-vr-700 hover:underline"
-              >
-                <FiEdit2 size={12} />
-                {t("routes.editMetricsManually")}
-              </button>
+              <p className="text-xs text-gray-500">
+                {t("routes.metricsLockedHint")}
+              </p>
             )}
           </div>
         ) : autoMetricsFallback ? (

@@ -9,6 +9,8 @@ import type { OperatorRoute } from "../../../api/vietride";
 
 type RouteListSidebarProps = {
   routes: OperatorRoute[];
+  // Đang tải lần đầu mà chưa có dữ liệu (kể cả cache) → skeleton thay cho danh sách
+  isLoading?: boolean;
   selectedRouteId: string;
   canManageRoutes: boolean;
   onSelectRoute: (routeId: string) => void;
@@ -17,6 +19,7 @@ type RouteListSidebarProps = {
 
 export default function RouteListSidebar({
   routes,
+  isLoading = false,
   selectedRouteId,
   canManageRoutes,
   onSelectRoute,
@@ -90,8 +93,24 @@ export default function RouteListSidebar({
             </button>
           )}
         </div>
-        <ul className="max-h-[calc(100vh-22rem)] space-y-1 overflow-y-auto p-2">
-          {filteredRoutes.length === 0 && (
+        <ul
+          aria-busy={isLoading}
+          className="max-h-[calc(100vh-22rem)] space-y-1 overflow-y-auto p-2"
+        >
+          {/* Skeleton lúc tải lần đầu — "không có tuyến" CHỈ hiện khi đã load xong */}
+          {isLoading &&
+            Array.from({ length: 6 }, (_, index) => (
+              <li
+                key={index}
+                aria-hidden="true"
+                data-testid="route-list-skeleton-row"
+                className="animate-pulse px-3 py-2"
+              >
+                <div className="h-4 w-3/4 rounded bg-gray-200" />
+                <div className="mt-1.5 h-3 w-1/2 rounded bg-gray-100" />
+              </li>
+            ))}
+          {!isLoading && filteredRoutes.length === 0 && (
             <li className="px-3 py-4 text-sm text-gray-500">
               {t("routes.noRoutesFound")}
             </li>

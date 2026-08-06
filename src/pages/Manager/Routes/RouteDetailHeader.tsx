@@ -1,9 +1,10 @@
-// Header cột phải: tên tuyến đang chọn + nút Quản lý bến + nút "Lưu tuyến" atomic
-// (sticky theo scroll, nổi bật khi có thay đổi chưa lưu) + thanh tab
-// (style tab đồng bộ với WalletSettlement)
+// Header cột phải: tên tuyến đang chọn + nút Quản lý bến + thanh tab (sticky
+// theo scroll, style tab đồng bộ với WalletSettlement). Nút "Lưu tuyến" + badge
+// "chưa lưu" đã chuyển xuống overlay góc phải-dưới bản đồ (RouteMapWorkspace)
+// — bỏ ở header để không có 2 nút lưu trùng nhau.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiMapPin, FiSave } from "react-icons/fi";
+import { FiMapPin } from "react-icons/fi";
 import { routeTabs, type RouteTab } from "./routeFormUtils";
 
 type RouteDetailHeaderProps = {
@@ -11,10 +12,6 @@ type RouteDetailHeaderProps = {
   activeTab: RouteTab;
   onSelectTab: (tab: RouteTab) => void;
   onOpenStationManagement: () => void;
-  canManageRoutes: boolean;
-  isDirty: boolean;
-  isSaving: boolean;
-  onSaveRoute: () => void;
 };
 
 export default function RouteDetailHeader({
@@ -22,10 +19,6 @@ export default function RouteDetailHeader({
   activeTab,
   onSelectTab,
   onOpenStationManagement,
-  canManageRoutes,
-  isDirty,
-  isSaving,
-  onSaveRoute,
 }: RouteDetailHeaderProps) {
   const { t } = useTranslation("manager");
   // Sentinel 1px phía trên header: rời khỏi scrollport nghĩa là header đang "dính"
@@ -66,36 +59,14 @@ export default function RouteDetailHeader({
           <h2 className="min-w-0 truncate text-lg font-bold text-gray-900">
             {routeName}
           </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            {isDirty && (
-              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                {t("routes.unsavedChanges")}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={onOpenStationManagement}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              <FiMapPin size={16} />
-              {t("routes.stationManagement")}
-            </button>
-            {canManageRoutes && (
-              <button
-                type="button"
-                onClick={onSaveRoute}
-                disabled={!isDirty || isSaving}
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed ${
-                  isDirty
-                    ? "bg-vr-500 text-white shadow-sm hover:bg-vr-600 disabled:opacity-70"
-                    : "border border-gray-200 bg-white text-gray-400"
-                }`}
-              >
-                <FiSave size={16} />
-                {isSaving ? t("routes.savingRoute") : t("routes.saveRoute")}
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={onOpenStationManagement}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <FiMapPin size={16} />
+            {t("routes.stationManagement")}
+          </button>
         </div>
 
         <nav
