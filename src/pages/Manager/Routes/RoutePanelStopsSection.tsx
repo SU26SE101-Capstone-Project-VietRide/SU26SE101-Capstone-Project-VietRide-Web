@@ -6,7 +6,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiChevronDown, FiChevronUp, FiMapPin } from "react-icons/fi";
 import type { OperatorStop } from "../../../api/vietride";
-import InlineFeedback from "./InlineFeedback";
 import RouteStopList from "./RouteStopList";
 import StopSearchBox from "./StopSearchBox";
 import type { StopSuggestion } from "./types";
@@ -33,7 +32,6 @@ export default function RoutePanelStopsSection({
   onSelectStop,
   stopEditor,
   onPickSearchResult,
-  routeStopFeedbackMessage,
   isLoadingSuggestions = false,
 }: RoutePanelStopsSectionProps) {
   const { t } = useTranslation("manager");
@@ -79,8 +77,6 @@ export default function RoutePanelStopsSection({
               <StopSearchBox stops={stops} onPick={onPickSearchResult} />
             </div>
           )}
-
-          <InlineFeedback message={routeStopFeedbackMessage} />
         </div>
       )}
     </section>

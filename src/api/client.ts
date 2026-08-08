@@ -1,3 +1,4 @@
+import { translateApiErrorMessage } from "../utils/apiErrorMessage";
 import { getAuthSession, refreshAuthSession } from "../auth";
 import {
   addIdempotencyHeader,
@@ -43,8 +44,9 @@ export class ApiRequestError extends Error {
     status: number,
     code?: string,
     fields: ApiRequestErrorField[] = [],
+    displayMessage = message,
   ) {
-    super(message);
+    super(displayMessage);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
@@ -114,11 +116,18 @@ function parseErrorFields(payload: unknown): ApiRequestErrorField[] | undefined 
 }
 
 function createApiRequestError(payload: unknown, status: number): ApiRequestError {
+  const code = parseErrorCode(payload);
+  const message = parseErrorMessage(payload, `Request failed: ${status}`);
+  const fields = (parseErrorFields(payload) ?? []).map((field) => ({
+    ...field,
+    message: translateApiErrorMessage(undefined, field.message),
+  }));
   return new ApiRequestError(
-    parseErrorMessage(payload, `Request failed: ${status}`),
+    message,
     status,
-    parseErrorCode(payload),
-    parseErrorFields(payload) ?? [],
+    code,
+    fields,
+    translateApiErrorMessage(code, message, status),
   );
 }
 async function parseResponse(response: Response): Promise<unknown> {

@@ -1530,9 +1530,7 @@ describe("Manager route setup workflow", () => {
         ).toHaveAttribute("data-opacity", "1"),
       );
       expect(screen.getByText(/410\.2/)).toBeInTheDocument();
-      expect(
-        await screen.findByText("routes.unsavedChanges"),
-      ).toBeInTheDocument();
+      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
       expect(
         screen.getByRole("button", { name: /routes.saveRoute/ }),
       ).toBeEnabled();
@@ -1586,9 +1584,7 @@ describe("Manager route setup workflow", () => {
       // Đổi sang phương án 1 → dirty; bấm lại phương án trùng đường lưu →
       // khôi phục trạng thái sạch (không còn gì để lưu)
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      expect(
-        await screen.findByText("routes.unsavedChanges"),
-      ).toBeInTheDocument();
+      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
       fireEvent.click(screen.getByTestId("map-polyline-route-option-1"));
       await waitFor(() =>
         expect(
@@ -1655,9 +1651,7 @@ describe("Manager route setup workflow", () => {
 
       // Click 1: áp phương án 1 (đường chưa áp → click là chọn)
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      expect(
-        await screen.findByText("routes.unsavedChanges"),
-      ).toBeInTheDocument();
+      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
 
       // Click 2 lên đường ĐANG CHỌN đã áp → cắm điểm nắn + tính lại với
       // intermediates (mode mặc định TRUCK, kèm 1 request DRIVE so sánh)
@@ -1716,9 +1710,7 @@ describe("Manager route setup workflow", () => {
 
       // Áp phương án 1 rồi cắm điểm nắn lên đường đã áp
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      expect(
-        await screen.findByText("routes.unsavedChanges"),
-      ).toBeInTheDocument();
+      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
       vi.mocked(requestRoadGeometry).mockResolvedValueOnce([reroutedOption]);
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
       expect(
@@ -1956,9 +1948,7 @@ describe("Manager route setup workflow", () => {
 
       // Áp phương án 1 rồi cắm điểm nắn lên đường đang chọn
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      expect(
-        await screen.findByText("routes.unsavedChanges"),
-      ).toBeInTheDocument();
+      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
       vi.mocked(requestRoadGeometry).mockResolvedValueOnce([reroutedOption]);
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
       expect(

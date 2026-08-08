@@ -12,6 +12,7 @@ import {
   type SubscriptionPlan,
 } from "../../api/vietride";
 import { toNumber } from "../../utils/number";
+import { formatCurrency } from "../../utils/currency";
 import { inputClass, labelClass } from "../../components/form/formClasses";
 
 function formatNumber(n: number) {
@@ -275,12 +276,12 @@ export default function Packages() {
                 {t("packages.monthlyPrice")}
               </p>
               <p className="text-3xl font-bold text-vr-600">
-                {formatNumber(plan.pricePerMonth)} VND
+                {formatCurrency(plan.pricePerMonth)}
               </p>
               <p className="mt-2 text-sm text-gray-500">
                 {t("packages.yearlyPrice")}:{" "}
                 <span className="font-semibold text-gray-900">
-                  {formatNumber(plan.pricePerYear)} VND
+                  {formatCurrency(plan.pricePerYear)}
                 </span>
               </p>
             </div>
@@ -356,7 +357,7 @@ export default function Packages() {
             <button
               type="button"
               onClick={closeModal}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              className="cursor-pointer rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
               {tc("cancel")}
             </button>
@@ -364,7 +365,7 @@ export default function Packages() {
               type="button"
               onClick={() => void savePlan()}
               disabled={isSaving}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="cursor-pointer rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t("packages.savePackage", {
                 action: selectedPlan ? tc("update") : tc("create"),
@@ -373,64 +374,23 @@ export default function Packages() {
           </>
         }
       >
-        <div className="space-y-4">
-          {formError && (
-            <div
-              role="alert"
-              className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
-            >
-              {formError}
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <TextInput
-              label={t("packages.packageName")}
-              value={form.name}
-              onChange={(value) => updateForm("name", value)}
-            />
-            <CurrencyField
-              label={t("packages.monthlyPrice")}
-              value={form.pricePerMonth}
-              onChange={(value) => updateForm("pricePerMonth", value)}
-            />
-            <CurrencyField
-              label={t("packages.yearlyPrice")}
-              value={form.pricePerYear}
-              onChange={(value) => updateForm("pricePerYear", value)}
-            />
-          </div>
-
-          <div>
-            <label className={labelClass}>{tc("description")}</label>
-            <textarea
-              className={`${inputClass} min-h-[80px]`}
-              value={form.description}
-              placeholder={t("packages.descriptionPlaceholder")}
-              onChange={(event) => updateForm("description", event.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <NumberField label={t("packages.maxVehiclesLabel")} value={form.maxVehicles} onChange={(value) => updateForm("maxVehicles", value)} />
-            <NumberField label={t("packages.maxRoutesLabel")} value={form.maxRoutes} onChange={(value) => updateForm("maxRoutes", value)} />
-            <NumberField label={t("packages.maxDriversLabel")} value={form.maxDrivers} onChange={(value) => updateForm("maxDrivers", value)} />
-            <NumberField label={t("packages.maxAssistantsLabel")} value={form.maxAssistants} onChange={(value) => updateForm("maxAssistants", value)} />
-            <NumberField label={t("packages.maxOperatorUsersLabel")} value={form.maxOperatorUsers} onChange={(value) => updateForm("maxOperatorUsers", value)} />
-            <NumberField label={t("packages.maxTripsLabel")} value={form.maxTripsPerMonth} onChange={(value) => updateForm("maxTripsPerMonth", value)} />
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold text-gray-900">{t("packages.modulesTitle")}</p>
-            <p className="mt-1 text-xs text-gray-500">{t("packages.modulesHint")}</p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Toggle label={t("packages.parcelModule")} description={t("packages.parcelModuleHint")} checked={form.enableParcel} onChange={(value) => updateForm("enableParcel", value)} />
-            <Toggle label={t("packages.shuttleModule")} description={t("packages.shuttleModuleHint")} checked={form.enableShuttle} onChange={(value) => updateForm("enableShuttle", value)} />
-            <Toggle label={t("packages.ragModule")} description={t("packages.ragModuleHint")} checked={form.enableRag} onChange={(value) => updateForm("enableRag", value)} />
-            <Toggle label={t("packages.activatePackage")} description={t("packages.activatePackageHint")} checked={form.isActive} onChange={(value) => updateForm("isActive", value)} />
-          </div>
+        <div className="space-y-5">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4"><h3 className="text-base font-bold tracking-tight text-slate-900">{t("packages.packageInfoTitle")}</h3><p className="mt-1 text-sm text-slate-500">{t("packages.packageInfoHint")}</p></div>
+            <div className="space-y-4"><TextInput label={t("packages.packageName")} value={form.name} onChange={(value) => updateForm("name", value)} /><div><label className={labelClass}>{tc("description")}</label><textarea className={inputClass + " min-h-[96px] resize-y"} value={form.description} placeholder={t("packages.descriptionPlaceholder")} onChange={(event) => updateForm("description", event.target.value)} rows={3} /></div></div>
+          </section>
+          <section className="rounded-2xl border border-vr-100 bg-vr-50/50 p-5">
+            <div className="mb-4"><h3 className="text-base font-bold tracking-tight text-slate-900">{t("packages.pricingTitle")}</h3><p className="mt-1 text-sm text-slate-500">{t("packages.pricingHint")}</p></div>
+            <div className="grid gap-4 sm:grid-cols-2"><CurrencyField label={t("packages.monthlyPrice")} value={form.pricePerMonth} onChange={(value) => updateForm("pricePerMonth", value)} /><CurrencyField label={t("packages.yearlyPrice")} value={form.pricePerYear} onChange={(value) => updateForm("pricePerYear", value)} /></div>
+          </section>
+          <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
+            <div className="mb-4"><h3 className="text-base font-bold tracking-tight text-slate-900">{t("packages.limitsTitle")}</h3><p className="mt-1 text-sm text-slate-500">{t("packages.limitsHint")}</p></div>
+            <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3"><NumberField label={t("packages.maxVehiclesLabel")} value={form.maxVehicles} onChange={(value) => updateForm("maxVehicles", value)} /><NumberField label={t("packages.maxRoutesLabel")} value={form.maxRoutes} onChange={(value) => updateForm("maxRoutes", value)} /><NumberField label={t("packages.maxDriversLabel")} value={form.maxDrivers} onChange={(value) => updateForm("maxDrivers", value)} /><NumberField label={t("packages.maxAssistantsLabel")} value={form.maxAssistants} onChange={(value) => updateForm("maxAssistants", value)} /><NumberField label={t("packages.maxOperatorUsersLabel")} value={form.maxOperatorUsers} onChange={(value) => updateForm("maxOperatorUsers", value)} /><NumberField label={t("packages.maxTripsLabel")} value={form.maxTripsPerMonth} onChange={(value) => updateForm("maxTripsPerMonth", value)} /></div>
+          </section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4"><h3 className="text-base font-bold tracking-tight text-slate-900">{t("packages.modulesTitle")}</h3><p className="mt-1 text-sm text-slate-500">{t("packages.modulesHint")}</p></div>
+            <div className="grid gap-3 sm:grid-cols-2"><Toggle label={t("packages.parcelModule")} description={t("packages.parcelModuleHint")} checked={form.enableParcel} onChange={(value) => updateForm("enableParcel", value)} /><Toggle label={t("packages.shuttleModule")} description={t("packages.shuttleModuleHint")} checked={form.enableShuttle} onChange={(value) => updateForm("enableShuttle", value)} /><Toggle label={t("packages.ragModule")} description={t("packages.ragModuleHint")} checked={form.enableRag} onChange={(value) => updateForm("enableRag", value)} /><Toggle label={t("packages.activatePackage")} description={t("packages.activatePackageHint")} checked={form.isActive} onChange={(value) => updateForm("isActive", value)} /></div>
+          </section>
         </div>
       </Modal>
     </div>
@@ -522,7 +482,7 @@ function Toggle({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
+    <label className={`group flex cursor-pointer items-start justify-between gap-4 rounded-2xl border p-4 transition ${checked ? "border-vr-200 bg-vr-50" : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"}`}>
       <span className="min-w-0">
         <span className="block text-sm font-semibold text-gray-800">{label}</span>
         <span className="mt-1 block text-xs font-normal leading-5 text-gray-500">{description}</span>
@@ -531,7 +491,7 @@ function Toggle({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+        className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-vr-600 accent-vr-600 focus:ring-vr-500"
       />
     </label>
   );

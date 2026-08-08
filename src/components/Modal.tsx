@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { FiX } from "react-icons/fi";
 
@@ -11,6 +12,7 @@ type ModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  extraWide?: boolean;
   drawer?: boolean;
 };
 
@@ -23,12 +25,13 @@ export default function Modal({
   children,
   footer,
   wide,
+  extraWide = false,
   drawer = false,
 }: ModalProps) {
   const { t } = useTranslation("common");
   if (!open) return null;
 
-  return (
+  return createPortal((
     <div
       className={"fixed inset-0 z-50 flex " + (drawer ? "items-stretch justify-end" : "items-center justify-center p-4")}
       role="dialog"
@@ -42,7 +45,7 @@ export default function Modal({
       />
       <div
         className={`relative z-10 flex max-h-[min(92vh,900px)] w-full flex-col rounded-xl border border-gray-200 bg-white shadow-xl ${
-          wide ? "max-w-4xl" : "max-w-2xl"
+          extraWide ? "max-w-6xl" : wide ? "max-w-4xl" : "max-w-2xl"
         }`}
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 px-6 py-4">
@@ -76,5 +79,5 @@ export default function Modal({
         )}
       </div>
     </div>
-  );
+  ), document.body);
 }

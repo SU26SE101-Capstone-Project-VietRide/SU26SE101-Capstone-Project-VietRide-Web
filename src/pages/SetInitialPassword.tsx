@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FiArrowLeft, FiArrowRight, FiLock } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import { useToastFeedback } from "../hooks/useToastFeedback";
 import { setInitialPassword } from "../api/vietride";
 import logo from "../assets/Login/logo.svg";
 
@@ -17,6 +18,7 @@ export default function SetInitialPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  useToastFeedback({ error });
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -72,15 +74,6 @@ export default function SetInitialPassword() {
         <p className="mt-2 text-center text-sm leading-6 text-gray-500">
           {t("initialPassword.subtitle")}
         </p>
-
-        {error && (
-          <div
-            className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-            role="alert"
-          >
-            {error}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <Field
@@ -165,3 +158,5 @@ function Field({
     </div>
   );
 }
+
+

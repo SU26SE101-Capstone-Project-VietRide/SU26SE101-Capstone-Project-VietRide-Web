@@ -15,6 +15,7 @@ import {
   type OperatorVehicle,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
+import CustomSelect from "../../../components/CustomSelect";
 import { downloadCsv } from "../../../utils/csv";
 import EmptyChartState from "./EmptyChartState";
 import KpiGrid from "./KpiGrid";
@@ -68,12 +69,17 @@ export default function ManagerDashboard() {
   const role = getAuthUser()?.role;
   const isOperatorAdmin = role === "OPERATOR_ADMIN";
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedRevenueMonth, setSelectedRevenueMonth] = useState(currentMonth);
+  const [selectedRevenueMonth, setSelectedRevenueMonth] =
+    useState(currentMonth);
   const revenueMonths = useMemo(() => revenueMonthOptions(), []);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueChartPoint[]>([]);
-  const [parcelStatusData, setParcelStatusData] = useState<ParcelStatusPoint[]>([]);
-  const [parcelRouteData, setParcelRouteData] = useState<ParcelRoutePoint[]>([]);
+  const [parcelStatusData, setParcelStatusData] = useState<ParcelStatusPoint[]>(
+    [],
+  );
+  const [parcelRouteData, setParcelRouteData] = useState<ParcelRoutePoint[]>(
+    [],
+  );
   const [parcelRouteTotal, setParcelRouteTotal] = useState(0);
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [summary, setSummary] = useState<DashboardSummary>({
@@ -122,7 +128,7 @@ export default function ManagerDashboard() {
     setLoadErrors([]);
 
     let bookingItems: BookingStatsItem[] = [];
-    let routePerformance: OperatorRevenueAnalytics["routePerformance"] = [];
+    let routePerformance: NonNullable<OperatorRevenueAnalytics["routePerformance"]> = [];
 
     try {
       const bookingStats = await getOperatorBookingStats({
@@ -132,7 +138,9 @@ export default function ManagerDashboard() {
       bookingItems = bookingStats.items;
       const monthlyStats = aggregateBookingStats(bookingItems);
       const thisMonthStats = monthlyStats.get(selectedRevenueMonth);
-      const lastMonthStats = monthlyStats.get(previousMonthOf(selectedRevenueMonth));
+      const lastMonthStats = monthlyStats.get(
+        previousMonthOf(selectedRevenueMonth),
+      );
 
       setRevenueData(mapDashboardChart(bookingItems));
       setSummary((current) => ({
@@ -140,9 +148,7 @@ export default function ManagerDashboard() {
         revenue: {
           currentMonth: thisMonthStats?.revenue ?? 0,
           previousMonth: lastMonthStats?.revenue ?? 0,
-          yearToDate:
-            bookingStats.totalRevenue ??
-            sumStats(bookingStats.items, "totalRevenue"),
+          yearToDate: null,
         },
         bookings: {
           currentMonth: thisMonthStats?.bookings ?? 0,
@@ -184,15 +190,21 @@ export default function ManagerDashboard() {
       const { from, to } = currentYearRange();
 
       try {
-        const analytics = await getOperatorRevenueAnalytics(selectedRevenueMonth);
-        routePerformance = analytics.routePerformance;
+        const analytics =
+          await getOperatorRevenueAnalytics({ month: selectedRevenueMonth });
+        routePerformance = analytics.routePerformance ?? [];
+        const selectedYear = selectedRevenueMonth.slice(0, 4);
+        const yearToDate = analytics.monthly
+          .filter((item) => item.month.startsWith(selectedYear))
+          .reduce((total, item) => total + item.netRevenueVnd, 0);
         setRevenueData(mapDashboardChart(bookingItems, analytics.monthly));
         setSummary((current) => ({
           ...current,
           revenue: {
             ...current.revenue,
-            currentMonth: analytics.summary.ticketRevenueVnd.currentValue,
-            previousMonth: analytics.summary.ticketRevenueVnd.previousValue,
+            currentMonth: analytics.summary.netRevenueVnd.currentValue,
+            previousMonth: analytics.summary.netRevenueVnd.previousValue,
+            yearToDate,
           },
         }));
 
@@ -364,7 +376,6 @@ export default function ManagerDashboard() {
   useToastFeedback({ error: loadErrors[0] ?? "" });
   return (
     <div className="space-y-6 pb-4">
-
       {!isOperatorAdmin && (
         <div
           className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800"
@@ -376,28 +387,27 @@ export default function ManagerDashboard() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t("dashboard.title")}</h1>
-          <p className="mt-1 text-gray-600">
-            {t("dashboard.periodContext", {
-              month: Number(selectedRevenueMonth.slice(5, 7)),
-              year: Number(selectedRevenueMonth.slice(0, 4)),
-            })}
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("dashboard.title")}
+          </h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {isOperatorAdmin && (
             <label className="flex items-center gap-2 text-sm text-gray-600">
-              <span className="whitespace-nowrap">{t("dashboard.revenueMonth")}</span>
-              <select
+              <CustomSelect
                 value={selectedRevenueMonth}
-                onChange={(event) => setSelectedRevenueMonth(event.target.value)}
-                className="cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-medium text-gray-800 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+                onChange={(event) =>
+                  setSelectedRevenueMonth(event.target.value)
+                }
+                className="min-w-[132px] rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-medium text-gray-800"
                 aria-label={t("dashboard.revenueMonth")}
               >
                 {revenueMonths.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
                 ))}
-              </select>
+              </CustomSelect>
             </label>
           )}
           <button
@@ -406,7 +416,10 @@ export default function ManagerDashboard() {
             disabled={isLoading}
             className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-white transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <FiRefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
+            <FiRefreshCw
+              size={18}
+              className={isLoading ? "animate-spin" : ""}
+            />
             {tc("refresh")}
           </button>
         </div>
@@ -415,11 +428,7 @@ export default function ManagerDashboard() {
       <KpiGrid summary={summary} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <RevenueChart
-          data={revenueData}
-          isLoading={isLoading}
-
-        />
+        <RevenueChart data={revenueData} isLoading={isLoading} />
 
         <ParcelStatusChart
           data={parcelStatusData}
@@ -440,10 +449,16 @@ export default function ManagerDashboard() {
         <section className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">{t("dashboard.fleetStatus")}</h2>
-              <p className="mt-1 text-sm text-gray-500">{t("dashboard.fleetStatusHint")}</p>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t("dashboard.fleetStatus")}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {t("dashboard.fleetStatusHint")}
+              </p>
             </div>
-            <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">{t("dashboard.vehicleCount", { count: vehicles.length })}</span>
+            <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">
+              {t("dashboard.vehicleCount", { count: vehicles.length })}
+            </span>
           </div>
           {vehicles.length === 0 ? (
             <EmptyChartState
@@ -461,17 +476,26 @@ export default function ManagerDashboard() {
                   className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gradient-to-r from-slate-50 to-white p-3.5 transition hover:border-vr-100 hover:shadow-sm"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vr-50 text-vr-600"><FiTruck size={18} /></span>
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vr-50 text-vr-600">
+                      <FiTruck size={18} />
+                    </span>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">
                         {vehicle.licensePlate}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {vehicle.vehicleTypeName ?? vehicle.vehicleTypeCode ?? "-"}
+                        {vehicle.vehicleTypeName ??
+                          vehicle.vehicleTypeCode ??
+                          "-"}
                       </p>
                     </div>
                   </div>
-                  <span className={"shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " + vehicleStatusClass(vehicle.status)}>
+                  <span
+                    className={
+                      "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
+                      vehicleStatusClass(vehicle.status)
+                    }
+                  >
                     {vehicle.status}
                   </span>
                 </div>
@@ -496,3 +520,8 @@ export default function ManagerDashboard() {
     </div>
   );
 }
+
+
+
+
+

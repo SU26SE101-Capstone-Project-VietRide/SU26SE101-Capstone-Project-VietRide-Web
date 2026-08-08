@@ -1,8 +1,9 @@
 import { FiCamera, FiChevronRight, FiEdit2, FiHome, FiLoader } from "react-icons/fi";
 import { formatVietnamPhoneForDisplay } from "../utils/phone";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { useToastFeedback } from "../hooks/useToastFeedback";
 import { getAuthSession, getAuthUser, saveAuthSession } from "../auth";
 import {
   getOperatorProfile,
@@ -16,40 +17,49 @@ import {
 } from "../utils/firebaseImageUpload";
 
 type ProfileState = {
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
   phone: string;
   bio: string;
   role: string;
   country: string;
+  street: string;
+  ward: string;
+  district: string;
   city: string;
   postalCode: string;
   taxId: string;
+  representativeName: string;
+  representativePhone: string;
+  isActive: boolean;
+  logoUrl: string;
+  luggageKgPerSeat: number | null;
+  noShowFeePercent: number | null;
+  paymentTimeoutMinutes: number | null;
 };
 
-function splitName(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return {
-    firstName: parts[0] ?? "",
-    lastName: parts.slice(1).join(" "),
-  };
-}
-
 function toProfileState(operator: OperatorProfile): ProfileState {
-  const name = splitName(operator.name);
-
   return {
-    firstName: name.firstName,
-    lastName: name.lastName,
+    name: operator.name,
     email: operator.contactEmail,
     phone: operator.contactPhone,
     bio: operator.registrationStatus,
     role: "Manager",
     country: "Vietnam",
+    street: operator.address.street,
+    ward: operator.address.ward,
+    district: operator.address.district,
     city: operator.address.province,
     postalCode: operator.businessRegistrationNumber,
     taxId: operator.taxCode,
+    representativeName: operator.representativeName,
+    representativePhone: operator.representativePhone,
+    isActive: operator.isActive,
+    logoUrl: operator.logoUrl ?? "",
+    luggageKgPerSeat: operator.luggagePolicy?.defaultLuggageKgPerSeat ?? null,
+    noShowFeePercent: operator.parcelNoShowPolicy?.noShowFeePercent ?? null,
+    paymentTimeoutMinutes:
+      operator.parcelNoShowPolicy?.additionalPaymentTimeoutMinutes ?? null,
   };
 }
 
@@ -155,6 +165,7 @@ export default function Profile() {
   const [error, setError] = useState("");
   const currentUser = getAuthUser();
   const isOperator = isOperatorRole(currentUser?.role);
+  const isSystemAdmin = currentUser?.role === "SYSTEM_ADMIN";
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     currentUser?.avatarUrl ?? null,
   );
@@ -162,20 +173,31 @@ export default function Profile() {
     "avatar" | "logo" | null
   >(null);
   const [imageMessage, setImageMessage] = useState("");
+  useToastFeedback({ message: imageMessage, error });
   const [profile, setProfile] = useState<ProfileState>({
-    firstName: "",
-    lastName: "",
+    name: "",
     email: currentUser?.email ?? "",
     phone: "",
     bio: "",
     role: currentUser?.role ?? "",
     country: "Vietnam",
+    street: "",
+    ward: "",
+    district: "",
     city: "",
     postalCode: "",
     taxId: "",
+    representativeName: "",
+    representativePhone: "",
+    isActive: false,
+    logoUrl: "",
+    luggageKgPerSeat: null,
+    noShowFeePercent: null,
+    paymentTimeoutMinutes: null,
   });
 
   const [formData, setFormData] = useState(profile);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const user = getAuthUser();
@@ -257,12 +279,12 @@ export default function Profile() {
         name: serverOperator.name,
         contactPhone: serverOperator.contactPhone,
         logoUrl: uploadedUrl,
-        addressStreet: serverOperator.address.street,
-        addressWard: serverOperator.address.ward,
-        addressDistrict: serverOperator.address.district,
+        addressStreet: formData.street,
+        addressWard: formData.ward,
+        addressDistrict: formData.district,
         addressProvince: serverOperator.address.province,
-        representativeName: serverOperator.representativeName,
-        representativePhone: serverOperator.representativePhone,
+        representativeName: formData.representativeName,
+        representativePhone: formData.representativePhone,
         cancellationPolicy: serverOperator.cancellationPolicy ?? null,
         parcelNoShowPolicy: serverOperator.parcelNoShowPolicy ?? null,
         luggagePolicy: serverOperator.luggagePolicy ?? null,
@@ -278,6 +300,9 @@ export default function Profile() {
   const handleEdit = () => {
     setIsEditing(true);
     setFormData(profile);
+    window.requestAnimationFrame(() => {
+      nameInputRef.current?.focus();
+    });
   };
 
   const handleSave = async () => {
@@ -285,15 +310,15 @@ export default function Profile() {
 
     if (isOperatorRole(user?.role) && serverOperator) {
       const updated = await updateOperatorProfile({
-        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        name: formData.name.trim(),
         contactPhone: formData.phone,
         logoUrl: serverOperator.logoUrl ?? undefined,
-        addressStreet: serverOperator.address.street,
-        addressWard: serverOperator.address.ward,
-        addressDistrict: serverOperator.address.district,
+        addressStreet: formData.street,
+        addressWard: formData.ward,
+        addressDistrict: formData.district,
         addressProvince: formData.city,
-        representativeName: serverOperator.representativeName,
-        representativePhone: serverOperator.representativePhone,
+        representativeName: formData.representativeName,
+        representativePhone: formData.representativePhone,
         cancellationPolicy: serverOperator.cancellationPolicy ?? null,
         parcelNoShowPolicy: serverOperator.parcelNoShowPolicy ?? null,
         luggagePolicy: serverOperator.luggagePolicy ?? null,
@@ -307,10 +332,12 @@ export default function Profile() {
       setProfile(formData);
     }
 
+    setImageMessage(t("profilePage.profileUpdated"));
     setIsEditing(false);
   };
 
   const handleCancel = () => {
+    setImageMessage(t("profilePage.profileUpdated"));
     setIsEditing(false);
   };
 
@@ -324,13 +351,18 @@ export default function Profile() {
     }));
   };
 
-  const initials =
-    `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase();
+  const initials = profile.name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0] ?? "")
+    .join("")
+    .toUpperCase();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 bg-slate-50/70">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
         <Link
           to={currentUser?.role === "SYSTEM_ADMIN" ? "/admin/dashboard" : "/manager/dashboard"}
           className="flex items-center gap-1 text-gray-600 hover:text-gray-900"
@@ -338,7 +370,7 @@ export default function Profile() {
           <FiHome size={16} /> {t("profilePage.home")}
         </Link>
         <FiChevronRight size={16} className="text-gray-400" />
-        <span className="text-gray-900 font-medium">{t("profilePage.userProfile")}</span>
+        <span className="font-medium text-slate-800">{t("profilePage.userProfile")}</span>
       </div>
 
       {/* Page Title */}
@@ -346,18 +378,12 @@ export default function Profile() {
         <h1 className="text-3xl font-bold text-gray-900">{t("profilePage.userProfile")}</h1>
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
       {/* My Profile Section */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">{t("profilePage.myProfile")}</h2>
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-7">
+        <h2 className="mb-5 text-lg font-bold text-slate-900">{t("profilePage.myProfile")}</h2>
 
         {/* Profile Header */}
-        <div className="flex items-start gap-6 pb-6 border-b border-gray-200 mb-6">
+        <div className="mb-6 flex flex-col gap-5 rounded-2xl bg-gradient-to-br from-vr-50 via-white to-slate-50 p-5 sm:flex-row sm:items-start">
           <ImageUploadControl
             label={t("profilePage.avatarLabel")}
             imageUrl={avatarUrl}
@@ -367,22 +393,22 @@ export default function Profile() {
           />
 
           <div className="flex-1">
-            <h3 className="text-2xl font-bold text-gray-900">
-              {profile.firstName} {profile.lastName}
+            <h3 className="text-2xl font-bold tracking-tight text-slate-900">
+              {isSystemAdmin ? t("profilePage.systemName") : profile.name}
             </h3>
-            <p className="text-gray-600 text-sm mt-1">
+            <p className="mt-2 text-sm text-slate-600">
               {isOperator ? t(`enumLabels.${profile.bio}`) : profile.bio}
             </p>
-            <p className="text-gray-500 text-sm mt-1">{t("profilePage.countryVietnam")}</p>
+            <p className="mt-1 text-sm text-slate-500">{t("profilePage.countryVietnam")}</p>
 
 
 
           </div>
 
-          {!isEditing && (
+          {!isEditing && isOperator && (
             <button
               onClick={handleEdit}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 flex items-center gap-2 transition"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-vr-300 hover:bg-vr-50"
             >
               <FiEdit2 size={16} /> {t("edit")}
             </button>
@@ -390,7 +416,7 @@ export default function Profile() {
         </div>
 
         {currentUser?.role === "OPERATOR_ADMIN" && serverOperator && (
-          <div className="mb-6 border-b border-gray-200 pb-6">
+          <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
             <ImageUploadControl
               label={t("profilePage.logoLabel")}
               imageUrl={serverOperator.logoUrl}
@@ -399,179 +425,71 @@ export default function Profile() {
             />
           </div>
         )}
+{isOperator ? (
+          <div className="space-y-5">
+        {/* Profile Form */}         {isEditing ? (
+           <div className="space-y-5">
+             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+               <div className="sm:col-span-2">
+                 <label className="text-xs font-semibold text-slate-600">
+                   {t("profilePage.operatorName")}
+                 </label>
+                 <input
+                   ref={nameInputRef}
+                   type="text"
+                   name="name"
+                   value={formData.name}
+                   onChange={handleChange}
+                   className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+                 />
+               </div>
+               <div>
+                 <label className="text-xs font-semibold text-slate-600">{t("profilePage.emailAddress")}</label>
+                 <input type="email" value={formData.email} readOnly className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-500" />
+                 <p className="mt-1 text-xs text-slate-400">{t("profilePage.operatorFieldReadOnlyHint")}</p>
+               </div>
+               <div>
+                 <label className="text-xs font-semibold text-slate-600">{t("profilePage.phone")}</label>
+                 <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100" />
+               </div>
+               <div>
+                 <label className="text-xs font-semibold text-slate-600">{t("profilePage.representativeName")}</label>
+                 <input type="text" name="representativeName" value={formData.representativeName} onChange={handleChange} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100" />
+               </div>
+               <div>
+                 <label className="text-xs font-semibold text-slate-600">{t("profilePage.representativePhone")}</label>
+                 <input type="tel" name="representativePhone" value={formData.representativePhone} onChange={handleChange} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100" />
+               </div>
+             </div>
+           </div>
+         ) : (
+           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+             <div className="sm:col-span-2"><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{isOperator ? t("profilePage.operatorName") : t("profilePage.systemNameLabel")}</p><p className="mt-1.5 font-semibold text-slate-900">{isSystemAdmin ? t("profilePage.systemName") : profile.name}</p></div>
+             <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t("profilePage.emailAddress")}</p><p className="mt-1.5 font-semibold text-slate-900">{profile.email}</p></div>
+             <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t("profilePage.phone")}</p><p className="mt-1.5 font-semibold text-slate-900">{formatVietnamPhoneForDisplay(profile.phone)}</p></div>
+             <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t("profilePage.representativeName")}</p><p className="mt-1.5 font-semibold text-slate-900">{profile.representativeName}</p></div>
+             <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t("profilePage.representativePhone")}</p><p className="mt-1.5 font-semibold text-slate-900">{formatVietnamPhoneForDisplay(profile.representativePhone)}</p></div>
+             {isOperator && <div className="sm:col-span-2"><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t("profilePage.operatorStatus")}</p><p className="mt-1.5 font-semibold text-slate-900">{profile.bio ? t(`enumLabels.${profile.bio}`) : "-"}</p></div>}
+           </div>
+         )}
 
-        {imageMessage && (
-          <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {imageMessage}
-          </div>
-        )}
-        {/* Profile Form */}
-        {isEditing ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-gray-600 font-semibold">
-                  {t("profilePage.firstName")}
-                </label>
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-600 font-semibold">
-                  {t("profilePage.lastName")}
-                </label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-gray-600 font-semibold">
-                  {t("profilePage.emailAddress")}
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-600 font-semibold">
-                  {t("profilePage.phone")}
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-600 font-semibold">
-                {isOperator
-                  ? t("profilePage.operatorStatus")
-                  : t("profilePage.bio")}
-              </label>
-              {isOperator ? (
-                <>
-                  <p className="w-full mt-2 px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-700">
-                    {t(`enumLabels.${formData.bio}`)}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    {t("profilePage.operatorFieldReadOnlyHint")}
-                  </p>
-                </>
-              ) : (
-                <textarea
-                  name="bio"
-                  value={formData.bio}
-                  onChange={handleChange}
-                  rows={3}
-                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
-                />
-              )}
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <button
-                onClick={handleSave}
-                className="px-6 py-2 bg-vr-500 text-slate-900 rounded-lg font-semibold hover:bg-vr-600 transition"
-              >
-                {t("save")}
-              </button>
-              <button
-                onClick={handleCancel}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
-              >
-                {t("cancel")}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <p className="text-xs text-gray-600 font-semibold uppercase">
-                {t("profilePage.firstName")}
-              </p>
-              <p className="text-gray-900 mt-2 font-medium">
-                {profile.firstName}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-semibold uppercase">
-                {t("profilePage.lastName")}
-              </p>
-              <p className="text-gray-900 mt-2 font-medium">
-                {profile.lastName}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-semibold uppercase">
-                {t("profilePage.emailAddress")}
-              </p>
-              <p className="text-gray-900 mt-2 font-medium">{profile.email}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-semibold uppercase">
-                {t("profilePage.phone")}
-              </p>
-              <p className="text-gray-900 mt-2 font-medium">{formatVietnamPhoneForDisplay(profile.phone)}</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-xs text-gray-600 font-semibold uppercase">
-                {isOperator
-                  ? t("profilePage.operatorStatus")
-                  : t("profilePage.bio")}
-              </p>
-              <p className="text-gray-900 mt-2 font-medium">
-                {isOperator ? t(`enumLabels.${profile.bio}`) : profile.bio}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Address Section */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">{t("profilePage.address")}</h2>
-          {!isEditing && (
-            <button
-              onClick={handleEdit}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 flex items-center gap-2 transition"
-            >
-              <FiEdit2 size={16} /> {t("edit")}
-            </button>
-          )}
-        </div>
+{/* Address Section */}
+      <div className="mt-8 border-t border-slate-200 pt-8">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">{t("profilePage.address")}</h2></div>
 
         {isEditing ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
-                  {t("profilePage.country")}
+                  {t("profilePage.street")}
                 </label>
                 <input
                   type="text"
-                  name="country"
-                  value={formData.country}
+                  name="street"
+                  value={formData.street}
                   onChange={handleChange}
                   className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
                 />
@@ -590,7 +508,17 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+               <div>
+                 <label className="text-xs font-semibold text-slate-600">{t("profilePage.ward")}</label>
+                 <input type="text" name="ward" value={formData.ward} onChange={handleChange} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100" />
+               </div>
+               <div>
+                 <label className="text-xs font-semibold text-slate-600">{t("profilePage.district")}</label>
+                 <input type="text" name="district" value={formData.district} onChange={handleChange} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100" />
+               </div>
+             </div>
+<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-xs text-gray-600 font-semibold">
                   {isOperator
@@ -620,66 +548,106 @@ export default function Profile() {
                 <label className="text-xs text-gray-600 font-semibold">
                   {t("profilePage.taxId")}
                 </label>
-                <input
-                  type="text"
-                  name="taxId"
-                  value={formData.taxId}
-                  onChange={handleChange}
-                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-vr-500"
-                />
+                <p className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-500">{formData.taxId}</p>
               </div>
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <button
-                onClick={handleSave}
-                className="px-6 py-2 bg-vr-500 text-slate-900 rounded-lg font-semibold hover:bg-vr-600 transition"
-              >
-                {t("save")}
-              </button>
-              <button
-                onClick={handleCancel}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
-              >
-                {t("cancel")}
-              </button>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <p className="text-xs text-gray-600 font-semibold uppercase">
-                {t("profilePage.country")}
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                {t("profilePage.street")}
               </p>
-              <p className="text-gray-900 mt-2 font-medium">
-                {profile.country}
+              <p className="mt-1.5 font-semibold text-slate-900">
+                {profile.street}
               </p>
             </div>
             <div>
-              <p className="text-xs text-gray-600 font-semibold uppercase">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 {t("profilePage.cityState")}
               </p>
-              <p className="text-gray-900 mt-2 font-medium">{profile.city}</p>
-            </div>
+              <p className="mt-1.5 font-semibold text-slate-900">{profile.city}</p>
+            </div>             <div>
+               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t("profilePage.ward")}</p>
+               <p className="mt-1.5 font-semibold text-slate-900">{profile.ward}</p>
+             </div>
+             <div>
+               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{t("profilePage.district")}</p>
+               <p className="mt-1.5 font-semibold text-slate-900">{profile.district}</p>
+             </div>
+
             <div>
-              <p className="text-xs text-gray-600 font-semibold uppercase">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 {isOperator
                   ? t("profilePage.businessRegistrationNumber")
                   : t("profilePage.postalCode")}
               </p>
-              <p className="text-gray-900 mt-2 font-medium">
+              <p className="mt-1.5 font-semibold text-slate-900">
                 {profile.postalCode}
               </p>
             </div>
             <div>
-              <p className="text-xs text-gray-600 font-semibold uppercase">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 {t("profilePage.taxId")}
               </p>
-              <p className="text-gray-900 mt-2 font-medium">{profile.taxId}</p>
+              <p className="mt-1.5 font-semibold text-slate-900">{profile.taxId}</p>
             </div>
           </div>
         )}
+       {isOperator && serverOperator && (
+         <div className="mt-8 border-t border-slate-200 pt-8">
+           <h2 className="mb-5 text-lg font-bold text-slate-900">{t("profilePage.policies")}</h2>
+           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+             <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{t("profilePage.luggagePolicy")}</p><p className="mt-1 font-semibold text-slate-900">{profile.luggageKgPerSeat ?? "—"} kg/ghế</p></div>
+             <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{t("profilePage.noShowPolicy")}</p><p className="mt-1 font-semibold text-slate-900">{profile.noShowFeePercent ?? "—"}%</p></div>
+             <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{t("profilePage.paymentTimeout")}</p><p className="mt-1 font-semibold text-slate-900">{profile.paymentTimeoutMinutes ?? "—"} phút</p></div>
+           </div>
+         </div>
+       )}
+
+      {isEditing && (
+        <div className="sticky bottom-0 z-10 -mx-5 mt-8 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-5 pb-1 pt-6 backdrop-blur sm:-mx-7 sm:flex-row sm:justify-end sm:px-7">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="w-full rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 sm:w-auto"
+          >
+            {t("cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="w-full rounded-xl bg-vr-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700 sm:w-auto"
+          >
+            {t("save")}
+          </button>
+        </div>
+      )}
+          </div>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-base font-bold tracking-tight text-slate-900">{t("profilePage.accountInfo")}</h2>
+              <div className="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2">
+                <div className="border-b border-slate-100 py-3 sm:col-span-2"><p className="text-xs font-medium text-slate-500">{t("profilePage.systemNameLabel")}</p><p className="mt-1 font-semibold text-slate-900">{t("profilePage.systemName")}</p></div>
+                <div className="border-b border-slate-100 py-3"><p className="text-xs font-medium text-slate-500">{t("profilePage.emailAddress")}</p><p className="mt-1 break-words font-semibold text-slate-900">{profile.email || "-"}</p></div>
+                <div className="border-b border-slate-100 py-3"><p className="text-xs font-medium text-slate-500">{t("profilePage.phone")}</p><p className="mt-1 font-semibold text-slate-900">{formatVietnamPhoneForDisplay(profile.phone) || "-"}</p></div>
+                <div className="border-b border-slate-100 py-3 sm:col-span-2"><p className="text-xs font-medium text-slate-500">{t("profilePage.roleLabel")}</p><p className="mt-1 font-semibold text-slate-900">{t("profilePage.systemRole")}</p></div>
+              </div>
+            </section>
+            <section className="rounded-2xl border border-vr-100 bg-vr-50/50 p-5">
+              <h2 className="text-base font-bold tracking-tight text-slate-900">{t("profilePage.securityTitle")}</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">{t("profilePage.securityHint")}</p>
+            </section>
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
+
+
+
+

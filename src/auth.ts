@@ -41,6 +41,7 @@ type ApiEnvelope<T> = {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const AUTH_STORAGE_KEY = "auth";
 const LEGACY_USER_KEY = "user";
+const AUTH_REFRESH_LOCK_NAME = "vietride-auth-refresh";
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -206,7 +207,7 @@ let refreshInFlight: Promise<LoginData | null> | null = null;
 
 export function refreshAuthSession(): Promise<LoginData | null> {
   if (!refreshInFlight) {
-    refreshInFlight = performRefresh().finally(() => {
+    refreshInFlight = performRefreshAcrossTabs().finally(() => {
       refreshInFlight = null;
     });
   }
@@ -214,6 +215,30 @@ export function refreshAuthSession(): Promise<LoginData | null> {
   return refreshInFlight;
 }
 
+async function performRefreshAcrossTabs(): Promise<LoginData | null> {
+  const initialSession = getAuthSession();
+  if (!initialSession?.refreshToken) {
+    return null;
+  }
+
+  if (navigator.locks) {
+    return navigator.locks.request(AUTH_REFRESH_LOCK_NAME, async () => {
+      const latestSession = getAuthSession();
+
+      if (!latestSession?.refreshToken) {
+        return null;
+      }
+
+      if (latestSession.refreshToken !== initialSession.refreshToken) {
+        return latestSession;
+      }
+
+      return performRefresh();
+    });
+  }
+
+  return performRefresh();
+}
 async function performRefresh(): Promise<LoginData | null> {
   const session = getAuthSession();
   if (!session?.refreshToken) {

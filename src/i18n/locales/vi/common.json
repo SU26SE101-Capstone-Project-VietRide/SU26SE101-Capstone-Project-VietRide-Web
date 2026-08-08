@@ -212,10 +212,27 @@
     }
   },
   "profilePage": {
+    "accountInfo": "Thông tin tài khoản",
+    "roleLabel": "Vai trò",
+    "systemRole": "Quản trị viên hệ thống",
+    "securityTitle": "Bảo mật tài khoản",
+    "securityHint": "Tài khoản quản trị hệ thống được quản lý bởi cơ chế bảo mật của hệ thống.",
     "home": "Trang chủ",
     "userProfile": "Hồ sơ người dùng",
     "myProfile": "Hồ sơ của tôi",
     "firstName": "Họ",
+    "operatorName": "Tên nhà xe",
+    "ward": "Phường/Xã",
+    "district": "Quận/Huyện",
+    "systemNameLabel": "Tên hệ thống",
+    "systemName": "Hệ Thống",
+    "street": "Số nhà/Đường",
+    "representativeName": "Người đại diện",
+    "representativePhone": "Số điện thoại người đại diện",
+    "luggagePolicy": "Hành lý mỗi ghế",
+    "noShowPolicy": "Phí không đến",
+    "paymentTimeout": "Thời gian thanh toán",
+    "policies": "Chính sách vận hành",
     "lastName": "Tên",
     "emailAddress": "Địa chỉ email",
     "phone": "Số điện thoại",
@@ -241,6 +258,8 @@
     "avatarUpdated": "Ảnh đại diện đã được cập nhật.",
     "logoAdminOnly": "Chỉ admin nhà xe được cập nhật logo.",
     "logoUrlMissing": "Hệ thống không nhận được đường dẫn logo sau khi tải lên.",
-    "logoUpdated": "Logo nhà xe đã được cập nhật."
+    "logoUpdated": "Logo nhà xe đã được cập nhật.",
+    "profileUpdated": "Hồ sơ đã được cập nhật."
   }
 }
+

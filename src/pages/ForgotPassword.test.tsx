@@ -4,6 +4,11 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import ForgotPassword from "./ForgotPassword";
 import { requestForgotPassword, resetPassword } from "../api/vietride";
+import { useToastFeedback } from "../hooks/useToastFeedback";
+
+vi.mock("../hooks/useToastFeedback", () => ({
+  useToastFeedback: vi.fn(),
+}));
 
 vi.mock("../components/LanguageSwitcher", () => ({
   default: () => null,
@@ -71,7 +76,7 @@ describe("ForgotPassword", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /send otp/i }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Required");
+    expect(useToastFeedback).toHaveBeenLastCalledWith({ message: "", error: "Required" });
 
     await user.type(screen.getByPlaceholderText("hello@vietride.vn"), "ops@operator.vn");
     await user.click(screen.getByRole("button", { name: /send otp/i }));
@@ -79,7 +84,7 @@ describe("ForgotPassword", () => {
     expect(requestForgotPassword).toHaveBeenCalledWith({
       email: "ops@operator.vn",
     });
-    expect(screen.getByRole("status")).toHaveTextContent("OTP sent for 5 minutes.");
+    expect(useToastFeedback).toHaveBeenLastCalledWith({ message: "OTP sent for 5 minutes.", error: "" });
 
     await user.type(screen.getByPlaceholderText("Enter 6 digits"), "123456");
     await user.type(screen.getByPlaceholderText("At least 8 chars"), "Password123");
@@ -91,8 +96,6 @@ describe("ForgotPassword", () => {
       code: "123456",
       newPassword: "Password123",
     });
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Password reset successfully.",
-    );
+    expect(useToastFeedback).toHaveBeenCalledWith({ message: "Password reset successfully.", error: "" });
   });
 });

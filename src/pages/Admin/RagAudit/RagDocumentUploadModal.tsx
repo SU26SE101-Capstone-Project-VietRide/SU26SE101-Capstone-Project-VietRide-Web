@@ -1,7 +1,7 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useState, type FormEvent } from "react";
+import { useState, type DragEvent, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { FiUploadCloud } from "react-icons/fi";
+import { FiFileText, FiUploadCloud, FiX } from "react-icons/fi";
 import {
   uploadRagDocument,
   type RagDocument,
@@ -29,6 +29,7 @@ export function RagDocumentUploadModal({
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [accessLevel, setAccessLevel] =
@@ -94,7 +95,7 @@ export function RagDocumentUploadModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium"
+            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
           >
             {tc("cancel")}
           </button>
@@ -102,7 +103,7 @@ export function RagDocumentUploadModal({
             type="submit"
             form="rag-upload-form"
             disabled={submitting}
-            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            className="rounded-xl bg-vr-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? tc("processing") : tc("upload")}
           </button>
@@ -111,103 +112,49 @@ export function RagDocumentUploadModal({
     >
       <form
         id="rag-upload-form"
-        className="grid gap-4 sm:grid-cols-2"
+        className="space-y-6"
         onSubmit={(event) => void submit(event)}
       >
-        <label className="sm:col-span-2">
-          <span className="mb-1 block text-xs font-semibold text-gray-600">
-            {tc("file")}
-          </span>
-          <input
-            type="file"
-            accept=".txt,.md,.markdown,text/plain,text/markdown"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            className={inputClass}
-            required
-          />
-        </label>
-        <label className="sm:col-span-2">
-          <span className="mb-1 block text-xs font-semibold text-gray-600">
-            {tc("title")}
-          </span>
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className={inputClass}
-            required
-          />
-        </label>
-        <label className="sm:col-span-2">
-          <span className="mb-1 block text-xs font-semibold text-gray-600">
-            {tc("description")}
-          </span>
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            className={`${inputClass} min-h-20`}
-          />
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-semibold text-gray-600">
-            Access level
-          </span>
-          <CustomSelect
-            value={accessLevel}
-            onChange={(event) => setAccessLevel(event.target.value)}
-            className={inputClass}
+        <section className="rounded-2xl border border-vr-100 bg-vr-50/60 p-5">
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-gray-900">Tệp tài liệu</h3>
+            <p className="mt-1 text-xs leading-5 text-gray-500">Chỉ hỗ trợ tệp TXT hoặc Markdown, dung lượng theo giới hạn hệ thống.</p>
+          </div>
+          <label
+            htmlFor="rag-document-file"
+            onDragOver={(event: DragEvent<HTMLLabelElement>) => { event.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(event: DragEvent<HTMLLabelElement>) => { event.preventDefault(); setIsDragging(false); setFile(event.dataTransfer.files[0] ?? null); }}
+            className={`flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-white px-5 py-6 text-center transition ${isDragging ? "border-vr-500 bg-vr-50" : "border-gray-200 hover:border-vr-300 hover:bg-vr-50/40"}`}
           >
-            <option value="PUBLIC">{tc("enumLabels.PUBLIC")}</option>
-            <option value="OPERATOR">{tc("enumLabels.OPERATOR")}</option>
-            <option value="ADMIN">{tc("enumLabels.ADMIN")}</option>
-          </CustomSelect>
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-semibold text-gray-600">
-            Category
-          </span>
-          <CustomSelect
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-            className={inputClass}
-          >
-            <option value="CUSTOMER_SUPPORT">
-              {t("ragAudit.categories.CUSTOMER_SUPPORT")}
-            </option>
-            <option value="OPERATOR_POLICY">
-              {t("ragAudit.categories.OPERATOR_POLICY")}
-            </option>
-            <option value="PLATFORM_ADMIN">
-              {t("ragAudit.categories.PLATFORM_ADMIN")}
-            </option>
-          </CustomSelect>
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-semibold text-gray-600">
-            Document type
-          </span>
-          <CustomSelect
-            value={documentType}
-            onChange={(event) => setDocumentType(event.target.value)}
-            className={inputClass}
-          >
-            <option value="FAQ">{t("ragAudit.documentTypes.FAQ")}</option>
-            <option value="POLICY">{t("ragAudit.documentTypes.POLICY")}</option>
-            <option value="SOP">{t("ragAudit.documentTypes.SOP")}</option>
-            <option value="GUIDE">{t("ragAudit.documentTypes.GUIDE")}</option>
-            <option value="TERMS">{t("ragAudit.documentTypes.TERMS")}</option>
-          </CustomSelect>
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-semibold text-gray-600">
-            Audience roles
-          </span>
-          <input
-            value={audienceRoles}
-            onChange={(event) => setAudienceRoles(event.target.value)}
-            className={inputClass}
-            placeholder="SYSTEM_ADMIN, OPERATOR_ADMIN"
-          />
-        </label>
+            <input id="rag-document-file" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="sr-only" required />
+            {file ? (
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-vr-100 text-vr-700"><FiFileText size={22} /></span>
+                <span className="text-left"><span className="block max-w-xs truncate text-sm font-semibold text-gray-900">{file.name}</span><span className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</span></span>
+                <button type="button" onClick={(event) => { event.preventDefault(); setFile(null); }} className="rounded-full p-2 text-gray-400 hover:bg-red-50 hover:text-red-600" aria-label="Xóa tệp"><FiX /></button>
+              </div>
+            ) : (
+              <><FiUploadCloud className="text-vr-500" size={30} /><span className="mt-2 text-sm font-semibold text-gray-700">Kéo thả tệp vào đây hoặc chọn tệp</span><span className="mt-1 text-xs text-gray-500">TXT, MD, Markdown</span></>
+            )}
+          </label>
+        </section>
+
+        <section className="space-y-4">
+          <div><h3 className="text-sm font-bold text-gray-900">Thông tin tài liệu</h3><p className="mt-1 text-xs text-gray-500">Đặt tên và mô tả để dễ tìm kiếm trong kho tri thức.</p></div>
+          <label className="block"><span className="mb-1.5 block text-xs font-semibold text-gray-600">{tc("title")}</span><input value={title} onChange={(event) => setTitle(event.target.value)} className={`${inputClass} rounded-xl transition focus:ring-4 focus:ring-vr-500/10`} required /></label>
+          <label className="block"><span className="mb-1.5 block text-xs font-semibold text-gray-600">{tc("description")}</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} className={`${inputClass} min-h-24 resize-y rounded-xl transition focus:ring-4 focus:ring-vr-500/10`} /></label>
+        </section>
+
+        <section className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50/70 p-5">
+          <div><h3 className="text-sm font-bold text-gray-900">Phạm vi truy cập</h3><p className="mt-1 text-xs text-gray-500">Xác định nhóm người và mục đích sử dụng tài liệu.</p></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">Phạm vi truy cập</span><CustomSelect value={accessLevel} onChange={(event) => setAccessLevel(event.target.value as RagDocumentAccessLevel)} className={`${inputClass} rounded-xl`}><option value="PUBLIC">{tc("enumLabels.PUBLIC")}</option><option value="OPERATOR">{tc("enumLabels.OPERATOR")}</option><option value="ADMIN">{tc("enumLabels.ADMIN")}</option></CustomSelect></label>
+            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">Danh mục</span><CustomSelect value={category} onChange={(event) => setCategory(event.target.value as RagDocumentCategory)} className={`${inputClass} rounded-xl`}><option value="CUSTOMER_SUPPORT">{t("ragAudit.categories.CUSTOMER_SUPPORT")}</option><option value="OPERATOR_POLICY">{t("ragAudit.categories.OPERATOR_POLICY")}</option><option value="PLATFORM_ADMIN">{t("ragAudit.categories.PLATFORM_ADMIN")}</option></CustomSelect></label>
+            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">Loại tài liệu</span><CustomSelect value={documentType} onChange={(event) => setDocumentType(event.target.value as RagDocumentType)} className={`${inputClass} rounded-xl`}><option value="FAQ">{t("ragAudit.documentTypes.FAQ")}</option><option value="POLICY">{t("ragAudit.documentTypes.POLICY")}</option><option value="SOP">{t("ragAudit.documentTypes.SOP")}</option><option value="GUIDE">{t("ragAudit.documentTypes.GUIDE")}</option><option value="TERMS">{t("ragAudit.documentTypes.TERMS")}</option></CustomSelect></label>
+            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">Vai trò áp dụng</span><input value={audienceRoles} onChange={(event) => setAudienceRoles(event.target.value)} className={`${inputClass} rounded-xl`} placeholder="SYSTEM_ADMIN, OPERATOR_ADMIN" /></label>
+          </div>
+        </section>
       </form>
     </Modal>
   );

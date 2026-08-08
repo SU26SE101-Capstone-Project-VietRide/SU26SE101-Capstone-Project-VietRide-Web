@@ -13,13 +13,11 @@ import { getAuthUser } from "../../auth";
 import CustomSelect from "../../components/CustomSelect";
 import { DetailItem } from "../../components/DetailLayout";
 import Modal from "../../components/Modal";
+import { ConfirmModal } from "../../components/ConfirmModal";
 import { PersonnelTable } from "../../components/PersonnelTable";
 import { formatDateTime } from "../../utils/date";
 import { formatVietnamPhoneForDisplay } from "../../utils/phone";
 import { StatCard } from "../../components/StatCard";
-
-const fallbackAvatarUrl =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='32' fill='%23ecfeff'/%3E%3Ccircle cx='64' cy='48' r='22' fill='%235bc7ca'/%3E%3Cpath d='M28 106c5-24 19-36 36-36s31 12 36 36' fill='%231e8f93'/%3E%3C/svg%3E";
 
 const actionButtonClass =
   "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
@@ -30,6 +28,35 @@ function isActiveStatus(status: string) {
 
 function isLockedStatus(status: string) {
   return status.toUpperCase() === "LOCKED";
+}
+const avatarGradientByRole: Record<AdminUserRole, string> = {
+  PASSENGER: "from-sky-400 to-cyan-600",
+  OPERATOR_ADMIN: "from-violet-400 to-indigo-600",
+  OPERATOR_STAFF: "from-blue-400 to-blue-700",
+  DRIVER: "from-amber-400 to-orange-600",
+  ASSISTANT: "from-emerald-400 to-teal-600",
+  SYSTEM_ADMIN: "from-rose-400 to-pink-600",
+};
+
+function getInitials(value: string) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  }
+  return value.trim().slice(0, 2).toUpperCase() || "U";
+}
+
+function UserAvatar({ user, large = false }: { user: AdminUser; large?: boolean }) {
+  const name = user.displayName || user.email;
+  const sizeClass = large ? "h-[88px] w-[88px] rounded-2xl text-2xl" : "h-10 w-10 rounded-full text-sm";
+
+  if (user.avatarUrl) {
+    return <img src={user.avatarUrl} alt={name} width={large ? 88 : 40} height={large ? 88 : 40} loading="lazy" className={`${sizeClass} shrink-0 ${large ? "border-4 border-white shadow-md" : "border border-gray-200"} bg-white object-cover`} />;
+  }
+
+  return <div aria-label={name} className={`${sizeClass} inline-flex shrink-0 items-center justify-center bg-gradient-to-br font-bold text-white shadow-sm ${avatarGradientByRole[user.role]}`}>
+    {getInitials(name)}
+  </div>;
 }
 
 export default function Users() {
@@ -49,6 +76,7 @@ export default function Users() {
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [actionUserId, setActionUserId] = useState("");
+  const [pendingLockUser, setPendingLockUser] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -116,16 +144,6 @@ export default function Users() {
 
   async function toggleLock(user: AdminUser) {
     const shouldUnlock = isLockedStatus(user.status);
-    const confirmed = window.confirm(
-      shouldUnlock
-        ? t("users.unlockConfirm", { name: user.displayName })
-        : t("users.lockConfirm", { name: user.displayName }),
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setActionUserId(user.userId);
     setMessage(null);
 
@@ -149,6 +167,7 @@ export default function Users() {
       });
     } finally {
       setActionUserId("");
+      setPendingLockUser(null);
     }
   }
 
@@ -177,12 +196,12 @@ export default function Users() {
           <CustomSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.allStatuses")}</option><option value="ACTIVE">{tc("active")}</option><option value="LOCKED">{t("users.locked")}</option><option value="PENDING_EMAIL_VERIFICATION">{tc("enumLabels.PENDING_EMAIL_VERIFICATION")}</option><option value="PENDING_INITIAL_PASSWORD">{tc("enumLabels.PENDING_INITIAL_PASSWORD")}</option><option value="DELETED">{tc("enumLabels.DELETED")}</option></CustomSelect>
         </div>}
         columns={[
-          { key: "name", header: t("users.fullName"), headerClassName: "w-[20%] px-4 py-3", cellClassName: "w-[20%] px-4 py-4", render: (user) => <div className="flex items-center gap-3"><img src={user.avatarUrl || fallbackAvatarUrl} alt={user.displayName || user.email} width={40} height={40} loading="lazy" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover" /><span className="truncate whitespace-nowrap text-sm font-semibold text-gray-900">{user.displayName || "-"}</span></div> },
-          { key: "email", header: tc("email"), headerClassName: "w-[24%] px-4 py-3", cellClassName: "w-[24%] px-4 py-4 text-sm text-gray-600", render: (user) => <span className="block max-w-[220px] truncate" title={user.email}>{user.email}</span> },
-          { key: "phone", header: tc("phone"), headerClassName: "w-[12%] px-4 py-3", cellClassName: "w-[12%] px-4 py-4 text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
-          { key: "role", header: t("users.role"), headerClassName: "w-[18%] px-4 py-3", cellClassName: "w-[18%] px-4 py-4 text-sm text-gray-700", render: (user) => <span className="block truncate">{roleLabel(user.role)}</span> },
-          { key: "status", header: tc("status"), headerClassName: "w-[16%] px-4 py-3", cellClassName: "w-[16%] px-4 py-4 text-sm", render: (user) => <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-50 text-emerald-700" : isLockedStatus(user.status) ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}>{user.status ? tc(`enumLabels.${user.status}`, { defaultValue: user.status }) : "-"}</span> },
-          { key: "actions", header: tc("actions"), headerClassName: "w-[120px] px-2 py-3 text-center", cellClassName: "sticky right-0 w-[120px] bg-white px-2 py-4", render: (user) => { const canToggle = user.userId !== currentUserId && (isActiveStatus(user.status) || isLockedStatus(user.status)); return <div className="mx-auto flex w-[80px] justify-center gap-2"><button type="button" aria-label="details" onClick={() => setSelected(user)} className={actionButtonClass}><FiEye size={16} /></button>{(isActiveStatus(user.status) || isLockedStatus(user.status)) ? <button type="button" onClick={() => void toggleLock(user)} disabled={!canToggle || actionUserId === user.userId} className={actionButtonClass}>{isLockedStatus(user.status) ? <FiUnlock /> : <FiLock />}</button> : <span className="h-8 w-8" />}</div>; } },
+          { key: "name", header: t("users.fullName"), headerClassName: "w-[20%] px-4 py-3 text-left", cellClassName: "w-[20%] px-4 py-4 text-left", render: (user) => <div className="flex items-center gap-3"><UserAvatar user={user} /><span className="truncate whitespace-nowrap text-sm font-semibold text-gray-900">{user.displayName || "-"}</span></div> },
+          { key: "email", header: tc("email"), headerClassName: "w-[24%] px-4 py-3 text-left", cellClassName: "w-[24%] px-4 py-4 text-left text-sm text-gray-600", render: (user) => <span className="block max-w-[220px] truncate" title={user.email}>{user.email}</span> },
+          { key: "phone", header: tc("phone"), headerClassName: "w-[12%] px-4 py-3 text-center", cellClassName: "w-[12%] px-4 py-4 text-center text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
+          { key: "role", header: t("users.role"), headerClassName: "w-[18%] px-4 py-3 text-center", cellClassName: "w-[18%] px-4 py-4 text-center text-sm text-gray-700", render: (user) => <span className="block truncate">{roleLabel(user.role)}</span> },
+          { key: "status", header: tc("status"), headerClassName: "w-[16%] px-4 py-3 text-center", cellClassName: "w-[16%] px-4 py-4 text-center text-sm", render: (user) => <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-50 text-emerald-700" : isLockedStatus(user.status) ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}>{user.status ? tc(`enumLabels.${user.status}`, { defaultValue: user.status }) : "-"}</span> },
+          { key: "actions", header: tc("actions"), headerClassName: "w-[120px] px-2 py-3 text-center", cellClassName: "sticky right-0 w-[120px] bg-white px-2 py-4 text-center", render: (user) => { const canToggle = user.userId !== currentUserId && (isActiveStatus(user.status) || isLockedStatus(user.status)); return <div className="mx-auto flex w-[80px] justify-center gap-2"><button type="button" aria-label="details" onClick={() => setSelected(user)} className={actionButtonClass}><FiEye size={16} /></button>{(isActiveStatus(user.status) || isLockedStatus(user.status)) ? <button type="button" onClick={() => setPendingLockUser(user)} disabled={!canToggle || actionUserId === user.userId} className={actionButtonClass}>{isLockedStatus(user.status) ? <FiUnlock /> : <FiLock />}</button> : <span className="h-8 w-8" />}</div>; } },
         ]}
         rows={users}
         getRowKey={(user) => user.userId}
@@ -201,6 +220,17 @@ export default function Users() {
         user={selected}
         roleLabel={roleLabel}
         onClose={() => setSelected(null)}
+      />
+      <ConfirmModal
+        open={Boolean(pendingLockUser)}
+        onClose={() => setPendingLockUser(null)}
+        onConfirm={() => pendingLockUser && void toggleLock(pendingLockUser)}
+        title={tc("confirm")}
+        message={pendingLockUser ? (isLockedStatus(pendingLockUser.status) ? t("users.unlockConfirm", { name: pendingLockUser.displayName }) : t("users.lockConfirm", { name: pendingLockUser.displayName })) : ""}
+        confirmLabel={tc("confirm")}
+        cancelLabel={tc("cancel")}
+        tone={pendingLockUser && isLockedStatus(pendingLockUser.status) ? "success" : "danger"}
+        busy={Boolean(actionUserId)}
       />
     </div>
   );
@@ -245,14 +275,7 @@ function UserDetailModal({
             <div className="px-5 pb-5">
               <div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex min-w-0 items-end gap-4">
-                  <img
-                    src={user.avatarUrl || fallbackAvatarUrl}
-                    alt={user.displayName || user.email}
-                    width={88}
-                    height={88}
-                    loading="lazy"
-                    className="h-[88px] w-[88px] shrink-0 rounded-2xl border-4 border-white bg-white object-cover shadow-md"
-                  />
+                  <UserAvatar user={user} large />
                   <div className="min-w-0 pb-1">
                     <p className="truncate text-xl font-bold text-gray-900">
                       {user.displayName || "-"}

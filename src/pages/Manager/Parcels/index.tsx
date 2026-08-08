@@ -35,6 +35,7 @@ import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import { StatCard } from "../../../components/StatCard";
+import { formatCurrency } from "../../../utils/currency";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 import ParcelQueue from "./ParcelQueue";
@@ -85,7 +86,7 @@ function toLocalDateTime(value?: string | null) {
   return date.toISOString().slice(0, 16);
 }
 function formatMoney(value = 0) {
-  return value.toLocaleString("vi-VN");
+  return formatCurrency(value);
 }
 
 function formatDate(value?: string | null) {
@@ -109,7 +110,6 @@ export default function ParcelsList() {
   const [toDate] = useState(todayIsoDate());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  useToastFeedback({ error });
   const [farePage, setFarePage] = useState(1);
   const [fareSearch, setFareSearch] = useState("");
   const [fareSizeFilter, setFareSizeFilter] = useState<"" | ParcelSizeCategory>("");
@@ -125,6 +125,7 @@ export default function ParcelsList() {
   const [isFareSaving, setIsFareSaving] = useState(false);
   const [fareMessage, setFareMessage] = useState("");
   const [fareError, setFareError] = useState("");
+  useToastFeedback({ message: fareMessage, error: error || fareError });
   const pageSize = 8;
 
   const pendingActionCount = useMemo(() => summary?.totalRejected ?? 0, [summary]);
@@ -357,14 +358,22 @@ export default function ParcelsList() {
                 </CustomSelect>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full table-fixed">
+            <div className="w-full overflow-hidden">
+              <table className="w-full table-fixed whitespace-nowrap">
+                <colgroup>
+                  <col className="w-[30%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[22%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    <th className="px-5 py-3">{t("parcels.route")}</th>
-                    <th className="px-5 py-3">{t("parcels.sizeCategory")}</th>
-                    <th className="px-5 py-3">{t("parcels.fee")}</th>
-                    <th className="px-5 py-3">{t("parcels.validity")}</th>
+                    <th className="whitespace-nowrap px-4 py-3">{t("parcels.route")}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.sizeCategory")}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.fee")}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveFrom")}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveUntil")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -373,18 +382,24 @@ export default function ParcelsList() {
                       key={`${fare.routeId}-${fare.sizeCategory}-${fare.effectiveFrom}`}
                       className="border-b border-gray-100 last:border-0"
                     >
-                      <td className="px-5 py-4 text-sm font-medium text-gray-900">
-                        {routes.find((route) => route.id === fare.routeId)?.name || t("parcels.unnamedRoute")}
-                        {canManageRouteFares && (<button type="button" onClick={() => handleEditFare(fare)} className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:text-vr-700" aria-label={t("parcels.editFare")} title={t("parcels.editFare")}><FiEdit2 size={15} /></button>)}
+                      <td className="min-w-0 px-4 py-3 text-sm font-medium text-gray-900">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="min-w-0 truncate" title={routes.find((route) => route.id === fare.routeId)?.name || t("parcels.unnamedRoute")}>
+                            {routes.find((route) => route.id === fare.routeId)?.name || t("parcels.unnamedRoute")}
+                          </span>
+                          {canManageRouteFares && (<button type="button" onClick={() => handleEditFare(fare)} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-300 hover:text-vr-700" aria-label={t("parcels.editFare")} title={t("parcels.editFare")}><FiEdit2 size={15} /></button>)}
+                        </div>
                       </td>
-                      <td className="px-5 py-4 text-sm font-semibold text-gray-900">
+                      <td className="whitespace-nowrap px-4 py-3.5 text-center text-sm font-semibold text-gray-900">
                         {t(`parcels.sizeCategories.${fare.sizeCategory}`)}
                       </td>
-                      <td className="px-5 py-4 text-sm text-gray-700">
-                        {formatMoney(fare.priceVnd)} VND
+                      <td className="whitespace-nowrap px-4 py-3.5 text-center text-sm text-gray-700">
+                        {formatMoney(fare.priceVnd)}
                       </td>
-                      <td className="px-5 py-4 text-sm text-gray-700">
-                        {formatDate(fare.effectiveFrom)} -{" "}
+                      <td className="whitespace-nowrap px-4 py-3.5 text-center text-sm text-gray-700">
+                        {formatDate(fare.effectiveFrom)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3.5 text-center text-sm text-gray-700">
                         {formatDate(fare.effectiveUntil)}
                       </td>
                     </tr>
@@ -408,6 +423,7 @@ export default function ParcelsList() {
     </div>
   );
 }
+
 
 
 

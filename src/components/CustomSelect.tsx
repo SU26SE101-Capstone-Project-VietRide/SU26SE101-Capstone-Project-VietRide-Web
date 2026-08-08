@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import {
   Children,
   isValidElement,
@@ -36,6 +37,7 @@ type CustomSelectProps = {
   defaultValue?: string | number;
   onChange?: (event: SelectChangeEvent) => void;
   className?: string;
+  allowWrap?: boolean;
   disabled?: boolean;
   children: ReactNode;
   "aria-label"?: string;
@@ -80,6 +82,7 @@ export default function CustomSelect({
   defaultValue,
   onChange,
   className = "",
+  allowWrap = false,
   disabled = false,
   children,
   "aria-label": ariaLabel,
@@ -93,6 +96,8 @@ export default function CustomSelect({
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const listboxId = useId();
   const selectedValue = String(isControlled ? value : internalValue);
   const selectedOption =
@@ -100,7 +105,7 @@ export default function CustomSelect({
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      if (!rootRef.current?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
@@ -133,7 +138,23 @@ export default function CustomSelect({
     });
   }
 
+  function updateMenuPosition() {
+    const button = rootRef.current?.querySelector("button");
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const preferredHeight = Math.min(288, Math.max(160, options.length * 42 + 8));
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    const openAbove = spaceBelow < preferredHeight && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(120, Math.min(preferredHeight, openAbove ? spaceAbove : spaceBelow));
+    const width = Math.min(Math.max(rect.width, 220), window.innerWidth - 16);
+    const left = Math.min(rect.left, window.innerWidth - width - 8);
+    setMenuPosition({ top: openAbove ? rect.top - maxHeight - 4 : rect.bottom + 4, left, width, maxHeight });
+  }
+
   function openList() {
+    
+    updateMenuPosition();
     setActiveIndex(
       Math.max(
         0,
@@ -196,7 +217,7 @@ export default function CustomSelect({
         onKeyDown={handleKeyDown}
         className={`${className} flex min-h-11 w-full items-center justify-between gap-3 text-left transition focus:border-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100`}
       >
-        <span className="min-w-0 flex-1 truncate">
+        <span className={`min-w-0 flex-1 ${allowWrap ? "whitespace-normal break-words" : "truncate"}`}>
           {selectedOption?.label ?? ""}
         </span>
         <FiChevronDown
@@ -205,12 +226,14 @@ export default function CustomSelect({
         />
       </button>
 
-      {isOpen && !disabled && (
-        <div
-          id={listboxId}
-          role="listbox"
-          className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-vr-100 bg-white p-1 text-sm shadow-xl shadow-vr-900/10"
-        >
+      {isOpen && !disabled && createPortal(
+          <div
+            ref={menuRef}
+            id={listboxId}
+            role="listbox"
+            className="fixed z-[100] overflow-auto rounded-xl border border-vr-100 bg-white p-1 text-sm shadow-2xl shadow-vr-900/20"
+            style={menuPosition ? { top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: menuPosition.maxHeight } : undefined}
+          >
           {options.map((option, index) => {
             const isSelected = option.value === selectedValue;
             const isActive = index === activeIndex;
@@ -232,15 +255,16 @@ export default function CustomSelect({
                       : "text-gray-700 hover:bg-vr-50"
                 }`}
               >
-                <span className="min-w-0 flex-1 truncate">
+                <span className={`min-w-0 flex-1 ${allowWrap ? "whitespace-normal break-words" : "truncate"}`}>
                   {option.label}
                 </span>
                 {isSelected && <FiCheck className="shrink-0" size={16} />}
               </button>
             );
           })}
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

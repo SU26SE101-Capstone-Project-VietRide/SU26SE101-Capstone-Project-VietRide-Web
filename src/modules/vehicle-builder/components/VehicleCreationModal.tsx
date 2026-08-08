@@ -1,8 +1,10 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { VehicleType } from "../types";
 import CustomSelect from "../../../components/CustomSelect";
+import { useToast } from "../../../components/toast/useToast";
 
 interface VehicleCreationModalProps {
   isOpen: boolean;
@@ -23,6 +25,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation("manager");
+  const toast = useToast();
   const { createNewVehicle, addVehicle } = useVehicleStore();
   const [vehicleType, setVehicleType] = useState<VehicleType>("SEAT");
   const [model, setModel] = useState("HYUNDAI_UNIVERSE");
@@ -31,7 +34,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
 
   const handleCreate = () => {
     if (!name || !plateNumber) {
-      alert(t("vehicleBuilder.createRequired"));
+      toast.error(t("vehicleBuilder.createRequired"));
       return;
     }
 
@@ -63,7 +66,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal((
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg p-6 w-96 space-y-4">
         <h2 className="text-2xl font-bold">
@@ -145,6 +148,7 @@ export const VehicleCreationModal: React.FC<VehicleCreationModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>),
+    document.body,
   );
 };

@@ -12,6 +12,8 @@ import {
 } from "react-icons/fi";
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useToast } from "../../../components/toast/useToast";
 import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
 import {
@@ -97,6 +99,7 @@ const defaultConfig =
 export default function ManagerSettings() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const toast = useToast();
   const tRef = useRef(t);
   useEffect(() => {
     tRef.current = t;
@@ -113,6 +116,7 @@ export default function ManagerSettings() {
     ...defaultConfig,
   });
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  const [deletePeriodTarget, setDeletePeriodTarget] = useState<HolidayPricingPeriod | null>(null);
   const [editingPeriod, setEditingPeriod] =
     useState<HolidayPricingPeriod | null>(null);
   const [periodForm, setPeriodForm] = useState({
@@ -124,6 +128,7 @@ export default function ManagerSettings() {
   const [periodPage, setPeriodPage] = useState(1);
   const [fareLoading, setFareLoading] = useState(true);
   const [fareError, setFareError] = useState("");
+  useToastFeedback({ error: fareError });
   const pageSize = 8;
   const loadFareData = useCallback(async () => {
     setFareLoading(true);
@@ -175,19 +180,17 @@ export default function ManagerSettings() {
   };
 
   const handleSave = async () => {
+    setFareError("");
     try {
       await updateOperatorFareSurchargeSettings({
         isEnabled: config.autoApplyHolidayPricing,
       });
       setSavedSnapshot({ ...config });
-      alert(t("settings.saveSuccess"));
+      toast.success(t("settings.saveSuccess"));
     } catch (err) {
-      setFareError(
-        err instanceof Error ? err.message : t("settings.saveFailed"),
-      );
+      toast.error(err instanceof Error ? err.message : t("settings.saveFailed"));
     }
   };
-
   const handleReset = () => {
     setConfig({ ...savedSnapshot });
   };
@@ -215,6 +218,7 @@ export default function ManagerSettings() {
   };
 
   const handleSavePeriod = async () => {
+    setFareError("");
     const surchargePercent = Number(periodForm.surchargePercent);
     if (
       !periodForm.name.trim() ||
@@ -222,8 +226,11 @@ export default function ManagerSettings() {
       !periodForm.endDate ||
       surchargePercent < 1 ||
       surchargePercent > 100
-    )
+    ) {
+      toast.error(t("settings.saveFailed"));
       return;
+    }
+
     try {
       if (editingPeriod) {
         await updateOperatorFareSurchargePeriod(editingPeriod.id, {
@@ -244,33 +251,52 @@ export default function ManagerSettings() {
       }
       setPeriodModalOpen(false);
       setEditingPeriod(null);
+      toast.success(t(editingPeriod ? "settings.periodUpdateSuccess" : "settings.periodCreateSuccess"));
       await loadFareData();
     } catch (err) {
-      setFareError(
-        err instanceof Error ? err.message : t("settings.saveFailed"),
-      );
+      toast.error(err instanceof Error ? err.message : t("settings.saveFailed"));
     }
   };
+  function handleDeletePeriod(period: HolidayPricingPeriod) {
+    setDeletePeriodTarget(period);
+  }
 
-  const handleDeletePeriod = async (id: string) => {
-    if (!confirm(t("settings.confirmDeletePeriod"))) return;
+  const confirmDeletePeriod = async () => {
+    if (!deletePeriodTarget) return;
+    setFareError("");
     try {
-      await deleteOperatorFareSurchargePeriod(id);
+      await deleteOperatorFareSurchargePeriod(deletePeriodTarget.id);
+      setDeletePeriodTarget(null);
+      toast.success(t("settings.periodDeleteSuccess"));
       await loadFareData();
     } catch (err) {
-      setFareError(
-        err instanceof Error ? err.message : t("settings.saveFailed"),
-      );
+      toast.error(err instanceof Error ? err.message : t("settings.saveFailed"));
     }
   };
+  const handleTogglePeriod = async (id: string) => {
+    const period = config.holidayPeriods.find((item) => item.id === id);
+    if (!period) return;
 
-  const handleTogglePeriod = (id: string) => {
-    setConfig((prev) => ({
-      ...prev,
-      holidayPeriods: prev.holidayPeriods.map((p) =>
-        p.id === id ? { ...p, active: !p.active } : p,
-      ),
-    }));
+    setFareError("");
+    try {
+      await updateOperatorFareSurchargePeriod(id, {
+        name: period.name,
+        startDate: period.startDate,
+        endDate: period.endDate,
+        surchargePercent: period.surchargePercent,
+        isActive: !period.active,
+      });
+      toast.success(
+        t(
+          period.active
+            ? "settings.periodDisableSuccess"
+            : "settings.periodEnableSuccess",
+        ),
+      );
+      await loadFareData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("settings.saveFailed"));
+    }
   };
 
   return (
@@ -282,14 +308,6 @@ export default function ManagerSettings() {
         <p className="mt-1 text-sm text-gray-600">{t("settings.subtitle")}</p>
       </div>
 
-      {fareError && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-        >
-          {fareError}
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-1">
         {tabs.map((tabItem) => (
@@ -439,7 +457,7 @@ export default function ManagerSettings() {
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
-                                onClick={() => handleTogglePeriod(period.id)}
+                                onClick={() => void handleTogglePeriod(period.id)}
                                 title={period.active ? tc("off") : tc("on")}
                                 className="rounded-lg p-2 text-gray-600 hover:bg-gray-100"
                               >
@@ -455,7 +473,7 @@ export default function ManagerSettings() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleDeletePeriod(period.id)}
+                                onClick={() => handleDeletePeriod(period)}
                                 title={tc("delete")}
                                 className="rounded-lg p-2 text-gray-600 hover:bg-red-100 hover:text-red-600"
                               >
@@ -766,6 +784,23 @@ export default function ManagerSettings() {
           </div>
         </div>
       </Modal>
+      <Modal
+        open={deletePeriodTarget !== null}
+        onClose={() => setDeletePeriodTarget(null)}
+        title={tc("delete")}
+        subtitle={t("settings.confirmDeletePeriod")}
+        footer={
+          <>
+            <button type="button" onClick={() => setDeletePeriodTarget(null)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{tc("cancel")}</button>
+            <button type="button" onClick={() => void confirmDeletePeriod()} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">{tc("delete")}</button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-700">{deletePeriodTarget?.name}</p>
+      </Modal>
     </div>
   );
 }
+
+
+

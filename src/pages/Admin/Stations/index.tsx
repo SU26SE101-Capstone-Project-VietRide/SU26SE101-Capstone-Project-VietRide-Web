@@ -21,6 +21,7 @@ import {
 import { type PlaceSelection } from "../../../components/PlacePicker";
 import { StatCard } from "../../../components/StatCard";
 import Modal from "../../../components/Modal";
+import { ConfirmModal } from "../../../components/ConfirmModal";
 import CustomSelect from "../../../components/CustomSelect";
 import StationEditorPanel from "./StationEditorPanel";
 import StationMergePanel from "./StationMergePanel";
@@ -66,6 +67,7 @@ export default function AdminStations() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [mergeConfirmationOpen, setMergeConfirmationOpen] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
@@ -372,16 +374,6 @@ export default function AdminStations() {
       setAlert({ tone: "error", message: t("stations.mergeIntoSelf") });
       return;
     }
-    if (
-      !window.confirm(
-        t("stations.mergeConfirm", {
-          source: selectedStation.name,
-          target: target.name,
-        }),
-      )
-    ) {
-      return;
-    }
 
     setIsSaving(true);
     setAlert(null);
@@ -402,6 +394,7 @@ export default function AdminStations() {
         }),
       });
       setOpenMerge(false);
+      setMergeConfirmationOpen(false);
       setReloadKey((value) => value + 1);
     } catch (error) {
       setAlert({
@@ -561,10 +554,21 @@ export default function AdminStations() {
             mergeTargetId={mergeTargetId}
             isSaving={isSaving}
             onMergeTargetChange={setMergeTargetId}
-            onMerge={() => void mergeStation()}
+            onMerge={() => setMergeConfirmationOpen(true)}
           />
         </Modal>
       )}{" "}
+      <ConfirmModal
+        open={mergeConfirmationOpen}
+        onClose={() => setMergeConfirmationOpen(false)}
+        onConfirm={() => void mergeStation()}
+        title={t("stations.mergeTitle")}
+        message={selectedStation ? t("stations.mergeConfirm", { source: selectedStation.name, target: stations.find((station) => station.id === mergeTargetId)?.name ?? "" }) : ""}
+        confirmLabel={tc("confirm")}
+        cancelLabel={tc("cancel")}
+        tone="warning"
+        busy={isSaving}
+      />
     </div>
   );
 }

@@ -51,7 +51,11 @@ describe("Admin Dashboard", () => {
 
   const dashboard = {
     period: { from, to, timezone: "Asia/Ho_Chi_Minh" },
-    totalRevenue: { currentValue: 2_850_000, previousValue: 0, changePercent: 0, trend: "UP" },
+    totalProjectRevenueVnd: { currentValue: 2_850_000, previousValue: 0, changePercent: 0, trend: "UP" },
+    netTransportRevenueVnd: { currentValue: 2_500_000, previousValue: 0, changePercent: 0, trend: "UP" },
+    netTicketRevenueVnd: { currentValue: 2_200_000, previousValue: 0, changePercent: 0, trend: "UP" },
+    netParcelRevenueVnd: { currentValue: 300_000, previousValue: 0, changePercent: 0, trend: "UP" },
+    subscriptionRevenueVnd: { currentValue: 350_000, previousValue: 0, changePercent: 0, trend: "UP" },
     activeOperators: { currentValue: 1, previousValue: 0, changePercent: 0, trend: "UP" },
     activeUsers: { currentValue: 15, previousValue: 10, changePercent: 50, trend: "UP" },
     bookings: { currentValue: 9, previousValue: 12, changePercent: -25, trend: "DOWN" },
@@ -68,16 +72,26 @@ describe("Admin Dashboard", () => {
   const revenue = {
     period: dashboard.period,
     summary: {
-      grossRevenueVnd: { currentValue: 137_600_000, previousValue: 0, changePercent: 0, trend: "UP" },
-      platformRevenueVnd: { currentValue: 137_600_000, previousValue: 0, changePercent: 0, trend: "UP" },
-      paidToOperatorsVnd: { currentValue: 0, previousValue: 0, changePercent: 0, trend: "FLAT" },
+      revenue: {
+        totalProjectRevenueVnd: { currentValue: 137_600_000, previousValue: 0, changePercent: 0, trend: "UP" },
+        netTransportRevenueVnd: { currentValue: 137_600_000, previousValue: 0, changePercent: 0, trend: "UP" },
+        netTicketRevenueVnd: { currentValue: 120_000_000, previousValue: 0, changePercent: 0, trend: "UP" },
+        netParcelRevenueVnd: { currentValue: 17_600_000, previousValue: 0, changePercent: 0, trend: "UP" },
+        subscriptionRevenueVnd: { currentValue: 0, previousValue: 0, changePercent: 0, trend: "FLAT" },
+      },
+      settlement: { paidToOperatorsVnd: { currentValue: 0, previousValue: 0, changePercent: 0, trend: "FLAT" } },
     },
     monthly: [
       {
         month: `${year}-07`,
-        grossRevenueVnd: 137_600_000,
-        paidToOperatorsVnd: 0,
-        platformRevenueVnd: 137_600_000,
+        revenue: {
+          totalProjectRevenueVnd: 137_600_000,
+          netTransportRevenueVnd: 137_600_000,
+          netTicketRevenueVnd: 120_000_000,
+          netParcelRevenueVnd: 17_600_000,
+          subscriptionRevenueVnd: 0,
+        },
+        settlement: { paidToOperatorsVnd: 0 },
       },
     ],
     topOperators: [
@@ -112,7 +126,7 @@ describe("Admin Dashboard", () => {
   it("uses the exact local calendar year and API-backed dashboard values", async () => {
     render(<AdminDashboard />);
 
-    expect(await screen.findByText("2.850.000 ₫")).toBeInTheDocument();
+    expect(await screen.findByText("2.850.000 đ")).toBeInTheDocument();
 
     expect(getAdminDashboardSummary).toHaveBeenCalledWith({ from, to });
     expect(getAdminRevenueAnalytics).toHaveBeenCalledWith({
@@ -137,14 +151,16 @@ describe("Admin Dashboard", () => {
     expect(within(approvedCard as HTMLElement).getByText("8")).toBeInTheDocument();
 
     expect(screen.queryByText("28")).not.toBeInTheDocument();
-    expect(screen.getByText("2.850.000 ₫")).toBeInTheDocument();
+    expect(screen.getByText("2.850.000 đ")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.noOperatorRevenue")).not.toBeInTheDocument();
-    expect(screen.getByText("850.000 ₫")).toBeInTheDocument();
-    expect(screen.getByText("450.000 ₫")).toBeInTheDocument();
-    expect(screen.getByText("400.000 ₫")).toBeInTheDocument();
+    expect(screen.getByText("850.000 đ")).toBeInTheDocument();
+    expect(screen.getByText("450.000 đ")).toBeInTheDocument();
+    expect(screen.getByText("400.000 đ")).toBeInTheDocument();
     expect(screen.getByText("Phương Linh Express")).toBeInTheDocument();
     expect(screen.getByText("Vân Tuyến Express")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.operatorStatus")).not.toBeInTheDocument();
     expect(screen.getByText("dashboard.operatorStaff")).toBeInTheDocument();
   });
 });
+
+

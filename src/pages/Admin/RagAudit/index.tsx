@@ -203,8 +203,8 @@ export default function RagAudit() {
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
                   <th className="px-4 py-3">{tc("title")}</th>
-                  <th className="px-4 py-3">{t("ragAudit.permission")}</th>
-                  <th className="px-4 py-3">{tc("status")}</th>
+                  <th className="px-4 py-3 text-center">{t("ragAudit.permission")}</th>
+                  <th className="px-4 py-3 text-center">{tc("status")}</th>
                   <th className="px-4 py-3 text-center">{tc("actions")}</th>
                 </tr>
               </thead>
@@ -224,12 +224,12 @@ export default function RagAudit() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-700">
+                    <td className="px-4 py-3 text-center text-gray-700">
                       {tc(`enumLabels.${document.accessLevel}`, {
                         defaultValue: document.accessLevel,
                       })}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                           statusClass[document.status] ??
@@ -241,16 +241,9 @@ export default function RagAudit() {
                         })}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50"
-                          onClick={() =>
-                            void handleApproveDocument(document.id)
-                          }
-                          title={tc("approve")}
-                          aria-label={tc("approve")}
-                        >
+                        <button type="button" disabled={document.status !== "PENDING_REVIEW" && document.status !== "PENDING"} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent" onClick={() => void handleApproveDocument(document.id)} title={document.status === "PENDING_REVIEW" || document.status === "PENDING" ? tc("approve") : t("ragAudit.alreadyProcessed")} aria-label={document.status === "PENDING_REVIEW" || document.status === "PENDING" ? tc("approve") : t("ragAudit.alreadyProcessed")}>
                           <FiCheck size={16} />
                         </button>
                       </div>

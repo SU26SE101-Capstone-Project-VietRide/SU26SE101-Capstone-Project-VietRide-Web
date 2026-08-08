@@ -56,7 +56,6 @@ export default function ParcelDetailModal({
   selected,
   loading,
   actionLoading,
-  actionError,
   canOperate,
   reason,
   onReasonChange,
@@ -155,14 +154,6 @@ export default function ParcelDetailModal({
               </DetailSection>
               {selected.photoUrl && <DetailSection title={t("parcels.queue.photoSection")} columns="two"><img src={selected.photoUrl} alt={t("parcels.queue.photoAlt")} loading="lazy" className="max-h-64 rounded-lg border border-gray-200 object-contain" /></DetailSection>}
               {selected.pendingActionReason && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><span className="font-semibold">{t("parcels.queue.pendingReasonLabel")}:</span> {selected.pendingActionReason}</p>}
-            </div>            {actionError && (
-              <p
-                className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                role="alert"
-              >
-                {actionError}
-              </p>
-            )}
             {actionKind === "REFUND_CONFIRMATION" && (
               <ActionBox title={t("parcels.confirmRefund")}>
                 <TextArea
@@ -351,6 +342,7 @@ export default function ParcelDetailModal({
                 {t("parcels.queue.noActionText")}
               </p>
             )}
+          </div>
           </div>
         )
       )}
