@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../../../api/client";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import {
   approveOperatorRouteChangeProposal,
   getOperatorRouteChangeProposal,
@@ -17,6 +18,10 @@ vi.mock("react-i18next", () => {
     useTranslation: () => ({ t: translate }),
   };
 });
+
+vi.mock("../../../hooks/useToastFeedback", () => ({
+  useToastFeedback: vi.fn(),
+}));
 
 vi.mock("../../../components/GoogleMapCanvas", () => ({
   default: () => <div data-testid="comparison-map" />,
@@ -118,7 +123,10 @@ describe("Operations ProposalsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "routeEta.approve" }));
 
     await waitFor(() =>
-      expect(screen.getByText("routeEta.approvedMessage")).toBeInTheDocument(),
+      expect(useToastFeedback).toHaveBeenLastCalledWith({
+        message: "routeEta.approvedMessage",
+        error: "",
+      }),
     );
     expect(approveOperatorRouteChangeProposal).toHaveBeenCalledWith("proposal-1");
     // Sau duyệt thành công: tải lại danh sách + báo index cập nhật badge count
@@ -146,9 +154,10 @@ describe("Operations ProposalsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "routeEta.approve" }));
 
     await waitFor(() =>
-      expect(
-        screen.getByText("routeEta.proposalNoLongerPending"),
-      ).toBeInTheDocument(),
+      expect(useToastFeedback).toHaveBeenLastCalledWith({
+        message: "routeEta.proposalNoLongerPending",
+        error: "",
+      }),
     );
     expect(getOperatorRouteChangeProposals).toHaveBeenCalledTimes(2);
     expect(
