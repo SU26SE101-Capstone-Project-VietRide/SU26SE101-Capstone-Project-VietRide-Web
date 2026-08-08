@@ -4,6 +4,7 @@ import type {
   OperatorRevenueAnalytics,
   OperatorVehicle,
 } from "../../../api/vietride";
+import { formatCurrency } from "../../../utils/currency";
 
 // Type dữ liệu dùng chung giữa index và các sub-component của màn Dashboard
 export type RevenueChartPoint = {
@@ -100,7 +101,7 @@ export function monthLabel(monthKey: string) {
 }
 
 export function formatCompactMoney(value: number) {
-  return `${value.toLocaleString("vi-VN")} ₫`;
+  return formatCurrency(value);
 }
 
 export function statusColor(key: string, index: number) {
@@ -148,7 +149,7 @@ export function aggregateBookingStats(items: BookingStatsItem[]) {
     }
 
     const current = monthlyStats.get(monthKey) ?? { revenue: 0, bookings: 0 };
-    current.revenue += item.totalRevenue ?? 0;
+    current.revenue += 0;
     current.bookings += item.totalBookings ?? 0;
     monthlyStats.set(monthKey, current);
   }
@@ -169,7 +170,7 @@ export function mapDashboardChart(
     }
 
     const current = monthlyStats.get(monthKey) ?? { revenue: 0, bookings: 0 };
-    current.revenue = item.ticketRevenueVnd;
+    current.revenue = item.netRevenueVnd;
     monthlyStats.set(monthKey, current);
   }
 
@@ -214,3 +215,5 @@ export function vehicleId(vehicle: OperatorVehicle) {
 export function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
+
+

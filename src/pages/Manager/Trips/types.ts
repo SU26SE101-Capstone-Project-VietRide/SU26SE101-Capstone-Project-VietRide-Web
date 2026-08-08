@@ -16,6 +16,7 @@ export type RouteOption = {
 export type VehicleOption = {
   id: string;
   plate: string;
+  vehicleType: string;
   seats: number;
   status: ResourceStatus;
 };

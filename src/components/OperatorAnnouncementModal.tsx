@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useToastFeedback } from "../hooks/useToastFeedback";
 import { FiSend } from "react-icons/fi";
 import {
   sendOperatorNotification,
@@ -28,6 +29,7 @@ export default function OperatorAnnouncementModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  useToastFeedback({ message: success, error });
 
 
   function handleClose() {
@@ -160,16 +162,6 @@ export default function OperatorAnnouncementModal({
           <span className="mt-1 block text-right text-xs text-gray-400">{body.length}/500</span>
         </label>
 
-        {error && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-            {error}
-          </p>
-        )}
-        {success && (
-          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" role="status">
-            {success}
-          </p>
-        )}
       </div>
     </Modal>
   );

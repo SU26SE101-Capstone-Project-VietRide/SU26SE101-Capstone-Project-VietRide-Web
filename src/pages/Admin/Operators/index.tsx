@@ -13,6 +13,7 @@ import {
   FiClock,
   FiCheckCircle,
   FiAlertCircle,
+  FiRefreshCw,
 } from "react-icons/fi";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
@@ -23,10 +24,12 @@ import {
   getAdminOperatorDetail,
   rejectAdminOperator,
   suspendAdminOperator,
+  reactivateAdminOperator,
   type AdminOperator,
   type CreateAdminOperatorRequest,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import { ConfirmModal } from "../../../components/ConfirmModal";
 import { downloadCsv } from "../../../utils/csv";
 import OperatorDetailModal from "./OperatorDetailModal";
 import OperatorOnboardModal from "./OperatorOnboardModal";
@@ -58,6 +61,7 @@ export default function Operators() {
   const [openApprove, setOpenApprove] = useState(false);
   const [openReject, setOpenReject] = useState(false);
   const [openSuspend, setOpenSuspend] = useState(false);
+  const [pendingReactivate, setPendingReactivate] = useState<AdminOperator | null>(null);
   const [selectedOperator, setSelectedOperator] =
     useState<AdminOperator | null>(null);
   const [operatorForm, setOperatorForm] =
@@ -147,38 +151,34 @@ export default function Operators() {
   }).length;
 
   const handleApprove = async () => {
-    if (!selectedOperator) {
-      return;
+    if (!selectedOperator) return;
+    try {
+      await approveAdminOperator(selectedOperator.operatorId);
+      await loadOperators();
+      setOpenApprove(false);
+      setMessage(t("operators.approvedAlert", { name: selectedOperator.name }));
+      setSelectedOperator(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("operators.approveFailed"));
     }
-
-    await approveAdminOperator(selectedOperator.operatorId);
-    await loadOperators();
-    setOpenApprove(false);
-    setMessage(t("operators.approvedAlert", { name: selectedOperator.name }));
-    setSelectedOperator(null);
   };
 
   const handleReject = async () => {
-    if (!selectedOperator) {
-      return;
-    }
-
+    if (!selectedOperator) return;
     if (!rejectReason.trim()) {
       setError(t("operators.rejectEmptyReason"));
       return;
     }
-
-    await rejectAdminOperator(selectedOperator.operatorId, rejectReason.trim());
-    await loadOperators();
-    setMessage(
-      t("operators.rejectedAlert", {
-        name: selectedOperator.name,
-        reason: rejectReason.trim(),
-      }),
-    );
-    setOpenReject(false);
-    setRejectReason("");
-    setSelectedOperator(null);
+    try {
+      await rejectAdminOperator(selectedOperator.operatorId, rejectReason.trim());
+      await loadOperators();
+      setMessage(t("operators.rejectedAlert", { name: selectedOperator.name, reason: rejectReason.trim() }));
+      setOpenReject(false);
+      setRejectReason("");
+      setSelectedOperator(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("operators.rejectFailed"));
+    }
   };
 
   const openSuspendModal = (operator: AdminOperator) => {
@@ -214,14 +214,27 @@ export default function Operators() {
     }
   };
 
+  const handleReactivate = async (operator: AdminOperator) => {
+    try {
+      await reactivateAdminOperator(operator.operatorId);
+      await loadOperators();
+      setMessage(t("operators.reactivatedAlert", { name: operator.name }));
+      setPendingReactivate(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("operators.reactivateFailed"));
+    }
+  };
+
   const handleCreateOperator = async () => {
-    await createAdminOperator(operatorForm);
-    await loadOperators();
-    setMessage(
-      t("operators.createdPendingMessage", { name: operatorForm.name }),
-    );
-    setOperatorForm(emptyOperatorForm);
-    setOpenOnboard(false);
+    try {
+      await createAdminOperator(operatorForm);
+      await loadOperators();
+      setMessage(t("operators.createdPendingMessage", { name: operatorForm.name }));
+      setOperatorForm(emptyOperatorForm);
+      setOpenOnboard(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("operators.createFailed"));
+    }
   };
 
   const updateOperatorForm = (
@@ -347,7 +360,7 @@ export default function Operators() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
+                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
                   {t("operators.code")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
@@ -356,13 +369,13 @@ export default function Operators() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {tc("email")}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
+                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
                   {t("operators.businessRegistrationNumber")}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
+                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
                   {t("operators.taxCode")}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
+                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
                   {tc("status")}
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
@@ -378,7 +391,7 @@ export default function Operators() {
                     key={operator.operatorId}
                     className="border-b border-gray-100 hover:bg-gray-50 transition"
                   >
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                    <td className="px-6 py-4 text-center text-sm font-medium text-gray-900">
                       OP-
                       {String((page - 1) * pageSize + idx + 1).padStart(3, "0")}
                     </td>
@@ -388,16 +401,16 @@ export default function Operators() {
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {operator.contactEmail}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
+                    <td className="px-6 py-4 text-center text-sm text-gray-700">
                       {operator.businessRegistrationNumber}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
+                    <td className="px-6 py-4 text-center text-sm text-gray-700">
                       {operator.taxCode}
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-6 py-4 text-center text-sm">
                       {getStatusBadge(status, tc)}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={async () => {
@@ -437,6 +450,15 @@ export default function Operators() {
                               <FiX size={16} />
                             </button>
                           </>
+                        )}
+                        {status === "SUSPENDED" && (
+                          <button
+                            onClick={() => setPendingReactivate(operator)}
+                            className="rounded-lg p-1.5 text-emerald-600 transition hover:bg-emerald-50"
+                            title={t("operators.reactivate")}
+                          >
+                            <FiRefreshCw size={16} />
+                          </button>
                         )}
                         {status === "APPROVED" && (
                           <button
@@ -507,6 +529,16 @@ export default function Operators() {
         form={operatorForm}
         onChange={updateOperatorForm}
         onSubmit={handleCreateOperator}
+      />
+      <ConfirmModal
+        open={Boolean(pendingReactivate)}
+        onClose={() => setPendingReactivate(null)}
+        onConfirm={() => pendingReactivate && void handleReactivate(pendingReactivate)}
+        title={t("operators.reactivate")}
+        message={pendingReactivate ? t("operators.reactivateConfirmMsg", { name: pendingReactivate.name }) : ""}
+        confirmLabel={tc("confirm")}
+        cancelLabel={tc("cancel")}
+        tone="success"
       />
     </div>
   );

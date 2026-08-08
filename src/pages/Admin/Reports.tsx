@@ -15,11 +15,8 @@ import {
 } from "../../api/vietride";
 import CustomDateTimeInput from "../../components/CustomDateTimeInput";
 import Pagination from "../../components/Pagination";
-import {
-  formatDateInputValue,
-  toExclusiveUtcDayEnd,
-  toUtcDayStart,
-} from "../../utils/date";
+import { StatCard } from "../../components/StatCard";
+import { formatDateInputValue } from "../../utils/date";
 import { formatCurrency } from "../../utils/currency";
 
 type ReportFilters = {
@@ -59,8 +56,8 @@ export default function AdminReports() {
     let ignore = false;
 
     async function loadReport() {
-      const from = toUtcDayStart(filters.from);
-      const to = toExclusiveUtcDayEnd(filters.to);
+      const from = filters.from;
+      const to = filters.to;
 
       if (!from || !to) {
         setError(tRef.current("reports.dateRequired"));
@@ -131,32 +128,38 @@ export default function AdminReports() {
         {
           label: t("reports.completedBookings"),
           value: numberFormatter.format(report.totals.completedBookingCount),
-          icon: <FiBookOpen />,
+          icon: <FiBookOpen size={20} />,
+          iconClassName: "bg-vr-50 text-vr-700",
         },
         {
           label: t("reports.completedTrips"),
           value: numberFormatter.format(report.totals.completedTripCount),
-          icon: <FiTruck />,
+          icon: <FiTruck size={20} />,
+          iconClassName: "bg-blue-50 text-blue-700",
         },
         {
           label: t("reports.deliveredParcels"),
           value: numberFormatter.format(report.totals.deliveredParcelCount),
-          icon: <FiBox />,
+          icon: <FiBox size={20} />,
+          iconClassName: "bg-amber-50 text-amber-700",
         },
         {
           label: t("reports.bookingRevenue"),
-          value: formatCurrency(report.totals.bookingRevenueVnd),
-          icon: <FiDollarSign />,
+          value: formatCurrency(report.totals.netTicketRevenueVnd),
+          icon: <FiDollarSign size={20} />,
+          iconClassName: "bg-emerald-50 text-emerald-700",
         },
         {
           label: t("reports.parcelRevenue"),
-          value: formatCurrency(report.totals.parcelRevenueVnd),
-          icon: <FiDollarSign />,
+          value: formatCurrency(report.totals.netParcelRevenueVnd),
+          icon: <FiDollarSign size={20} />,
+          iconClassName: "bg-emerald-50 text-emerald-700",
         },
         {
           label: t("reports.netRevenue"),
-          value: formatCurrency(report.totals.netRevenueVnd),
-          icon: <FiDollarSign />,
+          value: formatCurrency(report.totals.netTransportRevenueVnd),
+          icon: <FiDollarSign size={20} />,
+          iconClassName: "bg-emerald-50 text-emerald-700",
         },
       ]
     : [];
@@ -235,22 +238,13 @@ export default function AdminReports() {
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {metrics.map((metric) => (
-              <div
+              <StatCard
                 key={metric.label}
-                className="rounded-lg border border-gray-200 bg-white p-5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-gray-600">{metric.label}</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900">
-                      {metric.value}
-                    </p>
-                  </div>
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
-                    {metric.icon}
-                  </span>
-                </div>
-              </div>
+                label={metric.label}
+                value={metric.value}
+                icon={metric.icon}
+                iconClassName={metric.iconClassName}
+              />
             ))}
           </section>
 
@@ -309,13 +303,13 @@ export default function AdminReports() {
                         {numberFormatter.format(row.deliveredParcelCount)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm text-gray-700">
-                        {formatCurrency(row.bookingRevenueVnd)}
+                        {formatCurrency(row.netTicketRevenueVnd)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm text-gray-700">
-                        {formatCurrency(row.parcelRevenueVnd)}
+                        {formatCurrency(row.netParcelRevenueVnd)}
                       </td>
                       <td className="px-5 py-4 text-right text-sm font-semibold text-gray-900">
-                        {formatCurrency(row.netRevenueVnd)}
+                        {formatCurrency(row.netTransportRevenueVnd)}
                       </td>
                     </tr>
                   ))}
@@ -344,3 +338,6 @@ export default function AdminReports() {
     </div>
   );
 }
+
+
+

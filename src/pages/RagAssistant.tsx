@@ -12,6 +12,7 @@ import {
   type RagChatDoneEvent,
 } from "../api/vietride";
 import { getAuthUser } from "../auth";
+import { useToastFeedback } from "../hooks/useToastFeedback";
 
 type RagAssistantProps = {
   embedded?: boolean;
@@ -41,6 +42,7 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
   const [conversationId, setConversationId] = useState<string>();
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
+  useToastFeedback({ error });
 
   const canScopeOperator = user?.role === "SYSTEM_ADMIN";
   const latestMessages = useMemo(() => messages.slice(-30), [messages]);
@@ -248,12 +250,6 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
             </div>
           ))}
         </div>
-
-        {error && (
-          <p className="mx-4 mb-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {error}
-          </p>
-        )}
         <form
           onSubmit={(event) => void sendMessage(event)}
           className="flex gap-3 border-t border-gray-100 p-4"
@@ -285,3 +281,5 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
     </div>
   );
 }
+
+

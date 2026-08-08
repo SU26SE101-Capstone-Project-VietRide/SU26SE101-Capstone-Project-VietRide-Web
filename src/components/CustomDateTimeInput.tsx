@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import {
   useEffect,
   useMemo,
@@ -103,6 +104,9 @@ export default function CustomDateTimeInput({
     new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
   );
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const [calendarPosition, setCalendarPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const monthDays = useMemo(() => getMonthDays(cursor), [cursor]);
   const weekDays = useMemo(
     () => ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map((day) => t(`dateTimePicker.weekdays.${day}`)),
@@ -117,7 +121,7 @@ export default function CustomDateTimeInput({
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      if (!rootRef.current?.contains(event.target as Node) && !calendarRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
@@ -157,6 +161,16 @@ export default function CustomDateTimeInput({
     commit(timeValue, true);
   }
 
+  function updateCalendarPosition() {
+    const button = triggerRef.current;
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const width = !isTimeOnly && !isDateOnly ? Math.min(560, window.innerWidth - 16) : Math.min(352, window.innerWidth - 16);
+    const height = isTimeOnly ? 260 : isDateOnly ? 420 : 420;
+    const openAbove = window.innerHeight - rect.bottom < height + 16 && rect.top > height + 16;
+    setCalendarPosition({ top: openAbove ? rect.top - height : rect.bottom, left: Math.min(rect.left, window.innerWidth - width - 8), width });
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (event.key === "Escape") {
       setIsOpen(false);
@@ -171,6 +185,7 @@ export default function CustomDateTimeInput({
       }
 
       setCursor(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+            updateCalendarPosition();
       setIsOpen(true);
     }
   }
@@ -178,6 +193,7 @@ export default function CustomDateTimeInput({
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => {
@@ -187,6 +203,7 @@ export default function CustomDateTimeInput({
           }
 
           setCursor(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+          updateCalendarPosition();
           setIsOpen(true);
         }}
         onKeyDown={handleKeyDown}
@@ -202,16 +219,18 @@ export default function CustomDateTimeInput({
         )}
       </button>
 
-      {isOpen && !disabled && (
+      {isOpen && !disabled && createPortal(
         <div
-          className={`absolute left-0 z-50 mt-1 max-w-full rounded-xl border border-vr-100 bg-white p-3 text-sm shadow-xl shadow-vr-900/10 sm:left-0 sm:right-auto ${
+          ref={calendarRef}
+          className={`fixed z-[100] max-w-full rounded-xl border border-vr-100 bg-white p-3 text-sm shadow-2xl shadow-vr-900/20 ${
             !isTimeOnly && !isDateOnly
-              ? "w-[min(30rem,calc(100vw-2rem))] max-w-full"
+              ? "w-[min(35rem,calc(100vw-2rem))]"
               : "w-[min(22rem,calc(100vw-2rem))]"
           }`}
+          style={calendarPosition ? { top: calendarPosition.top, left: calendarPosition.left, width: calendarPosition.width } : undefined}
         >
           <div
-            className=""
+            className={!isTimeOnly && !isDateOnly ? "grid gap-5 md:grid-cols-[minmax(0,1fr)_220px]" : ""}
           >
           {!isTimeOnly && (
             <div>
@@ -281,7 +300,7 @@ export default function CustomDateTimeInput({
               className={
                 isTimeOnly
                   ? ""
-                  : "mt-4 border-t border-gray-100 pt-4"
+                  : "border-t border-gray-100 pt-4 md:border-l md:border-t-0 md:pl-4 md:pt-0"
               }
             >
               <div className="grid grid-cols-2 gap-3">
@@ -311,7 +330,8 @@ export default function CustomDateTimeInput({
             </div>
           )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

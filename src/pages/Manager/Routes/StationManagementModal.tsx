@@ -16,7 +16,6 @@ type StationManagementModalProps = {
   locations: AdminLocation[];
   manager: UseStationManagementResult;
   onRunAction: (action: () => Promise<void>) => void;
-  feedbackMessage: string;
 };
 
 export default function StationManagementModal({
@@ -27,7 +26,6 @@ export default function StationManagementModal({
   locations,
   manager,
   onRunAction,
-  feedbackMessage,
 }: StationManagementModalProps) {
   const { t } = useTranslation("manager");
 
@@ -46,7 +44,6 @@ export default function StationManagementModal({
         locations={locations}
         manager={manager}
         onRunAction={onRunAction}
-        feedbackMessage={feedbackMessage}
       />
     </Modal>
   );

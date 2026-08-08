@@ -22,6 +22,8 @@ import {
 } from "../../../api/vietride";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
+import { ConfirmModal } from "../../../components/ConfirmModal";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { toDatetimeLocalValue } from "../../../utils/date";
 
 const inputClass =
@@ -68,6 +70,7 @@ export default function TripActionsPanel({
   onTripReplaced,
 }: TripActionsPanelProps) {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [capacity, setCapacity] = useState<CargoCapacity | null>(null);
   const [newVehicleId, setNewVehicleId] = useState("");
   const [newDriverUserId, setNewDriverUserId] = useState("");
@@ -90,6 +93,8 @@ export default function TripActionsPanel({
     useState("");
   const [routeChangeMessage, setRouteChangeMessage] = useState("");
   const [routeChangeError, setRouteChangeError] = useState("");
+  const [pendingAction, setPendingAction] = useState<"substitute" | "disrupt" | "route" | null>(null);
+  useToastFeedback({ message: message || routeChangeMessage, error: error || routeChangeError });
 
   const drivers = useMemo(
     () =>
@@ -164,7 +169,8 @@ export default function TripActionsPanel({
       return;
     }
 
-    if (!window.confirm(t("tripOperations.substituteConfirm"))) {
+    if (pendingAction !== "substitute") {
+      setPendingAction("substitute");
       return;
     }
 
@@ -196,6 +202,7 @@ export default function TripActionsPanel({
       );
     } finally {
       setIsMutating(false);
+      setPendingAction(null);
     }
   }
 
@@ -205,7 +212,8 @@ export default function TripActionsPanel({
       return;
     }
 
-    if (!window.confirm(t("tripOperations.disruptConfirm"))) {
+    if (pendingAction !== "disrupt") {
+      setPendingAction("disrupt");
       return;
     }
 
@@ -229,6 +237,7 @@ export default function TripActionsPanel({
       );
     } finally {
       setIsMutating(false);
+      setPendingAction(null);
     }
   }
 
@@ -276,7 +285,8 @@ export default function TripActionsPanel({
     }
 
     // Confirm 2 bước như pattern huỷ chuyến — đổi lộ trình ảnh hưởng booking đang chạy
-    if (!window.confirm(t("tripOperations.changeRouteConfirm"))) {
+    if (pendingAction !== "route") {
+      setPendingAction("route");
       return;
     }
 
@@ -300,6 +310,7 @@ export default function TripActionsPanel({
       );
     } finally {
       setIsMutating(false);
+      setPendingAction(null);
     }
   }
 
@@ -564,32 +575,21 @@ export default function TripActionsPanel({
                   </div>
                 </>
               ) : null}
-
-              {routeChangeMessage && (
-                <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                  {routeChangeMessage}
-                </p>
-              )}
-              {routeChangeError && (
-                <p className="rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                  {routeChangeError}
-                </p>
-              )}
             </div>
           )}
         </div>
       )}
-
-      {message && (
-        <p className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-          {message}
-        </p>
-      )}
-      {error && (
-        <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          {error}
-        </p>
-      )}
+      <ConfirmModal
+        open={Boolean(pendingAction)}
+        onClose={() => setPendingAction(null)}
+        onConfirm={() => { if (pendingAction === "substitute") void substituteVehicle(); else if (pendingAction === "disrupt") void disruptTrip(); else if (pendingAction === "route") void changeRoute(); }}
+        title={tc("confirm")}
+        message={pendingAction === "substitute" ? t("tripOperations.substituteConfirm") : pendingAction === "disrupt" ? t("tripOperations.disruptConfirm") : t("tripOperations.changeRouteConfirm")}
+        confirmLabel={tc("confirm")}
+        cancelLabel={tc("cancel")}
+        tone={pendingAction === "disrupt" ? "danger" : "warning"}
+        busy={isMutating}
+      />
     </section>
   );
 }
@@ -602,3 +602,6 @@ function CapacityMetric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+
+

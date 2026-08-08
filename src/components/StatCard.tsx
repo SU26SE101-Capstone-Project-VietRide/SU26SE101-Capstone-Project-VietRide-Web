@@ -13,6 +13,7 @@ export type StatCardProps = {
   helper?: ReactNode;
   trendClassName?: string;
   onClick?: () => void;
+  isLoading?: boolean;
 };
 
 export function StatCard({
@@ -28,6 +29,7 @@ export function StatCard({
   helper,
   trendClassName = "text-gray-500",
   onClick,
+  isLoading = false,
 }: StatCardProps) {
   return (
     <div className={"flex h-[128px] flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm " + (onClick ? "cursor-pointer text-left transition hover:border-vr-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-vr-500/30" : "")} onClick={onClick} onKeyDown={(event) => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}>
@@ -48,7 +50,15 @@ export function StatCard({
       </div>
       <div className="mt-auto min-w-0">
         {!labelInline && <p className="truncate text-sm text-gray-500">{label}</p>}
-        <p className="mt-1 truncate text-2xl font-bold text-gray-900">{value}</p>
+        {isLoading ? (
+          <div
+            className="mt-2 h-8 w-16 animate-pulse rounded-md bg-slate-200"
+            aria-hidden="true"
+            data-testid="stat-card-skeleton"
+          />
+        ) : (
+          <p className="mt-1 truncate text-2xl font-bold text-gray-900">{value}</p>
+        )}
         {helper && <p className="mt-1 truncate text-xs text-gray-500">{helper}</p>}
         {badge && (
           <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${danger ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>

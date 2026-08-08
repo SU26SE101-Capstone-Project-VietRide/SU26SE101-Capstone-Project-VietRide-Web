@@ -24,13 +24,14 @@ import {
 import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import { StatCard } from "../../../components/StatCard";
+import { formatCurrency } from "../../../utils/currency";
 
 type WalletTab = "transactions" | "settlements" | "ledger";
 
 const pageSize = 10;
 
 function formatMoney(value: number) {
-  return `${value.toLocaleString("vi-VN")} đ`;
+  return formatCurrency(value);
 }
 
 function formatDate(value: string | null) {
@@ -271,8 +272,8 @@ function settlementStatusClass(status: TripSettlementStatus) {
 function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Translate }) {
   return (
     <div className="overflow-x-auto p-4">
-      <table className="w-full table-fixed text-sm">
-        <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+      <table className="w-full table-fixed text-center text-sm">
+        <thead><tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
           <th className="px-4 py-3">{t("wallet.time")}</th>
           <th className="px-4 py-3">{t("wallet.cashFlow")}</th>
           <th className="px-4 py-3">{t("wallet.change")}</th>
@@ -303,8 +304,8 @@ function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Transla
 function SettlementTable({ items, t }: { items: TripSettlement[]; t: Translate }) {
   return (
     <div className="overflow-x-auto p-4">
-      <table className="w-full table-fixed text-sm">
-        <thead><tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+      <table className="w-full table-fixed text-center text-sm">
+        <thead><tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
           <th className="px-4 py-3">{t("wallet.paymentTime")}</th>
           <th className="px-4 py-3">{t("wallet.receivedAmount")}</th>
           <th className="px-4 py-3">{t("wallet.statusLabel")}</th>
@@ -328,8 +329,8 @@ function LedgerTable({ items, t }: { items: OperatorLedgerEntry[]; t: Translate 
   const { t: tc } = useTranslation("common");
   return (
     <div className="overflow-x-auto">
-      <table className="w-full table-fixed text-sm">
-        <thead><tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+      <table className="w-full table-fixed text-center text-sm">
+        <thead><tr className="bg-gray-50 text-center text-xs font-semibold uppercase text-gray-600">
           <th className="px-4 py-3">{t("wallet.datetime")}</th>
           <th className="px-4 py-3">{t("wallet.entryType")}</th>
           <th className="px-4 py-3">{t("wallet.amount")}</th>

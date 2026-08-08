@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiCreditCard, FiDownload, FiEye } from "react-icons/fi";
@@ -23,6 +24,7 @@ export default function OperatorInvoiceSection() {
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState("");
   const [error, setError] = useState("");
+  useToastFeedback({ error });
   const [detail, setDetail] = useState<OperatorInvoiceDetail | null>(null);
   const [detailLoadingId, setDetailLoadingId] = useState("");
   const pageSize = 8;
@@ -110,23 +112,15 @@ export default function OperatorInvoiceSection() {
           {t("packages.invoicesHint")}
         </p>
       </div>
-      {error && (
-        <div
-          role="alert"
-          className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-        >
-          {error}
-        </div>
-      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-              <th className="px-4 py-3">{t("packages.invoiceNumber")}</th>
-              <th className="px-4 py-3">{t("packages.period")}</th>
-              <th className="px-4 py-3">{t("packages.amount")}</th>
-              <th className="px-4 py-3">{t("packages.invoiceStatus")}</th>
-              <th className="px-4 py-3">{t("packages.invoiceFile")}</th>
+            <tr className="bg-gray-50 text-center text-xs font-semibold uppercase text-gray-600">
+              <th className="px-4 py-3 text-center">{t("packages.invoiceNumber")}</th>
+              <th className="px-4 py-3 text-center">{t("packages.period")}</th>
+              <th className="px-4 py-3 text-center">{t("packages.amount")}</th>
+              <th className="px-4 py-3 text-center">{t("packages.invoiceStatus")}</th>
+              <th className="px-4 py-3 text-center">{t("packages.invoiceFile")}</th>
               <th className="px-4 py-3 text-center">{t("packages.action")}</th>
             </tr>
           </thead>
@@ -146,17 +140,17 @@ export default function OperatorInvoiceSection() {
                   key={invoice.invoiceId}
                   className="border-t border-gray-100"
                 >
-                  <td className="px-4 py-3 font-semibold">
+                  <td className="px-4 py-3 text-center font-semibold">
                     {invoice.invoiceNumber}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-center text-gray-600">
                     {formatDateOnly(invoice.periodFrom)} -{" "}
                     {formatDateOnly(invoice.periodTo)}
                   </td>
-                  <td className="px-4 py-3 font-semibold">
+                  <td className="px-4 py-3 text-center font-semibold">
                     {formatNumber(invoice.amount)} đ
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-center">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
                         invoice.status === "ISSUED"
@@ -169,12 +163,12 @@ export default function OperatorInvoiceSection() {
                       })}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-center">
                     {tc(`enumLabels.${invoice.pdfGenerationStatus}`, {
                       defaultValue: invoice.pdfGenerationStatus,
                     })}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-2">
                       <button
                         type="button"

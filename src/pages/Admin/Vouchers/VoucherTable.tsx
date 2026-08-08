@@ -58,25 +58,25 @@ export default function VoucherTable({
         </colgroup>
         <thead className="border-b border-gray-200 bg-gray-50">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
+            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
               {t("vouchers.code")}
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
               {t("vouchers.name")}
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
+            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
               {t("vouchers.discount")}
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
+            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
               {t("vouchers.fundingAndScope")}
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
+            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
               {t("vouchers.used")}
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
+            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
               {tc("status")}
             </th>
-            <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-600">
+            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
               {tc("actions")}
             </th>
           </tr>
@@ -91,7 +91,7 @@ export default function VoucherTable({
 
             return (
               <tr key={voucher.id} className="border-t border-gray-200">
-                <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
                   <span
                     className="block truncate font-mono font-semibold text-vr-600"
                     title={voucher.code}
@@ -99,7 +99,7 @@ export default function VoucherTable({
                     {voucher.code}
                   </span>
                 </td>
-                <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
                   <p
                     className="truncate font-medium text-gray-900"
                     title={voucher.name}
@@ -113,14 +113,14 @@ export default function VoucherTable({
                     {voucher.description}
                   </p>
                 </td>
-                <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
                   <span className="block truncate text-base font-bold text-gray-900">
                     {discountTypeOf(voucher) === "percent"
                       ? `${discount}%`
-                      : `${formatNumber(discount)}₫`}
+                      : `${formatNumber(discount)} đ`}
                   </span>
                 </td>
-                <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
                   <p
                     className="truncate text-sm font-medium text-gray-900"
                     title={getFundingLabel(voucher.fundingType)}
@@ -134,8 +134,8 @@ export default function VoucherTable({
                     {getOperatorScopeLabel(voucher)}
                   </p>
                 </td>
-                <td className="overflow-hidden whitespace-nowrap px-2 py-4">
-                  <div className="w-full max-w-20">
+                <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
+                  <div className="mx-auto w-full max-w-20 text-center">
                     <div className="h-2 overflow-hidden rounded-full bg-gray-200">
                       <div
                         className="h-2 rounded-full bg-vr-500"
@@ -147,7 +147,7 @@ export default function VoucherTable({
                     </p>
                   </div>
                 </td>
-                <td className="overflow-hidden whitespace-nowrap px-2 py-4">
+                <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
                   <span
                     className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
                       activeOf(voucher)
@@ -158,8 +158,8 @@ export default function VoucherTable({
                     {activeOf(voucher) ? tc("active") : tc("inactive")}
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-2 py-4">
-                  <div className="flex justify-end gap-1">
+                <td className="whitespace-nowrap px-2 py-4 text-center">
+                  <div className="flex justify-center gap-1">
                     <button
                       type="button"
                       onClick={() => onView(voucher)}

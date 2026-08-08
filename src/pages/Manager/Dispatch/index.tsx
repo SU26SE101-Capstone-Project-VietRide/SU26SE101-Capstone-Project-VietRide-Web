@@ -23,7 +23,9 @@ import {
   type ShuttleRequestGroup,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import Pagination from "../../../components/Pagination";
+import { StatCard } from "../../../components/StatCard";
 import {
   addRecentShuttleTrip,
   getRecentShuttleTrips,
@@ -113,6 +115,7 @@ export default function DispatchPanel() {
     useState<AssignVehicleForm>(EMPTY_ASSIGN_FORM);
   const [assignError, setAssignError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  useToastFeedback({ message, error: loadError || resourceError || assignError });
   const isSubmittingRef = useRef(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
@@ -633,24 +636,6 @@ export default function DispatchPanel() {
         </button>
       </div>
 
-      {message && (
-        <div
-          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-          role="status"
-        >
-          {message}
-        </div>
-      )}
-
-      {loadError && (
-        <div
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-        >
-          {loadError}
-        </div>
-      )}
-
       {!canDispatchShuttle && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           {t("dispatch.staffReadOnly", {
@@ -661,36 +646,22 @@ export default function DispatchPanel() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium text-gray-500">
-                {t("dispatch.pendingGroups", {
-                  defaultValue: "Nhóm yêu cầu đang chờ",
-                })}
-              </p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
-                {totalItems}
-              </p>
-            </div>
-            <FiClock className="text-amber-600" size={22} aria-hidden="true" />
-          </div>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium text-gray-500">
-                {t("dispatch.passengersOnPage", {
-                  defaultValue: "Khách chờ trên trang hiện tại",
-                })}
-              </p>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
-                {passengersOnPage}
-              </p>
-            </div>
-            <FiUsers className="text-vr-600" size={22} aria-hidden="true" />
-          </div>
-        </div>
+        <StatCard
+          label={t("dispatch.pendingGroups", {
+            defaultValue: "Nhóm yêu cầu đang chờ",
+          })}
+          value={totalItems}
+          icon={<FiClock size={20} />}
+          iconClassName="bg-amber-50 text-amber-700"
+        />
+        <StatCard
+          label={t("dispatch.passengersOnPage", {
+            defaultValue: "Khách chờ trên trang hiện tại",
+          })}
+          value={passengersOnPage}
+          icon={<FiUsers size={20} />}
+          iconClassName="bg-vr-50 text-vr-700"
+        />
       </div>
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">

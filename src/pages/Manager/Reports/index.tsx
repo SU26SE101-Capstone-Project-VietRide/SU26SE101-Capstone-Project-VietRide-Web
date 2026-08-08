@@ -160,7 +160,7 @@ export default function ManagerReports() {
     setIsLoading(true);
     setLoadError("");
     try {
-      setAnalytics(await getOperatorRevenueAnalytics(month));
+      setAnalytics(await getOperatorRevenueAnalytics({ month }));
     } catch (error) {
       setAnalytics(null);
       setLoadError(
@@ -186,7 +186,7 @@ export default function ManagerReports() {
     () =>
       (analytics?.monthly ?? []).map((item) => ({
         month: monthLabel(item.month),
-        revenue: Math.round(item.revenueVnd),
+        revenue: Math.round(item.netRevenueVnd),
         trips: item.tripCount,
       })),
     [analytics],
@@ -203,8 +203,8 @@ export default function ManagerReports() {
 
   const distribution = useMemo(() => {
     if (!analytics) return [];
-    const ticket = analytics.summary.ticketRevenueVnd.currentValue;
-    const parcel = analytics.summary.parcelRevenueVnd.currentValue;
+    const ticket = analytics.summary.netTicketRevenueVnd.currentValue;
+    const parcel = analytics.summary.netParcelRevenueVnd.currentValue;
     const total = ticket + parcel;
 
     return [
@@ -267,22 +267,22 @@ export default function ManagerReports() {
         {
           key: "totalRevenue",
           label: t("reports.totalRevenue"),
-          value: formatCurrency(summary.totalRevenueVnd.currentValue),
-          metric: summary.totalRevenueVnd,
+          value: formatCurrency(summary.netRevenueVnd.currentValue),
+          metric: summary.netRevenueVnd,
         },
         {
           key: "avgPerTrip",
           label: t("reports.avgPerTripRow"),
           value: formatCurrency(
-            summary.averageRevenuePerTripVnd.currentValue,
+            summary.averageNetRevenuePerTripVnd.currentValue,
           ),
-          metric: summary.averageRevenuePerTripVnd,
+          metric: summary.averageNetRevenuePerTripVnd,
         },
         {
           key: "ticketRevenue",
           label: t("reports.onlineTicketRevenue"),
-          value: formatCurrency(summary.ticketRevenueVnd.currentValue),
-          metric: summary.ticketRevenueVnd,
+          value: formatCurrency(summary.netTicketRevenueVnd.currentValue),
+          metric: summary.netTicketRevenueVnd,
         },
       ]
     : [];
@@ -418,9 +418,9 @@ export default function ManagerReports() {
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {isLoading || !summary
               ? "-"
-              : formatCurrency(summary.totalRevenueVnd.currentValue)}
+              : formatCurrency(summary.netRevenueVnd.currentValue)}
           </p>
-          {summary && <TrendBadge metric={summary.totalRevenueVnd} />}
+          {summary && <TrendBadge metric={summary.netRevenueVnd} />}
         </div>
 
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
@@ -431,10 +431,10 @@ export default function ManagerReports() {
             {isLoading || !summary
               ? "-"
               : formatCurrency(
-                  summary.averageRevenuePerTripVnd.currentValue,
+                  summary.averageNetRevenuePerTripVnd.currentValue,
                 )}
           </p>
-          {summary && <TrendBadge metric={summary.averageRevenuePerTripVnd} />}
+          {summary && <TrendBadge metric={summary.averageNetRevenuePerTripVnd} />}
         </div>
 
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
@@ -444,9 +444,9 @@ export default function ManagerReports() {
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {isLoading || !summary
               ? "-"
-              : formatCurrency(summary.ticketRevenueVnd.currentValue)}
+              : formatCurrency(summary.netTicketRevenueVnd.currentValue)}
           </p>
-          {summary && <TrendBadge metric={summary.ticketRevenueVnd} />}
+          {summary && <TrendBadge metric={summary.netTicketRevenueVnd} />}
         </div>
 
         <div className="p-4 bg-white border border-gray-200 rounded-lg">
@@ -456,9 +456,9 @@ export default function ManagerReports() {
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {isLoading || !summary
               ? "-"
-              : formatCurrency(summary.parcelRevenueVnd.currentValue)}
+              : formatCurrency(summary.netParcelRevenueVnd.currentValue)}
           </p>
-          {summary && <TrendBadge metric={summary.parcelRevenueVnd} />}
+          {summary && <TrendBadge metric={summary.netParcelRevenueVnd} />}
         </div>
       </div>
 
@@ -500,7 +500,7 @@ export default function ManagerReports() {
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     {t("reports.chartRevenue")}
                   </span>
-                  <span className="text-xs text-gray-500">₫</span>
+                  <span className="text-xs text-gray-500">đ</span>
                 </div>
                 <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={monthlyChartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -655,7 +655,7 @@ export default function ManagerReports() {
                   {t("reports.totalRevenue")}
                 </span>
                 <span className="text-lg font-bold text-gray-900">
-                  {formatCurrency(summary.totalRevenueVnd.currentValue)}
+                  {formatCurrency(summary.netRevenueVnd.currentValue)}
                 </span>
               </div>
             </div>
@@ -733,3 +733,4 @@ export default function ManagerReports() {
     </div>
   );
 }
+

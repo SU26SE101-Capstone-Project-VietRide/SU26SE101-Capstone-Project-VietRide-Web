@@ -110,11 +110,11 @@ export function useStationManagement({
     const selected = stations.find(
       (station) => station.id === selectedStationId,
     );
-    if (!selected?.operatorStationId) {
+    if (!selected?.stationId) {
       setError(t("routes.stationSelectForShuttle"));
       return;
     }
-    await updateOperatorStation(selected.operatorStationId, {
+    await updateOperatorStation(selected.stationId, {
       supportsShuttle: stationSupportsShuttle,
     });
     setStations((current) =>
@@ -133,9 +133,21 @@ export function useStationManagement({
       return;
     }
 
-    await createOperatorStation({
+    const created = await createOperatorStation({
       stationId: selectedStationId,
     });
+    setStations((current) =>
+      current.map((station) =>
+        station.id === selectedStationId
+          ? {
+              ...station,
+              stationId: created.stationId ?? selectedStationId,
+              operatorStationId: created.id,
+              supportsShuttle: created.supportsShuttle ?? stationSupportsShuttle,
+            }
+          : station,
+      ),
+    );
     assignStationToRoute(selectedStationId);
     showMessage("station", t("routes.stationAttached"));
   }

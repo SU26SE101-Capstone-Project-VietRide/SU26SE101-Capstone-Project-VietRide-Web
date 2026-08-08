@@ -7,8 +7,10 @@ import {
   FiTrash2,
   FiCheck,
   FiX,
+  FiFileText,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import { ConfirmModal } from "../../../components/ConfirmModal";
 import Pagination from "../../../components/Pagination";
 import { formatDateOnly } from "../../../utils/date";
 import {
@@ -35,6 +37,7 @@ export default function ManagerPolicies() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState<PolicyItem | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PolicyItem | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -46,6 +49,7 @@ export default function ManagerPolicies() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const pageSize = 8;
 
   const loadPolicies = useCallback(async () => {
@@ -98,10 +102,11 @@ export default function ManagerPolicies() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t("policies.confirmDelete"))) return;
     setError("");
+    setMessage("");
     try {
       await deleteOperatorPolicy(id);
+      setMessage(t("policies.deletedSuccess"));
       await loadPolicies();
     } catch (reason) {
       setError(
@@ -112,11 +117,13 @@ export default function ManagerPolicies() {
 
   const handleToggleActive = async (policy: PolicyItem) => {
     setError("");
+    setMessage("");
     try {
       await updateOperatorPolicy(policy.id, {
         active: !policy.active,
         version: policy.version,
       });
+      setMessage(policy.active ? t("policies.deactivatedSuccess") : t("policies.activatedSuccess"));
       await loadPolicies();
     } catch (reason) {
       setError(
@@ -128,6 +135,7 @@ export default function ManagerPolicies() {
   const handleSave = async () => {
     setSaving(true);
     setError("");
+    setMessage("");
     try {
       const request = {
         ...formData,
@@ -142,6 +150,7 @@ export default function ManagerPolicies() {
       } else {
         await createOperatorPolicy(request);
       }
+      setMessage(t(selectedPolicy ? "policies.updatedSuccess" : "policies.createdSuccess"));
       setEditOpen(false);
       setCreateOpen(false);
       resetForm();
@@ -155,7 +164,7 @@ export default function ManagerPolicies() {
     }
   };
 
-  useToastFeedback({ error });
+  useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -285,7 +294,7 @@ export default function ManagerPolicies() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void handleDelete(policy.id)}
+                        onClick={() => setPendingDelete(policy)}
                         title={tc("delete")}
                         aria-label={tc("delete")}
                         className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-red-100 hover:text-red-600"
@@ -308,6 +317,8 @@ export default function ManagerPolicies() {
 
       <Modal
         open={createOpen || editOpen}
+        wide
+        icon={<FiFileText size={20} />}
         onClose={() => {
           setCreateOpen(false);
           setEditOpen(false);
@@ -318,14 +329,15 @@ export default function ManagerPolicies() {
             ? t("policies.editTitle", { title: selectedPolicy.title })
             : t("policies.createTitle")
         }
+        subtitle={t("policies.subtitle")}
       >
-        <div className="space-y-4">
-          <div>
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="md:col-span-2">
             <label className={labelClass}>{t("policies.titleLabel")}</label>
             <input
               type="text"
               placeholder={t("policies.titlePlaceholder")}
-              className={inputClass}
+              className={`${inputClass} rounded-xl transition focus:ring-4 focus:ring-vr-500/10`}
               value={formData.title}
               onChange={(e) =>
                 setFormData({ ...formData, title: e.target.value })
@@ -333,14 +345,14 @@ export default function ManagerPolicies() {
             />
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <label className={labelClass}>
               {t("policies.shortDescription")}
             </label>
             <input
               type="text"
               placeholder={t("policies.shortDescPlaceholder")}
-              className={inputClass}
+              className={`${inputClass} rounded-xl transition focus:ring-4 focus:ring-vr-500/10`}
               value={formData.description}
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
@@ -353,7 +365,7 @@ export default function ManagerPolicies() {
             <input
               type="text"
               placeholder={t("policies.categoryPlaceholder")}
-              className={inputClass}
+              className={`${inputClass} rounded-xl transition focus:ring-4 focus:ring-vr-500/10`}
               value={formData.category}
               onChange={(e) =>
                 setFormData({ ...formData, category: e.target.value })
@@ -361,12 +373,12 @@ export default function ManagerPolicies() {
             />
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <label className={labelClass}>{t("policies.contentLabel")}</label>
             <textarea
               placeholder={t("policies.contentPlaceholder")}
-              className={`${inputClass} resize-none font-mono text-xs`}
-              rows={8}
+              className={`${inputClass} min-h-28 max-h-36 resize-none rounded-xl leading-6 transition focus:ring-4 focus:ring-vr-500/10`}
+              rows={4}
               value={formData.content}
               onChange={(e) =>
                 setFormData({ ...formData, content: e.target.value })
@@ -377,7 +389,7 @@ export default function ManagerPolicies() {
             </p>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          <div className="md:col-span-2 flex gap-3 pt-2">
             <button
               type="button"
               onClick={() => {
@@ -385,7 +397,7 @@ export default function ManagerPolicies() {
                 setEditOpen(false);
                 resetForm();
               }}
-              className="flex-1 rounded-lg border border-gray-200 bg-white py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              className="flex-1 rounded-xl border border-gray-200 bg-white py-2.5 font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
             >
               {tc("cancel")}
             </button>
@@ -393,13 +405,24 @@ export default function ManagerPolicies() {
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="flex-1 rounded-lg bg-vr-500 py-2 font-medium text-white transition-colors hover:bg-vr-600"
+              className="flex-1 rounded-xl bg-vr-500 py-2.5 font-semibold text-white shadow-sm transition hover:bg-vr-600 disabled:opacity-60"
             >
               {saving ? t("policies.saving") : selectedPolicy ? tc("update") : tc("create")}
             </button>
           </div>
         </div>
       </Modal>
+      <ConfirmModal
+        open={Boolean(pendingDelete)}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete.id); setPendingDelete(null); }}
+        title={tc("delete")}
+        message={t("policies.confirmDelete")}
+        children={pendingDelete && (          <div className="rounded-2xl border border-red-100 bg-red-50 p-4">            <p className="text-sm font-semibold text-red-900">{pendingDelete.title}</p>            <p className="mt-1 text-sm leading-5 text-red-800/80">{pendingDelete.description}</p>            <span className="mt-3 inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-red-700">{pendingDelete.category}</span>          </div>        )}
+        confirmLabel={tc("delete")}
+        cancelLabel={tc("cancel")}
+        tone="danger"
+      />
     </div>
   );
 }

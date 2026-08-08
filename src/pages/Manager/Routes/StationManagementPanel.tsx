@@ -6,7 +6,6 @@ import CustomSelect from "../../../components/CustomSelect";
 import PlacePicker from "../../../components/PlacePicker";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import type { AdminLocation } from "../../../api/vietride";
-import InlineFeedback from "./InlineFeedback";
 import type { UseStationManagementResult } from "./useStationManagement";
 import type { StationOption, StationRouteRole } from "./types";
 
@@ -16,7 +15,6 @@ type StationManagementPanelProps = {
   locations: AdminLocation[];
   manager: UseStationManagementResult;
   onRunAction: (action: () => Promise<void>) => void;
-  feedbackMessage: string;
 };
 
 export default function StationManagementPanel({
@@ -25,7 +23,6 @@ export default function StationManagementPanel({
   locations,
   manager,
   onRunAction,
-  feedbackMessage,
 }: StationManagementPanelProps) {
   const { t } = useTranslation("manager");
 
@@ -188,7 +185,6 @@ export default function StationManagementPanel({
           </div>
         </div>
       )}
-      <InlineFeedback message={feedbackMessage} />
     </div>
   );
 }

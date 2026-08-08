@@ -137,6 +137,7 @@ export function Select({ label, value, onChange, children }: SelectProps) {
       <label className={labelClass}>{label}</label>
       <CustomSelect
         className={inputClass}
+        allowWrap
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

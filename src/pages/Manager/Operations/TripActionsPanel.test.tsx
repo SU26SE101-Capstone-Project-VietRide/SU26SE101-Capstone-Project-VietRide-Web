@@ -179,6 +179,7 @@ describe("TripActionsPanel", () => {
       screen.getByRole("button", { name: "tripOperations.substitute" }),
     );
 
+    await user.click(screen.getByRole("button", { name: "confirm" }));
     expect(substituteOperatorTripVehicle).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
@@ -205,7 +206,7 @@ describe("TripActionsPanel", () => {
       screen.getByRole("button", { name: "tripOperations.disrupt" }),
     );
 
-    expect(window.confirm).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "confirm" }));
     expect(disruptOperatorTripNoSubstitution).toHaveBeenCalledWith("trip-1", {
       reason: "Storm",
     });
@@ -235,7 +236,7 @@ describe("TripActionsPanel", () => {
       screen.getByRole("button", { name: "tripOperations.changeRouteApply" }),
     );
 
-    expect(window.confirm).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "confirm" }));
     expect(changeOperatorTripRoute).toHaveBeenCalledWith("trip-1", {
       alternativeRouteId: "alt-1",
     });

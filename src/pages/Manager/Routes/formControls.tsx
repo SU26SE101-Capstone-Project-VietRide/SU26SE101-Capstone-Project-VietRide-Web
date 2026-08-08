@@ -63,6 +63,7 @@ export function StationSelect({
       <label className={labelClass}>{label}</label>
       <CustomSelect
         className={inputClass}
+        allowWrap
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}

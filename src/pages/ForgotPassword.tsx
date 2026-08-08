@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FiArrowLeft, FiArrowRight, FiKey, FiLock, FiMail } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import { useToastFeedback } from "../hooks/useToastFeedback";
 import { requestForgotPassword, resetPassword } from "../api/vietride";
 import logo from "../assets/Login/logo.svg";
 import login_2 from "../assets/Login/login_2.png";
@@ -18,6 +19,7 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useToastFeedback({ message, error });
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -146,24 +148,6 @@ export default function ForgotPassword() {
                 {t("forgotPasswordPage.subtitle")}
               </p>
 
-              {error && (
-                <div
-                  className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                  role="alert"
-                >
-                  {error}
-                </div>
-              )}
-
-              {message && (
-                <div
-                  className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-                  role="status"
-                >
-                  {message}
-                </div>
-              )}
-
               <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-800">
@@ -276,3 +260,6 @@ export default function ForgotPassword() {
     </div>
   );
 }
+
+
+

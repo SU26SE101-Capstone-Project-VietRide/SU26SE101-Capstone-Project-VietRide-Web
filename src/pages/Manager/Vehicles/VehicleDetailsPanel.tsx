@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiArrowLeft, FiArrowRight, FiEdit2, FiInfo, FiSave, FiX } from "react-icons/fi";
@@ -51,7 +52,6 @@ type VehicleDetailsPanelProps = {
   originalSeatLayout: SeatLayoutJson | null;
   isSeatDirty: boolean;
   seatChangeCount: number;
-  seatError: string;
   discardPrompt: boolean;
   onModeChange: (mode: VehiclePanelMode) => void;
   onCloseRequest: () => void;
@@ -214,7 +214,6 @@ export function VehicleDetailsPanel({
   originalSeatLayout,
   isSeatDirty,
   seatChangeCount,
-  seatError,
   discardPrompt,
   onModeChange,
   onCloseRequest,
@@ -293,7 +292,7 @@ export function VehicleDetailsPanel({
     }));
   }
 
-  return (
+  return createPortal((
     <>
       <button type="button" className="fixed inset-0 z-40 bg-slate-950/25 backdrop-blur-[1px]" aria-label={tc("close")} disabled={isBusy} onClick={onCloseRequest} />
       <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col border-l border-gray-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="vehicle-panel-title">
@@ -353,7 +352,7 @@ export function VehicleDetailsPanel({
                 <StatBadge label={t("vehicles.passengerSeats", { defaultValue: "Tổng ghế khách" })} value={String(stats.passengerSeats)} tone="slate" />
               </div>
 
-              {seatError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{seatError}</div>}
+              
               {isCreate ? (
                 <VehicleSeatLayout
                   layout={createLayout}
@@ -419,6 +418,7 @@ export function VehicleDetailsPanel({
           </div>
         )}
       </aside>
-    </>
+    </>),
+    document.body,
   );
 }

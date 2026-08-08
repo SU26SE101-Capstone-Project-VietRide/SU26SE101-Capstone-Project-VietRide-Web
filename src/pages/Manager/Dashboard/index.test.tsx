@@ -86,11 +86,10 @@ describe("Manager Dashboard", () => {
 
     vi.mocked(getOperatorBookingStats).mockResolvedValue({
       items: [
-        { date: "2026-07-15", totalBookings: 80, totalRevenue: 8_000_000 },
-        { date: "2026-08-01", totalBookings: 30, totalRevenue: 3_000_000 },
+        { date: "2026-07-15", totalBookings: 80 },
+        { date: "2026-08-01", totalBookings: 30 },
       ],
       totalBookings: 110,
-      totalRevenue: 11_000_000,
     });
     vi.mocked(getOperatorVehicles).mockResolvedValue({
       items: [
@@ -115,29 +114,30 @@ describe("Manager Dashboard", () => {
       period: {
         month: "2026-08",
         timezone: "Asia/Ho_Chi_Minh",
+        groupBy: "month",
         from: "2026-08-01",
         to: "2026-08-31",
       },
       summary: {
-        totalRevenueVnd: {
+        netRevenueVnd: {
           currentValue: 9_000_000,
           previousValue: 12_000_000,
           changePercent: -25,
           trend: "DOWN",
         },
-        ticketRevenueVnd: {
+        netTicketRevenueVnd: {
           currentValue: 4_000_000,
           previousValue: 8_000_000,
           changePercent: -50,
           trend: "DOWN",
         },
-        parcelRevenueVnd: {
+        netParcelRevenueVnd: {
           currentValue: 5_000_000,
           previousValue: 4_000_000,
           changePercent: 25,
           trend: "UP",
         },
-        averageRevenuePerTripVnd: {
+        averageNetRevenuePerTripVnd: {
           currentValue: 2_000_000,
           previousValue: 2_000_000,
           changePercent: 0,
@@ -147,16 +147,16 @@ describe("Manager Dashboard", () => {
       monthly: [
         {
           month: "2026-07",
-          revenueVnd: 12_000_000,
-          ticketRevenueVnd: 8_000_000,
-          parcelRevenueVnd: 4_000_000,
+          netRevenueVnd: 12_000_000,
+          netTicketRevenueVnd: 8_000_000,
+          netParcelRevenueVnd: 4_000_000,
           tripCount: 7,
         },
         {
           month: "2026-08",
-          revenueVnd: 9_000_000,
-          ticketRevenueVnd: 4_000_000,
-          parcelRevenueVnd: 5_000_000,
+          netRevenueVnd: 9_000_000,
+          netTicketRevenueVnd: 4_000_000,
+          netParcelRevenueVnd: 5_000_000,
           tripCount: 2,
         },
       ],
@@ -170,7 +170,7 @@ describe("Manager Dashboard", () => {
           completedTripCount: 4,
           bookingCount: 70,
           parcelCount: 12,
-          revenueVnd: 7_000_000,
+          netRevenueVnd: 7_000_000,
           completionRatePercent: 80,
         },
       ],
@@ -232,7 +232,7 @@ describe("Manager Dashboard", () => {
     const revenueLabel = await screen.findByText("dashboard.revenue");
     const revenueCard = revenueLabel.parentElement?.parentElement
       ?.parentElement as HTMLElement;
-    expect(within(revenueCard).getByText("4.000.000 ₫")).toBeInTheDocument();
+    expect(within(revenueCard).getByText("9.000.000 đ")).toBeInTheDocument();
 
     const bookingLabel = screen.getByText("dashboard.bookings");
     const bookingCard = bookingLabel.parentElement?.parentElement
@@ -250,7 +250,7 @@ describe("Manager Dashboard", () => {
 
     const chartData = screen.getAllByTestId("route-chart")[0].getAttribute("data-chart");
     expect(chartData).toContain('"monthKey":"2026-08"');
-    expect(chartData).toContain('"revenue":4000000');
+    expect(chartData).toContain('"revenue":9000000');
     expect(chartData).toContain('"bookings":30');
     expect(chartData).not.toContain('"bookings":2');
   });
@@ -272,10 +272,19 @@ describe("Manager Dashboard", () => {
         to: "2026-08-02",
         groupBy: "date",
       });
-      expect(getOperatorRevenueAnalytics).toHaveBeenCalledWith("2026-08");
+      expect(getOperatorRevenueAnalytics).toHaveBeenCalledWith({ month: "2026-08" });
       expect(getOperatorTrips).toHaveBeenCalledWith(
         expect.objectContaining({ status: "IN_PROGRESS" }),
       );
     });
   });
 });
+
+
+
+
+
+
+
+
+

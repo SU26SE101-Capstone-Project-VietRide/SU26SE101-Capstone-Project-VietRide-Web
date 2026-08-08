@@ -8,6 +8,7 @@ import {
   getOperatorRoutes,
   getOperatorUsers,
   getOperatorVehicles,
+  getVehicleTypes,
   updateOperatorDriverSchedule,
 } from "../../../api/vietride";
 import ToastProvider from "../../../components/toast/ToastProvider";
@@ -36,6 +37,7 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorRoutes: vi.fn(),
   getOperatorUsers: vi.fn(),
   getOperatorVehicles: vi.fn(),
+  getVehicleTypes: vi.fn(),
   updateOperatorDriverSchedule: vi.fn(),
 }));
 
@@ -87,6 +89,15 @@ describe("TripsPage", () => {
           status: "ACTIVE",
         },
       ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    vi.mocked(getVehicleTypes).mockResolvedValue({
+      items: [{ id: "type-1", code: "SLEEPER", displayName: "Xe giường nằm", defaultSeatCount: 40, estimatedPassengerLuggageKgPerSeat: 10, isSystemDefined: true, isActive: true }],
       page: 1,
       pageSize: 100,
       totalItems: 1,
@@ -170,7 +181,7 @@ describe("TripsPage", () => {
     renderPage();
 
     // 4 thẻ KPI đều là skeleton, không thẻ nào hiện số 0
-    expect(screen.getAllByTestId("metric-card-skeleton")).toHaveLength(4);
+    expect(screen.getAllByTestId("stat-card-skeleton")).toHaveLength(4);
     expect(screen.queryByText("0")).not.toBeInTheDocument();
     // Bảng hiện hàng skeleton thay vì empty-state "chưa có lịch"
     expect(screen.getByTestId("schedules-table-skeleton")).toBeInTheDocument();
@@ -247,10 +258,10 @@ describe("TripsPage", () => {
       "trips.availableVehicles",
       "trips.availableDrivers",
     ]) {
-      const card = screen.getByText(labelKey).parentElement as HTMLElement;
+      const card = screen.getByText(labelKey).parentElement?.parentElement?.parentElement as HTMLElement;
       expect(within(card).getByText("1")).toBeInTheDocument();
       expect(
-        within(card).queryByTestId("metric-card-skeleton"),
+        within(card).queryByTestId("stat-card-skeleton"),
       ).not.toBeInTheDocument();
     }
 
@@ -259,7 +270,7 @@ describe("TripsPage", () => {
     const openCard = screen.getByText("trips.openSchedules")
       .parentElement as HTMLElement;
     expect(
-      within(openCard).queryByTestId("metric-card-skeleton"),
+      within(openCard).queryByTestId("stat-card-skeleton"),
     ).not.toBeInTheDocument();
   });
 
@@ -267,14 +278,11 @@ describe("TripsPage", () => {
     renderPage();
 
     const label = await screen.findByText("trips.availableDrivers");
-    const card = label.parentElement;
+    const card = label.parentElement?.parentElement?.parentElement;
     expect(card).not.toBeNull();
     await waitFor(() => {
       expect(within(card as HTMLElement).getByText("1")).toBeInTheDocument();
     });
-    expect(
-      within(card as HTMLElement).getByText("trips.activeDriversHelper"),
-    ).toBeInTheDocument();
   });
 
   it("opens the schedule form modal from the create button", async () => {

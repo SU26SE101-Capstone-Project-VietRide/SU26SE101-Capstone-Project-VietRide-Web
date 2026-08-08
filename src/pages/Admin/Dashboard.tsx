@@ -93,7 +93,7 @@ function mapDashboardChart(
   revenueItems.forEach((item) => {
     points.set(item.month, {
       month: monthLabel(item.month),
-      revenue: item.grossRevenueVnd,
+      revenue: item.revenue.netTransportRevenueVnd,
       bookings: 0,
     });
   });
@@ -224,13 +224,13 @@ export default function AdminDashboard() {
   const adminKPIs = [
     {
       label: t("dashboard.totalRevenue"),
-      value: metrics ? formatCurrency(metrics.totalRevenue.currentValue) : "-",
+      value: metrics ? formatCurrency(metrics.totalProjectRevenueVnd.currentValue) : "-",
       previous: metrics
-        ? formatCurrency(metrics.totalRevenue.previousValue)
+        ? formatCurrency(metrics.totalProjectRevenueVnd.previousValue)
         : "-",
       trend: metrics
         ? metricTrend(
-            metrics.totalRevenue,
+            metrics.totalProjectRevenueVnd,
             t("dashboard.newGrowth"),
             t("dashboard.newGrowthHint"),
           )
@@ -338,9 +338,12 @@ export default function AdminDashboard() {
         periodTo: t("revenue.csvPeriodTo"),
         timezone: t("revenue.csvTimezone"),
         month: t("revenue.csvMonth"),
-        grossRevenue: t("revenue.csvGrossRevenue"),
+        totalProjectRevenue: t("revenue.csvTotalProjectRevenue"),
+        netTransportRevenue: t("revenue.csvNetTransportRevenue"),
+        netTicketRevenue: t("revenue.csvNetTicketRevenue"),
+        netParcelRevenue: t("revenue.csvNetParcelRevenue"),
+        subscriptionRevenue: t("revenue.csvSubscriptionRevenue"),
         paidToOperators: t("revenue.csvPaidToOperators"),
-        platformRevenue: t("revenue.csvPlatformRevenue"),
       });
       return;
     }
@@ -716,3 +719,6 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+
+
