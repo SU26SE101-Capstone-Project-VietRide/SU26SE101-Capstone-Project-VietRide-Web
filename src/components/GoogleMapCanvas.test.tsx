@@ -367,4 +367,104 @@ describe("GoogleMapCanvas", () => {
     expect(cancelAnimationFrameMock).toHaveBeenCalledWith(42);
     expect(mapCreated).not.toHaveBeenCalled();
   });
+
+  // Overlay neo card (OverlayView) dựng full mock google.maps.OverlayView tốn
+  // công hơn giá trị mang lại (phải giả lập panes + projection thật) — test này
+  // chỉ khẳng định TRADE-OFF tối thiểu: đổi anchorPosition qua lại (kể cả khi
+  // OverlayView không có trong mock library) và unmount không crash. Việc vẽ
+  // đúng vị trí pixel đã được cover gián tiếp qua test RouteDesignMap (assert
+  // anchorPosition truyền đúng lat/lng của gợi ý).
+  it("không crash khi anchorPosition/anchorContent đổi hoặc về null", async () => {
+    class Map {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      fitBounds() {}
+
+      panTo() {}
+
+      setCenter() {}
+
+      setZoom() {}
+    }
+
+    class Circle {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      setMap() {}
+    }
+
+    class InfoWindow {
+      close() {}
+
+      open() {}
+
+      setContent() {}
+
+      setPosition() {}
+    }
+
+    class LatLngBounds {
+      extend() {}
+
+      isEmpty() {
+        return true;
+      }
+    }
+
+    class Polyline {
+      setMap() {}
+    }
+
+    loadGoogleMapsLibraryMock.mockResolvedValue({
+      Circle,
+      InfoWindow,
+      LatLngBounds,
+      Map,
+      Polyline,
+    } as unknown as GoogleMapsLibrary);
+
+    const view = render(
+      <GoogleMapCanvas
+        ariaLabel="Route map"
+        anchorContent={<span>popup</span>}
+        anchorPosition={{ lat: 10.8, lng: 106.7 }}
+        center={{ lat: 10.8, lng: 106.7 }}
+        zoom={12}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(loadGoogleMapsLibraryMock).toHaveBeenCalled();
+    });
+
+    expect(() =>
+      view.rerender(
+        <GoogleMapCanvas
+          ariaLabel="Route map"
+          anchorContent={<span>popup</span>}
+          anchorPosition={{ lat: 11.1, lng: 107.2 }}
+          center={{ lat: 10.8, lng: 106.7 }}
+          zoom={12}
+        />,
+      ),
+    ).not.toThrow();
+
+    expect(() =>
+      view.rerender(
+        <GoogleMapCanvas
+          ariaLabel="Route map"
+          anchorContent={null}
+          anchorPosition={null}
+          center={{ lat: 10.8, lng: 106.7 }}
+          zoom={12}
+        />,
+      ),
+    ).not.toThrow();
+
+    expect(() => view.unmount()).not.toThrow();
+  });
 });

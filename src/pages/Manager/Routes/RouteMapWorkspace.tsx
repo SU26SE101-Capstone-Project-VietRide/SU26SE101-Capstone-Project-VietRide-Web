@@ -1,8 +1,11 @@
-// Tab gộp "Thông tin + Điểm dừng" dạng map-first: thanh điều khiển hình học
-// nằm NGOÀI bản đồ (thanh ngang mỏng ngay trên map — không che logo/attribution
-// Google, không đè thao tác kéo), gồm cả badge "Chưa lưu thay đổi" + nút "Lưu
-// tuyến" ở mép phải. Bản đồ full-bleed bên dưới, chỉ còn panel nổi bên trái +
-// bubble/marker. Thuần bố cục — logic API/hook giữ nguyên.
+// Khung bản đồ dùng chung cho tab "Thông tin" và tab "Điểm dừng" (map-first):
+// thanh điều khiển hình học nằm NGOÀI bản đồ (thanh ngang mỏng ngay trên map —
+// không che logo/attribution Google, không đè thao tác kéo), gồm cả badge
+// "Chưa lưu thay đổi" + nút "Lưu tuyến" ở mép phải. Bản đồ full-bleed bên dưới,
+// chỉ còn panel nổi bên trái + bubble/marker. Nội dung panel nổi đổi theo
+// `panelMode`: "info" → form tuyến; "stops" → danh sách + tìm điểm dừng (chấm
+// gợi ý trên map chỉ bật ở mode này). Marker số thứ tự stop đã gắn (stopMarkers)
+// luôn hiện trên map ở CẢ hai mode.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { FiSave } from "react-icons/fi";
@@ -16,12 +19,16 @@ import RouteFloatingPanel from "./RouteFloatingPanel";
 import RouteFormSection from "./RouteFormSection";
 import RoutePanelStopsSection from "./RoutePanelStopsSection";
 import GeometryToolbar from "./GeometryToolbar";
-import type { RouteMapPoint, StationOption } from "./types";
+import type { RouteMapPoint, StationOption, StopSuggestion } from "./types";
 import type { UseRouteGeometryResult } from "./useRouteGeometry";
 import type { UseRouteStopEditorResult } from "./useRouteStopEditor";
-import type { UseStopFormResult } from "./useStopForm";
+import type { RouteTab } from "./routeFormUtils";
 
 type RouteMapWorkspaceProps = {
+  // Nội dung panel nổi hiện theo tab đang mở: "info" = form tuyến, "stops" =
+  // danh sách + tìm điểm dừng. Chỉ nhận 2 giá trị này (workspace không render
+  // ở tab "alternatives").
+  panelMode: Extract<RouteTab, "info" | "stops">;
   canManageRoutes: boolean;
   routes: OperatorRoute[];
   stations: StationOption[];
@@ -39,18 +46,29 @@ type RouteMapWorkspaceProps = {
   stops: OperatorStop[];
   selectedStopId: string;
   onSelectStop: (stopId: string) => void;
-  stopFormControl: UseStopFormResult;
   stopEditor: UseRouteStopEditorResult;
-  canEstimate: boolean;
-  stopFeedbackMessage: string;
+  // Chấm gợi ý (kho nhà xe/Google) truyền xuống map — chỉ có nội dung khi
+  // panelMode === "stops" (caller đã gate theo tab), render mảng rỗng ở info
+  suggestions: StopSuggestion[];
+  onAddSuggestion: (
+    suggestion: StopSuggestion,
+    options: { allowPickup: boolean; allowDropoff: boolean },
+  ) => void;
+  isAddingSuggestion: boolean;
+  // Gợi ý được chọn từ ô search panel — object mới mỗi lần chọn để re-trigger
+  // popup trên bản đồ (RouteDesignMap prop externalActiveSuggestion)
+  pickedSuggestion: StopSuggestion | null;
+  onPickSearchResult: (result: StopSuggestion) => void;
+  // Đang tải gợi ý Google Places dọc tuyến — hiện dòng loading nhỏ trong panel
+  isLoadingSuggestions: boolean;
   routeStopFeedbackMessage: string;
   isDirty: boolean;
   isSaving: boolean;
   onSaveRoute: () => void;
-  onRunAction: (action: () => Promise<void>) => void;
 };
 
 export default function RouteMapWorkspace({
+  panelMode,
   canManageRoutes,
   routes,
   stations,
@@ -65,32 +83,47 @@ export default function RouteMapWorkspace({
   stops,
   selectedStopId,
   onSelectStop,
-  stopFormControl,
   stopEditor,
-  canEstimate,
-  stopFeedbackMessage,
+  suggestions,
+  onAddSuggestion,
+  isAddingSuggestion,
+  pickedSuggestion,
+  onPickSearchResult,
+  isLoadingSuggestions,
   routeStopFeedbackMessage,
   isDirty,
   isSaving,
   onSaveRoute,
-  onRunAction,
 }: RouteMapWorkspaceProps) {
   const { t } = useTranslation("manager");
   // Có đường đi (tính/vẽ) → khóa 2 ô số liệu form (server bỏ qua manualMetrics)
   const metricsLocked =
     geometry.routePathPoints.length >= 2 && !geometry.isEditingGeometry;
   // Marker đánh số 1..N theo orderIndex — memo để mảng pointMarkers của map
-  // không đổi identity vô cớ (GoogleMapCanvas gỡ + vẽ lại overlay theo identity)
+  // không đổi identity vô cớ (GoogleMapCanvas gỡ + vẽ lại overlay theo identity).
+  // Kèm dữ liệu để RouteDesignMap dựng card chi tiết kiểu Google Maps khi bấm
+  // marker: googlePlaceId/địa chỉ ưu tiên lấy từ draft, thiếu thì fallback sang
+  // OperatorStop cùng stopId trong kho `stops` (draft nạp từ server không có
+  // field googlePlaceId — chỉ draft mới thêm qua chấm gợi ý Google mới có).
   const stopMarkers = useMemo<RouteStopMarker[]>(
     () =>
-      stopEditor.currentRouteStops.map((stop) => ({
-        stopId: stop.stopId,
-        orderIndex: stop.orderIndex,
-        name: stop.stopName,
-        latitude: stop.latitude,
-        longitude: stop.longitude,
-      })),
-    [stopEditor.currentRouteStops],
+      stopEditor.currentRouteStops.map((stop) => {
+        const catalogStop = stops.find((item) => item.id === stop.stopId);
+
+        return {
+          stopId: stop.stopId,
+          orderIndex: stop.orderIndex,
+          name: stop.stopName,
+          latitude: stop.latitude,
+          longitude: stop.longitude,
+          address: catalogStop?.address ?? null,
+          googlePlaceId: stop.googlePlaceId ?? catalogStop?.googlePlaceId ?? null,
+          distanceFromOriginKm: stop.distanceFromOriginKm,
+          estimatedDurationFromOriginMinutes:
+            stop.estimatedDurationFromOriginMinutes,
+        };
+      }),
+    [stopEditor.currentRouteStops, stops],
   );
 
   return (
@@ -129,32 +162,35 @@ export default function RouteMapWorkspace({
       />
 
       <div className="lg:relative">
-        {/* Panel nổi: desktop absolute trên map, mobile khối tĩnh phía trên */}
+        {/* Panel nổi: desktop absolute trên map, mobile khối tĩnh phía trên.
+            Nội dung đổi hẳn theo tab — mode info chỉ có form tuyến, mode stops
+            chỉ có mục điểm dừng (đã tách thành tab riêng, không còn gộp chung). */}
         <RouteFloatingPanel>
-        <RouteFormSection
-          canManageRoutes={canManageRoutes}
-          routes={routes}
-          stations={stations}
-          selectedRouteId={selectedRouteId}
-          form={routeForm}
-          onUpdateField={onUpdateField}
-          feedbackMessage={routeFeedbackMessage}
-          isAutoCalculatingMetrics={isAutoCalculatingMetrics}
-          autoMetricsFallback={autoMetricsFallback}
-          metricsLocked={metricsLocked}
-        />
-        <RoutePanelStopsSection
-          canManageRoutes={canManageRoutes}
-          stops={stops}
-          selectedStopId={selectedStopId}
-          onSelectStop={onSelectStop}
-          stopFormControl={stopFormControl}
-          stopEditor={stopEditor}
-          canEstimate={canEstimate}
-          onRunAction={onRunAction}
-          stopFeedbackMessage={stopFeedbackMessage}
-          routeStopFeedbackMessage={routeStopFeedbackMessage}
-        />
+        {panelMode === "info" ? (
+          <RouteFormSection
+            canManageRoutes={canManageRoutes}
+            routes={routes}
+            stations={stations}
+            selectedRouteId={selectedRouteId}
+            form={routeForm}
+            onUpdateField={onUpdateField}
+            feedbackMessage={routeFeedbackMessage}
+            isAutoCalculatingMetrics={isAutoCalculatingMetrics}
+            autoMetricsFallback={autoMetricsFallback}
+            metricsLocked={metricsLocked}
+          />
+        ) : (
+          <RoutePanelStopsSection
+            canManageRoutes={canManageRoutes}
+            stops={stops}
+            selectedStopId={selectedStopId}
+            onSelectStop={onSelectStop}
+            stopEditor={stopEditor}
+            onPickSearchResult={onPickSearchResult}
+            isLoadingSuggestions={isLoadingSuggestions}
+            routeStopFeedbackMessage={routeStopFeedbackMessage}
+          />
+        )}
         </RouteFloatingPanel>
 
         {/* Bản đồ full-bleed: mobile ~420px, desktop ~viewport trừ header —
@@ -169,6 +205,18 @@ export default function RouteMapWorkspace({
             stopMarkers={stopMarkers}
             selectedStopId={selectedStopId}
             onSelectStop={onSelectStop}
+            onRequestRemoveStop={
+              canManageRoutes
+                ? (stopId) => {
+                    const draft = stopEditor.currentRouteStops.find(
+                      (item) => item.stopId === stopId,
+                    );
+                    if (draft) {
+                      stopEditor.setRouteStopPendingRemoval(draft);
+                    }
+                  }
+                : undefined
+            }
             routeOptions={geometry.routeOptions}
             selectedOptionIndex={geometry.selectedOptionIndex}
             onSelectOption={
@@ -194,6 +242,10 @@ export default function RouteMapWorkspace({
             isEditing={geometry.isEditingGeometry}
             onAppendPoint={geometry.handleAppendGeometryPoint}
             emptyText={t("routes.mapNoPoints")}
+            suggestions={panelMode === "stops" ? suggestions : undefined}
+            onAddSuggestion={onAddSuggestion}
+            isAddingSuggestion={isAddingSuggestion}
+            externalActiveSuggestion={pickedSuggestion}
           />
         </div>
       </div>

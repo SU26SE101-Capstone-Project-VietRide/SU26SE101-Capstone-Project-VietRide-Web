@@ -1,22 +1,32 @@
 // Hook cục bộ: state + thao tác gắn/gỡ điểm dừng vào tuyến (kể cả bản nháp).
 // Thêm/gỡ chỉ sửa state cục bộ và đánh dấu "chưa lưu" — lưu thật đi qua nút
 // "Lưu tuyến" (PUT /routes/{id}/full, replace-all stops), không gọi API lẻ nữa.
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { OperatorRoute, OperatorStop } from "../../../api/vietride";
-import { toNumber } from "../../../utils/number";
+// Sau khi dọn dead code: chỉ còn addStopFromSuggestion (thêm qua chấm gợi ý/
+// search) + handleRemoveRouteStop — flow nhập tay số liệu (order/km/phút, nút
+// "Tự tính") đã bị thay hoàn toàn bởi bảng gợi ý điểm dừng trên bản đồ.
+import { useMemo, useState } from "react";
+import {
+  createOperatorStop,
+  type OperatorRoute,
+  type OperatorStop,
+} from "../../../api/vietride";
 import { distanceKmBetween } from "./geometry";
-import { estimateCoachDurationMinutes } from "./polyline";
+import {
+  estimateCoachDurationMinutes,
+  projectPointOntoPolyline,
+  type RouteCoordinate,
+} from "./polyline";
 import { draftRouteId } from "./routeFormUtils";
 import type {
   FeedbackScope,
   RouteStopDraft,
   StationOption,
+  StopSuggestion,
   TranslateFn,
 } from "./types";
 
 type UseRouteStopEditorParams = {
   selectedRoute: OperatorRoute | null;
-  selectedStop: OperatorStop | null;
   stations: StationOption[];
   originStationId: string;
   activeRouteKey: string;
@@ -27,11 +37,59 @@ type UseRouteStopEditorParams = {
   setError: (message: string) => void;
   showMessage: (scope: FeedbackScope, message: string) => void;
   t: TranslateFn;
+  // Getter đọc polyline đang hiển thị của tuyến TẠI THỜI ĐIỂM GỌI (không phải
+  // giá trị chụp lúc hook khởi tạo/render) — dùng để tính distanceFromStartKm khi
+  // thêm stop từ gợi ý/search. Bắt buộc dùng getter vì `pathPoints` (nếu truyền
+  // trực tiếp) sẽ là giá trị của LẦN RENDER khi hook này được gọi, có thể trễ so
+  // với polyline mới nhất (vd caller có vòng phụ thuộc phải đọc qua ref cập nhật
+  // sau). Optional để không gãy nơi gọi cũ chưa truyền.
+  getPathPoints?: () => RouteCoordinate[];
+  // Gọi lại khi addStopFromSuggestion tạo OperatorStop mới (kind googlePlace) —
+  // để nơi gọi (index.tsx) thêm vào state `stops` chung.
+  onStopCreated?: (stop: OperatorStop) => void;
 };
+
+// Khoá sort khi re-index: ưu tiên distanceFromStartKm (chỉ có ở draft vừa thêm
+// qua addStopFromSuggestion, đã chiếu lên polyline). Draft nạp từ server (tuyến
+// sẵn có) không có field này nhưng luôn có distanceFromOriginKm — cùng ngữ nghĩa
+// km-từ-bến-đi — nên fallback sang field đó (dùng ?? để giữ đúng giá trị 0, không
+// bị coi là "thiếu"). Draft nào cũng thiếu cả hai (hiếm, lỗi dữ liệu) thì rơi về
+// +Infinity, xếp cuối.
+function reindexSortKey(draft: RouteStopDraft): number {
+  return (
+    draft.distanceFromStartKm ??
+    draft.distanceFromOriginKm ??
+    Number.POSITIVE_INFINITY
+  );
+}
+
+// Sắp xếp lại toàn bộ draft của một tuyến theo khoá km-từ-bến-đi tăng dần rồi
+// gán orderIndex = i + 1 liên tục 1..N. Trùng khoá thì dùng orderIndex hiện có
+// làm khoá sort phụ (tie-break), không đổi thứ tự tương đối một cách ngẫu nhiên.
+function reindexRouteDrafts(
+  drafts: RouteStopDraft[],
+  routeId: string,
+): RouteStopDraft[] {
+  const routeDrafts = drafts.filter((item) => item.routeId === routeId);
+  const otherDrafts = drafts.filter((item) => item.routeId !== routeId);
+
+  const sorted = [...routeDrafts].sort((a, b) => {
+    const keyA = reindexSortKey(a);
+    const keyB = reindexSortKey(b);
+
+    return keyA !== keyB ? keyA - keyB : a.orderIndex - b.orderIndex;
+  });
+
+  const reindexed = sorted.map((item, index) => ({
+    ...item,
+    orderIndex: index + 1,
+  }));
+
+  return [...otherDrafts, ...reindexed];
+}
 
 export function useRouteStopEditor({
   selectedRoute,
-  selectedStop,
   stations,
   originStationId,
   activeRouteKey,
@@ -41,49 +99,12 @@ export function useRouteStopEditor({
   setError,
   showMessage,
   t,
+  getPathPoints,
+  onStopCreated,
 }: UseRouteStopEditorParams) {
   const [routeStopDrafts, setRouteStopDrafts] = useState<RouteStopDraft[]>([]);
-  const [routeStopOrder, setRouteStopOrder] = useState("1");
-  const [routeStopDuration, setRouteStopDuration] = useState("0");
-  const [routeStopDistance, setRouteStopDistance] = useState("0");
-  const [allowPickup, setAllowPickup] = useState(true);
-  const [allowDropoff, setAllowDropoff] = useState(true);
   const [routeStopPendingRemoval, setRouteStopPendingRemoval] =
     useState<RouteStopDraft | null>(null);
-  // Cặp bến đi + điểm dừng đã tự ước lượng — chỉ prefill lại khi cặp đổi
-  const lastAutoEstimatedStopRef = useRef("");
-
-  // Chọn xong điểm dừng (đủ tọa độ + đã có bến đi) → tự điền km/phút từ điểm đi
-  // thay vì bắt bấm nút. Chỉ là prefill: ô số vẫn sửa tay được, nút "Tự tính" giữ
-  // lại để tính lại khi cần. Thiếu dữ liệu → bỏ qua im lặng, không chặn flow.
-  useEffect(() => {
-    if (!selectedStop) {
-      return;
-    }
-
-    const origin = stations.find((station) => station.id === originStationId);
-
-    if (
-      !origin ||
-      !origin.latitude ||
-      !origin.longitude ||
-      !selectedStop.latitude ||
-      !selectedStop.longitude
-    ) {
-      return;
-    }
-
-    const estimateKey = `${origin.id}:${selectedStop.id}`;
-
-    if (lastAutoEstimatedStopRef.current === estimateKey) {
-      return;
-    }
-
-    lastAutoEstimatedStopRef.current = estimateKey;
-    const distance = distanceKmBetween(origin, selectedStop);
-    setRouteStopDistance(distance.toFixed(1));
-    setRouteStopDuration(String(estimateCoachDurationMinutes(distance)));
-  }, [originStationId, selectedStop, stations]);
 
   const currentRouteStops = useMemo(
     () =>
@@ -93,46 +114,77 @@ export function useRouteStopEditor({
     [activeRouteKey, routeStopDrafts],
   );
 
-  async function handleAddRouteStop() {
-    if (!selectedStop) {
-      setError(t("routes.routeStopRequired"));
-      return;
-    }
-
-    const orderIndex = toNumber(routeStopOrder);
-    const duplicateOrder = routeStopDrafts.some(
-      (item) =>
-        item.routeId === activeRouteKey && item.orderIndex === orderIndex,
-    );
-
-    if (duplicateOrder) {
-      setError(t("routes.duplicateStopOrder"));
-      return;
-    }
-
-    const duplicateStop = routeStopDrafts.some(
-      (item) =>
-        item.routeId === activeRouteKey && item.stopId === selectedStop.id,
-    );
+  // Thêm stop từ chấm gợi ý/search (bảng gợi ý hoặc kết quả tìm kiếm trên bản đồ):
+  // kind googlePlace → tạo OperatorStop trước; metrics + orderIndex tự tính từ
+  // polyline (chiếu điểm lên đường đi); toàn bộ draft của tuyến được re-index lại.
+  async function addStopFromSuggestion(
+    suggestion: StopSuggestion,
+    options: { allowPickup: boolean; allowDropoff: boolean },
+  ) {
+    // Hoist điều kiện kind ra ngoài .some — operatorStop dedupe theo stopId
+    // (đúng như cũ); googlePlace dedupe theo googlePlaceId (nit): chấm Google
+    // trùng vị trí một draft googlePlace đã thêm trước đó (kể cả từ chấm khác)
+    // → báo trùng thay vì gọi createOperatorStop tạo thêm một OperatorStop thứ hai.
+    const isOperatorStopSuggestion = suggestion.kind === "operatorStop";
+    const duplicateStop = isOperatorStopSuggestion
+      ? routeStopDrafts.some(
+          (item) =>
+            item.routeId === activeRouteKey && item.stopId === suggestion.id,
+        )
+      : Boolean(suggestion.googlePlaceId) &&
+        routeStopDrafts.some(
+          (item) =>
+            item.routeId === activeRouteKey &&
+            item.googlePlaceId === suggestion.googlePlaceId,
+        );
 
     if (duplicateStop) {
       setError(t("routes.duplicateStopInRoute"));
       return;
     }
 
-    if (!allowPickup && !allowDropoff) {
-      setError(t("routes.stopNeedsPickupOrDropoff"));
-      return;
+    let stopId = suggestion.id;
+    let stopName = suggestion.name;
+    let latitude = suggestion.latitude;
+    let longitude = suggestion.longitude;
+
+    if (suggestion.kind === "googlePlace") {
+      const createdStop = await createOperatorStop({
+        name: suggestion.name,
+        address: suggestion.address,
+        latitude: suggestion.latitude,
+        longitude: suggestion.longitude,
+        googlePlaceId: suggestion.googlePlaceId,
+        description: "",
+      });
+
+      stopId = createdStop.id;
+      stopName = createdStop.name;
+      latitude = createdStop.latitude;
+      longitude = createdStop.longitude;
+      onStopCreated?.(createdStop);
     }
 
-    const request = {
-      stopId: selectedStop.id,
-      orderIndex,
-      estimatedDurationFromOriginMinutes: toNumber(routeStopDuration),
-      distanceFromOriginKm: toNumber(routeStopDistance),
-      allowPickup,
-      allowDropoff,
-    };
+    // Ưu tiên chiếu điểm lên polyline đang hiển thị của tuyến (đọc TƯƠI tại đây,
+    // không phải giá trị chụp lúc hook render); thiếu polyline (dưới 2 điểm) thì
+    // fallback đường chim bay từ bến đi, giống flow nhập tay cũ.
+    const pathPoints = getPathPoints?.();
+    let distanceFromStartKm: number;
+    if (pathPoints && pathPoints.length >= 2) {
+      distanceFromStartKm = projectPointOntoPolyline(pathPoints, {
+        latitude,
+        longitude,
+      }).distanceFromStartKm;
+    } else {
+      const origin = stations.find(
+        (station) => station.id === originStationId,
+      );
+      distanceFromStartKm = origin
+        ? distanceKmBetween(origin, { latitude, longitude })
+        : 0;
+    }
+
+    const durationMinutes = estimateCoachDurationMinutes(distanceFromStartKm);
 
     // Chỉ thao tác cục bộ: điểm dừng đổi → đường đi đã lưu không còn khớp
     if (selectedRoute) {
@@ -140,45 +192,29 @@ export function useRouteStopEditor({
       markRouteDirty();
     }
 
-    setRouteStopDrafts((prev) => [
-      ...prev,
-      {
-        ...request,
+    setRouteStopDrafts((prev) => {
+      const newDraft: RouteStopDraft = {
+        stopId,
+        // Placeholder — reindexRouteDrafts gán lại orderIndex thật theo distance
+        orderIndex: prev.length + 1,
+        estimatedDurationFromOriginMinutes: durationMinutes,
+        distanceFromOriginKm: Number(distanceFromStartKm.toFixed(1)),
+        allowPickup: options.allowPickup,
+        allowDropoff: options.allowDropoff,
         routeId: activeRouteKey,
         routeName: activeRouteName,
-        stopName: selectedStop.name,
-        latitude: selectedStop.latitude,
-        longitude: selectedStop.longitude,
-      },
-    ]);
-    setRouteStopOrder(String(orderIndex + 1));
+        stopName,
+        latitude,
+        longitude,
+        distanceFromStartKm,
+        // Lưu lại để dedupe googlePlace ở lần thêm sau (xem duplicateStop ở trên)
+        googlePlaceId: suggestion.googlePlaceId,
+      };
+
+      return reindexRouteDrafts([...prev, newDraft], activeRouteKey);
+    });
+
     showMessage("routeStop", t("routes.routeStopDraftAdded"));
-  }
-
-  async function handleEstimateRouteStopMetrics() {
-    const origin = stations.find((station) => station.id === originStationId);
-
-    if (!origin || !selectedStop) {
-      setError(t("routes.estimateRequiresOriginAndStop"));
-      return;
-    }
-
-    if (
-      !origin.latitude ||
-      !origin.longitude ||
-      !selectedStop.latitude ||
-      !selectedStop.longitude
-    ) {
-      setError(t("routes.estimateRequiresCoordinates"));
-      return;
-    }
-
-    const distance = distanceKmBetween(origin, selectedStop);
-    const durationMinutes = estimateCoachDurationMinutes(distance);
-
-    setRouteStopDistance(distance.toFixed(1));
-    setRouteStopDuration(String(durationMinutes));
-    showMessage("routeStop", t("routes.estimatedRouteStopMetrics"));
   }
 
   async function handleRemoveRouteStop(item: RouteStopDraft) {
@@ -195,14 +231,16 @@ export function useRouteStopEditor({
       markRouteDirty();
     }
 
-    setRouteStopDrafts((prev) =>
-      prev.filter(
+    setRouteStopDrafts((prev) => {
+      const remaining = prev.filter(
         (draft) =>
           draft.routeId !== targetRouteId ||
           draft.stopId !== item.stopId ||
           draft.orderIndex !== item.orderIndex,
-      ),
-    );
+      );
+
+      return reindexRouteDrafts(remaining, targetRouteId);
+    });
     setRouteStopPendingRemoval(null);
     showMessage("routeStop", t("routes.routeStopRemoved"));
   }
@@ -211,20 +249,9 @@ export function useRouteStopEditor({
     routeStopDrafts,
     setRouteStopDrafts,
     currentRouteStops,
-    routeStopOrder,
-    setRouteStopOrder,
-    routeStopDuration,
-    setRouteStopDuration,
-    routeStopDistance,
-    setRouteStopDistance,
-    allowPickup,
-    setAllowPickup,
-    allowDropoff,
-    setAllowDropoff,
     routeStopPendingRemoval,
     setRouteStopPendingRemoval,
-    handleAddRouteStop,
-    handleEstimateRouteStopMetrics,
+    addStopFromSuggestion,
     handleRemoveRouteStop,
   };
 }

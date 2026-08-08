@@ -8,7 +8,7 @@
 // mảng/id, không memo thì mỗi render của trang cha là một lần vẽ lại toàn bộ.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiLoader } from "react-icons/fi";
+import { FiLoader, FiTrash2 } from "react-icons/fi";
 import GoogleMapCanvas, {
   type GoogleMapPointMarker,
   type GoogleMapPolyline,
@@ -19,8 +19,9 @@ import type {
   GoogleMapsEventListener,
 } from "../../../lib/googleMaps";
 import type { RoadRouteOption } from "./geometry";
-import type { RouteCoordinate } from "./polyline";
-import type { RouteMapPoint } from "./types";
+import { estimateCoachDurationMinutes, type RouteCoordinate } from "./polyline";
+import StopDetailCard from "./StopDetailCard";
+import type { RouteMapPoint, StopSuggestion } from "./types";
 
 const defaultRouteMapCenter: GoogleMapCoordinate = {
   lat: 10.7769,
@@ -45,7 +46,8 @@ const bubblePositionFractions = [0.4, 0.55, 0.7];
 const noPointMarkers: GoogleMapPointMarker[] = [];
 
 // Điểm dừng của tuyến hiển thị thành marker đánh số 1..N theo orderIndex —
-// click marker chọn stop tương ứng (đồng bộ highlight với danh sách trong panel).
+// click marker chọn stop tương ứng (đồng bộ highlight với danh sách trong panel)
+// VÀ mở card chi tiết kiểu Google Maps (reuse StopDetailCard của chấm gợi ý).
 // Marker điểm dừng KHÔNG kéo được: vị trí stop là cố định.
 export type RouteStopMarker = {
   stopId: string;
@@ -53,6 +55,13 @@ export type RouteStopMarker = {
   name: string;
   latitude: number;
   longitude: number;
+  // Dữ liệu bổ sung để dựng card chi tiết — optional để nơi gọi cũ (nếu có)
+  // chưa truyền đủ vẫn không gãy type; thiếu thì card chỉ hiện tên (không gọi
+  // Google Place Details, không hiện dòng km/phút).
+  address?: string | null;
+  googlePlaceId?: string | null;
+  distanceFromOriginKm?: number;
+  estimatedDurationFromOriginMinutes?: number;
 };
 
 type RouteDesignMapProps = {
@@ -62,6 +71,9 @@ type RouteDesignMapProps = {
   stopMarkers?: RouteStopMarker[];
   selectedStopId?: string;
   onSelectStop?: (stopId: string) => void;
+  // Bấm nút "Gỡ khỏi tuyến" trên card chi tiết marker đã gắn — mở modal xác
+  // nhận sẵn có (chỉ hiện nút khi canManageRoutes theo caller truyền xuống)
+  onRequestRemoveStop?: (stopId: string) => void;
   // Các phương án Google trả về sau "Tính đường tự động" — vẽ tất cả, phương án
   // đang chọn đậm, phương án khác xám mờ (click đường mờ/nhãn để chọn)
   routeOptions?: RoadRouteOption[];
@@ -83,6 +95,29 @@ type RouteDesignMapProps = {
   isEditing: boolean;
   onAppendPoint: (point: RouteCoordinate) => void;
   emptyText: string;
+  // Gợi ý điểm dừng (kho nhà xe / Google Places) hiện thành chấm trên bản đồ —
+  // click chấm mở popup card cho phép thêm vào tuyến
+  suggestions?: StopSuggestion[];
+  onAddSuggestion?: (
+    suggestion: StopSuggestion,
+    options: { allowPickup: boolean; allowDropoff: boolean },
+  ) => void;
+  isAddingSuggestion?: boolean;
+  // Kết quả chọn từ ô search panel: object mới mỗi lần chọn để re-trigger effect
+  // đồng bộ vào activeSuggestion cục bộ (mở popup như bấm chấm trên bản đồ)
+  externalActiveSuggestion?: StopSuggestion | null;
+  // Màu đường/via-point/marker số của tuyến ĐANG SOẠN trên map này — mặc định
+  // teal (#0f766e, tuyến chính). Tab Tuyến thay thế (map-first, phụ lục spec
+  // 2026-08-07) truyền cam (#f59e0b) để phân biệt với tuyến chính vẽ mờ bên dưới.
+  activeColor?: string;
+  // Polyline THAM CHIẾU vẽ mờ, không tương tác (không onClick/onMouseDown) —
+  // dùng cho tab Tuyến thay thế: vẽ tuyến CHÍNH làm nền để so với tuyến thay thế
+  // đang soạn (activeColor). undefined/rỗng → không vẽ gì thêm.
+  referencePath?: RouteCoordinate[];
+  // Ẩn 2 checkbox đón/trả trong popup thêm gợi ý — tuyến thay thế không có khái
+  // niệm đón/trả riêng theo điểm (AlternativeRouteRequest.stops không có 2 cờ
+  // này). Mặc định true (tab Điểm dừng tuyến chính vẫn hiện như cũ).
+  showPickupDropoffOptions?: boolean;
 };
 
 function toMapPath(path: RouteCoordinate[]): GoogleMapCoordinate[] {
@@ -98,6 +133,7 @@ export default function RouteDesignMap({
   stopMarkers,
   selectedStopId = "",
   onSelectStop,
+  onRequestRemoveStop,
   routeOptions = [],
   selectedOptionIndex = 0,
   onSelectOption,
@@ -111,6 +147,13 @@ export default function RouteDesignMap({
   isEditing,
   onAppendPoint,
   emptyText,
+  suggestions = [],
+  onAddSuggestion,
+  isAddingSuggestion = false,
+  externalActiveSuggestion = null,
+  activeColor = "#0f766e",
+  referencePath,
+  showPickupDropoffOptions = true,
 }: RouteDesignMapProps) {
   const { t } = useTranslation("manager");
   // Callback đổi identity mỗi render của trang cha — giữ trong ref để các mảng
@@ -122,6 +165,7 @@ export default function RouteDesignMap({
     onDragViaPoint,
     onMoveViaPoint,
     onRemoveViaPoint,
+    onRequestRemoveStop,
     onSelectOption,
     onSelectStop,
   });
@@ -134,10 +178,90 @@ export default function RouteDesignMap({
       onDragViaPoint,
       onMoveViaPoint,
       onRemoveViaPoint,
+      onRequestRemoveStop,
       onSelectOption,
       onSelectStop,
     };
   });
+
+  // Gợi ý điểm dừng đang mở popup (chấm bấm trên bản đồ hoặc từ ô search panel)
+  // + 2 tuỳ chọn đón/trả — reset về true mỗi khi đổi sang gợi ý khác. Đồng bộ
+  // theo props được làm NGAY TRONG RENDER (pattern "adjusting state during
+  // render" của React) thay vì useEffect — gọi setState trong effect bị lint
+  // react-hooks/set-state-in-effect chặn vì gây cascading render thừa.
+  const [activeSuggestion, setActiveSuggestion] =
+    useState<StopSuggestion | null>(null);
+  const [allowPickup, setAllowPickup] = useState(true);
+  const [allowDropoff, setAllowDropoff] = useState(true);
+
+  // Card chi tiết marker điểm dừng ĐÃ GẮN (đánh số 1..N) đang mở, nếu có — CHỈ
+  // một trong hai card (gợi ý / stop đã gắn) được mở tại một thời điểm: mở
+  // card này thì đóng card kia và ngược lại (xem các nơi setState bên dưới).
+  const [activeAttachedStopId, setActiveAttachedStopId] = useState<
+    string | null
+  >(null);
+
+  // Theo dõi giá trị externalActiveSuggestion của lần render trước — đổi thì
+  // đồng bộ vào activeSuggestion (mở popup như bấm chấm trên bản đồ)
+  const [prevExternalSuggestion, setPrevExternalSuggestion] = useState(
+    externalActiveSuggestion,
+  );
+  if (externalActiveSuggestion !== prevExternalSuggestion) {
+    setPrevExternalSuggestion(externalActiveSuggestion);
+    if (externalActiveSuggestion) {
+      setActiveSuggestion(externalActiveSuggestion);
+      setActiveAttachedStopId(null);
+    }
+  }
+
+  // Theo dõi activeSuggestion của lần render trước — đổi thì reset 2 tuỳ chọn
+  // đón/trả về mặc định true
+  const [prevActiveSuggestion, setPrevActiveSuggestion] =
+    useState(activeSuggestion);
+  if (activeSuggestion !== prevActiveSuggestion) {
+    setPrevActiveSuggestion(activeSuggestion);
+    setAllowPickup(true);
+    setAllowDropoff(true);
+  }
+
+  // Đóng popup nếu gợi ý đang mở không còn trong danh sách (vd vừa thêm xong
+  // bị dedupe khỏi suggestions) — tự triệt tiêu: sau khi set null, điều kiện
+  // này false ở render kế tiếp nên không lặp vô hạn.
+  // TRỪ gợi ý đang mở đến từ externalActiveSuggestion (ô search panel): nguồn
+  // này không bắt buộc phải là thành viên của `suggestions` (chỉ chứa chấm
+  // ≤3km dọc tuyến) — vd kết quả Google Places cách xa polyline vẫn tìm/pick
+  // được. Caller (index.tsx) đã merge nó vào suggestions để hiện chấm trên map,
+  // nhưng guard ở đây vẫn tự chừa để component đứng vững kể cả khi caller khác
+  // chưa làm vậy.
+  if (
+    activeSuggestion &&
+    activeSuggestion !== externalActiveSuggestion &&
+    !suggestions.some(
+      (suggestion) =>
+        suggestion.kind === activeSuggestion.kind &&
+        suggestion.id === activeSuggestion.id,
+    )
+  ) {
+    setActiveSuggestion(null);
+  }
+
+  // Stop đã gắn tương ứng card đang mở (nếu có) — tra trong stopMarkers theo id.
+  // Đóng card nếu stop vừa bị gỡ khỏi tuyến (không còn trong stopMarkers) —
+  // cùng pattern tự triệt tiêu như guard suggestion ở trên.
+  const activeAttachedStop = activeAttachedStopId
+    ? (stopMarkers?.find((stop) => stop.stopId === activeAttachedStopId) ??
+      null)
+    : null;
+  if (activeAttachedStopId && !activeAttachedStop) {
+    setActiveAttachedStopId(null);
+  }
+
+  // Google Place ID của gợi ý đang mở (nếu có) — truyền xuống StopDetailCard để
+  // tự gọi Google Place Details (ảnh, rating, giờ mở cửa...). Gợi ý kho không
+  // gắn googlePlaceId thì không gọi API, card giữ như cũ (chỉ tên/địa chỉ).
+  const activeSuggestionPlaceId =
+    activeSuggestion?.googlePlaceId ??
+    (activeSuggestion?.kind === "googlePlace" ? activeSuggestion.id : null);
 
   // Instance bản đồ cho gesture túm thân đường (setOptions + mousemove/mouseup)
   const mapRef = useRef<GoogleMapInstance | null>(null);
@@ -267,6 +391,28 @@ export default function RouteDesignMap({
     () => toMapPath(displayedPath),
     [displayedPath],
   );
+  // Đường tham chiếu (tuyến chính) khi soạn tuyến thay thế — vẽ mờ, không bắt
+  // sự kiện (không onClick/onMouseDown), zIndex thấp nhất để luôn nằm dưới.
+  const referenceLinePositions = useMemo(
+    () => toMapPath(referencePath ?? []),
+    [referencePath],
+  );
+  const referencePolylines: GoogleMapPolyline[] = useMemo(
+    () =>
+      referenceLinePositions.length > 1
+        ? [
+            {
+              color: "#94a3b8",
+              id: "reference-route-path",
+              opacity: 0.55,
+              path: referenceLinePositions,
+              weight: 3,
+              zIndex: 0,
+            },
+          ]
+        : [],
+    [referenceLinePositions],
+  );
   const hasSavedOrDraftPath = pathPoints.length > 1;
   // Có phương án auto-fetch (và không đang vẽ tay) → vẽ tất cả kèm bubble thời
   // lượng để user bấm chọn ngay trên bản đồ (không còn chip trong toolbar)
@@ -301,7 +447,7 @@ export default function RouteDesignMap({
       })),
       ...(isEditing
         ? pathPoints.map((point, index) => ({
-            color: "#0f766e",
+            color: activeColor,
             id: `geometry-${index}-${point.latitude}-${point.longitude}`,
             position: {
               lat: point.latitude,
@@ -311,7 +457,7 @@ export default function RouteDesignMap({
           }))
         : []),
     ],
-    [isEditing, pathPoints, points],
+    [activeColor, isEditing, pathPoints, points],
   );
 
   const mapPolylines: GoogleMapPolyline[] = useMemo(() => {
@@ -368,7 +514,7 @@ export default function RouteDesignMap({
         .sort((first, second) => first.zIndex - second.zIndex)
         .map(
           (line): GoogleMapPolyline => ({
-            color: line.selected ? "#0f766e" : "#94a3b8",
+            color: line.selected ? activeColor : "#94a3b8",
             id: line.isSavedPath
               ? "route-geometry"
               : `route-option-${line.index}`,
@@ -391,7 +537,7 @@ export default function RouteDesignMap({
     return linePositions.length > 1
       ? [
           {
-            color: hasSavedOrDraftPath ? "#0f766e" : "#64748b",
+            color: hasSavedOrDraftPath ? activeColor : "#64748b",
             id: "route-geometry",
             // Đường đơn (1 phương án sau khi nắn / đường đã lưu) cũng nắn tiếp được
             onClick: hasSavedOrDraftPath ? addViaPoint : undefined,
@@ -403,6 +549,7 @@ export default function RouteDesignMap({
         ]
       : [];
   }, [
+    activeColor,
     beginPolylineGrab,
     canAddViaPoint,
     canGrabLine,
@@ -515,7 +662,7 @@ export default function RouteDesignMap({
           fillOpacity: 1,
           path: viaPointPath,
           scale: 1,
-          strokeColor: "#0f766e",
+          strokeColor: activeColor,
           strokeWeight: 3,
         },
         id: `via-point-${index}`,
@@ -550,6 +697,7 @@ export default function RouteDesignMap({
       };
     });
   }, [
+    activeColor,
     activeGrab,
     canDragViaPoint,
     canMoveViaPoint,
@@ -572,22 +720,28 @@ export default function RouteDesignMap({
       return {
         cursor: canSelectStop ? "pointer" : undefined,
         icon: {
-          fillColor: selected ? "#0f766e" : "#ffffff",
+          fillColor: selected ? activeColor : "#ffffff",
           fillOpacity: 1,
           path: stopNumberPath,
           scale: 1,
-          strokeColor: "#0f766e",
+          strokeColor: activeColor,
           strokeWeight: 2,
         },
         id: `route-stop-${stop.stopId}`,
         label: {
-          color: selected ? "#ffffff" : "#0f766e",
+          color: selected ? "#ffffff" : activeColor,
           fontSize: "11px",
           fontWeight: "700",
           text: String(stop.orderIndex),
         },
         onClick: canSelectStop
-          ? () => callbacksRef.current.onSelectStop?.(stop.stopId)
+          ? () => {
+              callbacksRef.current.onSelectStop?.(stop.stopId);
+              // Mở card chi tiết marker này — đóng card gợi ý đang mở (nếu có),
+              // một card một thời điểm
+              setActiveSuggestion(null);
+              setActiveAttachedStopId(stop.stopId);
+            }
           : undefined,
         position: {
           lat: stop.latitude,
@@ -597,16 +751,76 @@ export default function RouteDesignMap({
         zIndex: selected ? 7 : 6,
       };
     });
-  }, [canSelectStop, selectedStopId, stopMarkers]);
+  }, [activeColor, canSelectStop, selectedStopId, stopMarkers]);
+
+  // Chấm gợi ý điểm dừng (kho nhà xe / Google Places) — memo RIÊNG như các loại
+  // marker khác: click chấm mở popup card (state activeSuggestion cục bộ)
+  const suggestionMarkers: GoogleMapPointMarker[] = useMemo(() => {
+    if (suggestions.length === 0) {
+      return noPointMarkers;
+    }
+
+    return suggestions.map((suggestion): GoogleMapPointMarker => {
+      const isOperatorStop = suggestion.kind === "operatorStop";
+
+      return {
+        cursor: "pointer",
+        icon: {
+          // Gợi ý Google tô đỏ (cùng tông marker điểm đến) — chấm trắng viền xám
+          // cũ chìm hẳn trên nền bản đồ, user không nhìn ra chỗ để bấm
+          fillColor: isOperatorStop ? "#0f766e" : "#dc2626",
+          fillOpacity: 1,
+          path: viaPointPath,
+          scale: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 3,
+        },
+        id: `suggest-${suggestion.kind}-${suggestion.id}`,
+        onClick: () => {
+          setActiveSuggestion(suggestion);
+          // Mở card gợi ý — đóng card marker stop đã gắn đang mở (nếu có)
+          setActiveAttachedStopId(null);
+        },
+        position: {
+          lat: suggestion.latitude,
+          lng: suggestion.longitude,
+        },
+        title: suggestion.name,
+        zIndex: 6,
+      };
+    });
+  }, [suggestions]);
 
   const mapPointMarkers: GoogleMapPointMarker[] = useMemo(
     () =>
       durationLabels === noPointMarkers &&
       viaPointMarkers === noPointMarkers &&
-      routeStopMarkers === noPointMarkers
+      routeStopMarkers === noPointMarkers &&
+      suggestionMarkers === noPointMarkers
         ? noPointMarkers
-        : [...durationLabels, ...viaPointMarkers, ...routeStopMarkers],
-    [durationLabels, routeStopMarkers, viaPointMarkers],
+        : [
+            ...durationLabels,
+            ...viaPointMarkers,
+            ...routeStopMarkers,
+            ...suggestionMarkers,
+          ],
+    [durationLabels, routeStopMarkers, suggestionMarkers, viaPointMarkers],
+  );
+
+  // m-A: chọn gợi ý từ ô search (externalActiveSuggestion) phải kéo bản đồ tới
+  // thấy chấm — nếu chấm nằm ngoài viewport hiện tại (vd kết quả Google Places
+  // xa polyline) mà không đưa vào fitPoints thì bay tới không thấy gì.
+  const externalSuggestionPoint = useMemo(
+    () =>
+      externalActiveSuggestion
+        ? [
+            {
+              lat: externalActiveSuggestion.latitude,
+              lng: externalActiveSuggestion.longitude,
+            },
+          ]
+        : [],
+    [externalActiveSuggestion],
   );
 
   const fitPoints = useMemo(
@@ -617,26 +831,159 @@ export default function RouteDesignMap({
             // nào) để fit không cắt mất nó
             ...linePositions,
             ...routeOptions.flatMap((option) => toMapPath(option.points)),
+            ...externalSuggestionPoint,
+            ...referenceLinePositions,
           ]
-        : linePositions,
-    [linePositions, routeOptions, showOptionOverlay],
+        : [...linePositions, ...externalSuggestionPoint, ...referenceLinePositions],
+    [
+      externalSuggestionPoint,
+      linePositions,
+      referenceLinePositions,
+      routeOptions,
+      showOptionOverlay,
+    ],
   );
 
-  const handleMapClick = useMemo(
-    () =>
-      isEditing
-        ? (position: GoogleMapCoordinate) =>
-            callbacksRef.current.onAppendPoint({
-              latitude: position.lat,
-              longitude: position.lng,
+  // Click nền bản đồ: đang vẽ tay → thêm điểm; đang mở card (gợi ý HOẶC stop đã
+  // gắn) → đóng card (card khá to, che bản đồ — bấm ra chỗ trống phải giải
+  // phóng tầm nhìn)
+  const isDetailCardOpen = activeSuggestion !== null || activeAttachedStop !== null;
+  const handleMapClick = useMemo(() => {
+    if (isEditing) {
+      return (position: GoogleMapCoordinate) =>
+        callbacksRef.current.onAppendPoint({
+          latitude: position.lat,
+          longitude: position.lng,
+        });
+    }
+
+    if (isDetailCardOpen) {
+      return () => {
+        setActiveSuggestion(null);
+        setActiveAttachedStopId(null);
+      };
+    }
+
+    return undefined;
+  }, [isDetailCardOpen, isEditing]);
+
+  // Toạ độ neo card: NGAY DƯỚI chấm/marker đang mở (GoogleMapCanvas tự vẽ card
+  // tại vị trí này qua OverlayView) — null khi không có card nào mở. Hai state
+  // loại trừ nhau (xem các setState ở trên) nên chỉ một nhánh có giá trị.
+  const activeCardAnchor: GoogleMapCoordinate | null = activeSuggestion
+    ? { lat: activeSuggestion.latitude, lng: activeSuggestion.longitude }
+    : activeAttachedStop
+      ? { lat: activeAttachedStop.latitude, lng: activeAttachedStop.longitude }
+      : null;
+
+  // Card chi tiết gợi ý điểm dừng: mở khi bấm chấm gợi ý trên bản đồ hoặc chọn
+  // từ ô search panel — kiểu Google Maps (ảnh/rating/giờ mở cửa) khi gợi ý có
+  // googlePlaceId, cho phép chỉnh đón/trả trước khi thêm vào tuyến.
+  const suggestionPopup = activeSuggestion ? (
+    <StopDetailCard
+      testId="stop-suggestion-popup"
+      title={activeSuggestion.name}
+      titleBadge={
+        <span className="rounded-full bg-vr-100 px-2 py-0.5 text-xs font-medium text-vr-700">
+          {activeSuggestion.kind === "operatorStop"
+            ? t("routes.suggestSourceOperator")
+            : t("routes.suggestSourceGoogle")}
+        </span>
+      }
+      address={activeSuggestion.address}
+      googlePlaceId={activeSuggestionPlaceId}
+      metricsText={t("routes.suggestMetrics", {
+        km: activeSuggestion.distanceFromStartKm.toFixed(1),
+        minutes: estimateCoachDurationMinutes(
+          activeSuggestion.distanceFromStartKm,
+        ),
+      })}
+      onClose={() => setActiveSuggestion(null)}
+    >
+      {showPickupDropoffOptions && (
+      <div className="mt-2 flex items-center gap-4">
+        <label className="flex items-center gap-1.5 text-xs text-gray-700">
+          <input
+            type="checkbox"
+            checked={allowPickup}
+            onChange={(event) => setAllowPickup(event.target.checked)}
+          />
+          {t("routes.allowPickup")}
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-gray-700">
+          <input
+            type="checkbox"
+            checked={allowDropoff}
+            onChange={(event) => setAllowDropoff(event.target.checked)}
+          />
+          {t("routes.allowDropoff")}
+        </label>
+      </div>
+      )}
+      <button
+        type="button"
+        disabled={isAddingSuggestion}
+        onClick={() => {
+          onAddSuggestion?.(activeSuggestion, {
+            allowPickup,
+            allowDropoff,
+          });
+          setActiveSuggestion(null);
+        }}
+        className="mt-3 w-full rounded-md bg-vr-500 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+      >
+        {activeSuggestion.kind === "operatorStop"
+          ? t("routes.suggestAdd")
+          : t("routes.suggestCreateAdd")}
+      </button>
+    </StopDetailCard>
+  ) : null;
+
+  // Card chi tiết marker điểm dừng ĐÃ GẮN vào tuyến (đánh số 1..N) — cùng kiểu
+  // Google Maps như card gợi ý (reuse StopDetailCard), hành động là nút "Gỡ
+  // khỏi tuyến" thay vì "Thêm vào tuyến". Chỉ hiện nút gỡ khi caller có truyền
+  // onRequestRemoveStop (canManageRoutes) — viewer chỉ xem thông tin.
+  const attachedStopPopup = activeAttachedStop ? (
+    <StopDetailCard
+      testId="stop-detail-popup"
+      title={`#${activeAttachedStop.orderIndex} · ${activeAttachedStop.name}`}
+      address={activeAttachedStop.address}
+      googlePlaceId={activeAttachedStop.googlePlaceId ?? null}
+      metricsText={
+        activeAttachedStop.distanceFromOriginKm !== undefined &&
+        activeAttachedStop.estimatedDurationFromOriginMinutes !== undefined
+          ? t("routes.suggestMetrics", {
+              km: activeAttachedStop.distanceFromOriginKm.toFixed(1),
+              minutes: activeAttachedStop.estimatedDurationFromOriginMinutes,
             })
-        : undefined,
-    [isEditing],
-  );
+          : undefined
+      }
+      onClose={() => setActiveAttachedStopId(null)}
+    >
+      {onRequestRemoveStop && (
+        <button
+          type="button"
+          onClick={() =>
+            callbacksRef.current.onRequestRemoveStop?.(
+              activeAttachedStop.stopId,
+            )
+          }
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+        >
+          <FiTrash2 size={14} />
+          {t("routes.removeRouteStop")}
+        </button>
+      )}
+    </StopDetailCard>
+  ) : null;
+
+  const activeCardContent = suggestionPopup ?? attachedStopPopup;
 
   return (
     <div className={`relative h-full ${isEditing ? "cursor-crosshair" : ""}`}>
       <GoogleMapCanvas
+        anchorContent={activeCardContent}
+        anchorPosition={activeCardAnchor}
         ariaLabel={t("routes.designMapAria")}
         center={center}
         fitPoints={fitPoints}
@@ -644,7 +991,11 @@ export default function RouteDesignMap({
         onMapClick={handleMapClick}
         onMapReady={handleMapReady}
         pointMarkers={mapPointMarkers}
-        polylines={mapPolylines}
+        polylines={
+          referencePolylines.length > 0
+            ? [...referencePolylines, ...mapPolylines]
+            : mapPolylines
+        }
         className="h-full w-full"
         // Đang kéo nắn (native drag hoặc túm thân đường) → preview đổi path
         // không được giật camera (setCenter/fitBounds) giữa gesture

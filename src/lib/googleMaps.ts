@@ -145,6 +145,36 @@ export type GoogleInfoWindowInstance = {
   setPosition: (position: GoogleMapCoordinate) => void;
 };
 
+// Pane float của OverlayView — nơi gắn div tuỳ ý (card neo theo tọa độ) chồng
+// lên bản đồ, di chuyển cùng camera (pan/zoom) như marker thật
+export type GoogleOverlayViewPanes = {
+  floatPane: HTMLElement;
+};
+
+// Projection quy đổi toạ độ lat/lng ra pixel trong div bản đồ — chỉ dùng được
+// bên trong draw() (sau khi onAdd chạy), null nếu map chưa sẵn sàng chiếu
+export type GoogleOverlayViewProjection = {
+  fromLatLngToDivPixel: (
+    position: GoogleMapCoordinate,
+  ) => { x: number; y: number } | null;
+};
+
+// OverlayView: khác các overlay khác (Circle/Polyline/Marker) ở chỗ KHÔNG nhận
+// options qua constructor — phải tạo rỗng rồi GÁN onAdd/draw/onRemove (đúng
+// cách Google Maps API yêu cầu subclass hoá). Dùng để neo card tuỳ ý (React
+// portal) theo toạ độ bản đồ thay vì marker/InfoWindow có sẵn.
+export type GoogleOverlayViewInstance = {
+  draw: () => void;
+  getPanes: () => GoogleOverlayViewPanes;
+  // undefined tới khi Google chạy xong onAdd/draw-cycle thật đầu tiên — draw()
+  // GỌI CHỦ ĐỘNG ngay sau setMap() (không đợi cycle đó) nên caller BẮT BUỘC
+  // guard trước khi dùng, không được coi là luôn có sẵn
+  getProjection: () => GoogleOverlayViewProjection | undefined;
+  onAdd: () => void;
+  onRemove: () => void;
+  setMap: (map: GoogleMapInstance | null) => void;
+};
+
 export type GoogleMapsLibrary = {
   Circle: new (options: GoogleCircleOptions) => GoogleCircleInstance;
   InfoWindow: new () => GoogleInfoWindowInstance;
@@ -156,6 +186,9 @@ export type GoogleMapsLibrary = {
   // Marker (legacy) đến từ importLibrary("marker") — optional để không gãy khi
   // thư viện marker không tải được; caller phải tự guard trước khi dùng
   Marker?: new (options: GoogleMarkerOptions) => GoogleMarkerInstance;
+  // Optional (mock/test cũ không gãy + phòng thư viện "maps" không kèm sẵn):
+  // caller phải guard trước khi dùng — thiếu thì card neo tuỳ ý không vẽ được
+  OverlayView?: new () => GoogleOverlayViewInstance;
   Polyline: new (options: GooglePolylineOptions) => GooglePolylineInstance;
 };
 

@@ -14,18 +14,13 @@ import type { RouteStopDraft, StationOption } from "./types";
 export const draftRouteId = "__draft_route__";
 
 // Tab của cột chi tiết (master–detail), sync với query param ?tab=.
-// Layout map-first (2026-08-06): tab "Thông tin" + "Điểm dừng" gộp làm một —
-// deep-link ?tab=stops cũ được redirect về info để không gãy link đã share.
-export const routeTabs = ["info", "alternatives"] as const;
+// (2026-08-07): tách lại tab "Điểm dừng" riêng khỏi tab "Thông tin" — trước đó
+// (2026-08-06) đã từng gộp chung nhưng owner yêu cầu tách lại thành tab độc lập.
+export const routeTabs = ["info", "stops", "alternatives"] as const;
 
 export type RouteTab = (typeof routeTabs)[number];
 
 export function parseRouteTab(value: string | null): RouteTab {
-  // Back-compat: tab "stops" cũ đã gộp vào tab thông tin (map-first)
-  if (value === "stops") {
-    return "info";
-  }
-
   return routeTabs.find((tab) => tab === value) ?? "info";
 }
 

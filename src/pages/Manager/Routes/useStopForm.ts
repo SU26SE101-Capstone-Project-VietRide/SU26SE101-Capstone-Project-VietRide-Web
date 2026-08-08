@@ -1,114 +1,29 @@
-// Hook cục bộ: form tạo/sửa điểm dừng (stop) của màn Routes
+// Hook cục bộ: form chọn/xem điểm dừng (stop) của màn Routes — chỉ còn
+// handleSelectStop (đổ dữ liệu stop đã chọn vào form) sau khi dọn dead code:
+// tạo/sửa stop thủ công qua form số đã được thay bằng flow gợi ý điểm dừng
+// trên bản đồ (StopSearchBox + addStopFromSuggestion), không còn UI nào gọi
+// handleCreateStop/handleUpdateStop nữa.
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
-import {
-  createOperatorStop,
   getOperatorStop,
-  updateOperatorStop,
   type OperatorStop,
   type OperatorStopRequest,
 } from "../../../api/vietride";
-import type { PlaceSelection } from "../../../components/PlacePicker";
 import { emptyStopForm } from "./routeFormUtils";
-import type { FeedbackScope, TranslateFn } from "./types";
 
 type UseStopFormParams = {
-  selectedStopId: string;
   setSelectedStopId: Dispatch<SetStateAction<string>>;
   setStops: Dispatch<SetStateAction<OperatorStop[]>>;
-  setError: (message: string) => void;
-  showMessage: (scope: FeedbackScope, message: string) => void;
-  t: TranslateFn;
 };
 
 export function useStopForm({
-  selectedStopId,
   setSelectedStopId,
   setStops,
-  setError,
-  showMessage,
-  t,
 }: UseStopFormParams) {
   const [stopForm, setStopForm] = useState<OperatorStopRequest>(emptyStopForm);
   // Chống race khi chọn điểm dừng (cùng pattern chọn tuyến): response về muộn
   // của lần chọn cũ bị bỏ qua, không đè form của điểm dừng đang chọn
   const selectStopSeqRef = useRef(0);
-
-  const selectedStopPlace = useMemo<PlaceSelection | null>(() => {
-    if (!stopForm.latitude || !stopForm.longitude) {
-      return null;
-    }
-
-    return {
-      placeId:
-        stopForm.googlePlaceId || `${stopForm.latitude},${stopForm.longitude}`,
-      name: stopForm.name,
-      address: stopForm.address ?? "",
-      city: "",
-      ward: "",
-      latitude: stopForm.latitude,
-      longitude: stopForm.longitude,
-    };
-  }, [stopForm]);
-
-  function updateStop<K extends keyof OperatorStopRequest>(
-    key: K,
-    value: OperatorStopRequest[K],
-  ) {
-    setStopForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function applyStopPlace(place: PlaceSelection) {
-    setStopForm((current) => ({
-      ...current,
-      name: place.name,
-      address: place.address,
-      latitude: place.latitude,
-      longitude: place.longitude,
-      googlePlaceId: place.placeId,
-    }));
-  }
-
-  async function handleCreateStop() {
-    if (!stopForm.name.trim()) {
-      setError(t("routes.stopRequired"));
-      return;
-    }
-
-    if (!stopForm.latitude || !stopForm.longitude) {
-      setError(t("routes.coordinatesRequired"));
-      return;
-    }
-
-    const created = await createOperatorStop(stopForm);
-    setStops((prev) => [created, ...prev]);
-    setSelectedStopId(created.id);
-    setStopForm(emptyStopForm);
-    showMessage("stop", t("routes.stopCreated"));
-  }
-
-  async function handleUpdateStop() {
-    if (!selectedStopId) {
-      setError(t("routes.selectStopFirst"));
-      return;
-    }
-
-    if (!stopForm.name.trim()) {
-      setError(t("routes.stopRequired"));
-      return;
-    }
-
-    const updated = await updateOperatorStop(selectedStopId, stopForm);
-    setStops((prev) =>
-      prev.map((item) => (item.id === updated.id ? updated : item)),
-    );
-    showMessage("stop", t("routes.stopUpdated"));
-  }
 
   async function handleSelectStop(stopId: string) {
     const seq = ++selectStopSeqRef.current;
@@ -144,11 +59,6 @@ export function useStopForm({
   return {
     stopForm,
     setStopForm,
-    selectedStopPlace,
-    updateStop,
-    applyStopPlace,
-    handleCreateStop,
-    handleUpdateStop,
     handleSelectStop,
   };
 }
