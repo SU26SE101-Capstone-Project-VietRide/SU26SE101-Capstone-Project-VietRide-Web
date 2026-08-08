@@ -46,6 +46,8 @@ const Register = lazy(() => import("./pages/Register"));
 const RegisterSuccess = lazy(() => import("./pages/RegisterSuccess"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const SetInitialPassword = lazy(() => import("./pages/SetInitialPassword"));
+/** Public guest live map — capability link only (no auth layout). */
+const TripSharingPage = lazy(() => import("./pages/TripSharing/index"));
 const ManagerDashboard = lazy(() => import("./pages/Manager/Dashboard"));
 const AdminDashboard = lazy(() => import("./pages/Admin/Dashboard"));
 const PrivateRoute = lazy(() => import("./components/PrivateRoute"));
@@ -75,6 +77,8 @@ export default function App() {
               path="/auth/set-initial-password"
               element={<SetInitialPassword />}
             />
+            {/* Passenger trip-share invite (BE shareUrl path). Token only in #hash. */}
+            <Route path="/trip-sharing" element={<TripSharingPage />} />
 
             {/* VNPay redirects the operator's browser to this result page. */}
             <Route element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}>

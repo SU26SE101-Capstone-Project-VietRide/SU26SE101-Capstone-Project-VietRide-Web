@@ -12,6 +12,8 @@ import viAdmin from "./locales/vi/admin.json";
 import enAdmin from "./locales/en/admin.json";
 import viManager from "./locales/vi/manager.json";
 import enManager from "./locales/en/manager.json";
+import viTripShare from "./locales/vi/tripShare.json";
+import enTripShare from "./locales/en/tripShare.json";
 
 export const SUPPORTED_LANGUAGES = ["vi", "en"] as const;
 export type AppLanguage = (typeof SUPPORTED_LANGUAGES)[number];
@@ -29,6 +31,7 @@ void i18n
         login: viLogin,
         admin: viAdmin,
         manager: viManager,
+        tripShare: viTripShare,
       },
       en: {
         common: enCommon,
@@ -36,11 +39,12 @@ void i18n
         login: enLogin,
         admin: enAdmin,
         manager: enManager,
+        tripShare: enTripShare,
       },
     },
     fallbackLng: "vi",
     defaultNS: "common",
-    ns: ["common", "nav", "login", "admin", "manager"],
+    ns: ["common", "nav", "login", "admin", "manager", "tripShare"],
     interpolation: { escapeValue: false },
     detection: {
       order: ["localStorage", "navigator"],

@@ -1,0 +1,72 @@
+{
+  "documentTitle": "VietRide · Live journey",
+  "brand": "VietRide",
+  "subtitle": "Secure live tracking",
+  "status": {
+    "live": "Live",
+    "connecting": "Connecting",
+    "loading": "Opening link…",
+    "offline": "Offline",
+    "ended": "Ended",
+    "error": "Unavailable"
+  },
+  "route": {
+    "label": "Journey",
+    "liveTitle": "Shared vehicle journey",
+    "origin": "Departure",
+    "destination": "Destination",
+    "unknown": "VietRide journey",
+    "unavailable": "Journey details appear after a valid link opens."
+  },
+  "eta": {
+    "label": "ETA",
+    "unknown": "Updating",
+    "inMinutes": "~{{count}} min left"
+  },
+  "metrics": {
+    "speed": "Speed",
+    "speedValue": "{{value}} km/h",
+    "notReported": "Not reported",
+    "waitingGps": "Waiting for GPS",
+    "tripStatus": "Trip status"
+  },
+  "link": {
+    "expires": "Link expires: {{time}}",
+    "unknownExpiry": "Expiring link"
+  },
+  "privacy": {
+    "note": "You only see this trip’s live map. No sign-in required. No wallet, bookings, or personal details from the sender.",
+    "noLogin": "No VietRide account required"
+  },
+  "map": {
+    "ariaLabel": "VietRide live vehicle map",
+    "sectionLabel": "Live vehicle position",
+    "vehicle": "Vehicle position",
+    "unavailable": "The map could not load. Journey details will continue updating."
+  },
+  "actions": {
+    "retry": "Try again"
+  },
+  "errors": {
+    "title": "Journey unavailable",
+    "invalidToken": "This link is invalid or incomplete. Open the exact link your family sent.",
+    "linkUnavailable": "This link expired, was revoked, or the trip has ended.",
+    "rateLimited": "Too many open attempts. Wait a moment and try again.",
+    "temporarilyUnavailable": "Service is temporarily unavailable. Please try again later.",
+    "generic": "Could not open live tracking. Check your connection and retry."
+  },
+  "revoked": {
+    "title": "Sharing has ended",
+    "expired": "This link has expired.",
+    "revoked": "The sender stopped sharing this journey.",
+    "tripEnded": "The trip has ended — live tracking stopped.",
+    "unavailable": "Access to this journey is no longer available."
+  },
+  "tripStatus": {
+    "IN_PROGRESS": "In progress",
+    "COMPLETED": "Completed",
+    "CANCELLED": "Cancelled",
+    "DISRUPTED": "Disrupted",
+    "SCHEDULED": "Scheduled"
+  }
+}
