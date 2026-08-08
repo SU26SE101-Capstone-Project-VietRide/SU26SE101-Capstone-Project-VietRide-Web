@@ -14,7 +14,6 @@ import type {
   OperatorRouteRequest,
 } from "../../../api/vietride";
 import DurationInput from "./DurationInput";
-import InlineFeedback from "./InlineFeedback";
 import SectionHeader from "./SectionHeader";
 import { Input, NumberInput, StationSelect } from "./formControls";
 import type { StationOption } from "./types";
@@ -45,7 +44,6 @@ export default function RouteFormSection({
   selectedRouteId,
   form,
   onUpdateField,
-  feedbackMessage,
   isAutoCalculatingMetrics,
   autoMetricsFallback,
   metricsLocked,
@@ -200,7 +198,6 @@ export default function RouteFormSection({
           {t("routes.activeRoute")}
         </label>
       </div>
-      <InlineFeedback message={feedbackMessage} />
     </section>
   );
 }

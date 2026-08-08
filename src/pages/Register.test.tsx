@@ -8,6 +8,11 @@ import {
   verifyEmail,
 } from "../api/vietride";
 import Register from "./Register";
+import { useToastFeedback } from "../hooks/useToastFeedback";
+
+vi.mock("../hooks/useToastFeedback", () => ({
+  useToastFeedback: vi.fn(),
+}));
 
 vi.mock("../api/vietride", () => ({
   registerOperator: vi.fn(async () => ({
@@ -159,7 +164,7 @@ describe("Register", () => {
       email: "ops@operator.vn",
       purpose: "REGISTRATION",
     });
-    expect(screen.getByText("Verification code resent")).toBeInTheDocument();
+    expect(useToastFeedback).toHaveBeenCalledWith({ message: "Verification code resent", error: "" });
 
     await user.type(screen.getByPlaceholderText("123456"), "654321");
     await user.click(screen.getByRole("button", { name: /verify email/i }));

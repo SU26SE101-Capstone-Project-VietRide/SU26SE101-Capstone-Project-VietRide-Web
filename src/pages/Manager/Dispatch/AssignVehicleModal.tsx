@@ -54,10 +54,7 @@ export default function AssignVehicleModal({
   form,
   onFormChange,
   onSubmit,
-  onRefreshResources,
   directionLabel,
-  resourceError,
-  submitError,
   isLoadingResources,
   isSubmitting,
 }: AssignVehicleModalProps) {
@@ -151,25 +148,6 @@ export default function AssignVehicleModal({
               </div>
             </div>
           </section>
-
-          {(resourceError || submitError) && (
-            <div
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-              role="alert"
-            >
-              <p>{submitError || resourceError}</p>
-              {resourceError && (
-                <button
-                  type="button"
-                  onClick={onRefreshResources}
-                  disabled={isLoadingResources || isSubmitting}
-                  className="mt-2 font-semibold underline underline-offset-2 disabled:opacity-50"
-                >
-                  {tc("refresh")}
-                </button>
-              )}
-            </div>
-          )}
 
           <section aria-labelledby="dispatch-booking-selection">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

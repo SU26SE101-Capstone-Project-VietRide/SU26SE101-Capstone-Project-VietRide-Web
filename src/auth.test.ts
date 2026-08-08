@@ -16,6 +16,7 @@ describe("auth", () => {
   beforeEach(() => {
     clearAuthSession();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("stores login session from the API response", async () => {
@@ -222,6 +223,54 @@ describe("auth", () => {
         }),
       }),
     );
+  });
+
+  it("uses the session refreshed by another tab while holding the refresh lock", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "old-access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          phone: "0901234567",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: vi.fn(async (_name: string, callback: () => Promise<unknown>) => {
+          localStorage.setItem(
+            "auth",
+            JSON.stringify({
+              accessToken: "other-tab-access-token",
+              refreshToken: "other-tab-refresh-token",
+              expiresInSeconds: 3600,
+              user: {
+                id: "user-1",
+                email: "admin@vietride.vn",
+                displayName: "Admin",
+                phone: "0901234567",
+                role: "SYSTEM_ADMIN",
+              },
+            }),
+          );
+          return callback();
+        }),
+      },
+    });
+
+    const session = await refreshAuthSession();
+
+    expect(session?.accessToken).toBe("other-tab-access-token");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("shares a single refresh request across concurrent callers", async () => {

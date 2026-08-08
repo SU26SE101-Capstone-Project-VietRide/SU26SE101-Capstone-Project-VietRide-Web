@@ -9,7 +9,7 @@ import {
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Modal from "../../../components/Modal";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
-import { Input, Panel, Select } from "./formControls";
+import { Input, Select } from "./formControls";
 import type { DriverScheduleApplyTo } from "../../../api/vietride";
 import type {
   RouteOption,
@@ -31,7 +31,6 @@ type ScheduleFormModalProps = {
   editingSchedule?: TripSchedule;
   isSaving: boolean;
   isLoadingResources: boolean;
-  error: string;
   applyTo: DriverScheduleApplyTo;
   onApplyToChange: (value: DriverScheduleApplyTo) => void;
   onFieldChange: <K extends keyof ScheduleFormValues>(
@@ -53,7 +52,6 @@ export default function ScheduleFormModal({
   editingSchedule,
   isSaving,
   isLoadingResources,
-  error,
   applyTo,
   onApplyToChange,
   onFieldChange,
@@ -67,6 +65,7 @@ export default function ScheduleFormModal({
       open={open}
       onClose={onClose}
       wide
+      extraWide
       icon={<FiCalendar />}
       title={
         editingSchedule
@@ -149,23 +148,19 @@ export default function ScheduleFormModal({
                     <span className="block text-sm font-semibold text-gray-900">
                       {option.label}
                     </span>
-                    <span className="block text-xs text-gray-500">
-                      {option.description}
-                    </span>
                   </span>
                 </label>
               ))}
             </div>
+            <p className="mt-2 px-1 text-xs leading-5 text-gray-500">
+              {applyTo === "FUTURE_ONLY"
+                ? t("trips.applyToFutureOnlyDesc")
+                : t("trips.applyToAllPendingDesc")}
+            </p>
           </fieldset>
         ) : null}
 
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <Select
               label={t("trips.route")}
@@ -257,14 +252,18 @@ export default function ScheduleFormModal({
             </Select>
           </div>
 
-          <Panel title={t("trips.businessRules")} icon={<FiAlertCircle />}>
-            <ul className="space-y-2 text-sm text-gray-600">
+          <details className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-gray-900">
+              <span className="text-vr-700"><FiAlertCircle /></span>
+              {t("trips.businessRules")}
+            </summary>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-gray-600">
               <li>{t("trips.ruleFutureDeparture")}</li>
               <li>{t("trips.ruleAvailability")}</li>
               <li>{t("trips.ruleActiveRoute")}</li>
               <li>{t("trips.ruleSubscription")}</li>
             </ul>
-          </Panel>
+          </details>
         </div>
       </div>
     </Modal>

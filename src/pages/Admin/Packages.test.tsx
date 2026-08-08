@@ -7,6 +7,11 @@ import {
   type SubscriptionPlan,
 } from "../../api/vietride";
 import Packages from "./Packages";
+import { useToastFeedback } from "../../hooks/useToastFeedback";
+
+vi.mock("../../hooks/useToastFeedback", () => ({
+  useToastFeedback: vi.fn(),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -78,8 +83,7 @@ describe("Admin Service Packages", () => {
     expect(within(dialog).getByText("packages.ragModuleHint")).toBeInTheDocument();
 
     await interaction.click(within(dialog).getByRole("button", { name: "packages.savePackage" }));
-    const alert = within(dialog).getByRole("alert");
-    expect(alert).toHaveTextContent("packages.nameRequired");
+    expect(useToastFeedback).toHaveBeenLastCalledWith({ message: "", error: "packages.nameRequired" });
     expect(createAdminSubscriptionPlan).not.toHaveBeenCalled();
   });
 
@@ -100,9 +104,6 @@ describe("Admin Service Packages", () => {
     limitInputs.forEach((input) => fireEvent.change(input, { target: { value: "1" } }));
 
     await interaction.click(within(dialog).getByRole("button", { name: "packages.savePackage" }));
-
-    const alert = await within(dialog).findByRole("alert");
-    expect(alert).toHaveTextContent("packages.saveFailed");
-    expect(alert).not.toHaveTextContent("One or more validation errors occurred.");
+    expect(useToastFeedback).toHaveBeenLastCalledWith({ message: "", error: "packages.saveFailed" });
   });
 });

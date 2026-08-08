@@ -316,7 +316,6 @@ describe("vietride API", () => {
       expectedUrls[0],
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({}),
         headers: expect.objectContaining({ "Idempotency-Key": "lock-key" }),
       }),
     );
@@ -325,7 +324,6 @@ describe("vietride API", () => {
       expectedUrls[1],
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({}),
         headers: expect.objectContaining({ "Idempotency-Key": "unlock-key" }),
       }),
     );
@@ -2489,7 +2487,7 @@ describe("UI gaps API contracts", () => {
       groupBy: "month",
       top: 5,
     });
-    await getOperatorRevenueAnalytics("2026-07");
+    await getOperatorRevenueAnalytics({ month: "2026-07" });
     await getOperatorTrips({
       status: "IN_PROGRESS",
       page: 2,

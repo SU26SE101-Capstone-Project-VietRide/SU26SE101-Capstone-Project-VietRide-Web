@@ -73,22 +73,22 @@ export default function VoucherModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
             {tc("cancel")}
           </button>
           <button
             type="button"
             onClick={onSubmit}
-            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+            className="rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700"
           >
             {isEditing ? t("vouchers.update") : t("vouchers.create")}
           </button>
         </>
       }
     >
-      <div className="space-y-5">
-        <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.formBasics")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-1">
+        <section className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.formBasics")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
           <Field
             label={t("vouchers.voucherCode")}
             value={form.code}
@@ -105,7 +105,7 @@ export default function VoucherModal({
           />
         </div></section>
 
-        <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.discountRules")}</h3></div></div><div className={form.type === "FIXED_AMOUNT" ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-3"}>
+        <section className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.discountRules")}</h3></div></div><div className={form.type === "FIXED_AMOUNT" ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-3"}>
           <div>
             <label className={labelClass}>{t("vouchers.discountType")}</label>
             <CustomSelect
@@ -162,7 +162,7 @@ export default function VoucherModal({
           />
         </div></section>
 
-        <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.validityRules")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
+        <section className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.validityRules")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
           <Field
             label={t("vouchers.validFrom")}
             type="datetime-local"
@@ -177,7 +177,7 @@ export default function VoucherModal({
           />
         </div></section>
 
-        <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.scopeRules")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
+        <section className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.scopeRules")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className={labelClass}>
               {t("vouchers.applicableRoutes")}

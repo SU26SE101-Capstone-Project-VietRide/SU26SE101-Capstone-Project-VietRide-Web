@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import type { ReactNode } from "react";
 import { FiEye, FiGrid } from "react-icons/fi";
 import type { OperatorVehicle, VehicleType } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
@@ -24,6 +25,7 @@ type VehicleTableProps = {
   totalItems: number;
   onPageChange: (page: number) => void;
   onOpenPanel: (vehicle: OperatorVehicle, mode: VehiclePanelMode) => void;
+  toolbar?: ReactNode;
 };
 
 export function VehicleTable({
@@ -36,6 +38,7 @@ export function VehicleTable({
   totalItems,
   onPageChange,
   onOpenPanel,
+  toolbar,
 }: VehicleTableProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -91,17 +94,18 @@ export function VehicleTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px]">
+      {toolbar && <div className="border-b border-gray-100 p-4">{toolbar}</div>}
+      <div className="w-full overflow-hidden px-3 sm:px-6">
+        <table className="w-full table-fixed text-center">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <th className="px-5 py-3">{t("vehicles.photo")}</th>
-              <th className="px-5 py-3">{t("vehicles.plate")}</th>
-              <th className="px-5 py-3">{t("vehicles.model")}</th>
-              <th className="px-5 py-3">{t("vehicles.capacity")}</th>
-              <th className="px-5 py-3">{t("vehicles.cargoWeight")}</th>
-              <th className="px-5 py-3">{tc("status")}</th>
-              <th className="px-5 py-3">{tc("actions")}</th>
+            <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <th className="w-[12%] whitespace-nowrap px-3 py-3 sm:px-5">{t("vehicles.photo")}</th>
+              <th className="w-[12%] whitespace-nowrap px-3 py-3 sm:px-5">{t("vehicles.plate")}</th>
+              <th className="w-[23%] whitespace-nowrap px-3 py-3 sm:px-5">{t("vehicles.model")}</th>
+              <th className="w-[11%] whitespace-nowrap px-3 py-3 sm:px-5">{t("vehicles.capacity")}</th>
+              <th className="w-[15%] whitespace-nowrap px-3 py-3 sm:px-5">{t("vehicles.cargoWeight")}</th>
+              <th className="w-[19%] whitespace-nowrap px-3 py-3 sm:px-5">{tc("status")}</th>
+              <th className="w-[8%] whitespace-nowrap px-3 py-3 sm:px-5">{tc("actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -133,24 +137,28 @@ export function VehicleTable({
                     key={vehicleId || vehicle.licensePlate}
                     className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                   >
-                    <td className="px-5 py-4">
+                    <td className="px-2 py-4 align-middle sm:px-5">
+                      <div className="flex justify-center">
                       <VehicleImage
                         src={photo.src}
                         alt={photo.alt}
                         width={96}
                         height={64}
-                        containerClassName="h-16 w-24 rounded-lg border border-gray-200"
+                        containerClassName="mx-auto h-14 w-20 max-w-full rounded-lg border border-gray-200 sm:h-16 sm:w-24"
                         loadingLabel={t("vehicles.imageLoading")}
                         errorLabel={t("vehicles.imageLoadFailed")}
                       />
+                      </div>
                     </td>
-                    <td className="px-5 py-4 text-sm font-semibold text-gray-900">
+                    <td className="whitespace-nowrap px-2 py-4 text-center sm:px-5 text-sm font-semibold text-gray-900">
                       {vehicle.licensePlate}
                     </td>
-                    <td className="px-5 py-4 text-sm text-gray-700">
-                      {getVehicleTypeLabel(vehicle, vehicleTypes)}
+                    <td className="whitespace-nowrap px-2 py-4 text-center sm:px-5 text-sm text-gray-700">
+                      <span className="block truncate" title={getVehicleTypeLabel(vehicle, vehicleTypes)}>
+                        {getVehicleTypeLabel(vehicle, vehicleTypes)}
+                      </span>
                     </td>
-                    <td className="px-5 py-4 text-sm text-gray-700">
+                    <td className="whitespace-nowrap px-2 py-4 text-center sm:px-5 text-sm text-gray-700">
                       <span className="font-semibold tabular-nums text-gray-900">
                         {stats.activePassengerSeats}/{stats.passengerSeats}
                       </span>
@@ -164,15 +172,12 @@ export function VehicleTable({
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-4 text-sm tabular-nums text-gray-700">
-                      <span className="block">{vehicle.maxCargoWeightKg} kg</span>
-                      <span className="mt-1 block text-xs text-gray-500">
-                        {vehicle.maxCargoVolumeM3 ?? 0} m³
-                      </span>
+                    <td className="whitespace-nowrap px-2 py-4 text-center sm:px-5 text-sm tabular-nums text-gray-700">
+                      {vehicle.maxCargoWeightKg} kg · {vehicle.maxCargoVolumeM3 ?? 0} m³
                     </td>
-                    <td className="px-5 py-4">{vehicleStatusBadge(vehicle.status)}</td>
-                    <td className="px-5 py-4 text-sm">
-                      <div className="flex items-center gap-2">
+                    <td className="whitespace-nowrap px-2 py-4 text-center sm:px-5">{vehicleStatusBadge(vehicle.status)}</td>
+                    <td className="whitespace-nowrap px-2 py-4 text-center sm:px-5 text-sm">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => onOpenPanel(vehicle, "info")}
@@ -200,12 +205,14 @@ export function VehicleTable({
           </tbody>
         </table>
       </div>
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        totalItems={totalItems}
-        onPageChange={onPageChange}
-      />
+      <div className="px-3 sm:px-6">
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          onPageChange={onPageChange}
+        />
+      </div>
     </div>
   );
 }

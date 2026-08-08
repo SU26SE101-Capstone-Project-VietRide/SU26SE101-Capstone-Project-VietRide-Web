@@ -1,3 +1,4 @@
+import { formatCurrency } from "../../../utils/currency";
 import type {
   OperatorSubscriptionDetail,
   SubscriptionBillingPeriod,
@@ -17,7 +18,7 @@ export function formatPrice(
 ) {
   const amount =
     billingPeriod === "YEARLY" ? plan.pricePerYear : plan.pricePerMonth;
-  return `${formatNumber(amount)} VND`;
+  return formatCurrency(amount);
 }
 
 export function planLimit(

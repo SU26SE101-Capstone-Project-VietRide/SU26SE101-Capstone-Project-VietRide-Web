@@ -212,10 +212,27 @@
     }
   },
   "profilePage": {
+    "accountInfo": "Account information",
+    "roleLabel": "Role",
+    "systemRole": "System administrator",
+    "securityTitle": "Account security",
+    "securityHint": "System administrator accounts are managed by the platform security controls.",
     "home": "Home",
     "userProfile": "User profile",
     "myProfile": "My profile",
     "firstName": "First name",
+    "operatorName": "Operator name",
+    "ward": "Ward",
+    "district": "District",
+    "systemNameLabel": "System name",
+    "systemName": "System",
+    "street": "Street address",
+    "representativeName": "Representative",
+    "representativePhone": "Representative phone",
+    "luggagePolicy": "Luggage per seat",
+    "noShowPolicy": "No-show fee",
+    "paymentTimeout": "Payment timeout",
+    "policies": "Operating policies",
     "lastName": "Last name",
     "emailAddress": "Email address",
     "phone": "Phone",
@@ -241,6 +258,8 @@
     "avatarUpdated": "Avatar updated.",
     "logoAdminOnly": "Only the operator admin can update the logo.",
     "logoUrlMissing": "The system did not receive the logo URL after upload.",
-    "logoUpdated": "Operator logo updated."
+    "logoUpdated": "Operator logo updated.",
+    "profileUpdated": "Profile updated."
   }
 }
+

@@ -12,9 +12,12 @@ const labels = {
   periodTo: "Đến ngày",
   timezone: "Múi giờ",
   month: "Tháng",
-  grossRevenue: "Tổng doanh thu (VND)",
+  totalProjectRevenue: "Tổng doanh thu dự án (VND)",
+  netTransportRevenue: "Doanh thu vận tải ròng (VND)",
+  netTicketRevenue: "Doanh thu vé ròng (VND)",
+  netParcelRevenue: "Doanh thu bưu phẩm ròng (VND)",
+  subscriptionRevenue: "Doanh thu gói dịch vụ (VND)",
   paidToOperators: "Trả nhà xe (VND)",
-  platformRevenue: "Doanh thu nền tảng (VND)",
 } satisfies RevenueCsvLabels;
 
 const analytics = {
@@ -24,16 +27,28 @@ const analytics = {
     timezone: "Asia/Ho_Chi_Minh",
   },
   summary: {
-    grossRevenueVnd: { currentValue: 100, previousValue: 0, changePercent: 0, trend: "UP" },
-    paidToOperatorsVnd: { currentValue: 60, previousValue: 0, changePercent: 0, trend: "UP" },
-    platformRevenueVnd: { currentValue: 40, previousValue: 0, changePercent: 0, trend: "UP" },
+    revenue: {
+      totalProjectRevenueVnd: { currentValue: 100, previousValue: 0, changePercent: 0, trend: "UP" },
+      netTransportRevenueVnd: { currentValue: 90, previousValue: 0, changePercent: 0, trend: "UP" },
+      netTicketRevenueVnd: { currentValue: 80, previousValue: 0, changePercent: 0, trend: "UP" },
+      netParcelRevenueVnd: { currentValue: 10, previousValue: 0, changePercent: 0, trend: "UP" },
+      subscriptionRevenueVnd: { currentValue: 10, previousValue: 0, changePercent: 0, trend: "UP" },
+    },
+    settlement: {
+      paidToOperatorsVnd: { currentValue: 60, previousValue: 0, changePercent: 0, trend: "UP" },
+    },
   },
   monthly: [
     {
       month: "2026-07",
-      grossRevenueVnd: 100,
-      paidToOperatorsVnd: 60,
-      platformRevenueVnd: 40,
+      revenue: {
+        totalProjectRevenueVnd: 100,
+        netTransportRevenueVnd: 90,
+        netTicketRevenueVnd: 80,
+        netParcelRevenueVnd: 10,
+        subscriptionRevenueVnd: 10,
+      },
+      settlement: { paidToOperatorsVnd: 60 },
     },
   ],
   topOperators: [],
@@ -50,11 +65,14 @@ describe("downloadRevenueCsv", () => {
         "Đến ngày",
         "Múi giờ",
         "Tháng",
-        "Tổng doanh thu (VND)",
+        "Tổng doanh thu dự án (VND)",
+        "Doanh thu vận tải ròng (VND)",
+        "Doanh thu vé ròng (VND)",
+        "Doanh thu bưu phẩm ròng (VND)",
+        "Doanh thu gói dịch vụ (VND)",
         "Trả nhà xe (VND)",
-        "Doanh thu nền tảng (VND)",
       ],
-      [["2026-01-01", "2026-12-31", "Asia/Ho_Chi_Minh", "2026-07", 100, 60, 40]],
+      [["2026-01-01", "2026-12-31", "Asia/Ho_Chi_Minh", "2026-07", 100, 90, 80, 10, 10, 60]],
     );
   });
 });

@@ -11,6 +11,7 @@ import {
   FiUser,
 } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import { useToastFeedback } from "../hooks/useToastFeedback";
 import logo from "../assets/Login/logo.svg";
 import login_3 from "../assets/Login/login_3.png";
 import {
@@ -102,6 +103,7 @@ export default function Register() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendError, setResendError] = useState("");
   const [resendMessage, setResendMessage] = useState("");
+  useToastFeedback({ message: resendMessage || message, error: resendError || error });
 
   const updateForm = (key: keyof RegisterOperatorRequest, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -347,14 +349,14 @@ export default function Register() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-vr-500 px-4 py-8 sm:px-6">
+    <div className="relative min-h-screen overflow-hidden bg-vr-500 px-4 py-4 sm:px-6">
       <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
         <LanguageSwitcher />
       </div>
 
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center">
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl items-center">
         <div className="grid w-full overflow-hidden rounded-[1.75rem] bg-white shadow-2xl shadow-vr-900/15 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="relative hidden min-h-[680px] overflow-hidden bg-vr-900 lg:block">
+          <div className="relative hidden min-h-0 overflow-hidden bg-vr-900 lg:block">
             <img
               src={login_3}
               alt={t("hero.highway")}
@@ -375,42 +377,25 @@ export default function Register() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center px-6 py-10 sm:px-10">
+          <div className="flex items-center justify-center px-5 py-6 sm:px-8">
             <div className="w-full max-w-md">
-              <div className="mb-7 flex items-center justify-center">
+              <div className="mb-3 flex items-center justify-center">
                 <img
                   src={logo}
                   alt={tc("brand")}
-                  className="h-20 w-20 object-contain"
+                  className="h-14 w-14 object-contain"
                 />
               </div>
 
-              <h1 className="text-center text-3xl font-bold tracking-tight text-vr-900">
+              <h1 className="text-center text-2xl font-bold tracking-tight text-vr-900">
                 {t("registerTitle")}
               </h1>
-              <p className="mt-2 text-center text-sm leading-6 text-gray-500">
+              <p className="mt-1 text-center text-sm leading-5 text-gray-500">
                 {t("registerSubtitle")}
               </p>
 
-              {error && (
-                <div
-                  className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                  role="alert"
-                >
-                  {error}
-                </div>
-              )}
-              {message && (
-                <div
-                  className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-                  role="status"
-                >
-                  {message}
-                </div>
-              )}
-
               {registeredEmail ? (
-                <form onSubmit={handleVerifyEmail} className="mt-6 space-y-4">
+                <form onSubmit={handleVerifyEmail} className="mt-4 space-y-3">
                   <Field
                     icon={<FiMail />}
                     label={t("verificationEmail")}
@@ -440,20 +425,10 @@ export default function Register() {
                         : t("resendVerification")}
                     </button>
                   </div>
-                  {resendError && (
-                    <p className="text-sm text-red-600" role="alert">
-                      {resendError}
-                    </p>
-                  )}
-                  {resendMessage && (
-                    <p className="text-sm text-emerald-700" role="status">
-                      {resendMessage}
-                    </p>
-                  )}
                   <button
                     type="submit"
                     disabled={loading || resendLoading}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-600 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
                   >
                     {loading ? (
                       <>
@@ -471,7 +446,7 @@ export default function Register() {
               ) : (
                 <form
                   onSubmit={handleRegistrationFormSubmit}
-                  className="mt-6 space-y-5"
+                  className="mt-4 space-y-4"
                 >
                   <div
                     className="grid grid-cols-3 gap-2"
@@ -522,7 +497,7 @@ export default function Register() {
                   </div>
 
                   {currentStep === 0 && (
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div className="sm:col-span-2">
                         <Field
                           icon={<FiUser />}
@@ -568,7 +543,7 @@ export default function Register() {
                   )}
 
                   {currentStep === 1 && (
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div className="sm:col-span-2">
                         <Field
                           icon={<FiMapPin />}
@@ -605,7 +580,7 @@ export default function Register() {
                   )}
 
                   {currentStep === 2 && (
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <Field
                         icon={<FiUser />}
                         label={t("representativeName")}
@@ -643,7 +618,7 @@ export default function Register() {
                       type="button"
                       onClick={handlePreviousStep}
                       disabled={currentStep === 0 || loading}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3.5 text-base font-bold text-slate-700 transition hover:border-vr-200 hover:bg-vr-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-2.5 text-base font-bold text-slate-700 transition hover:border-vr-200 hover:bg-vr-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                     >
                       <FiArrowLeft className="h-5 w-5" />
                       {t("back")}
@@ -654,7 +629,7 @@ export default function Register() {
                         type="button"
                         onClick={handleNextStep}
                         disabled={loading}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
                       >
                         {t("continue")}
                         <FiArrowRight className="h-5 w-5" />
@@ -663,7 +638,7 @@ export default function Register() {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
                       >
                         {loading ? (
                           <>
@@ -682,7 +657,7 @@ export default function Register() {
                 </form>
               )}
 
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
                 <Link
                   to="/login"
                   className="inline-flex items-center gap-2 font-semibold text-vr-700 hover:text-vr-900"
@@ -747,3 +722,5 @@ function Field({
     </div>
   );
 }
+
+

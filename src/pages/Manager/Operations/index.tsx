@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import {
   FiAlertTriangle,
   FiNavigation,
@@ -87,6 +88,7 @@ export default function OperationsPage() {
   const [eta, setEta] = useState<TrackingEtaResponse | null>(null);
   const [apiMessage, setApiMessage] = useState("");
   const [apiError, setApiError] = useState("");
+  useToastFeedback({ message: apiMessage, error: apiError });
   const [isApiLoading, setIsApiLoading] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("idle");
   const [delayInfo, setDelayInfo] = useState<TripStatusChangedEvent | null>(
@@ -513,11 +515,6 @@ export default function OperationsPage() {
         onFilterStatusChange={setFilterStatus}
       />
 
-      {apiError && !selectedTripId && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {apiError}
-        </div>
-      )}
 
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
         {/* Trái: bản đồ đội xe chiếm phần lớn màn hình */}

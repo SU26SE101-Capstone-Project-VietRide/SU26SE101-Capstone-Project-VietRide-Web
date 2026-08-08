@@ -3,13 +3,16 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiRefreshCw, FiSearch, FiTruck } from "react-icons/fi";
+import { FiAlertTriangle, FiCheckCircle, FiPauseCircle, FiPlus, FiRefreshCw, FiSearch, FiTruck } from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
 import { getAuthUser } from "../../../auth";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { StatCard } from "../../../components/StatCard";
+import CustomSelect from "../../../components/CustomSelect";
+import { ConfirmModal } from "../../../components/ConfirmModal";
 import {
   readSessionCache,
   writeSessionCache,
@@ -86,6 +89,8 @@ export default function VehiclesPage() {
   const canManageVehicles = authUser?.role === "OPERATOR_ADMIN";
   const [searchParams, setSearchParams] = useSearchParams();
   const querySearch = searchParams.get("search") ?? "";
+  const queryStatus = searchParams.get("status") ?? "";
+  const queryVehicleTypeId = searchParams.get("vehicleTypeId") ?? "";
   const parsedPage = Number(searchParams.get("page"));
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const [search, setSearch] = useState(querySearch);
@@ -102,6 +107,7 @@ export default function VehiclesPage() {
     useState<OperatorVehicle["seatLayoutJson"]>();
   const [isSeatDetailLoading, setIsSeatDetailLoading] = useState(false);
   const [isSeatSaving, setIsSeatSaving] = useState(false);
+  const [pendingSeatSave, setPendingSeatSave] = useState(false);
   const [seatError, setSeatError] = useState("");
   const [discardPrompt, setDiscardPrompt] = useState(false);
   const [vehicleForm, setVehicleForm] = useState<VehicleForm>(emptyVehicleForm);
@@ -113,8 +119,8 @@ export default function VehiclesPage() {
   const [fieldErrors, setFieldErrors] = useState<VehicleFormErrors>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState("");
   const [totalItems, setTotalItems] = useState(0);
+  useToastFeedback({ message, error: formError || seatError });
   const [fleetTotalItems, setFleetTotalItems] = useState<number | null>(null);
   const listAbortControllerRef = useRef<AbortController | null>(null);
   const detailAbortControllerRef = useRef<AbortController | null>(null);
@@ -171,7 +177,7 @@ export default function VehiclesPage() {
     const controller = new AbortController();
     listAbortControllerRef.current = controller;
     setIsLoading(true);
-    setError("");
+    setFormError("");
 
     try {
       const vehicleResult = await getOperatorVehicles(
@@ -180,6 +186,8 @@ export default function VehiclesPage() {
           pageSize,
           search: querySearch,
           searchIn: "licensePlate",
+          status: queryStatus || undefined,
+          vehicleTypeId: queryVehicleTypeId || undefined,
         },
         controller.signal,
       );
@@ -198,7 +206,7 @@ export default function VehiclesPage() {
         return;
       }
 
-      setError(
+      setFormError(
         err instanceof Error
           ? err.message
           : tRef.current("vehicles.loadFailed"),
@@ -208,7 +216,7 @@ export default function VehiclesPage() {
         setIsLoading(false);
       }
     }
-  }, [page, pageSize, querySearch]);
+  }, [page, pageSize, querySearch, queryStatus, queryVehicleTypeId]);
 
   useEffect(() => {
     // The list request synchronizes component state with the external API.
@@ -259,7 +267,7 @@ export default function VehiclesPage() {
         }
       } catch (err) {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
-          setError(
+          setFormError(
             err instanceof Error
               ? err.message
               : tRef.current("vehicles.loadFailed"),
@@ -276,6 +284,9 @@ export default function VehiclesPage() {
   }, []);
 
   const total = fleetTotalItems ?? totalItems;
+  const activeCount = vehicles.filter((vehicle) => vehicle.status === "ACTIVE").length;
+  const maintenanceCount = vehicles.filter((vehicle) => vehicle.status === "MAINTENANCE").length;
+  const inactiveCount = vehicles.filter((vehicle) => ["OFF_DUTY", "INACTIVE", "RETIRED"].includes(vehicle.status)).length;
 
   function updateVehicleForm(key: keyof VehicleForm, value: string) {
     setVehicleForm((current) => {
@@ -309,7 +320,7 @@ export default function VehiclesPage() {
 
     setSelectedVehicle(null);
     setVehicleImageFiles([]);
-    setError("");
+    setFormError("");
     setMessage("");
     setFormError("");
     setFieldErrors({});
@@ -324,7 +335,7 @@ export default function VehiclesPage() {
   function openEditModal(vehicle: OperatorVehicle) {
     setSelectedVehicle(vehicle);
     setVehicleImageFiles([]);
-    setError("");
+    setFormError("");
     setMessage("");
     setFormError("");
     setFieldErrors({});
@@ -384,7 +395,7 @@ export default function VehiclesPage() {
     setVehicleFormBaseline(nextForm);
     setPanelMode(mode);
     setMessage("");
-    setError("");
+    setFormError("");
 
     if (mode === "seats" && canManageVehicles) {
       void loadSeatLayout(vehicle);
@@ -507,10 +518,6 @@ export default function VehiclesPage() {
       return;
     }
 
-    if (!window.confirm(t("vehicles.seatSaveConfirm"))) {
-      return;
-    }
-
     setIsSeatSaving(true);
     setSeatError("");
 
@@ -544,6 +551,7 @@ export default function VehiclesPage() {
       );
     } finally {
       setIsSeatSaving(false);
+      setPendingSeatSave(false);
     }
   }
 
@@ -863,6 +871,70 @@ export default function VehiclesPage() {
     }
   }
 
+  const vehicleToolbar = (
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_240px] lg:items-center">
+          <div className="relative min-w-0">
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              name="vehicleSearch"
+              className={`${inputClass} pl-10`}
+              placeholder={`${tc("search")}: ${t("vehicles.plate")}`}
+              aria-label={`${tc("search")}: ${t("vehicles.plate")}`}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <CustomSelect
+            value={queryStatus}
+            onChange={(event) =>
+              setSearchParams(
+                (current) => {
+                  const next = new URLSearchParams(current);
+                  if (event.target.value) next.set("status", event.target.value);
+                  else next.delete("status");
+                  next.set("page", "1");
+                  return next;
+                },
+                { replace: true },
+              )
+            }
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700"
+            aria-label={tc("status")}
+          >
+            <option value="">{tc("all")}</option>
+            <option value="ACTIVE">{t("vehicles.statusActive")}</option>
+            <option value="MAINTENANCE">{t("vehicles.statusMaintenance")}</option>
+            <option value="OFF_DUTY">{t("vehicles.inactive")}</option>
+            <option value="RETIRED">{tc("enumLabels.RETIRED", { defaultValue: "RETIRED" })}</option>
+          </CustomSelect>
+          <CustomSelect
+            value={queryVehicleTypeId}
+            onChange={(event) =>
+              setSearchParams(
+                (current) => {
+                  const next = new URLSearchParams(current);
+                  if (event.target.value) next.set("vehicleTypeId", event.target.value);
+                  else next.delete("vehicleTypeId");
+                  next.set("page", "1");
+                  return next;
+                },
+                { replace: true },
+              )
+            }
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700"
+            aria-label={t("vehicles.vehicleType")}
+          >
+            <option value="">{t("vehicles.vehicleType")}: {tc("all")}</option>
+            {vehicleTypes.map((vehicleType) => (
+              <option key={vehicleType.id} value={vehicleType.id}>
+                {vehicleType.displayName}
+              </option>
+            ))}
+          </CustomSelect>
+        </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -896,51 +968,15 @@ export default function VehiclesPage() {
         </div>
       </div>
 
-      {message && (
-        <div
-          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-          role="status"
-          aria-live="polite"
-        >
-          {message}
-        </div>
-      )}
-      {error && (
-        <div
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-          aria-live="assertive"
-        >
-          {error}
-        </div>
-      )}
-
-      <div className="grid gap-4 sm:max-w-sm">
-        <MetricCard
-          label={t("vehicles.total")}
-          value={total}
-          icon={<FiTruck size={20} />}
-        />
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="search"
-              name="vehicleSearch"
-              className={`${inputClass} pl-10`}
-              placeholder={`${tc("search")}: ${t("vehicles.plate")}`}
-              aria-label={`${tc("search")}: ${t("vehicles.plate")}`}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label={t("vehicles.total")} value={total} icon={<FiTruck size={20} />} iconClassName="bg-vr-50 text-vr-700" />
+        <StatCard label={t("vehicles.active")} value={activeCount} icon={<FiCheckCircle size={20} />} iconClassName="bg-emerald-50 text-emerald-700" />
+        <StatCard label={t("vehicles.statusMaintenance")} value={maintenanceCount} icon={<FiAlertTriangle size={20} />} iconClassName="bg-amber-50 text-amber-700" />
+        <StatCard label={t("vehicles.inactive")} value={inactiveCount} icon={<FiPauseCircle size={20} />} iconClassName="bg-slate-100 text-slate-700" />
       </div>
 
       <VehicleTable
+        toolbar={vehicleToolbar}
         vehicles={vehicles}
         vehicleTypes={vehicleTypes}
         isLoading={isLoading}
@@ -981,7 +1017,6 @@ export default function VehiclesPage() {
           originalSeatLayout={initialLayout}
           isSeatDirty={isSeatDirty}
           seatChangeCount={countSeatChanges(draftLayout, initialLayout)}
-          seatError={seatError}
           discardPrompt={discardPrompt}
           onModeChange={changePanelMode}
           onCloseRequest={requestCloseVehiclePanel}
@@ -1001,28 +1036,22 @@ export default function VehiclesPage() {
           onImageError={handleVehicleImageError}
           onToggleSeat={toggleSeat}
           onResetSeats={cancelSeatEdit}
-          onSaveSeats={saveSeatLayout}
+          onSaveSeats={() => setPendingSeatSave(true)}
         />
       )}
+      <ConfirmModal
+        open={pendingSeatSave}
+        onClose={() => setPendingSeatSave(false)}
+        onConfirm={() => void saveSeatLayout()}
+        title={tc("confirm")}
+        message={t("vehicles.seatSaveConfirm")}
+        confirmLabel={tc("confirm")}
+        cancelLabel={tc("cancel")}
+        tone="warning"
+        busy={isSeatSaving}
+      />
     </div>
   );
 }
 
-// Sub-component nhỏ (≤ 50 dòng) chỉ màn này dùng — được phép inline sau component page
-type MetricCardProps = { label: string; value: number; icon: ReactNode };
 
-function MetricCard({ label, value, icon }: MetricCardProps) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-gray-500">{label}</p>
-          <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-}

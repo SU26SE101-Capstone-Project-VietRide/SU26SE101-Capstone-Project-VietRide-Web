@@ -18,6 +18,7 @@ export type RouteStopDraft = RouteStopRequest & {
 export type StationOption = Station & {
   address?: string;
   operatorStationId?: string;
+  stationId?: string;
 };
 
 export type StationRouteRole = "" | "origin" | "destination";

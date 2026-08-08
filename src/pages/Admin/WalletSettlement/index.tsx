@@ -33,6 +33,7 @@ import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import { StatCard } from "../../../components/StatCard";
+import { formatCurrency } from "../../../utils/currency";
 
 const pageSize = 10;
 
@@ -57,7 +58,7 @@ const settlementViews = [
 type SettlementView = (typeof settlementViews)[number];
 
 function formatMoney(value: number) {
-  return `${value.toLocaleString("vi-VN")} đ`;
+  return formatCurrency(value);
 }
 
 function canSettleManually(status: TripSettlementStatus) {
@@ -407,21 +408,21 @@ export default function WalletSettlement() {
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[1120px] text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold whitespace-nowrap text-gray-600">
-                    <th className="px-4 py-3">
+                  <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold whitespace-nowrap text-gray-600">
+                    <th className="px-4 py-3 text-left">
                       {t("walletSettlement.operator")}
                     </th>
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3 text-center">
                       {t("walletSettlement.settlementAmount")}
                     </th>
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3 text-center">
                       {t("walletSettlement.eligibleAt")}
                     </th>
-                    <th className="px-4 py-3">{tc("status")}</th>
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3 text-center">{tc("status")}</th>
+                    <th className="px-4 py-3 text-center">
                       {t("walletSettlement.method")}
                     </th>
-                    <th className="px-4 py-3">{t("walletSettlement.issue")}</th>
+                    <th className="px-4 py-3 text-center">{t("walletSettlement.issue")}</th>
                     <th className="px-4 py-3 text-center">{tc("actions")}</th>
                   </tr>
                 </thead>
@@ -441,41 +442,29 @@ export default function WalletSettlement() {
                       key={record.settlementId}
                       className="border-b border-gray-100 hover:bg-gray-50"
                     >
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {record.operator?.logoUrl ? (
-                            <img
-                              src={record.operator.logoUrl}
-                              alt=""
-                              width={32}
-                              height={32}
-                              loading="lazy"
-                              className="h-8 w-8 rounded-lg object-cover"
-                            />
-                          ) : null}
-                          <p className="font-medium text-gray-900">
-                            {record.operator?.name ?? record.operatorId ?? "-"}
-                          </p>
-                        </div>
+                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                        <p className="font-semibold text-gray-900">
+                          {record.operator?.name ?? record.operatorId ?? "-"}
+                        </p>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-semibold">
+                      <td className="whitespace-nowrap px-4 py-3 text-center font-semibold">
                         {formatMoney(record.netAmount)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-left">
                         {formatDate(
                           record.settlementMethod === "ADMIN_MANUAL" && record.settledAt
                             ? record.settledAt
                             : record.eligibleAt,
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-left">
                         <span
                           className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[record.status]}`}
                         >
                           {t(`walletSettlement.status.${record.status}`)}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-left">
                         <p>
                           {record.settlementMethod
                             ? t(
@@ -490,9 +479,9 @@ export default function WalletSettlement() {
                           </p>
                         ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-left">
                         {record.activeFailureCode ? (
-                          <div className="flex items-center gap-2 text-amber-700">
+                          <div className="flex items-center justify-center gap-2 text-amber-700">
                             <FiAlertTriangle className="shrink-0" />
                             <span>
                               {record.activeFailureCode}
@@ -504,7 +493,7 @@ export default function WalletSettlement() {
                           "-"
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
+                      <td className="whitespace-nowrap px-4 py-3 text-left">
                         <button
                           type="button"
                           disabled={
@@ -675,7 +664,7 @@ function WalletTransactionTable({
   return (
     <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 p-4">
-        <h2 className="text-lg font-semibold text-gray-900">{t("walletSettlement.latestTransactions")}</h2>
+        <h2 className="text-center text-lg font-semibold text-gray-900">{t("walletSettlement.latestTransactions")}</h2>
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -701,14 +690,14 @@ function WalletTransactionTable({
       <div className="overflow-x-auto p-4">
         <table className="w-full min-w-[980px] text-sm">
           <thead>
-            <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3">{t("walletSettlement.createdAt")}</th>
-              <th className="px-4 py-3">{t("walletSettlement.cashFlow")}</th>
-              <th className="px-4 py-3">{t("walletSettlement.amount")}</th>
-              <th className="px-4 py-3">{t("walletSettlement.balanceBefore")}</th>
-              <th className="px-4 py-3">{t("walletSettlement.balanceAfter")}</th>
-              <th className="px-4 py-3">{t("walletSettlement.reference")}</th>
-              <th className="px-4 py-3">{t("walletSettlement.actor")}</th>
+            <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
+              <th className="px-4 py-3 text-center">{t("walletSettlement.createdAt")}</th>
+              <th className="px-4 py-3 text-center">{t("walletSettlement.cashFlow")}</th>
+              <th className="px-4 py-3 text-center">{t("walletSettlement.amount")}</th>
+              <th className="px-4 py-3 text-center">{t("walletSettlement.balanceBefore")}</th>
+              <th className="px-4 py-3 text-center">{t("walletSettlement.balanceAfter")}</th>
+              <th className="px-4 py-3 text-center">{t("walletSettlement.reference")}</th>
+              <th className="px-4 py-3 text-center">{t("walletSettlement.actor")}</th>
             </tr>
           </thead>
           <tbody>
@@ -718,13 +707,13 @@ function WalletTransactionTable({
               const isCredit = item.type === "CREDIT";
   return (
                 <tr key={item.transactionId} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-4 py-3">{formatDate(item.createdAt)}</td>
-                  <td className="px-4 py-3"><span className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? <FiArrowDown /> : <FiArrowUp />}{t(isCredit ? "walletSettlement.moneyIn" : "walletSettlement.moneyOut")}</span></td>
+                  <td className="whitespace-nowrap px-4 py-3 text-left">{formatDate(item.createdAt)}</td>
+                  <td className="px-4 py-3 text-center"><span className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? <FiArrowDown /> : <FiArrowUp />}{t(isCredit ? "walletSettlement.moneyIn" : "walletSettlement.moneyOut")}</span></td>
                   <td className={`whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? "+" : "-"}{formatMoney(item.amount)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatMoney(item.balanceBefore)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatMoney(item.balanceAfter)}</td>
-                  <td className="px-4 py-3 text-gray-700">{t(`walletSettlement.references.${item.referenceType}`, { defaultValue: item.referenceType })}</td>
-                  <td className="px-4 py-3">{item.actorType === "SYSTEM" ? t("walletSettlement.systemActor") : (item.actor?.displayName ?? "-")}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center text-gray-600">{formatMoney(item.balanceBefore)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center font-semibold">{formatMoney(item.balanceAfter)}</td>
+                  <td className="px-4 py-3 text-center text-gray-700">{t(`walletSettlement.references.${item.referenceType}`, { defaultValue: item.referenceType })}</td>
+                  <td className="px-4 py-3 text-center">{item.actorType === "SYSTEM" ? t("walletSettlement.systemActor") : (item.actor?.displayName ?? "-")}</td>
                 </tr>
               );
             })}

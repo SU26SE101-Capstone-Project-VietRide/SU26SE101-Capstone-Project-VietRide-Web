@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 // Modal tạo tuyến nhanh: chỉ gồm các field bắt buộc (tên + bến đi + bến đến).
 // Field nâng cao chỉnh sau trong tab Thông tin.
 // Chọn đủ 2 bến có tọa độ → tự tính đường (Google Routes) và gửi kèm pathPolyline
@@ -5,7 +6,7 @@
 // tự tính, contract 12.1). Fallback haversine (thiếu key/lỗi mạng) → gửi manualMetrics.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiExternalLink, FiGitBranch, FiLoader, FiPlus } from "react-icons/fi";
+import { FiGitBranch, FiLoader, FiPlus } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import { ApiRequestError } from "../../../api/client";
 import type { RouteManualMetrics } from "../../../api/vietride";
@@ -38,8 +39,7 @@ type CreateRouteModalProps = {
   onClose: () => void;
   stations: StationOption[];
   onSubmit: (basics: CreateRouteBasics) => Promise<void>;
-  // 409 ROUTE_DUPLICATED → mở tuyến có sẵn (điều hướng ?routeId=)
-  onOpenExistingRoute: (routeId: string) => void;
+  onOpenExistingRoute?: (routeId: string) => void;
 };
 
 const emptyBasics: CreateRouteBasics = {
@@ -59,8 +59,8 @@ export default function CreateRouteModal({
   const { t: tc } = useTranslation("common");
   const [basics, setBasics] = useState<CreateRouteBasics>(emptyBasics);
   const [error, setError] = useState("");
-  // Id tuyến trùng lấy từ error.fields[].existingRouteId của 409 ROUTE_DUPLICATED
   const [duplicateRouteId, setDuplicateRouteId] = useState("");
+  useToastFeedback({ error });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [computedMetrics, setComputedMetrics] = useState<AutoMetrics | null>(
     null,
@@ -189,7 +189,6 @@ export default function CreateRouteModal({
   function resetForm() {
     setBasics(emptyBasics);
     setError("");
-    setDuplicateRouteId("");
     setComputedMetrics(null);
     setCalculatingPairKey("");
     setFailedPairKey("");
@@ -203,7 +202,6 @@ export default function CreateRouteModal({
 
   async function handleSubmit() {
     setError("");
-    setDuplicateRouteId("");
     setIsSubmitting(true);
 
     try {
@@ -227,10 +225,9 @@ export default function CreateRouteModal({
       onClose();
     } catch (err) {
       if (err instanceof ApiRequestError && err.code === "ROUTE_DUPLICATED") {
-        const existingRouteId = err.fields?.find(
-          (field) => field.field === "existingRouteId",
-        )?.message;
-        setDuplicateRouteId(existingRouteId ?? "");
+        setDuplicateRouteId(
+          err.fields?.find((field) => field.field === "existingRouteId")?.message ?? "",
+        );
         setError(err.message || t("routes.duplicateRoute"));
         return;
       }
@@ -271,6 +268,21 @@ export default function CreateRouteModal({
         </>
       }
     >
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p>{error}</p>
+          {duplicateRouteId && onOpenExistingRoute && (
+            <button
+              type="button"
+              className="mt-2 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+              onClick={() => onOpenExistingRoute(duplicateRouteId)}
+            >
+              {t("routes.openExistingRoute")}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         <Input
           label={t("routes.routeName")}
@@ -320,26 +332,6 @@ export default function CreateRouteModal({
                     : t("routes.autoMetricsBadge")}
                 </p>
               </>
-            )}
-          </div>
-        )}
-        {error && (
-          <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <p>{error}</p>
-            {duplicateRouteId && (
-              <button
-                type="button"
-                onClick={() => {
-                  const routeId = duplicateRouteId;
-                  resetForm();
-                  onClose();
-                  onOpenExistingRoute(routeId);
-                }}
-                className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
-              >
-                <FiExternalLink size={14} />
-                {t("routes.openExistingRoute")}
-              </button>
             )}
           </div>
         )}

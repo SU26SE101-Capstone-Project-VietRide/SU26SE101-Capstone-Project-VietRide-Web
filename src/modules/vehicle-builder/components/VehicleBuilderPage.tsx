@@ -6,9 +6,11 @@ import { Toolbox } from "./Toolbox";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { VehicleCreationModal } from "./VehicleCreationModal";
 import { FiPlus, FiDownload, FiUpload } from "react-icons/fi";
+import { useToast } from "../../../components/toast/useToast";
 
 export const VehicleBuilderPage: React.FC = () => {
   const { t } = useTranslation("manager");
+  const toast = useToast();
   const {
     currentVehicle,
     vehicles,
@@ -48,7 +50,7 @@ export const VehicleBuilderPage: React.FC = () => {
           loadLayout(data.layoutData);
         } catch (error) {
           console.error("Failed to load layout:", error);
-          alert(t("vehicleBuilder.loadLayoutError"));
+          toast.error(t("vehicleBuilder.loadLayoutError"));
         }
       };
       reader.readAsText(file);

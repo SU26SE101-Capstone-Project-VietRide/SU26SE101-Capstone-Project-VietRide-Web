@@ -47,7 +47,7 @@ export default function StationTable({
           </colgroup>
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold whitespace-nowrap text-gray-600">
-              <th className="px-4 py-3">{t("stations.stationName")}</th>
+              <th className="px-8 py-3">{t("stations.stationName")}</th>
               <th className="px-4 py-3 text-center">{t("stations.city")}</th>
               <th className="px-4 py-3 text-center">{t("stations.shuttle")}</th>
               <th className="px-4 py-3 text-center">{tc("status")}</th>
@@ -60,7 +60,7 @@ export default function StationTable({
                 key={station.id}
                 className="border-b border-gray-100 hover:bg-gray-50"
               >
-                <td className="px-4 py-3">
+                <td className="px-8 py-3">
                   <p className="font-semibold text-gray-900">{station.name}</p>
 
                   <p className="mt-1 text-xs text-gray-400">

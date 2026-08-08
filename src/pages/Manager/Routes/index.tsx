@@ -614,6 +614,7 @@ export default function RoutesPage() {
   function showMessage(scope: FeedbackScope, nextMessage: string) {
     setMessageScope(scope);
     setMessage(nextMessage);
+    toast.success(nextMessage);
   }
 
   // Kết quả chọn từ ô tìm gộp trong panel: tính lại distanceFromStartKm theo
@@ -1086,7 +1087,6 @@ export default function RoutesPage() {
         locations={locations}
         manager={stationManager}
         onRunAction={runAction}
-        feedbackMessage={messageScope === "station" ? message : ""}
       />
 
       <CreateRouteModal
@@ -1094,9 +1094,10 @@ export default function RoutesPage() {
         onClose={() => setIsCreateRouteModalOpen(false)}
         stations={stations}
         onSubmit={handleCreateRoute}
-        onOpenExistingRoute={(routeId) =>
-          runAction(() => handleSelectRoute(routeId))
-        }
+        onOpenExistingRoute={(routeId) => {
+          setIsCreateRouteModalOpen(false);
+          runAction(() => handleSelectRoute(routeId));
+        }}
       />
 
       <RemoveRouteStopModal

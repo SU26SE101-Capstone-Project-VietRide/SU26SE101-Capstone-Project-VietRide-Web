@@ -679,9 +679,9 @@ export type AdminPlatformReportMetrics = {
   completedBookingCount: number;
   completedTripCount: number;
   deliveredParcelCount: number;
-  bookingRevenueVnd: number;
-  parcelRevenueVnd: number;
-  netRevenueVnd: number;
+  netTicketRevenueVnd: number;
+  netParcelRevenueVnd: number;
+  netTransportRevenueVnd: number;
 };
 
 export type AdminPlatformOperatorReport = AdminPlatformReportMetrics & {
@@ -1284,8 +1284,8 @@ export type OperatorParcelReportSummary = {
   totalDelivered: number;
   totalRejected: number;
   totalReturned: number;
-  totalRevenue: number;
-  totalRefunded: number;
+  grossParcelRevenueVnd: number;
+  parcelRefundsVnd: number;
   source?: string;
 };
 
@@ -2077,7 +2077,6 @@ export type BookingStatsItem = {
   operatorName?: string;
   date?: string;
   totalBookings: number;
-  totalRevenue?: number;
   totalCancellations?: number;
   totalNoShows?: number;
   totalPartialNoShows?: number;
@@ -2087,7 +2086,6 @@ export type BookingStatsItem = {
 export type BookingStatsAggregate = {
   items: BookingStatsItem[];
   totalBookings?: number;
-  totalRevenue?: number;
   totalCancellations?: number;
   totalNoShows?: number;
   totalPartialNoShows?: number;
@@ -2122,7 +2120,11 @@ export type ReportPeriod = {
 
 export type AdminDashboardSummary = {
   period: ReportPeriod;
-  totalRevenue: MetricValue;
+  totalProjectRevenueVnd: MetricValue;
+  netTransportRevenueVnd: MetricValue;
+  netTicketRevenueVnd: MetricValue;
+  netParcelRevenueVnd: MetricValue;
+  subscriptionRevenueVnd: MetricValue;
   activeOperators: MetricValue;
   activeUsers: MetricValue;
   bookings: MetricValue;
@@ -2137,15 +2139,30 @@ export type AdminDashboardSummary = {
 export type AdminRevenueAnalytics = {
   period: ReportPeriod;
   summary: {
-    grossRevenueVnd: MetricValue;
-    platformRevenueVnd: MetricValue;
-    paidToOperatorsVnd: MetricValue;
+    revenue: {
+      totalProjectRevenueVnd: MetricValue;
+      netTransportRevenueVnd: MetricValue;
+      netTicketRevenueVnd: MetricValue;
+      netParcelRevenueVnd: MetricValue;
+      subscriptionRevenueVnd: MetricValue;
+    };
+    settlement: {
+      paidToOperatorsVnd: MetricValue;
+    };
   };
   monthly: Array<{
     month: string;
-    grossRevenueVnd: number;
-    paidToOperatorsVnd: number;
-    platformRevenueVnd: number;
+    revenue: {
+      totalProjectRevenueVnd: number;
+      netTransportRevenueVnd: number;
+      netTicketRevenueVnd: number;
+      netParcelRevenueVnd: number;
+      subscriptionRevenueVnd: number;
+    };
+    settlement: {
+      paidToOperatorsVnd: number;
+    };
+
   }>;
   topOperators: Array<{
     rank: number;
@@ -2158,21 +2175,21 @@ export type AdminRevenueAnalytics = {
 };
 
 export type OperatorRevenueAnalytics = {
-  period: ReportPeriod & { month: string };
+  period: ReportPeriod & { month?: string | null; year?: number | null; groupBy: "month" };
   summary: {
-    totalRevenueVnd: MetricValue;
-    ticketRevenueVnd: MetricValue;
-    parcelRevenueVnd: MetricValue;
-    averageRevenuePerTripVnd: MetricValue;
+    netRevenueVnd: MetricValue;
+    netTicketRevenueVnd: MetricValue;
+    netParcelRevenueVnd: MetricValue;
+    averageNetRevenuePerTripVnd: MetricValue;
   };
   monthly: Array<{
     month: string;
-    revenueVnd: number;
-    ticketRevenueVnd: number;
-    parcelRevenueVnd: number;
+    netRevenueVnd: number;
+    netTicketRevenueVnd: number;
+    netParcelRevenueVnd: number;
     tripCount: number;
   }>;
-  routePerformance: Array<{
+  routePerformance?: Array<{
     routeId: string;
     routeName: string;
     originName: string;
@@ -2181,7 +2198,7 @@ export type OperatorRevenueAnalytics = {
     completedTripCount: number;
     bookingCount: number;
     parcelCount: number;
-    revenueVnd: number;
+    netRevenueVnd: number;
     completionRatePercent: number;
   }>;
 };
@@ -2994,6 +3011,12 @@ export function suspendAdminOperator(operatorId: string, reason: string) {
   );
 }
 
+export function reactivateAdminOperator(operatorId: string) {
+  return apiRequest<AdminOperatorActionResult>(`/v1/admin/operators/${operatorId}/reactivate`, {
+    method: "POST",
+  });
+}
+
 export function getAdminOperatorUsers(params: AdminUserParams = {}) {
   return apiRequest<PagedResult<AdminUser>>(
     `/v1/admin/operator-users${buildQuery(params)}`,
@@ -3078,7 +3101,6 @@ export function lockAdminUser(
 ) {
   return apiRequest<AdminUserActionResult>(`/v1/admin/users/${userId}/lock`, {
     method: "POST",
-    body: {},
     headers: { "Idempotency-Key": idempotencyKey },
   });
 }
@@ -3089,7 +3111,6 @@ export function unlockAdminUser(
 ) {
   return apiRequest<AdminUserActionResult>(`/v1/admin/users/${userId}/unlock`, {
     method: "POST",
-    body: {},
     headers: { "Idempotency-Key": idempotencyKey },
   });
 }
@@ -4444,7 +4465,7 @@ export function deleteAlternativeRoute(alternativeRouteId: string) {
 }
 
 export function getOperatorVehicles(
-  params: PageParams & { searchIn?: string } = {},
+  params: PageParams & { searchIn?: string; vehicleTypeId?: string } = {},
   signal?: AbortSignal,
 ) {
   return apiRequest<PagedResult<OperatorVehicle>>(
@@ -4491,7 +4512,7 @@ export function updateMyAvatar(avatarUrl: string | null) {
 }
 
 export function getVehicleTypes(
-  params: PageParams & { searchIn?: string } = {},
+  params: PageParams & { searchIn?: string; vehicleTypeId?: string } = {},
   signal?: AbortSignal,
 ) {
   return apiRequest<PagedResult<VehicleType>>(
@@ -5045,7 +5066,7 @@ export function sendOperatorNotification(
   );
 }
 export function getAdminDashboardSummary(
-  params: { from?: string; to?: string } = {},
+  params: { from: string; to: string },
 ) {
   return apiRequest<AdminDashboardSummary>(
     `/v1/admin/dashboard/summary${buildQuery(params)}`,
@@ -5063,9 +5084,13 @@ export function getAdminRevenueAnalytics(params: {
   );
 }
 
-export function getOperatorRevenueAnalytics(month: string) {
+export type OperatorRevenueAnalyticsParams =
+  | { month: string; year?: never; groupBy?: never }
+  | { year: number; groupBy: "month"; month?: never };
+
+export function getOperatorRevenueAnalytics(params: OperatorRevenueAnalyticsParams) {
   return apiRequest<OperatorRevenueAnalytics>(
-    `/v1/operator/revenue/analytics${buildQuery({ month })}`,
+    `/v1/operator/revenue/analytics${buildQuery(params)}`,
   );
 }
 
@@ -5171,3 +5196,10 @@ export const updateOperatorPolicy = (
 ) => updatePolicy("/v1/operator/policies", policyId, request);
 export const deleteOperatorPolicy = (policyId: string) =>
   deletePolicy("/v1/operator/policies", policyId);
+
+
+
+
+
+
+

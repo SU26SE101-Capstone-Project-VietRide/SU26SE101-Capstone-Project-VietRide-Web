@@ -101,6 +101,7 @@ export function toStationOption(
   return {
     id: operatorStation.stationId || station?.id || operatorStation.id || "",
     operatorStationId: operatorStation.id,
+    stationId: operatorStation.stationId,
     name:
       operatorStation.displayNameOverride ||
       station?.name ||

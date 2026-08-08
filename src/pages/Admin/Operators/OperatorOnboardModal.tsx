@@ -12,7 +12,6 @@ type OperatorOnboardModalProps = {
   onSubmit: () => void | Promise<void>;
 };
 
-// Modal onboard nhà xe mới — form giữ state ở page cha, modal chỉ render + báo sự kiện
 export default function OperatorOnboardModal({
   open,
   onClose,
@@ -22,6 +21,11 @@ export default function OperatorOnboardModal({
 }: OperatorOnboardModalProps) {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
+
+  const field = (key: keyof CreateAdminOperatorRequest) => ({
+    value: form[key],
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(key, event.target.value),
+  });
 
   return (
     <Modal
@@ -36,149 +40,79 @@ export default function OperatorOnboardModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border cursor-pointer border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="cursor-pointer rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
             {tc("cancel")}
           </button>
           <button
             type="button"
             onClick={onSubmit}
-            className="rounded-lg bg-vr-500 cursor-pointer px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 hover:text-white"
+            className="cursor-pointer rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30"
           >
             {t("operators.createOperator")}
           </button>
         </>
       }
     >
-      <div className="space-y-6">
-        <section>
-          <h3 className="mb-3 text-sm font-bold text-gray-900">
-            {t("operators.businessInfo")}
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-5">
+        <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
+          <div className="mb-4">
+            <h3 className="text-base font-bold tracking-tight text-slate-900">{t("operators.businessInfo")}</h3>
+            <p className="mt-1 text-sm text-slate-500">{t("operators.onboardSubtitle")}</p>
+          </div>
+          <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className={labelClass}>
-                {t("operators.brandName")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                value={form.name}
-                onChange={(e) => onChange("name", e.target.value)}
-                placeholder={t("operators.brandPlaceholder")}
-              />
+              <label className={labelClass}>{t("operators.brandName")} <span className="text-red-500">*</span></label>
+              <input className={inputClass} {...field("name")} placeholder={t("operators.brandPlaceholder")} />
             </div>
             <div>
-              <label className={labelClass}>
-                Business Registration No.{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                value={form.businessRegistrationNumber}
-                onChange={(e) =>
-                  onChange("businessRegistrationNumber", e.target.value)
-                }
-                placeholder={t("operators.businessRegPlaceholder")}
-              />
+              <label className={labelClass}>{t("operators.businessRegistrationNumber")} <span className="text-red-500">*</span></label>
+              <input className={inputClass} {...field("businessRegistrationNumber")} placeholder={t("operators.businessRegPlaceholder")} />
             </div>
             <div>
-              <label className={labelClass}>
-                {t("operators.taxId")} <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                value={form.taxCode}
-                onChange={(e) => onChange("taxCode", e.target.value)}
-                placeholder={t("operators.taxCodePlaceholder")}
-              />
+              <label className={labelClass}>{t("operators.taxId")} <span className="text-red-500">*</span></label>
+              <input className={inputClass} {...field("taxCode")} placeholder={t("operators.taxCodePlaceholder")} />
             </div>
             <div className="sm:col-span-2">
-              <label className={labelClass}>
-                {t("operators.headquartersAddress")}
-              </label>
-              <input
-                className={inputClass}
-                value={form.addressStreet}
-                onChange={(e) => onChange("addressStreet", e.target.value)}
-                placeholder={t("operators.addressPlaceholder")}
-              />
+              <label className={labelClass}>{t("operators.headquartersAddress")}</label>
+              <input className={inputClass} {...field("addressStreet")} placeholder={t("operators.addressPlaceholder")} />
             </div>
             <div>
               <label className={labelClass}>{t("operators.ward")}</label>
-              <input
-                className={inputClass}
-                value={form.addressWard}
-                onChange={(e) => onChange("addressWard", e.target.value)}
-              />
+              <input className={inputClass} {...field("addressWard")} />
             </div>
             <div>
               <label className={labelClass}>{t("operators.district")}</label>
-              <input
-                className={inputClass}
-                value={form.addressDistrict}
-                onChange={(e) => onChange("addressDistrict", e.target.value)}
-              />
+              <input className={inputClass} {...field("addressDistrict")} />
             </div>
             <div>
               <label className={labelClass}>{t("operators.province")}</label>
-              <input
-                className={inputClass}
-                value={form.addressProvince}
-                onChange={(e) => onChange("addressProvince", e.target.value)}
-              />
+              <input className={inputClass} {...field("addressProvince")} />
             </div>
             <div>
               <label className={labelClass}>{tc("phone")}</label>
-              <input
-                className={inputClass}
-                value={form.contactPhone}
-                onChange={(e) => onChange("contactPhone", e.target.value)}
-              />
+              <input className={inputClass} {...field("contactPhone")} />
             </div>
           </div>
         </section>
-        <div className="border-t border-gray-100" />
-        <section>
-          <h3 className="mb-3 text-sm font-bold text-gray-900">
-            {t("operators.mainContact")}
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2">
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h3 className="text-base font-bold tracking-tight text-slate-900">{t("operators.mainContact")}</h3>
+            <p className="mt-1 text-sm text-slate-500">{t("operators.representativeInfo")}</p>
+          </div>
+          <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>
-                {t("operators.representative")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                value={form.representativeName}
-                onChange={(e) => onChange("representativeName", e.target.value)}
-                placeholder={t("operators.representativePlaceholder")}
-              />
+              <label className={labelClass}>{t("operators.representative")} <span className="text-red-500">*</span></label>
+              <input className={inputClass} {...field("representativeName")} placeholder={t("operators.representativePlaceholder")} />
             </div>
             <div>
-              <label className={labelClass}>
-                {tc("email")} <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                value={form.contactEmail}
-                onChange={(e) => onChange("contactEmail", e.target.value)}
-                placeholder={t("operators.contactEmailPlaceholder")}
-              />
+              <label className={labelClass}>{tc("email")} <span className="text-red-500">*</span></label>
+              <input className={inputClass} {...field("contactEmail")} placeholder={t("operators.contactEmailPlaceholder")} />
             </div>
             <div>
-              <label className={labelClass}>
-                {tc("phone")} <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inputClass}
-                value={form.representativePhone}
-                onChange={(e) =>
-                  onChange("representativePhone", e.target.value)
-                }
-                placeholder={t("operators.contactPhonePlaceholder")}
-              />
+              <label className={labelClass}>{tc("phone")} <span className="text-red-500">*</span></label>
+              <input className={inputClass} {...field("representativePhone")} placeholder={t("operators.contactPhonePlaceholder")} />
             </div>
           </div>
         </section>

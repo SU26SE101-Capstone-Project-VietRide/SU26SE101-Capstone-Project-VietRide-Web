@@ -14,6 +14,11 @@ import {
   type OperatorVehicle,
 } from "../../../api/vietride";
 import TripActionsPanel from "./TripActionsPanel";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
+
+vi.mock("../../../hooks/useToastFeedback", () => ({
+  useToastFeedback: vi.fn(),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -179,6 +184,7 @@ describe("TripActionsPanel", () => {
       screen.getByRole("button", { name: "tripOperations.substitute" }),
     );
 
+    await user.click(screen.getByRole("button", { name: "confirm" }));
     expect(substituteOperatorTripVehicle).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
@@ -205,7 +211,7 @@ describe("TripActionsPanel", () => {
       screen.getByRole("button", { name: "tripOperations.disrupt" }),
     );
 
-    expect(window.confirm).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "confirm" }));
     expect(disruptOperatorTripNoSubstitution).toHaveBeenCalledWith("trip-1", {
       reason: "Storm",
     });
@@ -235,15 +241,13 @@ describe("TripActionsPanel", () => {
       screen.getByRole("button", { name: "tripOperations.changeRouteApply" }),
     );
 
-    expect(window.confirm).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "confirm" }));
     expect(changeOperatorTripRoute).toHaveBeenCalledWith("trip-1", {
       alternativeRouteId: "alt-1",
     });
     // Trang cha re-select cùng tripId để tải lại geometry lộ trình mới + fleet
+    expect(useToastFeedback).toHaveBeenCalledWith({ message: "tripOperations.changeRouteSuccess", error: "" });
     expect(onTripReplaced).toHaveBeenCalledWith("trip-1");
-    expect(
-      await screen.findByText("tripOperations.changeRouteSuccess"),
-    ).toBeInTheDocument();
   });
 
   it("shows the declare-alternatives hint when the route has none active", async () => {

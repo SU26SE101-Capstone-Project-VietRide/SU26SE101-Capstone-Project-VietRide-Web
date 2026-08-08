@@ -1,3 +1,4 @@
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -80,6 +81,7 @@ export default function ProposalsPanel({
   const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  useToastFeedback({ message, error });
   // Lộ trình hiện tại của chuyến (màu xám), lưu kèm tripId để không vẽ nhầm sang đề xuất khác
   const [currentRoute, setCurrentRoute] = useState<{
     tripId: string;
@@ -284,17 +286,6 @@ export default function ProposalsPanel({
           </button>
         </div>
       </div>
-
-      {message && (
-        <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       <div className="flex flex-col gap-2">
         <div className="relative">

@@ -19,6 +19,7 @@ import {
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
+import { ConfirmModal } from "../../../components/ConfirmModal";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 
@@ -98,6 +99,7 @@ export default function AdminLocations() {
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<LocationForm>(emptyForm);
   const [formError, setFormError] = useState("");
+  const [pendingToggle, setPendingToggle] = useState<AdminLocation | null>(null);
   const [message, setMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -106,7 +108,6 @@ export default function AdminLocations() {
 
   const loadLocations = useCallback(async () => {
     setLoading(true);
-    setMessage(null);
 
     try {
       const result = await getAdminLocations({
@@ -181,6 +182,7 @@ export default function AdminLocations() {
         text: t("locations.saved"),
       });
       setReloadKey((value) => value + 1);
+      setPendingToggle(null);
     } catch (error) {
       setFormError(
         error instanceof Error ? error.message : t("locations.saveFailed"),
@@ -191,15 +193,6 @@ export default function AdminLocations() {
   }
 
   async function toggleActive(location: AdminLocation) {
-    if (
-      !window.confirm(
-        location.isActive
-          ? t("locations.deactivateConfirm", { name: location.name })
-          : t("locations.activateConfirm", { name: location.name }),
-      )
-    ) {
-      return;
-    }
 
     setSaving(true);
     setMessage(null);
@@ -209,7 +202,9 @@ export default function AdminLocations() {
       } else {
         await updateAdminLocation(location.id, { isActive: true });
       }
+      setMessage({ tone: "success", text: t("locations.saved") });
       setReloadKey((value) => value + 1);
+      setPendingToggle(null);
     } catch (error) {
       setMessage({
         tone: "error",
@@ -277,11 +272,11 @@ export default function AdminLocations() {
         <div className="overflow-x-auto" aria-busy={loading}>
           <table className="w-full min-w-[720px]">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                <th className="px-5 py-3">{t("locations.code")}</th>
-                <th className="px-5 py-3">{t("locations.name")}</th>
-                <th className="px-5 py-3">{t("locations.sortOrder")}</th>
-                <th className="px-5 py-3">{tc("status")}</th>
+              <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-600">
+                <th className="px-5 py-3 text-center">{t("locations.code")}</th>
+                <th className="px-5 py-3 text-center">{t("locations.name")}</th>
+                <th className="px-5 py-3 text-center">{t("locations.sortOrder")}</th>
+                <th className="px-5 py-3 text-center">{tc("status")}</th>
                 <th className="px-5 py-3 text-center">{tc("actions")}</th>
               </tr>
             </thead>
@@ -292,14 +287,14 @@ export default function AdminLocations() {
                     key={location.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
                   >
-                    <td className="px-5 py-4 font-mono text-sm font-semibold text-vr-700">
+                    <td className="px-5 py-4 text-center font-mono text-sm font-semibold text-vr-700">
                       {location.code}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 text-center">
                       <button
                         type="button"
                         onClick={() => openDetail(location)}
-                        className="text-left font-semibold text-gray-900 transition hover:text-vr-700"
+                        className="text-center font-semibold text-gray-900 transition hover:text-vr-700"
                       >
                         {location.name}
                       </button>
@@ -309,10 +304,10 @@ export default function AdminLocations() {
                         })}
                       </p>
                     </td>
-                    <td className="px-5 py-4 text-sm text-gray-700">
+                    <td className="px-5 py-4 text-center text-sm text-gray-700">
                       {location.sortOrder}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 text-center">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                           location.isActive
@@ -323,7 +318,7 @@ export default function AdminLocations() {
                         {location.isActive ? tc("active") : tc("inactive")}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 text-center">
                       <div className="flex justify-center gap-2">
                         <button
                           type="button"
@@ -345,7 +340,7 @@ export default function AdminLocations() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void toggleActive(location)}
+                          onClick={() => setPendingToggle(location)}
                           disabled={saving}
                           className={`${actionButtonClass} ${
                             location.isActive
@@ -533,14 +528,6 @@ export default function AdminLocations() {
           className="space-y-5"
           onSubmit={(event) => void submitForm(event)}
         >
-          {formError && (
-            <div
-              role="alert"
-              className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-            >
-              {formError}
-            </div>
-          )}
 
           <div className="grid gap-5 sm:grid-cols-2">
             <label className="sm:col-span-2">
@@ -617,6 +604,17 @@ export default function AdminLocations() {
           </div>
         </form>
       </Modal>
+      <ConfirmModal
+        open={Boolean(pendingToggle)}
+        onClose={() => setPendingToggle(null)}
+        onConfirm={() => pendingToggle && void toggleActive(pendingToggle)}
+        title={tc("confirm")}
+        message={pendingToggle ? (pendingToggle.isActive ? t("locations.deactivateConfirm", { name: pendingToggle.name }) : t("locations.activateConfirm", { name: pendingToggle.name })) : ""}
+        confirmLabel={tc("confirm")}
+        cancelLabel={tc("cancel")}
+        tone={pendingToggle?.isActive ? "danger" : "success"}
+        busy={saving}
+      />
     </div>
   );
 }

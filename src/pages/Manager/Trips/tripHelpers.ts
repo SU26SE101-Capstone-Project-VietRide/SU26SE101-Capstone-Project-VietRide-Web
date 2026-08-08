@@ -1,5 +1,6 @@
 // Helper thuần của màn Trips — không phụ thuộc React.
 import { toDatetimeLocalValue } from "../../../utils/date";
+import { formatCurrency } from "../../../utils/currency";
 import type {
   OperatorDriverSchedule,
   OperatorRoute,
@@ -37,10 +38,7 @@ export function optionLabel<T extends { id: string }>(
 }
 
 export function formatMoney(value: string) {
-  const amount = Number(value);
-  return Number.isFinite(amount)
-    ? new Intl.NumberFormat("vi-VN").format(amount)
-    : value;
+  return formatCurrency(value, value);
 }
 
 export function getNextSuggestedDeparture() {
@@ -137,6 +135,10 @@ export function toVehicleOption(vehicle: OperatorVehicle): VehicleOption {
   return {
     id: vehicle.vehicleId || vehicle.id || "",
     plate: vehicle.licensePlate,
+    vehicleType:
+      vehicle.vehicleTypeCode ||
+      vehicle.vehicleTypeName ||
+      vehicle.vehicleTypeId,
     seats: vehicle.totalSeats,
     status:
       vehicle.status === "ACTIVE"

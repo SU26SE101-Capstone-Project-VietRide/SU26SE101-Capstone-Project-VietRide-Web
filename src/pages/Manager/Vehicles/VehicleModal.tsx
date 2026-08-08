@@ -43,7 +43,6 @@ export function VehicleInfoForm({
   mode,
   vehicleTypes,
   form,
-  error,
   fieldErrors,
   imageFiles,
   onChange,
@@ -130,15 +129,6 @@ export function VehicleInfoForm({
 
   return (
     <div className="space-y-5">
-      {error && (
-        <div
-          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-          aria-live="assertive"
-        >
-          {error}
-        </div>
-      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

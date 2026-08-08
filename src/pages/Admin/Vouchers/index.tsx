@@ -409,7 +409,7 @@ export default function Vouchers() {
                   <p className="mt-1 text-2xl font-bold text-vr-700">
                     {discountTypeOf(detailVoucher) === "percent"
                       ? String(discountValueOf(detailVoucher)) + "%"
-                      : formatNumber(discountValueOf(detailVoucher)) + "₫"}
+                      : formatNumber(discountValueOf(detailVoucher)) + " đ"}
                   </p>
                   <span
                     className={
@@ -486,7 +486,7 @@ export default function Vouchers() {
       <Modal
         open={Boolean(deletingVoucher)}
         onClose={() => setDeletingVoucher(null)}
-        icon={<FiTrash2 size={20} />}
+        icon={<span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600"><FiTrash2 size={20} /></span>}
         title={t("vouchers.deleteConfirm")}
         subtitle={deletingVoucher?.code}
         footer={
@@ -494,21 +494,30 @@ export default function Vouchers() {
             <button
               type="button"
               onClick={() => setDeletingVoucher(null)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
               {tc("cancel")}
             </button>
             <button
               type="button"
               onClick={() => void handleDeleteVoucher()}
-              className="rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600"
+              className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
             >
               {tc("delete")}
             </button>
           </>
         }
       >
-        <p className="text-sm text-gray-600">{deletingVoucher?.name}</p>
+        <div className="space-y-4">
+  <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+    <p className="text-sm font-semibold text-red-900">{t("vouchers.deleteConfirm")}</p>
+    <div className="mt-3 rounded-xl border border-red-100 bg-white px-4 py-3">
+      <p className="font-mono text-sm font-bold text-slate-900">{deletingVoucher?.code}</p>
+      <p className="mt-1 text-sm text-slate-600">{deletingVoucher?.name}</p>
+    </div>
+  </div>
+  <p className="text-sm leading-6 text-slate-500">{t("vouchers.deleteWarning")}</p>
+</div>
       </Modal>
     </div>
   );

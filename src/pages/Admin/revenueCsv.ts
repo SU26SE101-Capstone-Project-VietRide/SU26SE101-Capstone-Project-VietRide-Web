@@ -6,9 +6,12 @@ export type RevenueCsvLabels = {
   periodTo: string;
   timezone: string;
   month: string;
-  grossRevenue: string;
+  totalProjectRevenue: string;
+  netTransportRevenue: string;
+  netTicketRevenue: string;
+  netParcelRevenue: string;
+  subscriptionRevenue: string;
   paidToOperators: string;
-  platformRevenue: string;
 };
 
 export function downloadRevenueCsv(
@@ -24,18 +27,24 @@ export function downloadRevenueCsv(
       labels.periodTo,
       labels.timezone,
       labels.month,
-      labels.grossRevenue,
+      labels.totalProjectRevenue,
+      labels.netTransportRevenue,
+      labels.netTicketRevenue,
+      labels.netParcelRevenue,
+      labels.subscriptionRevenue,
       labels.paidToOperators,
-      labels.platformRevenue,
     ],
     monthly.map((item) => [
       period.from,
       period.to,
       period.timezone,
       item.month,
-      item.grossRevenueVnd,
-      item.paidToOperatorsVnd,
-      item.platformRevenueVnd,
+      item.revenue.totalProjectRevenueVnd,
+      item.revenue.netTransportRevenueVnd,
+      item.revenue.netTicketRevenueVnd,
+      item.revenue.netParcelRevenueVnd,
+      item.revenue.subscriptionRevenueVnd,
+      item.settlement.paidToOperatorsVnd,
     ]),
   );
 }

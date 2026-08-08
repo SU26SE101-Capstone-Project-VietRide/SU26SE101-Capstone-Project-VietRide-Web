@@ -21,5 +21,5 @@ export function formatCurrency(value: CurrencyValue, fallback = "-") {
   const amount = parseCurrencyValue(value);
   if (!Number.isFinite(amount)) return fallback;
 
-  return `${currencyNumberFormatter.format(Math.round(amount))} ₫`;
+  return `${currencyNumberFormatter.format(Math.round(amount))} đ`;
 }

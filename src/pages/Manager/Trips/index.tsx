@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiCalendar, FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiCalendar, FiPlus, FiTrash2, FiTruck, FiUsers } from "react-icons/fi";
 import { getAuthUser } from "../../../auth";
 import { ApiRequestError } from "../../../api/client";
 import Modal from "../../../components/Modal";
+import { StatCard } from "../../../components/StatCard";
 import { useToast } from "../../../components/toast/useToast";
 import { toDatetimeLocalValue } from "../../../utils/date";
 import {
@@ -12,7 +13,7 @@ import {
 } from "../../../utils/sessionCache";
 import ScheduleFormModal from "./ScheduleFormModal";
 import ScheduleTable from "./ScheduleTable";
-import { MetricCard, SectionHeader } from "./formControls";
+import { SectionHeader } from "./formControls";
 import {
   emptyForm,
   getArrivalEstimateValue,
@@ -43,6 +44,7 @@ import {
   getOperatorRoutes,
   getOperatorUsers,
   getOperatorVehicles,
+  getVehicleTypes,
   updateOperatorDriverSchedule,
   type DriverScheduleApplyTo,
   type OperatorDriverSchedulePatch,
@@ -117,6 +119,10 @@ export default function TripsPage() {
   const [formError, setFormError] = useState("");
   // Toast góc phải cho feedback hành động (tạo/sửa/xoá/bật-tắt/lỗi load).
   const toast = useToast();
+  useEffect(() => {
+    if (!formError) return;
+    toast.error(formError);
+  }, [formError, toast]);
   const [isLoadingResources, setIsLoadingResources] = useState(
     cachedResources === null,
   );
@@ -150,10 +156,11 @@ export default function TripsPage() {
 
     async function loadResources() {
       try {
-        const [routeResult, vehicleResult, userResult] = await Promise.all([
+        const [routeResult, vehicleResult, userResult, vehicleTypeResult] = await Promise.all([
           getOperatorRoutes({ page: 1, pageSize: 100 }),
           getOperatorVehicles({ page: 1, pageSize: 100 }),
           getOperatorUsers({ page: 1, pageSize: 100 }),
+          getVehicleTypes({ page: 1, pageSize: 100 }),
         ]);
 
         if (ignore) {
@@ -161,7 +168,22 @@ export default function TripsPage() {
         }
 
         const nextRoutes = routeResult.items.map(toRouteOption);
-        const nextVehicles = vehicleResult.items.map(toVehicleOption);
+        const vehicleTypeById = new Map(
+          vehicleTypeResult.items.map((vehicleType) => [
+            vehicleType.id,
+            vehicleType.displayName || vehicleType.code,
+          ]),
+        );
+        const nextVehicles = vehicleResult.items.map((vehicle) => {
+          const option = toVehicleOption(vehicle);
+          return {
+            ...option,
+            vehicleType:
+              vehicle.vehicleTypeCode ||
+              vehicleTypeById.get(vehicle.vehicleTypeId) ||
+              option.vehicleType,
+          };
+        });
         const nextStaff = userResult.items
           .filter((user) => user.role === "DRIVER" || user.role === "ASSISTANT")
           .map(toStaffOption);
@@ -628,27 +650,34 @@ export default function TripsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard
+        <StatCard
           label={t("trips.activeRoutes")}
           value={activeRoutes.length}
+          icon={<FiCalendar size={20} />}
+          iconClassName="bg-vr-50 text-vr-700"
           isLoading={isLoadingResources}
         />
-        <MetricCard
+        <StatCard
           label={t("trips.availableVehicles")}
           value={availableVehicles.length}
+          icon={<FiTruck size={20} />}
+          iconClassName="bg-blue-50 text-blue-700"
           isLoading={isLoadingResources}
         />
-        <MetricCard
+        <StatCard
           label={t("trips.availableDrivers")}
           value={drivers.filter((driver) => driver.status === "active" || driver.status === "available").length}
-          helper={t("trips.activeDriversHelper")}
+          icon={<FiUsers size={20} />}
+          iconClassName="bg-emerald-50 text-emerald-700"
           isLoading={isLoadingResources}
         />
-        <MetricCard
+        <StatCard
           label={t("trips.openSchedules")}
           value={
             schedules.filter((schedule) => schedule.status === "open").length
           }
+          icon={<FiCalendar size={20} />}
+          iconClassName="bg-amber-50 text-amber-700"
           isLoading={isLoadingSchedules}
         />
       </div>
@@ -678,7 +707,6 @@ export default function TripsPage() {
           editingSchedule={editingSchedule}
           isSaving={isSaving}
           isLoadingResources={isLoadingResources}
-          error={formError}
           applyTo={applyTo}
           onApplyToChange={setApplyTo}
           onFieldChange={updateForm}
@@ -725,7 +753,6 @@ export default function TripsPage() {
         schedules={schedules}
         routes={routes}
         vehicles={vehicles}
-        staff={staff}
         canManageSchedules={canManageSchedules}
         isLoading={isLoadingSchedules}
         page={page}
