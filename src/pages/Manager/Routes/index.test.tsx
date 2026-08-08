@@ -1,15 +1,19 @@
+import type { ReactNode } from "react";
 import {
   act,
   fireEvent,
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createAlternativeRoute,
   createOperatorRouteFull,
   createOperatorStation,
+  createOperatorStop,
   getAlternativeRoutes,
   getOperatorRoute,
   getOperatorRoutes,
@@ -18,10 +22,14 @@ import {
   getOperatorStops,
   getPublicLocations,
   searchStations,
+  updateAlternativeRoute,
+  updateAlternativeRouteGeometry,
   updateOperatorRouteFull,
+  type AlternativeRoute,
   type OperatorRoute,
   type OperatorRouteDetail,
   type OperatorStation,
+  type OperatorStop,
 } from "../../../api/vietride";
 import { ApiRequestError } from "../../../api/client";
 import {
@@ -30,6 +38,10 @@ import {
   type RoadRouteOption,
 } from "./geometry";
 import { encodeGooglePolyline } from "./polyline";
+import { searchPlacesAlongRoute } from "../../../lib/googlePlacesSearch";
+import type { PlaceAlongRoute } from "../../../lib/googlePlacesSearch";
+import ToastProvider from "../../../components/toast/ToastProvider";
+import { __clearPlacesCacheForTest } from "./useRouteStopSuggestions";
 import RoutesPage from "./index";
 
 // Mock riêng requestRoadGeometry (gọi Google Routes) — các helper thuần giữ bản thật
@@ -37,6 +49,16 @@ vi.mock("./geometry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./geometry")>();
 
   return { ...actual, requestRoadGeometry: vi.fn() };
+});
+
+// Mock riêng searchPlacesAlongRoute (gọi Google Places) — dùng để khẳng định hook
+// gợi ý điểm dừng gọi Google bằng polyline ĐÚNG của tuyến đang chọn, không phải
+// polyline "mồ côi" của tuyến vừa rời đi
+vi.mock("../../../lib/googlePlacesSearch", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../../lib/googlePlacesSearch")>();
+
+  return { ...actual, searchPlacesAlongRoute: vi.fn() };
 });
 
 vi.mock("react-i18next", () => {
@@ -94,10 +116,12 @@ const dragMoveState = vi.hoisted(() => ({ tick: 0 }));
 // khẳng định bản đồ nhận ĐỦ các phương án đường (bug từng chỉ vẽ 1 đường)
 vi.mock("../../../components/GoogleMapCanvas", () => ({
   default: ({
+    anchorContent,
     markers = [],
     pointMarkers = [],
     polylines = [],
   }: {
+    anchorContent?: ReactNode;
     markers?: Array<{ id: string; onClick?: () => void }>;
     pointMarkers?: Array<{
       id: string;
@@ -115,6 +139,11 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
     }>;
   }) => (
     <div data-testid="route-map">
+      {/* Card neo (popup gợi ý điểm dừng) thật render qua OverlayView — mock
+          render thẳng anchorContent để assertion popup cũ vẫn tìm thấy được */}
+      {anchorContent ? (
+        <div data-testid="map-anchor">{anchorContent}</div>
+      ) : null}
       {polylines.map((polyline) => (
         <button
           key={polyline.id}
@@ -181,15 +210,19 @@ vi.mock("../../../api/vietride", () => ({
   getPublicLocations: vi.fn(),
   searchStations: vi.fn(),
   updateAlternativeRoute: vi.fn(),
+  updateAlternativeRouteGeometry: vi.fn(),
   updateOperatorRouteFull: vi.fn(),
   updateOperatorStop: vi.fn(),
 }));
 
-// RoutesPage dùng useSearchParams nên phải render trong Router context
+// RoutesPage dùng useSearchParams nên phải render trong Router context; RoutesPage
+// cũng gọi useToast nên phải render trong ToastProvider như trên App thật.
 function renderRoutesPage(initialEntries: string[] = ["/manager/routes"]) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <RoutesPage />
+      <ToastProvider>
+        <RoutesPage />
+      </ToastProvider>
     </MemoryRouter>,
   );
 }
@@ -280,6 +313,11 @@ describe("Manager route setup workflow", () => {
     vi.mocked(requestRoadGeometry).mockRejectedValue(
       new Error("routes.routingFailed"),
     );
+    vi.mocked(searchPlacesAlongRoute).mockResolvedValue([]);
+    // Cache module-level của useRouteStopSuggestions không tự reset giữa các
+    // test (biến ngoài component) — dọn để routeKey của test này không dính
+    // kết quả cache từ test trước
+    __clearPlacesCacheForTest();
   });
 
   it("shows skeletons instead of empty states while the initial load is pending", async () => {
@@ -346,7 +384,7 @@ describe("Manager route setup workflow", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the merged map-first tab active for the selected route", async () => {
+  it("shows the info tab active by default with the route form and no stops section", async () => {
     vi.mocked(getOperatorRoutes).mockResolvedValue({
       ...emptyPage,
       items: [routeA],
@@ -358,15 +396,17 @@ describe("Manager route setup workflow", () => {
     renderRoutesPage();
     await waitForLoaded();
 
+    // 3 tab riêng: Thông tin / Điểm dừng / Tuyến thay thế
     expect(await screen.findByText("routes.tabs.info")).toBeInTheDocument();
-    // Tab "Điểm dừng" riêng đã gộp vào tab Thông tin — không còn nút tab đó
-    expect(screen.queryByText("routes.tabs.stops")).not.toBeInTheDocument();
+    expect(screen.getByText("routes.tabs.stops")).toBeInTheDocument();
     expect(screen.getByText("routes.tabs.alternatives")).toBeInTheDocument();
-    // Tab gộp: panel nổi chứa form + mục điểm dừng, bản đồ toàn khung,
-    // nút "Lưu tuyến" atomic nổi trên bản đồ (disabled khi chưa có thay đổi)
+    // Tab Thông tin: panel nổi chỉ còn form tuyến, mục điểm dừng đã dời sang
+    // tab riêng nên KHÔNG còn hiện ở đây nữa
     expect(screen.getByTestId("route-floating-panel")).toBeInTheDocument();
     expect(screen.getByText("routes.routeManagement")).toBeInTheDocument();
-    expect(screen.getByText("routes.panelStopsTitle")).toBeInTheDocument();
+    expect(
+      screen.queryByText("routes.panelStopsTitle"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("route-map")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /routes.saveRoute/ }),
@@ -378,7 +418,7 @@ describe("Manager route setup workflow", () => {
     expect(screen.getByText("routes.stationsLockedHint")).toBeInTheDocument();
   });
 
-  it("redirects the legacy ?tab=stops deep link to the merged info tab", async () => {
+  it("opens the dedicated stops tab via the ?tab=stops deep link (no longer redirected to info)", async () => {
     vi.mocked(getOperatorRoutes).mockResolvedValue({
       ...emptyPage,
       items: [routeA],
@@ -390,12 +430,328 @@ describe("Manager route setup workflow", () => {
     renderRoutesPage(["/manager/routes?routeId=route-1&tab=stops"]);
     await waitForLoaded();
 
-    // Tab stops cũ → về tab gộp: form tuyến + mục điểm dừng cùng hiển thị
+    // Tab Điểm dừng: mục điểm dừng hiện, form tuyến (routeManagement) KHÔNG hiện
     expect(
-      await screen.findByText("routes.routeManagement"),
+      await screen.findByText("routes.panelStopsTitle"),
     ).toBeInTheDocument();
-    expect(screen.getByText("routes.panelStopsTitle")).toBeInTheDocument();
     expect(screen.getByText("routes.noStopsAttached")).toBeInTheDocument();
+    expect(
+      screen.queryByText("routes.routeManagement"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Bug owner báo qua screenshot: F5 khi đang ở tuyến + tab "Điểm dừng"
+  // (?routeId=...&tab=stops) với cache danh sách tuyến còn "ấm" từ phiên
+  // trước (sessionStorage) → pill "Đang tải chi tiết tuyến…" hiện MÃI không
+  // tắt. Nguyên nhân: effect deep-link đọc `routes` (đã có sẵn từ cache ngay
+  // ở lần render đầu) và gọi handleSelectRoute NGAY trong cùng lượt effect
+  // đồng bộ (bump selectRouteSeqRef → seq A, set isLoadingRouteDetail=true),
+  // rồi effect mount loadData() chạy qua queueMicrotask ngay sau đó cũng bump
+  // seq (→ seq B) trước khi Promise.all của handleSelectRoute kịp resolve.
+  // Response của phiên A về muộn thấy seq lệch nên bỏ qua luôn nhánh finally
+  // clear cờ — isLoadingRouteDetail bị "mồ côi" ở true vĩnh viễn.
+  it("does not get stuck on the loading pill after F5 with a warm route-list cache and ?routeId+tab=stops", async () => {
+    // Cache "ấm" từ phiên trước F5 — làm routes đã có sẵn NGAY ở lần render
+    // đầu tiên (không phải rỗng), đây là điều kiện kích hoạt race
+    sessionStorage.setItem(
+      "vietride:routeList:anonymous",
+      JSON.stringify({ ts: Date.now(), data: [routeA] }),
+    );
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeA);
+
+    renderRoutesPage(["/manager/routes?routeId=route-1&tab=stops"]);
+    await waitForLoaded();
+
+    // Dữ liệu tuyến đã lên (tab Điểm dừng hiện đúng nội dung)...
+    expect(
+      await screen.findByText("routes.panelStopsTitle"),
+    ).toBeInTheDocument();
+    // ...nhưng pill loading chi tiết tuyến phải TẮT, không được kẹt mãi
+    await waitFor(() =>
+      expect(
+        screen.queryByText("routes.loadingRouteDetail"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  // Bug mới cùng vùng code F5: đang ở tab Điểm dừng, CHỌN TUYẾN KHÁC trong
+  // sidebar (không F5) → chấm gợi ý Google không hiện, chỉ F5 mới hiện.
+  // Nguyên nhân: click chọn tuyến mới cập nhật `activeRouteKey` (routeKey của
+  // useRouteStopSuggestions) NGAY trong cùng lượt render đồng bộ, nhưng
+  // `geometry.routePathPoints` (pathPoints truyền cho hook) vẫn còn polyline
+  // của tuyến CŨ cho tới khi `applySavedGeometry` chạy sau khi
+  // `getOperatorRoute` của tuyến mới resolve. Hook fetch Google Places bằng
+  // polyline SAI (của tuyến cũ) rồi cache kết quả dưới cacheKey = routeKey
+  // MỚI; khi polyline đúng về sau, cacheKey không đổi nữa nên không refetch —
+  // gợi ý Google của tuyến mới bị "mồ côi" vĩnh viễn cho tới F5.
+  it("fetches Google place suggestions with the NEWLY selected route's polyline when switching routes from the sidebar while on the stops tab", async () => {
+    const pathPointsA = [
+      { latitude: 10, longitude: 106 },
+      { latitude: 10, longitude: 107 },
+    ];
+    // Tuyến B cách xa tuyến A (không dây dưa toạ độ) — nếu hook lỡ gọi Google
+    // bằng polyline A thì kết quả mock trả về [] (không khớp encodedPolyline),
+    // gợi ý sẽ không bao giờ hiện — đúng triệu chứng bug.
+    const pathPointsB = [
+      { latitude: 20, longitude: 106 },
+      { latitude: 20, longitude: 107 },
+    ];
+    const routeADetail: OperatorRouteDetail = {
+      ...routeA,
+      pathPolyline: encodeGooglePolyline(pathPointsA),
+      stops: [],
+    };
+    const routeB: OperatorRouteDetail = {
+      ...routeA,
+      id: "route-2",
+      name: "Tuyến B",
+      pathPolyline: encodeGooglePolyline(pathPointsB),
+      stops: [],
+    };
+    const placeNearB: PlaceAlongRoute = {
+      placeId: "google-place-near-b",
+      name: "Trạm dừng gần tuyến B",
+      address: "Đâu đó",
+      latitude: 20,
+      longitude: 106.5,
+      types: ["rest_stop"],
+    };
+
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA, routeB],
+      totalItems: 2,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockImplementation(async (routeId) =>
+      routeId === routeB.id ? routeB : routeADetail,
+    );
+    vi.mocked(searchPlacesAlongRoute).mockImplementation(
+      async (encodedPolyline) =>
+        encodedPolyline === encodeGooglePolyline(pathPointsB)
+          ? [placeNearB]
+          : [],
+    );
+
+    renderRoutesPage(["/manager/routes?routeId=route-1&tab=stops"]);
+    await waitForLoaded();
+    // Đợi tuyến A lên xong (polyline A đã áp) trước khi đổi tuyến
+    await waitFor(() => expect(getOperatorRoute).toHaveBeenCalledWith("route-1"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Tuyến B/ }));
+
+    // Gợi ý Google của tuyến B phải hiện — đúng polyline B được gọi tới Google
+    expect(
+      await screen.findByTestId(
+        `map-pointmarker-suggest-googlePlace-${placeNearB.placeId}`,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // Hành vi #3 owner: rời tab Điểm dừng → chấm GỢI Ý biến mất, nhưng marker
+  // stop ĐÃ GẮN (đánh số 1..N) vẫn hiện ở mọi tab có map (kể cả tab Thông tin).
+  it("hides suggestion markers but keeps attached stop markers when leaving the stops tab", async () => {
+    const routeWithPath: OperatorRouteDetail = {
+      ...routeA,
+      pathPolyline: encodeGooglePolyline([
+        { latitude: 10.77, longitude: 106.69 },
+        { latitude: 11.94, longitude: 108.44 },
+      ]),
+      stops: [
+        {
+          routeId: routeA.id,
+          stopId: "stop-9",
+          orderIndex: 1,
+          estimatedDurationFromOriginMinutes: 30,
+          distanceFromOriginKm: 10,
+          allowPickup: true,
+          allowDropoff: false,
+          name: "Điểm dừng 9",
+          address: null,
+          latitude: 10.8,
+          longitude: 106.7,
+          isActive: true,
+        },
+      ],
+    };
+    // Nằm gần đường thẳng bến A → bến B (fraction ~0.5) → lọt ngưỡng gợi ý
+    // (cách đường <= 3km), chưa gắn vào tuyến nên vẫn là gợi ý (không phải stop-9)
+    const midStop: OperatorStop = {
+      id: "stop-along-route",
+      operatorId: "operator-1",
+      name: "Trạm dừng chân giữa tuyến",
+      description: null,
+      latitude: 11.355,
+      longitude: 107.565,
+      address: "Quốc lộ 20",
+      googlePlaceId: null,
+      isActive: true,
+    };
+
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeWithPath);
+    vi.mocked(getOperatorStops).mockResolvedValue({
+      ...emptyPage,
+      items: [midStop],
+      totalItems: 1,
+      totalPages: 1,
+    });
+
+    renderRoutesPage();
+    await waitForLoaded();
+
+    // Tab Thông tin (mặc định): marker stop đã gắn hiện, chưa có chấm gợi ý nào
+    expect(
+      await screen.findByTestId("map-pointmarker-route-stop-stop-9"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId(
+        "map-pointmarker-suggest-operatorStop-stop-along-route",
+      ),
+    ).not.toBeInTheDocument();
+
+    // Mở tab Điểm dừng → chấm gợi ý hiện, marker stop đã gắn vẫn còn
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.tabs.stops" }),
+    );
+    expect(
+      await screen.findByTestId(
+        "map-pointmarker-suggest-operatorStop-stop-along-route",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("map-pointmarker-route-stop-stop-9"),
+    ).toBeInTheDocument();
+
+    // Rời tab Điểm dừng, về tab Thông tin → chấm gợi ý biến mất, marker stop
+    // đã gắn vẫn còn nguyên trên map
+    fireEvent.click(screen.getByRole("button", { name: "routes.tabs.info" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId(
+          "map-pointmarker-suggest-operatorStop-stop-along-route",
+        ),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByTestId("map-pointmarker-route-stop-stop-9"),
+    ).toBeInTheDocument();
+  });
+
+  // Owner báo qua screenshot: thêm "Trạm dừng chân An Bình" vào tuyến Sài Gòn -
+  // Buôn Ma Thuột ở tab Điểm dừng → polyline biến thành đường thẳng chim bay
+  // thay vì tính lại đường đi qua điểm dừng mới.
+  // Nguyên nhân: addStopFromSuggestion gọi invalidateLocalGeometry (đúng — đường
+  // cũ không còn đi qua stop mới), nhưng effect auto-fetch phương án đường trong
+  // useRouteGeometry bị gate `isWorkspaceActive: activeTab === "info"` (từ hồi
+  // tab Điểm dừng chưa tách riêng) → ở tab "stops" auto-fetch không bao giờ chạy,
+  // map rơi về fallback nối thẳng các điểm (RouteDesignMap: displayedPath =
+  // pathPoints.length > 0 ? pathPoints : points).
+  it("re-computes the road geometry (auto-fetch) instead of falling back to a straight line after adding a stop from a suggestion on the stops tab", async () => {
+    const routeWithPath: OperatorRouteDetail = {
+      ...routeA,
+      pathPolyline: encodeGooglePolyline([
+        { latitude: 10.77, longitude: 106.69 },
+        { latitude: 11.94, longitude: 108.44 },
+      ]),
+      stops: [],
+    };
+    // Nằm gần đường thẳng bến A → bến B (fraction ~0.5) → lọt ngưỡng gợi ý,
+    // chưa gắn vào tuyến nên hiện thành chấm gợi ý ở tab Điểm dừng
+    const midStop: OperatorStop = {
+      id: "stop-an-binh",
+      operatorId: "operator-1",
+      name: "Trạm dừng chân An Bình",
+      description: null,
+      latitude: 11.355,
+      longitude: 107.565,
+      address: "Quốc lộ 20",
+      googlePlaceId: null,
+      isActive: true,
+    };
+    const recomputedOption = {
+      points: [
+        { latitude: 10.77, longitude: 106.69 },
+        { latitude: 11.355, longitude: 107.565 },
+        { latitude: 11.94, longitude: 108.44 },
+      ],
+      totalDistanceKm: 315,
+      estimatedDurationMinutes: 320,
+    };
+
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeWithPath);
+    vi.mocked(getOperatorStops).mockResolvedValue({
+      ...emptyPage,
+      items: [midStop],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    // routeWaypoints (bến đi/bến đến) chỉ dựng được khi có toạ độ bến — thiếu
+    // mock này thì stations rỗng, routeWaypoints < 2 điểm, effect auto-fetch bị
+    // chặn bởi guard "đủ waypoint" chứ không phải bởi gate đang test
+    vi.mocked(getOperatorStations).mockResolvedValue({
+      ...emptyPage,
+      items: operatorStations,
+      totalItems: operatorStations.length,
+      totalPages: 1,
+      pageSize: 100,
+    });
+
+    renderRoutesPage(["/manager/routes?routeId=route-1&tab=stops"]);
+    await waitForLoaded();
+
+    const suggestionMarkerButton = await screen.findByTestId(
+      "map-pointmarker-click-suggest-operatorStop-stop-an-binh",
+    );
+    fireEvent.click(suggestionMarkerButton);
+
+    // Auto-fetch bây giờ có thể chạy ở tab Điểm dừng → cho resolve với đường đi
+    // thật qua điểm dừng mới (thay vì mock mặc định reject của cả describe)
+    vi.mocked(requestRoadGeometry).mockResolvedValue([recomputedOption]);
+
+    fireEvent.click(screen.getByRole("button", { name: "routes.suggestAdd" }));
+    expect(
+      await screen.findByText("routes.routeStopDraftAdded"),
+    ).toBeInTheDocument();
+
+    // Waypoint gửi lên Google Routes phải gồm CẢ điểm dừng mới thêm (không chỉ
+    // bến đi/bến đến) — xác nhận useRouteMapPoints đã đưa currentRouteStops vào
+    // routeWaypoints và auto-fetch nhận đúng bộ waypoint này
+    await waitFor(() =>
+      expect(requestRoadGeometry).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            latitude: midStop.latitude,
+            longitude: midStop.longitude,
+          }),
+        ]),
+        "routes.routingFailed",
+        expect.anything(),
+      ),
+    );
+
+    // Đường đi tính lại thật sự phải lên bản đồ — không còn kẹt ở fallback
+    // nối thẳng các điểm (đường thẳng chim bay)
+    expect(
+      await screen.findByTestId("map-polyline-route-option-0"),
+    ).toBeInTheDocument();
   });
 
   it("collapses the floating panel into a reopen button", async () => {
@@ -422,10 +778,9 @@ describe("Manager route setup workflow", () => {
       screen.queryByTestId("route-floating-panel"),
     ).not.toBeInTheDocument();
 
-    // Mở lại: form + mục điểm dừng quay về
+    // Mở lại: form quay về (tab Thông tin không còn mục điểm dừng)
     fireEvent.click(screen.getByRole("button", { name: "routes.expandPanel" }));
     expect(screen.getByText("routes.routeManagement")).toBeInTheDocument();
-    expect(screen.getByText("routes.panelStopsTitle")).toBeInTheDocument();
   });
 
   it("sends the shuttle capability when creating a station", async () => {
@@ -646,12 +1001,14 @@ describe("Manager route setup workflow", () => {
     expect(
       vi.mocked(createOperatorRouteFull).mock.calls[0][0].pathPolyline,
     ).toBeUndefined();
-    // Tạo xong → auto-select tuyến mới, mở tab gộp map-first: mục điểm dừng
-    // hiển thị ngay trong panel nổi để bổ sung tiếp
+    // Tạo xong → auto-select tuyến mới, về tab Thông tin (mặc định) với form
+    // của tuyến vừa tạo
+    expect(await screen.findByDisplayValue("Tuyến mới")).toBeInTheDocument();
+    // Chuyển sang tab Điểm dừng để bổ sung tiếp — mục điểm dừng hiển thị ngay
+    fireEvent.click(screen.getByText("routes.tabs.stops"));
     expect(
       await screen.findByText("routes.panelStopsTitle"),
     ).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Tuyến mới")).toBeInTheDocument();
   });
 
   it("saves the selected route atomically with replace-all stops from the floating save button", async () => {
@@ -768,6 +1125,10 @@ describe("Manager route setup workflow", () => {
 
     renderRoutesPage();
     await waitForLoaded();
+
+    // Dòng điểm dừng trong panel giờ chỉ hiện ở tab "Điểm dừng" riêng — marker
+    // đánh số trên map thì hiện ở MỌI tab (kể cả tab Thông tin mặc định)
+    fireEvent.click(screen.getByText("routes.tabs.stops"));
 
     // Marker đánh số của stop hiện trên bản đồ, dòng trong panel chưa được chọn
     expect(
@@ -1675,6 +2036,928 @@ describe("Manager route setup workflow", () => {
       expect(
         screen.queryByTestId("reroute-computing-indicator"),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  // Task 7: nối dây chế độ "thêm điểm dừng" — chấm gợi ý trên map → popup xác
+  // nhận → thêm vào tuyến → lưu tuyến gửi đúng metrics (chiếu lên polyline).
+  // m-2: thêm 2 gợi ý theo thứ tự XA rồi GẦN bến đi hơn → re-index phải chèn
+  // gợi ý gần vào orderIndex 1 (không phải chỉ append cuối danh sách). Gợi ý thứ
+  // 2 thêm qua Ô SEARCH (không qua chấm map): sau lần thêm đầu, đường đi cục bộ
+  // bị invalidate (thiết kế có chủ đích — điểm dừng đổi thì đường đã lưu không
+  // còn khớp) nên map tạm thời không còn chấm gợi ý nào cho tới khi tính lại
+  // đường; ô search không phụ thuộc polyline nên vẫn dùng được ngay.
+  it("adds suggested stops from the map popup and search box, re-indexing by distance when saving", async () => {
+    const routeWithPath: OperatorRouteDetail = {
+      ...routeA,
+      pathPolyline: encodeGooglePolyline([
+        { latitude: 10.77, longitude: 106.69 },
+        { latitude: 11.94, longitude: 108.44 },
+      ]),
+      stops: [],
+    };
+    // Nằm gần như đúng trên đường thẳng bến A → bến B, ở khoảng GIỮA tuyến
+    // (fraction ~0.5) → lọt ngưỡng gợi ý (cách đường <= 3km)
+    const midStop: OperatorStop = {
+      id: "stop-along-route",
+      operatorId: "operator-1",
+      name: "Trạm dừng chân giữa tuyến",
+      description: null,
+      latitude: 11.355,
+      longitude: 107.565,
+      address: "Quốc lộ 20",
+      googlePlaceId: null,
+      isActive: true,
+    };
+    // Gần bến đi hơn (fraction ~0.2) — thêm SAU midStop nhưng phải được re-index
+    // đứng TRƯỚC (orderIndex 1), chứng minh re-index không chỉ append cuối
+    const nearOriginStop: OperatorStop = {
+      id: "stop-near-origin",
+      operatorId: "operator-1",
+      name: "Trạm gần bến đi",
+      description: null,
+      latitude: 11.004,
+      longitude: 107.04,
+      address: "Quốc lộ 20",
+      googlePlaceId: null,
+      isActive: true,
+    };
+
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeWithPath);
+    vi.mocked(getOperatorStops).mockResolvedValue({
+      ...emptyPage,
+      items: [midStop, nearOriginStop],
+      totalItems: 2,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorStations).mockResolvedValue({
+      ...emptyPage,
+      items: operatorStations,
+      totalItems: operatorStations.length,
+      totalPages: 1,
+      pageSize: 100,
+    });
+    vi.mocked(updateOperatorRouteFull).mockResolvedValue(routeWithPath);
+
+    renderRoutesPage();
+    await waitForLoaded();
+    expect(await screen.findByDisplayValue("Tuyến A")).toBeInTheDocument();
+
+    // Mở tab "Điểm dừng" → vào tab là bật luôn chấm gợi ý trên bản đồ (không
+    // còn nút bật/tắt riêng)
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.tabs.stops" }),
+    );
+
+    // 1) Thêm trước gợi ý XA bến đi hơn (giữa tuyến)
+    const midMarker = await screen.findByTestId(
+      "map-pointmarker-click-suggest-operatorStop-stop-along-route",
+    );
+    fireEvent.click(midMarker);
+    expect(
+      await screen.findByTestId("stop-suggestion-popup"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /routes.suggestAdd/ }));
+    expect(
+      await screen.findByTestId("route-stop-row-stop-along-route"),
+    ).toHaveTextContent("#1 · Trạm dừng chân giữa tuyến");
+
+    // 2) Thêm SAU gợi ý GẦN bến đi hơn qua Ô SEARCH — phải được chèn lên
+    // orderIndex 1, đẩy gợi ý giữa tuyến xuống orderIndex 2 (re-index theo
+    // khoảng cách thật, không phải theo thứ tự bấm thêm)
+    const searchInput = await screen.findByPlaceholderText(
+      "routes.stopSearchPlaceholder",
+    );
+    fireEvent.change(searchInput, { target: { value: "gần bến" } });
+    fireEvent.click(await screen.findByText("Trạm gần bến đi"));
+    expect(
+      await screen.findByTestId("stop-suggestion-popup"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /routes.suggestAdd/ }));
+
+    expect(
+      await screen.findByTestId("route-stop-row-stop-near-origin"),
+    ).toHaveTextContent("#1 · Trạm gần bến đi");
+    expect(
+      screen.getByTestId("route-stop-row-stop-along-route"),
+    ).toHaveTextContent("#2 · Trạm dừng chân giữa tuyến");
+
+    // Lưu tuyến → payload gửi đúng cả 2 stop kèm metrics tính từ polyline (>0)
+    // và orderIndex đúng thứ tự khoảng cách (không phải thứ tự bấm thêm)
+    fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+    await waitFor(() => expect(updateOperatorRouteFull).toHaveBeenCalled());
+
+    const [, savedBody] = vi.mocked(updateOperatorRouteFull).mock.calls[0];
+    const savedNearStop = savedBody.stops?.find(
+      (stop) => stop.stopId === "stop-near-origin",
+    );
+    const savedMidStop = savedBody.stops?.find(
+      (stop) => stop.stopId === "stop-along-route",
+    );
+    expect(savedNearStop).toBeDefined();
+    expect(savedMidStop).toBeDefined();
+    expect(savedNearStop?.orderIndex).toBe(1);
+    expect(savedMidStop?.orderIndex).toBe(2);
+    expect(savedNearStop?.distanceFromOriginKm).toBeGreaterThan(0);
+    expect(savedNearStop?.estimatedDurationFromOriginMinutes).toBeGreaterThan(0);
+    expect(savedMidStop?.distanceFromOriginKm).toBeGreaterThan(0);
+    expect(savedMidStop?.estimatedDurationFromOriginMinutes).toBeGreaterThan(0);
+    expect(savedNearStop?.distanceFromOriginKm).toBeLessThan(
+      savedMidStop?.distanceFromOriginKm ?? Number.POSITIVE_INFINITY,
+    );
+  });
+
+  // C-1 regression: gợi ý chọn từ ô search KHÔNG nhất thiết nằm trong danh sách
+  // chấm gợi ý trên map (chỉ gồm gợi ý cách polyline <= 3km) — ô search không lọc
+  // theo khoảng cách. Trước fix, popup mở rồi tự đóng ngay vì guard "không còn
+  // trong suggestions" — test này phải xanh sau khi merge pickedSuggestion vào
+  // mảng suggestions truyền xuống map (+ guard chừa externalActiveSuggestion).
+  it("pick-from-search: mở được popup và thêm vào tuyến dù gợi ý cách xa polyline", async () => {
+    const routeWithPath: OperatorRouteDetail = {
+      ...routeA,
+      pathPolyline: encodeGooglePolyline([
+        { latitude: 10.77, longitude: 106.69 },
+        { latitude: 11.94, longitude: 108.44 },
+      ]),
+      stops: [],
+    };
+    // Cách xa polyline (>3km, khác hẳn khu vực tuyến) → KHÔNG lọt danh sách chấm
+    // gợi ý trên map, nhưng vẫn tìm được qua ô search (search không lọc khoảng cách)
+    const farStop: OperatorStop = {
+      id: "stop-far-away",
+      operatorId: "operator-1",
+      name: "Trạm xa tuyến",
+      description: null,
+      latitude: 21.03,
+      longitude: 105.85,
+      address: "Hà Nội",
+      googlePlaceId: null,
+      isActive: true,
+    };
+
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeWithPath);
+    vi.mocked(getOperatorStops).mockResolvedValue({
+      ...emptyPage,
+      items: [farStop],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorStations).mockResolvedValue({
+      ...emptyPage,
+      items: operatorStations,
+      totalItems: operatorStations.length,
+      totalPages: 1,
+      pageSize: 100,
+    });
+    vi.mocked(updateOperatorRouteFull).mockResolvedValue(routeWithPath);
+
+    renderRoutesPage();
+    await waitForLoaded();
+    expect(await screen.findByDisplayValue("Tuyến A")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.tabs.stops" }),
+    );
+
+    // Chấm gợi ý trên map KHÔNG có stop này (quá xa polyline)
+    expect(
+      screen.queryByTestId(
+        "map-pointmarker-click-suggest-operatorStop-stop-far-away",
+      ),
+    ).not.toBeInTheDocument();
+
+    const searchInput = await screen.findByPlaceholderText(
+      "routes.stopSearchPlaceholder",
+    );
+    fireEvent.change(searchInput, { target: { value: "Trạm xa" } });
+    fireEvent.click(await screen.findByText("Trạm xa tuyến"));
+
+    expect(
+      await screen.findByTestId("stop-suggestion-popup"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /routes.suggestAdd/ }));
+
+    expect(
+      await screen.findByTestId("route-stop-row-stop-far-away"),
+    ).toBeInTheDocument();
+  });
+
+  // F-2 regression: sau khi thêm thành công gợi ý chọn từ ô search, chấm gợi ý
+  // đó không được nằm lại trên bản đồ ("chấm ma") — trước fix, pickedSuggestion
+  // không được dọn nên vẫn bị merge lại vào `suggestions` dù đã gắn vào tuyến
+  // (bị lọc khỏi nearbySuggestions do trùng attachedStopIds), bấm lại báo lỗi
+  // duplicate.
+  it("pick-from-search: sau khi thêm thành công, chấm gợi ý không còn lại trên bản đồ", async () => {
+    const routeWithPath: OperatorRouteDetail = {
+      ...routeA,
+      pathPolyline: encodeGooglePolyline([
+        { latitude: 10.77, longitude: 106.69 },
+        { latitude: 11.94, longitude: 108.44 },
+      ]),
+      stops: [],
+    };
+    const farStop: OperatorStop = {
+      id: "stop-far-away",
+      operatorId: "operator-1",
+      name: "Trạm xa tuyến",
+      description: null,
+      latitude: 21.03,
+      longitude: 105.85,
+      address: "Hà Nội",
+      googlePlaceId: null,
+      isActive: true,
+    };
+
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeWithPath);
+    vi.mocked(getOperatorStops).mockResolvedValue({
+      ...emptyPage,
+      items: [farStop],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorStations).mockResolvedValue({
+      ...emptyPage,
+      items: operatorStations,
+      totalItems: operatorStations.length,
+      totalPages: 1,
+      pageSize: 100,
+    });
+    vi.mocked(updateOperatorRouteFull).mockResolvedValue(routeWithPath);
+
+    renderRoutesPage();
+    await waitForLoaded();
+    expect(await screen.findByDisplayValue("Tuyến A")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.tabs.stops" }),
+    );
+
+    const searchInput = await screen.findByPlaceholderText(
+      "routes.stopSearchPlaceholder",
+    );
+    fireEvent.change(searchInput, { target: { value: "Trạm xa" } });
+    fireEvent.click(await screen.findByText("Trạm xa tuyến"));
+
+    expect(
+      await screen.findByTestId("stop-suggestion-popup"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /routes.suggestAdd/ }));
+
+    await screen.findByTestId("route-stop-row-stop-far-away");
+
+    // Chấm gợi ý cho stop vừa gắn không còn hiện lại trên bản đồ (không phải
+    // thành viên "ma" của suggestions nữa)
+    expect(
+      screen.queryByTestId(
+        "map-pointmarker-suggest-operatorStop-stop-far-away",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  // Phụ lục spec 2026-08-07: tab "Tuyến thay thế" chuyển map-first — form nhập
+  // tay km/phút/stop bị bỏ, thay bằng chính workspace bản đồ (reuse máy geometry).
+  describe("alternative routes tab (map-first)", () => {
+    const altDestinationStationId = "33333333-3333-3333-3333-333333333333";
+    const altStations: OperatorStation[] = [
+      ...operatorStations,
+      {
+        id: "op-station-3",
+        operatorId: "operator-1",
+        stationId: altDestinationStationId,
+        station: {
+          id: altDestinationStationId,
+          name: "Bến C",
+          city: "Đồng Nai",
+          ward: null,
+          latitude: 11.2,
+          longitude: 107.0,
+        },
+      },
+    ];
+
+    const altStop: OperatorStop = {
+      id: "alt-stop-1",
+      operatorId: "operator-1",
+      name: "Trạm phụ",
+      description: null,
+      latitude: 11.0,
+      longitude: 106.9,
+      address: "QL20",
+      googlePlaceId: null,
+      isActive: true,
+    };
+    // Nằm gần đúng trên đoạn giữa altOne (bến A → bến C) — lọt ngưỡng chấm gợi ý
+    const altSuggestionStop: OperatorStop = {
+      id: "alt-suggest-stop",
+      operatorId: "operator-1",
+      name: "Trạm gợi ý tuyến thay thế",
+      description: null,
+      latitude: 10.98,
+      longitude: 106.84,
+      address: "QL20",
+      googlePlaceId: null,
+      isActive: true,
+    };
+
+    const altOnePoints = [
+      { latitude: 10.77, longitude: 106.69 },
+      { latitude: 11.2, longitude: 107.0 },
+    ];
+    const altTwoPoints = [
+      { latitude: 10.77, longitude: 106.69 },
+      { latitude: 10.9, longitude: 106.8 },
+      { latitude: 11.2, longitude: 107.0 },
+    ];
+
+    const altOne: AlternativeRoute = {
+      id: "alt-1",
+      routeId: routeA.id,
+      name: "Alt One",
+      description: "Phương án 1",
+      destinationStationId: altDestinationStationId,
+      pathPolyline: encodeGooglePolyline(altOnePoints),
+      totalDistanceKm: 55,
+      estimatedDurationMinutes: 75,
+      isActive: true,
+      stops: [
+        {
+          alternativeRouteId: "alt-1",
+          stopId: altStop.id,
+          orderIndex: 1,
+          estimatedDurationFromOriginMinutes: 15,
+          distanceFromOriginKm: 12,
+        },
+      ],
+    };
+    const altTwo: AlternativeRoute = {
+      id: "alt-2",
+      routeId: routeA.id,
+      name: "Alt Two",
+      description: "",
+      destinationStationId: altDestinationStationId,
+      pathPolyline: encodeGooglePolyline(altTwoPoints),
+      totalDistanceKm: 60,
+      estimatedDurationMinutes: 80,
+      isActive: false,
+      stops: [],
+    };
+
+    beforeEach(() => {
+      vi.mocked(getOperatorRoutes).mockResolvedValue({
+        ...emptyPage,
+        items: [routeA],
+        totalItems: 1,
+        totalPages: 1,
+      });
+      vi.mocked(getOperatorRoute).mockResolvedValue(routeA);
+      vi.mocked(getOperatorStations).mockResolvedValue({
+        ...emptyPage,
+        items: altStations,
+        totalItems: altStations.length,
+        totalPages: 1,
+        pageSize: 100,
+      });
+      vi.mocked(getOperatorStops).mockResolvedValue({
+        ...emptyPage,
+        items: [altStop, altSuggestionStop],
+        totalItems: 2,
+        totalPages: 1,
+      });
+      vi.mocked(getAlternativeRoutes).mockResolvedValue({
+        ...emptyPage,
+        items: [altOne, altTwo],
+        totalItems: 2,
+        totalPages: 1,
+        pageSize: 2,
+      });
+    });
+
+    async function openAlternativesTab() {
+      renderRoutesPage();
+      await waitForLoaded();
+      expect(await screen.findByDisplayValue("Tuyến A")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+      // Chờ danh sách + form tuyến thay thế đầu tiên nạp xong
+      await screen.findByDisplayValue("Alt One");
+    }
+
+    it("renders a map-first workspace with no manual km/duration inputs", async () => {
+      await openAlternativesTab();
+
+      expect(screen.getByTestId("route-map-shell")).toBeInTheDocument();
+      expect(screen.getByTestId("route-map")).toBeInTheDocument();
+      // Km/phút chỉ đọc — không còn ô nhập tay (bỏ NumberInput/DurationInput)
+      expect(
+        screen.getByTestId("alternative-metrics-readout"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("routes.totalDistance")).not.toBeInTheDocument();
+      expect(screen.queryByText("routes.durationMinutes")).not.toBeInTheDocument();
+      // Danh sách 2 tuyến thay thế hiện đủ
+      expect(screen.getByText("Alt One")).toBeInTheDocument();
+      expect(screen.getByText("Alt Two")).toBeInTheDocument();
+    });
+
+    it("loads the selected alternative's polyline (orange) and stop markers onto the map", async () => {
+      await openAlternativesTab();
+
+      // Mặc định chọn Alt One (phần tử đầu) — có polyline + 1 stop
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("map-polyline-route-geometry"),
+        ).toHaveAttribute("data-color", "#f59e0b"),
+      );
+      expect(
+        screen.getByTestId("map-pointmarker-route-stop-alt-stop-1"),
+      ).toBeInTheDocument();
+
+      // Chọn Alt Two (không có stop) → map đổi theo: marker của Alt One biến mất
+      fireEvent.click(screen.getByText("Alt Two"));
+      await screen.findByDisplayValue("Alt Two");
+      expect(
+        screen.queryByTestId("map-pointmarker-route-stop-alt-stop-1"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("adds a stop to the alternative from a map suggestion dot with auto-computed metrics", async () => {
+      await openAlternativesTab();
+
+      const suggestionMarker = await screen.findByTestId(
+        "map-pointmarker-click-suggest-operatorStop-alt-suggest-stop",
+      );
+      fireEvent.click(suggestionMarker);
+      expect(
+        await screen.findByTestId("stop-suggestion-popup"),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /routes.suggestAdd/ }));
+
+      // Stop mới xuất hiện trong danh sách panel — km/phút tự tính từ polyline
+      // (không phải số nhập tay), orderIndex tự re-index cùng stop có sẵn
+      expect(
+        await screen.findByTestId(
+          "alternative-stop-row-alt-suggest-stop",
+        ),
+      ).toBeInTheDocument();
+      // createOperatorStop KHÔNG được gọi — đây là gợi ý từ kho nhà xe, không phải Google
+      expect(createOperatorStop).not.toHaveBeenCalled();
+      expect(
+        screen.getAllByText("routes.unsavedChanges").length,
+      ).toBeGreaterThan(0);
+    });
+
+    // Review finding #6: gỡ stop tuyến thay thế (panel hoặc card trên map)
+    // phải qua modal xác nhận, nhất quán với gỡ stop tuyến chính.
+    it("requires confirmation before removing a stop from the alternative", async () => {
+      await openAlternativesTab();
+
+      const row = await screen.findByTestId("alternative-stop-row-alt-stop-1");
+      fireEvent.click(
+        within(row).getByRole("button", {
+          name: "routes.removeAlternativeStop",
+        }),
+      );
+
+      // Bấm gỡ chỉ MỞ modal xác nhận — stop chưa bị xoá khỏi danh sách
+      expect(
+        await screen.findByText("routes.removeRouteStopTitle"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("alternative-stop-row-alt-stop-1"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "delete" }));
+
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("alternative-stop-row-alt-stop-1"),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.getByText("routes.alternativeNoStops")).toBeInTheDocument();
+    });
+
+    it("saves the alternative with auto-computed metrics and syncs the geometry", async () => {
+      vi.mocked(updateAlternativeRoute).mockResolvedValue(altOne);
+      vi.mocked(updateAlternativeRouteGeometry).mockResolvedValue(altOne);
+
+      await openAlternativesTab();
+
+      // Sửa tên → đánh dấu chưa lưu, bật nút Lưu
+      fireEvent.change(screen.getByDisplayValue("Alt One"), {
+        target: { value: "Alt One (sửa)" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+
+      await waitFor(() => expect(updateAlternativeRoute).toHaveBeenCalled());
+      expect(updateAlternativeRoute).toHaveBeenCalledWith(
+        "alt-1",
+        expect.objectContaining({
+          name: "Alt One (sửa)",
+          destinationStationId: altDestinationStationId,
+          totalDistanceKm: altOne.totalDistanceKm,
+          estimatedDurationMinutes: altOne.estimatedDurationMinutes,
+          stops: [
+            {
+              stopId: altStop.id,
+              orderIndex: 1,
+              estimatedDurationFromOriginMinutes: 15,
+              distanceFromOriginKm: 12,
+            },
+          ],
+        }),
+      );
+      // Đường đi (polyline) lưu qua call RIÊNG updateAlternativeRouteGeometry —
+      // không atomic như /routes/full (đúng phụ lục mục 4)
+      await waitFor(() =>
+        expect(updateAlternativeRouteGeometry).toHaveBeenCalledWith("alt-1", {
+          pathPolyline: encodeGooglePolyline(altOnePoints),
+        }),
+      );
+      expect(
+        await screen.findByText("routes.alternativeUpdated"),
+      ).toBeInTheDocument();
+    });
+
+    it("disables creating a new alternative once the limit of two is reached", async () => {
+      await openAlternativesTab();
+
+      expect(
+        screen.getByRole("button", { name: /routes.newAlternative/ }),
+      ).toBeDisabled();
+    });
+
+    it("creates a new alternative route via the map-first form when under the limit", async () => {
+      vi.mocked(getAlternativeRoutes).mockResolvedValue({
+        ...emptyPage,
+        items: [altOne],
+        totalItems: 1,
+        totalPages: 1,
+      });
+      const createdAlt: AlternativeRoute = {
+        ...altTwo,
+        id: "alt-3",
+        name: "Alt Three",
+      };
+      vi.mocked(createAlternativeRoute).mockResolvedValue(createdAlt);
+      vi.mocked(updateAlternativeRouteGeometry).mockResolvedValue(createdAlt);
+
+      await openAlternativesTab();
+
+      expect(
+        screen.getByRole("button", { name: /routes.newAlternative/ }),
+      ).not.toBeDisabled();
+      fireEvent.click(
+        screen.getByRole("button", { name: /routes.newAlternative/ }),
+      );
+
+      fireEvent.change(
+        screen.getByPlaceholderText("routes.alternativeNamePlaceholder"),
+        { target: { value: "Alt Three" } },
+      );
+      // Nháp mới được prefill bến đến = bến đến tuyến chính (Bến B) — đổi
+      // sang bến khác qua chính select đó (chờ effect prefill chạy xong)
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Bến B · Phường Xuân Hương - Đà Lạt, Lâm Đồng",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("option", { name: "Bến C · Đồng Nai" }),
+      );
+
+      // Chọn 1 phương án đường trên map (bắt buộc trước khi lưu — không còn ô
+      // nhập km/phút tay)
+      vi.mocked(requestRoadGeometry).mockResolvedValue([
+        {
+          points: altOnePoints,
+          totalDistanceKm: 55,
+          estimatedDurationMinutes: 75,
+        },
+      ]);
+      await waitFor(
+        () =>
+          expect(
+            screen.getByTestId("map-polyline-route-option-0"),
+          ).toBeInTheDocument(),
+        { timeout: 2000 },
+      );
+      fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
+
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+
+      await waitFor(() => expect(createAlternativeRoute).toHaveBeenCalled());
+      expect(createAlternativeRoute).toHaveBeenCalledWith(
+        routeA.id,
+        expect.objectContaining({
+          name: "Alt Three",
+          destinationStationId: altDestinationStationId,
+          totalDistanceKm: 55,
+          estimatedDurationMinutes: 75,
+        }),
+      );
+      await waitFor(() =>
+        expect(updateAlternativeRouteGeometry).toHaveBeenCalledWith(
+          "alt-3",
+          { pathPolyline: encodeGooglePolyline(altOnePoints) },
+        ),
+      );
+      expect(
+        await screen.findByText("routes.alternativeCreated"),
+      ).toBeInTheDocument();
+    });
+
+    // Regression từ fix #4 (round 2 review): guard giới hạn 0/2 trước đây chỉ
+    // xét `selectedAlternativeRouteId` — kịch bản "đã có 1 alt, tạo alt MỚI,
+    // create thành công (list → 2) nhưng lưu geometry lỗi" giữ id vừa tạo
+    // trong `pendingAlternativeIdRef` chứ KHÔNG gán selectedAlternativeRouteId
+    // (cố ý, xem fix #4) → bấm Lưu retry bị guard hiểu nhầm là "tạo thêm 1 alt
+    // nữa" trong khi đủ 2/2 → chặn oan, user kẹt vĩnh viễn không lưu lại được.
+    // Guard giờ xét targetAlternativeId (gồm cả pendingAlternativeIdRef).
+    it("lets a retry save update the pending alternative instead of hitting the 0/2 limit after a geometry failure", async () => {
+      // Sẵn có đúng 1 alt (route A) — soạn thêm 1 alt MỚI sẽ đưa danh sách lên
+      // đúng 2/2 sau khi create thành công (bối cảnh guard dễ hiểu nhầm nhất).
+      vi.mocked(getAlternativeRoutes).mockResolvedValue({
+        ...emptyPage,
+        items: [altOne],
+        totalItems: 1,
+        totalPages: 1,
+      });
+      const createdAlt: AlternativeRoute = {
+        ...altTwo,
+        id: "alt-3",
+        name: "Alt Three",
+      };
+      vi.mocked(createAlternativeRoute).mockResolvedValue(createdAlt);
+      vi.mocked(updateAlternativeRouteGeometry).mockRejectedValueOnce(
+        new Error("geometry save failed"),
+      );
+      vi.mocked(requestRoadGeometry).mockResolvedValue([
+        {
+          points: altOnePoints,
+          totalDistanceKm: 55,
+          estimatedDurationMinutes: 75,
+        },
+      ]);
+
+      await openAlternativesTab();
+      fireEvent.click(
+        screen.getByRole("button", { name: /routes.newAlternative/ }),
+      );
+      fireEvent.change(
+        screen.getByPlaceholderText("routes.alternativeNamePlaceholder"),
+        { target: { value: "Alt Three" } },
+      );
+      // Nháp mới được prefill bến đến = bến đến tuyến chính (Bến B) — đổi
+      // sang bến khác qua chính select đó (chờ effect prefill chạy xong)
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Bến B · Phường Xuân Hương - Đà Lạt, Lâm Đồng",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("option", { name: "Bến C · Đồng Nai" }),
+      );
+      await waitFor(
+        () =>
+          expect(
+            screen.getByTestId("map-polyline-route-option-0"),
+          ).toBeInTheDocument(),
+        { timeout: 2000 },
+      );
+      fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
+
+      // Lượt 1: create thành công (list → 2/2) nhưng geometry lỗi
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      await waitFor(() => expect(createAlternativeRoute).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(updateAlternativeRouteGeometry).toHaveBeenCalledTimes(1),
+      );
+      expect(
+        await screen.findByText("geometry save failed"),
+      ).toBeInTheDocument();
+      // KHÔNG bị toast giới hạn — đây chính là regression cần chặn
+      expect(
+        screen.queryByText("routes.alternativeLimitReached"),
+      ).not.toBeInTheDocument();
+
+      // Lượt 2 (retry): phải UPDATE đúng "alt-3" vừa tạo — không create lần 2,
+      // không bị chặn bởi guard 0/2
+      vi.mocked(updateAlternativeRouteGeometry).mockResolvedValueOnce(createdAlt);
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+
+      await waitFor(() => expect(updateAlternativeRoute).toHaveBeenCalled());
+      expect(updateAlternativeRoute).toHaveBeenCalledWith(
+        "alt-3",
+        expect.objectContaining({ name: "Alt Three" }),
+      );
+      expect(createAlternativeRoute).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText("routes.alternativeLimitReached"),
+      ).not.toBeInTheDocument();
+      expect(
+        await screen.findByText("routes.alternativeUpdated"),
+      ).toBeInTheDocument();
+    });
+
+    // Review finding #1: khoá cache geometry/suggestions của tuyến thay thế
+    // NHÁP (chưa lưu) trước đây là hằng số "alt:draft" — soạn nháp ở tuyến A
+    // rồi qua tuyến B soạn nháp khác dính cache Google Places của hành lang
+    // tuyến A (lọc theo polyline tuyến A, gần như luôn ngoài bán kính 1km của
+    // polyline tuyến B) → 0 chấm gợi ý vĩnh viễn tới khi F5. Khoá giờ gồm cả
+    // selectedRouteId + destinationStationId (xem alternativeGeometryKey).
+    it("does not reuse the Google Places cache between draft alternatives of different main routes", async () => {
+      const routeB: OperatorRoute = { ...routeA, id: "route-2", name: "Tuyến B" };
+
+      vi.mocked(getOperatorRoutes).mockResolvedValue({
+        ...emptyPage,
+        items: [routeA, routeB],
+        totalItems: 2,
+        totalPages: 1,
+      });
+      vi.mocked(getOperatorRoute).mockImplementation((id: string) =>
+        Promise.resolve(id === routeB.id ? routeB : routeA),
+      );
+      // Cả 2 tuyến đều CHƯA có tuyến thay thế nào lưu — soạn nháp cả hai lần
+      vi.mocked(getAlternativeRoutes).mockResolvedValue(emptyPage);
+      vi.mocked(requestRoadGeometry).mockResolvedValue([
+        {
+          points: altOnePoints,
+          totalDistanceKm: 55,
+          estimatedDurationMinutes: 75,
+        },
+      ]);
+
+      async function draftAlternativeAndApplyPath() {
+        fireEvent.click(
+          screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+        );
+        // Nháp mới được prefill bến đến = bến đến tuyến chính (Bến B)
+        fireEvent.click(
+          await screen.findByRole("button", {
+            name: "Bến B · Phường Xuân Hương - Đà Lạt, Lâm Đồng",
+          }),
+        );
+        fireEvent.click(
+          screen.getByRole("option", { name: "Bến C · Đồng Nai" }),
+        );
+        await waitFor(
+          () =>
+            expect(
+              screen.getByTestId("map-polyline-route-option-0"),
+            ).toBeInTheDocument(),
+          { timeout: 2000 },
+        );
+        fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
+      }
+
+      renderRoutesPage();
+      await waitForLoaded();
+      expect(await screen.findByDisplayValue("Tuyến A")).toBeInTheDocument();
+
+      await draftAlternativeAndApplyPath();
+      // 2 query nhóm ("bến xe" / "trạm dừng chân") gọi song song mỗi lượt fetch
+      await waitFor(() =>
+        expect(searchPlacesAlongRoute).toHaveBeenCalledTimes(2),
+      );
+
+      // Đổi sang tuyến B (đợi list tuyến thay thế rỗng nạp xong) rồi soạn nháp
+      // với CÙNG bến đến thay thế — nếu còn dính cache thì searchPlacesAlongRoute
+      // sẽ KHÔNG được gọi thêm.
+      fireEvent.click(screen.getByRole("button", { name: /Tuyến B/ }));
+      await screen.findByText("routes.alternativeEmpty");
+      await draftAlternativeAndApplyPath();
+
+      await waitFor(() =>
+        expect(searchPlacesAlongRoute).toHaveBeenCalledTimes(4),
+      );
+    });
+
+    // Review finding #2: user đổi tuyến chính trong lúc save/xoá tuyến thay
+    // thế đang bay (await) → response về muộn phải bị BỎ QUA, không được ghi
+    // đè state đã thuộc tuyến MỚI (index.tsx đã tự nạp lại qua applyAlternatives).
+    it("ignores a stale save response after switching the main route mid-flight", async () => {
+      const routeB: OperatorRoute = { ...routeA, id: "route-2", name: "Tuyến B" };
+
+      vi.mocked(getOperatorRoutes).mockResolvedValue({
+        ...emptyPage,
+        items: [routeA, routeB],
+        totalItems: 2,
+        totalPages: 1,
+      });
+      vi.mocked(getOperatorRoute).mockImplementation((id: string) =>
+        Promise.resolve(id === routeB.id ? routeB : routeA),
+      );
+      vi.mocked(getAlternativeRoutes).mockImplementation((routeId: string) =>
+        Promise.resolve(
+          routeId === routeA.id
+            ? { ...emptyPage, items: [altOne, altTwo], totalItems: 2, totalPages: 1 }
+            : emptyPage,
+        ),
+      );
+
+      let resolveUpdate!: (value: AlternativeRoute) => void;
+      vi.mocked(updateAlternativeRoute).mockImplementation(
+        () =>
+          new Promise<AlternativeRoute>((resolve) => {
+            resolveUpdate = resolve;
+          }),
+      );
+
+      renderRoutesPage();
+      await waitForLoaded();
+      expect(await screen.findByDisplayValue("Tuyến A")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+      await screen.findByDisplayValue("Alt One");
+
+      fireEvent.change(screen.getByDisplayValue("Alt One"), {
+        target: { value: "Alt One (đang lưu)" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      await waitFor(() => expect(updateAlternativeRoute).toHaveBeenCalled());
+
+      // Đổi sang tuyến B NGAY TRONG LÚC save của tuyến A còn đang treo — đợi
+      // list tuyến thay thế của tuyến B (rỗng) nạp xong hẳn
+      fireEvent.click(screen.getByRole("button", { name: /Tuyến B/ }));
+      await screen.findByText("routes.alternativeEmpty");
+
+      // Phát chốt response cũ của tuyến A về MUỘN, sau khi đã đổi tuyến
+      await act(async () => {
+        resolveUpdate({ ...altOne, name: "Alt One (đang lưu)" });
+      });
+
+      // Response cũ bị bỏ qua hoàn toàn: KHÔNG gọi tiếp updateAlternativeRouteGeometry,
+      // danh sách tuyến B vẫn rỗng (không bị chèn bản ghi của tuyến A)
+      expect(updateAlternativeRouteGeometry).not.toHaveBeenCalled();
+      expect(
+        screen.queryByText("Alt One (đang lưu)"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("routes.alternativeEmpty")).toBeInTheDocument();
+    });
+
+    // Review finding #3 (spec mục 4): lỗi ở bước lưu geometry (sau khi
+    // metrics/stops đã lưu thành công) phải GIỮ NGUYÊN draft trên UI — không
+    // reset form/stop/dirty, không gọi loadAlternativeIntoWorkspace.
+    it("keeps the draft intact when saving the geometry fails after metrics/stops were saved", async () => {
+      vi.mocked(updateAlternativeRoute).mockResolvedValue(altOne);
+      vi.mocked(updateAlternativeRouteGeometry).mockRejectedValue(
+        new Error("geometry save failed"),
+      );
+
+      await openAlternativesTab();
+
+      fireEvent.change(screen.getByDisplayValue("Alt One"), {
+        target: { value: "Alt One (sửa)" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+
+      await waitFor(() => expect(updateAlternativeRoute).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(updateAlternativeRouteGeometry).toHaveBeenCalled(),
+      );
+
+      // Toast báo lỗi geometry, KHÔNG gọi loadAlternativeIntoWorkspace: form
+      // vẫn giữ tên vừa sửa, badge "chưa lưu" vẫn còn nguyên
+      expect(
+        await screen.findByText("geometry save failed"),
+      ).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Alt One (sửa)")).toBeInTheDocument();
+      expect(
+        screen.getAllByText("routes.unsavedChanges").length,
+      ).toBeGreaterThan(0);
+
+      // Bấm Lưu LẦN NỮA (retry) — phải gọi UPDATE đúng bản ghi "alt-1", không
+      // tạo trùng bản ghi mới (createAlternativeRoute không được gọi)
+      vi.mocked(updateAlternativeRouteGeometry).mockResolvedValueOnce(altOne);
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      await waitFor(() =>
+        expect(updateAlternativeRoute).toHaveBeenCalledTimes(2),
+      );
+      expect(updateAlternativeRoute).toHaveBeenLastCalledWith(
+        "alt-1",
+        expect.objectContaining({ name: "Alt One (sửa)" }),
+      );
+      expect(createAlternativeRoute).not.toHaveBeenCalled();
     });
   });
 });

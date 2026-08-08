@@ -105,3 +105,59 @@ export function decodeGooglePolyline(encoded: string) {
 
   return points;
 }
+
+// Chiếu một điểm lên polyline: tìm chân chiếu gần nhất trên từng segment
+// (xấp xỉ equirectangular — đủ chính xác cho khoảng cách nội tuyến vài trăm km),
+// trả km tích luỹ dọc đường tại chân chiếu + khoảng cách vuông góc tới đường.
+const earthRadiusKm = 6371;
+
+function toXY(point: RouteCoordinate, refLatitudeRad: number) {
+  const latRad = (point.latitude * Math.PI) / 180;
+  const lngRad = (point.longitude * Math.PI) / 180;
+  return {
+    x: earthRadiusKm * lngRad * Math.cos(refLatitudeRad),
+    y: earthRadiusKm * latRad,
+  };
+}
+
+export function projectPointOntoPolyline(
+  path: RouteCoordinate[],
+  point: RouteCoordinate,
+) {
+  if (path.length < 2) {
+    return { distanceFromStartKm: 0, distanceToPathKm: Number.POSITIVE_INFINITY };
+  }
+
+  const refLatitudeRad = (point.latitude * Math.PI) / 180;
+  const target = toXY(point, refLatitudeRad);
+  let cumulativeKm = 0;
+  let bestDistanceKm = Number.POSITIVE_INFINITY;
+  let bestFromStartKm = 0;
+
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const start = toXY(path[index], refLatitudeRad);
+    const end = toXY(path[index + 1], refLatitudeRad);
+    const segmentX = end.x - start.x;
+    const segmentY = end.y - start.y;
+    const segmentLengthKm = Math.hypot(segmentX, segmentY);
+    // Segment suy biến (2 điểm trùng) → so khoảng cách tới điểm đầu
+    const rawT =
+      segmentLengthKm === 0
+        ? 0
+        : ((target.x - start.x) * segmentX + (target.y - start.y) * segmentY) /
+          (segmentLengthKm * segmentLengthKm);
+    const t = Math.min(1, Math.max(0, rawT));
+    const footX = start.x + t * segmentX;
+    const footY = start.y + t * segmentY;
+    const distanceKm = Math.hypot(target.x - footX, target.y - footY);
+
+    if (distanceKm < bestDistanceKm) {
+      bestDistanceKm = distanceKm;
+      bestFromStartKm = cumulativeKm + t * segmentLengthKm;
+    }
+
+    cumulativeKm += segmentLengthKm;
+  }
+
+  return { distanceFromStartKm: bestFromStartKm, distanceToPathKm: bestDistanceKm };
+}

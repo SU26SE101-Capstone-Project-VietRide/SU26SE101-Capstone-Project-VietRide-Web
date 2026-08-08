@@ -187,6 +187,22 @@ export function findMatchingRouteOption(
   });
 }
 
+// Lọc BỎ các phương án trùng ~ đường `path` — dùng khi soạn tuyến thay thế:
+// phương án Google trùng tuyến chính đang hiện hành thì không phải "thay thế".
+// Cùng ngưỡng với findMatchingRouteOption; path chưa đủ 2 điểm → giữ nguyên.
+export function excludeMatchingRouteOptions(
+  options: RoadRouteOption[],
+  path: RouteCoordinate[],
+): RoadRouteOption[] {
+  if (path.length < 2) {
+    return options;
+  }
+
+  return options.filter(
+    (option) => findMatchingRouteOption([option], path) === -1,
+  );
+}
+
 // Gọi Google Routes computeRoutes với computeAlternativeRoutes → trả MẢNG phương án
 // (tối đa 3, phần tử đầu là đề xuất chính của Google). Luôn có ít nhất 1 phần tử,
 // ngược lại throw errorMessage. Có opts.intermediates thì Google chỉ trả 1 phương án.

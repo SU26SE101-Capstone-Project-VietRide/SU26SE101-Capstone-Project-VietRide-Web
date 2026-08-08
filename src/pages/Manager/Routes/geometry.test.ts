@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   dedupeRouteOptions,
+  excludeMatchingRouteOptions,
   findMatchingRouteOption,
   isTruckDetour,
   requestRoadGeometry,
@@ -288,5 +289,54 @@ describe("findMatchingRouteOption", () => {
     expect(
       findMatchingRouteOption(options, [{ latitude: 10.77, longitude: 106.69 }]),
     ).toBe(-1);
+  });
+});
+
+// Lọc BỎ phương án trùng ~ một đường (polyline tuyến chính khi soạn tuyến thay
+// thế) — cùng ngưỡng với findMatchingRouteOption
+describe("excludeMatchingRouteOptions", () => {
+  const viaNorth = [
+    { latitude: 10.77, longitude: 106.69 },
+    { latitude: 11.5, longitude: 107.2 },
+    { latitude: 11.94, longitude: 108.44 },
+  ];
+  const viaSouth = [
+    { latitude: 10.77, longitude: 106.69 },
+    { latitude: 10.95, longitude: 107.9 },
+    { latitude: 11.94, longitude: 108.44 },
+  ];
+  const options: RoadRouteOption[] = [
+    { points: viaNorth, totalDistanceKm: 355.4, estimatedDurationMinutes: 345 },
+    { points: viaSouth, totalDistanceKm: 410.2, estimatedDurationMinutes: 372 },
+  ];
+
+  it("drops options matching the excluded path and keeps the rest", () => {
+    expect(excludeMatchingRouteOptions(options, viaNorth)).toEqual([options[1]]);
+    expect(excludeMatchingRouteOptions(options, viaSouth)).toEqual([options[0]]);
+  });
+
+  it("keeps every option when none matches the excluded path", () => {
+    const other = [
+      { latitude: 10.77, longitude: 106.69 },
+      { latitude: 12.3, longitude: 109.2 },
+      { latitude: 11.94, longitude: 108.44 },
+    ];
+
+    expect(excludeMatchingRouteOptions(options, other)).toEqual(options);
+  });
+
+  it("returns options unchanged for an empty or single-point excluded path", () => {
+    expect(excludeMatchingRouteOptions(options, [])).toEqual(options);
+    expect(
+      excludeMatchingRouteOptions(options, [
+        { latitude: 10.77, longitude: 106.69 },
+      ]),
+    ).toEqual(options);
+  });
+
+  it("can drop every option when all of them match the excluded path", () => {
+    expect(
+      excludeMatchingRouteOptions([options[0]], viaNorth),
+    ).toEqual([]);
   });
 });

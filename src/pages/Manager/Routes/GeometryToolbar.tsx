@@ -31,6 +31,7 @@ export default function GeometryToolbar({
     isRerouting,
     isFetchingOptions,
     autoRouteUnavailable,
+    allOptionsExcluded,
     isEditingGeometry,
     handleSetTravelMode,
     handleStartManualGeometry,
@@ -127,6 +128,17 @@ export default function GeometryToolbar({
             className="text-xs text-gray-500"
           >
             {t("routes.autoRouteUnavailable")}
+          </span>
+        )}
+
+        {/* Google có trả phương án nhưng tất cả đều trùng tuyến chính (bị lọc
+            khỏi bộ phương án thay thế) → hint kéo điểm nắn để tự tạo đường khác */}
+        {allOptionsExcluded && !isFetchingOptions && !isEditingGeometry && (
+          <span
+            data-testid="all-options-excluded"
+            className="text-xs text-amber-600"
+          >
+            {t("routes.allOptionsMatchMainRoute")}
           </span>
         )}
 

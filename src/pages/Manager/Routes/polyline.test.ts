@@ -4,6 +4,7 @@ import {
   encodeGooglePolyline,
   estimateCoachDurationMinutes,
   parseGoogleDurationSeconds,
+  projectPointOntoPolyline,
 } from "./polyline";
 
 describe("Google encoded polyline", () => {
@@ -44,5 +45,40 @@ describe("Google encoded polyline", () => {
 
   it("rejects an invalid Google Routes duration", () => {
     expect(parseGoogleDurationSeconds("9 minutes")).toBe(0);
+  });
+});
+
+describe("projectPointOntoPolyline", () => {
+  // Đường thẳng nằm ngang ~111 km trên xích đạo: (0,105) → (0,106)
+  const path = [
+    { latitude: 0, longitude: 105 },
+    { latitude: 0, longitude: 105.5 },
+    { latitude: 0, longitude: 106 },
+  ];
+
+  it("điểm giữa tuyến: km tích luỹ ~ nửa chiều dài, khoảng cách tới đường ~0", () => {
+    const result = projectPointOntoPolyline(path, { latitude: 0, longitude: 105.5 });
+    expect(result.distanceFromStartKm).toBeGreaterThan(54);
+    expect(result.distanceFromStartKm).toBeLessThan(58);
+    expect(result.distanceToPathKm).toBeLessThan(0.1);
+  });
+
+  it("điểm lệch khỏi đường 0.1 độ vĩ: distanceToPathKm ~11 km, km tích luỹ theo chân chiếu", () => {
+    const result = projectPointOntoPolyline(path, { latitude: 0.1, longitude: 105.25 });
+    expect(result.distanceToPathKm).toBeGreaterThan(10);
+    expect(result.distanceToPathKm).toBeLessThan(12.5);
+    expect(result.distanceFromStartKm).toBeGreaterThan(26);
+    expect(result.distanceFromStartKm).toBeLessThan(30);
+  });
+
+  it("điểm trước đầu tuyến: kẹp về 0 km", () => {
+    const result = projectPointOntoPolyline(path, { latitude: 0, longitude: 104.5 });
+    expect(result.distanceFromStartKm).toBe(0);
+  });
+
+  it("path < 2 điểm: trả 0/Infinity, không throw", () => {
+    const result = projectPointOntoPolyline([], { latitude: 0, longitude: 105 });
+    expect(result.distanceFromStartKm).toBe(0);
+    expect(result.distanceToPathKm).toBe(Number.POSITIVE_INFINITY);
   });
 });

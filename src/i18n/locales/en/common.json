@@ -130,6 +130,8 @@
     "FIXED_AMOUNT": "Fixed amount discount"
   },
   "enumLabels": {
+    "PENDING_EMAIL_VERIFICATION": "Pending email verification",
+    "PENDING_INITIAL_PASSWORD": "Pending initial password setup",
     "ACTIVE": "Active",
     "INACTIVE": "Inactive",
     "MAINTENANCE": "Under maintenance",

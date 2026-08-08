@@ -2,25 +2,58 @@
 // overlay phải giữ identity ổn định giữa các render không liên quan — nếu không,
 // GoogleMapCanvas sẽ gỡ + vẽ lại toàn bộ overlay MỖI render của trang (nguyên nhân
 // đường mờ chớp/biến mất trên bản đồ thật).
-import { render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GoogleMapPolyline } from "../../../components/GoogleMapCanvas";
 import RouteDesignMap from "./RouteDesignMap";
 import type { RoadRouteOption } from "./geometry";
+import type { StopSuggestion } from "./types";
+
+vi.mock("../../../lib/googlePlacesSearch", () => ({
+  getPlaceDetails: vi.fn(),
+  buildPlacePhotoUrl: vi.fn(() => "https://example.com/photo.jpg"),
+}));
+
+import {
+  getPlaceDetails,
+  buildPlacePhotoUrl,
+} from "../../../lib/googlePlacesSearch";
+
+const mockedGetPlaceDetails = vi.mocked(getPlaceDetails);
+const mockedBuildPlacePhotoUrl = vi.mocked(buildPlacePhotoUrl);
+
+// Mặc định mọi test: getPlaceDetails trả null (không có chi tiết) trừ khi test
+// tự set lại — tránh phải await usePlaceDetails trong các test không liên quan.
+beforeEach(() => {
+  mockedGetPlaceDetails.mockReset().mockResolvedValue(null);
+  mockedBuildPlacePhotoUrl.mockReset().mockReturnValue("https://example.com/photo.jpg");
+});
 
 const { canvasProps } = vi.hoisted(() => ({
   canvasProps: [] as Array<{
+    anchorContent?: ReactNode;
+    anchorPosition?: { lat: number; lng: number } | null;
     polylines?: GoogleMapPolyline[];
     markers?: unknown[];
     fitPoints?: unknown[];
-    pointMarkers?: Array<{ id: string }>;
+    pointMarkers?: Array<{ id: string; onClick?: () => void }>;
+    onMapClick?: (position: { lat: number; lng: number }) => void;
   }>,
 }));
 
 vi.mock("../../../components/GoogleMapCanvas", () => ({
   default: (props: (typeof canvasProps)[number]) => {
     canvasProps.push(props);
-    return <div data-testid="canvas" />;
+    return (
+      <div data-testid="canvas">
+        {/* Card neo (popup gợi ý điểm dừng) trong thật render qua OverlayView —
+            mock render thẳng anchorContent để các assertion popup cũ vẫn chạy */}
+        {props.anchorContent ? (
+          <div data-testid="map-anchor">{props.anchorContent}</div>
+        ) : null}
+      </div>
+    );
   },
 }));
 
@@ -130,5 +163,424 @@ describe("RouteDesignMap", () => {
     expect(second?.polylines).toBe(first?.polylines);
     expect(second?.markers).toBe(first?.markers);
     expect(second?.fitPoints).toBe(first?.fitPoints);
+  });
+
+  // m-A regression: chọn gợi ý từ ô search (externalActiveSuggestion) phải
+  // được đưa vào fitPoints để bản đồ bay tới thấy chấm, kể cả khi nó nằm
+  // ngoài polyline/phương án hiện có (vd kết quả Google Places xa tuyến).
+  it("includes externalActiveSuggestion coordinate in fitPoints", () => {
+    canvasProps.length = 0;
+    const farAwaySuggestion: StopSuggestion = {
+      kind: "googlePlace",
+      id: "far-place",
+      name: "Xa tuyến",
+      address: "Địa chỉ xa",
+      latitude: 20.5,
+      longitude: 105.9,
+      distanceFromStartKm: 999,
+      googlePlaceId: "far-place",
+    };
+
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        externalActiveSuggestion={farAwaySuggestion}
+      />,
+    );
+
+    const { fitPoints = [] } = canvasProps.at(-1) ?? {};
+    expect(fitPoints).toContainEqual({ lat: 20.5, lng: 105.9 });
+  });
+});
+
+const suggestions: StopSuggestion[] = [
+  {
+    kind: "operatorStop",
+    id: "s1",
+    name: "Bến xe Miền Đông",
+    address: "292 Đinh Bộ Lĩnh, Bình Thạnh",
+    latitude: 10.815,
+    longitude: 106.71,
+    distanceFromStartKm: 12.3,
+  },
+  {
+    kind: "googlePlace",
+    id: "p1",
+    name: "Ngã tư Hàng Xanh",
+    address: "Hàng Xanh, Bình Thạnh",
+    latitude: 10.8,
+    longitude: 106.71,
+    distanceFromStartKm: 20.5,
+    googlePlaceId: "p1",
+  },
+];
+
+describe("RouteDesignMap — gợi ý điểm dừng", () => {
+  it("hiện chấm gợi ý và mở popup khi click, đúng nút theo kind", () => {
+    canvasProps.length = 0;
+    render(<RouteDesignMap {...buildProps()} suggestions={suggestions} />);
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-operatorStop-s1");
+    expect(marker).toBeTruthy();
+    expect(screen.queryByTestId("stop-suggestion-popup")).toBeNull();
+
+    act(() => marker?.onClick?.());
+
+    expect(screen.getByTestId("stop-suggestion-popup")).toBeInTheDocument();
+    expect(screen.getByText("routes.suggestAdd")).toBeInTheDocument();
+  });
+
+  it("click nền bản đồ khi popup đang mở → đóng popup (giải phóng tầm nhìn)", () => {
+    canvasProps.length = 0;
+    render(<RouteDesignMap {...buildProps()} suggestions={suggestions} />);
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-operatorStop-s1");
+    act(() => marker?.onClick?.());
+    expect(screen.getByTestId("stop-suggestion-popup")).toBeInTheDocument();
+
+    // Popup mở → RouteDesignMap phải gắn onMapClick để bấm ra chỗ trống là đóng
+    const mapClick = canvasProps.at(-1)?.onMapClick;
+    expect(mapClick).toBeTruthy();
+    act(() => mapClick?.({ lat: 10.5, lng: 106.5 }));
+
+    expect(screen.queryByTestId("stop-suggestion-popup")).toBeNull();
+  });
+
+  it("neo popup đúng lat/lng của gợi ý đang mở, đóng popup thì anchor về null", () => {
+    canvasProps.length = 0;
+    render(<RouteDesignMap {...buildProps()} suggestions={suggestions} />);
+
+    expect(canvasProps.at(-1)?.anchorPosition).toBeNull();
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-operatorStop-s1");
+    act(() => marker?.onClick?.());
+
+    expect(canvasProps.at(-1)?.anchorPosition).toEqual({
+      lat: suggestions[0].latitude,
+      lng: suggestions[0].longitude,
+    });
+    expect(canvasProps.at(-1)?.anchorContent).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText("routes.suggestClose"));
+
+    expect(canvasProps.at(-1)?.anchorPosition).toBeNull();
+  });
+
+  it("gọi onAddSuggestion với options mặc định true khi bấm nút hành động", () => {
+    canvasProps.length = 0;
+    const onAddSuggestion = vi.fn();
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        suggestions={suggestions}
+        onAddSuggestion={onAddSuggestion}
+      />,
+    );
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-operatorStop-s1");
+    act(() => marker?.onClick?.());
+
+    fireEvent.click(screen.getByText("routes.suggestAdd"));
+
+    expect(onAddSuggestion).toHaveBeenCalledWith(suggestions[0], {
+      allowPickup: true,
+      allowDropoff: true,
+    });
+    expect(screen.queryByTestId("stop-suggestion-popup")).toBeNull();
+  });
+
+  it("bỏ tick Đón khách → gọi onAddSuggestion với allowPickup false", () => {
+    canvasProps.length = 0;
+    const onAddSuggestion = vi.fn();
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        suggestions={suggestions}
+        onAddSuggestion={onAddSuggestion}
+      />,
+    );
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-operatorStop-s1");
+    act(() => marker?.onClick?.());
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(screen.getByText("routes.suggestAdd"));
+
+    expect(onAddSuggestion).toHaveBeenCalledWith(suggestions[0], {
+      allowPickup: false,
+      allowDropoff: true,
+    });
+  });
+
+  it("bấm nút đóng → popup biến mất", () => {
+    canvasProps.length = 0;
+    render(<RouteDesignMap {...buildProps()} suggestions={suggestions} />);
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-operatorStop-s1");
+    act(() => marker?.onClick?.());
+
+    expect(screen.getByTestId("stop-suggestion-popup")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("routes.suggestClose"));
+
+    expect(screen.queryByTestId("stop-suggestion-popup")).toBeNull();
+  });
+
+  it("marker của gợi ý googlePlace hiện nút suggestCreateAdd", () => {
+    canvasProps.length = 0;
+    render(<RouteDesignMap {...buildProps()} suggestions={suggestions} />);
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-googlePlace-p1");
+    expect(marker).toBeTruthy();
+
+    act(() => marker?.onClick?.());
+
+    expect(screen.getByText("routes.suggestCreateAdd")).toBeInTheDocument();
+  });
+
+  // C-1 regression: gợi ý chọn từ ô search (StopSearchBox) không nhất thiết nằm
+  // trong `suggestions` (mảng chấm ≤3km dọc tuyến, chưa gắn) — vd search trả về
+  // một địa điểm Google cách xa polyline. Guard tự đóng popup khi item "không
+  // còn trong danh sách" KHÔNG được áp dụng cho gợi ý đến từ externalActiveSuggestion.
+  it("externalActiveSuggestion không nằm trong suggestions vẫn mở popup và không tự đóng", () => {
+    canvasProps.length = 0;
+    const notInList: StopSuggestion = {
+      kind: "googlePlace",
+      id: "search-result-1",
+      name: "Địa điểm từ tìm kiếm",
+      address: "Đường ABC",
+      latitude: 10.9,
+      longitude: 106.9,
+      distanceFromStartKm: 5,
+      googlePlaceId: "search-result-1",
+    };
+
+    const view = render(
+      <RouteDesignMap
+        {...buildProps()}
+        suggestions={suggestions}
+        externalActiveSuggestion={null}
+      />,
+    );
+    view.rerender(
+      <RouteDesignMap
+        {...buildProps()}
+        suggestions={suggestions}
+        externalActiveSuggestion={notInList}
+      />,
+    );
+
+    expect(screen.getByTestId("stop-suggestion-popup")).toBeInTheDocument();
+    expect(screen.getByText("routes.suggestCreateAdd")).toBeInTheDocument();
+  });
+});
+
+describe("RouteDesignMap — card chi tiết địa điểm (Google Places Details)", () => {
+  it("click chấm googlePlace → gọi getPlaceDetails và hiện rating + địa chỉ + nút mở Google Maps", async () => {
+    canvasProps.length = 0;
+    mockedGetPlaceDetails.mockResolvedValue({
+      placeId: "p1",
+      name: "Ngã tư Hàng Xanh",
+      address: "Hàng Xanh, Bình Thạnh",
+      rating: 4.5,
+      userRatingCount: 200,
+      phone: "+84 28 1234 5678",
+      primaryTypeLabel: "Trạm dừng chân",
+      openNow: true,
+      weekdayHours: [],
+      photoName: "places/p1/photos/photo-1",
+      googleMapsUri: "https://maps.google.com/?cid=p1",
+    });
+
+    render(<RouteDesignMap {...buildProps()} suggestions={suggestions} />);
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-googlePlace-p1");
+    act(() => marker?.onClick?.());
+
+    expect(mockedGetPlaceDetails).toHaveBeenCalledWith("p1");
+
+    await waitFor(() => {
+      expect(screen.getByText("4.5")).toBeInTheDocument();
+    });
+    expect(screen.getByText("(200)")).toBeInTheDocument();
+    expect(screen.getByText("Ngã tư Hàng Xanh", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("routes.detailOpenNow")).toBeInTheDocument();
+    const link = screen.getByText("routes.detailViewOnGoogle");
+    expect(link).toHaveAttribute("href", "https://maps.google.com/?cid=p1");
+  });
+
+  it("click chấm operatorStop không có googlePlaceId → không gọi getPlaceDetails, card như cũ", () => {
+    canvasProps.length = 0;
+    render(<RouteDesignMap {...buildProps()} suggestions={suggestions} />);
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "suggest-operatorStop-s1");
+    act(() => marker?.onClick?.());
+
+    expect(mockedGetPlaceDetails).not.toHaveBeenCalled();
+    expect(screen.getByTestId("stop-suggestion-popup")).toBeInTheDocument();
+    expect(screen.queryByText("routes.detailOpenNow")).toBeNull();
+  });
+});
+
+const stopMarkers = [
+  {
+    stopId: "stop-1",
+    orderIndex: 1,
+    name: "Trạm Dừng Chân Phúc Lộc Thọ",
+    latitude: 11.1,
+    longitude: 107.1,
+    address: "QL20, Định Quán",
+    googlePlaceId: null,
+    distanceFromOriginKm: 45.2,
+    estimatedDurationFromOriginMinutes: 60,
+  },
+];
+
+describe("RouteDesignMap — card chi tiết marker điểm dừng ĐÃ GẮN", () => {
+  it("click marker số → hiện card cùng loại kiểu Google Maps với title #N · tên + nút gỡ (không có googlePlaceId → card gọn)", () => {
+    canvasProps.length = 0;
+    const onRequestRemoveStop = vi.fn();
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        stopMarkers={stopMarkers}
+        selectedStopId=""
+        onSelectStop={vi.fn()}
+        onRequestRemoveStop={onRequestRemoveStop}
+      />,
+    );
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "route-stop-stop-1");
+    expect(marker).toBeTruthy();
+    expect(screen.queryByTestId("stop-detail-popup")).toBeNull();
+
+    act(() => marker?.onClick?.());
+
+    expect(mockedGetPlaceDetails).not.toHaveBeenCalled();
+    expect(screen.getByTestId("stop-detail-popup")).toBeInTheDocument();
+    expect(
+      screen.getByText("#1 · Trạm Dừng Chân Phúc Lộc Thọ"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("routes.removeRouteStop")).toBeInTheDocument();
+  });
+
+  it("click marker số vẫn gọi onSelectStop như cũ (đồng bộ highlight panel)", () => {
+    canvasProps.length = 0;
+    const onSelectStop = vi.fn();
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        stopMarkers={stopMarkers}
+        onSelectStop={onSelectStop}
+      />,
+    );
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "route-stop-stop-1");
+    act(() => marker?.onClick?.());
+
+    expect(onSelectStop).toHaveBeenCalledWith("stop-1");
+  });
+
+  it("bấm nút Gỡ khỏi tuyến → gọi onRequestRemoveStop với stopId", () => {
+    canvasProps.length = 0;
+    const onRequestRemoveStop = vi.fn();
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        stopMarkers={stopMarkers}
+        onSelectStop={vi.fn()}
+        onRequestRemoveStop={onRequestRemoveStop}
+      />,
+    );
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "route-stop-stop-1");
+    act(() => marker?.onClick?.());
+
+    fireEvent.click(screen.getByText("routes.removeRouteStop"));
+
+    expect(onRequestRemoveStop).toHaveBeenCalledWith("stop-1");
+  });
+
+  it("không truyền onRequestRemoveStop (viewer) → card hiện nhưng không có nút gỡ", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        stopMarkers={stopMarkers}
+        onSelectStop={vi.fn()}
+      />,
+    );
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const marker = pointMarkers.find((m) => m.id === "route-stop-stop-1");
+    act(() => marker?.onClick?.());
+
+    expect(screen.getByTestId("stop-detail-popup")).toBeInTheDocument();
+    expect(screen.queryByText("routes.removeRouteStop")).toBeNull();
+  });
+
+  it("mở card gợi ý khi card stop đã gắn đang mở → chỉ còn card gợi ý (một card một thời điểm)", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        stopMarkers={stopMarkers}
+        onSelectStop={vi.fn()}
+        suggestions={suggestions}
+      />,
+    );
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const stopMarker = pointMarkers.find((m) => m.id === "route-stop-stop-1");
+    act(() => stopMarker?.onClick?.());
+    expect(screen.getByTestId("stop-detail-popup")).toBeInTheDocument();
+
+    const { pointMarkers: pointMarkersAfter = [] } = canvasProps.at(-1) ?? {};
+    const suggestionMarker = pointMarkersAfter.find(
+      (m) => m.id === "suggest-operatorStop-s1",
+    );
+    act(() => suggestionMarker?.onClick?.());
+
+    expect(screen.queryByTestId("stop-detail-popup")).toBeNull();
+    expect(screen.getByTestId("stop-suggestion-popup")).toBeInTheDocument();
+  });
+
+  it("mở card stop đã gắn khi card gợi ý đang mở → chỉ còn card stop (ngược lại)", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        stopMarkers={stopMarkers}
+        onSelectStop={vi.fn()}
+        suggestions={suggestions}
+      />,
+    );
+
+    const { pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const suggestionMarker = pointMarkers.find(
+      (m) => m.id === "suggest-operatorStop-s1",
+    );
+    act(() => suggestionMarker?.onClick?.());
+    expect(screen.getByTestId("stop-suggestion-popup")).toBeInTheDocument();
+
+    const { pointMarkers: pointMarkersAfter = [] } = canvasProps.at(-1) ?? {};
+    const stopMarker = pointMarkersAfter.find((m) => m.id === "route-stop-stop-1");
+    act(() => stopMarker?.onClick?.());
+
+    expect(screen.queryByTestId("stop-suggestion-popup")).toBeNull();
+    expect(screen.getByTestId("stop-detail-popup")).toBeInTheDocument();
   });
 });

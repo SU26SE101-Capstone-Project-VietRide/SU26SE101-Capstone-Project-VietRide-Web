@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   loadGoogleMapsLibrary,
@@ -14,6 +15,7 @@ import {
   type GoogleMapsEventListener,
   type GoogleMapsLibrary,
   type GoogleMarkerInstance,
+  type GoogleOverlayViewInstance,
   type GooglePolylineInstance,
 } from "../lib/googleMaps";
 
@@ -75,6 +77,12 @@ export type GoogleMapPointMarker = {
 };
 
 type GoogleMapCanvasProps = {
+  // Nội dung card neo theo anchorPosition (render qua React portal vào div của
+  // OverlayView) — dùng cho popup gợi ý điểm dừng, thả NGAY DƯỚI chấm trên bản
+  // đồ thay vì docked cố định một góc. Chỉ vẽ khi có ĐỦ cả anchorContent lẫn
+  // anchorPosition; thiếu một trong hai thì overlay bị ẩn (setMap(null)).
+  anchorContent?: ReactNode;
+  anchorPosition?: GoogleMapCoordinate | null;
   ariaLabel: string;
   center: GoogleMapCoordinate;
   className?: string;
@@ -162,6 +170,8 @@ function removePooledPointMarker(entry: PooledPointMarker) {
 }
 
 export default function GoogleMapCanvas({
+  anchorContent,
+  anchorPosition = null,
   ariaLabel,
   center,
   className = defaultClassName,
@@ -192,6 +202,16 @@ export default function GoogleMapCanvas({
   const onMapReadyRef = useRef(onMapReady);
   // Pool marker Symbol theo id — reconcile thay vì gỡ + vẽ lại toàn bộ
   const pointMarkerPoolRef = useRef(new Map<string, PooledPointMarker>());
+  // OverlayView neo card tuỳ ý (popup gợi ý điểm dừng) — tạo LƯỜI một lần khi
+  // thực sự cần (có cả anchorPosition lẫn anchorContent), giữ instance qua ref
+  // để đổi vị trí/nội dung không phải gỡ + vẽ lại toàn bộ overlay
+  const anchorOverlayRef = useRef<GoogleOverlayViewInstance | null>(null);
+  const anchorOverlayDivRef = useRef<HTMLDivElement | null>(null);
+  // Vị trí neo mới nhất — đọc trong draw() (closure gán một lần lúc tạo overlay)
+  // để luôn dùng toạ độ hiện tại thay vì giá trị đóng băng lúc khởi tạo
+  const anchorPositionRef = useRef(anchorPosition);
+  const [anchorContainer, setAnchorContainer] =
+    useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     tRef.current = t;
@@ -555,6 +575,87 @@ export default function GoogleMapCanvas({
     };
   }, []);
 
+  // Giữ ref luôn khớp anchorPosition mới nhất — draw() (closure gán lúc tạo
+  // overlay, chỉ chạy MỘT lần) đọc qua ref này thay vì tham số đóng băng
+  useEffect(() => {
+    anchorPositionRef.current = anchorPosition;
+  }, [anchorPosition]);
+
+  // Tạo/ẩn/hiện OverlayView neo card theo anchorPosition: tạo lười khi có đủ
+  // map + anchorPosition (KHÔNG tạo trước "phòng khi cần" — chỉ tạo đúng lúc
+  // popup đầu tiên mở), giữ nguyên instance cho các lần đổi vị trí sau, ẩn qua
+  // setMap(null) khi anchorPosition về null thay vì gỡ hẳn overlay.
+  useEffect(() => {
+    const OverlayViewClass = readyMap?.library.OverlayView;
+    if (!readyMap || !OverlayViewClass) {
+      return;
+    }
+
+    if (!anchorPosition) {
+      anchorOverlayRef.current?.setMap(null);
+      return;
+    }
+
+    let overlay = anchorOverlayRef.current;
+    if (!overlay) {
+      const div = document.createElement("div");
+      div.style.position = "absolute";
+      div.style.zIndex = "20";
+      div.style.pointerEvents = "auto";
+
+      overlay = new OverlayViewClass();
+      overlay.onAdd = () => {
+        overlay?.getPanes().floatPane.appendChild(div);
+      };
+      overlay.draw = () => {
+        const position = anchorPositionRef.current;
+        if (!position) {
+          div.style.display = "none";
+          return;
+        }
+
+        // getProjection() có thể undefined tới khi Google chạy xong onAdd —
+        // draw() bị gọi CHỦ ĐỘNG ngay sau setMap() (không đợi cycle đó), nên
+        // lần mở popup đầu tiên projection thường chưa sẵn sàng: giữ div ẩn,
+        // Google sẽ tự gọi lại draw() khi projection đã có
+        const point = overlay
+          ?.getProjection()
+          ?.fromLatLngToDivPixel(position);
+        if (!point) {
+          div.style.display = "none";
+          return;
+        }
+
+        // Card thả NGAY DƯỚI chấm: dịch ngang về giữa (-50%) + xuống dưới 14px
+        // chừa chỗ mũi neo tam giác trỏ lên chấm
+        div.style.display = "";
+        div.style.left = `${point.x}px`;
+        div.style.top = `${point.y}px`;
+        div.style.transform = "translate(-50%, 14px)";
+      };
+      overlay.onRemove = () => {
+        div.remove();
+      };
+
+      anchorOverlayRef.current = overlay;
+      anchorOverlayDivRef.current = div;
+      setAnchorContainer(div);
+    }
+
+    overlay.setMap(readyMap.instance);
+    overlay.draw();
+  }, [anchorPosition, readyMap]);
+
+  // Gỡ hẳn overlay neo (kể cả khi chưa từng ẩn) lúc unmount — tránh rò div
+  // gắn trong floatPane của bản đồ đã bị huỷ
+  useEffect(() => {
+    return () => {
+      anchorOverlayRef.current?.setMap(null);
+      anchorOverlayRef.current = null;
+      anchorOverlayDivRef.current = null;
+    };
+  }, []);
+
   return (
     <div
       className={`relative overflow-hidden bg-gray-100 ${className}`}
@@ -576,6 +677,10 @@ export default function GoogleMapCanvas({
           {emptyState}
         </div>
       )}
+      {anchorContainer &&
+        anchorPosition &&
+        anchorContent &&
+        createPortal(anchorContent, anchorContainer)}
     </div>
   );
 }

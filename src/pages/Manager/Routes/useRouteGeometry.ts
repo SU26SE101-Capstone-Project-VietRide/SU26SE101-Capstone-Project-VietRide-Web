@@ -21,6 +21,7 @@ import { decodeGooglePolyline, type RouteCoordinate } from "./polyline";
 import {
   dedupeRouteOptions,
   distanceKmBetween,
+  excludeMatchingRouteOptions,
   findMatchingRouteOption,
   isTruckDetour,
   requestRoadGeometry,
@@ -71,6 +72,11 @@ type UseRouteGeometryParams = {
   // Chỉ auto-fetch phương án khi tab gộp map-first đang mở và user được sửa tuyến
   // — tuyệt đối không fetch hàng loạt cho danh sách tuyến
   isWorkspaceActive: boolean;
+  // Đường bị LOẠI khỏi bộ phương án Google (vd polyline tuyến chính khi soạn
+  // tuyến thay thế — phương án trùng tuyến chính không phải "thay thế").
+  // Chỉ lọc lúc ingest (cache vẫn giữ options thô) — đường loại trừ đổi thì
+  // re-ingest từ cache, không tốn request. Không truyền → không lọc gì.
+  excludedPathPoints?: RouteCoordinate[];
   setRouteForm: Dispatch<SetStateAction<OperatorRouteRequest>>;
   setRoutes: Dispatch<SetStateAction<OperatorRoute[]>>;
   setError: (message: string) => void;
@@ -81,6 +87,7 @@ export function useRouteGeometry({
   selectedRouteId,
   routeWaypoints,
   isWorkspaceActive,
+  excludedPathPoints,
   setRouteForm,
   setRoutes,
   setError,
@@ -107,6 +114,9 @@ export function useRouteGeometry({
   const [isFetchingOptions, setIsFetchingOptions] = useState(false);
   // Auto-fetch lỗi (thiếu key/Google lỗi) → toolbar hiện text nhỏ + vẫn cho vẽ tay
   const [autoRouteUnavailable, setAutoRouteUnavailable] = useState(false);
+  // Google CÓ trả phương án nhưng tất cả đều trùng excludedPathPoints (bị lọc
+  // sạch) → toolbar hiện hint "kéo điểm nắn để tự tạo đường khác"
+  const [allOptionsExcluded, setAllOptionsExcluded] = useState(false);
   // Chống race khi kéo/xoá điểm nắn liên tiếp: chỉ nhận kết quả của lượt mới nhất
   const rerouteSeqRef = useRef(0);
   // Throttle cho stream drag: thời điểm + vị trí của lần tính preview gần nhất
@@ -154,11 +164,21 @@ export function useRouteGeometry({
     setIsRerouting(false);
     setIsFetchingOptions(false);
     setAutoRouteUnavailable(false);
+    setAllOptionsExcluded(false);
     dragPreviewRef.current = { lastRunAt: 0, lastPoint: null };
   }
 
+  // Kiểu tối thiểu để applySavedGeometry nhận cả OperatorRoute (tuyến chính)
+  // lẫn AlternativeRoute (tuyến thay thế, xem useAlternativeRouteWorkspace) —
+  // hook chỉ đọc 3 field này, không cần toàn bộ shape OperatorRoute.
   const applySavedGeometry = useCallback(
-    (route: OperatorRoute | null) => {
+    (
+      route: {
+        pathPolyline?: string | null;
+        totalDistanceKm: number;
+        estimatedDurationMinutes: number;
+      } | null,
+    ) => {
       setIsEditingGeometry(false);
       setIsGeometryDirty(false);
       rerouteSeqRef.current += 1;
@@ -173,6 +193,7 @@ export function useRouteGeometry({
       setIsRerouting(false);
       setIsFetchingOptions(false);
       setAutoRouteUnavailable(false);
+      setAllOptionsExcluded(false);
       dragPreviewRef.current = { lastRunAt: 0, lastPoint: null };
 
       if (!route?.pathPolyline) {
@@ -295,7 +316,14 @@ export function useRouteGeometry({
     setAutoRouteUnavailable(entry === null);
     setTruckWarning(entry?.warning ?? "");
 
-    const options = entry?.options ?? [];
+    // Lọc phương án trùng đường loại trừ (tuyến chính) NGAY LÚC INGEST — cache
+    // giữ options thô nên đường loại trừ đổi chỉ cần re-ingest, không request lại.
+    // Lọc trước khi vào state để selectedOptionIndex/click trên map không lệch index.
+    const rawOptions = entry?.options ?? [];
+    const options = excludedPathPoints
+      ? excludeMatchingRouteOptions(rawOptions, excludedPathPoints)
+      : rawOptions;
+    setAllOptionsExcluded(rawOptions.length > 0 && options.length === 0);
     setRouteOptions(options);
 
     const currentPath = routePathPointsRef.current;
@@ -345,6 +373,14 @@ export function useRouteGeometry({
 
   const waypointsKey = coordsKey(routeWaypoints);
   const viaKey = coordsKey(viaPoints);
+  const excludedKey = excludedPathPoints ? coordsKey(excludedPathPoints) : "";
+
+  // Đường loại trừ đổi (vd sửa polyline tuyến chính rồi quay lại tab Tuyến thay
+  // thế) → xoá key auto-fetch gần nhất để effect bên dưới re-ingest từ cache
+  // (options thô lọc lại theo đường mới — cache hit nên không request thêm)
+  useEffect(() => {
+    lastAutoFetchKeyRef.current = "";
+  }, [excludedKey]);
 
   // Chọn tuyến / đổi loại xe / xoá đường → TỰ tính phương án sau 400ms, không còn
   // nút bấm. Cache theo key nên chọn qua lại các tuyến không gọi lại Google;
@@ -389,6 +425,7 @@ export function useRouteGeometry({
     travelMode,
     viaKey,
     waypointsKey,
+    excludedKey,
     isEditingGeometry,
     routeOptions.length,
   ]);
@@ -421,6 +458,7 @@ export function useRouteGeometry({
         }
 
         savedOptionIndexRef.current = -1;
+        setAllOptionsExcluded(false);
         setRouteOptions(options);
         setSelectedOptionIndex(0);
         applyRouteOption(options[0]);
@@ -451,6 +489,9 @@ export function useRouteGeometry({
       lastAutoFetchKeyRef.current = key;
       savedOptionIndexRef.current = -1;
       setAutoRouteUnavailable(false);
+      // Đường có điểm nắn là user CHỦ ĐỘNG tạo hình — không lọc theo đường loại
+      // trừ (kể cả trùng tuyến chính cũng là lựa chọn có chủ đích của user)
+      setAllOptionsExcluded(false);
       setViaPoints(nextViaPoints);
       setRouteOptions(deduped);
       setSelectedOptionIndex(0);
@@ -642,6 +683,7 @@ export function useRouteGeometry({
     isRerouting,
     isFetchingOptions,
     autoRouteUnavailable,
+    allOptionsExcluded,
     isEditingGeometry,
     isGeometryDirty,
     applySavedGeometry,
