@@ -1094,6 +1094,10 @@ export default function RoutesPage() {
         onClose={() => setIsCreateRouteModalOpen(false)}
         stations={stations}
         onSubmit={handleCreateRoute}
+        onOpenExistingRoute={(routeId) => {
+          setIsCreateRouteModalOpen(false);
+          runAction(() => handleSelectRoute(routeId));
+        }}
       />
 
       <RemoveRouteStopModal

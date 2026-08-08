@@ -30,7 +30,7 @@ export function PersonnelTable<Row>({ toolbar, rows, columns, getRowKey, isLoadi
   return (
     <section className={wrapperClassName}>
       <div className="border-b border-gray-100 p-4">{toolbar}</div>
-      <div className="overflow-hidden" aria-busy={isLoading}>
+      <div className="overflow-x-auto" aria-busy={isLoading}>
         <table className={className}>
           <thead><tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold text-gray-700">{columns.map((column) => <th key={column.key} className={column.headerClassName ?? "px-4 py-3"}>{column.header}</th>)}</tr></thead>
           <tbody>

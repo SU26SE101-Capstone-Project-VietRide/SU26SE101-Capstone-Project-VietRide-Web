@@ -103,7 +103,7 @@ export default function Register() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendError, setResendError] = useState("");
   const [resendMessage, setResendMessage] = useState("");
-  useToastFeedback({ message: message || resendMessage, error: error || resendError });
+  useToastFeedback({ message: resendMessage || message, error: resendError || error });
 
   const updateForm = (key: keyof RegisterOperatorRequest, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));

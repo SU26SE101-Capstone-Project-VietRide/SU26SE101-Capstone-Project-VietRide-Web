@@ -39,6 +39,7 @@ type CreateRouteModalProps = {
   onClose: () => void;
   stations: StationOption[];
   onSubmit: (basics: CreateRouteBasics) => Promise<void>;
+  onOpenExistingRoute?: (routeId: string) => void;
 };
 
 const emptyBasics: CreateRouteBasics = {
@@ -52,11 +53,13 @@ export default function CreateRouteModal({
   onClose,
   stations,
   onSubmit,
+  onOpenExistingRoute,
 }: CreateRouteModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [basics, setBasics] = useState<CreateRouteBasics>(emptyBasics);
   const [error, setError] = useState("");
+  const [duplicateRouteId, setDuplicateRouteId] = useState("");
   useToastFeedback({ error });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [computedMetrics, setComputedMetrics] = useState<AutoMetrics | null>(
@@ -221,7 +224,11 @@ export default function CreateRouteModal({
       resetForm();
       onClose();
     } catch (err) {
-      if (err instanceof ApiRequestError && err.code === "ROUTE_DUPLICATED") {setError(err.message || t("routes.duplicateRoute"));
+      if (err instanceof ApiRequestError && err.code === "ROUTE_DUPLICATED") {
+        setDuplicateRouteId(
+          err.fields?.find((field) => field.field === "existingRouteId")?.message ?? "",
+        );
+        setError(err.message || t("routes.duplicateRoute"));
         return;
       }
 
@@ -261,6 +268,21 @@ export default function CreateRouteModal({
         </>
       }
     >
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p>{error}</p>
+          {duplicateRouteId && onOpenExistingRoute && (
+            <button
+              type="button"
+              className="mt-2 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+              onClick={() => onOpenExistingRoute(duplicateRouteId)}
+            >
+              {t("routes.openExistingRoute")}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         <Input
           label={t("routes.routeName")}

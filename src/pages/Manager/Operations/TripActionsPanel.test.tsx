@@ -14,6 +14,11 @@ import {
   type OperatorVehicle,
 } from "../../../api/vietride";
 import TripActionsPanel from "./TripActionsPanel";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
+
+vi.mock("../../../hooks/useToastFeedback", () => ({
+  useToastFeedback: vi.fn(),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -241,10 +246,8 @@ describe("TripActionsPanel", () => {
       alternativeRouteId: "alt-1",
     });
     // Trang cha re-select cùng tripId để tải lại geometry lộ trình mới + fleet
+    expect(useToastFeedback).toHaveBeenCalledWith({ message: "tripOperations.changeRouteSuccess", error: "" });
     expect(onTripReplaced).toHaveBeenCalledWith("trip-1");
-    expect(
-      await screen.findByText("tripOperations.changeRouteSuccess"),
-    ).toBeInTheDocument();
   });
 
   it("shows the declare-alternatives hint when the route has none active", async () => {
