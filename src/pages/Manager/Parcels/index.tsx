@@ -337,8 +337,6 @@ export default function ParcelsList() {
                   <label><span className={labelClass}>{t("parcels.effectiveUntil")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveUntil} onChange={(event) => setFareEffectiveUntil(event.target.value)} className={inputClass} /></label>
                 </div>
                 {!editingFare && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{parcelSizeCategories.map((sizeCategory) => <label key={sizeCategory}><span className={labelClass}>{t(`parcels.sizeCategories.${sizeCategory}`)}</span><CurrencyInput value={farePrices[sizeCategory]} onChange={(event) => setFarePrices((current) => ({ ...current, [sizeCategory]: event.target.value }))} className={inputClass} placeholder="0" /></label>)}</div>}
-                {fareError && <p className="text-sm font-medium text-red-600">{fareError}</p>}
-                {fareMessage && <p className="text-sm font-medium text-emerald-700">{fareMessage}</p>}
               </div>
             </Modal>
             <div className="border-b border-gray-100 bg-white p-4">

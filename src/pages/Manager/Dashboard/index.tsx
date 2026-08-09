@@ -373,7 +373,7 @@ export default function ManagerDashboard() {
     );
   };
 
-  useToastFeedback({ error: loadErrors[0] ?? "" });
+  useToastFeedback({ error: loadErrors.length > 0 ? loadErrors.join(" | ") : "" });
   return (
     <div className="space-y-6 pb-4">
       {!isOperatorAdmin && (
