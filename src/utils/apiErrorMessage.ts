@@ -4,6 +4,7 @@ const vietnameseMessages: Record<string, string> = {
   AUTH_TOKEN_INVALID: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
   UNAUTHORIZED: "Bạn chưa được xác thực để thực hiện thao tác này.",
   FORBIDDEN: "Bạn không có quyền thực hiện thao tác này.",
+  TRACKING_ACCESS_DENIED: "Bạn không có quyền theo dõi vị trí chuyến này.",
   AUTH_PHONE_REQUIRED: "Vui lòng cập nhật số điện thoại trước khi tiếp tục.",
   VALIDATION_ERROR: "Dữ liệu gửi lên chưa hợp lệ.",
   RESOURCE_NOT_FOUND: "Không tìm thấy dữ liệu yêu cầu.",

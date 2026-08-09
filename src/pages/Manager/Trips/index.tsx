@@ -114,8 +114,7 @@ export default function TripsPage() {
   // Lịch đang chờ xác nhận xoá — null nghĩa là modal confirm đóng.
   const [deleteTarget, setDeleteTarget] = useState<TripSchedule | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  // Lỗi hiển thị INLINE trong ScheduleFormModal (validation + lỗi lưu khi form
-  // đang mở). Mọi feedback hành động khác đi qua toast.
+  // Lỗi validation/lưu khi form đang mở — không render inline, chỉ đẩy qua toast bên dưới.
   const [formError, setFormError] = useState("");
   // Toast góc phải cho feedback hành động (tạo/sửa/xoá/bật-tắt/lỗi load).
   const toast = useToast();
