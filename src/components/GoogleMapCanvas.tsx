@@ -14,6 +14,7 @@ import {
   type GoogleMapInstance,
   type GoogleMapsEventListener,
   type GoogleMapsLibrary,
+  type GoogleMapStyleElement,
   type GoogleMarkerInstance,
   type GoogleOverlayViewInstance,
   type GooglePolylineInstance,
@@ -89,6 +90,8 @@ type GoogleMapCanvasProps = {
   emptyState?: ReactNode;
   fitPoints?: GoogleMapCoordinate[];
   focusCenter?: GoogleMapCoordinate | null;
+  /** Optional product palette. Kept stable after map creation to avoid repaint churn. */
+  mapStyles?: readonly GoogleMapStyleElement[];
   markers?: GoogleMapMarker[];
   onMapClick?: (position: GoogleMapCoordinate) => void;
   // Trao instance bản đồ cho caller cần thao tác imperative (setOptions khoá kéo
@@ -97,6 +100,8 @@ type GoogleMapCanvasProps = {
   onMapReady?: (map: GoogleMapInstance) => void;
   pointMarkers?: GoogleMapPointMarker[];
   polylines?: GoogleMapPolyline[];
+  /** Safe caller-owned copy instead of exposing loader/config details to users. */
+  errorFallback?: ReactNode;
   scrollWheelZoom?: boolean;
   // true = tạm ngưng đồng bộ camera theo props (setCenter/setZoom/fitBounds) —
   // bật trong lúc kéo nắn đường để preview không giật camera giữa thao tác
@@ -178,11 +183,13 @@ export default function GoogleMapCanvas({
   emptyState,
   fitPoints = [],
   focusCenter,
+  mapStyles,
   markers = [],
   onMapClick,
   onMapReady,
   pointMarkers = [],
   polylines = [],
+  errorFallback,
   scrollWheelZoom = true,
   suspendViewportSync = false,
   zoom,
@@ -195,6 +202,7 @@ export default function GoogleMapCanvas({
   const mapClickListenerRef = useRef<GoogleMapsEventListener | null>(null);
   const initialCenterRef = useRef(center);
   const initialZoomRef = useRef(zoom);
+  const initialMapStylesRef = useRef(mapStyles);
   const [readyMap, setReadyMap] = useState<ReadyMap | null>(null);
   const [error, setError] = useState("");
   // Callback onMapReady giữ trong ref — identity đổi mỗi render của caller
@@ -272,6 +280,7 @@ export default function GoogleMapCanvas({
               rotateControl: false,
               scaleControl: false,
               streetViewControl: false,
+              styles: initialMapStylesRef.current,
               zoom: initialZoomRef.current,
               zoomControl: true,
             });
@@ -669,7 +678,7 @@ export default function GoogleMapCanvas({
       )}
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-amber-50 px-6 text-center text-sm text-amber-800">
-          {error}
+          {errorFallback ?? error}
         </div>
       )}
       {readyMap && markers.length === 0 && polylines.length === 0 && emptyState && (

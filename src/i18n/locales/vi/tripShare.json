@@ -1,0 +1,72 @@
+{
+  "documentTitle": "VietRide · Theo dõi hành trình",
+  "brand": "VietRide",
+  "subtitle": "Theo dõi trực tiếp an toàn",
+  "status": {
+    "live": "Trực tiếp",
+    "connecting": "Đang kết nối",
+    "loading": "Đang mở liên kết…",
+    "offline": "Mất mạng",
+    "ended": "Đã kết thúc",
+    "error": "Không mở được"
+  },
+  "route": {
+    "label": "Hành trình",
+    "liveTitle": "Chuyến xe đang chia sẻ",
+    "origin": "Điểm khởi hành",
+    "destination": "Điểm đến",
+    "unknown": "Chuyến xe VietRide",
+    "unavailable": "Thông tin hành trình sẽ hiện khi liên kết hợp lệ."
+  },
+  "eta": {
+    "label": "Dự kiến đến",
+    "unknown": "Đang cập nhật",
+    "inMinutes": "Còn ~{{count}} phút"
+  },
+  "metrics": {
+    "speed": "Tốc độ",
+    "speedValue": "{{value}} km/h",
+    "notReported": "Chưa ghi nhận",
+    "waitingGps": "Đang chờ GPS",
+    "tripStatus": "Trạng thái chuyến"
+  },
+  "link": {
+    "expires": "Link hết hạn: {{time}}",
+    "unknownExpiry": "Link có thời hạn"
+  },
+  "privacy": {
+    "note": "Bạn chỉ xem bản đồ trực tiếp của chuyến này. Không cần đăng nhập. Không thấy ví, booking hay thông tin cá nhân của người gửi.",
+    "noLogin": "Không yêu cầu tài khoản VietRide"
+  },
+  "map": {
+    "ariaLabel": "Bản đồ theo dõi xe VietRide",
+    "sectionLabel": "Vị trí trực tiếp của chuyến xe",
+    "vehicle": "Vị trí xe",
+    "unavailable": "Chưa thể tải bản đồ. Thông tin hành trình bên cạnh vẫn được cập nhật."
+  },
+  "actions": {
+    "retry": "Thử lại"
+  },
+  "errors": {
+    "title": "Không thể mở hành trình",
+    "invalidToken": "Liên kết không hợp lệ hoặc đã bị cắt. Hãy mở lại đúng link người thân gửi.",
+    "linkUnavailable": "Liên kết đã hết hạn, bị thu hồi, hoặc chuyến đã kết thúc.",
+    "rateLimited": "Quá nhiều lần mở liên kết. Vui lòng đợi một lát rồi thử lại.",
+    "temporarilyUnavailable": "Dịch vụ tạm gián đoạn. Vui lòng thử lại sau.",
+    "generic": "Không thể mở theo dõi. Kiểm tra mạng và thử lại."
+  },
+  "revoked": {
+    "title": "Chia sẻ đã kết thúc",
+    "expired": "Liên kết đã hết hạn.",
+    "revoked": "Người gửi đã dừng chia sẻ hành trình này.",
+    "tripEnded": "Chuyến đã kết thúc — theo dõi trực tiếp đã dừng.",
+    "unavailable": "Không còn quyền xem hành trình này."
+  },
+  "tripStatus": {
+    "IN_PROGRESS": "Đang chạy",
+    "COMPLETED": "Hoàn thành",
+    "CANCELLED": "Đã hủy",
+    "DISRUPTED": "Gián đoạn",
+    "SCHEDULED": "Đã lên lịch"
+  }
+}

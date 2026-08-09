@@ -22,6 +22,13 @@ export type GoogleMapOptionUpdates = {
   draggable?: boolean;
   draggableCursor?: string;
   draggingCursor?: string;
+  styles?: readonly GoogleMapStyleElement[];
+};
+
+export type GoogleMapStyleElement = {
+  elementType?: string;
+  featureType?: string;
+  stylers: ReadonlyArray<Record<string, string | number>>;
 };
 
 export type GoogleMapInstance = {
@@ -53,6 +60,7 @@ type GoogleMapOptions = {
   rotateControl?: boolean;
   scaleControl?: boolean;
   streetViewControl?: boolean;
+  styles?: readonly GoogleMapStyleElement[];
   zoom: number;
   zoomControl?: boolean;
 };
