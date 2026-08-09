@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorSubscription,
@@ -12,9 +12,13 @@ import {
   saveSubscriptionPaymentIntent,
 } from "./subscriptionPaymentIntent";
 
-const translate = (key: string, options?: Record<string, string>) => {
+const translate = (
+  key: string,
+  options?: Record<string, string | number>,
+) => {
   if (options?.name) return `${key} ${options.name}`;
   if (options?.code) return `${key} ${options.code}`;
+  if (options?.seconds !== undefined) return `${key} ${options.seconds}`;
   return key;
 };
 
@@ -97,6 +101,9 @@ describe("SubscriptionPaymentReturn", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("VNP123")).toBeInTheDocument();
     expect(screen.getByText("Enterprise")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "paymentReturn.backToPackages" }),
+    ).toHaveAttribute("href", "/manager/packages");
     expect(getOperatorSubscription).toHaveBeenCalledTimes(1);
   });
 
@@ -113,6 +120,36 @@ describe("SubscriptionPaymentReturn", () => {
       await screen.findByText("paymentReturn.failedTitle"),
     ).toBeInTheDocument();
     expect(getOperatorSubscription).not.toHaveBeenCalled();
+  });
+
+  it("returns to the packages page five seconds after a verified payment", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=00"]}
+      >
+        <Routes>
+          <Route
+            path="/payments/return"
+            element={<SubscriptionPaymentReturn />}
+          />
+          <Route path="/manager/packages" element={<div>packages-page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(
+      screen.getByText("paymentReturn.redirectingToPackages 5"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(screen.getByText("packages-page")).toBeInTheDocument();
   });
 
   it("waits until the paid target plan is active before reporting success", async () => {

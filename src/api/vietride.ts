@@ -1660,18 +1660,65 @@ export type TrackingTrailParams = {
 
 export type TrackingDelayStatus = "DELAYED" | "ON_TIME" | "UNKNOWN";
 
-export type TrackingEta = {
+export type TrackingEstimateQuality = "TRAFFIC_AWARE" | "FALLBACK";
+
+type TrackingEtaTargetCommon = {
   tripId: string;
-  stopId: string;
-  stopName: string | null;
+  stopName?: string | null;
   etaMinutes: number;
   estimatedArrivalTime: string;
   distanceMeters: number;
   updatedAt: string;
+  estimateQuality: TrackingEstimateQuality;
+};
+
+export type TrackingStopEta = TrackingEtaTargetCommon & {
+  targetKind: "STOP";
+  stopId: string;
+  stationId?: never;
+  sequence?: number;
+};
+
+export type TrackingStationEta = TrackingEtaTargetCommon & {
+  targetKind: "STATION";
+  stationId: string;
+  stopId?: never;
+  sequence?: never;
+};
+
+export type TrackingEtaTarget = TrackingStopEta | TrackingStationEta;
+
+type TrackingEtaDelay = {
   delayed: boolean | null;
   delayStatus: TrackingDelayStatus;
   delayMinutes: number | null;
 };
+
+export type TrackingEtaBatchItem = TrackingEtaTarget & TrackingEtaDelay;
+
+export type TrackingEtaBatchResponse = {
+  etas: TrackingEtaBatchItem[];
+};
+
+export type TrackingEtaBatchUpdate = {
+  tripId: string;
+  etas: TrackingEtaTarget[];
+  updatedAt: string;
+};
+
+type TrackingLegacyStopEta = Omit<
+  TrackingStopEta,
+  "targetKind" | "estimateQuality"
+> & {
+  targetKind?: "STOP";
+  estimateQuality?: TrackingEstimateQuality;
+};
+
+export type TrackingEta = (
+  | TrackingEtaTarget
+  | TrackingLegacyStopEta
+) &
+  TrackingEtaDelay;
 
 export type TrackingEtaResponse = {
   eta: TrackingEta | null;
@@ -2564,6 +2611,8 @@ export type PublicTrip = {
   status: string;
   departureTime: string;
   estimatedArrivalTime: string;
+  destinationArrivedAt?: string | null;
+  plannedEtaQuality?: TrackingEstimateQuality;
   departureDateTime?: string;
   availableSeats?: number;
   allowAlongRoutePickup?: boolean;
@@ -2578,9 +2627,11 @@ export type PublicTrip = {
   destinationStation: Pick<Station, "id" | "name">;
   stops: Array<{
     stopId: string;
+    name?: string;
     orderIndex: number;
     allowPickup: boolean;
     allowDropoff: boolean;
+    status?: string;
     estimatedArrivalTime: string;
     distanceFromOriginKm: number;
     fareFromThisStop: number;
@@ -4818,6 +4869,12 @@ export function getTrackingTripTrail(
 export function getTrackingTripEta(tripId: string, stopId?: string) {
   return apiRequest<TrackingEtaResponse>(
     `/v1/tracking/trips/${tripId}/eta${buildQuery({ stopId })}`,
+  );
+}
+
+export function getTrackingTripEtas(tripId: string) {
+  return apiRequest<TrackingEtaBatchResponse>(
+    `/v1/tracking/trips/${tripId}/etas`,
   );
 }
 

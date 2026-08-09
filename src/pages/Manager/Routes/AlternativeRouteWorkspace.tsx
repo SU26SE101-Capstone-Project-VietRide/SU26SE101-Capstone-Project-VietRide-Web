@@ -68,7 +68,6 @@ export default function AlternativeRouteWorkspace({
       <GeometryToolbar
         canManageRoutes={canManageRoutes}
         geometry={altGeometry}
-        hasSelectedRoute={hasSelectedRoute}
         trailing={
           canManageRoutes ? (
             <>

@@ -78,6 +78,7 @@ import {
   getRagFeedback,
   getRagRuntimeConfigs,
   getTrackingTripEta,
+  getTrackingTripEtas,
   getTrackingTripLatest,
   getTrackingTripTrail,
   getTripHealth,
@@ -2691,6 +2692,36 @@ describe("UI gaps API contracts", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+  it("requests the preferred batch ETA endpoint", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Staff",
+          role: "OPERATOR_STAFF",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: { etas: [] } }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getTrackingTripEtas("11111111-1111-4111-8111-111111111111");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/tracking/trips/11111111-1111-4111-8111-111111111111/etas",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
 
   it("updates a driver schedule with applyTo scope", async () => {
     localStorage.setItem(

@@ -5,7 +5,10 @@
 import type { ReactNode } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { GoogleMapPolyline } from "../../../components/GoogleMapCanvas";
+import type {
+  GoogleMapPointMarker,
+  GoogleMapPolyline,
+} from "../../../components/GoogleMapCanvas";
 import RouteDesignMap from "./RouteDesignMap";
 import type { RoadRouteOption } from "./geometry";
 import type { StopSuggestion } from "./types";
@@ -37,7 +40,7 @@ const { canvasProps } = vi.hoisted(() => ({
     polylines?: GoogleMapPolyline[];
     markers?: unknown[];
     fitPoints?: unknown[];
-    pointMarkers?: Array<{ id: string; onClick?: () => void }>;
+    pointMarkers?: GoogleMapPointMarker[];
     onMapClick?: (position: { lat: number; lng: number }) => void;
   }>,
 }));
@@ -105,6 +108,63 @@ function buildProps() {
 }
 
 describe("RouteDesignMap", () => {
+  it("uses precise fixed-size pins for route endpoints instead of large circles", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        points={[
+          {
+            id: "origin-station-1",
+            name: "Điểm đi",
+            latitude: 10.77,
+            longitude: 106.69,
+            color: "#0f766e",
+          },
+          {
+            id: "stop-1-1",
+            name: "Điểm dừng",
+            latitude: 11.2,
+            longitude: 107.5,
+            color: "#2563eb",
+          },
+          {
+            id: "destination-station-2",
+            name: "Điểm đến",
+            latitude: 11.94,
+            longitude: 108.44,
+            color: "#dc2626",
+          },
+        ]}
+      />,
+    );
+
+    const { markers = [], pointMarkers = [] } = canvasProps.at(-1) ?? {};
+    const origin = pointMarkers.find(
+      (marker) => marker.id === "route-endpoint-origin-station-1",
+    );
+    const destination = pointMarkers.find(
+      (marker) => marker.id === "route-endpoint-destination-station-2",
+    );
+
+    expect(markers).toHaveLength(0);
+    expect(origin).toMatchObject({
+      position: { lat: 10.77, lng: 106.69 },
+      title: "Điểm đi",
+      icon: { fillColor: "#0f766e", scale: 0.82 },
+    });
+    expect(destination).toMatchObject({
+      position: { lat: 11.94, lng: 108.44 },
+      title: "Điểm đến",
+      icon: { fillColor: "#dc2626", scale: 0.82 },
+    });
+    expect(
+      pointMarkers.some(
+        (marker) => marker.id === "route-endpoint-stop-1-1",
+      ),
+    ).toBe(false);
+  });
+
   it("passes every route option polyline to the map canvas", () => {
     canvasProps.length = 0;
     render(<RouteDesignMap {...buildProps()} />);
@@ -118,10 +178,26 @@ describe("RouteDesignMap", () => {
     // Phương án chọn đậm + nổi trên, phương án khác mờ + click được
     const selected = polylines.find((p) => p.id === "route-option-0");
     const dimmed = polylines.find((p) => p.id === "route-option-1");
+    const optionLabels = canvasProps
+      .at(-1)
+      ?.pointMarkers?.filter((marker) =>
+        marker.id.startsWith("route-option-label-"),
+      );
     expect(selected?.opacity).toBe(1);
-    expect((dimmed?.opacity ?? 1) < 1).toBe(true);
+    expect(dimmed).toMatchObject({ color: "#64748b", opacity: 0.72 });
     expect((selected?.zIndex ?? 0) > (dimmed?.zIndex ?? 0)).toBe(true);
     expect(typeof dimmed?.onClick).toBe("function");
+    expect(
+      polylines
+        .filter((polyline) => polyline.id !== "route-option-0")
+        .every((polyline) => polyline.color === "#64748b"),
+    ).toBe(true);
+    optionLabels?.forEach((label, index) => {
+      expect(label.icon?.strokeColor).toBe(
+        polylines.find((polyline) => polyline.id === `route-option-${index}`)
+          ?.color,
+      );
+    });
   });
 
   // Túm thẳng thân đường (một nhịp kiểu Google): chỉ đường ĐANG CHỌN đã áp mới

@@ -2,10 +2,13 @@ import { FiExternalLink, FiRefreshCw, FiX } from "react-icons/fi";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import type {
+  PublicTrip,
   TrackingEtaResponse,
+  TrackingEtaTarget,
   TrackingLatestResponse,
 } from "../../../api/vietride";
 import type { TripStatusChangedEvent } from "../../../lib/trackingSocket";
+import { EtaTimeline } from "./EtaTimeline";
 import type { RealtimeStatus } from "./gpsHelpers";
 
 type TripTrackingPanelProps = {
@@ -22,6 +25,8 @@ type TripTrackingPanelProps = {
   latest: TrackingLatestResponse | null;
   trailCount: number;
   eta: TrackingEtaResponse | null;
+  etaTargets: TrackingEtaTarget[];
+  trip: PublicTrip | null;
   onLoadTracking: () => void;
   /** Bỏ chọn chuyến — quay lại panel KPI + danh sách xe */
   onDeselect: () => void;
@@ -39,6 +44,8 @@ export default function TripTrackingPanel({
   latest,
   trailCount,
   eta,
+  etaTargets,
+  trip,
   onLoadTracking,
   onDeselect,
 }: TripTrackingPanelProps) {
@@ -190,6 +197,8 @@ export default function TripTrackingPanel({
           )}
         </div>
       </div>
+
+      <EtaTimeline trip={trip} etaTargets={etaTargets} />
     </section>
   );
 }

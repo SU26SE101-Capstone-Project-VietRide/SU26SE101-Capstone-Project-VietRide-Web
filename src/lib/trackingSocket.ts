@@ -4,6 +4,7 @@ import type {
   FleetLatestItem,
   ShuttleTrackingEta,
   ShuttleTrackingLatest,
+  TrackingEtaBatchUpdate,
   TrackingEta,
   TrackingLatestLocation,
 } from "../api/vietride";
@@ -12,6 +13,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const TRACKING_SOCKET_PATH = "/tracking/socket.io";
 
 export type TrackingEtaUpdateEvent = TrackingEta & { delayed: boolean };
+export type TrackingEtaBatchUpdateEvent = TrackingEtaBatchUpdate;
 
 export type TripStatusChangedEvent = {
   tripId: string;

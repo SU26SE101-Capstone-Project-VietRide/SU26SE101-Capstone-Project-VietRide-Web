@@ -69,6 +69,12 @@ export function useStationManagement({
     );
   }
 
+  function handleSelectStationResult(station: StationOption) {
+    setStations((current) => mergeStations(current, [station]));
+    setSelectedStationId(station.id);
+    setStationSupportsShuttle(station.supportsShuttle ?? false);
+  }
+
   async function applyStationPlace(place: PlaceSelection) {
     setStationPlaceDraft(place);
     setSelectedStationId("");
@@ -212,6 +218,7 @@ export function useStationManagement({
     selectedStationId,
     selectedStationPlace,
     handleSelectStation,
+    handleSelectStationResult,
     applyStationPlace,
     handleConfirmShuttleSupport,
     handleAttachStation,
