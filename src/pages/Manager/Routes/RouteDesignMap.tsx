@@ -6,7 +6,14 @@
 // mouseup chốt reroute); click đường vẫn là fallback cắm điểm nắn.
 // Mọi mảng overlay đều memo hoá — GoogleMapCanvas reconcile overlay theo identity
 // mảng/id, không memo thì mỗi render của trang cha là một lần vẽ lại toàn bộ.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { FiLoader, FiTrash2 } from "react-icons/fi";
 import GoogleMapCanvas, {
@@ -175,7 +182,9 @@ export default function RouteDesignMap({
     onSelectStop,
   });
 
-  useEffect(() => {
+  // Đồng bộ trước paint để overlay vừa render không thể nhận click bằng callback
+  // của render trước (đặc biệt lúc routeOptions vừa được auto-fetch).
+  useLayoutEffect(() => {
     callbacksRef.current = {
       onAddViaPoint,
       onAppendPoint,

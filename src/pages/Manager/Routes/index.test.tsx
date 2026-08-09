@@ -297,6 +297,9 @@ async function waitForLoaded() {
 describe("Manager route setup workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Xóa riêng implementation/once queue của geometry để response từ test lỗi
+    // sớm không rò sang test kế tiếp (clearAllMocks chỉ xóa call history).
+    vi.mocked(requestRoadGeometry).mockReset();
     dragMoveState.tick = 0;
     // Xóa cache danh sách tuyến để test không dính dữ liệu của test trước
     sessionStorage.clear();
@@ -1522,6 +1525,23 @@ describe("Manager route setup workflow", () => {
       );
     }
 
+    async function applyRouteOption(index: number) {
+      fireEvent.click(
+        screen.getByTestId(`map-polyline-route-option-${index}`),
+      );
+      await waitFor(
+        () => {
+          expect(
+            screen.getByTestId(`map-polyline-route-option-${index}`),
+          ).toHaveAttribute("data-opacity", "1");
+          expect(
+            screen.getByRole("button", { name: /routes.saveRoute/ }),
+          ).toBeEnabled();
+        },
+        { timeout: 2000 },
+      );
+    }
+
     it("auto-fetches and draws every option after selecting a route without marking it dirty", async () => {
       renderRoutesPage();
       await waitForLoaded();
@@ -1582,12 +1602,7 @@ describe("Manager route setup workflow", () => {
       const callsBefore = vi.mocked(requestRoadGeometry).mock.calls.length;
 
       // Click đường mờ phương án 2 → áp polyline + km/thời lượng và bật dirty
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-1"));
-      await waitFor(() =>
-        expect(
-          screen.getByTestId("map-polyline-route-option-1"),
-        ).toHaveAttribute("data-opacity", "1"),
-      );
+      await applyRouteOption(1);
       expect(screen.getByText(/410\.2/)).toBeInTheDocument();
       // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
       expect(
@@ -1712,8 +1727,7 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
 
       // Click 1: áp phương án 1 (đường chưa áp → click là chọn)
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
+      await applyRouteOption(0);
 
       // Click 2 lên đường ĐANG CHỌN đã áp → cắm điểm nắn + tính lại với
       // intermediates (mode mặc định TRUCK, kèm 1 request DRIVE so sánh)
@@ -1771,8 +1785,7 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
 
       // Áp phương án 1 rồi cắm điểm nắn lên đường đã áp
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
+      await applyRouteOption(0);
       vi.mocked(requestRoadGeometry).mockResolvedValueOnce([reroutedOption]);
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
       expect(
@@ -1813,12 +1826,7 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
 
       // Bấm đường phương án 2 → chọn, km/thời lượng form đổi theo
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-1"));
-      await waitFor(() =>
-        expect(
-          screen.getByTestId("map-polyline-route-option-1"),
-        ).toHaveAttribute("data-opacity", "1"),
-      );
+      await applyRouteOption(1);
       expect(screen.getByText(/410\.2/)).toBeInTheDocument();
 
       // Lưu tuyến → polyline gửi lên server là của PHƯƠNG ÁN 2, không kèm manualMetrics
@@ -2009,8 +2017,7 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
 
       // Áp phương án 1 rồi cắm điểm nắn lên đường đang chọn
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
+      await applyRouteOption(0);
       vi.mocked(requestRoadGeometry).mockResolvedValueOnce([reroutedOption]);
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
       expect(
@@ -2671,6 +2678,13 @@ describe("Manager route setup workflow", () => {
       };
       vi.mocked(createAlternativeRoute).mockResolvedValue(createdAlt);
       vi.mocked(updateAlternativeRouteGeometry).mockResolvedValue(createdAlt);
+      vi.mocked(requestRoadGeometry).mockResolvedValue([
+        {
+          points: altOnePoints,
+          totalDistanceKm: 55,
+          estimatedDurationMinutes: 75,
+        },
+      ]);
 
       await openAlternativesTab();
 
@@ -2698,13 +2712,6 @@ describe("Manager route setup workflow", () => {
 
       // Chọn 1 phương án đường trên map (bắt buộc trước khi lưu — không còn ô
       // nhập km/phút tay)
-      vi.mocked(requestRoadGeometry).mockResolvedValue([
-        {
-          points: altOnePoints,
-          totalDistanceKm: 55,
-          estimatedDurationMinutes: 75,
-        },
-      ]);
       await waitFor(
         () =>
           expect(
