@@ -6,7 +6,14 @@
 // mouseup chốt reroute); click đường vẫn là fallback cắm điểm nắn.
 // Mọi mảng overlay đều memo hoá — GoogleMapCanvas reconcile overlay theo identity
 // mảng/id, không memo thì mỗi render của trang cha là một lần vẽ lại toàn bộ.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { FiLoader, FiTrash2 } from "react-icons/fi";
 import GoogleMapCanvas, {
@@ -35,10 +42,15 @@ const durationBubblePath =
 const viaPointPath = "M 0 -9 a 9 9 0 1 1 0 18 a 9 9 0 1 1 0 -18 Z";
 // Symbol path: đĩa tròn to hơn cho marker điểm dừng đánh số 1..N
 const stopNumberPath = "M 0 -11 a 11 11 0 1 1 0 22 a 11 11 0 1 1 0 -22 Z";
+// Pin bến đi/bến đến có mũi neo tại (0,0): kích thước cố định theo pixel nên
+// luôn chỉ đúng tọa độ, không phình to theo zoom như Circle tính bằng mét.
+const routeEndpointPinPath =
+  "M 0 0 C -2 -3 -14 -14 -14 -25 C -14 -33 -8 -39 0 -39 C 8 -39 14 -33 14 -25 C 14 -14 2 -3 0 0 Z";
 
 // Vị trí bubble thời lượng dọc theo đường theo index phương án (40%/55%/70%
 // chiều dài) — tránh 2 bubble đè nhau khi các phương án bám sát nhau
 const bubblePositionFractions = [0.4, 0.55, 0.7];
+const dimmedRouteOptionColor = "#64748b";
 
 // Mảng rỗng ổn định identity — trả về từ memo khi không có nhãn/marker để mảng
 // pointMarkers gộp không đổi identity vô cớ (đổi identity giữa lúc kéo là
@@ -170,7 +182,9 @@ export default function RouteDesignMap({
     onSelectStop,
   });
 
-  useEffect(() => {
+  // Đồng bộ trước paint để overlay vừa render không thể nhận click bằng callback
+  // của render trước (đặc biệt lúc routeOptions vừa được auto-fetch).
+  useLayoutEffect(() => {
     callbacksRef.current = {
       onAddViaPoint,
       onAppendPoint,
@@ -434,18 +448,8 @@ export default function RouteDesignMap({
     Boolean(onBeginViaDrag);
 
   const mapMarkers = useMemo(
-    () => [
-      ...points.map((point) => ({
-        color: point.color,
-        id: point.id,
-        position: {
-          lat: point.latitude,
-          lng: point.longitude,
-        },
-        radiusMeters: 1_200,
-        title: point.name,
-      })),
-      ...(isEditing
+    () =>
+      isEditing
         ? pathPoints.map((point, index) => ({
             color: activeColor,
             id: `geometry-${index}-${point.latitude}-${point.longitude}`,
@@ -455,9 +459,8 @@ export default function RouteDesignMap({
             },
             radiusMeters: 550,
           }))
-        : []),
-    ],
-    [activeColor, isEditing, pathPoints, points],
+        : [],
+    [activeColor, isEditing, pathPoints],
   );
 
   const mapPolylines: GoogleMapPolyline[] = useMemo(() => {
@@ -514,7 +517,7 @@ export default function RouteDesignMap({
         .sort((first, second) => first.zIndex - second.zIndex)
         .map(
           (line): GoogleMapPolyline => ({
-            color: line.selected ? activeColor : "#94a3b8",
+            color: line.selected ? activeColor : dimmedRouteOptionColor,
             id: line.isSavedPath
               ? "route-geometry"
               : `route-option-${line.index}`,
@@ -526,9 +529,9 @@ export default function RouteDesignMap({
                   : undefined,
             onMouseDown:
               line.selected && hasSavedOrDraftPath ? grabLine : undefined,
-            opacity: line.selected ? 1 : 0.55,
+            opacity: line.selected ? 1 : 0.72,
             path: line.path,
-            weight: line.selected ? 5 : 4,
+            weight: line.selected ? 6 : 4,
             zIndex: line.zIndex,
           }),
         );
@@ -571,6 +574,7 @@ export default function RouteDesignMap({
 
     return routeOptions.map((option, index): GoogleMapPointMarker => {
       const selected = index === selectedOptionIndex;
+      const optionColor = selected ? activeColor : dimmedRouteOptionColor;
       // Bubble đặt lệch nhau theo index (40%/55%/70% chiều dài đường) — các
       // phương án chạy gần nhau sẽ không chồng bubble lên cùng một chỗ
       const fraction =
@@ -596,12 +600,12 @@ export default function RouteDesignMap({
           fillOpacity: 1,
           path: durationBubblePath,
           scale: 1,
-          strokeColor: selected ? "#0f766e" : "#94a3b8",
-          strokeWeight: selected ? 2 : 1.5,
+          strokeColor: optionColor,
+          strokeWeight: selected ? 2.5 : 2,
         },
         id: `route-option-label-${index}`,
         label: {
-          color: selected ? "#0f766e" : "#475569",
+          color: selected ? activeColor : "#475569",
           fontSize: "11px",
           fontWeight: selected ? "700" : "600",
           text: duration,
@@ -622,6 +626,7 @@ export default function RouteDesignMap({
       };
     });
   }, [
+    activeColor,
     canSelectOption,
     routeOptions,
     selectedOptionIndex,
@@ -706,6 +711,38 @@ export default function RouteDesignMap({
     t,
     viaPoints,
   ]);
+
+  // Bến đi/bến đến dùng pin cố định theo pixel, mũi pin neo đúng tọa độ.
+  // Điểm dừng trung gian đã có routeStopMarkers đánh số riêng nên không lặp lại.
+  const routeEndpointMarkers: GoogleMapPointMarker[] = useMemo(() => {
+    const endpoints = points.filter(
+      (point) =>
+        point.id.startsWith("origin-") ||
+        point.id.startsWith("destination-") ||
+        point.id.startsWith("alt-destination-"),
+    );
+    if (endpoints.length === 0) {
+      return noPointMarkers;
+    }
+
+    return endpoints.map((point) => ({
+      icon: {
+        fillColor: point.color,
+        fillOpacity: 1,
+        path: routeEndpointPinPath,
+        scale: 0.82,
+        strokeColor: "#ffffff",
+        strokeWeight: 2,
+      },
+      id: `route-endpoint-${point.id}`,
+      position: {
+        lat: point.latitude,
+        lng: point.longitude,
+      },
+      title: point.name,
+      zIndex: 8,
+    }));
+  }, [points]);
 
   // Marker điểm dừng đánh số 1..N theo orderIndex — stop đang chọn tô đậm nền,
   // click marker chọn stop (highlight dòng tương ứng trong panel). Không draggable.
@@ -795,16 +832,24 @@ export default function RouteDesignMap({
     () =>
       durationLabels === noPointMarkers &&
       viaPointMarkers === noPointMarkers &&
+      routeEndpointMarkers === noPointMarkers &&
       routeStopMarkers === noPointMarkers &&
       suggestionMarkers === noPointMarkers
         ? noPointMarkers
         : [
             ...durationLabels,
             ...viaPointMarkers,
+            ...routeEndpointMarkers,
             ...routeStopMarkers,
             ...suggestionMarkers,
           ],
-    [durationLabels, routeStopMarkers, suggestionMarkers, viaPointMarkers],
+    [
+      durationLabels,
+      routeEndpointMarkers,
+      routeStopMarkers,
+      suggestionMarkers,
+      viaPointMarkers,
+    ],
   );
 
   // m-A: chọn gợi ý từ ô search (externalActiveSuggestion) phải kéo bản đồ tới

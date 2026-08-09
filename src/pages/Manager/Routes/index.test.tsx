@@ -94,12 +94,12 @@ vi.mock("../../../components/PlacePicker", () => ({
       onClick={() =>
         onSelect({
           placeId: "place-1",
-          name: "Bến xe Trung tâm",
-          address: "1 Đường Chính",
-          city: "Hồ Chí Minh",
-          ward: "Hồ Chí Minh",
-          latitude: 10.77,
-          longitude: 106.69,
+          name: "Bến Xe Đà Lạt",
+          address: "Xuân Hương - Đà Lạt, Lâm Đồng, Việt Nam",
+          city: "Đà Lạt",
+          ward: "Phường Xuân Hương - Đà Lạt",
+          latitude: 11.9416,
+          longitude: 108.4383,
         })
       }
     >
@@ -297,6 +297,9 @@ async function waitForLoaded() {
 describe("Manager route setup workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Xóa riêng implementation/once queue của geometry để response từ test lỗi
+    // sớm không rò sang test kế tiếp (clearAllMocks chỉ xóa call history).
+    vi.mocked(requestRoadGeometry).mockReset();
     dragMoveState.tick = 0;
     // Xóa cache danh sách tuyến để test không dính dữ liệu của test trước
     sessionStorage.clear();
@@ -783,14 +786,70 @@ describe("Manager route setup workflow", () => {
     expect(screen.getByText("routes.routeManagement")).toBeInTheDocument();
   });
 
-  it("sends the shuttle capability when creating a station", async () => {
+  it("searches and attaches a platform station outside the preloaded list", async () => {
+    const platformStation = {
+      id: "station-page-8",
+      name: "Bến xe Miền Đông mới",
+      city: "Thành phố Hồ Chí Minh",
+      ward: "Phường Long Bình",
+      latitude: 10.877,
+      longitude: 106.814,
+      supportsShuttle: false,
+    };
+    vi.mocked(searchStations).mockResolvedValue([platformStation]);
+    vi.mocked(createOperatorStation).mockResolvedValue({
+      id: "operator-station-1",
+      operatorId: "operator-1",
+      stationId: platformStation.id,
+      station: platformStation,
+      supportsShuttle: false,
+    });
+
+    renderRoutesPage();
+    await waitForLoaded();
+    fireEvent.click(
+      screen.getByRole("button", { name: /routes.stationManagement/ }),
+    );
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "routes.searchStations" }),
+      { target: { value: "Miền Đông" } },
+    );
+    await waitFor(() =>
+      expect(searchStations).toHaveBeenCalledWith({ q: "Miền Đông" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("option", {
+        name: /Bến xe Miền Đông mới/,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.attachStation" }),
+    );
+
+    await waitFor(() =>
+      expect(createOperatorStation).toHaveBeenCalledWith({
+        stationId: platformStation.id,
+      }),
+    );
+  });
+
+  it("automatically selects the search location and allows an override", async () => {
     vi.mocked(getPublicLocations).mockResolvedValue([
       {
-        id: "location-1",
-        code: "HCM",
-        name: "Hồ Chí Minh",
-        type: "MUNICIPALITY",
+        id: "location-kha",
+        code: "KHA",
+        name: "Khanh Hoa",
         sortOrder: 1,
+        type: "PROVINCE",
+        isActive: true,
+      },
+      {
+        id: "location-ldg",
+        code: "LDG",
+        name: "Lam Dong",
+        sortOrder: 2,
+        type: "PROVINCE",
         isActive: true,
       },
     ]);
@@ -800,11 +859,11 @@ describe("Manager route setup workflow", () => {
       supportsShuttle: true,
       station: {
         id: "station-1",
-        name: "Bến xe Trung tâm",
-        city: "Hồ Chí Minh",
-        ward: "Phường Bến Thành",
-        latitude: 10.77,
-        longitude: 106.69,
+        name: "Bến Xe Đà Lạt",
+        city: "Lâm Đồng",
+        ward: "Phường Xuân Hương - Đà Lạt",
+        latitude: 11.9416,
+        longitude: 108.4383,
         supportsShuttle: true,
       },
     });
@@ -824,8 +883,11 @@ describe("Manager route setup workflow", () => {
     const locationSelect = await screen.findByRole("button", {
       name: "routes.searchLocation",
     });
+    expect(locationSelect).not.toBeDisabled();
+    expect(locationSelect).toHaveTextContent("Lam Dong · LDG");
     fireEvent.click(locationSelect);
-    fireEvent.click(screen.getByRole("option", { name: "Hồ Chí Minh · HCM" }));
+    fireEvent.click(screen.getByRole("option", { name: "Khanh Hoa · KHA" }));
+    expect(locationSelect).toHaveTextContent("Khanh Hoa · KHA");
     fireEvent.click(
       screen.getByRole("checkbox", { name: /routes\.supportsShuttle/ }),
     );
@@ -836,7 +898,7 @@ describe("Manager route setup workflow", () => {
     await waitFor(() =>
       expect(createOperatorStation).toHaveBeenCalledWith(
         expect.objectContaining({
-          locationId: "location-1",
+          locationId: "location-kha",
           supportsShuttle: true,
         }),
       ),
@@ -1463,6 +1525,23 @@ describe("Manager route setup workflow", () => {
       );
     }
 
+    async function applyRouteOption(index: number) {
+      fireEvent.click(
+        screen.getByTestId(`map-polyline-route-option-${index}`),
+      );
+      await waitFor(
+        () => {
+          expect(
+            screen.getByTestId(`map-polyline-route-option-${index}`),
+          ).toHaveAttribute("data-opacity", "1");
+          expect(
+            screen.getByRole("button", { name: /routes.saveRoute/ }),
+          ).toBeEnabled();
+        },
+        { timeout: 2000 },
+      );
+    }
+
     it("auto-fetches and draws every option after selecting a route without marking it dirty", async () => {
       renderRoutesPage();
       await waitForLoaded();
@@ -1523,12 +1602,7 @@ describe("Manager route setup workflow", () => {
       const callsBefore = vi.mocked(requestRoadGeometry).mock.calls.length;
 
       // Click đường mờ phương án 2 → áp polyline + km/thời lượng và bật dirty
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-1"));
-      await waitFor(() =>
-        expect(
-          screen.getByTestId("map-polyline-route-option-1"),
-        ).toHaveAttribute("data-opacity", "1"),
-      );
+      await applyRouteOption(1);
       expect(screen.getByText(/410\.2/)).toBeInTheDocument();
       // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
       expect(
@@ -1610,6 +1684,9 @@ describe("Manager route setup workflow", () => {
       const mapShell = screen.getByTestId("route-map-shell");
       expect(mapShell).not.toContainElement(toolbar);
       expect(toolbar).toContainElement(screen.getByTestId("travel-mode-truck"));
+      expect(
+        screen.queryByRole("button", { name: "routes.clearGeometry" }),
+      ).not.toBeInTheDocument();
       expect(toolbar).toContainElement(
         screen.getByRole("button", { name: /routes.saveRoute/ }),
       );
@@ -1650,8 +1727,7 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
 
       // Click 1: áp phương án 1 (đường chưa áp → click là chọn)
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
+      await applyRouteOption(0);
 
       // Click 2 lên đường ĐANG CHỌN đã áp → cắm điểm nắn + tính lại với
       // intermediates (mode mặc định TRUCK, kèm 1 request DRIVE so sánh)
@@ -1709,8 +1785,7 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
 
       // Áp phương án 1 rồi cắm điểm nắn lên đường đã áp
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
+      await applyRouteOption(0);
       vi.mocked(requestRoadGeometry).mockResolvedValueOnce([reroutedOption]);
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
       expect(
@@ -1751,12 +1826,7 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
 
       // Bấm đường phương án 2 → chọn, km/thời lượng form đổi theo
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-1"));
-      await waitFor(() =>
-        expect(
-          screen.getByTestId("map-polyline-route-option-1"),
-        ).toHaveAttribute("data-opacity", "1"),
-      );
+      await applyRouteOption(1);
       expect(screen.getByText(/410\.2/)).toBeInTheDocument();
 
       // Lưu tuyến → polyline gửi lên server là của PHƯƠNG ÁN 2, không kèm manualMetrics
@@ -1947,8 +2017,7 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
 
       // Áp phương án 1 rồi cắm điểm nắn lên đường đang chọn
-      fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
-      // Việc chọn phương án được phản ánh trên map; trạng thái lưu được kiểm tra sau khi chọn lại phương án đã lưu.
+      await applyRouteOption(0);
       vi.mocked(requestRoadGeometry).mockResolvedValueOnce([reroutedOption]);
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
       expect(
@@ -2609,6 +2678,13 @@ describe("Manager route setup workflow", () => {
       };
       vi.mocked(createAlternativeRoute).mockResolvedValue(createdAlt);
       vi.mocked(updateAlternativeRouteGeometry).mockResolvedValue(createdAlt);
+      vi.mocked(requestRoadGeometry).mockResolvedValue([
+        {
+          points: altOnePoints,
+          totalDistanceKm: 55,
+          estimatedDurationMinutes: 75,
+        },
+      ]);
 
       await openAlternativesTab();
 
@@ -2636,13 +2712,6 @@ describe("Manager route setup workflow", () => {
 
       // Chọn 1 phương án đường trên map (bắt buộc trước khi lưu — không còn ô
       // nhập km/phút tay)
-      vi.mocked(requestRoadGeometry).mockResolvedValue([
-        {
-          points: altOnePoints,
-          totalDistanceKm: 55,
-          estimatedDurationMinutes: 75,
-        },
-      ]);
       await waitFor(
         () =>
           expect(

@@ -1,18 +1,17 @@
 // Thanh điều khiển hình học tuyến — thanh ngang mỏng NGOÀI bản đồ, đặt ngay
 // trên map (dưới hàng tab). Không còn overlay đè lên bản đồ: che logo/attribution
 // Google là vi phạm TOS Google Maps, và cụm nút đè mép dưới cũng khó thao tác.
-// Trái: toggle loại xe + icon Vẽ thủ công/Xóa đường + spinner "Đang tìm đường…";
+// Trái: toggle loại xe + icon Vẽ thủ công + spinner "Đang tìm đường…";
 // phải: slot `trailing` (badge "Chưa lưu thay đổi" + nút "Lưu tuyến" do
 // RouteMapWorkspace truyền vào). Cảnh báo TRUCK dài xuống dòng riêng dưới thanh.
 import { useTranslation } from "react-i18next";
-import { FiCornerUpLeft, FiEdit2, FiLoader, FiTrash2 } from "react-icons/fi";
+import { FiCornerUpLeft, FiEdit2, FiLoader } from "react-icons/fi";
 import type { ReactNode } from "react";
 import type { UseRouteGeometryResult } from "./useRouteGeometry";
 
 type GeometryToolbarProps = {
   canManageRoutes: boolean;
   geometry: UseRouteGeometryResult;
-  hasSelectedRoute: boolean;
   // Cụm bên phải của thanh (badge chưa lưu + nút Lưu tuyến)
   trailing?: ReactNode;
 };
@@ -20,7 +19,6 @@ type GeometryToolbarProps = {
 export default function GeometryToolbar({
   canManageRoutes,
   geometry,
-  hasSelectedRoute,
   trailing,
 }: GeometryToolbarProps) {
   const { t } = useTranslation("manager");
@@ -36,7 +34,6 @@ export default function GeometryToolbar({
     handleSetTravelMode,
     handleStartManualGeometry,
     handleUndoGeometryPoint,
-    handleClearGeometry,
   } = geometry;
 
   // Toolbar chỉ dành cho người sửa được tuyến — viewer thuần xem bản đồ
@@ -97,19 +94,6 @@ export default function GeometryToolbar({
         >
           <FiEdit2 size={14} />
         </button>
-        {/* Nút "Lưu đường đi" riêng đã bỏ — polyline lưu atomic cùng form/stops
-            qua nút "Lưu tuyến" ở cụm trailing bên phải (PUT /routes/{id}/full) */}
-        <button
-          type="button"
-          aria-label={t("routes.clearGeometry")}
-          title={t("routes.clearGeometry")}
-          onClick={handleClearGeometry}
-          disabled={!hasSelectedRoute || routePathPoints.length === 0}
-          className={`${iconButtonClass} border-red-200 text-red-600 hover:bg-red-50`}
-        >
-          <FiTrash2 size={14} />
-        </button>
-
         {/* Badge trạng thái chỉ hiện KHI đang tính (auto-fetch/reroute) */}
         {(isFetchingOptions || isRerouting) && (
           <span

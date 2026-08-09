@@ -15,14 +15,18 @@ import {
   getOperatorTrips,
   getOperatorUsers,
   getOperatorVehicles,
+  getPublicTrip,
   getTrackingTripEta,
+  getTrackingTripEtas,
   getTrackingTripLatest,
   getTrackingTripRouteGeometry,
   getTrackingTripTrail,
   type OperatorTripListItem,
   type OperatorUser,
   type OperatorVehicle,
+  type PublicTrip,
   type TrackingEtaResponse,
+  type TrackingEtaTarget,
   type TripRouteGeometry,
   type TrackingLatestResponse,
   type TrackingTrailPoint,
@@ -41,6 +45,7 @@ import {
   createTrackingSocket,
   joinTripTracking,
   type FleetGpsUpdateEvent,
+  type TrackingEtaBatchUpdateEvent,
   type TrackingEtaUpdateEvent,
   type TrackingLatestLocation,
   type TripStatusChangedEvent,
@@ -86,6 +91,11 @@ export default function OperationsPage() {
   const [latest, setLatest] = useState<TrackingLatestResponse | null>(null);
   const [trail, setTrail] = useState<TrackingTrailPoint[]>([]);
   const [eta, setEta] = useState<TrackingEtaResponse | null>(null);
+  const [etaTargets, setEtaTargets] = useState<TrackingEtaTarget[]>([]);
+  const [tripDetails, setTripDetails] = useState<PublicTrip | null>(null);
+  const [etaRefreshKey, setEtaRefreshKey] = useState(0);
+  const etaSocketVersionRef = useRef(0);
+  const etaBatchSocketVersionRef = useRef(0);
   const [apiMessage, setApiMessage] = useState("");
   const [apiError, setApiError] = useState("");
   useToastFeedback({ message: apiMessage, error: apiError });
@@ -205,6 +215,10 @@ export default function OperationsPage() {
       setSelectedTripId(nextTripId);
       setDelayInfo(null);
       setEta(null);
+      setEtaTargets([]);
+      setTripDetails(null);
+      etaSocketVersionRef.current += 1;
+      etaBatchSocketVersionRef.current += 1;
       setRouteGeometry(null);
       setLatest(null);
       setTrail([]);
@@ -331,16 +345,42 @@ export default function OperationsPage() {
     onReconnect: handleFleetReconnect,
   });
 
-  // ETA REST khi chọn chuyến — socket eta:update mới hơn được ưu tiên
-  // (chỉ đổ kết quả REST khi chưa có ETA nào). 403/404/không active bỏ qua im lặng.
+  // Hydrate giờ kế hoạch, batch realtime và ETA legacy độc lập.
+  // Lỗi một nguồn không làm gián đoạn GPS/trail hoặc các nguồn ETA còn lại.
   useEffect(() => {
     const tripId = selectedTripId?.trim() ?? "";
     if (!tripId) return;
     let cancelled = false;
+    const etaSocketVersion = etaSocketVersionRef.current;
+    const etaBatchSocketVersion = etaBatchSocketVersionRef.current;
+
+    void getPublicTrip(tripId)
+      .then((result) => {
+        if (!cancelled) setTripDetails(result);
+      })
+      .catch(() => {
+        // Planned ETA is informative and must not block tracking.
+      });
+
+    void getTrackingTripEtas(tripId)
+      .then((result) => {
+        if (
+          cancelled ||
+          etaBatchSocketVersionRef.current !== etaBatchSocketVersion
+        ) {
+          return;
+        }
+        setEtaTargets(result.etas);
+      })
+      .catch(() => {
+        // During rolling deploys, keep planned and legacy ETA.
+      });
     void getTrackingTripEta(tripId)
       .then((result) => {
-        if (cancelled) return;
-        setEta((current) => current ?? result);
+        if (cancelled || etaSocketVersionRef.current !== etaSocketVersion) {
+          return;
+        }
+        setEta(result);
       })
       .catch(() => {
         // ETA chỉ mang tính thông tin — lỗi giữ nguyên "-"
@@ -348,7 +388,7 @@ export default function OperationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedTripId]);
+  }, [etaRefreshKey, selectedTripId]);
 
   async function loadTripTracking() {
     const tripId = selectedTripId?.trim() ?? "";
@@ -376,9 +416,7 @@ export default function OperationsPage() {
       setLatest(latestResult);
       setTrail(trailResult.items);
       // Refresh ETA cùng lượt tải thủ công — lỗi (403/404/không active) giữ nguyên giá trị cũ
-      void getTrackingTripEta(tripId)
-        .then((etaResult) => setEta(etaResult))
-        .catch(() => {});
+      setEtaRefreshKey((current) => current + 1);
 
       if (latestResult.latest) {
         setFocusCenter({
@@ -459,9 +497,20 @@ export default function OperationsPage() {
     });
 
     socket.on("eta:update", (event: TrackingEtaUpdateEvent) => {
-      if (cancelled) return;
+      if (cancelled || event.tripId !== tripId) return;
+      etaSocketVersionRef.current += 1;
       setEta({ eta: event });
     });
+
+    socket.on(
+      "eta:batch:update",
+      (event: TrackingEtaBatchUpdateEvent) => {
+        if (cancelled || event.tripId !== tripId) return;
+        etaBatchSocketVersionRef.current += 1;
+        // Batch là snapshot đầy đủ các target còn lại, không merge với batch cũ.
+        setEtaTargets(event.etas);
+      },
+    );
 
     socket.on("trip:statusChanged", (event: TripStatusChangedEvent) => {
       if (cancelled) return;
@@ -590,6 +639,8 @@ export default function OperationsPage() {
               latest={latest}
               trailCount={trail.length}
               eta={eta}
+              etaTargets={etaTargets}
+              trip={tripDetails}
               onLoadTracking={() => void loadTripTracking()}
               onDeselect={() => selectTrip(null)}
             />

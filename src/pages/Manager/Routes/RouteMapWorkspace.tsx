@@ -19,6 +19,7 @@ import RouteFloatingPanel from "./RouteFloatingPanel";
 import RouteFormSection from "./RouteFormSection";
 import RoutePanelStopsSection from "./RoutePanelStopsSection";
 import GeometryToolbar from "./GeometryToolbar";
+import RouteMapLegend from "./RouteMapLegend";
 import type { RouteMapPoint, StationOption, StopSuggestion } from "./types";
 import type { UseRouteGeometryResult } from "./useRouteGeometry";
 import type { UseRouteStopEditorResult } from "./useRouteStopEditor";
@@ -134,7 +135,6 @@ export default function RouteMapWorkspace({
       <GeometryToolbar
         canManageRoutes={canManageRoutes}
         geometry={geometry}
-        hasSelectedRoute={Boolean(selectedRouteId)}
         trailing={
           canManageRoutes ? (
             <>
@@ -160,6 +160,7 @@ export default function RouteMapWorkspace({
           ) : undefined
         }
       />
+      <RouteMapLegend panelMode={panelMode} />
 
       <div className="lg:relative">
         {/* Panel nổi: desktop absolute trên map, mobile khối tĩnh phía trên.

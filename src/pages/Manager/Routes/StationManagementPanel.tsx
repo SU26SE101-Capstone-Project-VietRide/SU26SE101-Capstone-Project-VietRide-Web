@@ -3,11 +3,14 @@
 import { useTranslation } from "react-i18next";
 import { FiCheckCircle, FiMapPin } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
-import PlacePicker from "../../../components/PlacePicker";
+import PlacePicker, {
+  type PlaceSelection,
+} from "../../../components/PlacePicker";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import type { AdminLocation } from "../../../api/vietride";
 import type { UseStationManagementResult } from "./useStationManagement";
 import type { StationOption, StationRouteRole } from "./types";
+import StationSearchBox from "./StationSearchBox";
 
 type StationManagementPanelProps = {
   canManageRoutes: boolean;
@@ -16,6 +19,31 @@ type StationManagementPanelProps = {
   manager: UseStationManagementResult;
   onRunAction: (action: () => Promise<void>) => void;
 };
+
+function normalizeLocationName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/^(?:tinh|thanh pho|tp)\s+/, "");
+}
+
+function findMatchingLocationId(
+  place: PlaceSelection,
+  locations: AdminLocation[],
+) {
+  const placeLocationNames = [place.city, ...place.address.split(",")]
+    .map(normalizeLocationName)
+    .filter(Boolean);
+  const matchingLocation = locations.find((location) =>
+    placeLocationNames.includes(normalizeLocationName(location.name)),
+  );
+
+  return matchingLocation?.id ?? "";
+}
 
 export default function StationManagementPanel({
   canManageRoutes,
@@ -33,21 +61,15 @@ export default function StationManagementPanel({
           {t("routes.stationExistingTitle")}
         </p>
         <div className="mt-3 space-y-3">
-          <CustomSelect
-            className={inputClass}
-            value={manager.selectedStationId}
-            onChange={(event) =>
-              manager.handleSelectStation(event.target.value)
+          <StationSearchBox
+            selectedStation={
+              stations.find(
+                (station) => station.id === manager.selectedStationId,
+              ) ?? null
             }
-          >
-            <option value="">{t("routes.selectStation")}</option>
-            {stations.map((station) => (
-              <option key={station.id} value={station.id}>
-                {station.name} ·{" "}
-                {[station.ward, station.city].filter(Boolean).join(", ")}
-              </option>
-            ))}
-          </CustomSelect>
+            onClear={() => manager.handleSelectStation("")}
+            onSelect={manager.handleSelectStationResult}
+          />
           {canManageRoutes && (
             <>
               <CustomSelect
@@ -117,6 +139,9 @@ export default function StationManagementPanel({
               placeholder={t("routes.stationNamePlaceholder")}
               selectedPlace={manager.selectedStationPlace}
               onSelect={(place) => {
+                manager.setSelectedLocationId(
+                  findMatchingLocationId(place, locations),
+                );
                 onRunAction(() => manager.applyStationPlace(place));
               }}
             />

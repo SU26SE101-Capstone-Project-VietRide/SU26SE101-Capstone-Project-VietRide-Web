@@ -154,7 +154,15 @@ export default function Operators() {
     if (!selectedOperator) return;
     try {
       await approveAdminOperator(selectedOperator.operatorId);
-      await loadOperators();
+      setOperators((current) =>
+        current.map((operator) =>
+          operator.operatorId === selectedOperator.operatorId
+            ? { ...operator, registrationStatus: "APPROVED" }
+            : operator,
+        ),
+      );
+      setFilterStatus("ALL");
+      setPage(1);
       setOpenApprove(false);
       setMessage(t("operators.approvedAlert", { name: selectedOperator.name }));
       setSelectedOperator(null);

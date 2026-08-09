@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,7 +8,9 @@ import {
   getOperatorTrips,
   getOperatorUsers,
   getOperatorVehicles,
+  getPublicTrip,
   getTrackingTripEta,
+  getTrackingTripEtas,
   getTrackingTripRouteGeometry,
   type OperatorTripListItem,
 } from "../../../api/vietride";
@@ -25,10 +27,18 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
   default: () => <div data-testid="fleet-map" />,
 }));
 
+type TrackingSocketHandler = (event: unknown) => void;
+
+const trackingSocketHandlers = vi.hoisted(
+  () => new Map<string, TrackingSocketHandler>(),
+);
+
 // Socket realtime không chạy trong jsdom — mock để effect join không mở kết nối thật
 vi.mock("../../../lib/trackingSocket", () => ({
   createTrackingSocket: vi.fn(() => ({
-    on: vi.fn(),
+    on: vi.fn((eventName: string, handler: TrackingSocketHandler) => {
+      trackingSocketHandlers.set(eventName, handler);
+    }),
     disconnect: vi.fn(),
   })),
   joinOperatorFleet: vi.fn(() => Promise.resolve({ success: true })),
@@ -43,7 +53,9 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorTrips: vi.fn(),
   getOperatorUsers: vi.fn(),
   getOperatorVehicles: vi.fn(),
+  getPublicTrip: vi.fn(),
   getTrackingTripEta: vi.fn(),
+  getTrackingTripEtas: vi.fn(),
   getTrackingTripLatest: vi.fn(),
   getTrackingTripRouteGeometry: vi.fn(),
   getTrackingTripTrail: vi.fn(),
@@ -82,6 +94,7 @@ function renderPage(initialEntry = "/manager/operations") {
 describe("Manager Operations Center", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    trackingSocketHandlers.clear();
 
     vi.mocked(getOperatorTrips).mockResolvedValue({
       items: [tripItem],
@@ -107,6 +120,8 @@ describe("Manager Operations Center", () => {
       generatedAt: "2026-08-05T08:30:02Z",
     });
     vi.mocked(getTrackingTripEta).mockResolvedValue({ eta: null });
+    vi.mocked(getTrackingTripEtas).mockResolvedValue({ etas: [] });
+    vi.mocked(getPublicTrip).mockRejectedValue(new Error("not available"));
     vi.mocked(getTrackingTripRouteGeometry).mockResolvedValue({
       tripId: "trip-1",
       points: [],
@@ -245,6 +260,78 @@ describe("Manager Operations Center", () => {
       expect(getTrackingTripEta).toHaveBeenCalledWith("trip-1"),
     );
   });
+  it("eta:batch:update thay thế toàn bộ danh sách target realtime cũ", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByText("51A-123.45"));
+
+    await waitFor(() => {
+      expect(trackingSocketHandlers.has("eta:batch:update")).toBe(true);
+    });
+    const handleBatchUpdate = trackingSocketHandlers.get("eta:batch:update");
+    if (!handleBatchUpdate) throw new Error("Missing eta:batch:update handler");
+
+    act(() => {
+      handleBatchUpdate({
+        tripId: "trip-1",
+        updatedAt: "2026-08-05T08:30:00Z",
+        etas: [
+          {
+            tripId: "trip-1",
+            targetKind: "STOP",
+            stopId: "stop-1",
+            stopName: "Trạm A",
+            sequence: 1,
+            etaMinutes: 15,
+            estimatedArrivalTime: "2026-08-05T08:45:00Z",
+            distanceMeters: 8000,
+            updatedAt: "2026-08-05T08:30:00Z",
+            estimateQuality: "TRAFFIC_AWARE",
+          },
+          {
+            tripId: "trip-1",
+            targetKind: "STATION",
+            stationId: "station-destination",
+            stopName: "Bến đích",
+            etaMinutes: 60,
+            estimatedArrivalTime: "2026-08-05T09:30:00Z",
+            distanceMeters: 70000,
+            updatedAt: "2026-08-05T08:30:00Z",
+            estimateQuality: "TRAFFIC_AWARE",
+          },
+        ],
+      });
+    });
+
+    expect(screen.getByText("Trạm A")).toBeInTheDocument();
+    expect(screen.getByText("Bến đích")).toBeInTheDocument();
+
+    act(() => {
+      handleBatchUpdate({
+        tripId: "trip-1",
+        updatedAt: "2026-08-05T08:40:00Z",
+        etas: [
+          {
+            tripId: "trip-1",
+            targetKind: "STOP",
+            stopId: "stop-2",
+            stopName: "Trạm B",
+            sequence: 2,
+            etaMinutes: 20,
+            estimatedArrivalTime: "2026-08-05T09:00:00Z",
+            distanceMeters: 12000,
+            updatedAt: "2026-08-05T08:40:00Z",
+            estimateQuality: "FALLBACK",
+          },
+        ],
+      });
+    });
+
+    expect(screen.queryByText("Trạm A")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bến đích")).not.toBeInTheDocument();
+    expect(screen.getByText("Trạm B")).toBeInTheDocument();
+  });
+
 
   it("vào màn với ?tripId= thì tự chọn chuyến đó sau khi load fleet", async () => {
     renderPage("/manager/operations?tripId=trip-1");

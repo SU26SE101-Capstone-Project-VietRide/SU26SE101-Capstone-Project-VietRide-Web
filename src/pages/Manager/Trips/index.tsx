@@ -316,7 +316,7 @@ export default function TripsPage() {
     }));
   }
 
-  function validateSchedule(status: ScheduleStatus) {
+  function validateSchedule() {
     if (
       !form.routeId ||
       !form.vehicleId ||
@@ -353,10 +353,6 @@ export default function TripsPage() {
       return t("trips.validationResourceConflict");
     }
 
-    if (!editingId && schedules.length >= 6 && status === "open") {
-      return t("trips.validationSubscriptionLimit");
-    }
-
     return "";
   }
 
@@ -370,7 +366,7 @@ export default function TripsPage() {
 
     // Lỗi validation giữ INLINE trong modal — user đang nhập form, lỗi phải
     // nằm cạnh form, không toast.
-    const validationError = validateSchedule(status);
+    const validationError = validateSchedule();
     if (validationError) {
       setFormError(validationError);
       return;

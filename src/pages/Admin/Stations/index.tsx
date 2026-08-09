@@ -58,6 +58,7 @@ export default function AdminStations() {
     "ALL" | "SHUTTLE" | "NON_SHUTTLE"
   >("ALL");
   const [selectedStationId, setSelectedStationId] = useState("");
+  const selectedStationIdRef = useRef(selectedStationId);
   const [openEditor, setOpenEditor] = useState(false);
   const [openMerge, setOpenMerge] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState("");
@@ -70,6 +71,10 @@ export default function AdminStations() {
   const [mergeConfirmationOpen, setMergeConfirmationOpen] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 8;
+
+  useEffect(() => {
+    selectedStationIdRef.current = selectedStationId;
+  }, [selectedStationId]);
 
   useEffect(() => {
     let ignore = false;
@@ -100,7 +105,9 @@ export default function AdminStations() {
         setStations(result.items);
         setLocations(locationResult.items);
         const selected =
-          result.items.find((station) => station.id === selectedStationId) ??
+          result.items.find(
+            (station) => station.id === selectedStationIdRef.current,
+          ) ??
           result.items[0];
         setSelectedStationId(selected?.id ?? "");
         setForm(selected ? toForm(selected) : null);
