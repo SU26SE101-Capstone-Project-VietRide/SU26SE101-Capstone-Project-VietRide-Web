@@ -265,11 +265,12 @@ export default function ManagerPackages() {
     setIsUpgrading(true);
     setError("");
 
+    // Không gửi returnUrl nữa — Backend tự chọn mode OPERATOR_WEB và dùng
+    // VNPAY_WEB_RETURN_URL của server (handoff §2.1, §4).
     const request = {
       planId: selectedPlan.planId,
       billingPeriod,
       paymentMethod: "VNPAY" as const,
-      returnUrl: `${window.location.origin}/payments/return`,
     };
     const requestSignature = JSON.stringify(request);
     if (upgradeIntentRef.current?.signature !== requestSignature) {
@@ -290,8 +291,10 @@ export default function ManagerPackages() {
         saveSubscriptionPaymentIntent({
           paymentId: result.paymentId,
           upgradeAttemptId: result.upgradeAttemptId,
-          targetPlanId: result.pendingTargetPlan.planId,
-          targetPlanName: result.pendingTargetPlan.name,
+          // pendingTargetPlan không có trong response mẫu 202 của handoff doc —
+          // fallback về gói người dùng vừa chọn để không mất ngữ cảnh.
+          targetPlanId: result.pendingTargetPlan?.planId ?? selectedPlan.planId,
+          targetPlanName: result.pendingTargetPlan?.name ?? selectedPlan.name,
         });
         setMessage(t("packages.upgradePending"));
         window.location.assign(result.paymentRedirectUrl);

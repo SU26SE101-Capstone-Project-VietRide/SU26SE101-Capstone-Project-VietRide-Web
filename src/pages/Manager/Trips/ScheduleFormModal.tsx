@@ -10,7 +10,11 @@ import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CurrencyInput from "../../../components/CurrencyInput";
 import Modal from "../../../components/Modal";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
-import { Input, Select } from "./formControls";
+import { formatDateTime } from "../../../utils/date";
+import { formatCurrency } from "../../../utils/currency";
+import { FieldLabel, FormSection, Input, Select } from "./formControls";
+import ScheduleSummary from "./ScheduleSummary";
+import WeekdayPicker from "./WeekdayPicker";
 import type { DriverScheduleApplyTo } from "../../../api/vietride";
 import type {
   RouteOption,
@@ -60,6 +64,7 @@ export default function ScheduleFormModal({
   onSave,
 }: ScheduleFormModalProps) {
   const { t } = useTranslation("manager");
+  const selectedRoute = routes.find((route) => route.id === form.routeId);
   const baseFareChanged =
     Boolean(editingSchedule) &&
     form.baseFare !== editingSchedule?.baseFare;
@@ -86,7 +91,7 @@ export default function ScheduleFormModal({
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FiPlus />
-            {t("trips.saveDraft")}
+            {t("trips.saveDraftAction")}
           </button>
           <button
             type="button"
@@ -167,10 +172,11 @@ export default function ScheduleFormModal({
           </fieldset>
         ) : null}
 
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-5">
+          <FormSection title={t("trips.sectionRouteVehicle")}>
             <Select
               label={t("trips.route")}
+              required
               value={form.routeId}
               onChange={(value) => onFieldChange("routeId", value)}
             >
@@ -182,6 +188,8 @@ export default function ScheduleFormModal({
             </Select>
             <Select
               label={t("trips.vehicle")}
+              required
+              helper={t("trips.vehicleRequiredHint")}
               value={form.vehicleId}
               onChange={(value) => onFieldChange("vehicleId", value)}
             >
@@ -194,6 +202,7 @@ export default function ScheduleFormModal({
             </Select>
             <Select
               label={t("trips.driver")}
+              required
               value={form.driverId}
               onChange={(value) => onFieldChange("driverId", value)}
             >
@@ -215,73 +224,136 @@ export default function ScheduleFormModal({
                 </option>
               ))}
             </Select>
+          </FormSection>
+
+          <FormSection title={t("trips.sectionSchedule")}>
             <div>
-              <label className={labelClass}>{t("trips.departureTime")}</label>
+              {/* Nhãn phải nói rõ nhập CẢ ngày lẫn giờ — phần ngày trở thành
+                  validFrom (ngày bắt đầu lịch), phần giờ thành departureTime. */}
+              <FieldLabel label={t("trips.departureDateTimeLabel")} required />
               <CustomDateTimeInput
                 className={inputClass}
                 value={form.departureAt}
                 type="datetime-local"
+                placeholder={t("trips.departureDateTimePlaceholder")}
                 onChange={(event) =>
                   onFieldChange("departureAt", event.target.value)
                 }
               />
-              <p className="mt-1 text-xs text-gray-500">
-                {t("trips.departureTimeTimezoneHint")}
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-gray-500">
+                <span>{t("trips.departureTimeTimezoneHint")}</span>
+                {/* P2: nút gợi ý cũ là khối lớn phá vỡ lưới — thu về link nhỏ */}
+                <button
+                  type="button"
+                  onClick={onSuggestDeparture}
+                  className="inline-flex cursor-pointer items-center gap-1 font-semibold text-vr-700 hover:underline"
+                >
+                  <FiCalendar aria-hidden="true" />
+                  {t("trips.suggestNextDeparture")}
+                </button>
               </p>
-              <button
-                type="button"
-                onClick={onSuggestDeparture}
-                className="mt-2 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-vr-200 bg-vr-50 px-3 py-2 text-xs font-semibold text-vr-800 transition hover:bg-vr-100"
-              >
-                <FiCalendar />
-                {t("trips.suggestNextDeparture")}
-              </button>
+              {editingSchedule ? (
+                // API PATCH chỉ nhận departureTime, KHÔNG có validFrom
+                // (API-driver shedule.md §9.8) — đổi phần ngày ở đây sẽ không
+                // được lưu, phải nói rõ thay vì để user tưởng đã đổi được.
+                <p className="mt-1 text-xs font-medium text-amber-700">
+                  {t("trips.editScheduleDateLocked")}
+                </p>
+              ) : null}
             </div>
-            <Input
-              label={t("trips.arrivalEstimate")}
-              value={form.arrivalEstimate}
-              type="datetime-local"
-              onChange={(value) => onFieldChange("arrivalEstimate", value)}
-            />
-            <Select
-              label={t("trips.recurrence")}
-              value={form.recurrence}
-              onChange={(value) => onFieldChange("recurrence", value)}
-            >
-              <option value="once">{t("trips.recurrenceOnce")}</option>
-              <option value="daily">{t("trips.recurrenceDaily")}</option>
-              <option value="weekend">{t("trips.recurrenceWeekend")}</option>
-              <option value="weekly">{t("trips.recurrenceWeekly")}</option>
-            </Select>
+            {/* BE tự tính estimatedArrivalTime từ thời lượng tuyến lúc sinh
+                Trip và KHÔNG nhận field này (§9.7). Hiển thị dạng dòng thông
+                tin, KHÔNG dùng input — ô nhập (dù disabled) vẫn mời thao tác
+                và làm người dùng tưởng đặt được giờ đến. */}
             <div>
-              <label className={labelClass}>
-                {t("trips.scheduleBaseFare")}
-              </label>
-              <CurrencyInput
-                className={inputClass}
-                value={form.baseFare}
-                placeholder={t("trips.scheduleBaseFarePlaceholder")}
-                onChange={(event) =>
-                  onFieldChange("baseFare", event.target.value)
-                }
-              />
+              <FieldLabel label={t("trips.arrivalEstimate")} />
+              <p className="flex min-h-11 items-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
+                {form.arrivalEstimate
+                  ? formatDateTime(form.arrivalEstimate)
+                  : t("trips.arrivalEstimatePending")}
+              </p>
               <p className="mt-1 text-xs text-gray-500">
-                {t("trips.scheduleBaseFareHint")}
+                {t("trips.arrivalEstimateHint")}
               </p>
             </div>
+            <Select
+              label={t("trips.scheduleKind")}
+              value={form.isOneTime ? "once" : "repeat"}
+              onChange={(value) => onFieldChange("isOneTime", value === "once")}
+            >
+              <option value="repeat">{t("trips.scheduleKindRepeat")}</option>
+              <option value="once">{t("trips.scheduleKindOnce")}</option>
+            </Select>
+            {/* Lịch "một lần" chỉ chạy đúng ngày khởi hành (dayOfWeek = thứ của
+                ngày đó, validUntil = validFrom) nên không cần chọn thứ/ngày kết
+                thúc. Thứ tự field ghép cặp theo hàng để lưới 2 cột không bị
+                trống hẳn nửa phải: [loại lịch | ngày kết thúc], rồi bộ chip và
+                dòng tóm tắt trải hết chiều ngang. */}
+            {!form.isOneTime && (
+              <Input
+                label={t("trips.validUntil")}
+                value={form.validUntil}
+                type="date"
+                helper={
+                  form.validUntil
+                    ? t("trips.validUntilHint")
+                    : t("trips.validUntilEmptyHint")
+                }
+                onChange={(value) => onFieldChange("validUntil", value)}
+              />
+            )}
+            {!form.isOneTime && (
+              <div className="md:col-span-2">
+                <WeekdayPicker
+                  value={form.dayOfWeek}
+                  onChange={(days) => onFieldChange("dayOfWeek", days)}
+                />
+              </div>
+            )}
+            <div className="md:col-span-2">
+              <ScheduleSummary form={form} />
+            </div>
+          </FormSection>
+
+          {/* Giá vé chỉ có 1 field nên đứng riêng một hàng sẽ bỏ trống nửa phải
+              — ghép cùng hàng với khối quy tắc nghiệp vụ cho cân. */}
+          <div className="grid gap-5 md:grid-cols-2 md:items-start">
+            <FormSection title={t("trips.sectionFare")} columns={1}>
+              <div>
+                <label className={labelClass}>
+                  {t("trips.scheduleBaseFare")}
+                </label>
+                <CurrencyInput
+                  className={inputClass}
+                  value={form.baseFare}
+                  placeholder={t("trips.scheduleBaseFarePlaceholder")}
+                  onChange={(event) =>
+                    onFieldChange("baseFare", event.target.value)
+                  }
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {/* P2: hiện luôn giá tuyến để người dùng biết đang so với gì */}
+                  {selectedRoute?.baseFare
+                    ? t("trips.scheduleBaseFareHintWithRoute", {
+                        fare: formatCurrency(selectedRoute.baseFare),
+                      })
+                    : t("trips.scheduleBaseFareHint")}
+                </p>
+              </div>
+            </FormSection>
+            <details className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-gray-900">
+                <span className="text-vr-700"><FiAlertCircle /></span>
+                {t("trips.businessRules")}
+              </summary>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-gray-600">
+                <li>{t("trips.ruleFutureDeparture")}</li>
+                <li>{t("trips.ruleAvailability")}</li>
+                <li>{t("trips.ruleActiveRoute")}</li>
+                <li>{t("trips.ruleSubscription")}</li>
+              </ul>
+            </details>
           </div>
-          <details className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
-            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-gray-900">
-              <span className="text-vr-700"><FiAlertCircle /></span>
-              {t("trips.businessRules")}
-            </summary>
-            <ul className="mt-3 space-y-2 text-sm leading-6 text-gray-600">
-              <li>{t("trips.ruleFutureDeparture")}</li>
-              <li>{t("trips.ruleAvailability")}</li>
-              <li>{t("trips.ruleActiveRoute")}</li>
-              <li>{t("trips.ruleSubscription")}</li>
-            </ul>
-          </details>
         </div>
       </div>
     </Modal>

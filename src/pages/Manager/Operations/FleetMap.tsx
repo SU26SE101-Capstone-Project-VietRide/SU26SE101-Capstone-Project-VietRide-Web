@@ -9,13 +9,18 @@ export type FleetVehicleMapPoint = {
   driver: string;
   route: string;
   speedKmh: number | null;
-  /** "lost" = mất tín hiệu GPS (không còn trong fleet-latest, TTL 300s) */
-  status: "moving" | "idle" | "offline" | "lost";
+  /**
+   * "disrupted" = chuyến đang ở trạng thái sự cố (DISRUPTED) — ưu tiên cao nhất,
+   * đè lên trạng thái suy ra từ tốc độ. "lost" = mất tín hiệu GPS (không còn
+   * trong fleet-latest, TTL 300s).
+   */
+  status: "disrupted" | "moving" | "idle" | "offline" | "lost";
   /** null khi mất tín hiệu và không còn toạ độ cuối — xe vẫn hiện trong list, không có marker */
   position: GoogleMapCoordinate | null;
 };
 
 const statusFill: Record<FleetVehicleMapPoint["status"], string> = {
+  disrupted: "#dc2626",
   moving: "#16a34a",
   idle: "#f59e0b",
   offline: "#9ca3af",
@@ -26,7 +31,10 @@ type FleetMapProps = {
   vehicles: FleetVehicleMapPoint[];
   selectedId: string | null;
   focusCenter: GoogleMapCoordinate | null;
-  routePath?: GoogleMapCoordinate[] | null;
+  /** Đoạn tuyến xe đã đi qua — tô đậm. */
+  routeTraveledPath?: GoogleMapCoordinate[] | null;
+  /** Đoạn tuyến còn lại phía trước — tô nhạt hơn để phân biệt với đoạn đã đi. */
+  routeRemainingPath?: GoogleMapCoordinate[] | null;
   trailPath?: GoogleMapCoordinate[] | null;
   onMarkerSelect: (id: string) => void;
 };
@@ -40,7 +48,8 @@ export default function FleetMap({
   vehicles,
   selectedId,
   focusCenter,
-  routePath,
+  routeTraveledPath,
+  routeRemainingPath,
   trailPath,
   onMarkerSelect,
 }: FleetMapProps) {
@@ -70,7 +79,13 @@ export default function FleetMap({
             id: vehicle.id,
             onClick: () => onMarkerSelect(vehicle.id),
             position,
-            radiusMeters: vehicle.id === selectedId ? 360 : 240,
+            // Chuyến sự cố luôn to hơn xe thường để nổi lên giữa đội xe
+            radiusMeters:
+              vehicle.id === selectedId
+                ? 360
+                : vehicle.status === "disrupted"
+                  ? 320
+                  : 240,
             selected: vehicle.id === selectedId,
             title: vehicle.plate,
           },
@@ -87,13 +102,23 @@ export default function FleetMap({
       opacity: number;
       weight: number;
     }> = [];
-    if (routePath && routePath.length > 1) {
+    // Vẽ đoạn CHƯA đi trước để đoạn đã đi và vệt GPS nằm đè lên trên.
+    if (routeRemainingPath && routeRemainingPath.length > 1) {
       lines.push({
-        id: "selected-trip-route",
-        path: routePath,
-        color: "#0f766e",
-        opacity: 0.45,
+        id: "selected-trip-route-remaining",
+        path: routeRemainingPath,
+        color: "#94a3b8",
+        opacity: 0.55,
         weight: 4,
+      });
+    }
+    if (routeTraveledPath && routeTraveledPath.length > 1) {
+      lines.push({
+        id: "selected-trip-route-traveled",
+        path: routeTraveledPath,
+        color: "#0f766e",
+        opacity: 0.95,
+        weight: 6,
       });
     }
     if (trailPath && trailPath.length > 1) {
@@ -106,7 +131,7 @@ export default function FleetMap({
       });
     }
     return lines;
-  }, [routePath, trailPath]);
+  }, [routeRemainingPath, routeTraveledPath, trailPath]);
 
   return (
     <GoogleMapCanvas

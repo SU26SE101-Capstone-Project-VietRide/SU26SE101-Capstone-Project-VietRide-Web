@@ -20,7 +20,6 @@ export const emptyOperatorForm: CreateAdminOperatorRequest = {
   taxCode: "",
   addressStreet: "",
   addressWard: "",
-  addressDistrict: "",
   addressProvince: "",
   representativeName: "",
   representativePhone: "",
@@ -38,7 +37,6 @@ export function getOperatorAddress(operator: AdminOperator) {
   return {
     street: operator.address?.street ?? operator.addressStreet,
     ward: operator.address?.ward ?? operator.addressWard,
-    district: operator.address?.district ?? operator.addressDistrict,
     province: operator.address?.province ?? operator.addressProvince,
   };
 }

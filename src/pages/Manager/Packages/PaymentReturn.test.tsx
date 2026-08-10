@@ -3,9 +3,11 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorSubscription,
+  getVnPayReturnStatus,
   type OperatorSubscriptionDetail,
   type SubscriptionPlan,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import SubscriptionPaymentReturn from "./PaymentReturn";
 import {
   getSubscriptionPaymentIntent,
@@ -32,6 +34,7 @@ vi.mock("../../../components/LanguageSwitcher", () => ({
 
 vi.mock("../../../api/vietride", () => ({
   getOperatorSubscription: vi.fn(),
+  getVnPayReturnStatus: vi.fn(),
 }));
 
 const plan: SubscriptionPlan = {
@@ -79,6 +82,13 @@ describe("SubscriptionPaymentReturn", () => {
     vi.clearAllMocks();
     sessionStorage.clear();
     vi.mocked(getOperatorSubscription).mockResolvedValue(subscription);
+    vi.mocked(getVnPayReturnStatus).mockResolvedValue({
+      vnPayTxnRef: "VR-SUBSCRIPTION-001",
+      paymentId: "payment-1",
+      referenceType: "SUBSCRIPTION",
+      referenceId: "subscription-1",
+      status: "PENDING_REDIRECT",
+    });
   });
 
   afterEach(() => {
@@ -99,12 +109,75 @@ describe("SubscriptionPaymentReturn", () => {
     expect(
       await screen.findByText("paymentReturn.successTitle"),
     ).toBeInTheDocument();
-    expect(screen.getByText("VNP123")).toBeInTheDocument();
+    // Ưu tiên mã giao dịch Backend đã xác thực chữ ký, không phải giá trị đọc
+    // thẳng từ URL (URL có thể bị sửa tay).
+    expect(screen.getByText("VR-SUBSCRIPTION-001")).toBeInTheDocument();
     expect(screen.getByText("Enterprise")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "paymentReturn.backToPackages" }),
     ).toHaveAttribute("href", "/manager/packages");
     expect(getOperatorSubscription).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards the raw VNPay query to the backend status endpoint untouched", async () => {
+    const rawQuery =
+      "?vnp_Amount=1000000&vnp_ResponseCode=00&vnp_TxnRef=VR-1&vnp_SecureHash=abc%2Fdef%2B123";
+
+    render(
+      <MemoryRouter initialEntries={[`/payments/return${rawQuery}`]}>
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("paymentReturn.successTitle");
+    // Không parse/lọc/sắp lại param — chữ ký tính trên đúng chuỗi này
+    expect(getVnPayReturnStatus).toHaveBeenCalledWith(rawQuery);
+  });
+
+  it("shows an invalid result when the backend rejects the VNPay signature", async () => {
+    vi.mocked(getVnPayReturnStatus).mockRejectedValue(
+      new ApiRequestError("Invalid signature", 401, "PAYMENT_SIGNATURE_INVALID"),
+    );
+    saveSubscriptionPaymentIntent({
+      paymentId: "payment-1",
+      upgradeAttemptId: "attempt-1",
+      targetPlanId: "plan-enterprise",
+      targetPlanName: "Enterprise",
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=00&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText("paymentReturn.invalidTitle"),
+    ).toBeInTheDocument();
+    // Chữ ký sai thì tuyệt đối không được xác nhận qua subscription
+    expect(getOperatorSubscription).not.toHaveBeenCalled();
+    expect(getSubscriptionPaymentIntent()).toBeNull();
+  });
+
+  it("shows a not-found result when the backend cannot match the payment", async () => {
+    vi.mocked(getVnPayReturnStatus).mockRejectedValue(
+      new ApiRequestError("Payment not found", 404, "PAYMENT_NOT_FOUND"),
+    );
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=00&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText("paymentReturn.notFoundTitle"),
+    ).toBeInTheDocument();
+    expect(getOperatorSubscription).not.toHaveBeenCalled();
   });
 
   it("shows a failed result without confirming it through subscription data", async () => {

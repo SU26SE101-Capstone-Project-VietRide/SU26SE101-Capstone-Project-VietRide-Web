@@ -31,7 +31,8 @@
     "reports": "Revenue",
     "wallet": "Wallet",
     "settings": "Settings",
-    "assistant": "Knowledge assistant"
+    "assistant": "Knowledge assistant",
+    "incidents": "Trip incidents"
   },
   "admin": {
     "dashboard": "Dashboard",

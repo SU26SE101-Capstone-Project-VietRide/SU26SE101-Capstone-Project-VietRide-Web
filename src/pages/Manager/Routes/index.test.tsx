@@ -802,7 +802,6 @@ describe("Manager route setup workflow", () => {
       operatorId: "operator-1",
       stationId: platformStation.id,
       station: platformStation,
-      supportsShuttle: false,
     });
 
     renderRoutesPage();
@@ -871,7 +870,6 @@ describe("Manager route setup workflow", () => {
       operatorId: "operator-1",
       stationId: platformStation.id,
       station: platformStation,
-      supportsShuttle: false,
     });
 
     renderRoutesPage(["/manager/routes?routeId=route-1"]);
@@ -900,6 +898,16 @@ describe("Manager route setup workflow", () => {
         name: /Bến xe Miền Đông mới/,
       }),
     );
+    expect(
+      within(dialog).queryByRole("checkbox", {
+        name: "routes.supportsShuttle",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "routes.confirmShuttle",
+      }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "routes.attachStation" }),
     );
@@ -919,11 +927,11 @@ describe("Manager route setup workflow", () => {
     ).toBe(false);
   });
 
-  it("automatically selects the search location and allows an override", async () => {
-    vi.mocked(getPublicLocations).mockResolvedValue([
+  it("gợi ý sẵn tỉnh từ địa chỉ rồi bắt chọn phường/xã trước khi tạo bến", async () => {
+    const provinces = [
       {
         id: "location-kha",
-        code: "KHA",
+        code: "56",
         name: "Khanh Hoa",
         sortOrder: 1,
         type: "PROVINCE",
@@ -931,17 +939,33 @@ describe("Manager route setup workflow", () => {
       },
       {
         id: "location-ldg",
-        code: "LDG",
+        code: "68",
         name: "Lam Dong",
         sortOrder: 2,
         type: "PROVINCE",
         isActive: true,
       },
-    ]);
+    ];
+    const lamDongWards = [
+      {
+        id: "location-ward-xh",
+        code: "68001",
+        name: "Phường Xuân Hương - Đà Lạt",
+        parentCode: "68",
+        parentName: "Lam Dong",
+        sortOrder: 0,
+        type: "WARD",
+        isActive: true,
+      },
+    ];
+    // Bến chỉ nhận Location leaf: dropdown phường/xã phải là một request riêng
+    // theo parentCode, không lấy từ danh sách tỉnh đã tải sẵn.
+    vi.mocked(getPublicLocations).mockImplementation((params) =>
+      Promise.resolve(params?.parentCode === "68" ? lamDongWards : provinces),
+    );
     vi.mocked(createOperatorStation).mockResolvedValue({
       operatorId: "operator-1",
       stationId: "station-1",
-      supportsShuttle: true,
       station: {
         id: "station-1",
         name: "Bến Xe Đà Lạt",
@@ -965,14 +989,24 @@ describe("Manager route setup workflow", () => {
       await screen.findByRole("button", { name: "routes.stationName" }),
     );
 
-    const locationSelect = await screen.findByRole("button", {
-      name: "routes.searchLocation",
+    // Địa chỉ Google chứa "Lâm Đồng" nên tỉnh được chọn sẵn
+    const provinceSelect = await screen.findByRole("button", {
+      name: "routes.stationProvince",
     });
-    expect(locationSelect).not.toBeDisabled();
-    expect(locationSelect).toHaveTextContent("Lam Dong · LDG");
-    fireEvent.click(locationSelect);
-    fireEvent.click(screen.getByRole("option", { name: "Khanh Hoa · KHA" }));
-    expect(locationSelect).toHaveTextContent("Khanh Hoa · KHA");
+    await waitFor(() => expect(provinceSelect).toHaveTextContent("Lam Dong"));
+
+    const wardSelect = screen.getByRole("button", {
+      name: "routes.stationWard",
+    });
+    await waitFor(() => expect(wardSelect).not.toBeDisabled());
+    fireEvent.click(wardSelect);
+    fireEvent.change(screen.getByRole("combobox", { name: "searchOptions" }), {
+      target: { value: "xuan huong" },
+    });
+    fireEvent.click(
+      screen.getByRole("option", { name: "Phường Xuân Hương - Đà Lạt" }),
+    );
+
     fireEvent.click(
       screen.getByRole("checkbox", { name: /routes\.supportsShuttle/ }),
     );
@@ -983,11 +1017,15 @@ describe("Manager route setup workflow", () => {
     await waitFor(() =>
       expect(createOperatorStation).toHaveBeenCalledWith(
         expect.objectContaining({
-          locationId: "location-kha",
+          locationId: "location-ward-xh",
           supportsShuttle: true,
         }),
       ),
     );
+    // city/ward do BE suy ra từ hierarchy — FE không được gửi lên
+    const payload = vi.mocked(createOperatorStation).mock.calls[0][0];
+    expect(payload).not.toHaveProperty("city");
+    expect(payload).not.toHaveProperty("ward");
   });
 
   it("selects the route from the routeId deep link", async () => {

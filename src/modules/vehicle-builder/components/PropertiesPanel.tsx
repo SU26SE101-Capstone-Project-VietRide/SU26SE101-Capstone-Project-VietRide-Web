@@ -4,6 +4,7 @@ import { useVehicleStore } from "../stores/vehicleStore";
 import type { SeatType } from "../types";
 import { FiTrash2 } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
+import Checkbox from "../../../components/form/Checkbox";
 
 const SEAT_TYPES: SeatType[] = ["NORMAL", "VIP", "BED", "DRIVER"];
 
@@ -155,11 +156,10 @@ export const PropertiesPanel: React.FC = () => {
           {t("vehicleBuilder.status")}
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selectedSeat.enabled}
-            onChange={(e) =>
-              updateSeat(selectedSeat.id, { enabled: e.target.checked })
+            onChange={(checked) =>
+              updateSeat(selectedSeat.id, { enabled: checked })
             }
           />
           {t("vehicleBuilder.enableSeat")}

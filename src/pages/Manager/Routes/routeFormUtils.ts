@@ -103,24 +103,17 @@ export function toStationOption(
     operatorStationId: operatorStation.id,
     stationId: operatorStation.stationId,
     name:
-      operatorStation.displayNameOverride ||
-      station?.name ||
-      operatorStation.name ||
-      "",
+      operatorStation.displayNameOverride || station?.name || "",
     slug: station?.slug,
-    address:
-      station?.address ||
-      station?.addressStreet ||
-      operatorStation.addressStreet ||
-      "",
-    addressStreet:
-      station?.addressStreet || operatorStation.addressStreet || "",
-    city: station?.city || operatorStation.city || "",
-    ward: station?.ward ?? operatorStation.ward ?? null,
-    latitude: station?.latitude ?? operatorStation.latitude ?? 0,
-    longitude: station?.longitude ?? operatorStation.longitude ?? 0,
-    supportsShuttle:
-      station?.supportsShuttle ?? operatorStation.supportsShuttle ?? false,
+    // OperatorStationDto lồng toàn bộ thuộc tính bến trong `station`; không còn
+    // bản phẳng ở cấp ngoài để fallback.
+    address: station?.address || station?.addressStreet || "",
+    addressStreet: station?.addressStreet || "",
+    city: station?.city || "",
+    ward: station?.ward ?? null,
+    latitude: station?.latitude ?? 0,
+    longitude: station?.longitude ?? 0,
+    supportsShuttle: station?.supportsShuttle ?? false,
     isActive: station?.isActive ?? operatorStation.isActive,
     createdAt: station?.createdAt ?? operatorStation.createdAt,
     updatedAt: station?.updatedAt ?? operatorStation.updatedAt,

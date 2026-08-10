@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiMapPin } from "react-icons/fi";
 import type {
@@ -7,7 +6,9 @@ import type {
 } from "../../../api/vietride";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
+import { useNowTicker } from "../../../hooks/useNowTicker";
 import {
+  bookingPassengerLabel,
   formatDistance,
   formatTime,
   getBookingDistance,
@@ -34,7 +35,7 @@ export default function RequestDetailModal({
 }: RequestDetailModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [currentTime] = useState(() => Date.now());
+  const currentTime = useNowTicker();
   const bookings = group ? getOrderedBookingGroups(group) : [];
   const cutoffPassed = Boolean(
     group &&
@@ -51,17 +52,6 @@ export default function RequestDetailModal({
     >
       {group && (
         <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <DetailItem
-              label={t("dispatch.tripCode")}
-              value={<span className="break-all font-mono">{group.mainTripId}</span>}
-            />
-            <DetailItem
-              label={t("dispatch.type")}
-              value={directionLabel(group.direction)}
-            />
-          </div>
-
           <DetailSection
             title={t("dispatch.tripInfo")}
             columns="three"
@@ -69,6 +59,10 @@ export default function RequestDetailModal({
             <DetailItem
               label={t("dispatch.station", { defaultValue: "Bến phục vụ" })}
               value={group.stationName}
+            />
+            <DetailItem
+              label={t("dispatch.type")}
+              value={directionLabel(group.direction)}
             />
             <DetailItem
               label={t("dispatch.mainTripDeparture", {
@@ -123,8 +117,11 @@ export default function RequestDetailModal({
                       {index + 1}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="break-all font-mono text-xs text-gray-500">
-                        {booking.bookingId}
+                      <p className="truncate text-sm font-semibold text-gray-800">
+                        {bookingPassengerLabel(
+                          booking,
+                          t("dispatch.bookingOrdinal", { index: index + 1 }),
+                        )}
                       </p>
                       <p className="mt-2 flex items-start gap-1.5 text-sm font-medium text-gray-900">
                         <FiMapPin

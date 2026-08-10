@@ -22,15 +22,43 @@ export type ShuttleDriver = {
   phone: string;
 };
 
-export type TrackedShuttleTrip = {
-  shuttleTripId: string;
-  mainTripId: string;
-  createdAt: string;
+/**
+ * Vị trí / ETA của một chuyến trung chuyển, tải theo yêu cầu (không tự poll).
+ * Tách khỏi bản ghi chuyến vì danh sách chuyến đến từ server còn phần tracking
+ * này là trạng thái cục bộ của từng thẻ.
+ */
+export type ShuttleTripTracking = {
   isRefreshing: boolean;
   error?: string;
   latest?: ShuttleTrackingLatest | null;
   eta?: ShuttleTrackingEta | null;
 };
+
+export const SHUTTLE_TRIP_ACTIVE_STATUSES = "SCHEDULED,IN_PROGRESS";
+
+// Nhãn người đọc được cho một chuyến trung chuyển. BE chưa cấp mã chuyến dạng
+// chữ nên biển số xe là định danh tự nhiên nhất với điều độ viên.
+export function shuttleTripLabel(
+  trip: { vehicle: { licensePlate: string } },
+  fallback: string,
+) {
+  return trip.vehicle.licensePlate.trim() || fallback;
+}
+
+// Tên hành khách để hiển thị thay cho bookingId. BE trả `passengers` kèm mỗi
+// lượt đặt; payload cũ không có thì lùi về nhãn thứ tự.
+export function bookingPassengerLabel(
+  booking: ShuttleBookingGroup,
+  fallback: string,
+) {
+  const names = (booking.passengers ?? [])
+    .map((passenger) => passenger.displayName?.trim())
+    .filter((name): name is string => Boolean(name));
+
+  if (names.length === 0) return fallback;
+  if (names.length <= 2) return names.join(", ");
+  return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
+}
 
 export function formatTime(value?: string) {
   if (!value) {

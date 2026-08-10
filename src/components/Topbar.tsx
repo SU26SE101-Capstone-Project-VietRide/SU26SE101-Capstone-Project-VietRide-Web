@@ -12,12 +12,8 @@ import {
 } from "react-icons/fi";
 import LanguageSwitcher from "./LanguageSwitcher";
 import OperatorAnnouncementModal from "./OperatorAnnouncementModal";
-import {
-  getAuthSession,
-  getAuthUser,
-  logout,
-  refreshAuthSession,
-} from "../auth";
+import { getAuthSession, getAuthUser, logout } from "../auth";
+import { attachSocketAuthRecovery } from "../lib/socketAuthRecovery";
 import {
   getNotifications,
   markNotificationRead,
@@ -108,7 +104,6 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
 
   useEffect(() => {
     let cancelled = false;
-    let socketAuthRecoveryAttempted = false;
 
     const refreshSilently = () => {
       if (!cancelled && document.visibilityState === "visible") {
@@ -141,33 +136,19 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
         })
       : null;
 
-    notificationSocket?.on("notification:created", refreshSilently);
-    notificationSocket?.on("connect", () => {
-      socketAuthRecoveryAttempted = false;
-      refreshSilently();
-    });
-    notificationSocket?.on("connect_error", (error: Error) => {
-      if (
-        cancelled ||
-        error.message !== "UNAUTHORIZED" ||
-        socketAuthRecoveryAttempted
-      ) {
-        return;
-      }
+    const disposeAuthRecovery = notificationSocket
+      ? attachSocketAuthRecovery(notificationSocket)
+      : null;
 
-      socketAuthRecoveryAttempted = true;
-      void refreshAuthSession().then((session) => {
-        if (cancelled || !session?.accessToken) return;
-        notificationSocket.auth = { token: session.accessToken };
-        notificationSocket.connect();
-      });
-    });
+    notificationSocket?.on("notification:created", refreshSilently);
+    notificationSocket?.on("connect", refreshSilently);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshSilently);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      disposeAuthRecovery?.();
       notificationSocket?.disconnect();
     };
   }, [loadNotifications]);

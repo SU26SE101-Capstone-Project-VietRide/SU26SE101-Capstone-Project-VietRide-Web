@@ -2,6 +2,7 @@
 import { useTranslation } from "react-i18next";
 import { FiPlus, FiX } from "react-icons/fi";
 import { facilityOptions, inputClass } from "./stationHelpers";
+import Checkbox from "../../../components/form/Checkbox";
 
 type StationFacilityFieldsProps = {
   facilities: string[];
@@ -36,13 +37,11 @@ export default function StationFacilityFields({
             key={facility}
             className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700"
           >
-            <input
-              type="checkbox"
+            <Checkbox
               checked={facilities.some(
                 (item) => item.toLowerCase() === facility.toLowerCase(),
               )}
               onChange={() => onToggleFacility(facility)}
-              className="h-4 w-4 accent-vr-500"
             />
             {t(`stations.facilityOptions.${facility}`)}
           </label>

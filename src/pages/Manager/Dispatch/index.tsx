@@ -7,16 +7,18 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { FiClock, FiRefreshCw, FiUsers } from "react-icons/fi";
+import { FiClock, FiRefreshCw, FiTruck, FiUsers } from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
 import { createIdempotencyKey } from "../../../api/idempotency";
 import {
   createOperatorShuttleTrip,
   getOperatorShuttleRequests,
+  getOperatorShuttleTrips,
   getOperatorUsers,
   getOperatorVehicles,
   getShuttleTripEta,
   getShuttleTripLatest,
+  type OperatorShuttleTripListItem,
   type OperatorUser,
   type OperatorVehicle,
   type PagedResult,
@@ -27,11 +29,6 @@ import { getAuthUser } from "../../../auth";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
-import {
-  addRecentShuttleTrip,
-  getRecentShuttleTrips,
-  removeRecentShuttleTrip,
-} from "../../../utils/shuttleTrackingHistory";
 import AssignVehicleModal, {
   type AssignVehicleForm,
 } from "./AssignVehicleModal";
@@ -45,15 +42,17 @@ import {
   getOrderedSelectedBookingIds,
   getSelectedPassengerCount,
   isInboundDirection,
+  SHUTTLE_TRIP_ACTIVE_STATUSES,
   toDriverOption,
   toVehicleOption,
   type ShuttleDriver,
+  type ShuttleTripTracking,
   type ShuttleVehicle,
-  type TrackedShuttleTrip,
 } from "./dispatchHelpers";
 
 const REQUEST_PAGE_SIZE = 8;
 const RESOURCE_PAGE_SIZE = 50;
+const SHUTTLE_TRIP_PAGE_SIZE = 12;
 
 const EMPTY_ASSIGN_FORM: AssignVehicleForm = {
   vehicleId: "",
@@ -118,18 +117,25 @@ export default function DispatchPanel() {
     useState<AssignVehicleForm>(EMPTY_ASSIGN_FORM);
   const [assignError, setAssignError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  useToastFeedback({ message, error: loadError || resourceError || assignError });
+  // resourceError/assignError hiển thị ngay trong modal phân công; toast chỉ
+  // dùng cho lỗi ở tầng trang để không báo trùng hai chỗ.
+  useToastFeedback({ message, error: loadError });
   const isSubmittingRef = useRef(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
-  const [trackedShuttleTrips, setTrackedShuttleTrips] = useState<
-    TrackedShuttleTrip[]
-  >(() =>
-    getRecentShuttleTrips().map((item) => ({
-      ...item,
-      isRefreshing: false,
-    })),
+  // Danh sách chuyến trung chuyển lấy thẳng từ BE (GET /v1/operator/shuttle-trips).
+  // Trước đây màn chỉ nhớ các chuyến do chính trình duyệt này tạo qua localStorage,
+  // nên đổi máy/đổi trình duyệt là mất sạch và điều độ viên khác không thấy gì.
+  const [shuttleTrips, setShuttleTrips] = useState<OperatorShuttleTripListItem[]>(
+    [],
   );
+  const [isLoadingShuttleTrips, setIsLoadingShuttleTrips] = useState(true);
+  const [shuttleTripsError, setShuttleTripsError] = useState("");
+  const [shuttleTripsVersion, setShuttleTripsVersion] = useState(0);
+  // Vị trí/ETA theo yêu cầu của từng chuyến, khoá theo shuttleTripId
+  const [trackingByTripId, setTrackingByTripId] = useState<
+    Record<string, ShuttleTripTracking>
+  >({});
 
   const directionLabel = useCallback(
     (direction: ShuttleDirection) =>
@@ -270,74 +276,87 @@ export default function DispatchPanel() {
 
   const refreshShuttleTracking = useCallback(
     async (shuttleTripId: string) => {
-      setTrackedShuttleTrips((current) =>
-        current.map((item) =>
-          item.shuttleTripId === shuttleTripId
-            ? { ...item, isRefreshing: true, error: undefined }
-            : item,
-        ),
-      );
+      setTrackingByTripId((current) => ({
+        ...current,
+        [shuttleTripId]: {
+          ...current[shuttleTripId],
+          isRefreshing: true,
+          error: undefined,
+        },
+      }));
 
       try {
         const [latest, eta] = await Promise.all([
           getShuttleTripLatest(shuttleTripId),
           getShuttleTripEta(shuttleTripId),
         ]);
-        setTrackedShuttleTrips((current) =>
-          current.map((item) =>
-            item.shuttleTripId === shuttleTripId
-              ? { ...item, latest, eta, isRefreshing: false }
-              : item,
-          ),
-        );
+        setTrackingByTripId((current) => ({
+          ...current,
+          [shuttleTripId]: { latest, eta, isRefreshing: false },
+        }));
       } catch (error) {
-        setTrackedShuttleTrips((current) =>
-          current.map((item) =>
-            item.shuttleTripId === shuttleTripId
-              ? {
-                  ...item,
-                  isRefreshing: false,
-                  error:
-                    error instanceof ApiRequestError &&
-                    error.code === "TRACKING_ACCESS_DENIED"
-                      ? t("dispatch.operatorTrackingDenied")
-                      : error instanceof Error
-                        ? error.message
-                        : t("dispatch.trackingFailed"),
-                }
-              : item,
-          ),
-        );
+        setTrackingByTripId((current) => ({
+          ...current,
+          [shuttleTripId]: {
+            ...current[shuttleTripId],
+            isRefreshing: false,
+            error:
+              error instanceof ApiRequestError &&
+              error.code === "TRACKING_ACCESS_DENIED"
+                ? t("dispatch.operatorTrackingDenied")
+                : error instanceof Error
+                  ? error.message
+                  : t("dispatch.trackingFailed"),
+          },
+        }));
       }
     },
     [t],
   );
 
+  useEffect(() => {
+    let ignore = false;
 
+    async function loadShuttleTrips() {
+      setIsLoadingShuttleTrips(true);
+      setShuttleTripsError("");
+
+      try {
+        const result = await getOperatorShuttleTrips({
+          page: 1,
+          pageSize: SHUTTLE_TRIP_PAGE_SIZE,
+          status: SHUTTLE_TRIP_ACTIVE_STATUSES,
+        });
+        if (!ignore) setShuttleTrips(result.items);
+      } catch (error) {
+        if (!ignore) {
+          setShuttleTripsError(
+            error instanceof Error
+              ? error.message
+              : tRef.current("dispatch.shuttleTripsLoadFailed"),
+          );
+        }
+      } finally {
+        if (!ignore) setIsLoadingShuttleTrips(false);
+      }
+    }
+
+    void loadShuttleTrips();
+    return () => {
+      ignore = true;
+    };
+  }, [shuttleTripsVersion]);
+
+  // Deep-link ?shuttleTripId= — tải sẵn vị trí cho đúng chuyến đó nếu nó nằm
+  // trong danh sách đang hiển thị.
   useEffect(() => {
     const shuttleTripId = linkedShuttleTripId?.trim();
     if (!shuttleTripId) return;
-
-    setTrackedShuttleTrips((current) => {
-      if (current.some((item) => item.shuttleTripId === shuttleTripId)) return current;
-      return [
-        {
-          shuttleTripId,
-          mainTripId: "-",
-          createdAt: new Date().toISOString(),
-          isRefreshing: false,
-        },
-        ...current,
-      ];
-    });
+    if (!shuttleTrips.some((trip) => trip.shuttleTripId === shuttleTripId)) {
+      return;
+    }
     void refreshShuttleTracking(shuttleTripId);
-  }, [linkedShuttleTripId, refreshShuttleTracking]);
-  const removeShuttleTracking = useCallback((shuttleTripId: string) => {
-    removeRecentShuttleTrip(shuttleTripId);
-    setTrackedShuttleTrips((current) =>
-      current.filter((item) => item.shuttleTripId !== shuttleTripId),
-    );
-  }, []);
+  }, [linkedShuttleTripId, refreshShuttleTracking, shuttleTrips]);
 
   function openDetail(group: ShuttleRequestGroup) {
     setSelectedGroup(group);
@@ -551,6 +570,10 @@ export default function DispatchPanel() {
       selectedGroup,
       assignForm.selectedBookingIds,
     );
+    // Giữ lại biển số để báo thành công bằng thông tin người đọc được
+    const selectedVehicle = vehicles.find(
+      (vehicle) => vehicle.id === assignForm.vehicleId,
+    );
     const idempotencyKey =
       idempotencyKeyRef.current ?? createIdempotencyKey();
     idempotencyKeyRef.current = idempotencyKey;
@@ -577,25 +600,11 @@ export default function DispatchPanel() {
         idempotencyKey,
       );
 
-      const createdAt = new Date().toISOString();
-      const trackingEntry: TrackedShuttleTrip = {
-        shuttleTripId: result.shuttleTripId,
-        mainTripId: result.mainTripId,
-        createdAt,
-        isRefreshing: false,
-      };
-      addRecentShuttleTrip(trackingEntry);
-      setTrackedShuttleTrips((current) => [
-        trackingEntry,
-        ...current.filter(
-          (item) => item.shuttleTripId !== result.shuttleTripId,
-        ),
-      ]);
+      // Danh sách chuyến do server giữ — tải lại thay vì tự chèn vào state.
+      setShuttleTripsVersion((current) => current + 1);
       setMessage(
         t("dispatch.assignSuccessDetail", {
-          defaultValue:
-            "Đã tạo chuyến trung chuyển {{tripId}} cho {{count}} khách.",
-          tripId: result.shuttleTripId,
+          plate: selectedVehicle?.plate ?? "",
           count: result.assignedPassengerCount,
         }),
       );
@@ -717,31 +726,65 @@ export default function DispatchPanel() {
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("dispatch.shuttleTracking")}
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          {t("dispatch.shuttleTrackingBrowserHint", {
-            defaultValue:
-              "Các chuyến trung chuyển gần đây được lưu trên trình duyệt này. Chỉ tải vị trí khi bạn yêu cầu.",
-          })}
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t("dispatch.shuttleTracking")}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {t("dispatch.shuttleTrackingHint")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShuttleTripsVersion((current) => current + 1)}
+            disabled={isLoadingShuttleTrips}
+            className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FiRefreshCw
+              size={15}
+              className={isLoadingShuttleTrips ? "animate-spin" : ""}
+              aria-hidden="true"
+            />
+            {tc("refresh")}
+          </button>
+        </div>
+
+        {shuttleTripsError && (
+          <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {shuttleTripsError}
+          </p>
+        )}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {trackedShuttleTrips.map((item) => (
+          {shuttleTrips.map((trip) => (
             <ShuttleTrackingCard
-              key={item.shuttleTripId}
-              item={item}
+              key={trip.shuttleTripId}
+              trip={trip}
+              tracking={trackingByTripId[trip.shuttleTripId]}
               onRefresh={(shuttleTripId) =>
                 void refreshShuttleTracking(shuttleTripId)
               }
-              onRemove={removeShuttleTracking}
+              directionLabel={directionLabel}
             />
           ))}
-          {trackedShuttleTrips.length === 0 && (
-            <p className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-sm text-gray-500 sm:col-span-2 xl:col-span-3">
-              {t("dispatch.shuttleTrackingEmpty")}
-            </p>
+          {shuttleTrips.length === 0 && !shuttleTripsError && (
+            <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center sm:col-span-2 xl:col-span-3">
+              {isLoadingShuttleTrips ? (
+                <p className="text-sm text-gray-500">{t("dispatch.loading")}</p>
+              ) : (
+                <>
+                  <FiTruck
+                    className="mx-auto text-gray-300"
+                    size={28}
+                    aria-hidden="true"
+                  />
+                  <p className="mt-2 text-sm font-medium text-gray-700">
+                    {t("dispatch.shuttleTrackingEmpty")}
+                  </p>
+                </>
+              )}
+            </div>
           )}
         </div>
       </section>

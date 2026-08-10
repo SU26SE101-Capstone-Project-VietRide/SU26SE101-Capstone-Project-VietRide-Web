@@ -5,6 +5,7 @@ import { FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useToastFeedback } from "../hooks/useToastFeedback";
 import { getAuthUser, getHomePathForRole, login } from "../auth";
+import Checkbox from "../components/form/Checkbox";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -152,15 +153,11 @@ export default function Login() {
                   )}
                 </div>
 
-                <label className="flex cursor-pointer items-center gap-2.5 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
-                  />
-                  {t("rememberMe")}
-                </label>
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={setRememberMe}
+                  label={t("rememberMe")}
+                />
 
                 <button
                   type="submit"

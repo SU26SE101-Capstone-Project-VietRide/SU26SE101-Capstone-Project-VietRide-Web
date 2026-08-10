@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { AdminVoucher } from "../../../api/vietride";
 import { labelClass } from "../../../components/form/formClasses";
+import Checkbox from "../../../components/form/Checkbox";
 
 type CampaignVoucherSelectorProps = {
   vouchers: AdminVoucher[];
@@ -48,11 +49,10 @@ export default function CampaignVoucherSelector({
                       : "text-gray-700 hover:bg-gray-50"
                   }`}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    className="mt-0.5"
                     checked={checked}
                     onChange={() => toggleVoucher(voucher.id)}
-                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">

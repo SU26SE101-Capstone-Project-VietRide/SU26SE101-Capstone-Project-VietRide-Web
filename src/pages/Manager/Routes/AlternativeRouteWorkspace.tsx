@@ -14,7 +14,7 @@ import RouteFloatingPanel from "./RouteFloatingPanel";
 import GeometryToolbar from "./GeometryToolbar";
 import AlternativeRoutesSection from "./AlternativeRoutesSection";
 import type { RouteCoordinate } from "./polyline";
-import type { StationOption } from "./types";
+import type { StationOption, StopSuggestion } from "./types";
 import type { UseAlternativeRouteWorkspaceResult } from "./useAlternativeRouteWorkspace";
 
 type AlternativeRouteWorkspaceProps = {
@@ -25,6 +25,12 @@ type AlternativeRouteWorkspaceProps = {
   workspace: UseAlternativeRouteWorkspaceResult;
   // Polyline tuyến CHÍNH đang lưu/soạn — vẽ mờ làm nền tham chiếu (mục 1 phụ lục)
   referencePath: RouteCoordinate[];
+  // Điểm mới từ Google phải xác nhận phường/xã trước khi tạo Stop — modal do
+  // trang Routes sở hữu vì cả tuyến chính lẫn tuyến thay thế đều dùng chung.
+  onRequestWardConfirm: (
+    suggestion: StopSuggestion,
+    add: (locationId: string) => void,
+  ) => void;
 };
 
 export default function AlternativeRouteWorkspace({
@@ -34,6 +40,7 @@ export default function AlternativeRouteWorkspace({
   stops,
   workspace,
   referencePath,
+  onRequestWardConfirm,
 }: AlternativeRouteWorkspaceProps) {
   const { t } = useTranslation("manager");
   const { altGeometry } = workspace;
@@ -142,9 +149,18 @@ export default function AlternativeRouteWorkspace({
             isRerouting={altGeometry.isRerouting}
             emptyText={t("routes.mapNoPoints")}
             suggestions={canManageRoutes ? workspace.altSuggestions : undefined}
-            onAddSuggestion={(suggestion) =>
-              void workspace.addAltStopFromSuggestion(suggestion)
-            }
+            onAddSuggestion={(suggestion) => {
+              if (suggestion.kind === "googlePlace") {
+                onRequestWardConfirm(suggestion, (locationId) => {
+                  void workspace.addAltStopFromSuggestion(
+                    suggestion,
+                    locationId,
+                  );
+                });
+                return;
+              }
+              void workspace.addAltStopFromSuggestion(suggestion);
+            }}
             isAddingSuggestion={workspace.isAddingAltSuggestion}
             externalActiveSuggestion={workspace.pickedAltSuggestion}
             activeColor="#f59e0b"

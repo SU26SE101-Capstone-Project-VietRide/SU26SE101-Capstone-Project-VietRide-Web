@@ -36,6 +36,28 @@ export function MetricCard({
   );
 }
 
+// Nhóm field trong form dài — 10 ô phẳng không có phân cấp khiến người dùng
+// khó thấy đâu là phần cấu hình lịch chạy (phần khó hiểu nhất).
+export function FormSection({
+  title,
+  columns = 2,
+  children,
+}: {
+  title: string;
+  // 1 khi section tự nó đã nằm trong một cột hẹp (tránh chia nhỏ field thêm lần nữa)
+  columns?: 1 | 2;
+  children: ReactNode;
+}) {
+  return (
+    <fieldset className="rounded-xl border border-gray-200 p-4">
+      <legend className="px-1 text-sm font-bold text-gray-900">{title}</legend>
+      <div className={`grid gap-4 ${columns === 2 ? "md:grid-cols-2" : ""}`}>
+        {children}
+      </div>
+    </fieldset>
+  );
+}
+
 type SectionHeaderProps = {
   icon: ReactNode;
   title: string;
@@ -74,12 +96,44 @@ export function Panel({ title, icon, children }: PanelProps) {
   );
 }
 
+// Nhãn field dùng chung — dấu * chỉ là chỉ dấu thị giác, aria-hidden để screen
+// reader đọc theo thuộc tính required của control chứ không đọc "sao".
+export function FieldLabel({
+  label,
+  required = false,
+  inline = false,
+}: {
+  label: string;
+  required?: boolean;
+  // inline: bỏ block/margin mặc định khi nhãn nằm chung hàng với control khác
+  inline?: boolean;
+}) {
+  return (
+    <label
+      className={
+        inline ? "text-xs font-medium text-gray-600" : labelClass
+      }
+    >
+      {label}
+      {required ? (
+        <span aria-hidden="true" className="ml-0.5 text-red-600">
+          *
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
 type InputProps = {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   currency?: boolean;
+  disabled?: boolean;
+  required?: boolean;
+  placeholder?: string;
+  helper?: string;
 };
 
 export function Input({
@@ -88,6 +142,10 @@ export function Input({
   onChange,
   type = "text",
   currency = false,
+  disabled = false,
+  required = false,
+  placeholder,
+  helper,
 }: InputProps) {
   const isCustomDateTime =
     type === "date" ||
@@ -98,12 +156,14 @@ export function Input({
 
   return (
     <div>
-      <label className={labelClass}>{label}</label>
+      <FieldLabel label={label} required={required} />
       {isCustomDateTime ? (
         <CustomDateTimeInput
           className={inputClass}
           value={value}
           type={type}
+          disabled={disabled}
+          placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
         />
       ) : currency ? (
@@ -117,9 +177,11 @@ export function Input({
           className={inputClass}
           value={value}
           type={type}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
+      {helper ? <p className="mt-1 text-xs text-gray-500">{helper}</p> : null}
     </div>
   );
 }
@@ -128,13 +190,22 @@ type SelectProps = {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  required?: boolean;
+  helper?: string;
   children: ReactNode;
 };
 
-export function Select({ label, value, onChange, children }: SelectProps) {
+export function Select({
+  label,
+  value,
+  onChange,
+  required = false,
+  helper,
+  children,
+}: SelectProps) {
   return (
     <div>
-      <label className={labelClass}>{label}</label>
+      <FieldLabel label={label} required={required} />
       <CustomSelect
         className={inputClass}
         allowWrap
@@ -143,6 +214,7 @@ export function Select({ label, value, onChange, children }: SelectProps) {
       >
         {children}
       </CustomSelect>
+      {helper ? <p className="mt-1 text-xs text-gray-500">{helper}</p> : null}
     </div>
   );
 }

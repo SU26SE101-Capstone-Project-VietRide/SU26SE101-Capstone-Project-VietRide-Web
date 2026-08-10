@@ -1,4 +1,4 @@
-import { FiExternalLink, FiRefreshCw, FiX } from "react-icons/fi";
+import { FiClock, FiExternalLink, FiMap, FiRefreshCw, FiX } from "react-icons/fi";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import type {
@@ -9,7 +9,7 @@ import type {
 } from "../../../api/vietride";
 import type { TripStatusChangedEvent } from "../../../lib/trackingSocket";
 import { EtaTimeline } from "./EtaTimeline";
-import type { RealtimeStatus } from "./gpsHelpers";
+import type { RealtimeStatus, RouteGeometryStatus } from "./gpsHelpers";
 
 type TripTrackingPanelProps = {
   tripId: string;
@@ -18,6 +18,8 @@ type TripTrackingPanelProps = {
   /** Id tuyến của chuyến đang chọn — có thì hiện link "Xem tuyến" sang màn Routes */
   routeId?: string | null;
   realtimeStatus: RealtimeStatus;
+  /** Kết quả tải lộ trình tuyến — quyết định dòng chú thích dưới bản đồ */
+  routeGeometryStatus: RouteGeometryStatus;
   delayInfo: TripStatusChangedEvent | null;
   isApiLoading: boolean;
   apiMessage: string;
@@ -37,6 +39,7 @@ export default function TripTrackingPanel({
   tripLabel,
   routeId = null,
   realtimeStatus,
+  routeGeometryStatus,
   delayInfo,
   isApiLoading,
   apiMessage,
@@ -108,14 +111,38 @@ export default function TripTrackingPanel({
         )}
       </div>
       {delayInfo && (
-        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {t("gps.delayedBanner", {
-            minutes: delayInfo.delayMinutes,
-            time: new Date(delayInfo.updatedAt).toLocaleTimeString("vi-VN", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          })}
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          <FiClock size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <span>
+            {t("gps.delayedBanner", {
+              minutes: delayInfo.delayMinutes,
+              time: new Date(delayInfo.updatedAt).toLocaleTimeString("vi-VN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            })}
+          </span>
+        </div>
+      )}
+
+      {/* Lộ trình vẽ trên bản đồ: nói rõ đang tải, không có dữ liệu hay lỗi —
+          trước đây cả ba trường hợp đều chỉ là một bản đồ trống không giải thích. */}
+      {routeGeometryStatus !== "ready" && routeGeometryStatus !== "idle" && (
+        <div
+          className={`mb-3 flex items-start gap-2 rounded-lg border px-4 py-2.5 text-xs ${
+            routeGeometryStatus === "error"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-gray-200 bg-gray-50 text-gray-600"
+          }`}
+        >
+          <FiMap size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <span>
+            {routeGeometryStatus === "loading"
+              ? t("operations.routeGeometryLoading")
+              : routeGeometryStatus === "empty"
+                ? t("operations.routeGeometryEmpty")
+                : t("operations.routeGeometryError")}
+          </span>
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">

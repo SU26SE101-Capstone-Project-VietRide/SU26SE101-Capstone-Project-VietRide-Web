@@ -27,6 +27,7 @@ const socketIoMock = vi.hoisted(() => {
     on: vi.fn((event: string, handler: SocketHandler) => {
       handlers.set(event, handler);
     }),
+    off: vi.fn(),
   };
 
   return {

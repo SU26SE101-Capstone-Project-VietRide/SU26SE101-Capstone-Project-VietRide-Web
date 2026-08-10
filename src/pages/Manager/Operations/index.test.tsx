@@ -11,7 +11,9 @@ import {
   getPublicTrip,
   getTrackingTripEta,
   getTrackingTripEtas,
+  getTrackingTripLatest,
   getTrackingTripRouteGeometry,
+  getTrackingTripTrail,
   type OperatorTripListItem,
 } from "../../../api/vietride";
 import OperationsPage from "./index";
@@ -33,16 +35,19 @@ const trackingSocketHandlers = vi.hoisted(
   () => new Map<string, TrackingSocketHandler>(),
 );
 
-// Socket realtime không chạy trong jsdom — mock để effect join không mở kết nối thật
+// Socket realtime không chạy trong jsdom — mock để effect join không mở kết nối
+// thật. `connected: true` cho phép hook phát lệnh join như khi đã kết nối.
 vi.mock("../../../lib/trackingSocket", () => ({
   createTrackingSocket: vi.fn(() => ({
+    connected: true,
     on: vi.fn((eventName: string, handler: TrackingSocketHandler) => {
       trackingSocketHandlers.set(eventName, handler);
     }),
+    off: vi.fn(),
     disconnect: vi.fn(),
   })),
   joinOperatorFleet: vi.fn(() => Promise.resolve({ success: true })),
-  joinTripTracking: vi.fn(),
+  joinTripTracking: vi.fn(() => Promise.resolve({ success: true })),
 }));
 
 vi.mock("../../../api/vietride", () => ({
@@ -64,6 +69,7 @@ vi.mock("../../../api/vietride", () => ({
 
 vi.mock("../../../auth", () => ({
   getAuthUser: () => ({ role: "OPERATOR_ADMIN" }),
+  refreshAuthSession: vi.fn().mockResolvedValue(null),
 }));
 
 const tripItem: OperatorTripListItem = {
@@ -83,6 +89,18 @@ const tripItem: OperatorTripListItem = {
   canSubstituteVehicle: false,
 };
 
+function pagedTrips(items: OperatorTripListItem[]) {
+  return {
+    items,
+    totalItems: items.length,
+    page: 1,
+    pageSize: 100,
+    totalPages: 1,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  };
+}
+
 function renderPage(initialEntry = "/manager/operations") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -96,29 +114,30 @@ describe("Manager Operations Center", () => {
     vi.clearAllMocks();
     trackingSocketHandlers.clear();
 
-    vi.mocked(getOperatorTrips).mockResolvedValue({
-      items: [tripItem],
-      totalItems: 1,
-      page: 1,
-      pageSize: 100,
-      totalPages: 1,
-      hasPreviousPage: false,
-      hasNextPage: false,
-    });
-    vi.mocked(getOperatorFleetLatest).mockResolvedValue({
-      items: [
-        {
-          tripId: "trip-1",
-          latitude: 10.77,
-          longitude: 106.7,
-          speedKmh: 42,
-          headingDeg: 128,
-          recordedAt: "2026-08-05T08:30:00Z",
-          status: "IN_PROGRESS",
-        },
-      ],
-      generatedAt: "2026-08-05T08:30:02Z",
-    });
+    // Màn gọi mỗi endpoint hai lượt (IN_PROGRESS + DISRUPTED); mock phải phân
+    // biệt theo status, nếu trả cùng một danh sách cho cả hai thì mọi xe bị nhân đôi.
+    vi.mocked(getOperatorTrips).mockImplementation((params) =>
+      Promise.resolve(pagedTrips(params?.status === "DISRUPTED" ? [] : [tripItem])),
+    );
+    vi.mocked(getOperatorFleetLatest).mockImplementation((params) =>
+      Promise.resolve({
+        items:
+          params?.status === "DISRUPTED"
+            ? []
+            : [
+                {
+                  tripId: "trip-1",
+                  latitude: 10.77,
+                  longitude: 106.7,
+                  speedKmh: 42,
+                  headingDeg: 128,
+                  recordedAt: "2026-08-05T08:30:00Z",
+                  status: "IN_PROGRESS" as const,
+                },
+              ],
+        generatedAt: "2026-08-05T08:30:02Z",
+      }),
+    );
     vi.mocked(getTrackingTripEta).mockResolvedValue({ eta: null });
     vi.mocked(getTrackingTripEtas).mockResolvedValue({ etas: [] });
     vi.mocked(getPublicTrip).mockRejectedValue(new Error("not available"));
@@ -233,6 +252,51 @@ describe("Manager Operations Center", () => {
     expect(screen.getAllByText("gps.gpsSignalLost").length).toBeGreaterThan(0);
   });
 
+  it("chuyến DISRUPTED vẫn lên bản đồ và báo sự cố trên thanh trạng thái", async () => {
+    const disruptedTrip: OperatorTripListItem = {
+      ...tripItem,
+      tripId: "trip-9",
+      status: "DISRUPTED",
+      vehicle: {
+        vehicleId: "vehicle-9",
+        licensePlate: "51D-111.11",
+        status: "IN_USE",
+      },
+    };
+    vi.mocked(getOperatorTrips).mockImplementation((params) =>
+      Promise.resolve(
+        pagedTrips(params?.status === "DISRUPTED" ? [disruptedTrip] : [tripItem]),
+      ),
+    );
+    vi.mocked(getOperatorFleetLatest).mockImplementation((params) =>
+      Promise.resolve({
+        items: [
+          {
+            tripId: params?.status === "DISRUPTED" ? "trip-9" : "trip-1",
+            latitude: 10.77,
+            longitude: 106.7,
+            speedKmh: 30,
+            headingDeg: 128,
+            recordedAt: "2026-08-05T08:30:00Z",
+            status:
+              params?.status === "DISRUPTED"
+                ? ("DISRUPTED" as const)
+                : ("IN_PROGRESS" as const),
+          },
+        ],
+        generatedAt: "2026-08-05T08:30:02Z",
+      }),
+    );
+
+    renderPage();
+
+    // Trước đây màn chỉ hỏi IN_PROGRESS nên chuyến sự cố biến mất khỏi bản đồ
+    expect(await screen.findByText("51D-111.11")).toBeInTheDocument();
+    // Đang chạy 30 km/h nhưng phải hiện là sự cố, không phải "đang chạy"
+    expect(screen.getAllByText("gps.disruptedStatus").length).toBeGreaterThan(0);
+    expect(screen.getByText("operations.disruptedChip 1")).toBeInTheDocument();
+  });
+
   it("chọn chuyến thì gọi ETA và hiển thị stopName + trạng thái trễ", async () => {
     const user = userEvent.setup();
     vi.mocked(getTrackingTripEta).mockResolvedValue({
@@ -260,6 +324,41 @@ describe("Manager Operations Center", () => {
       expect(getTrackingTripEta).toHaveBeenCalledWith("trip-1"),
     );
   });
+  it("chọn chuyến thì tự tải tracking, không cần bấm nút Tải tracking", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getTrackingTripLatest).mockResolvedValue({
+      latest: {
+        tripId: "trip-1",
+        latitude: 10.77,
+        longitude: 106.7,
+        speedKmh: 40,
+        recordedAt: "2026-08-05T08:30:00Z",
+      },
+    });
+    vi.mocked(getTrackingTripTrail).mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 100,
+      totalItems: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    renderPage();
+    await user.click(await screen.findByText("51A-123.45"));
+
+    // Trước đây vệt hành trình chỉ nạp sau khi bấm tay "Tải tracking"
+    await waitFor(() =>
+      expect(getTrackingTripLatest).toHaveBeenCalledWith("trip-1"),
+    );
+    // Trail phải lấy tối đa 100 điểm, không phải 20 như trước
+    expect(getTrackingTripTrail).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ pageSize: 100 }),
+    );
+  });
+
   it("eta:batch:update thay thế toàn bộ danh sách target realtime cũ", async () => {
     const user = userEvent.setup();
     renderPage();

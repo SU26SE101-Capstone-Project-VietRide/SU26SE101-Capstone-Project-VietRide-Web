@@ -9,13 +9,59 @@ import { isRecord } from "../../../utils/typeGuards";
 
 export type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
 
+/**
+ * Kết quả tải lộ trình tuyến của chuyến đang mở. Trước đây chỉ có geometry hoặc
+ * null nên khi BE không trả về lộ trình, bản đồ lặng lẽ không vẽ gì và người
+ * dùng không phân biệt được "chưa tải xong" với "tuyến này không có dữ liệu".
+ */
+export type RouteGeometryStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "empty"
+  | "error";
+
+export type FleetStatus = FleetVehicleMapPoint["status"];
+
+/** Trạng thái chuyến (BE) báo hiệu sự cố đang diễn ra */
+export const DISRUPTED_TRIP_STATUS = "DISRUPTED";
+
 // Nhận cả TrackingLatestLocation (speedKmh?: number) lẫn FleetLatestItem —
 // chỉ cần trường speedKmh để phân loại.
 export function getFleetStatus(location: {
   speedKmh?: number | null;
-}): FleetVehicleMapPoint["status"] {
+}): FleetStatus {
   if (location.speedKmh == null) return "offline";
   return location.speedKmh > 2 ? "moving" : "idle";
+}
+
+// Chuyến sự cố phải đè lên trạng thái suy ra từ tốc độ: một chuyến DISRUPTED
+// vẫn đang lăn bánh trước đây hiện y hệt xe bình thường (chấm xanh "Đang chạy"),
+// khiến sự cố chìm nghỉm giữa đội xe.
+export function resolveFleetStatus(
+  tripStatus: string | undefined,
+  location: { speedKmh?: number | null } | null,
+): FleetStatus {
+  if (tripStatus === DISRUPTED_TRIP_STATUS) return "disrupted";
+  return location ? getFleetStatus(location) : "lost";
+}
+
+// Gộp hai lượt tải theo status (IN_PROGRESS + DISRUPTED) thành một danh sách.
+// Giữ bản ghi xuất hiện trước — caller xếp nhánh sự cố lên đầu — và loại trùng
+// theo tripId để một chuyến đổi trạng thái giữa hai request không thành hai xe.
+export function mergeTripsById<T extends { tripId: string }>(
+  ...groups: T[][]
+): T[] {
+  const seen = new Set<string>();
+  const merged: T[] = [];
+  for (const group of groups) {
+    for (const item of group) {
+      if (seen.has(item.tripId)) continue;
+      seen.add(item.tripId);
+      merged.push(item);
+    }
+  }
+  return merged;
 }
 
 // Merge trips (metadata/crew) với fleet-latest (vị trí batch) theo tripId.
@@ -37,7 +83,7 @@ export function buildFleetVehicles(
         trip.route.name ||
         `${trip.route.originName} - ${trip.route.destinationName}`,
       speedKmh: location?.speedKmh ?? null,
-      status: location ? getFleetStatus(location) : "lost",
+      status: resolveFleetStatus(trip.status, location),
       position: location
         ? { lat: location.latitude, lng: location.longitude }
         : null,
@@ -57,7 +103,7 @@ export function applyFleetGpsUpdate(
           ...vehicle,
           position: { lat: event.latitude, lng: event.longitude },
           speedKmh: event.speedKmh ?? null,
-          status: getFleetStatus(event),
+          status: resolveFleetStatus(event.status, event),
         }
       : vehicle,
   );
@@ -123,10 +169,102 @@ export function routeGeometryPath(
   return geometry.encodedPolyline ? decodeGooglePolyline(geometry.encodedPolyline) : [];
 }
 
-export function statusLabel(
-  s: FleetVehicleMapPoint["status"],
-  t: (key: string) => string,
+// Xe lệch quá xa lộ trình thì việc "chiếu" lên tuyến không còn ý nghĩa (đi sai
+// đường, GPS nhiễu, hoặc lộ trình đã đổi) — khi đó thà không tô đoạn đã đi còn
+// hơn vẽ một điểm cắt bịa ra.
+const OFF_ROUTE_THRESHOLD_METERS = 500;
+const METERS_PER_LAT_DEGREE = 111_320;
+
+export type RouteProgress = {
+  /** Đoạn tuyến xe đã đi qua, kết thúc tại vị trí chiếu của xe. */
+  traveled: GoogleMapCoordinate[];
+  /** Đoạn tuyến còn lại, bắt đầu từ vị trí chiếu của xe. */
+  remaining: GoogleMapCoordinate[];
+};
+
+// Chiếu điểm lên đoạn thẳng AB. Ở phạm vi một tuyến xe khách, phép chiếu phẳng
+// với kinh độ co theo cos(vĩ độ) là đủ chính xác và rẻ hơn nhiều so với tính
+// trắc địa thật.
+function projectOnSegment(
+  point: GoogleMapCoordinate,
+  start: GoogleMapCoordinate,
+  end: GoogleMapCoordinate,
 ) {
+  const lngScale = Math.cos((start.lat * Math.PI) / 180) || 1;
+  const ax = start.lng * lngScale;
+  const ay = start.lat;
+  const dx = end.lng * lngScale - ax;
+  const dy = end.lat - ay;
+  const lengthSq = dx * dx + dy * dy;
+
+  const ratio =
+    lengthSq === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(
+            1,
+            ((point.lng * lngScale - ax) * dx + (point.lat - ay) * dy) /
+              lengthSq,
+          ),
+        );
+
+  const projectedX = ax + ratio * dx;
+  const projectedY = ay + ratio * dy;
+  const offsetX = point.lng * lngScale - projectedX;
+  const offsetY = point.lat - projectedY;
+
+  return {
+    distanceMeters:
+      Math.sqrt(offsetX * offsetX + offsetY * offsetY) * METERS_PER_LAT_DEGREE,
+    ratio,
+    point: { lat: projectedY, lng: projectedX / lngScale },
+  };
+}
+
+/**
+ * Cắt lộ trình tại vị trí hiện tại của xe để bản đồ tô được "đã đi" khác
+ * "chưa đi". Trước đây bản đồ chỉ vẽ nguyên tuyến một màu nên đoạn đã qua và
+ * đoạn còn lại nhìn y hệt nhau.
+ */
+export function splitRouteAtPosition(
+  routePath: GoogleMapCoordinate[],
+  position: GoogleMapCoordinate | null,
+): RouteProgress {
+  if (!position || routePath.length < 2) {
+    return { traveled: [], remaining: routePath };
+  }
+
+  let best: { index: number; distanceMeters: number; point: GoogleMapCoordinate } | null =
+    null;
+
+  for (let index = 0; index < routePath.length - 1; index += 1) {
+    const projection = projectOnSegment(
+      position,
+      routePath[index],
+      routePath[index + 1],
+    );
+    if (!best || projection.distanceMeters < best.distanceMeters) {
+      best = {
+        index,
+        distanceMeters: projection.distanceMeters,
+        point: projection.point,
+      };
+    }
+  }
+
+  if (!best || best.distanceMeters > OFF_ROUTE_THRESHOLD_METERS) {
+    return { traveled: [], remaining: routePath };
+  }
+
+  return {
+    traveled: [...routePath.slice(0, best.index + 1), best.point],
+    remaining: [best.point, ...routePath.slice(best.index + 1)],
+  };
+}
+
+export function statusLabel(s: FleetStatus, t: (key: string) => string) {
+  if (s === "disrupted") return t("gps.disruptedStatus");
   if (s === "moving") return t("gps.moving");
   if (s === "idle") return t("gps.stopped");
   // "lost" = không còn trong fleet-latest (GPS hết TTL); "offline" = có GPS nhưng thiếu speed
@@ -134,16 +272,19 @@ export function statusLabel(
   return t("gps.signalLostStatus");
 }
 
-export function statusDotClass(s: FleetVehicleMapPoint["status"]) {
+export function statusDotClass(s: FleetStatus) {
+  if (s === "disrupted") return "bg-red-500";
   if (s === "moving") return "bg-emerald-500";
   if (s === "idle") return "bg-amber-500";
   if (s === "lost") return "bg-gray-300";
   return "bg-gray-400";
 }
 
-export function statusRowBadge(s: FleetVehicleMapPoint["status"]) {
+export function statusRowBadge(s: FleetStatus) {
   const base =
     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold";
+  if (s === "disrupted")
+    return `${base} bg-red-50 text-red-800 ring-1 ring-red-200`;
   if (s === "moving")
     return `${base} bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100`;
   if (s === "idle")

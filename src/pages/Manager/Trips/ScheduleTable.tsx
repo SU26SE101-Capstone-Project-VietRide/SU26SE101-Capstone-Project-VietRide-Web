@@ -194,9 +194,13 @@ export default function ScheduleTable({
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-gray-700">
-                    {schedule.baseFare === ""
-                      ? t("trips.routeFareFallback")
-                      : formatCurrency(schedule.baseFare)}
+                    {formatCurrency(
+                      schedule.baseFare === ""
+                        ? routes.find((route) => route.id === schedule.routeId)
+                            ?.baseFare
+                        : schedule.baseFare,
+                      t("trips.routeFareFallback"),
+                    )}
                   </td>
                   <td className="px-5 py-4">
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${schedule.status === "open" ? "bg-emerald-50 text-emerald-700" : schedule.status === "draft" ? "bg-amber-50 text-amber-800" : "bg-rose-50 text-rose-700"}`}>

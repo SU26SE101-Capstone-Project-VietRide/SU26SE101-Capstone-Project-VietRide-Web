@@ -478,7 +478,10 @@ export function useAlternativeRouteWorkspace({
   // chính nhưng không có allowPickup/allowDropoff (AlternativeRouteRequest.stops
   // không có 2 field này). Tự bọc try/catch báo toast — panel gọi thẳng không
   // cần wrapper runAction như tuyến chính.
-  async function addAltStopFromSuggestion(suggestion: StopSuggestion) {
+  async function addAltStopFromSuggestion(
+    suggestion: StopSuggestion,
+    locationId?: string,
+  ) {
     setIsAddingAltSuggestion(true);
     try {
       const isOperatorStopSuggestion = suggestion.kind === "operatorStop";
@@ -500,6 +503,12 @@ export function useAlternativeRouteWorkspace({
       let longitude = suggestion.longitude;
 
       if (suggestion.kind === "googlePlace") {
+        // Xem comment trong useRouteStopEditor: phường/xã bắt buộc và bất biến
+        if (!locationId) {
+          toastError(t("routes.stopWardRequired"));
+          return;
+        }
+
         const createdStop = await createOperatorStop({
           name: suggestion.name,
           address: suggestion.address,
@@ -507,6 +516,7 @@ export function useAlternativeRouteWorkspace({
           longitude: suggestion.longitude,
           googlePlaceId: suggestion.googlePlaceId,
           description: "",
+          locationId,
         });
 
         stopId = createdStop.id;

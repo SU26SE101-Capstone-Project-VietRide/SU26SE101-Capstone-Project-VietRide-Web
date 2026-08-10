@@ -15,6 +15,7 @@ import { Input, StationSelect } from "./formControls";
 import type { UseAlternativeRouteWorkspaceResult } from "./useAlternativeRouteWorkspace";
 import type { OperatorStop } from "../../../api/vietride";
 import type { StationOption, StopSuggestion } from "./types";
+import Checkbox from "../../../components/form/Checkbox";
 
 type AlternativeRoutesSectionProps = {
   canManageRoutes: boolean;
@@ -148,11 +149,10 @@ export default function AlternativeRoutesSection({
               />
             </div>
             <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={altForm.isActive}
                 disabled={!canManageRoutes}
-                onChange={(event) => toggleAlternativeActive(event.target.checked)}
+                onChange={toggleAlternativeActive}
               />
               {t("routes.activeAlternative")}
             </label>

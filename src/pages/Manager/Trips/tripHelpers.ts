@@ -24,8 +24,11 @@ export const emptyForm: ScheduleForm = {
   assistantId: "",
   departureAt: "",
   arrivalEstimate: "",
+  validUntil: "",
   baseFare: "",
-  recurrence: "daily",
+  isOneTime: false,
+  // Mặc định chạy đủ 7 ngày (tương đương "hằng ngày" của form cũ)
+  dayOfWeek: [1, 2, 3, 4, 5, 6, 7],
 };
 
 export function optionLabel<T extends { id: string }>(
@@ -157,28 +160,49 @@ export function toStaffOption(user: OperatorUser): StaffOption {
   };
 }
 
-export function recurrenceToDays(
-  recurrence: string,
-  departureAt?: string,
+// Chuẩn hoá dayOfWeek để so sánh/hiển thị: bỏ trùng, sort tăng dần (BE cũng
+// normalize distinct + sort khi update — xem API-driver shedule.md §9.8).
+export function normalizeDayOfWeek(days?: number[] | null) {
+  return days ? [...new Set(days)].sort((left, right) => left - right) : [];
+}
+
+export function isSameDayOfWeek(left?: number[] | null, right?: number[] | null) {
+  const a = normalizeDayOfWeek(left);
+  const b = normalizeDayOfWeek(right);
+  return a.length === b.length && a.every((day, index) => day === b[index]);
+}
+
+// Lịch "một lần" không phải khái niệm riêng ở BE — nó chỉ là lịch đúng 1 thứ và
+// bị chặn hai đầu cùng một ngày (validUntil === validFrom), nên chỉ sinh được
+// một chuyến duy nhất. Nhận diện lại từ dữ liệu thay vì lưu cờ riêng.
+export function isOneTimeSchedule(
+  days: number[] | undefined,
+  validFrom?: string,
+  validUntil?: string | null,
 ) {
-  if (recurrence === "daily") {
-    return [1, 2, 3, 4, 5, 6, 7];
+  return (
+    normalizeDayOfWeek(days).length <= 1 &&
+    Boolean(validFrom) &&
+    validUntil === validFrom
+  );
+}
+
+// Thứ trong tuần của một giá trị datetime-local, theo chuẩn ISO 1..7 (1 = Thứ 2).
+// Date#getDay() trả Chủ nhật = 0 nên phải quy về 7.
+export function isoWeekdayOf(dateTimeValue: string) {
+  const date = new Date(dateTimeValue);
+  return Number.isNaN(date.getTime()) ? undefined : date.getDay() || 7;
+}
+
+// dayOfWeek cuối cùng gửi cho BE: lịch một lần luôn là đúng thứ của ngày khởi
+// hành; lịch lặp là các thứ người dùng bật trên bộ chip.
+export function resolveDayOfWeek(form: ScheduleForm) {
+  if (!form.isOneTime) {
+    return normalizeDayOfWeek(form.dayOfWeek);
   }
 
-  if (recurrence === "weekend") {
-    return [6, 7];
-  }
-
-  if (recurrence === "weekly") {
-    if (!departureAt) {
-      return undefined;
-    }
-
-    const weekday = new Date(departureAt).getDay();
-    return Number.isNaN(weekday) ? undefined : [weekday || 7];
-  }
-
-  return undefined;
+  const weekday = isoWeekdayOf(form.departureAt);
+  return weekday ? [weekday] : [];
 }
 
 export function toTripSchedule(
@@ -196,6 +220,9 @@ export function toTripSchedule(
     driverId: schedule.driverUserId ?? schedule.driverId ?? "",
     assistantId: schedule.assistantUserId ?? schedule.assistantId ?? "",
     departureAt: form.departureAt,
+    // Lấy từ response vì lịch "một lần" được server chốt validUntil = validFrom
+    validUntil: schedule.validUntil ?? schedule.effectiveUntil ?? "",
+    dayOfWeek: normalizeDayOfWeek(schedule.dayOfWeek ?? schedule.daysOfWeek),
     status: schedule.isActive || schedule.status === "ACTIVE" ? "open" : status,
     routeName: schedule.route?.name,
     vehiclePlate: schedule.vehicle?.licensePlate,
@@ -210,11 +237,13 @@ export function toTripScheduleFromApi(
   const routeOption = schedule.route
     ? toRouteOption(schedule.route)
     : undefined;
-  const departureAt = toScheduleDateTime(
-    schedule.validFrom ?? schedule.effectiveFrom,
-    schedule.departureTime,
-  );
+  const validFrom = schedule.validFrom ?? schedule.effectiveFrom;
+  const validUntil = schedule.validUntil ?? schedule.effectiveUntil ?? "";
+  const departureAt = toScheduleDateTime(validFrom, schedule.departureTime);
   const arrivalEstimate = getArrivalEstimateValue(departureAt, routeOption);
+  const dayOfWeek = normalizeDayOfWeek(
+    schedule.dayOfWeek ?? schedule.daysOfWeek,
+  );
 
   return {
     id: schedule.id,
@@ -225,8 +254,10 @@ export function toTripScheduleFromApi(
     assistantId: schedule.assistantUserId ?? schedule.assistantId ?? "",
     departureAt,
     arrivalEstimate,
+    validUntil,
     baseFare: schedule.baseFare === null ? "" : String(schedule.baseFare),
-    recurrence: "once",
+    dayOfWeek,
+    isOneTime: isOneTimeSchedule(dayOfWeek, validFrom, validUntil),
     status: schedule.isActive ? "open" : "draft",
     routeName: schedule.route?.name,
     vehiclePlate: schedule.vehicle?.licensePlate,

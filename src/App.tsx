@@ -17,6 +17,7 @@ const VehiclesList = lazy(() => import("./pages/Manager/Vehicles/index"));
 const RoutesList = lazy(() => import("./pages/Manager/Routes/index"));
 const OperationsCenter = lazy(() => import("./pages/Manager/Operations/index"));
 const DispatchPanel = lazy(() => import("./pages/Manager/Dispatch/index"));
+const ManagerIncidents = lazy(() => import("./pages/Manager/Incidents/index"));
 const ManagerWallet = lazy(() => import("./pages/Manager/Wallet/index"));
 const ManagerVouchers = lazy(() => import("./pages/Manager/Vouchers/index"));
 const ManagerPackages = lazy(() => import("./pages/Manager/Packages/index"));
@@ -119,6 +120,7 @@ export default function App() {
                   element={<Navigate to="/manager/dispatch" replace />}
                 />
                 <Route path="dispatch" element={<DispatchPanel />} />
+                <Route path="incidents" element={<ManagerIncidents />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="vouchers" element={<ManagerVouchers />} />
                 <Route path="wallet" element={<ManagerWallet />} />

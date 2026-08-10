@@ -20,7 +20,9 @@ import {
   emptyForm,
   getArrivalEstimateValue,
   getNextSuggestedDeparture,
-  recurrenceToDays,
+  isSameDayOfWeek,
+  normalizeDayOfWeek,
+  resolveDayOfWeek,
   toRouteOption,
   toScheduleDateTime,
   toScheduleTimeValue,
@@ -76,6 +78,7 @@ export default function TripsPage() {
     tRef.current = t;
   });
   const authUser = getAuthUser();
+  const canManageSchedules = authUser?.role === "OPERATOR_ADMIN";
   const cacheKey = resourcesCacheKey(authUser?.id);
   // Đọc cache một lần khi mount (lazy initializer): có cache → hiện dữ liệu ngay,
   // không bật skeleton; vẫn fetch nền để cập nhật + ghi đè cache.
@@ -101,9 +104,9 @@ export default function TripsPage() {
           driverId:
             cachedResources.staff.find((item) => item.role === "driver")?.id ??
             "",
-          assistantId:
-            cachedResources.staff.find((item) => item.role === "assistant")
-              ?.id ?? "",
+          // Phụ xe là field OPTIONAL ở BE (assistantUserId nullable) — không
+          // tự gán người đầu danh sách, nếu không mọi lịch đều âm thầm có phụ
+          // xe mà người tạo không hề chọn.
         }
       : emptyForm,
   );
@@ -124,12 +127,15 @@ export default function TripsPage() {
   const [isLoadingResources, setIsLoadingResources] = useState(
     cachedResources === null,
   );
-  const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
+  // STAFF: BE hiện 403 GET driver-schedules (xem ghi chú ở effect bên dưới) —
+  // khởi tạo false ngay để không hiện skeleton cho một request sẽ không gọi.
+  const [isLoadingSchedules, setIsLoadingSchedules] = useState(
+    canManageSchedules,
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [formModalOpen, setFormModalOpen] = useState(false);
   const pageSize = 8;
-  const canManageSchedules = authUser?.role === "OPERATOR_ADMIN";
 
   const activeRoutes = useMemo(
     () => routes.filter((route) => route.status === "active"),
@@ -212,9 +218,7 @@ export default function TripsPage() {
             driverId:
               nextStaff.find((item) => item.role === "driver")?.id ??
               current.driverId,
-            assistantId:
-              nextStaff.find((item) => item.role === "assistant")?.id ??
-              current.assistantId,
+            // Không tự chọn phụ xe — xem ghi chú ở lazy initializer phía trên.
           }));
         }
       } catch (err) {
@@ -241,6 +245,16 @@ export default function TripsPage() {
   }, [cacheKey, toast]);
 
   useEffect(() => {
+    // BE hiện stack [Authorize] class-level (chỉ OPERATOR_ADMIN) cùng
+    // method-level (STAFF,ADMIN) trên GET driver-schedules — ASP.NET Core
+    // ghép AND nên STAFF luôn nhận 403 dù contract công bố STAFF được xem.
+    // Không gọi API để tránh toast lỗi vô nghĩa; xem API-driver shedule.md
+    // §3.2, §12 mục 3. isLoadingSchedules đã khởi tạo false cho STAFF (lazy
+    // initializer ở trên) nên không cần setState ở đây.
+    if (!canManageSchedules) {
+      return;
+    }
+
     let ignore = false;
 
     async function loadSchedules() {
@@ -272,7 +286,7 @@ export default function TripsPage() {
     return () => {
       ignore = true;
     };
-  }, [toast]);
+  }, [canManageSchedules, toast]);
 
   function updateForm<K extends keyof ScheduleForm>(
     key: K,
@@ -353,6 +367,17 @@ export default function TripsPage() {
       return t("trips.validationArrival");
     }
 
+    // BE yêu cầu validUntil >= validFrom (§9.7). Bắt tại chỗ để user sửa ngay
+    // trong form thay vì chờ 422 quay về.
+    if (!form.isOneTime && form.validUntil && form.validUntil < form.departureAt.slice(0, 10)) {
+      return t("trips.validationValidUntil");
+    }
+
+    // BE validate dayOfWeek NotEmpty — lịch lặp phải bật ít nhất một thứ.
+    if (!form.isOneTime && resolveDayOfWeek(form).length === 0) {
+      return t("trips.validationDayOfWeek");
+    }
+
     const hasConflict = schedules.some(
       (schedule) =>
         schedule.id !== editingId &&
@@ -401,11 +426,10 @@ export default function TripsPage() {
       if (nextDepartureTime !== toScheduleTimeValue(original.departureAt)) {
         patch.departureTime = nextDepartureTime;
       }
-      if (form.recurrence !== original.recurrence) {
-        const days = recurrenceToDays(form.recurrence, form.departureAt);
-        if (days) {
-          patch.dayOfWeek = days;
-        }
+      // So sánh theo MẢNG NGÀY thực tế người dùng chọn trên bộ chip.
+      const nextDays = resolveDayOfWeek(form);
+      if (nextDays.length > 0 && !isSameDayOfWeek(nextDays, original.dayOfWeek)) {
+        patch.dayOfWeek = nextDays;
       }
       if (form.driverId !== original.driverId) {
         patch.driverUserId = form.driverId;
@@ -417,7 +441,10 @@ export default function TripsPage() {
       if (form.vehicleId !== original.vehicleId) {
         patch.vehicleId = form.vehicleId;
       }
-      // Form không có validUntil nên không gửi field đó (giữ nguyên trên server).
+      // validUntil nullable: "" nghĩa là bỏ giới hạn -> gửi null để clear (§9.8).
+      if (form.validUntil !== original.validUntil) {
+        patch.validUntil = form.validUntil || null;
+      }
       if (baseFareChanged) {
         patch.baseFare = nextBaseFare;
       }
@@ -456,6 +483,16 @@ export default function TripsPage() {
                   driverId: updated.driverUserId ?? form.driverId,
                   assistantId: updated.assistantUserId ?? "",
                   baseFare: updated.baseFare === null ? "" : String(updated.baseFare),
+                  validUntil:
+                    updated.validUntil ?? updated.effectiveUntil ?? "",
+                  // Ưu tiên mảng ngày server trả về (server normalize distinct
+                  // + sort); nếu response cũ chưa có thì giữ mảng vừa gửi.
+                  dayOfWeek: normalizeDayOfWeek(
+                    updated.dayOfWeek ??
+                      updated.daysOfWeek ??
+                      patch.dayOfWeek ??
+                      item.dayOfWeek,
+                  ),
                   status: updated.isActive ? "open" : "draft",
                 }
               : item,
@@ -480,9 +517,9 @@ export default function TripsPage() {
 
     try {
       const validFrom = form.departureAt.slice(0, 10);
-      const isOneTimeSchedule = form.recurrence === "once";
-      // Date#getDay(): Chủ nhật = 0; API dùng ISO weekday 1..7.
-      const selectedWeekday = new Date(form.departureAt).getDay() || 7;
+      // Lịch một lần luôn chốt validUntil = validFrom. Lịch lặp lấy ngày kết
+      // thúc người dùng chọn; bỏ trống = null = chạy không giới hạn (§9.7).
+      const validUntil = form.isOneTime ? validFrom : form.validUntil || null;
       const saved = await createOperatorDriverSchedule({
         routeId: form.routeId,
         vehicleId: form.vehicleId || null,
@@ -491,12 +528,8 @@ export default function TripsPage() {
         departureTime: toScheduleTimeValue(form.departureAt),
         validFrom,
         baseFare: form.baseFare === "" ? null : Number(form.baseFare),
-        validUntil: isOneTimeSchedule ? validFrom : null,
-        dayOfWeek: isOneTimeSchedule
-          ? [selectedWeekday]
-          : (recurrenceToDays(form.recurrence, form.departureAt) ?? [
-              selectedWeekday,
-            ]),
+        validUntil,
+        dayOfWeek: resolveDayOfWeek(form),
         isActive: status === "open",
       });
       const activeSchedule =
@@ -513,7 +546,7 @@ export default function TripsPage() {
         routeId: routes[0]?.id ?? "",
         vehicleId: vehicles[0]?.id ?? "",
         driverId: drivers[0]?.id ?? "",
-        assistantId: assistants[0]?.id ?? "",
+        // Phụ xe optional — mặc định "Không có phụ xe"
       });
       setFormModalOpen(false);
       toast.success(
@@ -543,8 +576,10 @@ export default function TripsPage() {
       assistantId: schedule.assistantId,
       departureAt: schedule.departureAt,
       arrivalEstimate: schedule.arrivalEstimate,
+      validUntil: schedule.validUntil,
       baseFare: schedule.baseFare,
-      recurrence: schedule.recurrence,
+      isOneTime: schedule.isOneTime,
+      dayOfWeek: schedule.dayOfWeek,
     });
     setEditingId(schedule.id);
     setApplyTo("FUTURE_ONLY");
@@ -634,7 +669,7 @@ export default function TripsPage() {
       routeId: routes[0]?.id ?? "",
       vehicleId: vehicles[0]?.id ?? "",
       driverId: drivers[0]?.id ?? "",
-      assistantId: assistants[0]?.id ?? "",
+      // Phụ xe optional — mặc định "Không có phụ xe"
     });
     setEditingId("");
     setFormError("");
@@ -696,8 +731,13 @@ export default function TripsPage() {
         />
         <StatCard
           label={t("trips.openSchedules")}
+          // STAFF: danh sách lịch không tải được (xem ghi chú ở effect
+          // loadSchedules) — hiện "-" thay vì 0 để không ngụ ý "không có lịch".
           value={
-            schedules.filter((schedule) => schedule.status === "open").length
+            canManageSchedules
+              ? schedules.filter((schedule) => schedule.status === "open")
+                  .length
+              : "-"
           }
           icon={<FiCalendar size={20} />}
           iconClassName="bg-amber-50 text-amber-700"
@@ -714,6 +754,9 @@ export default function TripsPage() {
           />
           <div className="rounded-lg border border-vr-100 bg-vr-50 px-4 py-3 text-sm text-vr-800">
             {t("trips.staffReadOnlyHint")}
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {t("trips.staffScheduleListUnavailable")}
           </div>
         </section>
       )}
@@ -772,19 +815,21 @@ export default function TripsPage() {
         </Modal>
       ) : null}
 
-      <ScheduleTable
-        schedules={schedules}
-        routes={routes}
-        vehicles={vehicles}
-        canManageSchedules={canManageSchedules}
-        isLoading={isLoadingSchedules}
-        page={page}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onEdit={editSchedule}
-        onToggleActive={(schedule) => void toggleScheduleActive(schedule)}
-        onDelete={requestDeleteSchedule}
-      />
+      {canManageSchedules && (
+        <ScheduleTable
+          schedules={schedules}
+          routes={routes}
+          vehicles={vehicles}
+          canManageSchedules={canManageSchedules}
+          isLoading={isLoadingSchedules}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onEdit={editSchedule}
+          onToggleActive={(schedule) => void toggleScheduleActive(schedule)}
+          onDelete={requestDeleteSchedule}
+        />
+      )}
     </div>
   );
 }

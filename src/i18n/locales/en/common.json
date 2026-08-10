@@ -23,6 +23,8 @@
   "enable": "Enable",
   "disable": "Disable",
   "search": "Search",
+  "searchOptions": "Search {{label}}...",
+  "noMatchingOptions": "No matching options found.",
   "filter": "Filter",
   "columns": "Columns",
   "exportCsv": "Export CSV",
@@ -272,6 +274,6 @@
     "discardChangesConfirm": "Discard changes",
     "continueEditing": "Continue editing",
     "retry": "Retry"
-  }
+  },
+  "reset": "Reset"
 }
-

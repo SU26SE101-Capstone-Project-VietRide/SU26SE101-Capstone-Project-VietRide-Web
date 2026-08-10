@@ -1,5 +1,6 @@
 // Khối lịch hoạt động theo ngày trong tuần của form trạm
 import { useTranslation } from "react-i18next";
+import Checkbox from "../../../components/form/Checkbox";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import {
   inputClass,
@@ -40,15 +41,9 @@ export default function StationScheduleFields({
               className="grid items-center gap-3 sm:grid-cols-[92px_minmax(0,1fr)_16px_minmax(0,1fr)]"
             >
               <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={schedule.enabled}
-                  onChange={(event) =>
-                    onUpdateDay(day, {
-                      enabled: event.target.checked,
-                    })
-                  }
-                  className="h-4 w-4 accent-vr-500"
+                  onChange={(checked) => onUpdateDay(day, { enabled: checked })}
                 />
                 {t(`stations.days.${day}`)}
               </label>

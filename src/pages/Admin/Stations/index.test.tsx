@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  getAdminLocations,
+  getPublicLocations,
   getAdminStations,
   mergeAdminStations,
   updateAdminStation,
@@ -22,7 +22,7 @@ vi.mock("../../../components/PlacePicker", () => ({
 }));
 
 vi.mock("../../../api/vietride", () => ({
-  getAdminLocations: vi.fn(),
+  getPublicLocations: vi.fn(),
   getAdminStations: vi.fn(),
   mergeAdminStations: vi.fn(),
   updateAdminStation: vi.fn(),
@@ -60,24 +60,34 @@ describe("AdminStations", () => {
       hasNextPage: false,
       hasPreviousPage: false,
     });
-    vi.mocked(getAdminLocations).mockResolvedValue({
-      items: [
-        {
-          id: "location-hcm",
-          code: "HCM",
-          name: "Thành phố Hồ Chí Minh",
-          type: "MUNICIPALITY",
-          sortOrder: 1,
-          isActive: true,
-        },
-      ],
-      page: 1,
-      pageSize: 100,
-      totalItems: 1,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    });
+    // Không kèm parentCode -> tỉnh/thành; có parentCode -> phường/xã trực thuộc
+    vi.mocked(getPublicLocations).mockImplementation((params) =>
+      Promise.resolve(
+        params?.parentCode === "79"
+          ? [
+              {
+                id: "location-ward-1",
+                code: "26506",
+                name: "Phường Bến Nghé",
+                type: "WARD",
+                parentCode: "79",
+                parentName: "Thành phố Hồ Chí Minh",
+                sortOrder: 0,
+                isActive: true,
+              },
+            ]
+          : [
+              {
+                id: "location-hcm",
+                code: "79",
+                name: "Thành phố Hồ Chí Minh",
+                type: "MUNICIPALITY",
+                sortOrder: 1,
+                isActive: true,
+              },
+            ],
+      ),
+    );
     vi.mocked(updateAdminStation).mockResolvedValue(station);
     vi.mocked(mergeAdminStations).mockResolvedValue({
       primaryStation: station,
@@ -110,12 +120,12 @@ describe("AdminStations", () => {
     await user.click(saveButton);
 
     await waitFor(() =>
+      // city/ward do BE suy ra từ hierarchy của locationId — handler bỏ qua nếu
+      // client gửi, nên FE không gửi để khỏi tạo ảo giác "sửa được"
       expect(updateAdminStation).toHaveBeenCalledWith("station-1", {
         name: "Bến xe Miền Đông",
         addressStreet: "292 Đinh Bộ Lĩnh",
         locationId: "location-hcm",
-        city: "Thành phố Hồ Chí Minh",
-        ward: "Phường Bình Thọ",
         latitude: 10.8142,
         longitude: 106.7108,
         contactPhone: "+84281234567",

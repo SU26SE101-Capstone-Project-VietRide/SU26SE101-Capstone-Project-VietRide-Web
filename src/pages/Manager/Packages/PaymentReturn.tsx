@@ -13,7 +13,13 @@ import {
 } from "react-icons/fi";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import logo from "../../../assets/Login/logo.svg";
-import { getOperatorSubscription, type OperatorSubscriptionDetail } from "../../../api/vietride";
+import {
+  getOperatorSubscription,
+  getVnPayReturnStatus,
+  type OperatorSubscriptionDetail,
+  type VnPayReturnStatus,
+} from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import LanguageSwitcher from "../../../components/LanguageSwitcher";
 import {
   clearSubscriptionPaymentIntent,
@@ -27,6 +33,7 @@ type PaymentReturnStatus =
   | "failed"
   | "cancelled"
   | "invalid"
+  | "notFound"
   | "error";
 
 const MAX_VERIFICATION_ATTEMPTS = 30;
@@ -38,20 +45,26 @@ export default function SubscriptionPaymentReturn() {
   const { t: tc } = useTranslation("common");
   const location = useLocation();
   const navigate = useNavigate();
+  // rawQuery giữ nguyên chuỗi gốc để gửi lên Backend; `query` chỉ dùng để
+  // HIỂN THỊ vài field cho người dùng, không dùng để kết luận trạng thái.
+  const rawQuery = location.search;
   const query = useMemo(
     () => new URLSearchParams(location.search),
     [location.search],
   );
   const responseCode = query.get("vnp_ResponseCode");
-  const transactionReference =
+  const vnpTransactionReference =
     query.get("vnp_TransactionNo") ?? query.get("vnp_TxnRef");
   const paymentIntent = useMemo(() => getSubscriptionPaymentIntent(), []);
-  const [status, setStatus] = useState<PaymentReturnStatus>(() => {
-    if (!responseCode) return "invalid";
-    if (responseCode === "24") return "cancelled";
-    if (responseCode !== "00") return "failed";
-    return "verifying";
-  });
+  // Chỉ dùng responseCode để quyết định CÓ CẦN xác minh hay không. Kết luận
+  // "thành công" luôn phải đến từ Backend (handoff §1: không đánh dấu thành
+  // công chỉ dựa vào URL return).
+  const [status, setStatus] = useState<PaymentReturnStatus>(() =>
+    responseCode ? "verifying" : "invalid",
+  );
+  const [returnStatus, setReturnStatus] = useState<VnPayReturnStatus | null>(
+    null,
+  );
   const [subscription, setSubscription] =
     useState<OperatorSubscriptionDetail | null>(null);
   const [error, setError] = useState("");
@@ -72,13 +85,62 @@ export default function SubscriptionPaymentReturn() {
     if (import.meta.env.DEV) {
       console.info("[SubscriptionPayment] RETURN_VERIFICATION_START", {
         responseCode,
-        transactionReference,
+        transactionReference: vnpTransactionReference,
         paymentId: paymentIntent?.paymentId ?? null,
         upgradeAttemptId: paymentIntent?.upgradeAttemptId ?? null,
         targetPlanId: paymentIntent?.targetPlanId ?? null,
       });
     }
 
+    // Bước 1: đẩy NGUYÊN query VNPay lên Backend để nó xác thực chữ ký và cho
+    // biết giao dịch nào đang được nói tới (handoff §2.2). FE không tự tin
+    // vnp_ResponseCode trong URL.
+    try {
+      const verified = await getVnPayReturnStatus(rawQuery);
+      if (verificationRunRef.current !== runId) return;
+      setReturnStatus(verified);
+    } catch (err) {
+      if (verificationRunRef.current !== runId) return;
+
+      const code = err instanceof ApiRequestError ? err.code : undefined;
+      if (code === "PAYMENT_SIGNATURE_INVALID") {
+        clearSubscriptionPaymentIntent();
+        setStatus("invalid");
+        return;
+      }
+      if (code === "PAYMENT_NOT_FOUND") {
+        clearSubscriptionPaymentIntent();
+        setStatus("notFound");
+        return;
+      }
+      if (code === "PAYMENT_AMOUNT_INVALID") {
+        clearSubscriptionPaymentIntent();
+        setStatus("invalid");
+        return;
+      }
+      if (code === "VNPAY_WEB_DISABLED") {
+        setError(err instanceof Error ? err.message : "");
+        setStatus("error");
+        return;
+      }
+      // Lỗi khác (mạng/5xx): vẫn xác minh tiếp bằng trạng thái subscription
+      if (import.meta.env.DEV) {
+        console.warn("[SubscriptionPayment] RETURN_STATUS_LOOKUP_FAILED", {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // VNPay báo giao dịch KHÔNG thành công thì kết luận ngay — đây là chiều
+    // an toàn (không tự nhận thành công), khỏi bắt người dùng chờ hết vòng poll.
+    if (responseCode !== "00") {
+      clearSubscriptionPaymentIntent();
+      setStatus(responseCode === "24" ? "cancelled" : "failed");
+      return;
+    }
+
+    // responseCode = 00 vẫn CHƯA phải thành công: chỉ khi IPN về và backend đổi
+    // trạng thái subscription thì mới được báo thành công (handoff §2.2).
     let lastResultStatus: string | null = null;
     for (let attempt = 1; attempt <= MAX_VERIFICATION_ATTEMPTS; attempt += 1) {
       try {
@@ -153,14 +215,16 @@ export default function SubscriptionPaymentReturn() {
     paymentIntent?.paymentId,
     paymentIntent?.targetPlanId,
     paymentIntent?.upgradeAttemptId,
+    rawQuery,
     responseCode,
     t,
-    transactionReference,
+    vnpTransactionReference,
   ]);
 
   useEffect(() => {
     verificationRunRef.current += 1;
-    if (responseCode !== "00") return;
+    // Không có query VNPay thì không có gì để xác minh.
+    if (!responseCode) return;
 
     const verificationTimer = window.setTimeout(() => {
       void verifyPayment();
@@ -170,12 +234,6 @@ export default function SubscriptionPaymentReturn() {
       verificationRunRef.current += 1;
     };
   }, [responseCode, verifyPayment]);
-
-  useEffect(() => {
-    if (responseCode && responseCode !== "00") {
-      clearSubscriptionPaymentIntent();
-    }
-  }, [responseCode]);
 
   useEffect(() => {
     if (status !== "success") return;
@@ -227,6 +285,11 @@ export default function SubscriptionPaymentReturn() {
     description = t("paymentReturn.invalidDescription");
     icon = <FiX className="h-9 w-9" aria-hidden="true" />;
     iconClassName = "bg-red-100 text-red-700";
+  } else if (status === "notFound") {
+    title = t("paymentReturn.notFoundTitle");
+    description = t("paymentReturn.notFoundDescription");
+    icon = <FiX className="h-9 w-9" aria-hidden="true" />;
+    iconClassName = "bg-red-100 text-red-700";
   } else if (status === "error") {
     title = t("paymentReturn.errorTitle");
     description = t("paymentReturn.errorDescription");
@@ -234,6 +297,10 @@ export default function SubscriptionPaymentReturn() {
     iconClassName = "bg-red-100 text-red-700";
   }
 
+  // Ưu tiên mã giao dịch Backend xác thực được; chỉ rơi về giá trị đọc từ URL
+  // khi chưa gọi được status API.
+  const transactionReference =
+    returnStatus?.vnPayTxnRef ?? vnpTransactionReference;
   const canRetry = status === "processing" || status === "error";
 
   useToastFeedback({ error });

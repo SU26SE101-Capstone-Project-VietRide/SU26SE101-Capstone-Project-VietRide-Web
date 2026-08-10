@@ -96,7 +96,6 @@ describe("Register", () => {
 
     await user.type(screen.getByPlaceholderText("123 Nguyen Van Linh"), "123 Nguyen Van Linh");
     await user.type(screen.getByPlaceholderText("Ward 1"), "Ward 1");
-    await user.type(screen.getByPlaceholderText("District 1"), "District 1");
     await user.type(screen.getByPlaceholderText("Ho Chi Minh City"), "Ho Chi Minh City");
 
     await user.click(screen.getByRole("button", { name: /continue/i }));
@@ -132,7 +131,6 @@ describe("Register", () => {
 
     await user.type(screen.getByPlaceholderText("123 Nguyen Van Linh"), "123 Nguyen Van Linh");
     await user.type(screen.getByPlaceholderText("Ward 1"), "Ward 1");
-    await user.type(screen.getByPlaceholderText("District 1"), "District 1");
     await user.type(screen.getByPlaceholderText("Ho Chi Minh City"), "Ho Chi Minh City");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
@@ -150,7 +148,6 @@ describe("Register", () => {
       taxCode: "0301234567",
       addressStreet: "123 Nguyen Van Linh",
       addressWard: "Ward 1",
-      addressDistrict: "District 1",
       addressProvince: "Ho Chi Minh City",
       representativeName: "Nguyen Van A",
       representativePhone: "0907654321",

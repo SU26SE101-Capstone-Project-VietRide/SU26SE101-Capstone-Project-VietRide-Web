@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../../../api/client";
 import {
   createOperatorDriverSchedule,
@@ -24,8 +24,14 @@ vi.mock("react-i18next", () => ({
 }));
 
 // client.ts cũng import auth — mock đủ export để import chain không vỡ.
+// getAuthUser dùng vi.fn() (không phải arrow cố định) để test STAFF override
+// được role riêng bằng mockReturnValueOnce mà không ảnh hưởng test khác.
+const authMock = vi.hoisted(() => ({
+  getAuthUser: vi.fn(() => ({ id: "operator-admin-1", role: "OPERATOR_ADMIN" })),
+}));
+
 vi.mock("../../../auth", () => ({
-  getAuthUser: () => ({ id: "operator-admin-1", role: "OPERATOR_ADMIN" }),
+  getAuthUser: authMock.getAuthUser,
   getAuthSession: () => null,
   refreshAuthSession: async () => null,
 }));
@@ -53,6 +59,15 @@ function renderPage() {
 }
 
 describe("TripsPage", () => {
+  afterEach(() => {
+    // clearAllMocks() không xoá implementation set bằng mockReturnValue —
+    // phải tự khôi phục ADMIN mặc định để không rò rỉ role STAFF sang test khác.
+    authMock.getAuthUser.mockReturnValue({
+      id: "operator-admin-1",
+      role: "OPERATOR_ADMIN",
+    });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Cache danh mục nằm trong sessionStorage — dọn giữa các test
@@ -146,6 +161,8 @@ describe("TripsPage", () => {
           departureTime: "08:00:00",
           effectiveFrom: "2026-09-01",
           validFrom: "2026-09-01",
+          // BE luôn trả dayOfWeek (validator NotEmpty) — mock phải phản ánh đúng
+          dayOfWeek: [1, 2, 3, 4, 5, 6, 7],
           isActive: true,
           // Route đính kèm để màn tính được giá vé + giờ đến (điều kiện lưu khi sửa)
           route: {
@@ -293,7 +310,7 @@ describe("TripsPage", () => {
     renderPage();
 
     await screen.findByText("SCH-SCHEDULE");
-    expect(screen.getByText("trips.routeFareFallback")).toBeInTheDocument();
+    expect(screen.getByText("250.000 đ")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await user.click(
@@ -312,96 +329,142 @@ describe("TripsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it.each([
-    {
-      frequency: "once",
-      optionName: "trips.recurrenceOnce",
-      departure: new Date(2026, 7, 21, 1),
-      date: "2026-08-21",
-      weekday: 5,
-      validUntil: "2026-08-21",
-    },
-    {
-      frequency: "weekly",
-      optionName: "trips.recurrenceWeekly",
-      departure: new Date(2026, 7, 20, 1),
-      date: "2026-08-20",
-      weekday: 4,
+  // 2026-08-21 là Thứ 6 (ISO 5)
+  function stubCreateFlow(departure: Date) {
+    const nowSpy = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(new Date(2026, 7, 19, 12).getTime());
+    const nextDepartureSpy = vi
+      .spyOn(tripHelpers, "getNextSuggestedDeparture")
+      .mockReturnValue(departure);
+    vi.mocked(createOperatorDriverSchedule).mockResolvedValue({
+      id: "schedule-created",
+      operatorId: "operator-1",
+      routeId: "route-1",
+      vehicleId: "vehicle-1",
+      driverUserId: "driver-active",
+      assistantUserId: null,
+      baseFare: null,
+      departureTime: "01:00:00",
+      effectiveFrom: "2026-08-21",
+      validFrom: "2026-08-21",
       validUntil: null,
-    },
-  ])(
-    "maps $frequency to the selected weekday and correct validity",
-    async ({ frequency, optionName, departure, date, weekday, validUntil }) => {
-      const nowSpy = vi
-        .spyOn(Date, "now")
-        .mockReturnValue(new Date(2026, 7, 19, 12).getTime());
-      const nextDepartureSpy = vi
-        .spyOn(tripHelpers, "getNextSuggestedDeparture")
-        .mockReturnValue(departure);
+      dayOfWeek: [5],
+      isActive: false,
+    });
+    return () => {
+      nowSpy.mockRestore();
+      nextDepartureSpy.mockRestore();
+    };
+  }
+
+  it("sends the exact weekday chips the user picked, including combos no preset covers", async () => {
+    const restore = stubCreateFlow(new Date(2026, 7, 21, 1));
+
+    try {
       const user = userEvent.setup();
-      vi.mocked(createOperatorDriverSchedule).mockResolvedValue({
-        id: `schedule-${frequency}`,
-        operatorId: "operator-1",
-        routeId: "route-1",
-        vehicleId: "vehicle-1",
-        driverUserId: "driver-active",
-        assistantUserId: null,
-        baseFare: null,
-        departureTime: "01:00:00",
-        effectiveFrom: date,
-        validFrom: date,
-        validUntil,
-        dayOfWeek: [weekday],
-        isActive: false,
-      });
+      renderPage();
+      await screen.findByText("SCH-SCHEDULE");
+      await user.click(
+        screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+      );
 
-      try {
-        renderPage();
-        await screen.findByText("SCH-SCHEDULE");
-        await user.click(
-          screen.getByRole("button", { name: "trips.createScheduleTitle" }),
-        );
+      const dialog = await screen.findByRole("dialog");
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "trips.suggestNextDeparture",
+        }),
+      );
 
-        const dialog = await screen.findByRole("dialog");
+      // Mặc định bật cả 7 thứ -> tắt hết rồi bật T2/T4/T6 ([1,3,5]).
+      // Tổ hợp này 4 preset cũ KHÔNG thể biểu diễn được.
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.weekdayPreset.daily" }),
+      );
+      for (const day of ["tue", "thu", "sat", "sun"]) {
         await user.click(
           within(dialog).getByRole("button", {
-            name: "trips.suggestNextDeparture",
+            name: `trips.weekdaysShort.${day}`,
           }),
         );
-        expect(
-          within(dialog).getByText(`${date} 01:00`),
-        ).toBeInTheDocument();
-
-        await user.click(
-          within(dialog).getByRole("button", {
-            name: "trips.recurrenceDaily",
-          }),
-        );
-        await user.click(screen.getByRole("option", { name: optionName }));
-        await user.click(
-          within(dialog).getByRole("button", { name: "trips.saveDraft" }),
-        );
-
-        await waitFor(() => {
-          expect(createOperatorDriverSchedule).toHaveBeenCalledWith({
-            routeId: "route-1",
-            vehicleId: "vehicle-1",
-            driverUserId: "driver-active",
-            assistantUserId: null,
-            baseFare: null,
-            departureTime: "01:00:00",
-            validFrom: date,
-            validUntil,
-            dayOfWeek: [weekday],
-            isActive: false,
-          });
-        });
-      } finally {
-        nowSpy.mockRestore();
-        nextDepartureSpy.mockRestore();
       }
-    },
-  );
+
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.saveDraftAction" }),
+      );
+
+      await waitFor(() => {
+        expect(createOperatorDriverSchedule).toHaveBeenCalledWith({
+          routeId: "route-1",
+          vehicleId: "vehicle-1",
+          driverUserId: "driver-active",
+          assistantUserId: null,
+          baseFare: null,
+          departureTime: "01:00:00",
+          validFrom: "2026-08-21",
+          validUntil: null,
+          dayOfWeek: [1, 3, 5],
+          isActive: false,
+        });
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("pins a one-time schedule to the departure weekday and closes the date range", async () => {
+    const restore = stubCreateFlow(new Date(2026, 7, 21, 1));
+
+    try {
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByText("SCH-SCHEDULE");
+      await user.click(
+        screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+      );
+
+      const dialog = await screen.findByRole("dialog");
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "trips.suggestNextDeparture",
+        }),
+      );
+
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "trips.scheduleKindRepeat",
+        }),
+      );
+      await user.click(
+        screen.getByRole("option", { name: "trips.scheduleKindOnce" }),
+      );
+
+      // Chọn "một lần" thì không còn ô chọn thứ / ngày kết thúc
+      expect(
+        within(dialog).queryByText("trips.weekdaysLabel"),
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByText("trips.validUntil"),
+      ).not.toBeInTheDocument();
+
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.saveDraftAction" }),
+      );
+
+      await waitFor(() => {
+        expect(createOperatorDriverSchedule).toHaveBeenCalledWith(
+          expect.objectContaining({
+            validFrom: "2026-08-21",
+            // Chặn hai đầu cùng ngày + đúng thứ của ngày đó (Thứ 6 = ISO 5)
+            validUntil: "2026-08-21",
+            dayOfWeek: [5],
+          }),
+        );
+      });
+    } finally {
+      restore();
+    }
+  });
 
   it("lets the backend enforce subscription limits when six schedules already exist", async () => {
     vi.mocked(getOperatorDriverSchedules).mockResolvedValue({
@@ -546,6 +609,233 @@ describe("TripsPage", () => {
   });
 
 
+  it("sends only the changed weekday chips in the patch", async () => {
+    // Lịch gốc: chạy hằng tuần vào Thứ 2 (dayOfWeek [1]), không giới hạn ngày kết thúc
+    vi.mocked(getOperatorDriverSchedules).mockResolvedValue({
+      items: [
+        {
+          id: "schedule-12345678",
+          operatorId: "operator-1",
+          routeId: "route-1",
+          vehicleId: "vehicle-1",
+          driverUserId: "driver-active",
+          assistantUserId: null,
+          baseFare: null,
+          departureTime: "08:00:00",
+          effectiveFrom: "2026-08-17",
+          validFrom: "2026-08-17",
+          validUntil: null,
+          dayOfWeek: [1],
+          isActive: true,
+          route: {
+            id: "route-1",
+            operatorId: "operator-1",
+            name: "Hồ Chí Minh - Đà Lạt",
+            originStationId: "origin-1",
+            destinationStationId: "destination-1",
+            totalDistanceKm: 300,
+            estimatedDurationMinutes: 420,
+            baseFare: 250_000,
+            isActive: true,
+          },
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    vi.mocked(updateOperatorDriverSchedule).mockResolvedValue({
+      id: "schedule-12345678",
+      operatorId: "operator-1",
+      routeId: "route-1",
+      vehicleId: "vehicle-1",
+      driverUserId: "driver-active",
+      assistantUserId: null,
+      baseFare: null,
+      departureTime: "01:00:00",
+      effectiveFrom: "2026-08-17",
+      validFrom: "2026-08-17",
+      validUntil: null,
+      dayOfWeek: [5],
+      isActive: true,
+    });
+
+    // Trước ngày khởi hành 17-08 để lịch còn hợp lệ (không rơi vào quá khứ)
+    const nowSpy = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(new Date(2026, 7, 15, 12).getTime());
+
+    try {
+      const user = userEvent.setup();
+      renderPage();
+
+      await screen.findByText("SCH-SCHEDULE");
+      await user.click(screen.getByRole("button", { name: "trips.edit" }));
+      const dialog = await screen.findByRole("dialog");
+
+      // Lịch gốc chạy Thứ 2 -> chỉ chip T2 đang bật
+      expect(
+        within(dialog).getByRole("button", { name: "trips.weekdaysShort.mon" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(dialog).getByRole("button", { name: "trips.weekdaysShort.fri" }),
+      ).toHaveAttribute("aria-pressed", "false");
+
+      // Chuyển sang chạy Thứ 6: tắt T2, bật T6
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.weekdaysShort.mon" }),
+      );
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.weekdaysShort.fri" }),
+      );
+
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.openForOperation" }),
+      );
+
+      await waitFor(() => {
+        expect(updateOperatorDriverSchedule).toHaveBeenCalledWith(
+          "schedule-12345678",
+          "FUTURE_ONLY",
+          { dayOfWeek: [5] },
+        );
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("leaves the optional assistant empty instead of auto-picking the first one", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("SCH-SCHEDULE");
+    await user.click(
+      screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    const assistantField = within(dialog)
+      .getByText("trips.assistant")
+      .parentElement as HTMLElement;
+
+    // assistantUserId là nullable ở BE — form không được tự gán người đầu danh
+    // sách, nếu không mọi lịch đều âm thầm có phụ xe người tạo chưa hề chọn.
+    expect(
+      within(assistantField).getByText("trips.noAssistant"),
+    ).toBeInTheDocument();
+  });
+
+  it("sends the schedule end date as validUntil and keeps the arrival estimate read-only", async () => {
+    // Lịch gốc chạy hằng ngày, kết thúc 30-09-2026
+    vi.mocked(getOperatorDriverSchedules).mockResolvedValue({
+      items: [
+        {
+          id: "schedule-12345678",
+          operatorId: "operator-1",
+          routeId: "route-1",
+          vehicleId: "vehicle-1",
+          driverUserId: "driver-active",
+          assistantUserId: null,
+          baseFare: null,
+          departureTime: "08:00:00",
+          effectiveFrom: "2026-09-01",
+          validFrom: "2026-09-01",
+          validUntil: "2026-09-30",
+          dayOfWeek: [1, 2, 3, 4, 5, 6, 7],
+          isActive: true,
+          route: {
+            id: "route-1",
+            operatorId: "operator-1",
+            name: "Hồ Chí Minh - Đà Lạt",
+            originStationId: "origin-1",
+            destinationStationId: "destination-1",
+            totalDistanceKm: 300,
+            estimatedDurationMinutes: 420,
+            baseFare: 250_000,
+            isActive: true,
+          },
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    vi.mocked(updateOperatorDriverSchedule).mockResolvedValue({
+      id: "schedule-12345678",
+      operatorId: "operator-1",
+      routeId: "route-1",
+      vehicleId: "vehicle-1",
+      driverUserId: "driver-active",
+      assistantUserId: null,
+      baseFare: null,
+      departureTime: "08:00:00",
+      effectiveFrom: "2026-09-01",
+      validFrom: "2026-09-01",
+      validUntil: "2026-09-25",
+      dayOfWeek: [1, 2, 3, 4, 5, 6, 7],
+      isActive: true,
+    });
+
+    const nowSpy = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(new Date(2026, 7, 19, 12).getTime());
+
+    try {
+      const user = userEvent.setup();
+      renderPage();
+
+      await screen.findByText("SCH-SCHEDULE");
+      await user.click(screen.getByRole("button", { name: "trips.edit" }));
+      const dialog = await screen.findByRole("dialog");
+
+      // "Dự kiến đến" là giá trị hệ thống tự tính — hiển thị thuần, không có
+      // control nào để bấm/nhập (trước đây là input cho sửa rồi âm thầm bỏ đi)
+      const arrivalField = within(dialog)
+        .getByText("trips.arrivalEstimate")
+        .parentElement as HTMLElement;
+      expect(arrivalField.querySelector("button")).toBeNull();
+      expect(arrivalField.querySelector("input")).toBeNull();
+      // Giờ đến suy ra từ 08:00 + 420 phút thời lượng tuyến
+      expect(
+        within(arrivalField).getByText("01-09-2026 15:00"),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByText("trips.arrivalEstimateHint"),
+      ).toBeInTheDocument();
+
+      // Ô ngày kết thúc phải hiện sẵn giá trị đang lưu
+      const validUntilField = within(dialog)
+        .getByText("trips.validUntil")
+        .parentElement as HTMLElement;
+      expect(within(validUntilField).getByText("2026-09-30")).toBeInTheDocument();
+
+      // Đổi sang 25-09-2026 qua lịch (lịch mở đúng tháng 9 vì đã có giá trị)
+      await user.click(validUntilField.querySelector("button") as HTMLElement);
+      await user.click(await screen.findByRole("button", { name: "25" }));
+
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.openForOperation" }),
+      );
+
+      await waitFor(() => {
+        expect(updateOperatorDriverSchedule).toHaveBeenCalledWith(
+          "schedule-12345678",
+          "FUTURE_ONLY",
+          { validUntil: "2026-09-25" },
+        );
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it("forces FUTURE_ONLY and sends only baseFare when the schedule fare changes", async () => {
     vi.mocked(updateOperatorDriverSchedule).mockResolvedValue({
       id: "schedule-12345678",
@@ -652,5 +942,24 @@ describe("TripsPage", () => {
     expect(toast).toHaveTextContent("trips.deleteHasTrips");
     expect(toast).toHaveAttribute("role", "alert");
     expect(screen.getByText("SCH-SCHEDULE")).toBeInTheDocument();
+  });
+
+  it("does not call the schedules API for OPERATOR_STAFF (BE returns 403 for this role — see API-driver shedule.md §3.2)", async () => {
+    // mockReturnValue (không phải Once) — component gọi getAuthUser() lại ở
+    // mỗi lần re-render (mount + sau khi resources/schedules effect resolve),
+    // Once chỉ patch đúng 1 lần rồi rơi về mock mặc định ADMIN giữa chừng.
+    authMock.getAuthUser.mockReturnValue({
+      id: "staff-1",
+      role: "OPERATOR_STAFF",
+    });
+
+    renderPage();
+
+    // Chờ resource load xong (route/vehicle/staff vẫn gọi bình thường cho STAFF)
+    await screen.findByText("trips.staffScheduleListUnavailable");
+
+    expect(getOperatorDriverSchedules).not.toHaveBeenCalled();
+    expect(screen.queryByText("SCH-SCHEDULE")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "trips.createScheduleTitle" })).not.toBeInTheDocument();
   });
 });

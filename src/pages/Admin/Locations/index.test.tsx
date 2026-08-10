@@ -5,6 +5,7 @@ import {
   createAdminLocation,
   deleteAdminLocation,
   getAdminLocations,
+  getPublicLocations,
   updateAdminLocation,
   type AdminLocation,
 } from "../../../api/vietride";
@@ -29,12 +30,17 @@ vi.mock("../../../api/vietride", () => ({
   createAdminLocation: vi.fn(),
   deleteAdminLocation: vi.fn(),
   getAdminLocations: vi.fn(),
+  getPublicLocations: vi.fn(),
   updateAdminLocation: vi.fn(),
+  LOCATION_TOP_LEVEL_TYPES: ["PROVINCE", "MUNICIPALITY"],
+  LOCATION_LEAF_TYPES: ["WARD", "COMMUNE", "SPECIAL_ZONE"],
+  isLeafLocationType: (type: string) =>
+    ["WARD", "COMMUNE", "SPECIAL_ZONE"].includes(type),
 }));
 
 const location = {
   id: "location-1",
-  code: "HN",
+  code: "01",
   name: "Hà Nội",
   type: "MUNICIPALITY",
   sortOrder: 1,
@@ -56,6 +62,7 @@ describe("Admin Locations", () => {
       hasPreviousPage: false,
     });
     vi.mocked(createAdminLocation).mockResolvedValue(location);
+    vi.mocked(getPublicLocations).mockResolvedValue([location]);
   });
 
   it("uses product-friendly wording and provides a dedicated detail view", async () => {
@@ -65,7 +72,9 @@ describe("Admin Locations", () => {
     expect(
       await screen.findByRole("button", { name: location.name }, { timeout: 5_000 }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("MUNICIPALITY")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/locations\.types\.MUNICIPALITY/),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "refresh" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "locations.viewDetails" }));
@@ -74,10 +83,11 @@ describe("Admin Locations", () => {
     expect(within(dialog).getByRole("heading", { name: location.name })).toBeInTheDocument();
     expect(within(dialog).getByText("locations.detailHint")).toBeInTheDocument();
     expect(within(dialog).getByText("locations.createdAt")).toBeInTheDocument();
-    expect(within(dialog).queryByText("locations.type")).not.toBeInTheDocument();
+    // Cấp hành chính giờ là thông tin bắt buộc của danh mục hai cấp
+    expect(within(dialog).getByText(/^locations\.type$/)).toBeInTheDocument();
   });
 
-  it("creates a search area without exposing the backend type selector", async () => {
+  it("tạo phường/xã kèm cấp hành chính và tỉnh trực thuộc", async () => {
     const user = userEvent.setup();
     render(<AdminLocations />);
 
@@ -85,26 +95,43 @@ describe("Admin Locations", () => {
     await user.click(screen.getByRole("button", { name: "locations.create" }));
 
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).queryByRole("combobox")).not.toBeInTheDocument();
 
     await user.type(
       within(dialog).getByPlaceholderText("locations.namePlaceholder"),
-      "Đồng Nai",
+      "Phường Vũng Tàu",
+    );
+
+    // Chọn cấp WARD thì mới hiện ô chọn tỉnh trực thuộc
+    // CustomSelect là listbox tuỳ biến: mở bằng button rồi chọn option
+    await user.click(
+      within(dialog).getByRole("button", { name: "locations.type" }),
+    );
+    await user.click(screen.getByRole("option", { name: /locations\.types\.WARD/ }));
+
+    await user.click(
+      await within(dialog).findByRole("button", { name: "locations.parent" }),
     );
     await user.type(
-      within(dialog).getByPlaceholderText("locations.codePlaceholder"),
-      "dn",
+      screen.getByRole("combobox", {
+        name: "searchOptions locations.parent",
+      }),
+      "ha noi",
     );
+    await user.click(screen.getByRole("option", { name: /Hà Nội/ }));
+    // Mã leaf đúng 5 chữ số và giữ nguyên số 0 đầu
+    await user.type(within(dialog).getByPlaceholderText("26506"), "01234");
+
     await user.click(
       within(dialog).getByRole("button", { name: "locations.createSubmit" }),
     );
 
     expect(createAdminLocation).toHaveBeenCalledWith({
-      code: "DN",
-      name: "Đồng Nai",
-      type: "PROVINCE",
+      code: "01234",
+      name: "Phường Vũng Tàu",
+      type: "WARD",
       sortOrder: 0,
       isActive: true,
+      parentCode: "01",
     });
     expect(updateAdminLocation).not.toHaveBeenCalled();
     expect(deleteAdminLocation).not.toHaveBeenCalled();

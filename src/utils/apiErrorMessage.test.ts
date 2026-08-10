@@ -48,6 +48,61 @@ describe("translateApiErrorMessage", () => {
     },
   );
 
+  // VALIDATION_ERROR là toast hay gặp nhất: client.ts ghép message của từng
+  // field với code=undefined, nên nếu không dịch được ở tầng này thì người dùng
+  // thấy nguyên văn tiếng Anh của FluentValidation.
+  it.each([
+    ["'Day Of Week' must not be empty.", "Vui lòng nhập các thứ trong tuần."],
+    ["'Base Fare' must not be null.", "Vui lòng nhập giá vé."],
+    [
+      "'Base Fare' must be greater than or equal to '0'.",
+      "Giá vé phải lớn hơn hoặc bằng 0.",
+    ],
+    ["'Email' is not a valid email address.", "Email không đúng định dạng email."],
+    ["'Phone' is not in the correct format.", "Số điện thoại không đúng định dạng."],
+    [
+      "The length of 'Name' must be at least 3 characters. You entered 1 characters.",
+      "Tên phải có ít nhất 3 ký tự.",
+    ],
+    [
+      "The length of 'Code' must be 50 characters or fewer. You entered 80 characters.",
+      "Mã không được vượt quá 50 ký tự.",
+    ],
+    ["'Page Size' must be between 1 and 100.", "Số dòng mỗi trang phải nằm trong khoảng 1 đến 100."],
+  ])(
+    "translates the FluentValidation message %s",
+    async (raw, expected) => {
+      await i18n.changeLanguage("vi");
+      expect(translateApiErrorMessage(undefined, raw)).toBe(expected);
+    },
+  );
+
+  it("translates BE custom validation messages word for word", async () => {
+    await i18n.changeLanguage("vi");
+    expect(
+      translateApiErrorMessage(undefined, "validUntil must be after validFrom."),
+    ).toBe("Ngày kết thúc phải sau ngày bắt đầu.");
+    expect(
+      translateApiErrorMessage(undefined, "SortDir must be 'asc' or 'desc'."),
+    ).toBe("Chiều sắp xếp chỉ nhận 'asc' hoặc 'desc'.");
+  });
+
+  it("keeps the English field name when it is not in the dictionary yet", async () => {
+    await i18n.changeLanguage("vi");
+    // Câu vẫn được dịch cấu trúc, chỉ tên field giữ nguyên — vẫn dễ hiểu hơn
+    // nguyên câu tiếng Anh.
+    expect(
+      translateApiErrorMessage(undefined, "'Some New Field' must not be empty."),
+    ).toBe("Vui lòng nhập Some New Field.");
+  });
+
+  it("does not translate field messages when language is English", async () => {
+    await i18n.changeLanguage("en");
+    expect(
+      translateApiErrorMessage(undefined, "'Day Of Week' must not be empty."),
+    ).toBe("'Day Of Week' must not be empty.");
+  });
+
   it("falls back to the raw BE message when the code is unknown", async () => {
     await i18n.changeLanguage("vi");
     expect(

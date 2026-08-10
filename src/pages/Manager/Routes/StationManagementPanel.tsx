@@ -3,6 +3,7 @@
 import { useTranslation } from "react-i18next";
 import { FiCheckCircle, FiMapPin } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
+import Checkbox from "../../../components/form/Checkbox";
 import PlacePicker, {
   type PlaceSelection,
 } from "../../../components/PlacePicker";
@@ -36,7 +37,9 @@ function normalizeLocationName(value: string) {
     .replace(/^(?:tinh|thanh pho|tp)\s+/, "");
 }
 
-function findMatchingLocationId(
+// Đoán sẵn tỉnh/thành từ địa chỉ Google để mở sẵn danh sách phường/xã.
+// Chỉ là gợi ý — người dùng vẫn phải tự chọn đúng phường/xã ở bước sau.
+function findMatchingProvinceCode(
   place: PlaceSelection,
   locations: AdminLocation[],
 ) {
@@ -47,7 +50,7 @@ function findMatchingLocationId(
     placeLocationNames.includes(normalizeLocationName(location.name)),
   );
 
-  return matchingLocation?.id ?? "";
+  return matchingLocation?.code ?? "";
 }
 
 export default function StationManagementPanel({
@@ -59,6 +62,7 @@ export default function StationManagementPanel({
   hasSelectedRoute,
 }: StationManagementPanelProps) {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
 
   return (
     <div className="space-y-4">
@@ -95,19 +99,6 @@ export default function StationManagementPanel({
                   </option>
                 </CustomSelect>
               )}
-              {manager.selectedStationId && (
-                <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={manager.stationSupportsShuttle}
-                    onChange={(event) =>
-                      manager.setStationSupportsShuttle(event.target.checked)
-                    }
-                    className="h-4 w-4 accent-vr-500"
-                  />
-                  {t("routes.supportsShuttle")}
-                </label>
-              )}
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -118,18 +109,6 @@ export default function StationManagementPanel({
                   <FiCheckCircle size={16} />
                   {t("routes.attachStation")}
                 </button>
-                {manager.selectedStationId && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onRunAction(manager.handleConfirmShuttleSupport)
-                    }
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50"
-                  >
-                    <FiCheckCircle size={16} />
-                    {t("routes.confirmShuttle")}
-                  </button>
-                )}
               </div>
             </>
           )}
@@ -147,34 +126,81 @@ export default function StationManagementPanel({
               placeholder={t("routes.stationNamePlaceholder")}
               selectedPlace={manager.selectedStationPlace}
               onSelect={(place) => {
-                manager.setSelectedLocationId(
-                  findMatchingLocationId(place, locations),
-                );
-                onRunAction(() => manager.applyStationPlace(place));
+                const provinceCode = findMatchingProvinceCode(place, locations);
+                onRunAction(async () => {
+                  await manager.applyStationPlace(place);
+                  await manager.selectProvince(provinceCode);
+                });
               }}
             />
             {manager.stationPlaceDraft && !manager.selectedStationId && (
               <>
-                <div>
-                  <label className={labelClass}>
-                    {t("routes.searchLocation")}
-                  </label>
-                  <CustomSelect
-                    aria-label={t("routes.searchLocation")}
-                    className={inputClass}
-                    value={manager.selectedLocationId}
-                    onChange={(event) =>
-                      manager.setSelectedLocationId(event.target.value)
-                    }
-                  >
-                    <option value="">{t("routes.selectSearchLocation")}</option>
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.name} · {location.code}
+                {/* Bến chỉ nhận Location cấp phường/xã. Danh sách phường/xã
+                    phải hỏi riêng theo tỉnh (GET /v1/locations?parentCode=),
+                    nên phải chọn hai cấp thay vì một dropdown tỉnh như trước. */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>
+                      {t("routes.stationProvince")}
+                    </label>
+                    <CustomSelect
+                      aria-label={t("routes.stationProvince")}
+                      className={inputClass}
+                      value={manager.selectedProvinceCode}
+                      searchable
+                      searchPlaceholder={tc("searchOptions", {
+                        label: t("routes.stationProvince"),
+                      })}
+                      emptyMessage={tc("noMatchingOptions")}
+                      onChange={(event) =>
+                        onRunAction(() =>
+                          manager.selectProvince(event.target.value),
+                        )
+                      }
+                    >
+                      <option value="">
+                        {t("routes.selectStationProvince")}
                       </option>
-                    ))}
-                  </CustomSelect>
-                  <p className="mt-1 text-xs text-gray-500">
+                      {locations.map((location) => (
+                        <option key={location.id} value={location.code}>
+                          {location.name}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                  </div>
+                  <div>
+                    <label className={labelClass}>
+                      {t("routes.stationWard")}
+                    </label>
+                    <CustomSelect
+                      aria-label={t("routes.stationWard")}
+                      className={inputClass}
+                      value={manager.selectedLocationId}
+                      disabled={
+                        !manager.selectedProvinceCode || manager.isLoadingWards
+                      }
+                      searchable
+                      searchPlaceholder={tc("searchOptions", {
+                        label: t("routes.stationWard"),
+                      })}
+                      emptyMessage={tc("noMatchingOptions")}
+                      onChange={(event) =>
+                        manager.setSelectedLocationId(event.target.value)
+                      }
+                    >
+                      <option value="">
+                        {manager.isLoadingWards
+                          ? t("routes.loadingWards")
+                          : t("routes.selectStationWard")}
+                      </option>
+                      {manager.wards.map((ward) => (
+                        <option key={ward.id} value={ward.id}>
+                          {ward.name}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                  </div>
+                  <p className="text-xs text-gray-500 sm:col-span-2">
                     {t("routes.searchLocationHint")}
                   </p>
                 </div>
@@ -182,14 +208,11 @@ export default function StationManagementPanel({
                   htmlFor="station-supports-shuttle"
                   className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
                 >
-                  <input
+                  <Checkbox
                     id="station-supports-shuttle"
-                    type="checkbox"
                     checked={manager.stationSupportsShuttle}
-                    onChange={(event) =>
-                      manager.setStationSupportsShuttle(event.target.checked)
-                    }
-                    className="mt-0.5 h-4 w-4 cursor-pointer accent-vr-500"
+                    onChange={manager.setStationSupportsShuttle}
+                    className="mt-0.5"
                   />
                   <span>
                     <span className="block text-sm font-semibold text-gray-900">

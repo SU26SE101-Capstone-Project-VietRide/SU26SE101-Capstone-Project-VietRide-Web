@@ -31,7 +31,8 @@
     "reports": "Doanh thu",
     "wallet": "Ví nhà xe",
     "settings": "Cấu hình",
-    "assistant": "Trợ lý nghiệp vụ"
+    "assistant": "Trợ lý nghiệp vụ",
+    "incidents": "Sự cố chuyến đi"
   },
   "admin": {
     "dashboard": "Tổng quan",

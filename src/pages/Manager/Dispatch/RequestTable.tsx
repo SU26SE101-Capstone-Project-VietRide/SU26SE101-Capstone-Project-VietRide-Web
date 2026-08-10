@@ -1,11 +1,12 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiClock, FiEye, FiMapPin, FiTruck, FiUsers } from "react-icons/fi";
 import type {
   ShuttleDirection,
   ShuttleRequestGroup,
 } from "../../../api/vietride";
+import { useNowTicker } from "../../../hooks/useNowTicker";
 import {
+  bookingPassengerLabel,
   formatDistance,
   formatTime,
   getBookingDistance,
@@ -33,7 +34,8 @@ export default function RequestTable({
 }: RequestTableProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [currentTime] = useState(() => Date.now());
+  // Hạn điều phối phải so với thời gian thật, không phải lúc mở trang
+  const currentTime = useNowTicker();
 
   if (isLoading && groups.length === 0) {
     return (
@@ -85,12 +87,19 @@ export default function RequestTable({
                       </span>
                     )}
                   </div>
-                  <p className="mt-2 break-all font-mono text-xs text-gray-500">
-                    {t("dispatch.tripLabel")} {group.mainTripId}
-                  </p>
-                  <p className="mt-1 flex items-start gap-1.5 font-semibold text-gray-900">
-                    <FiMapPin className="mt-0.5 shrink-0 text-vr-600" aria-hidden="true" />
+                  {/* Định danh nhóm yêu cầu là bến + giờ chuyến chính, không
+                      phải UUID chuyến — điều độ viên không đọc được UUID. */}
+                  <p className="mt-2 flex items-start gap-1.5 text-base font-bold text-gray-900">
+                    <FiMapPin
+                      className="mt-1 shrink-0 text-vr-600"
+                      aria-hidden="true"
+                    />
                     {group.stationName}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {t("dispatch.mainTripAt", {
+                      time: formatTime(group.departureDateTime),
+                    })}
                   </p>
                 </div>
 
@@ -173,8 +182,13 @@ export default function RequestTable({
                         {index + 1}
                       </span>
                       <div className="min-w-0">
-                        <p className="break-all font-mono text-xs text-gray-500">
-                          {booking.bookingId}
+                        {/* Tên khách thay cho bookingId; payload cũ chưa có
+                            passengers thì lùi về nhãn "Lượt đặt #n". */}
+                        <p className="truncate text-xs font-semibold text-gray-700">
+                          {bookingPassengerLabel(
+                            booking,
+                            t("dispatch.bookingOrdinal", { index: index + 1 }),
+                          )}
                         </p>
                         <p className="mt-1 text-sm font-medium text-gray-900">
                           {booking.pickupAddress}

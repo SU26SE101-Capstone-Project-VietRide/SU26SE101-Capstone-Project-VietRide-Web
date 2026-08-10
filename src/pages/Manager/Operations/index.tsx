@@ -8,7 +8,7 @@ import {
 } from "react-icons/fi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   getOperatorFleetLatest,
   getOperatorRouteChangeProposals,
@@ -34,7 +34,8 @@ import {
 import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
 import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
-import FleetFilterBar from "./FleetFilterBar";
+import FleetFilterBar, { type FleetStatusFilter } from "./FleetFilterBar";
+import OperationsStatusBar from "./OperationsStatusBar";
 import FleetMapLegend from "./FleetMapLegend";
 import FleetMetricCard from "./FleetMetricCard";
 import FleetVehicleList from "./FleetVehicleList";
@@ -42,23 +43,27 @@ import ProposalsPanel from "./ProposalsPanel";
 import TripActionsPanel from "./TripActionsPanel";
 import TripTrackingPanel from "./TripTrackingPanel";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
-import {
-  createTrackingSocket,
-  joinTripTracking,
-  type FleetGpsUpdateEvent,
-  type TrackingEtaBatchUpdateEvent,
-  type TrackingEtaUpdateEvent,
-  type TrackingLatestLocation,
-  type TripStatusChangedEvent,
+import type {
+  FleetGpsUpdateEvent,
+  TrackingEtaBatchUpdateEvent,
+  TrackingEtaUpdateEvent,
+  TrackingLatestLocation,
+  TripStatusChangedEvent,
 } from "../../../lib/trackingSocket";
 import {
   applyFleetGpsUpdate,
   buildFleetVehicles,
   getFleetStatus,
+  mergeTripsById,
   routeGeometryPath,
+  splitRouteAtPosition,
   type RealtimeStatus,
+  type RouteGeometryStatus,
 } from "./gpsHelpers";
-import { useFleetSocket } from "./useFleetSocket";
+import {
+  FALLBACK_POLL_INTERVAL_MS,
+  useOperationsSocket,
+} from "./useOperationsSocket";
 
 // Nhãn hiển thị chuyến trong header panel theo dõi
 function tripLabel(trip: OperatorTripListItem): string {
@@ -75,11 +80,10 @@ export default function OperationsPage() {
   useEffect(() => {
     tRef.current = t;
   });
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState<
-    "all" | FleetVehicleMapPoint["status"]
-  >("all");
+  const [filterStatus, setFilterStatus] = useState<FleetStatusFilter>("all");
   // Một state duy nhất cho cả marker/list và panel theo dõi (khoá chung tripId)
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [focusCenter, setFocusCenter] = useState<GoogleMapCoordinate | null>(null);
@@ -87,7 +91,19 @@ export default function OperationsPage() {
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
   const [tripOptions, setTripOptions] = useState<OperatorTripListItem[]>([]);
   const [fleetVehicles, setFleetVehicles] = useState<FleetVehicleMapPoint[]>([]);
-  const [routeGeometry, setRouteGeometry] = useState<TripRouteGeometry | null>(null);
+  // Kết quả tải lộ trình luôn mang theo chuyến + lượt tải mà nó thuộc về, nên
+  // response của chuyến trước không thể bị hiểu nhầm là lộ trình của chuyến
+  // đang mở. Trạng thái và geometry đều suy ra từ đây, không giữ state riêng.
+  const [routeGeometryResult, setRouteGeometryResult] = useState<{
+    tripId: string;
+    refreshKey: number;
+    geometry: TripRouteGeometry | null;
+    failed: boolean;
+  } | null>(null);
+  // Bump để tải lại lộ trình sau khi duyệt đề xuất đổi tuyến của tài xế
+  const [routeGeometryRefreshKey, setRouteGeometryRefreshKey] = useState(0);
+  const [connectionStatus, setConnectionStatus] =
+    useState<RealtimeStatus>("connecting");
   const [isFleetLoading, setIsFleetLoading] = useState(false);
   const [latest, setLatest] = useState<TrackingLatestResponse | null>(null);
   const [trail, setTrail] = useState<TrackingTrailPoint[]>([]);
@@ -199,7 +215,13 @@ export default function OperationsPage() {
     const offline = fleetVehicles.filter(
       (v) => v.status === "offline" || v.status === "lost",
     ).length;
-    return { total, moving, idle, offline };
+    const disrupted = fleetVehicles.filter(
+      (v) => v.status === "disrupted",
+    ).length;
+    // Chip trên thanh trạng thái chỉ đếm "lost" (hết hạn trong fleet-latest) vì
+    // đó mới là mất tín hiệu thật; "offline" chỉ là thiếu trường tốc độ.
+    const lostSignal = fleetVehicles.filter((v) => v.status === "lost").length;
+    return { total, moving, idle, offline, disrupted, lostSignal };
   }, [fleetVehicles]);
 
   const selectedTrip = useMemo(
@@ -210,7 +232,8 @@ export default function OperationsPage() {
     [selectedTripId, tripOptions],
   );
 
-  // Chọn / bỏ chọn chuyến: cập nhật state + URL + tải geometry tuyến
+  // Chọn / bỏ chọn chuyến: cập nhật state + URL. Lộ trình tuyến do effect riêng
+  // tải và tự khoá theo tripId nên ở đây không cần dọn.
   const selectTrip = useCallback(
     (nextTripId: string | null) => {
       setSelectedTripId(nextTripId);
@@ -220,7 +243,6 @@ export default function OperationsPage() {
       setTripDetails(null);
       etaSocketVersionRef.current += 1;
       etaBatchSocketVersionRef.current += 1;
-      setRouteGeometry(null);
       setLatest(null);
       setTrail([]);
       setApiMessage("");
@@ -238,11 +260,9 @@ export default function OperationsPage() {
         },
         { replace: true },
       );
-      if (!nextTripId) return;
-
-      void getTrackingTripRouteGeometry(nextTripId)
-        .then((geometry) => setRouteGeometry(geometry))
-        .catch(() => setRouteGeometry(null));
+      // Geometry tuyến do effect bên dưới tải: gọi ngay tại đây thì hai lần chọn
+      // chuyến liên tiếp sẽ đua nhau và response về chậm của chuyến trước ghi đè
+      // lộ trình của chuyến đang mở — bản đồ vẽ tuyến của chuyến khác.
     },
     [setSearchParams],
   );
@@ -263,27 +283,39 @@ export default function OperationsPage() {
     setApiError("");
 
     try {
-      // 2 request thay vì N+1: trips (metadata/crew) + fleet-latest (vị trí batch),
-      // merge theo tripId. Chuyến thiếu trong fleet-latest = mất tín hiệu GPS —
-      // vẫn giữ trong danh sách với trạng thái "lost".
-      const [tripItems, fleetResult] = await Promise.all([
-        fetchAllPages(({ page, pageSize }) =>
-          getOperatorTrips({ status: "IN_PROGRESS", page, pageSize }),
-        ),
-        getOperatorFleetLatest({ status: "IN_PROGRESS" }),
-      ]);
+      // trips (metadata/crew) + fleet-latest (vị trí batch), merge theo tripId.
+      // Chuyến thiếu trong fleet-latest = mất tín hiệu GPS — vẫn giữ trong danh
+      // sách với trạng thái "lost".
+      //
+      // Chuyến DISRUPTED phải tải riêng vì cả hai endpoint chỉ nhận một status:
+      // trước đây màn chỉ hỏi IN_PROGRESS nên một chuyến chuyển sang sự cố là
+      // lặng lẽ biến mất khỏi bản đồ, đúng lúc điều độ viên cần thấy nó nhất.
+      // Nhánh sự cố không được phép chặn nhánh chính: lỗi thì coi như rỗng.
+      const [tripItems, fleetResult, disruptedTrips, disruptedFleet] =
+        await Promise.all([
+          fetchAllPages(({ page, pageSize }) =>
+            getOperatorTrips({ status: "IN_PROGRESS", page, pageSize }),
+          ),
+          getOperatorFleetLatest({ status: "IN_PROGRESS" }),
+          fetchAllPages(({ page, pageSize }) =>
+            getOperatorTrips({ status: "DISRUPTED", page, pageSize }),
+          ).catch(() => [] as OperatorTripListItem[]),
+          getOperatorFleetLatest({ status: "DISRUPTED" }).catch(() => null),
+        ]);
+      // Sự cố xếp trước để nổi lên đầu danh sách xe
+      const allTrips = mergeTripsById(disruptedTrips, tripItems);
       const nextVehicles = buildFleetVehicles(
-        tripItems,
-        fleetResult.items,
+        allTrips,
+        mergeTripsById(disruptedFleet?.items ?? [], fleetResult.items),
         tRef.current("gps.unassignedDriver"),
       );
-      setTripOptions(tripItems);
+      setTripOptions(allTrips);
       setFleetVehicles(nextVehicles);
       setFocusCenter(
         nextVehicles.find((vehicle) => vehicle.position)?.position ?? null,
       );
       setLastRefresh(new Date());
-      return tripItems;
+      return allTrips;
     } catch (error: unknown) {
       setTripOptions([]);
       setFleetVehicles([]);
@@ -317,12 +349,16 @@ export default function OperationsPage() {
 
   // Poll fallback khi socket fleet mất kết nối: chỉ refresh vị trí batch,
   // không tải lại trips (metadata ít đổi, chờ reconnect refresh đủ).
+  // Kèm nhánh DISRUPTED để chuyến chuyển sang sự cố trong lúc mất realtime vẫn
+  // đổi màu trên bản đồ thay vì đứng im ở trạng thái cũ.
   const pollFleetLatest = useCallback(() => {
-    void getOperatorFleetLatest({ status: "IN_PROGRESS" })
-      .then((fleetResult) => {
-        setFleetVehicles((current) =>
-          fleetResult.items.reduce(applyFleetGpsUpdate, current),
-        );
+    void Promise.all([
+      getOperatorFleetLatest({ status: "IN_PROGRESS" }),
+      getOperatorFleetLatest({ status: "DISRUPTED" }).catch(() => null),
+    ])
+      .then(([fleetResult, disruptedFleet]) => {
+        const items = [...fleetResult.items, ...(disruptedFleet?.items ?? [])];
+        setFleetVehicles((current) => items.reduce(applyFleetGpsUpdate, current));
         setLastRefresh(new Date());
       })
       .catch(() => {
@@ -341,11 +377,163 @@ export default function OperationsPage() {
     refreshPendingProposalCount();
   }, [pollFleetLatest, refreshPendingProposalCount]);
 
-  useFleetSocket({
+  // Lộ trình tuyến của chuyến đang mở. Tách khỏi selectTrip để có ignore-guard:
+  // chọn hai chuyến liên tiếp thì response về chậm của chuyến trước bị bỏ qua
+  // thay vì vẽ đè lên chuyến đang mở.
+  useEffect(() => {
+    const tripId = selectedTripId?.trim() ?? "";
+    if (!tripId) return;
+
+    let ignore = false;
+    const refreshKey = routeGeometryRefreshKey;
+
+    void getTrackingTripRouteGeometry(tripId)
+      .then((geometry) => {
+        if (ignore) return;
+        setRouteGeometryResult({ tripId, refreshKey, geometry, failed: false });
+      })
+      .catch(() => {
+        if (ignore) return;
+        setRouteGeometryResult({
+          tripId,
+          refreshKey,
+          geometry: null,
+          failed: true,
+        });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [routeGeometryRefreshKey, selectedTripId]);
+
+  // Kết quả chỉ dùng được khi khớp đúng chuyến + lượt tải hiện tại
+  const routeGeometry = useMemo(() => {
+    const tripId = selectedTripId?.trim() ?? "";
+    if (!tripId || routeGeometryResult?.tripId !== tripId) return null;
+    if (routeGeometryResult.refreshKey !== routeGeometryRefreshKey) return null;
+    return routeGeometryResult.geometry;
+  }, [routeGeometryRefreshKey, routeGeometryResult, selectedTripId]);
+
+  const routePath = useMemo(
+    () => routeGeometryPath(routeGeometry),
+    [routeGeometry],
+  );
+
+  // Vị trí mới nhất của xe đang chọn — ưu tiên GPS realtime, lùi về toạ độ
+  // trong danh sách fleet khi chuyến chưa có bản ghi tracking riêng.
+  const selectedVehiclePosition = useMemo<GoogleMapCoordinate | null>(() => {
+    if (latest?.latest) {
+      return { lat: latest.latest.latitude, lng: latest.latest.longitude };
+    }
+    const vehicle = fleetVehicles.find((item) => item.id === selectedTripId);
+    return vehicle?.position ?? null;
+  }, [fleetVehicles, latest, selectedTripId]);
+
+  // Cắt lộ trình tại vị trí xe để tô "đã đi" khác "chưa đi".
+  const routeProgress = useMemo(
+    () => splitRouteAtPosition(routePath, selectedVehiclePosition),
+    [routePath, selectedVehiclePosition],
+  );
+
+  const routeGeometryStatus = useMemo<RouteGeometryStatus>(() => {
+    const tripId = selectedTripId?.trim() ?? "";
+    if (!tripId) return "idle";
+    if (
+      routeGeometryResult?.tripId !== tripId ||
+      routeGeometryResult.refreshKey !== routeGeometryRefreshKey
+    ) {
+      return "loading";
+    }
+    if (routeGeometryResult.failed) return "error";
+    // Có response nhưng không đủ điểm để vẽ vẫn là "không có lộ trình" —
+    // phân biệt với lỗi mạng để panel nói đúng nguyên nhân.
+    return routePath.length > 1 ? "ready" : "empty";
+  }, [
+    routeGeometryRefreshKey,
+    routeGeometryResult,
+    routePath,
+    selectedTripId,
+  ]);
+
+  // Chip trên thanh trạng thái đưa người dùng thẳng tới thứ cần xử lý: bỏ chọn
+  // chuyến và đóng panel đề xuất để danh sách xe (đã lọc) hiện ra.
+  const focusFleetStatus = useCallback(
+    (status: FleetStatusFilter) => {
+      setFilterStatus(status);
+      setProposalsPanelOpen(false);
+      selectTrip(null);
+    },
+    [selectTrip, setProposalsPanelOpen],
+  );
+
+  const handleTripGps = useCallback((event: TrackingLatestLocation) => {
+    setLatest({ latest: event });
+    setTrail((current) =>
+      [
+        event,
+        ...current.filter((point) => point.recordedAt !== event.recordedAt),
+      ].slice(0, 100),
+    );
+    setFleetVehicles((current) =>
+      current.map((vehicle) =>
+        vehicle.id === event.tripId
+          ? {
+              ...vehicle,
+              position: { lat: event.latitude, lng: event.longitude },
+              speedKmh: event.speedKmh ?? null,
+              // gps:update của room chuyến không kèm trạng thái chuyến — giữ
+              // nguyên cờ sự cố, đừng để một điểm GPS mới xoá mất nó.
+              status:
+                vehicle.status === "disrupted"
+                  ? "disrupted"
+                  : getFleetStatus(event),
+            }
+          : vehicle,
+      ),
+    );
+    setFocusCenter({ lat: event.latitude, lng: event.longitude });
+    setLastRefresh(new Date());
+  }, []);
+
+  const handleTripEta = useCallback((event: TrackingEtaUpdateEvent) => {
+    etaSocketVersionRef.current += 1;
+    setEta({ eta: event });
+  }, []);
+
+  const handleTripEtaBatch = useCallback(
+    (event: TrackingEtaBatchUpdateEvent) => {
+      etaBatchSocketVersionRef.current += 1;
+      // Batch là snapshot đầy đủ các target còn lại, không merge với batch cũ.
+      setEtaTargets(event.etas);
+    },
+    [],
+  );
+
+  const handleTripStatusChanged = useCallback(
+    (event: TripStatusChangedEvent) => {
+      setDelayInfo(event.status === "DELAYED" ? event : null);
+    },
+    [],
+  );
+
+  const handleTripJoinFailed = useCallback(() => {
+    setApiError(tRef.current("gps.realtimeJoinFailed"));
+  }, []);
+
+  useOperationsSocket({
+    tripId: selectedTripId?.trim() || null,
     onFleetGpsUpdate: handleFleetGpsUpdate,
     onProposalActivity: refreshPendingProposalCount,
     onFallbackPoll: pollFleetLatest,
     onReconnect: handleFleetReconnect,
+    onTripGps: handleTripGps,
+    onTripEta: handleTripEta,
+    onTripEtaBatch: handleTripEtaBatch,
+    onTripStatusChanged: handleTripStatusChanged,
+    onTripRealtimeStatus: setRealtimeStatus,
+    onTripJoinFailed: handleTripJoinFailed,
+    onConnectionStatus: setConnectionStatus,
   });
 
   // Hydrate giờ kế hoạch, batch realtime và ETA legacy độc lập.
@@ -410,7 +598,9 @@ export default function OperationsPage() {
         getTrackingTripLatest(tripId),
         getTrackingTripTrail(tripId, {
           page: 1,
-          pageSize: 20,
+          // 20 điểm chỉ đủ vẽ một đoạn đuôi ngắn sau xe; 100 là trần pageSize
+          // của endpoint trail nên lấy tối đa để vệt hành trình liền mạch hơn.
+          pageSize: 100,
           sortBy: "recordedAt",
           sortDir: "desc",
         }),
@@ -439,91 +629,26 @@ export default function OperationsPage() {
     }
   }
 
+  // Tự nạp tracking ngay khi chọn chuyến. Trước đây vệt hành trình chỉ xuất
+  // hiện sau khi bấm tay nút "Tải tracking", nên chọn xe xong bản đồ chỉ có
+  // lộ trình + marker, người dùng tưởng hệ thống không theo dõi được.
+  // Ref giữ bản mới nhất của hàm để effect chỉ chạy theo chuyến được chọn,
+  // không chạy lại mỗi lần component render.
+  const loadTripTrackingRef = useRef(loadTripTracking);
   useEffect(() => {
+    loadTripTrackingRef.current = loadTripTracking;
+  });
+
+  useEffect(() => {
+    if (!selectedTripId) return;
+
     let cancelled = false;
-    const tripId = selectedTripId?.trim() ?? "";
-    const nextStatus: RealtimeStatus = tripId ? "connecting" : "idle";
-    const statusTimer = window.setTimeout(() => {
-      if (!cancelled) setRealtimeStatus(nextStatus);
-    }, 0);
-
-    if (!tripId) {
-      return () => {
-        cancelled = true;
-        window.clearTimeout(statusTimer);
-      };
-    }
-
-    const socket = createTrackingSocket();
-
-    socket.on("connect", () => {
-      void joinTripTracking(socket, tripId).then((ack) => {
-        if (cancelled) return;
-        if (ack.success) {
-          setRealtimeStatus("connected");
-        } else {
-          setRealtimeStatus("error");
-          setApiError(tRef.current("gps.realtimeJoinFailed"));
-        }
-      });
-    });
-
-    socket.on("connect_error", () => {
-      if (!cancelled) setRealtimeStatus("error");
-    });
-
-    socket.on("disconnect", () => {
-      if (!cancelled) setRealtimeStatus("error");
-    });
-
-    socket.on("gps:update", (event: TrackingLatestLocation) => {
-      if (cancelled) return;
-      setLatest({ latest: event });
-      setTrail((current) => [
-        event,
-        ...current.filter((point) => point.recordedAt !== event.recordedAt),
-      ].slice(0, 100));
-      setFleetVehicles((current) =>
-        current.map((vehicle) =>
-          vehicle.id === event.tripId
-            ? {
-                ...vehicle,
-                position: { lat: event.latitude, lng: event.longitude },
-                speedKmh: event.speedKmh ?? null,
-                status: getFleetStatus(event),
-              }
-            : vehicle,
-        ),
-      );
-      setFocusCenter({ lat: event.latitude, lng: event.longitude });
-      setLastRefresh(new Date());
-    });
-
-    socket.on("eta:update", (event: TrackingEtaUpdateEvent) => {
-      if (cancelled || event.tripId !== tripId) return;
-      etaSocketVersionRef.current += 1;
-      setEta({ eta: event });
-    });
-
-    socket.on(
-      "eta:batch:update",
-      (event: TrackingEtaBatchUpdateEvent) => {
-        if (cancelled || event.tripId !== tripId) return;
-        etaBatchSocketVersionRef.current += 1;
-        // Batch là snapshot đầy đủ các target còn lại, không merge với batch cũ.
-        setEtaTargets(event.etas);
-      },
-    );
-
-    socket.on("trip:statusChanged", (event: TripStatusChangedEvent) => {
-      if (cancelled) return;
-      setDelayInfo(event.status === "DELAYED" ? event : null);
+    queueMicrotask(() => {
+      if (!cancelled) void loadTripTrackingRef.current();
     });
 
     return () => {
       cancelled = true;
-      window.clearTimeout(statusTimer);
-      socket.disconnect();
     };
   }, [selectedTripId]);
 
@@ -559,6 +684,27 @@ export default function OperationsPage() {
           </button>
         </div>
       </div>
+
+      <OperationsStatusBar
+        connectionStatus={connectionStatus}
+        fallbackPollSeconds={FALLBACK_POLL_INTERVAL_MS / 1000}
+        disruptedCount={metrics.disrupted}
+        lostSignalCount={metrics.lostSignal}
+        delayInfo={delayInfo}
+        delayedTripLabel={selectedTrip ? tripLabel(selectedTrip) : null}
+        pendingProposalCount={pendingProposalCount}
+        canReviewProposals={canMutate}
+        onShowDisrupted={() => focusFleetStatus("disrupted")}
+        onOpenIncidents={() =>
+          navigate(
+            selectedTripId
+              ? `/manager/incidents?tripId=${selectedTripId}`
+              : "/manager/incidents",
+          )
+        }
+        onShowLostSignal={() => focusFleetStatus("lost")}
+        onOpenProposals={() => setProposalsPanelOpen(true)}
+      />
 
       <FleetFilterBar
         searchTerm={searchTerm}
@@ -609,12 +755,17 @@ export default function OperationsPage() {
               vehicles={filtered}
               selectedId={selectedTripId}
               focusCenter={focusCenter}
-              routePath={routeGeometryPath(routeGeometry)}
+              routeTraveledPath={routeProgress.traveled}
+              routeRemainingPath={routeProgress.remaining}
               trailPath={trailPath}
               onMarkerSelect={selectVehicle}
             />
           )}
-          <FleetMapLegend />
+          <FleetMapLegend
+            showTraveledLine={routeProgress.traveled.length > 1}
+            showRemainingLine={routeProgress.remaining.length > 1}
+            showTrailLine={trailPath.length > 1}
+          />
         </div>
 
         {/* Phải: panel ngữ cảnh — đề xuất lộ trình khi mở, chi tiết chuyến khi chọn, KPI + danh sách xe mặc định */}
@@ -624,7 +775,12 @@ export default function OperationsPage() {
               onClose={() => setProposalsPanelOpen(false)}
               // "Xem trên bản đồ": chọn chuyến đó trên Operations — selectTrip tự đóng panel (xoá ?panel=)
               onViewTrip={selectVehicle}
-              onProposalsChanged={refreshPendingProposalCount}
+              onProposalsChanged={() => {
+                refreshPendingProposalCount();
+                // Duyệt đề xuất là đổi lộ trình của chuyến — lộ trình đang vẽ
+                // trên bản đồ thành cũ nếu không tải lại.
+                setRouteGeometryRefreshKey((current) => current + 1);
+              }}
             />
           </div>
         ) : selectedTripId ? (
@@ -635,6 +791,7 @@ export default function OperationsPage() {
               tripLabel={selectedTrip ? tripLabel(selectedTrip) : selectedTripId}
               routeId={selectedTrip?.route.routeId ?? null}
               realtimeStatus={realtimeStatus}
+              routeGeometryStatus={routeGeometryStatus}
               delayInfo={delayInfo}
               isApiLoading={isApiLoading}
               apiMessage={apiMessage}

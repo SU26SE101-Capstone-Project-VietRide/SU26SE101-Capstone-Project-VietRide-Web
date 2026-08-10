@@ -17,6 +17,7 @@ import DurationInput from "./DurationInput";
 import SectionHeader from "./SectionHeader";
 import { Input, NumberInput, StationSelect } from "./formControls";
 import type { StationOption } from "./types";
+import Checkbox from "../../../components/form/Checkbox";
 
 type RouteFormSectionProps = {
   canManageRoutes: boolean;
@@ -187,13 +188,10 @@ export default function RouteFormSection({
           </p>
         ) : null}
         <label className="flex items-end gap-2 text-sm text-gray-700">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={form.isActive}
             disabled={!canManageRoutes}
-            onChange={(event) =>
-              onUpdateField("isActive", event.target.checked)
-            }
+            onChange={(checked) => onUpdateField("isActive", checked)}
           />
           {t("routes.activeRoute")}
         </label>

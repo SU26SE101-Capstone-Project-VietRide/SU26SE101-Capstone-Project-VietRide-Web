@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   FiEdit2,
   FiEye,
+  FiLayers,
   FiMapPin,
   FiPlus,
   FiPower,
@@ -13,22 +14,31 @@ import {
   createAdminLocation,
   deleteAdminLocation,
   getAdminLocations,
+  getPublicLocations,
+  isLeafLocationType,
+  LOCATION_LEAF_TYPES,
+  LOCATION_TOP_LEVEL_TYPES,
   updateAdminLocation,
   type AdminLocation,
   type AdminLocationRequest,
+  type LocationType,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import { ConfirmModal } from "../../../components/ConfirmModal";
 import Pagination from "../../../components/Pagination";
+import { StatCard } from "../../../components/StatCard";
 import { formatDateTime } from "../../../utils/date";
+import Checkbox from "../../../components/form/Checkbox";
 
 type LocationForm = {
   code: string;
   name: string;
-  type: "PROVINCE" | "MUNICIPALITY";
+  type: LocationType;
   sortOrder: string;
   isActive: boolean;
+  /** Chỉ dùng cho leaf; top-level bỏ qua */
+  parentCode: string;
 };
 
 const emptyForm: LocationForm = {
@@ -37,7 +47,17 @@ const emptyForm: LocationForm = {
   type: "PROVINCE",
   sortOrder: "0",
   isActive: true,
+  parentCode: "",
 };
+
+// BE bắt code chỉ chữ số và đúng độ dài theo cấp: 2 với tỉnh/thành, 5 với
+// phường/xã/đặc khu. Giữ nguyên số 0 đầu nên phải xử lý như chuỗi.
+const TOP_LEVEL_CODE_LENGTH = 2;
+const LEAF_CODE_LENGTH = 5;
+
+function expectedCodeLength(type: LocationType) {
+  return isLeafLocationType(type) ? LEAF_CODE_LENGTH : TOP_LEVEL_CODE_LENGTH;
+}
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -49,23 +69,28 @@ function toForm(location: AdminLocation): LocationForm {
   return {
     code: location.code,
     name: location.name,
-    type: location.type === "MUNICIPALITY" ? "MUNICIPALITY" : "PROVINCE",
+    type: (location.type as LocationType) ?? "PROVINCE",
     sortOrder: String(location.sortOrder),
     isActive: location.isActive,
+    parentCode: location.parentCode ?? "",
   };
 }
 
 function toRequest(form: LocationForm): AdminLocationRequest | null {
-  const code = form.code.trim().toUpperCase();
+  // Không uppercase: code là chuỗi chữ số, "01" phải giữ nguyên số 0 đầu
+  const code = form.code.trim();
   const name = form.name.trim();
   const sortOrder = Number(form.sortOrder);
+  const isLeaf = isLeafLocationType(form.type);
+  const parentCode = form.parentCode.trim();
 
   if (
-    !code ||
     !name ||
-    !/^[A-Z0-9_-]+$/.test(code) ||
+    code.length !== expectedCodeLength(form.type) ||
+    !/^[0-9]+$/.test(code) ||
     !Number.isInteger(sortOrder) ||
-    sortOrder < 0
+    sortOrder < 0 ||
+    (isLeaf && !/^\d{2}$/.test(parentCode))
   ) {
     return null;
   }
@@ -76,6 +101,7 @@ function toRequest(form: LocationForm): AdminLocationRequest | null {
     type: form.type,
     sortOrder,
     isActive: form.isActive,
+    ...(isLeaf ? { parentCode } : {}),
   };
 }
 
@@ -89,6 +115,8 @@ export default function AdminLocations() {
   const [items, setItems] = useState<AdminLocation[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [administrativeType, setAdministrativeType] = useState<"" | LocationType>("");
+  const [parentCode, setParentCode] = useState("");
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
@@ -100,6 +128,9 @@ export default function AdminLocations() {
   const [form, setForm] = useState<LocationForm>(emptyForm);
   const [formError, setFormError] = useState("");
   const [pendingToggle, setPendingToggle] = useState<AdminLocation | null>(null);
+  // Danh sách tỉnh/thành để chọn parent cho phường/xã. Dùng endpoint public vì
+  // nó đã trả đúng "chỉ top-level active" khi không truyền parentCode.
+  const [provinces, setProvinces] = useState<AdminLocation[]>([]);
   const [message, setMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -115,6 +146,8 @@ export default function AdminLocations() {
         pageSize,
         search: search.trim() || undefined,
         isActive: status ? status === "ACTIVE" : undefined,
+        type: administrativeType || undefined,
+        parentCode: parentCode || undefined,
       });
       setItems(result.items);
       setTotalItems(result.totalItems);
@@ -131,7 +164,7 @@ export default function AdminLocations() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, status]);
+  }, [administrativeType, page, pageSize, parentCode, search, status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -139,6 +172,20 @@ export default function AdminLocations() {
     }, 200);
     return () => window.clearTimeout(timer);
   }, [loadLocations, reloadKey]);
+
+  useEffect(() => {
+    let ignore = false;
+    void getPublicLocations()
+      .then((result) => {
+        if (!ignore) setProvinces(result.filter((item) => item.isActive));
+      })
+      .catch(() => {
+        // Thiếu danh sách tỉnh chỉ chặn việc tạo phường/xã, không chặn cả màn
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [reloadKey]);
 
   function openCreate() {
     setEditing(null);
@@ -239,8 +286,14 @@ export default function AdminLocations() {
       </header>
 
 
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard label={t("locations.totalStat", { defaultValue: "Tổng khu vực" })} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-700" isLoading={loading} />
+        <StatCard label={t("locations.activeStat", { defaultValue: "Đang hoạt động" })} value={items.filter((item) => item.isActive).length} icon={<FiPower size={20} />} iconClassName="bg-emerald-50 text-emerald-700" isLoading={loading} />
+        <StatCard label={t("locations.levelStat", { defaultValue: "Cấp hành chính trên trang" })} value={new Set(items.map((item) => item.type)).size} icon={<FiLayers size={20} />} iconClassName="bg-violet-50 text-violet-700" isLoading={loading} />
+      </div>
+
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-[1fr_220px]">
+        <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-[minmax(0,1fr)_repeat(3,minmax(160px,1fr))]">
           <div className="relative">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -267,17 +320,47 @@ export default function AdminLocations() {
             <option value="ACTIVE">{tc("active")}</option>
             <option value="INACTIVE">{tc("inactive")}</option>
           </CustomSelect>
+          <CustomSelect value={administrativeType} aria-label={t("locations.filterType", { defaultValue: "Lọc cấp hành chính" })} onChange={(event) => { setAdministrativeType(event.target.value as "" | LocationType); setPage(1); }} className={inputClass}><option value="">{tc("all")}</option>{[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map((type) => <option key={type} value={type}>{t(`locations.types.${type}`, { defaultValue: type })}</option>)}</CustomSelect>
+          <CustomSelect
+            value={parentCode}
+            aria-label={t("locations.filterParent", {
+              defaultValue: "Lọc trực thuộc",
+            })}
+            searchable
+            searchPlaceholder={tc("searchOptions", {
+              label: t("locations.parent"),
+            })}
+            emptyMessage={tc("noMatchingOptions")}
+            onChange={(event) => {
+              setParentCode(event.target.value);
+              setPage(1);
+            }}
+            className={inputClass}
+          >
+            <option value="">
+              {t("locations.allParents", {
+                defaultValue: "Tất cả trực thuộc",
+              })}
+            </option>
+            {provinces.map((province) => (
+              <option key={province.id} value={province.code}>
+                {province.name} · {province.code}
+              </option>
+            ))}
+          </CustomSelect>
         </div>
 
-        <div className="overflow-x-auto" aria-busy={loading}>
-          <table className="w-full min-w-[720px]">
+        <div className="overflow-hidden" aria-busy={loading}>
+          <table className="w-full table-fixed whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-600">
-                <th className="px-5 py-3 text-center">{t("locations.code")}</th>
-                <th className="px-5 py-3 text-center">{t("locations.name")}</th>
-                <th className="px-5 py-3 text-center">{t("locations.sortOrder")}</th>
-                <th className="px-5 py-3 text-center">{tc("status")}</th>
-                <th className="px-5 py-3 text-center">{tc("actions")}</th>
+                <th className="w-[14%] px-3 py-3 text-center sm:px-5">{t("locations.code")}</th>
+                <th className="w-[24%] px-3 py-3 text-left sm:px-5">{t("locations.name")}</th>
+                <th className="w-[18%] px-3 py-3 text-center sm:px-5">{t("locations.type")}</th>
+                <th className="w-[16%] px-3 py-3 text-center sm:px-5">{t("locations.parent")}</th>
+                <th className="w-[8%] px-3 py-3 text-center sm:px-5">{t("locations.sortOrder")}</th>
+                <th className="w-[10%] px-3 py-3 text-center sm:px-5">{tc("status")}</th>
+                <th className="w-[10%] px-3 py-3 text-center sm:px-5">{tc("actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -287,10 +370,10 @@ export default function AdminLocations() {
                     key={location.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
                   >
-                    <td className="px-5 py-4 text-center font-mono text-sm font-semibold text-vr-700">
+                    <td className="w-[14%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-700 sm:px-5">
                       {location.code}
                     </td>
-                    <td className="px-5 py-4 text-center">
+                    <td className="w-[24%] min-w-0 px-3 py-4 text-left sm:px-5">
                       <button
                         type="button"
                         onClick={() => openDetail(location)}
@@ -304,10 +387,35 @@ export default function AdminLocations() {
                         })}
                       </p>
                     </td>
-                    <td className="px-5 py-4 text-center text-sm text-gray-700">
+                    <td className="w-[18%] whitespace-nowrap px-3 py-4 text-center sm:px-5">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          isLeafLocationType(location.type)
+                            ? "bg-sky-50 text-sky-700"
+                            : "bg-violet-50 text-violet-700"
+                        }`}
+                      >
+                        {t(`locations.types.${location.type}`, {
+                          defaultValue: location.type,
+                        })}
+                      </span>
+                    </td>
+                    <td className="w-[16%] whitespace-nowrap px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                      {location.parentName ? (
+                        <>
+                          {location.parentName}
+                          <span className="ml-1 font-mono text-xs text-gray-400">
+                            {location.parentCode}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="w-[8%] whitespace-nowrap px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
                       {location.sortOrder}
                     </td>
-                    <td className="px-5 py-4 text-center">
+                    <td className="w-[10%] whitespace-nowrap px-3 py-4 text-center sm:px-5">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                           location.isActive
@@ -318,7 +426,7 @@ export default function AdminLocations() {
                         {location.isActive ? tc("active") : tc("inactive")}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-center">
+                    <td className="w-[18%] whitespace-nowrap px-3 py-4 text-center sm:px-5">
                       <div className="flex justify-center gap-2">
                         <button
                           type="button"
@@ -363,7 +471,7 @@ export default function AdminLocations() {
               {!loading && items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={7}
                     className="px-5 py-12 text-center text-sm text-gray-500"
                   >
                     {t("locations.empty")}
@@ -373,7 +481,7 @@ export default function AdminLocations() {
               {loading && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={7}
                     className="px-5 py-12 text-center text-sm text-gray-500"
                   >
                     {tc("loading")}
@@ -454,6 +562,26 @@ export default function AdminLocations() {
                 </dt>
                 <dd className="mt-1 font-mono font-semibold text-gray-900">
                   {viewing.code}
+                </dd>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
+                <dt className="text-xs font-medium text-gray-500">
+                  {t("locations.type")}
+                </dt>
+                <dd className="mt-1 font-semibold text-gray-900">
+                  {t(`locations.types.${viewing.type}`, {
+                    defaultValue: viewing.type,
+                  })}
+                </dd>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
+                <dt className="text-xs font-medium text-gray-500">
+                  {t("locations.parent")}
+                </dt>
+                <dd className="mt-1 font-semibold text-gray-900">
+                  {viewing.parentName
+                    ? `${viewing.parentName} · ${viewing.parentCode}`
+                    : "—"}
                 </dd>
               </div>
               <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
@@ -549,22 +677,90 @@ export default function AdminLocations() {
             </label>
 
             <label>
+              <span className={labelClass}>{t("locations.type")}</span>
+              <CustomSelect
+                aria-label={t("locations.type")}
+                value={form.type}
+                onChange={(event) => {
+                  const nextType = event.target.value as LocationType;
+                  setForm({
+                    ...form,
+                    type: nextType,
+                    // Đổi sang cấp tỉnh thì parent không còn ý nghĩa
+                    parentCode: isLeafLocationType(nextType)
+                      ? form.parentCode
+                      : "",
+                  });
+                }}
+                className={inputClass}
+              >
+                {[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map(
+                  (type) => (
+                    <option key={type} value={type}>
+                      {t(`locations.types.${type}`, { defaultValue: type })}
+                    </option>
+                  ),
+                )}
+              </CustomSelect>
+              <span className="mt-1.5 block text-xs text-gray-500">
+                {t("locations.typeHint")}
+              </span>
+            </label>
+
+            <label>
               <span className={labelClass}>{t("locations.code")}</span>
               <input
                 value={form.code}
                 onChange={(event) =>
-                  setForm({ ...form, code: event.target.value.toUpperCase() })
+                  setForm({
+                    ...form,
+                    // Code là chuỗi chữ số, giữ nguyên số 0 đầu
+                    code: event.target.value.replace(/\D/g, ""),
+                  })
                 }
                 className={inputClass}
-                placeholder={t("locations.codePlaceholder")}
-                pattern="[A-Za-z0-9_-]+"
-                maxLength={20}
+                placeholder={
+                  isLeafLocationType(form.type) ? "26506" : "79"
+                }
+                inputMode="numeric"
+                maxLength={expectedCodeLength(form.type)}
                 required
               />
               <span className="mt-1.5 block text-xs text-gray-500">
-                {t("locations.codeHint")}
+                {t("locations.codeDigitsHint", {
+                  count: expectedCodeLength(form.type),
+                })}
               </span>
             </label>
+
+            {isLeafLocationType(form.type) && (
+              <label className="sm:col-span-2">
+                <span className={labelClass}>{t("locations.parent")}</span>
+                <CustomSelect
+                  aria-label={t("locations.parent")}
+                  value={form.parentCode}
+                  searchable
+                  searchPlaceholder={tc("searchOptions", {
+                    label: t("locations.parent"),
+                  })}
+                  emptyMessage={tc("noMatchingOptions")}
+                  onChange={(event) =>
+                    setForm({ ...form, parentCode: event.target.value })
+                  }
+                  className={inputClass}
+                >
+                  <option value="">{t("locations.selectParent")}</option>
+                  {provinces.map((province) => (
+                    <option key={province.id} value={province.code}>
+                      {province.name} · {province.code}
+                    </option>
+                  ))}
+                </CustomSelect>
+                <span className="mt-1.5 block text-xs text-gray-500">
+                  {t("locations.parentHint")}
+                </span>
+              </label>
+            )}
 
             <label>
               <span className={labelClass}>{t("locations.sortOrder")}</span>
@@ -592,13 +788,10 @@ export default function AdminLocations() {
                   {t("locations.availableNowHint")}
                 </span>
               </div>
-              <input
-                type="checkbox"
+              <Checkbox
+                size="md"
                 checked={form.isActive}
-                onChange={(event) =>
-                  setForm({ ...form, isActive: event.target.checked })
-                }
-                className="h-5 w-5 shrink-0 accent-vr-500"
+                onChange={(checked) => setForm({ ...form, isActive: checked })}
               />
             </label>
           </div>
