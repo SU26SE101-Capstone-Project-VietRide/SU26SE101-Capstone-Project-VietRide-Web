@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { io } from "socket.io-client";
 import {
   FiMenu,
   FiBell,
@@ -11,17 +12,33 @@ import {
 } from "react-icons/fi";
 import LanguageSwitcher from "./LanguageSwitcher";
 import OperatorAnnouncementModal from "./OperatorAnnouncementModal";
-import { getAuthUser, logout } from "../auth";
+import {
+  getAuthSession,
+  getAuthUser,
+  logout,
+  refreshAuthSession,
+} from "../auth";
 import {
   getNotifications,
   markNotificationRead,
   type NotificationItem,
 } from "../api/vietride";
+import { getNotificationActionPath } from "../utils/notificationActions";
 
 type TopbarProps = {
   onMenuToggle: () => void;
   userName?: string;
 };
+
+type NotificationRefreshOptions = {
+  silent?: boolean;
+};
+
+const NOTIFICATION_REFRESH_INTERVAL_MS = 15_000;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const NOTIFICATION_SOCKET_URL =
+  import.meta.env.VITE_NOTIFICATION_SOCKET_URL || API_BASE_URL;
+const NOTIFICATION_SOCKET_PATH = "/notification/socket.io";
 
 export default function Topbar({ onMenuToggle }: TopbarProps) {
   const location = useLocation();
@@ -34,6 +51,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState("");
   const [showAnnouncement, setShowAnnouncement] = useState(false);
+  const notificationRefreshInFlightRef = useRef(false);
 
   const isAdmin = location.pathname.startsWith("/admin");
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
@@ -43,55 +61,121 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const settingsPath =
     authUser?.role === "OPERATOR_ADMIN" ? "/manager/settings" : null;
 
-  const loadNotifications = useCallback(async () => {
-    setNotificationsLoading(true);
-    setNotificationsError("");
+  const loadNotifications = useCallback(
+    async ({ silent = false }: NotificationRefreshOptions = {}) => {
+      if (notificationRefreshInFlightRef.current) return;
 
-    try {
-      const [latest, unread] = await Promise.all([
-        getNotifications({
-          page: 1,
-          pageSize: 20,
-          sortBy: "createdAt",
-          sortDir: "desc",
-        }),
-        getNotifications({
-          unreadOnly: true,
-          page: 1,
-          pageSize: 1,
-          sortBy: "createdAt",
-          sortDir: "desc",
-        }),
-      ]);
-      setNotifications(latest.items);
-      setUnreadNotifications(unread.totalItems);
-    } catch (error) {
-      setNotificationsError(
-        error instanceof Error
-          ? error.message
-          : t("topbar.notificationLoadFailed"),
-      );
-    } finally {
-      setNotificationsLoading(false);
-    }
-  }, [t]);
+      notificationRefreshInFlightRef.current = true;
+      if (!silent) {
+        setNotificationsLoading(true);
+        setNotificationsError("");
+      }
+
+      try {
+        const [latest, unread] = await Promise.all([
+          getNotifications({
+            page: 1,
+            pageSize: 20,
+            sortBy: "createdAt",
+            sortDir: "desc",
+          }),
+          getNotifications({
+            unreadOnly: true,
+            page: 1,
+            pageSize: 1,
+            sortBy: "createdAt",
+            sortDir: "desc",
+          }),
+        ]);
+        setNotifications(latest.items);
+        setUnreadNotifications(unread.totalItems);
+        setNotificationsError("");
+      } catch (error) {
+        if (!silent) {
+          setNotificationsError(
+            error instanceof Error
+              ? error.message
+              : t("topbar.notificationLoadFailed"),
+          );
+        }
+      } finally {
+        notificationRefreshInFlightRef.current = false;
+        if (!silent) setNotificationsLoading(false);
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
     let cancelled = false;
+    let socketAuthRecoveryAttempted = false;
+
+    const refreshSilently = () => {
+      if (!cancelled && document.visibilityState === "visible") {
+        void loadNotifications({ silent: true });
+      }
+    };
+
     queueMicrotask(() => {
       if (!cancelled) void loadNotifications();
     });
 
+    const intervalId = window.setInterval(
+      refreshSilently,
+      NOTIFICATION_REFRESH_INTERVAL_MS,
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshSilently();
+    };
+
+    window.addEventListener("focus", refreshSilently);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const accessToken = getAuthSession()?.accessToken;
+    const notificationSocket = accessToken
+      ? io(NOTIFICATION_SOCKET_URL || undefined, {
+          path: NOTIFICATION_SOCKET_PATH,
+          auth: { token: accessToken },
+          transports: ["websocket"],
+        })
+      : null;
+
+    notificationSocket?.on("notification:created", refreshSilently);
+    notificationSocket?.on("connect", () => {
+      socketAuthRecoveryAttempted = false;
+      refreshSilently();
+    });
+    notificationSocket?.on("connect_error", (error: Error) => {
+      if (
+        cancelled ||
+        error.message !== "UNAUTHORIZED" ||
+        socketAuthRecoveryAttempted
+      ) {
+        return;
+      }
+
+      socketAuthRecoveryAttempted = true;
+      void refreshAuthSession().then((session) => {
+        if (cancelled || !session?.accessToken) return;
+        notificationSocket.auth = { token: session.accessToken };
+        notificationSocket.connect();
+      });
+    });
+
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshSilently);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      notificationSocket?.disconnect();
     };
   }, [loadNotifications]);
 
-  async function handleNotificationClick(notification: NotificationItem) {
-    if (notification.readAt) return;
+  function handleNotificationClick(notification: NotificationItem) {
+    const destination = getNotificationActionPath(notification, isAdmin);
 
-    try {
-      await markNotificationRead(notification.id);
+    if (!notification.readAt) {
       const readAt = new Date().toISOString();
       setNotifications((current) =>
         current.map((item) =>
@@ -99,12 +183,20 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
         ),
       );
       setUnreadNotifications((current) => Math.max(0, current - 1));
-    } catch (error) {
-      setNotificationsError(
-        error instanceof Error
-          ? error.message
-          : t("topbar.notificationReadFailed"),
-      );
+
+      void markNotificationRead(notification.id).catch((error) => {
+        setNotificationsError(
+          error instanceof Error
+            ? error.message
+            : t("topbar.notificationReadFailed"),
+        );
+        void loadNotifications({ silent: true });
+      });
+    }
+
+    if (destination) {
+      setShowNotifications(false);
+      navigate(destination);
     }
   }
 
@@ -320,3 +412,4 @@ function formatNotificationDate(value: string, language?: string) {
     minute: "2-digit",
   }).format(date);
 }
+

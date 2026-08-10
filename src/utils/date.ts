@@ -39,8 +39,22 @@ export function toDatetimeLocalValue(date: Date) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+// Ngày lọc trên UI là ngày lịch Việt Nam (Asia/Ho_Chi_Minh, +07:00), không
+// phải ngày UTC — vd "2026-08-10" phải đổi thành mốc UTC 2026-08-09T17:00:00Z
+// (xem API-timezone-consistency.md §5.5). Ghép thẳng "T00:00:00.000Z" vào
+// chuỗi ngày (bug cũ) coi ngày đó là UTC, lệch 7 giờ và làm rơi mất giao dịch
+// diễn ra 00:00–07:00 giờ Việt Nam ở đầu khoảng.
+const VIETNAM_UTC_OFFSET_MINUTES = 7 * 60;
+
 export function toUtcDayStart(dateValue: string) {
-  return dateValue ? `${dateValue}T00:00:00.000Z` : undefined;
+  if (!dateValue) {
+    return undefined;
+  }
+
+  const [year, month, day] = dateValue.split("-").map(Number);
+  return new Date(
+    Date.UTC(year, month - 1, day) - VIETNAM_UTC_OFFSET_MINUTES * 60_000,
+  ).toISOString();
 }
 
 export function toExclusiveUtcDayEnd(dateValue: string) {
@@ -48,7 +62,8 @@ export function toExclusiveUtcDayEnd(dateValue: string) {
     return undefined;
   }
 
-  const date = new Date(`${dateValue}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + 1);
-  return date.toISOString();
+  const [year, month, day] = dateValue.split("-").map(Number);
+  return new Date(
+    Date.UTC(year, month - 1, day + 1) - VIETNAM_UTC_OFFSET_MINUTES * 60_000,
+  ).toISOString();
 }

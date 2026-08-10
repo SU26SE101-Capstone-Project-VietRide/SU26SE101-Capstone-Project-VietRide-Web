@@ -21,6 +21,12 @@ type UseStationManagementParams = {
     key: "originStationId" | "destinationStationId",
     value: string,
   ) => void;
+  // Đang mở sẵn một tuyến đã tạo — bến đi/bến đến của tuyến đó bất biến sau khi
+  // tạo (server chặn ROUTE_STATION_IMMUTABLE qua updateRoute). Gán vai trò
+  // bến đi/đến chỉ có ý nghĩa khi CHƯA có tuyến nào chọn (đang chờ tạo tuyến
+  // mới) — assignStationToRoute tự bỏ qua khi cờ này bật, tránh vừa báo gắn
+  // bến thành công vừa báo lỗi khoá bến đi/đến cho cùng một lần bấm.
+  hasSelectedRoute: boolean;
   setError: (message: string) => void;
   showMessage: (scope: FeedbackScope, message: string) => void;
   t: TranslateFn;
@@ -30,6 +36,7 @@ export function useStationManagement({
   stations,
   setStations,
   updateRoute,
+  hasSelectedRoute,
   setError,
   showMessage,
   t,
@@ -87,21 +94,25 @@ export function useStationManagement({
       ward: place.ward,
     });
 
+    // Kết quả tìm kiếm không phải hành động tạo/gắn bến — không cần toast,
+    // chưa tìm thấy nghĩa là quản trị viên sẽ tạo bến mới ngay bên dưới; kết
+    // quả tìm thấy đã tự hiển thị qua danh sách/lựa chọn bến.
     if (!result.length) {
-      showMessage("station", t("routes.platformStationNotFound"));
       return;
     }
 
     setStations((current) => mergeStations(current, result));
     setSelectedStationId(result[0]?.id ?? "");
     setStationSupportsShuttle(result[0]?.supportsShuttle ?? false);
-    showMessage(
-      "station",
-      t("routes.stationSearchFound", { count: result.length }),
-    );
   }
 
   function assignStationToRoute(stationId: string) {
+    // Tuyến đang mở không đổi được bến đi/đến — bỏ qua thay vì gọi updateRoute
+    // (sẽ luôn bị chặn + báo lỗi, xem comment ở UseStationManagementParams)
+    if (hasSelectedRoute) {
+      return;
+    }
+
     if (stationRouteRole === "origin") {
       updateRoute("originStationId", stationId);
       return;

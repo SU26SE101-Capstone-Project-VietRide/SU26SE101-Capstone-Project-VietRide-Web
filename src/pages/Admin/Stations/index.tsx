@@ -18,6 +18,7 @@ import {
   type AdminLocation,
   type AdminStation,
 } from "../../../api/vietride";
+import { fetchAllPages } from "../../../api/pagination";
 import { type PlaceSelection } from "../../../components/PlacePicker";
 import { StatCard } from "../../../components/StatCard";
 import Modal from "../../../components/Modal";
@@ -83,32 +84,32 @@ export default function AdminStations() {
       setIsLoading(true);
 
       try {
-        const [result, locationResult] = await Promise.all([
-          getAdminStations({
-            page: 1,
-            pageSize: 100,
+        const [stationItems, locationItems] = await Promise.all([
+          fetchAllPages(({ page, pageSize }) => getAdminStations({
+            page,
+            pageSize,
             sortBy: "updatedAt",
             sortDir: "desc",
-          }),
-          getAdminLocations({
-            page: 1,
-            pageSize: 100,
+          })),
+          fetchAllPages(({ page, pageSize }) => getAdminLocations({
+            page,
+            pageSize,
             sortBy: "sortOrder",
             sortDir: "asc",
-          }),
+          })),
         ]);
 
         if (ignore) {
           return;
         }
 
-        setStations(result.items);
-        setLocations(locationResult.items);
+        setStations(stationItems);
+        setLocations(locationItems);
         const selected =
-          result.items.find(
+          stationItems.find(
             (station) => station.id === selectedStationIdRef.current,
           ) ??
-          result.items[0];
+          stationItems[0];
         setSelectedStationId(selected?.id ?? "");
         setForm(selected ? toForm(selected) : null);
       } catch (error) {

@@ -8,6 +8,7 @@ import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiCheckCircle, FiPauseCircle, FiPlus, FiRefreshCw, FiSearch, FiTruck } from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
+import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { StatCard } from "../../../components/StatCard";
@@ -246,23 +247,22 @@ export default function VehiclesPage() {
 
     async function loadTypes() {
       try {
-        const typeResult = await getVehicleTypes(
-          { page: 1, pageSize: 50 },
-          controller.signal,
+        const typeItems = await fetchAllPages((params) =>
+          getVehicleTypes(params, controller.signal),
         );
 
         if (controller.signal.aborted) {
           return;
         }
 
-        setVehicleTypes(typeResult.items);
-        writeSessionCache(VEHICLE_TYPES_CACHE_KEY, typeResult.items);
+        setVehicleTypes(typeItems);
+        writeSessionCache(VEHICLE_TYPES_CACHE_KEY, typeItems);
 
-        if (typeResult.items[0]) {
+        if (typeItems[0]) {
           setVehicleForm((current) =>
             current.vehicleTypeId
               ? current
-              : createVehicleFormForType(typeResult.items[0]),
+              : createVehicleFormForType(typeItems[0]),
           );
         }
       } catch (err) {

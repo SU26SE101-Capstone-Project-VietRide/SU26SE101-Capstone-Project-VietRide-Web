@@ -2,7 +2,6 @@ import type {
   OperatorVehicle,
   SeatLayoutJson,
   VehicleSeat,
-  VehicleSeatType,
 } from "../../../api/vietride";
 import { isRecord } from "../../../utils/typeGuards";
 
@@ -85,20 +84,6 @@ export function getSeatCoordinateKey(
   return `${coordinate.deck ?? 1}:${coordinate.row}:${coordinate.col}`;
 }
 
-export function setVehicleSeatType(
-  layout: SeatLayoutJson,
-  coordinateKey: string,
-  type: VehicleSeatType,
-): SeatLayoutJson {
-  return {
-    ...layout,
-    seats: layout.seats.map((seat) =>
-      getSeatCoordinateKey(seat) === coordinateKey
-        ? { ...seat, type, disabled: type === "DRIVER_AREA" ? false : seat.disabled }
-        : seat,
-    ),
-  };
-}
 
 export function countSeatChanges(
   current: SeatLayoutJson | null,

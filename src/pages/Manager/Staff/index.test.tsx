@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getOperatorUsers, type OperatorUser } from "../../../api/vietride";
 import StaffPage from "./index";
@@ -45,5 +46,84 @@ describe("Operator staff users", () => {
     expect(
       await screen.findByRole("img", { name: operatorUser.displayName }),
     ).toHaveAttribute("src", operatorUser.avatarUrl);
+  });
+
+  it("offers each creatable role once and excludes operations staff", async () => {
+    const user = userEvent.setup();
+    render(<StaffPage />);
+
+    await user.click(screen.getByRole("button", { name: "staff.add" }));
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).getAllByText("staff.role")).toHaveLength(1);
+    expect(
+      within(dialog).queryByText("staff.rolePermissions"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByText("staff.operatorStaff"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "staff.driver" }),
+    ).toBeInTheDocument();
+  });
+
+  it("requests the selected server page and renders its records", async () => {
+    const user = userEvent.setup();
+    const secondPageUser = {
+      ...operatorUser,
+      userId: "staff-9",
+      email: "second-page@operator.vn",
+      displayName: "Second Page User",
+    };
+    vi.mocked(getOperatorUsers).mockImplementation(async (params = {}) => ({
+      items: params.page === 2 ? [secondPageUser] : [operatorUser],
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? 8,
+      totalItems: 9,
+      totalPages: 2,
+      hasNextPage: params.page !== 2,
+      hasPreviousPage: params.page === 2,
+    }));
+
+    render(<StaffPage />);
+    await screen.findByText(operatorUser.displayName);
+    await user.click(screen.getByRole("button", { name: "2" }));
+
+    await waitFor(() =>
+      expect(getOperatorUsers).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 2,
+          pageSize: 8,
+          role: undefined,
+          status: undefined,
+        }),
+      ),
+    );
+    expect(await screen.findByText(secondPageUser.displayName)).toBeInTheDocument();
+  });
+
+  it("sends role and status filters to the API", async () => {
+    const user = userEvent.setup();
+    render(<StaffPage />);
+    await screen.findByText(operatorUser.displayName);
+
+    await user.click(
+      screen.getByRole("button", { name: "staff.allRoles" }),
+    );
+    await user.click(screen.getByRole("option", { name: "staff.driver" }));
+    await user.click(
+      screen.getByRole("button", { name: "staff.allStatuses" }),
+    );
+    await user.click(screen.getByRole("option", { name: "enumLabels.ACTIVE" }));
+
+    await waitFor(() =>
+      expect(getOperatorUsers).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 1,
+          role: "DRIVER",
+          status: "ACTIVE",
+        }),
+      ),
+    );
   });
 });

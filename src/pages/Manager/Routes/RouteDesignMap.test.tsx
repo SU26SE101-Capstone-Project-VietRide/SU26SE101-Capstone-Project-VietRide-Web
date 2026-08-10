@@ -101,8 +101,6 @@ function buildProps() {
     routeOptions,
     selectedOptionIndex: 0,
     onSelectOption: vi.fn(),
-    isEditing: false,
-    onAppendPoint: vi.fn(),
     emptyText: "empty",
   };
 }
@@ -170,27 +168,37 @@ describe("RouteDesignMap", () => {
     render(<RouteDesignMap {...buildProps()} />);
 
     const { polylines = [] } = canvasProps.at(-1) ?? {};
+    // Đường mờ (chưa chọn) có thêm lớp "vùng bắt click" rộng vô hình
+    // (id -hit) đè lên đường mảnh — dễ bấm chọn hơn, kiểu Google Maps thật.
     expect(polylines.map((polyline) => polyline.id).sort()).toEqual([
       "route-option-0",
       "route-option-1",
+      "route-option-1-hit",
       "route-option-2",
+      "route-option-2-hit",
     ]);
     // Phương án chọn đậm + nổi trên, phương án khác mờ + click được
     const selected = polylines.find((p) => p.id === "route-option-0");
     const dimmed = polylines.find((p) => p.id === "route-option-1");
+    const dimmedHit = polylines.find((p) => p.id === "route-option-1-hit");
     const optionLabels = canvasProps
       .at(-1)
       ?.pointMarkers?.filter((marker) =>
         marker.id.startsWith("route-option-label-"),
       );
     expect(selected?.opacity).toBe(1);
-    expect(dimmed).toMatchObject({ color: "#64748b", opacity: 0.72 });
+    // Cùng tông màu tuyến đang chọn, chỉ giảm độ đậm — không còn tách màu xám riêng
+    expect(dimmed).toMatchObject({ color: "#0f766e", opacity: 0.4 });
+    expect(dimmedHit).toMatchObject({
+      color: "#0f766e",
+      opacity: 0,
+      weight: 18,
+    });
     expect((selected?.zIndex ?? 0) > (dimmed?.zIndex ?? 0)).toBe(true);
     expect(typeof dimmed?.onClick).toBe("function");
+    expect(typeof dimmedHit?.onClick).toBe("function");
     expect(
-      polylines
-        .filter((polyline) => polyline.id !== "route-option-0")
-        .every((polyline) => polyline.color === "#64748b"),
+      polylines.every((polyline) => polyline.color === "#0f766e"),
     ).toBe(true);
     optionLabels?.forEach((label, index) => {
       expect(label.icon?.strokeColor).toBe(
@@ -222,6 +230,44 @@ describe("RouteDesignMap", () => {
     expect(typeof selected?.onMouseDown).toBe("function");
     expect(typeof selected?.onClick).toBe("function");
     expect(dimmed?.onMouseDown).toBeUndefined();
+  });
+
+  // Kéo mượt hơn: trong lúc kéo (native marker chấm tròn hoặc túm thân đường),
+  // đường ĐANG CHỌN phải bám thẳng qua điểm dưới tay chuột NGAY LẬP TỨC thay
+  // vì giữ nguyên đường bộ cũ chờ throttle 350ms trả kết quả mới.
+  it("previews the selected line as a straight path through the point being natively dragged", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        viaPoints={[{ latitude: 11.3, longitude: 107.3 }]}
+        onAddViaPoint={vi.fn()}
+        onBeginViaDrag={vi.fn()}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
+    const viaMarker = canvasProps
+      .at(-1)
+      ?.pointMarkers?.find((marker) => marker.id === "via-point-0");
+    expect(typeof viaMarker?.onDrag).toBe("function");
+
+    act(() => {
+      viaMarker?.onDrag?.({ lat: 11.35, lng: 107.35 });
+    });
+
+    const selected = canvasProps
+      .at(-1)
+      ?.polylines?.find((polyline) => polyline.id === "route-option-0");
+    // pathPoints[0]/[2] của buildProps() làm điểm đầu/cuối, điểm giữa là vị
+    // trí đang kéo — không phải đường bộ gốc (11.2, 107.5) đã fetch trước đó.
+    expect(selected?.path).toEqual([
+      { lat: 10.77, lng: 106.69 },
+      { lat: 11.35, lng: 107.35 },
+      { lat: 11.94, lng: 108.44 },
+    ]);
   });
 
   it("keeps overlay array identities stable across unrelated re-renders", () => {

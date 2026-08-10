@@ -30,6 +30,7 @@ import {
   updateOperatorFareSurchargePeriod,
   updateOperatorFareSurchargeSettings,
 } from "../../../api/vietride";
+import { fetchAllPages } from "../../../api/pagination";
 import {
   inputClass,
   labelClass,
@@ -134,14 +135,14 @@ export default function ManagerSettings() {
     setFareLoading(true);
     setFareError("");
     try {
-      const [setting, periods] = await Promise.all([
+      const [setting, periodItems] = await Promise.all([
         getOperatorFareSurchargeSettings(),
-        getOperatorFareSurchargePeriods({ page: 1, pageSize: 100 }),
+        fetchAllPages((params) => getOperatorFareSurchargePeriods(params)),
       ]);
       setConfig((prev) => ({
         ...prev,
         autoApplyHolidayPricing: setting.isEnabled,
-        holidayPeriods: periods.items.map((period) => ({
+        holidayPeriods: periodItems.map((period) => ({
           id: period.periodId,
           name: period.name,
           startDate: period.startDate,

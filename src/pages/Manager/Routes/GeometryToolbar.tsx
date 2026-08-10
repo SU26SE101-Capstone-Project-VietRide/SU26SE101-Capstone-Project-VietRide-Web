@@ -1,11 +1,11 @@
 // Thanh điều khiển hình học tuyến — thanh ngang mỏng NGOÀI bản đồ, đặt ngay
 // trên map (dưới hàng tab). Không còn overlay đè lên bản đồ: che logo/attribution
 // Google là vi phạm TOS Google Maps, và cụm nút đè mép dưới cũng khó thao tác.
-// Trái: toggle loại xe + icon Vẽ thủ công + spinner "Đang tìm đường…";
+// Trái: toggle loại xe + spinner "Đang tìm đường…" + hoàn tác/reset điểm nắn;
 // phải: slot `trailing` (badge "Chưa lưu thay đổi" + nút "Lưu tuyến" do
 // RouteMapWorkspace truyền vào). Cảnh báo TRUCK dài xuống dòng riêng dưới thanh.
 import { useTranslation } from "react-i18next";
-import { FiCornerUpLeft, FiEdit2, FiLoader } from "react-icons/fi";
+import { FiCornerUpLeft, FiLoader, FiRotateCcw } from "react-icons/fi";
 import type { ReactNode } from "react";
 import type { UseRouteGeometryResult } from "./useRouteGeometry";
 
@@ -23,17 +23,16 @@ export default function GeometryToolbar({
 }: GeometryToolbarProps) {
   const { t } = useTranslation("manager");
   const {
-    routePathPoints,
+    viaPoints,
     travelMode,
     truckWarning,
     isRerouting,
     isFetchingOptions,
     autoRouteUnavailable,
     allOptionsExcluded,
-    isEditingGeometry,
     handleSetTravelMode,
-    handleStartManualGeometry,
-    handleUndoGeometryPoint,
+    handleUndoViaPoint,
+    handleResetViaPoints,
   } = geometry;
 
   // Toolbar chỉ dành cho người sửa được tuyến — viewer thuần xem bản đồ
@@ -84,16 +83,6 @@ export default function GeometryToolbar({
           </button>
         </div>
 
-        {/* Vẽ thủ công (fallback khi Google không tính được) — icon có tooltip */}
-        <button
-          type="button"
-          aria-label={t("routes.drawGeometryFallback")}
-          title={t("routes.drawGeometryFallback")}
-          onClick={handleStartManualGeometry}
-          className={iconButtonClass}
-        >
-          <FiEdit2 size={14} />
-        </button>
         {/* Badge trạng thái chỉ hiện KHI đang tính (auto-fetch/reroute) */}
         {(isFetchingOptions || isRerouting) && (
           <span
@@ -105,8 +94,8 @@ export default function GeometryToolbar({
           </span>
         )}
 
-        {/* Auto-fetch lỗi (thiếu key/Google lỗi) → text nhỏ, vẫn vẽ tay được */}
-        {autoRouteUnavailable && !isFetchingOptions && !isEditingGeometry && (
+        {/* Auto-fetch lỗi (thiếu key/Google lỗi) → text nhỏ */}
+        {autoRouteUnavailable && !isFetchingOptions && (
           <span
             data-testid="auto-route-unavailable"
             className="text-xs text-gray-500"
@@ -117,7 +106,7 @@ export default function GeometryToolbar({
 
         {/* Google có trả phương án nhưng tất cả đều trùng tuyến chính (bị lọc
             khỏi bộ phương án thay thế) → hint kéo điểm nắn để tự tạo đường khác */}
-        {allOptionsExcluded && !isFetchingOptions && !isEditingGeometry && (
+        {allOptionsExcluded && !isFetchingOptions && (
           <span
             data-testid="all-options-excluded"
             className="text-xs text-amber-600"
@@ -126,21 +115,27 @@ export default function GeometryToolbar({
           </span>
         )}
 
-        {/* Đang vẽ tay: badge amber + nút hoàn tác điểm vừa cắm */}
-        {isEditingGeometry && (
+        {/* Đường tự động ĐANG có điểm nắn user kéo — cho hoàn tác điểm vừa kéo
+            hoặc bỏ hết để quay lại đường Google gốc (kéo lỡ tay quá nhiều lần) */}
+        {viaPoints.length > 0 && (
           <>
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-              {t("routes.geometryDrawing")}
-            </span>
             <button
               type="button"
-              aria-label={t("routes.undoGeometryPoint")}
-              title={t("routes.undoGeometryPoint")}
-              onClick={handleUndoGeometryPoint}
-              disabled={routePathPoints.length === 0}
+              aria-label={t("routes.undoViaPoint")}
+              title={t("routes.undoViaPoint")}
+              onClick={handleUndoViaPoint}
               className={iconButtonClass}
             >
               <FiCornerUpLeft size={14} />
+            </button>
+            <button
+              type="button"
+              aria-label={t("routes.resetViaPoints")}
+              title={t("routes.resetViaPoints")}
+              onClick={handleResetViaPoints}
+              className={iconButtonClass}
+            >
+              <FiRotateCcw size={14} />
             </button>
           </>
         )}

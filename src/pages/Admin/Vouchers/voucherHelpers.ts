@@ -171,12 +171,9 @@ export function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
     perUserLimit: toNumber(form.maxUsagePerUser),
     validFrom: new Date().toISOString(),
     validUntil: toEndOfDayIso(form.expiryDate),
-    newUserOnly: false,
-    applicablePaymentMethods: ["VNPAY", "WALLET"],
     applicableServices: toApplicableServices(form.applicableTo),
     applicableOperatorIds:
       form.operatorScope === "SELECTED_OPERATORS" ? selectedOperatorIds : null,
-    applicableRouteIds: null,
     fundingType: form.fundingType,
   };
 }
@@ -190,10 +187,7 @@ export function toUpdateRequest(form: VoucherForm): UpdateAdminVoucherRequest {
     totalUsageLimit: toNumber(form.quantity),
     perUserLimit: toNumber(form.maxUsagePerUser),
     validUntil: toEndOfDayIso(form.expiryDate),
-    newUserOnly: false,
-    applicablePaymentMethods: ["VNPAY", "WALLET"],
     applicableServices: toApplicableServices(form.applicableTo),
-    applicableRouteIds: null,
   };
 }
 

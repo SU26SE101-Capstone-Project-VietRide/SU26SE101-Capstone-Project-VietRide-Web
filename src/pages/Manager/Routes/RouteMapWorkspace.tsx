@@ -98,8 +98,7 @@ export default function RouteMapWorkspace({
 }: RouteMapWorkspaceProps) {
   const { t } = useTranslation("manager");
   // Có đường đi (tính/vẽ) → khóa 2 ô số liệu form (server bỏ qua manualMetrics)
-  const metricsLocked =
-    geometry.routePathPoints.length >= 2 && !geometry.isEditingGeometry;
+  const metricsLocked = geometry.routePathPoints.length >= 2;
   // Marker đánh số 1..N theo orderIndex — memo để mảng pointMarkers của map
   // không đổi identity vô cớ (GoogleMapCanvas gỡ + vẽ lại overlay theo identity).
   // Kèm dữ liệu để RouteDesignMap dựng card chi tiết kiểu Google Maps khi bấm
@@ -240,8 +239,6 @@ export default function RouteMapWorkspace({
               canManageRoutes ? geometry.handleRemoveViaPoint : undefined
             }
             isRerouting={geometry.isRerouting}
-            isEditing={geometry.isEditingGeometry}
-            onAppendPoint={geometry.handleAppendGeometryPoint}
             emptyText={t("routes.mapNoPoints")}
             suggestions={panelMode === "stops" ? suggestions : undefined}
             onAddSuggestion={onAddSuggestion}

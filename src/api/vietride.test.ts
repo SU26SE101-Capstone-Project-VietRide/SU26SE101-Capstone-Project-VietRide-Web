@@ -554,6 +554,7 @@ describe("vietride API", () => {
       vehicleId: "vehicle-1",
       driverUserId: "driver-1",
       assistantUserId: "assistant-1",
+      baseFare: 275_000,
       departureTime: "08:00:00",
       validFrom: "2026-07-11",
       validUntil: null,
@@ -571,6 +572,7 @@ describe("vietride API", () => {
           vehicleId: "vehicle-1",
           driverUserId: "driver-1",
           assistantUserId: "assistant-1",
+          baseFare: 275_000,
           departureTime: "08:00:00",
           validFrom: "2026-07-11",
           validUntil: null,
@@ -2123,6 +2125,78 @@ describe("vietride API", () => {
           "Idempotency-Key": "platform-idem",
         }),
       }),
+    );
+  });
+
+  it("sends search, dateField and date range query params on the operator wallet transparency endpoints", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "wallet-transparency-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-admin-1",
+          email: "operator@vietride.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 10,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorWalletTransactions({
+      page: 1,
+      pageSize: 10,
+      search: "BK-100",
+      dateField: "createdAt",
+      from: "2026-07-01T00:00:00.000Z",
+      to: "2026-08-01T00:00:00.000Z",
+    });
+    await getOperatorTripSettlements({
+      page: 1,
+      pageSize: 10,
+      search: "trip-1",
+      dateField: "settledAt",
+    });
+    await getOperatorLedger({
+      page: 1,
+      pageSize: 10,
+      search: "PCL-9",
+      dateField: "occurredAt",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/wallet/transactions?page=1&pageSize=10&search=BK-100&dateField=createdAt&from=2026-07-01T00%3A00%3A00.000Z&to=2026-08-01T00%3A00%3A00.000Z",
+      expect.anything(),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/trip-settlements?page=1&pageSize=10&search=trip-1&dateField=settledAt",
+      expect.anything(),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.vietride.online/v1/operator/ledger?page=1&pageSize=10&search=PCL-9&dateField=occurredAt",
+      expect.anything(),
     );
   });
 

@@ -24,31 +24,19 @@ import {
 
 export type VehicleSeatLayoutMode =
   | "readonly"
-  | "toggle-disabled"
-  | "assign-type";
+  | "toggle-disabled";
 
 type VehicleSeatLayoutProps = {
   layout: SeatLayoutJson | null;
   mode?: VehicleSeatLayoutMode;
   disabled?: boolean;
   baseline?: SeatLayoutJson | null;
-  selectedSeatType?: VehicleSeatType;
   onToggle?: (seatNumber: string) => void;
-  onAssignType?: (coordinateKey: string) => void;
-  onSelectSeatType?: (type: VehicleSeatType) => void;
 };
 
 type SeatGridColumn =
   | { kind: "seat"; col: number }
   | { kind: "aisle"; afterCol: number };
-
-const ASSIGNABLE_TYPES: VehicleSeatType[] = [
-  "STANDARD",
-  "VIP",
-  "SLEEPER_LOWER",
-  "SLEEPER_UPPER",
-  "DRIVER_AREA",
-];
 
 function getSeatTypeLabel(
   type: VehicleSeatType,
@@ -133,10 +121,7 @@ export function VehicleSeatLayout({
   mode = "readonly",
   disabled = false,
   baseline,
-  selectedSeatType = "STANDARD",
   onToggle,
-  onAssignType,
-  onSelectSeatType,
 }: VehicleSeatLayoutProps) {
   const { t } = useTranslation("manager");
   const [selectedDeck, setSelectedDeck] = useState<number>();
@@ -182,6 +167,8 @@ export function VehicleSeatLayout({
       </div>
     );
   }
+  const hasDriverArea = layout.seats.some((seat) => seat.type === "DRIVER_AREA");
+
 
   return (
     <div className="space-y-4">
@@ -216,29 +203,6 @@ export function VehicleSeatLayout({
         </div>
       </div>
 
-      {mode === "assign-type" && (
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("vehicles.seatTypeTool", { defaultValue: "Loại vị trí" })}>
-          {ASSIGNABLE_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              role="radio"
-              aria-checked={selectedSeatType === type}
-              disabled={disabled}
-              onClick={() => onSelectSeatType?.(type)}
-              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-vr-500/40 disabled:cursor-not-allowed disabled:opacity-50 ${
-                selectedSeatType === type
-                  ? "border-vr-400 bg-vr-50 text-vr-800"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-vr-200 hover:text-vr-800"
-              }`}
-            >
-              <SeatTypeIcon type={type} />
-              {getSeatTypeLabel(type, t)}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
         <span className="inline-flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-vr-500" />
@@ -248,10 +212,12 @@ export function VehicleSeatLayout({
           <PiProhibit className="text-gray-400" aria-hidden="true" />
           {t("vehicles.disabledSeat", { defaultValue: "Đã khóa" })}
         </span>
-        <span className="inline-flex items-center gap-2">
-          <PiSteeringWheel className="text-slate-600" aria-hidden="true" />
-          {t("vehicles.driverArea", { defaultValue: "Khu tài xế" })}
-        </span>
+        {hasDriverArea && (
+          <span className="inline-flex items-center gap-2">
+            <PiSteeringWheel className="text-slate-600" aria-hidden="true" />
+            {t("vehicles.driverArea", { defaultValue: "Khu tài xế" })}
+          </span>
+        )}
         <span className="inline-flex items-center gap-2 text-gray-500">
           <PiPath aria-hidden="true" />
           {t("vehicles.aisle", { defaultValue: "Lối đi" })}
@@ -323,15 +289,14 @@ export function VehicleSeatLayout({
                       baselineSeat && baselineSeat.disabled !== seat.disabled,
                     );
                     const canToggle = mode === "toggle-disabled" && isPassengerSeat(seat) && Boolean(onToggle);
-                    const canAssign = mode === "assign-type" && Boolean(onAssignType);
                     const label = getSeatLabel(seat, t);
                     const className = `relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-vr-500/50 ${getSeatTone(seat)} ${
-                      canToggle || canAssign
+                      canToggle
                         ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md"
                         : ""
                     } ${changed ? "ring-2 ring-amber-400 ring-offset-1" : ""} ${disabled ? "cursor-wait opacity-60" : ""}`;
 
-                    if (canToggle || canAssign) {
+                    if (canToggle) {
                       return (
                         <button
                           key={coordinateKey}
@@ -340,15 +305,9 @@ export function VehicleSeatLayout({
                           className={className}
                           disabled={disabled}
                           aria-label={label}
-                          aria-pressed={canToggle ? !seat.disabled : undefined}
+                          aria-pressed={!seat.disabled}
                           title={label}
-                          onClick={() => {
-                            if (canToggle) {
-                              onToggle?.(seat.seatNumber);
-                            } else {
-                              onAssignType?.(coordinateKey);
-                            }
-                          }}
+                          onClick={() => onToggle?.(seat.seatNumber)}
                         >
                           <SeatTypeIcon type={seat.type} />
                           <span>{seat.seatNumber}</span>

@@ -12,6 +12,7 @@ type StationManagementModalProps = {
   open: boolean;
   onClose: () => void;
   canManageRoutes: boolean;
+  hasSelectedRoute: boolean;
   stations: StationOption[];
   locations: AdminLocation[];
   manager: UseStationManagementResult;
@@ -22,6 +23,7 @@ export default function StationManagementModal({
   open,
   onClose,
   canManageRoutes,
+  hasSelectedRoute,
   stations,
   locations,
   manager,
@@ -40,6 +42,7 @@ export default function StationManagementModal({
     >
       <StationManagementPanel
         canManageRoutes={canManageRoutes}
+        hasSelectedRoute={hasSelectedRoute}
         stations={stations}
         locations={locations}
         manager={manager}

@@ -175,8 +175,8 @@ export default function Packages() {
       );
       closeModal();
       await loadPlans();
-    } catch {
-      setFormError(t("packages.saveFailed"));
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : t("packages.saveFailed"));
     } finally {
       setIsSaving(false);
     }

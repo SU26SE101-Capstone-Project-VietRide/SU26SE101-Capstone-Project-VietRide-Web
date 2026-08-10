@@ -1,5 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiActivity,
@@ -82,7 +82,7 @@ const emptyUserForm: CreateOperatorUserRequest = {
   email: "",
   displayName: "",
   phone: "",
-  role: "OPERATOR_STAFF",
+  role: "DRIVER",
 };
 
 const roleOptions: Array<{
@@ -106,6 +106,10 @@ const roleOptions: Array<{
     descriptionKey: "staff.roleDescAssistant",
   },
 ];
+
+const creatableRoleOptions = roleOptions.filter(
+  (role) => role.value === "DRIVER" || role.value === "ASSISTANT",
+);
 
 function isActiveStatus(status: string) {
   return ["ACTIVE", "APPROVED", "active"].includes(status);
@@ -144,23 +148,24 @@ export default function StaffPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
-      setPage(1);
     }, 350);
 
     return () => window.clearTimeout(timer);
   }, [search]);
 
   // Hàm tải danh sách nhân sự dùng chung cho effect và sau khi tạo tài khoản.
-  // Request chỉ phụ thuộc search (page/pageSize hardcode) — filter role/status lọc client.
+  // Pagination và filter chạy ở server để totalItems/rows luôn cùng một tập dữ liệu.
   const loadUsers = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
     try {
       const result = await getOperatorUsers({
-        page: 1,
-        pageSize: 20,
+        page,
+        pageSize,
         search: debouncedSearch,
+        role: roleFilter || undefined,
+        status: statusFilter || undefined,
       });
 
       setUsers(result.items);
@@ -172,7 +177,7 @@ export default function StaffPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, page, roleFilter, statusFilter]);
 
   useEffect(() => {
     async function run() {
@@ -182,19 +187,6 @@ export default function StaffPage() {
     void run();
   }, [loadUsers]);
 
-  const filtered = useMemo(
-    () =>
-      users.filter((user) => {
-        const matchesSearch =
-          user.displayName.toLowerCase().includes(search.toLowerCase()) ||
-          user.email.toLowerCase().includes(search.toLowerCase());
-        const matchesRole = !roleFilter || user.role === roleFilter;
-        const matchesStatus = !statusFilter || user.status === statusFilter;
-
-        return matchesSearch && matchesRole && matchesStatus;
-      }),
-    [roleFilter, search, statusFilter, users],
-  );
   function roleLabel(role: AdminUserRole) {
     const roleOption = roleOptions.find((option) => option.value === role);
 
@@ -331,16 +323,16 @@ export default function StaffPage() {
         />
       </div>
       <PersonnelTable
-        toolbar={<div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="flex flex-wrap gap-2"><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect></div></div>}
+        toolbar={<div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div><div className="flex flex-wrap gap-2"><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect></div></div>}
         columns={[
           { key: "name", header: t("staff.fullName"), headerClassName: "w-[20%] px-3 py-3 text-left", cellClassName: "w-[20%] px-3 py-4 text-left", render: (user) => <div className="flex min-w-0 items-center justify-start gap-3">{user.avatarUrl ? ( <img src={user.avatarUrl} alt={user.displayName || user.email} width={40} height={40} loading="lazy" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover" /> ) : ( <RoleAvatar role={user.role} name={user.displayName || user.email} /> )}<span className="min-w-0 truncate text-sm font-semibold text-gray-900" title={user.displayName || "-"}>{user.displayName || "-"}</span></div> },
           { key: "email", header: tc("email"), headerClassName: "w-[24%] px-3 py-3 text-center", cellClassName: "w-[24%] px-3 py-4 text-center text-sm text-gray-600", render: (user) => <span className="block truncate" title={user.email}>{user.email}</span> },
           { key: "phone", header: tc("phone"), headerClassName: "w-[10%] px-3 py-3 text-center", cellClassName: "w-[10%] px-3 py-4 text-center text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
           { key: "role", header: t("staff.role"), headerClassName: "w-[18%] px-3 py-3 text-center", cellClassName: "w-[18%] px-3 py-4 text-center text-sm text-gray-700", render: (user) => roleLabel(user.role) },
           { key: "status", header: tc("status"), headerClassName: "w-[18%] px-3 py-3 text-center", cellClassName: "w-[18%] px-3 py-4 text-center", render: (user) => <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-700"}`}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</span> },
-          { key: "actions", header: tc("actions"), headerClassName: "w-[10%] px-2 py-3 text-center", cellClassName: "w-[10%] px-2 py-4 text-center text-sm", render: (user) => <div className="flex items-center justify-center gap-2"><button type="button" onClick={() => handleOpenDetail(user)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700" title={t("staff.viewDetail")} aria-label={t("staff.viewDetail")}><FiEye size={16} /></button><button type="button" onClick={() => handleResendInitialPassword(user)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700" title={t("staff.resendInitialPassword")} aria-label={t("staff.resendInitialPassword")}><FiMail size={16} /></button></div> },
+          { key: "actions", header: tc("actions"), headerClassName: "w-[10%] px-2 py-3 text-center", cellClassName: "w-[10%] px-2 py-4 text-center text-sm", render: (user) => { const canResend = user.status === "PENDING_INITIAL_PASSWORD"; return <div className="flex items-center justify-center gap-2"><button type="button" onClick={() => handleOpenDetail(user)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700" title={t("staff.viewDetail")} aria-label={t("staff.viewDetail")}><FiEye size={16} /></button><button type="button" onClick={() => handleResendInitialPassword(user)} disabled={!canResend} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:bg-transparent disabled:hover:text-gray-600" title={canResend ? t("staff.resendInitialPassword") : t("staff.resendInitialPasswordDisabledHint")} aria-label={t("staff.resendInitialPassword")}><FiMail size={16} /></button></div>; } },
         ]}
-        rows={filtered}
+        rows={users}
         getRowKey={(user) => getUserId(user)}
         isLoading={isLoading}
         loadingMessage={t("staff.loading")}
@@ -432,41 +424,13 @@ export default function StaffPage() {
                   value={userForm.role}
                   onChange={(e) => updateUserForm("role", e.target.value)}
                 >
-                  {roleOptions.map((role) => (
+                  {creatableRoleOptions.map((role) => (
                     <option key={role.value} value={role.value}>
                       {t(role.labelKey)}
                     </option>
                   ))}
                 </CustomSelect>
               </div>
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <h3 className="text-sm font-bold text-gray-900">
-              {t("staff.rolePermissions")}
-            </h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {roleOptions.map((role) => (
-                <div
-                  key={role.value}
-                  className={`rounded-lg border bg-white p-3 ${
-                    userForm.role === role.value
-                      ? "border-vr-300 ring-1 ring-vr-200"
-                      : "border-gray-200"
-                  }`}
-                >
-                  <p className="text-sm font-semibold text-gray-900">
-                    {t(role.labelKey)}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {t(role.descriptionKey)}
-                  </p>
-                  <p className="mt-2 font-mono text-xs text-gray-400">
-                    {role.value}
-                  </p>
-                </div>
-              ))}
             </div>
           </section>
         </div>

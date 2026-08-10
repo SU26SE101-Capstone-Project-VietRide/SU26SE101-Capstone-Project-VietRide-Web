@@ -32,62 +32,15 @@ import {
 import CustomSelect from "../../../components/CustomSelect";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Pagination from "../../../components/Pagination";
-import { formatDateInputValue } from "../../../utils/date";
 import { formatCurrency } from "../../../utils/currency";
-
-type ExportRange = {
-  from: string;
-  to: string;
-};
-
-function createInitialExportRange(): ExportRange {
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - 29);
-
-  return {
-    from: formatDateInputValue(from),
-    to: formatDateInputValue(to),
-  };
-}
-
-function isValidExportRange({ from, to }: ExportRange) {
-  const fromTime = Date.parse(`${from}T00:00:00.000Z`);
-  const toTime = Date.parse(`${to}T00:00:00.000Z`);
-  const rangeInDays = (toTime - fromTime) / 86_400_000;
-
-  return (
-    Number.isFinite(fromTime) &&
-    Number.isFinite(toTime) &&
-    rangeInDays >= 0 &&
-    rangeInDays < 92
-  );
-}
-
-function currentMonthValue() {
-  return new Date().toISOString().slice(0, 7);
-}
-
-function monthOptions() {
-  const options: { value: string; label: string }[] = [];
-  const now = new Date();
-
-  for (let offset = 0; offset < 12; offset += 1) {
-    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-    const value = date.toISOString().slice(0, 7);
-    options.push({
-      value,
-      label: `${date.getMonth() + 1}/${date.getFullYear()}`,
-    });
-  }
-
-  return options;
-}
-
-function monthLabel(value: string) {
-  const [, month] = value.split("-");
-  return month ? `T${Number(month)}` : value;
-}
+import {
+  createInitialExportRange,
+  currentMonthValue,
+  isValidExportRange,
+  monthLabel,
+  monthOptions,
+  type ExportRange,
+} from "./reportsHelpers";
 
 function TrendBadge({ metric }: { metric: MetricValue }) {
   const isUp = metric.trend === "UP";

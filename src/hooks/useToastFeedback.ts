@@ -17,7 +17,12 @@ export function useToastFeedback({ message, error }: ToastFeedback) {
     }
 
     const tone = error ? "error" : "success";
-    const rawText = error ?? message ?? "";
+    // Dùng || chứ không phải ?? — error thường là useState("") (chuỗi rỗng,
+    // không phải null/undefined) khi không có lỗi. ?? không rơi qua chuỗi
+    // rỗng nên trước đây rawText bị khoá cứng vào error="" và bỏ qua hẳn
+    // message thật, khiến toast luôn hiện fallback chung "Thao tác đã hoàn
+    // tất." thay vì nội dung thành công thực sự (vd sau khi sửa xe/ghế).
+    const rawText = error || message || "";
     const text = rawText.trim()
       ? rawText
       : error

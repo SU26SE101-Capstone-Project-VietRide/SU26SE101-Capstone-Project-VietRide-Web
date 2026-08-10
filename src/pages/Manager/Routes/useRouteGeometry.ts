@@ -94,7 +94,6 @@ export function useRouteGeometry({
   t,
 }: UseRouteGeometryParams) {
   const [routePathPoints, setRoutePathPoints] = useState<RouteCoordinate[]>([]);
-  const [isEditingGeometry, setIsEditingGeometry] = useState(false);
   const [isGeometryDirty, setIsGeometryDirty] = useState(false);
   // Các phương án Google trả về (auto-fetch khi chọn tuyến) — chỉ là state phiên,
   // server chỉ nhận polyline của phương án ĐANG chọn khi bấm "Lưu tuyến".
@@ -142,6 +141,12 @@ export function useRouteGeometry({
   } | null>(null);
   // Index phương án trùng ~ đường đã lưu trong bộ options hiện tại (-1 = không có)
   const savedOptionIndexRef = useRef(-1);
+  // true = lượt auto-fetch KẾ TIẾP phải tự áp ngay phương án đầu (không chờ
+  // user bấm chọn) — bật khi invalidateLocalGeometry được gọi vì thêm/gỡ điểm
+  // dừng (đường cũ không còn khớp nhưng user đã có đường/điểm nắn đang soạn
+  // dở, không nên rơi về "chế độ so sánh" bắt bấm lại từ đầu; xem
+  // useRouteStopEditor.ts). Tiêu thụ đúng MỘT lần trong ingestFetchedEntry.
+  const autoApplyPendingRef = useRef(false);
   // Ref giữ giá trị mới nhất cho closure async/effect
   const routePathPointsRef = useRef(routePathPoints);
   const tRef = useRef(t);
@@ -153,13 +158,21 @@ export function useRouteGeometry({
 
   // Xóa các phương án phiên trước (đổi tuyến / vào chế độ khác) — không giữ lại.
   // Mọi flow reset đi qua đây đều dọn cả cảnh báo TRUCK + trạng thái đang tính.
-  function clearRouteOptions() {
+  // keepViaPoints: true → GIỮ nguyên điểm nắn user đã kéo (đổi bến đi/đến mới
+  // cần xoá sạch vì tuyến khác hẳn, nhưng thêm/gỡ điểm dừng thì các điểm nắn
+  // cũ vẫn còn ý nghĩa — auto-fetch kế tiếp sẽ tính lại có kèm chúng).
+  function clearRouteOptions(options?: { keepViaPoints?: boolean }) {
     rerouteSeqRef.current += 1;
     lastAutoFetchKeyRef.current = "";
     savedOptionIndexRef.current = -1;
     setRouteOptions([]);
     setSelectedOptionIndex(0);
-    setViaPoints([]);
+    if (!options?.keepViaPoints) {
+      setViaPoints([]);
+      // Reset "toàn phần" (đổi bến/đổi tuyến...) huỷ luôn ý định tự-áp còn dở
+      // từ một lượt keepViaPoints trước đó chưa kịp fetch xong.
+      autoApplyPendingRef.current = false;
+    }
     setTruckWarning("");
     setIsRerouting(false);
     setIsFetchingOptions(false);
@@ -179,7 +192,6 @@ export function useRouteGeometry({
         estimatedDurationMinutes: number;
       } | null,
     ) => {
-      setIsEditingGeometry(false);
       setIsGeometryDirty(false);
       rerouteSeqRef.current += 1;
       lastAutoFetchKeyRef.current = "";
@@ -195,6 +207,7 @@ export function useRouteGeometry({
       setAutoRouteUnavailable(false);
       setAllOptionsExcluded(false);
       dragPreviewRef.current = { lastRunAt: 0, lastPoint: null };
+      autoApplyPendingRef.current = false;
 
       if (!route?.pathPolyline) {
         savedGeometryRef.current = null;
@@ -219,12 +232,20 @@ export function useRouteGeometry({
     [setError],
   );
 
-  function invalidateLocalGeometry(routeId = selectedRouteId) {
+  function invalidateLocalGeometry(
+    routeId = selectedRouteId,
+    options?: { keepViaPoints?: boolean },
+  ) {
     savedGeometryRef.current = null;
     setRoutePathPoints([]);
-    setIsEditingGeometry(false);
     setIsGeometryDirty(false);
-    clearRouteOptions();
+    clearRouteOptions(options);
+    if (options?.keepViaPoints) {
+      // Giữ điểm nắn nhưng đường áp vừa bị xoá (không còn khớp stop mới) →
+      // tự áp lại phương án đầu ngay khi auto-fetch xong, đừng bắt user bấm
+      // chọn lại mới có đường + kéo tiếp được (xem ingestFetchedEntry).
+      autoApplyPendingRef.current = true;
+    }
     setRoutes((current) =>
       current.map((route) =>
         route.id === routeId ? { ...route, pathPolyline: null } : route,
@@ -339,6 +360,17 @@ export function useRouteGeometry({
     savedOptionIndexRef.current = saved
       ? findMatchingRouteOption(options, saved.points)
       : -1;
+
+    // Lượt fetch này đến từ invalidateLocalGeometry({ keepViaPoints: true })
+    // (thêm/gỡ điểm dừng) — tự áp phương án đầu ngay, đừng để user rơi vào
+    // "chế độ so sánh" phải bấm lại mới có đường + kéo nắn tiếp được.
+    if (autoApplyPendingRef.current) {
+      autoApplyPendingRef.current = false;
+      if (options.length > 0) {
+        applyRouteOption(options[0]);
+        setIsGeometryDirty(true);
+      }
+    }
   }
 
   // Auto-fetch phương án cho tuyến đang chọn (debounce ở effect bên dưới) —
@@ -390,7 +422,6 @@ export function useRouteGeometry({
       !isWorkspaceActive ||
       !selectedRouteId ||
       routeWaypoints.length < 2 ||
-      isEditingGeometry ||
       // Đang túm thân đường kéo — preview tự lo request, không auto-fetch chen vào
       isDraggingViaRef.current
     ) {
@@ -426,7 +457,6 @@ export function useRouteGeometry({
     viaKey,
     waypointsKey,
     excludedKey,
-    isEditingGeometry,
     routeOptions.length,
   ]);
 
@@ -496,7 +526,6 @@ export function useRouteGeometry({
       setRouteOptions(deduped);
       setSelectedOptionIndex(0);
       applyRouteOption(deduped[0]);
-      setIsEditingGeometry(false);
       setIsGeometryDirty(true);
     } finally {
       // Chỉ lượt MỚI NHẤT được tắt cờ "đang tính" — lượt cũ xong sau vẫn còn
@@ -604,6 +633,26 @@ export function useRouteGeometry({
     );
   }
 
+  // Hoàn tác điểm nắn vừa kéo/cắm gần nhất (điểm cuối mảng — luôn là điểm mới
+  // nhất do handleAddViaPoint/handleBeginViaPointDrag append vào cuối)
+  function handleUndoViaPoint() {
+    if (viaPoints.length === 0) {
+      return;
+    }
+
+    handleRemoveViaPoint(viaPoints.length - 1);
+  }
+
+  // Bỏ hết điểm nắn đã kéo, quay về đường Google tính tự động ban đầu (không
+  // qua điểm nắn nào) — "vẽ lại từ đầu" khi kéo sai quá nhiều lần
+  function handleResetViaPoints() {
+    if (viaPoints.length === 0) {
+      return;
+    }
+
+    runReroute([]);
+  }
+
   // Chọn phương án trên bản đồ (click đường mờ hoặc bubble thời lượng) — chỉ lúc
   // này mới áp polyline + số liệu và bật dirty. Bấm lại phương án trùng đường
   // ĐÃ LƯU thì khôi phục đúng trạng thái sạch (không dirty) — xem tuyến mà không
@@ -641,26 +690,8 @@ export function useRouteGeometry({
   // polyline cục bộ + đánh dấu chưa lưu; số km/thời lượng do caller tự cập nhật form
   function applyComputedGeometry(points: RouteCoordinate[]) {
     setRoutePathPoints(points);
-    setIsEditingGeometry(false);
     setIsGeometryDirty(true);
     clearRouteOptions();
-  }
-
-  function handleStartManualGeometry() {
-    setRoutePathPoints([]);
-    setIsEditingGeometry(true);
-    setIsGeometryDirty(true);
-    clearRouteOptions();
-  }
-
-  function handleAppendGeometryPoint(point: RouteCoordinate) {
-    setRoutePathPoints((current) => [...current, point]);
-    setIsGeometryDirty(true);
-  }
-
-  function handleUndoGeometryPoint() {
-    setRoutePathPoints((current) => current.slice(0, -1));
-    setIsGeometryDirty(true);
   }
 
   // Xóa đường chỉ trên state cục bộ; lưu qua "Lưu tuyến" sẽ gửi pathPolyline=null
@@ -668,7 +699,6 @@ export function useRouteGeometry({
   // Sau khi xoá, effect auto-fetch vẽ lại các phương án (cache hit → không request).
   function handleClearGeometry() {
     setRoutePathPoints([]);
-    setIsEditingGeometry(false);
     setIsGeometryDirty(true);
     clearRouteOptions();
   }
@@ -684,7 +714,6 @@ export function useRouteGeometry({
     isFetchingOptions,
     autoRouteUnavailable,
     allOptionsExcluded,
-    isEditingGeometry,
     isGeometryDirty,
     applySavedGeometry,
     applyComputedGeometry,
@@ -696,9 +725,8 @@ export function useRouteGeometry({
     handleMoveViaPoint,
     handleDragViaPoint,
     handleRemoveViaPoint,
-    handleStartManualGeometry,
-    handleAppendGeometryPoint,
-    handleUndoGeometryPoint,
+    handleUndoViaPoint,
+    handleResetViaPoints,
     handleClearGeometry,
   };
 }

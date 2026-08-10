@@ -140,8 +140,6 @@ export default function AlternativeRouteWorkspace({
               canManageRoutes ? altGeometry.handleRemoveViaPoint : undefined
             }
             isRerouting={altGeometry.isRerouting}
-            isEditing={altGeometry.isEditingGeometry}
-            onAppendPoint={altGeometry.handleAppendGeometryPoint}
             emptyText={t("routes.mapNoPoints")}
             suggestions={canManageRoutes ? workspace.altSuggestions : undefined}
             onAddSuggestion={(suggestion) =>

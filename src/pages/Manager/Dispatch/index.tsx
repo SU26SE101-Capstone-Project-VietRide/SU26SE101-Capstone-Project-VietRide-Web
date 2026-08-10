@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { FiClock, FiRefreshCw, FiUsers } from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
 import { createIdempotencyKey } from "../../../api/idempotency";
@@ -88,6 +89,8 @@ export default function DispatchPanel() {
   const canDispatchShuttle = authUser?.role === "OPERATOR_ADMIN";
   const tRef = useRef(t);
 
+  const [searchParams] = useSearchParams();
+  const linkedShuttleTripId = searchParams.get("shuttleTripId");
   useEffect(() => {
     tRef.current = t;
   }, [t]);
@@ -310,6 +313,25 @@ export default function DispatchPanel() {
     [t],
   );
 
+
+  useEffect(() => {
+    const shuttleTripId = linkedShuttleTripId?.trim();
+    if (!shuttleTripId) return;
+
+    setTrackedShuttleTrips((current) => {
+      if (current.some((item) => item.shuttleTripId === shuttleTripId)) return current;
+      return [
+        {
+          shuttleTripId,
+          mainTripId: "-",
+          createdAt: new Date().toISOString(),
+          isRefreshing: false,
+        },
+        ...current,
+      ];
+    });
+    void refreshShuttleTracking(shuttleTripId);
+  }, [linkedShuttleTripId, refreshShuttleTracking]);
   const removeShuttleTracking = useCallback((shuttleTripId: string) => {
     removeRecentShuttleTrip(shuttleTripId);
     setTrackedShuttleTrips((current) =>

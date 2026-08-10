@@ -16,6 +16,7 @@ import {
   type OperatorRoute,
   type OperatorVoucher,
 } from "../../../api/vietride";
+import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
 import VoucherModal from "./VoucherModal";
 import VoucherTable from "./VoucherTable";
@@ -80,13 +81,13 @@ export default function ManagerVouchers() {
     setError("");
 
     try {
-      const [voucherResult, routeResult] = await Promise.all([
-        getOperatorVouchers({ page: 1, pageSize: 100 }),
-        getOperatorRoutes({ page: 1, pageSize: 100 }),
+      const [voucherItems, routeItems] = await Promise.all([
+        fetchAllPages((params) => getOperatorVouchers(params)),
+        fetchAllPages((params) => getOperatorRoutes(params)),
       ]);
 
-      setVouchers(voucherResult?.items ?? []);
-      setRoutes(routeResult.items);
+      setVouchers(voucherItems);
+      setRoutes(routeItems);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : tRef.current("vouchers.loadFailed"),

@@ -42,10 +42,13 @@ export default function RagAudit() {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isFeedbackLoading, setIsFeedbackLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalDocuments, setTotalDocuments] = useState(0);
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [totalFeedback, setTotalFeedback] = useState(0);
   const pageSize = 8;
+  const feedbackPageSize = 8;
 
   // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
   const tRef = useRef(t);
@@ -54,7 +57,6 @@ export default function RagAudit() {
   });
 
   const loadDocuments = useCallback(async () => {
-    setIsLoading(true);
     setError("");
 
     try {
@@ -72,28 +74,30 @@ export default function RagAudit() {
       setError(
         err instanceof Error ? err.message : tRef.current("ragAudit.loadFailed"),
       );
-    } finally {
-      setIsLoading(false);
     }
   }, [page, search]);
 
-  // Feedback không phụ thuộc page/search của bảng documents → chỉ load lúc mount
+  // Feedback có pagination riêng, độc lập với page/search của bảng documents.
   const loadFeedback = useCallback(async () => {
+    setIsFeedbackLoading(true);
     try {
       const feedbackResult = await getRagFeedback({
-        page: 1,
-        pageSize: 20,
+        page: feedbackPage,
+        pageSize: feedbackPageSize,
         sortBy: "createdAt",
         sortDir: "desc",
       });
 
       setFeedback(feedbackResult.items);
+      setTotalFeedback(feedbackResult.totalItems);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : tRef.current("ragAudit.loadFailed"),
       );
+    } finally {
+      setIsFeedbackLoading(false);
     }
-  }, []);
+  }, [feedbackPage]);
 
   // Nút refresh tải lại cả hai
   const loadData = useCallback(
@@ -269,10 +273,10 @@ export default function RagAudit() {
             {t("ragAudit.auditHint")}
           </p>
           <div className="mt-4 space-y-3">
-            {isLoading && (
+            {isFeedbackLoading && (
               <p className="text-sm text-gray-500">{t("ragAudit.loading")}</p>
             )}
-            {!isLoading && feedback.length === 0 && (
+            {!isFeedbackLoading && feedback.length === 0 && (
               <p className="text-sm text-gray-500">
                 {t("ragAudit.noFeedback")}
               </p>
@@ -300,6 +304,12 @@ export default function RagAudit() {
               </div>
             ))}
           </div>
+          <Pagination
+            page={feedbackPage}
+            pageSize={feedbackPageSize}
+            totalItems={totalFeedback}
+            onPageChange={setFeedbackPage}
+          />
         </section>
       </div>
 

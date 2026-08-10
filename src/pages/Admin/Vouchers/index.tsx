@@ -11,6 +11,7 @@ import {
   type AdminOperator,
   type AdminVoucher,
 } from "../../../api/vietride";
+import { fetchAllPages } from "../../../api/pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import { StatCard } from "../../../components/StatCard";
@@ -102,12 +103,12 @@ export default function Vouchers() {
     setError("");
 
     try {
-      const [voucherResult, operatorResult] = await Promise.all([
-        getAdminVouchers({ page: 1, pageSize: 100 }),
-        getAdminOperators({ page: 1, pageSize: 100 }),
+      const [voucherItems, operatorItems] = await Promise.all([
+        fetchAllPages((params) => getAdminVouchers(params)),
+        fetchAllPages((params) => getAdminOperators(params)),
       ]);
-      setVouchers(voucherResult.items);
-      setOperators(operatorResult.items);
+      setVouchers(voucherItems);
+      setOperators(operatorItems);
     } catch (err) {
       setError(
         err instanceof Error

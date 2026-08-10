@@ -122,13 +122,14 @@ function createApiRequestError(payload: unknown, status: number): ApiRequestErro
     ...field,
     message: translateApiErrorMessage(undefined, field.message),
   }));
-  return new ApiRequestError(
-    message,
-    status,
-    code,
-    fields,
-    translateApiErrorMessage(code, message, status),
-  );
+  // VALIDATION_ERROR có message top-level chung chung ("One or more validation
+  // errors occurred."); lý do cụ thể nằm ở error.fields[].message (BE trả field
+  // nào sai và tại sao) nên ưu tiên hiện field message thay vì bản dịch chung.
+  const displayMessage =
+    code === "VALIDATION_ERROR" && fields.length > 0
+      ? fields.map((field) => field.message).filter(Boolean).join(" ")
+      : translateApiErrorMessage(code, message, status);
+  return new ApiRequestError(message, status, code, fields, displayMessage);
 }
 async function parseResponse(response: Response): Promise<unknown> {
   const text = await response.text();

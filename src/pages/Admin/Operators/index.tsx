@@ -17,6 +17,7 @@ import {
 } from "react-icons/fi";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
+import { fetchAllPages } from "../../../api/pagination";
 import {
   approveAdminOperator,
   createAdminOperator,
@@ -83,14 +84,16 @@ export default function Operators() {
     setError("");
 
     try {
-      const result = await getAdminOperators({
-        page: 1,
-        pageSize: 20,
-        search: searchTerm,
-        status: filterStatus === "ALL" ? undefined : filterStatus,
-      });
+      const items = await fetchAllPages(({ page: nextPage, pageSize }) =>
+        getAdminOperators({
+          page: nextPage,
+          pageSize,
+          search: searchTerm,
+          status: filterStatus === "ALL" ? undefined : filterStatus,
+        }),
+      );
 
-      setOperators(result.items);
+      setOperators(items);
     } catch (err) {
       setError(
         err instanceof Error

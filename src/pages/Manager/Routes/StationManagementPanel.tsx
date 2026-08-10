@@ -18,6 +18,11 @@ type StationManagementPanelProps = {
   locations: AdminLocation[];
   manager: UseStationManagementResult;
   onRunAction: (action: () => Promise<void>) => void;
+  // Đang mở sẵn một tuyến đã tạo (selectedRouteId có giá trị) — bến đi/bến đến
+  // của tuyến đó KHÔNG đổi được nữa (server chặn ROUTE_STATION_IMMUTABLE), nên
+  // ẩn dropdown "Dùng làm bến đi/đến" để tránh vừa báo gắn bến thành công vừa
+  // báo lỗi khoá bến đi/đến cùng lúc (2 toast trái ngược cho cùng 1 lần bấm).
+  hasSelectedRoute: boolean;
 };
 
 function normalizeLocationName(value: string) {
@@ -51,6 +56,7 @@ export default function StationManagementPanel({
   locations,
   manager,
   onRunAction,
+  hasSelectedRoute,
 }: StationManagementPanelProps) {
   const { t } = useTranslation("manager");
 
@@ -72,21 +78,23 @@ export default function StationManagementPanel({
           />
           {canManageRoutes && (
             <>
-              <CustomSelect
-                className={inputClass}
-                value={manager.stationRouteRole}
-                onChange={(event) =>
-                  manager.setStationRouteRole(
-                    event.target.value as StationRouteRole,
-                  )
-                }
-              >
-                <option value="">{t("routes.stationRouteRoleNone")}</option>
-                <option value="origin">{t("routes.useAsOrigin")}</option>
-                <option value="destination">
-                  {t("routes.useAsDestination")}
-                </option>
-              </CustomSelect>
+              {!hasSelectedRoute && (
+                <CustomSelect
+                  className={inputClass}
+                  value={manager.stationRouteRole}
+                  onChange={(event) =>
+                    manager.setStationRouteRole(
+                      event.target.value as StationRouteRole,
+                    )
+                  }
+                >
+                  <option value="">{t("routes.stationRouteRoleNone")}</option>
+                  <option value="origin">{t("routes.useAsOrigin")}</option>
+                  <option value="destination">
+                    {t("routes.useAsDestination")}
+                  </option>
+                </CustomSelect>
+              )}
               {manager.selectedStationId && (
                 <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
                   <input
