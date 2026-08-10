@@ -1,52 +1,42 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FiArrowDown,
-  FiArrowUp,
-  FiCheckCircle,
-  FiClock,
-  FiDollarSign,
-  FiRefreshCw,
-} from "react-icons/fi";
+import { FiRefreshCw } from "react-icons/fi";
 import {
   getOperatorLedger,
   getOperatorTripSettlements,
   getOperatorWallet,
   getOperatorWalletTransactions,
   type OperatorLedgerEntry,
+  type OperatorLedgerParams,
+  type OperatorTripSettlementParams,
   type OperatorWallet,
   type TripSettlement,
   type TripSettlementStatus,
   type WalletTransaction,
+  type WalletTransactionParams,
   type WalletTransactionType,
 } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
-import { StatCard } from "../../../components/StatCard";
-import { formatCurrency } from "../../../utils/currency";
+import { toExclusiveUtcDayEnd, toUtcDayStart } from "../../../utils/date";
+import { LedgerTable } from "./LedgerTable";
+import { SettlementsTable } from "./SettlementsTable";
+import { TransactionsTable } from "./TransactionsTable";
+import { WalletFilters, type DateFieldOption } from "./WalletFilters";
+import { WalletOverviewCards } from "./WalletOverviewCards";
 
 type WalletTab = "transactions" | "settlements" | "ledger";
 
 const pageSize = 10;
+const inputClass =
+  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 lg:w-64";
 
-function formatMoney(value: number) {
-  return formatCurrency(value);
-}
-
-function formatDate(value: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(date);
-}
+const DATE_FIELD_OPTIONS: Record<WalletTab, string[]> = {
+  transactions: ["createdAt"],
+  settlements: ["createdAt", "tripTerminalAt", "eligibleAt", "settledAt"],
+  ledger: ["createdAt", "occurredAt"],
+};
 
 export default function ManagerWallet() {
   const { t } = useTranslation("manager");
@@ -60,68 +50,88 @@ export default function ManagerWallet() {
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [dateField, setDateField] = useState("createdAt");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [transactionType, setTransactionType] = useState<WalletTransactionType | "">("");
   const [settlementStatus, setSettlementStatus] = useState<TripSettlementStatus | "">("");
+
+  // Chỉ gọi API khi search rỗng hoặc đã trim >= 2 ký tự (§10) — 1 ký tự thì
+  // giữ nguyên kết quả cũ, không bắn request.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const trimmed = searchTerm.trim();
+      if (trimmed.length === 1) return;
+      setDebouncedSearch(trimmed);
+      setPage(1);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
 
+    const listParams = {
+      page,
+      pageSize,
+      sortBy: "createdAt",
+      sortDir: "desc" as const,
+      search: debouncedSearch || undefined,
+      dateField,
+      from: toUtcDayStart(dateFrom),
+      to: toExclusiveUtcDayEnd(dateTo),
+    };
+
     try {
       const walletPromise = getOperatorWallet();
 
       if (tab === "transactions") {
-        const [walletResult, transactionResult] = await Promise.all([
+        const [walletResult, result] = await Promise.all([
           walletPromise,
           getOperatorWalletTransactions({
-            page,
-            pageSize,
-            sortBy: "createdAt",
-            sortDir: "desc",
+            ...listParams,
+            dateField: "createdAt",
             type: transactionType || undefined,
-          }),
+          } satisfies WalletTransactionParams),
         ]);
-
         setWallet(walletResult);
-        setTransactions(transactionResult.items);
-        setTotalItems(transactionResult.totalItems);
+        setTransactions(result.items);
+        setTotalItems(result.totalItems);
       } else if (tab === "settlements") {
-        const [walletResult, settlementResult] = await Promise.all([
+        const [walletResult, result] = await Promise.all([
           walletPromise,
           getOperatorTripSettlements({
-            page,
-            pageSize,
-            sortBy: "createdAt",
-            sortDir: "desc",
+            ...listParams,
+            dateField: dateField as OperatorTripSettlementParams["dateField"],
             status: settlementStatus || undefined,
-          }),
+          } satisfies OperatorTripSettlementParams),
         ]);
-
         setWallet(walletResult);
-        setSettlements(settlementResult.items);
-        setTotalItems(settlementResult.totalItems);
+        setSettlements(result.items);
+        setTotalItems(result.totalItems);
       } else {
-        const [walletResult, ledgerResult] = await Promise.all([
+        const [walletResult, result] = await Promise.all([
           walletPromise,
           getOperatorLedger({
-            page,
-            pageSize,
-            sortBy: "createdAt",
-            sortDir: "desc",
-          }),
+            ...listParams,
+            dateField: dateField as OperatorLedgerParams["dateField"],
+          } satisfies OperatorLedgerParams),
         ]);
-
         setWallet(walletResult);
-        setLedger(ledgerResult.items);
-        setTotalItems(ledgerResult.totalItems);
+        setLedger(result.items);
+        setTotalItems(result.totalItems);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("wallet.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [page, settlementStatus, t, tab, transactionType]);
+  }, [dateField, dateFrom, dateTo, debouncedSearch, page, settlementStatus, t, tab, transactionType]);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,40 +144,25 @@ export default function ManagerWallet() {
     };
   }, [loadData]);
 
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-  const filteredTransactions = useMemo(
-    () => transactions.filter((item) => {
-      if (!normalizedSearch) return true;
-      return [item.transactionId, item.referenceType, item.note].filter(Boolean).join(" ").toLowerCase().includes(normalizedSearch);
-    }),
-    [normalizedSearch, transactions],
-  );
-  const filteredSettlements = useMemo(
-    () => settlements.filter((item) => {
-      if (!normalizedSearch) return true;
-      return [item.settlementId, item.tripId, item.settlementMethod, item.status].filter(Boolean).join(" ").toLowerCase().includes(normalizedSearch);
-    }),
-    [normalizedSearch, settlements],
-  );
-  const filteredLedger = useMemo(
-    () => ledger.filter((item) => {
-      if (!normalizedSearch) return true;
-      return [item.ledgerEntryId, item.tripId, item.entryType, item.referenceType, item.note].filter(Boolean).join(" ").toLowerCase().includes(normalizedSearch);
-    }),
-    [ledger, normalizedSearch],
-  );
-  const tabs = useMemo(
-    () =>
-      (["transactions", "settlements", "ledger"] as WalletTab[]).map(
-        (value) => ({ value, label: t(`wallet.tabs.${value}`) }),
-      ),
-    [t],
-  );
-
   function selectTab(nextTab: WalletTab) {
     setTab(nextTab);
     setPage(1);
+    setSearchTerm("");
+    setDebouncedSearch("");
+    setDateField("createdAt");
+    setDateFrom("");
+    setDateTo("");
   }
+
+  const tabs: { value: WalletTab; label: string }[] = [
+    { value: "transactions", label: t("wallet.tabs.transactions") },
+    { value: "settlements", label: t("wallet.tabs.settlements") },
+    { value: "ledger", label: t("wallet.tabs.ledger") },
+  ];
+  const dateFieldOptions: DateFieldOption[] = DATE_FIELD_OPTIONS[tab].map((value) => ({
+    value,
+    label: t(`wallet.dateFieldOption.${value}`),
+  }));
 
   useToastFeedback({ error });
   return (
@@ -188,13 +183,8 @@ export default function ManagerWallet() {
         </button>
       </div>
 
+      <WalletOverviewCards wallet={wallet} isLoading={loading && !wallet} t={t} />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<FiDollarSign />} label={t("wallet.currentBalance")} value={formatMoney(wallet?.balance ?? 0)} iconClassName="bg-emerald-50 text-emerald-700" />
-        <StatCard icon={<FiClock />} label={t("wallet.pendingHold")} value={formatMoney(wallet?.pendingHoldAmount ?? 0)} iconClassName="bg-amber-50 text-amber-700" />
-        <StatCard icon={<FiArrowDown />} label={t("wallet.eligibleAmount")} value={formatMoney(wallet?.eligibleAmount ?? 0)} iconClassName="bg-blue-50 text-blue-700" />
-        <StatCard icon={<FiCheckCircle />} label={t("wallet.settledAmount")} value={formatMoney(settlements.filter((item) => item.status === "SETTLED").reduce((sum, item) => sum + item.netAmount, 0))} iconClassName="bg-violet-50 text-violet-700" />
-      </div>
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="flex border-b border-gray-200 px-4">
           {tabs.map((item) => (
@@ -213,142 +203,77 @@ export default function ManagerWallet() {
           ))}
         </div>
 
-        <div className="border-b border-gray-100 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={t("wallet.searchPlaceholder")}
-              className="w-full flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
-            />
-            {tab === "transactions" && (
-              <CustomSelect value={transactionType} onChange={(event) => { setTransactionType(event.target.value as WalletTransactionType | ""); setPage(1); }} aria-label={t("wallet.allTransactionTypes")} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 lg:w-72">
+        <WalletFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          dateField={dateField}
+          dateFieldOptions={dateFieldOptions}
+          onDateFieldChange={(value) => {
+            setDateField(value);
+            setPage(1);
+          }}
+          dateFrom={dateFrom}
+          onDateFromChange={(value) => {
+            setDateFrom(value);
+            setPage(1);
+          }}
+          dateTo={dateTo}
+          onDateToChange={(value) => {
+            setDateTo(value);
+            setPage(1);
+          }}
+          searchPlaceholder={t(`wallet.searchPlaceholder.${tab}`)}
+          t={t}
+          extraFilter={
+            tab === "transactions" ? (
+              <CustomSelect
+                value={transactionType}
+                onChange={(event) => {
+                  setTransactionType(event.target.value as WalletTransactionType | "");
+                  setPage(1);
+                }}
+                aria-label={t("wallet.allTransactionTypes")}
+                className={inputClass}
+              >
                 <option value="">{t("wallet.allTransactionTypes")}</option>
                 <option value="CREDIT">{t("wallet.moneyIn")}</option>
                 <option value="DEBIT">{t("wallet.moneyOut")}</option>
               </CustomSelect>
-            )}
-            {tab === "settlements" && (
-              <CustomSelect value={settlementStatus} onChange={(event) => { setSettlementStatus(event.target.value as TripSettlementStatus | ""); setPage(1); }} aria-label={t("wallet.allSettlementStatuses")} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 lg:w-72">
+            ) : tab === "settlements" ? (
+              <CustomSelect
+                value={settlementStatus}
+                onChange={(event) => {
+                  setSettlementStatus(event.target.value as TripSettlementStatus | "");
+                  setPage(1);
+                }}
+                aria-label={t("wallet.allSettlementStatuses")}
+                className={inputClass}
+              >
                 <option value="">{t("wallet.allSettlementStatuses")}</option>
-                {(["PENDING_HOLD", "ELIGIBLE", "SETTLED", "CANCELLED"] as TripSettlementStatus[]).map((status) => <option key={status} value={status}>{t(`wallet.status.${status}`)}</option>)}
+                {(["PENDING_HOLD", "ELIGIBLE", "SETTLED", "CANCELLED"] as TripSettlementStatus[]).map((status) => (
+                  <option key={status} value={status}>
+                    {t(`wallet.status.${status}`)}
+                  </option>
+                ))}
               </CustomSelect>
-            )}
-          </div>
-        </div>
+            ) : null
+          }
+        />
+
         <div className="overflow-x-auto">
           {loading ? (
             <p className="p-8 text-center text-sm text-gray-500">{tc("loading")}</p>
           ) : tab === "transactions" ? (
-            <TransactionTable items={filteredTransactions} t={t} />
+            <TransactionsTable items={transactions} t={t} tc={tc} />
           ) : tab === "settlements" ? (
-            <SettlementTable items={filteredSettlements} t={t} />
+            <SettlementsTable items={settlements} t={t} />
           ) : (
-            <LedgerTable items={filteredLedger} t={t} />
+            <LedgerTable items={ledger} t={t} tc={tc} />
           )}
         </div>
 
         <Pagination page={page} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} />
       </section>
-    </div>
-  );
-}
-
-type Translate = (key: string, options?: Record<string, unknown>) => string;
-
-function EmptyRow({ columns, t }: { columns: number; t: Translate }) {
-  return <tr><td colSpan={columns} className="px-4 py-10 text-center text-sm text-gray-500">{t("wallet.empty")}</td></tr>;
-}
-function settlementStatusClass(status: TripSettlementStatus) {
-  switch (status) {
-    case "SETTLED": return "bg-emerald-50 text-emerald-700";
-    case "ELIGIBLE": return "bg-blue-50 text-blue-700";
-    case "PENDING_HOLD": return "bg-amber-50 text-amber-800";
-    case "CANCELLED": return "bg-red-50 text-red-700";
-    default: return "bg-gray-100 text-gray-700";
-  }
-}
-function TransactionTable({ items, t }: { items: WalletTransaction[]; t: Translate }) {
-  return (
-    <div className="overflow-x-auto p-4">
-      <table className="w-full table-fixed text-center text-sm">
-        <thead><tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
-          <th className="px-4 py-3">{t("wallet.time")}</th>
-          <th className="px-4 py-3">{t("wallet.cashFlow")}</th>
-          <th className="px-4 py-3">{t("wallet.change")}</th>
-          <th className="px-4 py-3">{t("wallet.balanceBeforeShort")}</th>
-          <th className="px-4 py-3">{t("wallet.balanceAfter")}</th>
-          <th className="px-4 py-3">{t("wallet.transactionType")}</th>
-        </tr></thead>
-        <tbody>
-          {items.length === 0 ? <EmptyRow columns={6} t={t} /> : items.map((item) => {
-            const isCredit = item.type === "CREDIT";
-            return <tr key={item.transactionId} className="border-t border-gray-100">
-              <td className="whitespace-nowrap px-4 py-3 text-gray-700">{formatDate(item.createdAt)}</td>
-              <td className={`px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
-                {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
-                {t(isCredit ? "wallet.moneyIn" : "wallet.moneyOut")}
-              </td>
-              <td className={`whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? "+" : "-"}{formatMoney(item.amount)}</td>
-              <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatMoney(item.balanceBefore)}</td>
-              <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatMoney(item.balanceAfter)}</td>
-              <td className="px-4 py-3 text-gray-700">{t(`wallet.references.${item.referenceType}`, { defaultValue: item.note || item.referenceType })}</td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-function SettlementTable({ items, t }: { items: TripSettlement[]; t: Translate }) {
-  return (
-    <div className="overflow-x-auto p-4">
-      <table className="w-full table-fixed text-center text-sm">
-        <thead><tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
-          <th className="px-4 py-3">{t("wallet.paymentTime")}</th>
-          <th className="px-4 py-3">{t("wallet.receivedAmount")}</th>
-          <th className="px-4 py-3">{t("wallet.statusLabel")}</th>
-          <th className="px-4 py-3">{t("wallet.form")}</th>
-        </tr></thead>
-        <tbody>
-          {items.length === 0 ? <EmptyRow columns={4} t={t} /> : items.map((item) => {
-            return <tr key={item.settlementId} className="border-t border-gray-100">
-              <td className="whitespace-nowrap px-4 py-3">{formatDate(item.settlementMethod === "ADMIN_MANUAL" && item.settledAt ? item.settledAt : item.eligibleAt)}</td>
-              <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatMoney(item.netAmount)}</td>
-              <td className="whitespace-nowrap px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${settlementStatusClass(item.status)}`}>{t(`wallet.status.${item.status}`)}</span></td>
-              <td className="px-4 py-3">{item.settlementMethod ? <><span>{t(`wallet.methods.${item.settlementMethod}`)}</span>{item.settlementMethod === "ADMIN_MANUAL" && item.settledBy?.displayName ? <p className="mt-1 text-xs text-gray-500">{t("wallet.settledBy")}: {item.settledBy.displayName}</p> : null}</> : "-"}</td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-function LedgerTable({ items, t }: { items: OperatorLedgerEntry[]; t: Translate }) {
-  const { t: tc } = useTranslation("common");
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full table-fixed text-center text-sm">
-        <thead><tr className="bg-gray-50 text-center text-xs font-semibold uppercase text-gray-600">
-          <th className="px-4 py-3">{t("wallet.datetime")}</th>
-          <th className="px-4 py-3">{t("wallet.entryType")}</th>
-          <th className="px-4 py-3">{t("wallet.amount")}</th>
-          <th className="px-4 py-3">{t("wallet.actor")}</th>
-          <th className="px-4 py-3">{t("wallet.note")}</th>
-        </tr></thead>
-        <tbody>
-          {items.length === 0 ? <EmptyRow columns={5} t={t} /> : items.map((item) => (
-            <tr key={item.ledgerEntryId} className="border-t border-gray-100">
-              <td className="whitespace-nowrap px-4 py-3">{formatDate(item.createdAt)}</td>
-              <td className="px-4 py-3 font-semibold">{tc("enumLabels." + item.entryType, { defaultValue: item.entryType })}</td>
-              <td className={"whitespace-nowrap px-4 py-3 font-semibold " + (item.amount < 0 ? "text-red-700" : "text-emerald-700")}>{formatMoney(item.amount)}</td>
-              <td className="px-4 py-3">{item.actor?.displayName || tc("enumLabels.SYSTEM", { defaultValue: item.actorType || "-" })}</td>
-              <td className="px-4 py-3 text-gray-600">{item.note || t("wallet.noNote")}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

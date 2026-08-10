@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
+  FiAlertTriangle,
   FiEdit2,
   FiPackage,
   FiPlus,
@@ -29,6 +30,7 @@ import {
   type ParcelSizeCategory,
   updateOperatorParcelRouteFare,
 } from "../../../api/vietride";
+import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
 import CurrencyInput from "../../../components/CurrencyInput";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
@@ -43,23 +45,17 @@ import {
   inputClass,
   labelClass,
 } from "../../../components/form/formClasses";
+import { RouteFarePicker, type RouteFarePickerOption } from "./RouteFarePicker";
+import {
+  buildFareSelection,
+  buildNextFareSelection,
+  createEmptyFarePrices,
+  getRouteFareSummary,
+  parcelSizeCategories,
+  type FareEditorMode,
+} from "./parcelFareHelpers";
 type FareSort = "priceAsc" | "priceDesc";
-
-const parcelSizeCategories: ParcelSizeCategory[] = [
-  "SMALL",
-  "MEDIUM",
-  "LARGE",
-  "EXTRA_LARGE",
-];
-
-function createEmptyFarePrices(): Record<ParcelSizeCategory, string> {
-  return {
-    SMALL: "",
-    MEDIUM: "",
-    LARGE: "",
-    EXTRA_LARGE: "",
-  };
-}
+const routePickerPageSize = 8;
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -120,13 +116,41 @@ export default function ParcelsList() {
   const [farePrices, setFarePrices] = useState(createEmptyFarePrices);
   const [fareEffectiveFrom, setFareEffectiveFrom] = useState(currentLocalDateTime);
   const [fareEffectiveUntil, setFareEffectiveUntil] = useState("");
+  const [fareEditorMode, setFareEditorMode] = useState<FareEditorMode>("CREATE");
   const [editingFare, setEditingFare] = useState<ParcelRouteFare | null>(null);
   const [isFareModalOpen, setIsFareModalOpen] = useState(false);
   const [isFareSaving, setIsFareSaving] = useState(false);
   const [fareMessage, setFareMessage] = useState("");
   const [fareError, setFareError] = useState("");
+  const [routePickerQuery, setRoutePickerQuery] = useState("");
+  const [debouncedRoutePickerQuery, setDebouncedRoutePickerQuery] = useState("");
+  const [routePickerPage, setRoutePickerPage] = useState(1);
+  const [routePickerRoutes, setRoutePickerRoutes] = useState<OperatorRoute[]>([]);
+  const [routePickerTotal, setRoutePickerTotal] = useState(0);
+  const [isRoutePickerLoading, setIsRoutePickerLoading] = useState(false);
+  const routePickerRequestRef = useRef(0);
   useToastFeedback({ message: fareMessage, error: error || fareError });
   const pageSize = 8;
+
+  const selectedFareRoute = useMemo(
+    () => routes.find((route) => route.id === fareRouteId) ?? null,
+    [fareRouteId, routes],
+  );
+  const selectedRouteFareSummary = useMemo(
+    () =>
+      fareRouteId
+        ? getRouteFareSummary(fareRouteId, routeFares)
+        : null,
+    [fareRouteId, routeFares],
+  );
+  const routePickerOptions = useMemo<RouteFarePickerOption[]>(
+    () =>
+      routePickerRoutes.map((route) => ({
+        route,
+        summary: getRouteFareSummary(route.id, routeFares),
+      })),
+    [routeFares, routePickerRoutes],
+  );
 
   const pendingActionCount = useMemo(() => summary?.totalRejected ?? 0, [summary]);
   const filteredRouteFares = useMemo(() => {
@@ -153,24 +177,114 @@ export default function ParcelsList() {
     try {
       const [
         summaryResult,
-        fareResult,
-        routeResult,      ] = await Promise.all([getOperatorParcelReportSummary({
+        fareItems,
+        routeItems,      ] = await Promise.all([getOperatorParcelReportSummary({
           from: fromDate,
           to: toDate,
         }),
-        getOperatorParcelRouteFares({ page: 1, pageSize: 100 }),
-        getOperatorRoutes({ page: 1, pageSize: 100 }),
+        fetchAllPages((params) => getOperatorParcelRouteFares(params)),
+        fetchAllPages((params) => getOperatorRoutes(params)),
       ]);
 
       setSummary(summaryResult);
-      setRouteFares(fareResult.items);
-      setRoutes(routeResult.items);
+      setRouteFares(fareItems);
+      setRoutes(routeItems);
     } catch (err) {
       setError(err instanceof Error ? err.message : tRef.current("parcels.loadFailed"));
     } finally {
       setIsLoading(false);
     }
   }, [fromDate, toDate]);
+
+  useEffect(() => {
+    if (!isFareModalOpen || editingFare) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedRoutePickerQuery(routePickerQuery.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [editingFare, isFareModalOpen, routePickerQuery]);
+
+  useEffect(() => {
+    if (!isFareModalOpen || editingFare) return;
+
+    const requestId = ++routePickerRequestRef.current;
+    void Promise.resolve()
+      .then(() => {
+        setIsRoutePickerLoading(true);
+        return getOperatorRoutes({
+          page: routePickerPage,
+          pageSize: routePickerPageSize,
+          search: debouncedRoutePickerQuery || undefined,
+        });
+      })
+      .then((result) => {
+        if (requestId !== routePickerRequestRef.current) return;
+
+        setRoutePickerRoutes((current) => {
+          if (routePickerPage === 1) return result.items;
+
+          const byId = new Map(current.map((route) => [route.id, route]));
+          result.items.forEach((route) => byId.set(route.id, route));
+          return [...byId.values()];
+        });
+        setRoutePickerTotal(result.totalItems);
+        setRoutes((current) => {
+          const byId = new Map(current.map((route) => [route.id, route]));
+          result.items.forEach((route) => byId.set(route.id, route));
+          return [...byId.values()];
+        });
+      })
+      .catch((reason: unknown) => {
+        if (requestId === routePickerRequestRef.current) {
+          setFareError(
+            reason instanceof Error
+              ? reason.message
+              : tRef.current("parcels.routeSearchFailed"),
+          );
+        }
+      })
+      .finally(() => {
+        if (requestId === routePickerRequestRef.current) {
+          setIsRoutePickerLoading(false);
+        }
+      });
+
+    return () => {
+      if (requestId === routePickerRequestRef.current) {
+        routePickerRequestRef.current += 1;
+      }
+    };
+  }, [debouncedRoutePickerQuery, editingFare, isFareModalOpen, routePickerPage]);
+
+  function applyFareSelection(selection: ReturnType<typeof buildFareSelection>) {
+    setFareEditorMode(selection.mode);
+    setFarePrices(selection.prices);
+    setFareEffectiveFrom(toLocalDateTime(selection.effectiveFrom));
+    setFareEffectiveUntil(toLocalDateTime(selection.effectiveUntil));
+  }
+
+  function handleRoutePickerQueryChange(query: string) {
+    setRoutePickerQuery(query);
+    setRoutePickerPage(1);
+    setRoutePickerRoutes([]);
+    setFareError("");
+  }
+
+  function handleSelectFareRoute(option: RouteFarePickerOption) {
+    setFareRouteId(option.route.id);
+    applyFareSelection(buildFareSelection(option.summary));
+    setFareError("");
+  }
+
+  function handleCreateNextFareWindow() {
+    if (!selectedRouteFareSummary) return;
+    const selection = buildNextFareSelection(selectedRouteFareSummary);
+    if (!selection) return;
+    applyFareSelection(selection);
+    setFareError("");
+  }
 
   function resetFareForm() {
     setEditingFare(null);
@@ -180,6 +294,14 @@ export default function ParcelsList() {
     setFarePrices(createEmptyFarePrices());
     setFareEffectiveFrom(currentLocalDateTime());
     setFareEffectiveUntil("");
+    setFareEditorMode("CREATE");
+    setRoutePickerQuery("");
+    setDebouncedRoutePickerQuery("");
+    setRoutePickerPage(1);
+    setRoutePickerRoutes([]);
+    setRoutePickerTotal(0);
+    setIsRoutePickerLoading(false);
+    routePickerRequestRef.current += 1;
     setFareError("");
     setFareMessage("");
     setIsFareModalOpen(false);
@@ -192,6 +314,7 @@ export default function ParcelsList() {
     setFarePrice(String(fare.priceVnd));
     setFareEffectiveFrom(toLocalDateTime(fare.effectiveFrom));
     setFareEffectiveUntil(toLocalDateTime(fare.effectiveUntil));
+    setFareEditorMode("UPDATE");
     setFareError("");
     setFareMessage("");
     setIsFareModalOpen(true);
@@ -217,14 +340,35 @@ export default function ParcelsList() {
       return;
     }
 
+    const lockedFareWindow = locksBatchFareWindow
+      ? selectedRouteFareSummary?.window
+      : null;
+    const effectiveFromValue = lockedFareWindow?.effectiveFrom ?? fareEffectiveFrom;
+    const effectiveUntilValue = lockedFareWindow
+      ? lockedFareWindow.effectiveUntil
+      : fareEffectiveUntil || null;
+    const effectiveFromDate = new Date(effectiveFromValue);
+    const effectiveUntilDate = effectiveUntilValue
+      ? new Date(effectiveUntilValue)
+      : null;
+    if (
+      Number.isNaN(effectiveFromDate.getTime()) ||
+      (effectiveUntilDate !== null &&
+        (Number.isNaN(effectiveUntilDate.getTime()) ||
+          effectiveUntilDate <= effectiveFromDate))
+    ) {
+      setFareError(t("parcels.invalidFareWindow"));
+      return;
+    }
+
     setIsFareSaving(true);
     setFareError("");
     setFareMessage("");
     try {
       const effectiveUntil = fareEffectiveUntil
-        ? new Date(fareEffectiveUntil).toISOString()
+        ? effectiveUntilDate?.toISOString() ?? null
         : null;
-      const effectiveFrom = new Date(fareEffectiveFrom).toISOString();
+      const effectiveFrom = effectiveFromDate.toISOString();
 
       if (editingFare) {
         await updateOperatorParcelRouteFare(
@@ -244,9 +388,19 @@ export default function ParcelsList() {
         });
       }
 
-      const result = await getOperatorParcelRouteFares({ page: 1, pageSize: 100 });
-      setRouteFares(result.items);
-      setFareMessage(t(editingFare ? "parcels.fareUpdated" : "parcels.batchFareCreated"));
+      const fareItems = await fetchAllPages((params) =>
+        getOperatorParcelRouteFares(params),
+      );
+      setRouteFares(fareItems);
+      const batchMessageKey: Record<FareEditorMode, string> = {
+        CREATE: "parcels.batchFareCreated",
+        UPDATE: "parcels.batchFareUpdated",
+        COMPLETE: "parcels.batchFareCompleted",
+        RENEW: "parcels.batchFareRenewed",
+      };
+      setFareMessage(
+        t(editingFare ? "parcels.fareUpdated" : batchMessageKey[fareEditorMode]),
+      );
       setEditingFare(null);
       setIsFareModalOpen(false);
       setFareRouteId("");
@@ -267,6 +421,25 @@ export default function ParcelsList() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadData]);
+
+  const batchActionKey: Record<FareEditorMode, string> = {
+    CREATE: "parcels.fareBatchActions.CREATE",
+    UPDATE: "parcels.fareBatchActions.UPDATE",
+    COMPLETE: "parcels.fareBatchActions.COMPLETE",
+    RENEW: "parcels.fareBatchActions.RENEW",
+  };
+  const batchTitleKey: Record<FareEditorMode, string> = {
+    CREATE: "parcels.fareBatchTitles.CREATE",
+    UPDATE: "parcels.fareBatchTitles.UPDATE",
+    COMPLETE: "parcels.fareBatchTitles.COMPLETE",
+    RENEW: "parcels.fareBatchTitles.RENEW",
+  };
+  const locksBatchFareWindow =
+    !editingFare &&
+    (fareEditorMode === "UPDATE" || fareEditorMode === "COMPLETE");
+  const nextFareSelection = selectedRouteFareSummary
+    ? buildNextFareSelection(selectedRouteFareSummary)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -314,28 +487,89 @@ export default function ParcelsList() {
             <Modal
               open={isFareModalOpen}
               onClose={resetFareForm}
-              title={editingFare ? t("parcels.editFare") : t("parcels.createFare")}
+              title={
+                editingFare
+                  ? t("parcels.editFare")
+                  : t(batchTitleKey[fareEditorMode])
+              }
               subtitle={t("parcels.fareFormHint")}
               icon={<FiPackage size={20} />}
               wide
               footer={<>
                 <button type="button" onClick={resetFareForm} className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">{t("parcels.cancelEdit")}</button>
                 <button type="button" disabled={isFareSaving} onClick={() => void handleSaveFare()} className="inline-flex min-w-44 items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
-                  {editingFare ? <FiSave /> : <FiPlus />}{editingFare ? t("parcels.updateFare") : t("parcels.addFareBatch")}
+                  {editingFare ? <FiSave /> : <FiPlus />}
+                  {editingFare
+                    ? t("parcels.updateFare")
+                    : t(batchActionKey[fareEditorMode])}
                 </button>
               </>}
             >
               <div className="space-y-5">
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  <label><span className={labelClass}>{t("parcels.route")}</span><CustomSelect value={fareRouteId} disabled={Boolean(editingFare)} onChange={(event) => setFareRouteId(event.target.value)} className={inputClass}>
-                    <option value="">{t("parcels.selectRoute")}</option>{routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
-                  </CustomSelect></label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <span className={labelClass}>{t("parcels.route")}</span>
+                    <RouteFarePicker
+                      selectedRoute={selectedFareRoute}
+                      options={routePickerOptions}
+                      query={routePickerQuery}
+                      totalItems={routePickerTotal}
+                      isLoading={isRoutePickerLoading}
+                      hasMore={routePickerRoutes.length < routePickerTotal}
+                      disabled={Boolean(editingFare)}
+                      onQueryChange={handleRoutePickerQueryChange}
+                      onSelect={handleSelectFareRoute}
+                      onLoadMore={() =>
+                        setRoutePickerPage((current) => current + 1)
+                      }
+                    />
+                  </div>
                   {editingFare && <><label><span className={labelClass}>{t("parcels.sizeCategory")}</span><CustomSelect value={fareSizeCategory} disabled onChange={(event) => setFareSizeCategory(event.target.value as ParcelSizeCategory)} className={inputClass}>
                     {parcelSizeCategories.map((size) => <option key={size} value={size}>{t(`parcels.sizeCategories.${size}`)}</option>)}
                   </CustomSelect></label><label><span className={labelClass}>{t("parcels.fee")}</span><CurrencyInput value={farePrice} onChange={(event) => setFarePrice(event.target.value)} className={inputClass} placeholder="50.000" /></label></>}
-                  <label><span className={labelClass}>{t("parcels.effectiveFrom")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveFrom} onChange={(event) => setFareEffectiveFrom(event.target.value)} className={inputClass} /></label>
-                  <label><span className={labelClass}>{t("parcels.effectiveUntil")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveUntil} onChange={(event) => setFareEffectiveUntil(event.target.value)} className={inputClass} /></label>
+                  <label><span className={labelClass}>{t("parcels.effectiveFrom")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveFrom} disabled={locksBatchFareWindow} onChange={(event) => setFareEffectiveFrom(event.target.value)} className={inputClass} /></label>
+                  <label><span className={labelClass}>{t("parcels.effectiveUntil")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveUntil} disabled={locksBatchFareWindow} onChange={(event) => setFareEffectiveUntil(event.target.value)} className={inputClass} /></label>
                 </div>
+                {!editingFare &&
+                  selectedRouteFareSummary &&
+                  selectedRouteFareSummary.status !== "UNPRICED" && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                      <div className="flex items-start gap-3">
+                        <FiAlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={18} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-amber-900">
+                            {t(`parcels.routeFareNoticeTitles.${selectedRouteFareSummary.status}`, {
+                              count: selectedRouteFareSummary.configuredSizeCount,
+                            })}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-amber-800">
+                            {t(`parcels.routeFareNotices.${selectedRouteFareSummary.status}`)}
+                          </p>
+                          {selectedRouteFareSummary.hasScheduledWindow && (
+                            <p className="mt-2 text-xs font-medium text-amber-900">
+                              {t("parcels.nextFareWindowAlreadyScheduled")}
+                            </p>
+                          )}
+                          {!selectedRouteFareSummary.hasScheduledWindow &&
+                            selectedRouteFareSummary.window?.effectiveUntil === null &&
+                            selectedRouteFareSummary.window.temporalStatus === "ACTIVE" && (
+                              <p className="mt-2 text-xs font-medium text-amber-900">
+                                {t("parcels.nextFareWindowNeedsEnd")}
+                              </p>
+                            )}
+                          {nextFareSelection && fareEditorMode !== "RENEW" && (
+                            <button
+                              type="button"
+                              onClick={handleCreateNextFareWindow}
+                              className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-100"
+                            >
+                              {t("parcels.createNextFareWindow")}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 {!editingFare && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{parcelSizeCategories.map((sizeCategory) => <label key={sizeCategory}><span className={labelClass}>{t(`parcels.sizeCategories.${sizeCategory}`)}</span><CurrencyInput value={farePrices[sizeCategory]} onChange={(event) => setFarePrices((current) => ({ ...current, [sizeCategory]: event.target.value }))} className={inputClass} placeholder="0" /></label>)}</div>}
               </div>
             </Modal>
@@ -359,11 +593,12 @@ export default function ParcelsList() {
             <div className="w-full overflow-hidden">
               <table className="w-full table-fixed whitespace-nowrap">
                 <colgroup>
-                  <col className="w-[30%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[18%]" />
+                  <col className="w-[26%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[14%]" />
                   <col className="w-[17%]" />
-                  <col className="w-[22%]" />
+                  <col className="w-[21%]" />
+                  <col className="w-[10%]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -372,6 +607,7 @@ export default function ParcelsList() {
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.fee")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveFrom")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveUntil")}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center">{tc("actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -381,12 +617,9 @@ export default function ParcelsList() {
                       className="border-b border-gray-100 last:border-0"
                     >
                       <td className="min-w-0 px-4 py-3 text-sm font-medium text-gray-900">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="min-w-0 truncate" title={routes.find((route) => route.id === fare.routeId)?.name || t("parcels.unnamedRoute")}>
-                            {routes.find((route) => route.id === fare.routeId)?.name || t("parcels.unnamedRoute")}
-                          </span>
-                          {canManageRouteFares && (<button type="button" onClick={() => handleEditFare(fare)} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-300 hover:text-vr-700" aria-label={t("parcels.editFare")} title={t("parcels.editFare")}><FiEdit2 size={15} /></button>)}
-                        </div>
+                        <span className="block truncate" title={routes.find((route) => route.id === fare.routeId)?.name || t("parcels.unnamedRoute")}>
+                          {routes.find((route) => route.id === fare.routeId)?.name || t("parcels.unnamedRoute")}
+                        </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-center text-sm font-semibold text-gray-900">
                         {t(`parcels.sizeCategories.${fare.sizeCategory}`)}
@@ -399,6 +632,21 @@ export default function ParcelsList() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-center text-sm text-gray-700">
                         {formatDate(fare.effectiveUntil)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3.5 text-center">
+                        {canManageRouteFares ? (
+                          <button
+                            type="button"
+                            onClick={() => handleEditFare(fare)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-300 hover:bg-vr-50 hover:text-vr-700"
+                            aria-label={t("parcels.editFare")}
+                            title={t("parcels.editFare")}
+                          >
+                            <FiEdit2 size={16} />
+                          </button>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -421,8 +669,3 @@ export default function ParcelsList() {
     </div>
   );
 }
-
-
-
-
-

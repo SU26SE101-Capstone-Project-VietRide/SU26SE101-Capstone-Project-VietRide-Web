@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getDownloadURL: vi.fn(),
@@ -59,6 +59,11 @@ describe("firebaseImageUpload", () => {
     );
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it("uses the requested purpose and the upload path returned by BE", async () => {
     const file = new File(["avatar"], "avatar.jpg", { type: "image/jpeg" });
 
@@ -93,5 +98,73 @@ describe("firebaseImageUpload", () => {
     expect(() => validateFirebaseImageFile(exactLimit)).toThrow(
       new FirebaseImageError("INVALID_SIZE"),
     );
+  });
+
+  it("resizes and converts a large image before uploading", async () => {
+    const file = new File(
+      [new Uint8Array(600 * 1024)],
+      "large-camera-photo.jpg",
+      { type: "image/jpeg" },
+    );
+    const close = vi.fn();
+    const drawImage = vi.fn();
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({ drawImage })),
+      toBlob: vi.fn((callback: BlobCallback) => {
+        callback(new Blob(["optimized"], { type: "image/webp" }));
+      }),
+    } as unknown as HTMLCanvasElement;
+    const createElement = document.createElement.bind(document);
+
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn().mockResolvedValue({ width: 4000, height: 3000, close }),
+    );
+    vi.spyOn(document, "createElement").mockImplementation((tagName) =>
+      tagName === "canvas" ? canvas : createElement(tagName),
+    );
+
+    await uploadFirebaseImages("USER_AVATAR", [file]);
+
+    const uploadedFile = mocks.uploadBytes.mock.calls[0]?.[1];
+    expect(uploadedFile).toBeInstanceOf(File);
+    expect(uploadedFile).toMatchObject({
+      name: "large-camera-photo.webp",
+      type: "image/webp",
+    });
+    expect(canvas.width).toBe(640);
+    expect(canvas.height).toBe(480);
+    expect(drawImage).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    expect(mocks.ref).toHaveBeenCalledWith(
+      {},
+      expect.stringMatching(/^avatars\/user-1\/[0-9a-f-]+\.webp$/),
+    );
+  });
+
+  it("starts multiple image uploads in parallel", async () => {
+    const files = [
+      new File(["front"], "front.jpg", { type: "image/jpeg" }),
+      new File(["back"], "back.jpg", { type: "image/jpeg" }),
+    ];
+    const pendingUploads: Array<() => void> = [];
+    mocks.uploadBytes.mockImplementation(
+      (imageRef: unknown) =>
+        new Promise((resolve) => {
+          pendingUploads.push(() => resolve({ ref: imageRef }));
+        }),
+    );
+
+    const uploadPromise = uploadFirebaseImages("VEHICLE_IMAGE", files);
+
+    await vi.waitFor(() => {
+      expect(mocks.uploadBytes).toHaveBeenCalledTimes(2);
+    });
+    pendingUploads.forEach((resolve) => resolve());
+
+    await expect(uploadPromise).resolves.toHaveLength(2);
+    expect(mocks.signOut).toHaveBeenCalledOnce();
   });
 });

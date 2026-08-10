@@ -1,7 +1,8 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import {
   FiAlertCircle,
   FiCheckCircle,
@@ -104,6 +105,9 @@ export default function BookingsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const tRef = useRef(t);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const bookingId = searchParams.get("bookingId");
+
   useEffect(() => {
     tRef.current = t;
   });
@@ -226,21 +230,42 @@ export default function BookingsList() {
     );
   }
 
-  async function openBookingDetail(id: string) {
-    setOpenDetail(true);
-    setSelectedBooking(null);
-    setDetailError("");
-    setIsDetailLoading(true);
+  const openBookingDetail = useCallback(
+    async (id: string) => {
+      setOpenDetail(true);
+      setSelectedBooking(null);
+      setDetailError("");
+      setIsDetailLoading(true);
 
-    try {
-      setSelectedBooking(await getOperatorBooking(id));
-    } catch (error) {
-      setDetailError(
-        error instanceof Error ? error.message : t("bookings.detailLoadError"),
-      );
-    } finally {
-      setIsDetailLoading(false);
-    }
+      try {
+        setSelectedBooking(await getOperatorBooking(id));
+      } catch (error) {
+        setDetailError(
+          error instanceof Error ? error.message : t("bookings.detailLoadError"),
+        );
+      } finally {
+        setIsDetailLoading(false);
+      }
+    },
+    [t],
+  );
+
+  useEffect(() => {
+    if (!bookingId) return;
+    const timeoutId = window.setTimeout(
+      () => void openBookingDetail(bookingId),
+      0,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [bookingId, openBookingDetail]);
+
+  function closeBookingDetail() {
+    setOpenDetail(false);
+    if (!bookingId) return;
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete("bookingId");
+    setSearchParams(nextSearchParams, { replace: true });
   }
 
   return (
@@ -428,14 +453,14 @@ export default function BookingsList() {
 
       <Modal
         open={openDetail}
-        onClose={() => setOpenDetail(false)}
+        onClose={closeBookingDetail}
         wide
         icon={<FiTag size={20} />}
         title={t("bookings.detailTitle")}
         footer={
           <button
             type="button"
-            onClick={() => setOpenDetail(false)}
+            onClick={closeBookingDetail}
             className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             {tc("close")}

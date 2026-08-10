@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import CustomSelect from "../../../components/CustomSelect";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { FiCheckCircle, FiSearch } from "react-icons/fi";
 import {
   getOperatorParcels,
@@ -28,6 +29,8 @@ export default function ParcelQueue() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const tRef = useRef(t);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedParcelId = searchParams.get("parcelId");
   useEffect(() => {
     tRef.current = t;
   });
@@ -75,11 +78,45 @@ export default function ParcelQueue() {
     }
   }, [page, queue, tripId]);
 
+
+  const openLinkedParcelDetail = useCallback(
+    async (parcelId: string) => {
+      setDetailOpen(true);
+      setDetailLoading(true);
+      setActionError("");
+      setMessage("");
+      setReason("");
+      setTargetTripId("");
+
+      try {
+        setSelected(await getParcelDetail(parcelId));
+      } catch (error) {
+        setSelected(null);
+        setActionError(
+          error instanceof Error
+            ? error.message
+            : tRef.current("parcels.loadFailed"),
+        );
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [],
+  );
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void loadList(), 0);
     return () => window.clearTimeout(timeoutId);
   }, [loadList]);
 
+
+  useEffect(() => {
+    if (!linkedParcelId) return;
+    const timeoutId = window.setTimeout(
+      () => void openLinkedParcelDetail(linkedParcelId),
+      0,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [linkedParcelId, openLinkedParcelDetail]);
   async function openDetail(item: OperatorParcelListItem) {
     setDetailOpen(true);
     setDetailLoading(true);
@@ -134,6 +171,16 @@ export default function ParcelQueue() {
     }
   }
 
+
+  function closeDetail() {
+    setDetailOpen(false);
+    setSelected(null);
+    if (!linkedParcelId) return;
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete("parcelId");
+    setSearchParams(nextSearchParams, { replace: true });
+  }
   async function finishAction(
     successMessage: string,
     action: () => Promise<void>,
@@ -144,8 +191,7 @@ export default function ParcelQueue() {
     try {
       await action();
       setMessage(successMessage);
-      setDetailOpen(false);
-      setSelected(null);
+      closeDetail();
       await loadList();
     } catch (error) {
       setActionError(
@@ -189,7 +235,7 @@ export default function ParcelQueue() {
 
       <ParcelDetailModal
         open={detailOpen}
-        onClose={() => !actionLoading && setDetailOpen(false)}
+        onClose={() => !actionLoading && closeDetail()}
         selected={selected}
         loading={detailLoading}
         actionLoading={actionLoading}

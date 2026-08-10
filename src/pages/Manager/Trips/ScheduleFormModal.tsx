@@ -7,6 +7,7 @@ import {
   FiPlus,
 } from "react-icons/fi";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
+import CurrencyInput from "../../../components/CurrencyInput";
 import Modal from "../../../components/Modal";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { Input, Select } from "./formControls";
@@ -59,6 +60,9 @@ export default function ScheduleFormModal({
   onSave,
 }: ScheduleFormModalProps) {
   const { t } = useTranslation("manager");
+  const baseFareChanged =
+    Boolean(editingSchedule) &&
+    form.baseFare !== editingSchedule?.baseFare;
 
   return (
     <Modal
@@ -142,6 +146,7 @@ export default function ScheduleFormModal({
                     checked={applyTo === option.value}
                     onChange={() => onApplyToChange(option.value)}
                     className="mt-1 accent-vr-600"
+                    disabled={baseFareChanged && option.value === "ALL_PENDING"}
                     required
                   />
                   <span className="min-w-0">
@@ -153,9 +158,11 @@ export default function ScheduleFormModal({
               ))}
             </div>
             <p className="mt-2 px-1 text-xs leading-5 text-gray-500">
-              {applyTo === "FUTURE_ONLY"
-                ? t("trips.applyToFutureOnlyDesc")
-                : t("trips.applyToAllPendingDesc")}
+              {baseFareChanged
+                ? t("trips.baseFareFutureOnlyHint")
+                : applyTo === "FUTURE_ONLY"
+                  ? t("trips.applyToFutureOnlyDesc")
+                  : t("trips.applyToAllPendingDesc")}
             </p>
           </fieldset>
         ) : null}
@@ -218,6 +225,9 @@ export default function ScheduleFormModal({
                   onFieldChange("departureAt", event.target.value)
                 }
               />
+              <p className="mt-1 text-xs text-gray-500">
+                {t("trips.departureTimeTimezoneHint")}
+              </p>
               <button
                 type="button"
                 onClick={onSuggestDeparture}
@@ -233,13 +243,6 @@ export default function ScheduleFormModal({
               type="datetime-local"
               onChange={(value) => onFieldChange("arrivalEstimate", value)}
             />
-            <Input
-              label={t("trips.ticketPrice")}
-              value={form.fare}
-              type="number"
-              currency
-              onChange={(value) => onFieldChange("fare", value)}
-            />
             <Select
               label={t("trips.recurrence")}
               value={form.recurrence}
@@ -250,8 +253,23 @@ export default function ScheduleFormModal({
               <option value="weekend">{t("trips.recurrenceWeekend")}</option>
               <option value="weekly">{t("trips.recurrenceWeekly")}</option>
             </Select>
+            <div>
+              <label className={labelClass}>
+                {t("trips.scheduleBaseFare")}
+              </label>
+              <CurrencyInput
+                className={inputClass}
+                value={form.baseFare}
+                placeholder={t("trips.scheduleBaseFarePlaceholder")}
+                onChange={(event) =>
+                  onFieldChange("baseFare", event.target.value)
+                }
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {t("trips.scheduleBaseFareHint")}
+              </p>
+            </div>
           </div>
-
           <details className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-gray-900">
               <span className="text-vr-700"><FiAlertCircle /></span>

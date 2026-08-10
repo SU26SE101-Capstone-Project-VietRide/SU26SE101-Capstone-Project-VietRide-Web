@@ -3,9 +3,11 @@ import { useTranslation } from "react-i18next";
 import { FiCalendar, FiPlus, FiTrash2, FiTruck, FiUsers } from "react-icons/fi";
 import { getAuthUser } from "../../../auth";
 import { ApiRequestError } from "../../../api/client";
+import { fetchAllPages } from "../../../api/pagination";
 import Modal from "../../../components/Modal";
 import { StatCard } from "../../../components/StatCard";
 import { useToast } from "../../../components/toast/useToast";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { toDatetimeLocalValue } from "../../../utils/date";
 import {
   readSessionCache,
@@ -118,10 +120,7 @@ export default function TripsPage() {
   const [formError, setFormError] = useState("");
   // Toast góc phải cho feedback hành động (tạo/sửa/xoá/bật-tắt/lỗi load).
   const toast = useToast();
-  useEffect(() => {
-    if (!formError) return;
-    toast.error(formError);
-  }, [formError, toast]);
+  useToastFeedback({ error: formError });
   const [isLoadingResources, setIsLoadingResources] = useState(
     cachedResources === null,
   );
@@ -155,25 +154,25 @@ export default function TripsPage() {
 
     async function loadResources() {
       try {
-        const [routeResult, vehicleResult, userResult, vehicleTypeResult] = await Promise.all([
-          getOperatorRoutes({ page: 1, pageSize: 100 }),
-          getOperatorVehicles({ page: 1, pageSize: 100 }),
-          getOperatorUsers({ page: 1, pageSize: 100 }),
-          getVehicleTypes({ page: 1, pageSize: 100 }),
+        const [routeItems, vehicleItems, userItems, vehicleTypeItems] = await Promise.all([
+          fetchAllPages((params) => getOperatorRoutes(params)),
+          fetchAllPages((params) => getOperatorVehicles(params)),
+          fetchAllPages((params) => getOperatorUsers(params)),
+          fetchAllPages((params) => getVehicleTypes(params)),
         ]);
 
         if (ignore) {
           return;
         }
 
-        const nextRoutes = routeResult.items.map(toRouteOption);
+        const nextRoutes = routeItems.map(toRouteOption);
         const vehicleTypeById = new Map(
-          vehicleTypeResult.items.map((vehicleType) => [
+          vehicleTypeItems.map((vehicleType) => [
             vehicleType.id,
             vehicleType.displayName || vehicleType.code,
           ]),
         );
-        const nextVehicles = vehicleResult.items.map((vehicle) => {
+        const nextVehicles = vehicleItems.map((vehicle) => {
           const option = toVehicleOption(vehicle);
           return {
             ...option,
@@ -183,7 +182,7 @@ export default function TripsPage() {
               option.vehicleType,
           };
         });
-        const nextStaff = userResult.items
+        const nextStaff = userItems
           .filter((user) => user.role === "DRIVER" || user.role === "ASSISTANT")
           .map(toStaffOption);
 
@@ -246,13 +245,12 @@ export default function TripsPage() {
 
     async function loadSchedules() {
       try {
-        const result = await getOperatorDriverSchedules({
-          page: 1,
-          pageSize: 100,
-        });
+        const scheduleItems = await fetchAllPages((params) =>
+          getOperatorDriverSchedules(params),
+        );
 
         if (!ignore) {
-          setSchedules(result.items.map(toTripScheduleFromApi));
+          setSchedules(scheduleItems.map(toTripScheduleFromApi));
         }
       } catch (err) {
         if (!ignore) {
@@ -280,6 +278,13 @@ export default function TripsPage() {
     key: K,
     value: ScheduleForm[K],
   ) {
+    if (
+      key === "baseFare" &&
+      editingSchedule &&
+      String(value) !== editingSchedule.baseFare
+    ) {
+      setApplyTo("FUTURE_ONLY");
+    }
     setForm((current) => {
       const next: ScheduleForm = { ...current, [key]: value };
 
@@ -322,10 +327,16 @@ export default function TripsPage() {
       !form.vehicleId ||
       !form.driverId ||
       !form.departureAt ||
-      !form.arrivalEstimate ||
-      !form.fare
+      !form.arrivalEstimate
     ) {
       return t("trips.validationRequired");
+    }
+
+    if (form.baseFare !== "") {
+      const baseFare = Number(form.baseFare);
+      if (!Number.isSafeInteger(baseFare) || baseFare < 0) {
+        return t("trips.validationBaseFare");
+      }
     }
 
     const selectedRoute = routes.find((route) => route.id === form.routeId);
@@ -380,6 +391,10 @@ export default function TripsPage() {
       }
 
       // Patch chỉ gồm field ĐÃ ĐỔI so với bản gốc (contract 9.1: body phải có
+      const nextBaseFare = form.baseFare === "" ? null : Number(form.baseFare);
+      const originalBaseFare =
+        original.baseFare === "" ? null : Number(original.baseFare);
+      const baseFareChanged = nextBaseFare !== originalBaseFare;
       // ít nhất một editable field; field vắng mặt = giữ nguyên).
       const patch: OperatorDriverSchedulePatch = {};
       const nextDepartureTime = toScheduleTimeValue(form.departureAt);
@@ -387,7 +402,7 @@ export default function TripsPage() {
         patch.departureTime = nextDepartureTime;
       }
       if (form.recurrence !== original.recurrence) {
-        const days = recurrenceToDays(form.recurrence);
+        const days = recurrenceToDays(form.recurrence, form.departureAt);
         if (days) {
           patch.dayOfWeek = days;
         }
@@ -403,6 +418,9 @@ export default function TripsPage() {
         patch.vehicleId = form.vehicleId;
       }
       // Form không có validUntil nên không gửi field đó (giữ nguyên trên server).
+      if (baseFareChanged) {
+        patch.baseFare = nextBaseFare;
+      }
       const nextIsActive = status === "open";
       if (nextIsActive !== (original.status === "open")) {
         patch.isActive = nextIsActive;
@@ -418,7 +436,7 @@ export default function TripsPage() {
       try {
         const updated = await updateOperatorDriverSchedule(
           editingId,
-          applyTo,
+          baseFareChanged ? "FUTURE_ONLY" : applyTo,
           patch,
         );
 
@@ -437,6 +455,7 @@ export default function TripsPage() {
                   vehicleId: updated.vehicleId ?? form.vehicleId,
                   driverId: updated.driverUserId ?? form.driverId,
                   assistantId: updated.assistantUserId ?? "",
+                  baseFare: updated.baseFare === null ? "" : String(updated.baseFare),
                   status: updated.isActive ? "open" : "draft",
                 }
               : item,
@@ -460,15 +479,24 @@ export default function TripsPage() {
     setIsSaving(true);
 
     try {
+      const validFrom = form.departureAt.slice(0, 10);
+      const isOneTimeSchedule = form.recurrence === "once";
+      // Date#getDay(): Chủ nhật = 0; API dùng ISO weekday 1..7.
+      const selectedWeekday = new Date(form.departureAt).getDay() || 7;
       const saved = await createOperatorDriverSchedule({
         routeId: form.routeId,
         vehicleId: form.vehicleId || null,
         driverUserId: form.driverId,
         assistantUserId: form.assistantId || null,
         departureTime: toScheduleTimeValue(form.departureAt),
-        validFrom: form.departureAt.slice(0, 10),
-        validUntil: null,
-        dayOfWeek: recurrenceToDays(form.recurrence) ?? [1],
+        validFrom,
+        baseFare: form.baseFare === "" ? null : Number(form.baseFare),
+        validUntil: isOneTimeSchedule ? validFrom : null,
+        dayOfWeek: isOneTimeSchedule
+          ? [selectedWeekday]
+          : (recurrenceToDays(form.recurrence, form.departureAt) ?? [
+              selectedWeekday,
+            ]),
         isActive: status === "open",
       });
       const activeSchedule =
@@ -515,7 +543,7 @@ export default function TripsPage() {
       assistantId: schedule.assistantId,
       departureAt: schedule.departureAt,
       arrivalEstimate: schedule.arrivalEstimate,
-      fare: schedule.fare,
+      baseFare: schedule.baseFare,
       recurrence: schedule.recurrence,
     });
     setEditingId(schedule.id);

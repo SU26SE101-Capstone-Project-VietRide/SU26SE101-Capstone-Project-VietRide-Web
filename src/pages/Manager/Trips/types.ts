@@ -9,6 +9,7 @@ export type RouteOption = {
   origin: string;
   destination: string;
   status: ResourceStatus;
+  baseFare?: number;
   distanceKm?: number;
   durationMinutes?: number;
 };
@@ -35,7 +36,7 @@ export type ScheduleForm = {
   assistantId: string;
   departureAt: string;
   arrivalEstimate: string;
-  fare: string;
+  baseFare: string;
   recurrence: string;
 };
 

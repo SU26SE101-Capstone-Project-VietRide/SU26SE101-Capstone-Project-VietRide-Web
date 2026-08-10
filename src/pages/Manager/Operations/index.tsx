@@ -31,6 +31,7 @@ import {
   type TrackingLatestResponse,
   type TrackingTrailPoint,
 } from "../../../api/vietride";
+import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
 import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
 import FleetFilterBar from "./FleetFilterBar";
@@ -151,13 +152,13 @@ export default function OperationsPage() {
   useEffect(() => {
     let ignore = false;
     void Promise.all([
-      getOperatorVehicles({ page: 1, pageSize: 100 }),
-      getOperatorUsers({ page: 1, pageSize: 100 }),
+      fetchAllPages((params) => getOperatorVehicles(params)),
+      fetchAllPages((params) => getOperatorUsers(params)),
     ])
-      .then(([vehicleResult, userResult]) => {
+      .then(([vehicleItems, userItems]) => {
         if (ignore) return;
-        setOperatorVehicles(vehicleResult.items);
-        setOperatorStaff(userResult.items);
+        setOperatorVehicles(vehicleItems);
+        setOperatorStaff(userItems);
       })
       .catch(() => {
         // Thiếu danh sách xe/nhân sự chỉ ảnh hưởng form thay xe — không chặn cả màn
@@ -265,22 +266,24 @@ export default function OperationsPage() {
       // 2 request thay vì N+1: trips (metadata/crew) + fleet-latest (vị trí batch),
       // merge theo tripId. Chuyến thiếu trong fleet-latest = mất tín hiệu GPS —
       // vẫn giữ trong danh sách với trạng thái "lost".
-      const [result, fleetResult] = await Promise.all([
-        getOperatorTrips({ status: "IN_PROGRESS", page: 1, pageSize: 100 }),
+      const [tripItems, fleetResult] = await Promise.all([
+        fetchAllPages(({ page, pageSize }) =>
+          getOperatorTrips({ status: "IN_PROGRESS", page, pageSize }),
+        ),
         getOperatorFleetLatest({ status: "IN_PROGRESS" }),
       ]);
       const nextVehicles = buildFleetVehicles(
-        result.items,
+        tripItems,
         fleetResult.items,
         tRef.current("gps.unassignedDriver"),
       );
-      setTripOptions(result.items);
+      setTripOptions(tripItems);
       setFleetVehicles(nextVehicles);
       setFocusCenter(
         nextVehicles.find((vehicle) => vehicle.position)?.position ?? null,
       );
       setLastRefresh(new Date());
-      return result.items;
+      return tripItems;
     } catch (error: unknown) {
       setTripOptions([]);
       setFleetVehicles([]);

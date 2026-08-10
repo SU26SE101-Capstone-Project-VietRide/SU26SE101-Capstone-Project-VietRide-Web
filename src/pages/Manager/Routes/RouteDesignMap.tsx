@@ -50,7 +50,6 @@ const routeEndpointPinPath =
 // Vị trí bubble thời lượng dọc theo đường theo index phương án (40%/55%/70%
 // chiều dài) — tránh 2 bubble đè nhau khi các phương án bám sát nhau
 const bubblePositionFractions = [0.4, 0.55, 0.7];
-const dimmedRouteOptionColor = "#64748b";
 
 // Mảng rỗng ổn định identity — trả về từ memo khi không có nhãn/marker để mảng
 // pointMarkers gộp không đổi identity vô cớ (đổi identity giữa lúc kéo là
@@ -104,8 +103,6 @@ type RouteDesignMapProps = {
   onRemoveViaPoint?: (index: number) => void;
   // Đang có request tính lại đường chạy ngầm → hiện pill "đang tính..." trên map
   isRerouting?: boolean;
-  isEditing: boolean;
-  onAppendPoint: (point: RouteCoordinate) => void;
   emptyText: string;
   // Gợi ý điểm dừng (kho nhà xe / Google Places) hiện thành chấm trên bản đồ —
   // click chấm mở popup card cho phép thêm vào tuyến
@@ -156,8 +153,6 @@ export default function RouteDesignMap({
   onDragViaPoint,
   onRemoveViaPoint,
   isRerouting = false,
-  isEditing,
-  onAppendPoint,
   emptyText,
   suggestions = [],
   onAddSuggestion,
@@ -172,7 +167,6 @@ export default function RouteDesignMap({
   // overlay memo theo DỮ LIỆU, closure đọc callback mới nhất lúc sự kiện xảy ra
   const callbacksRef = useRef({
     onAddViaPoint,
-    onAppendPoint,
     onBeginViaDrag,
     onDragViaPoint,
     onMoveViaPoint,
@@ -187,7 +181,6 @@ export default function RouteDesignMap({
   useLayoutEffect(() => {
     callbacksRef.current = {
       onAddViaPoint,
-      onAppendPoint,
       onBeginViaDrag,
       onDragViaPoint,
       onMoveViaPoint,
@@ -290,6 +283,13 @@ export default function RouteDesignMap({
   } | null>(null);
   // Đang kéo điểm nắn bằng drag NATIVE của marker (không phải gesture túm đường)
   const [isMarkerDragging, setIsMarkerDragging] = useState(false);
+  // Index + vị trí đang kéo native — cùng vai trò activeGrab nhưng cho nhánh
+  // kéo marker chấm tròn (thay vì túm thân đường): dùng để dựng đường xem
+  // trước nối thẳng qua điểm đang kéo, xem dragPreviewPath bên dưới.
+  const [nativeDragPoint, setNativeDragPoint] = useState<{
+    index: number;
+    position: GoogleMapCoordinate;
+  } | null>(null);
   // Hàm chốt gesture đang chạy — gọi khi unmount giữa chừng để không rò listener
   const grabCleanupRef = useRef<(() => void) | null>(null);
   // Sau mouseup của gesture, Google còn bắn thêm "click" trên polyline — chặn
@@ -405,6 +405,37 @@ export default function RouteDesignMap({
     () => toMapPath(displayedPath),
     [displayedPath],
   );
+  // Xem trước dạng đường thẳng nối qua điểm đang kéo (gesture túm thân đường
+  // HOẶC kéo native marker chấm tròn): bám tay chuột NGAY LẬP TỨC, không đợi
+  // request tính đường bộ thật (throttle 350ms/50m — xem useRouteGeometry.ts,
+  // mức owner đã duyệt vì API tính tiền theo request, không hạ thấp thêm).
+  // Khi throttle trả kết quả mới, đường thật (routeOptions/pathPoints) thay
+  // chỗ bản xem trước này.
+  const activeDragPoint = activeGrab ?? nativeDragPoint;
+  const dragPreviewPath = useMemo(() => {
+    if (!activeDragPoint || displayedPath.length < 2) {
+      return null;
+    }
+
+    const start = displayedPath[0];
+    const end = displayedPath[displayedPath.length - 1];
+    const draggedPoint: RouteCoordinate = {
+      latitude: activeDragPoint.position.lat,
+      longitude: activeDragPoint.position.lng,
+    };
+    const viaList =
+      activeDragPoint.index >= viaPoints.length
+        ? [...viaPoints, draggedPoint]
+        : viaPoints.map((point, index) =>
+            index === activeDragPoint.index ? draggedPoint : point,
+          );
+
+    return [start, ...viaList, end];
+  }, [activeDragPoint, displayedPath, viaPoints]);
+  const dragPreviewLinePositions = useMemo(
+    () => (dragPreviewPath ? toMapPath(dragPreviewPath) : null),
+    [dragPreviewPath],
+  );
   // Đường tham chiếu (tuyến chính) khi soạn tuyến thay thế — vẽ mờ, không bắt
   // sự kiện (không onClick/onMouseDown), zIndex thấp nhất để luôn nằm dưới.
   const referenceLinePositions = useMemo(
@@ -428,12 +459,12 @@ export default function RouteDesignMap({
     [referenceLinePositions],
   );
   const hasSavedOrDraftPath = pathPoints.length > 1;
-  // Có phương án auto-fetch (và không đang vẽ tay) → vẽ tất cả kèm bubble thời
-  // lượng để user bấm chọn ngay trên bản đồ (không còn chip trong toolbar)
-  const showOptionOverlay = routeOptions.length > 0 && !isEditing;
-  // Cho phép cắm điểm nắn: có handler + không ở chế độ vẽ tay. Dùng Boolean thay
-  // callback trong deps memo — identity callback đổi mỗi render của trang cha
-  const canAddViaPoint = Boolean(onAddViaPoint) && !isEditing;
+  // Có phương án auto-fetch → vẽ tất cả kèm bubble thời lượng để user bấm
+  // chọn ngay trên bản đồ (không còn chip trong toolbar)
+  const showOptionOverlay = routeOptions.length > 0;
+  // Cho phép cắm điểm nắn: có handler truyền xuống. Dùng Boolean thay callback
+  // trong deps memo — identity callback đổi mỗi render của trang cha
+  const canAddViaPoint = Boolean(onAddViaPoint);
   const canSelectOption = Boolean(onSelectOption);
   const canSelectStop = Boolean(onSelectStop);
   const canMoveViaPoint = Boolean(onMoveViaPoint);
@@ -446,22 +477,6 @@ export default function RouteDesignMap({
     canDragViaPoint &&
     canMoveViaPoint &&
     Boolean(onBeginViaDrag);
-
-  const mapMarkers = useMemo(
-    () =>
-      isEditing
-        ? pathPoints.map((point, index) => ({
-            color: activeColor,
-            id: `geometry-${index}-${point.latitude}-${point.longitude}`,
-            position: {
-              lat: point.latitude,
-              lng: point.longitude,
-            },
-            radiusMeters: 550,
-          }))
-        : [],
-    [activeColor, isEditing, pathPoints],
-  );
 
   const mapPolylines: GoogleMapPolyline[] = useMemo(() => {
     // Click lên đường đang chọn → cắm điểm nắn tại vị trí click (fallback khi
@@ -517,7 +532,9 @@ export default function RouteDesignMap({
         .sort((first, second) => first.zIndex - second.zIndex)
         .map(
           (line): GoogleMapPolyline => ({
-            color: line.selected ? activeColor : dimmedRouteOptionColor,
+            // Cùng tông màu tuyến đang chọn, chỉ giảm độ đậm cho phương án
+            // chưa chọn — kiểu Google Maps thật (không dùng xám rời tông).
+            color: activeColor,
             id: line.isSavedPath
               ? "route-geometry"
               : `route-option-${line.index}`,
@@ -529,11 +546,34 @@ export default function RouteDesignMap({
                   : undefined,
             onMouseDown:
               line.selected && hasSavedOrDraftPath ? grabLine : undefined,
-            opacity: line.selected ? 1 : 0.72,
-            path: line.path,
+            opacity: line.selected ? 1 : 0.4,
+            // Đang kéo nắn đường này → bám thẳng qua điểm dưới tay chuột thay
+            // vì đợi request tính đường bộ thật (xem dragPreviewLinePositions)
+            path:
+              line.selected && dragPreviewLinePositions
+                ? dragPreviewLinePositions
+                : line.path,
             weight: line.selected ? 6 : 4,
             zIndex: line.zIndex,
           }),
+        )
+        .flatMap((line) =>
+          // Đường mờ (chưa chọn) chỉ vẽ mảnh 4px — thêm lớp "vùng bắt click"
+          // rộng vô hình đè lên trên để bấm gần đường vẫn chọn được luôn,
+          // không phải rê chuột trúng đúng vệt mảnh mới đổi được tuyến. Tách
+          // bước map thành ref/closure trước rồi flatMap thuần trên object đã
+          // dựng xong (không đọc ref ở đây) để không dính rule react-hooks/refs.
+          line.opacity === 1 || !line.onClick
+            ? [line]
+            : [
+                {
+                  ...line,
+                  id: `${line.id}-hit`,
+                  opacity: 0,
+                  weight: 18,
+                },
+                line,
+              ],
         );
     }
 
@@ -546,7 +586,10 @@ export default function RouteDesignMap({
             onClick: hasSavedOrDraftPath ? addViaPoint : undefined,
             onMouseDown: hasSavedOrDraftPath ? grabLine : undefined,
             opacity: hasSavedOrDraftPath ? 1 : 0.62,
-            path: linePositions,
+            path:
+              hasSavedOrDraftPath && dragPreviewLinePositions
+                ? dragPreviewLinePositions
+                : linePositions,
             weight: hasSavedOrDraftPath ? 5 : 3,
           },
         ]
@@ -557,6 +600,7 @@ export default function RouteDesignMap({
     canAddViaPoint,
     canGrabLine,
     canSelectOption,
+    dragPreviewLinePositions,
     hasSavedOrDraftPath,
     linePositions,
     routeOptions,
@@ -574,7 +618,9 @@ export default function RouteDesignMap({
 
     return routeOptions.map((option, index): GoogleMapPointMarker => {
       const selected = index === selectedOptionIndex;
-      const optionColor = selected ? activeColor : dimmedRouteOptionColor;
+      // Cùng màu tuyến đang chọn cho cả viền nhãn — chỉ chữ + độ đậm viền khác
+      // nhau để phân biệt, đồng bộ với màu đường (không còn tông xám rời).
+      const optionColor = activeColor;
       // Bubble đặt lệch nhau theo index (40%/55%/70% chiều dài đường) — các
       // phương án chạy gần nhau sẽ không chồng bubble lên cùng một chỗ
       const fraction =
@@ -635,7 +681,7 @@ export default function RouteDesignMap({
   ]);
 
   const viaPointMarkers: GoogleMapPointMarker[] = useMemo(() => {
-    if (isEditing || (viaPoints.length === 0 && !activeGrab)) {
+    if (viaPoints.length === 0 && !activeGrab) {
       return noPointMarkers;
     }
 
@@ -679,6 +725,7 @@ export default function RouteDesignMap({
         onDrag: canDragViaPoint
           ? (position) => {
               setIsMarkerDragging(true);
+              setNativeDragPoint({ index, position });
               callbacksRef.current.onDragViaPoint?.(index, {
                 latitude: position.lat,
                 longitude: position.lng,
@@ -688,6 +735,7 @@ export default function RouteDesignMap({
         onDragEnd: canMoveViaPoint
           ? (position) => {
               setIsMarkerDragging(false);
+              setNativeDragPoint(null);
               callbacksRef.current.onMoveViaPoint?.(index, {
                 latitude: position.lat,
                 longitude: position.lng,
@@ -707,7 +755,6 @@ export default function RouteDesignMap({
     canDragViaPoint,
     canMoveViaPoint,
     canRemoveViaPoint,
-    isEditing,
     t,
     viaPoints,
   ]);
@@ -889,19 +936,10 @@ export default function RouteDesignMap({
     ],
   );
 
-  // Click nền bản đồ: đang vẽ tay → thêm điểm; đang mở card (gợi ý HOẶC stop đã
-  // gắn) → đóng card (card khá to, che bản đồ — bấm ra chỗ trống phải giải
-  // phóng tầm nhìn)
+  // Click nền bản đồ khi đang mở card (gợi ý HOẶC stop đã gắn) → đóng card
+  // (card khá to, che bản đồ — bấm ra chỗ trống phải giải phóng tầm nhìn)
   const isDetailCardOpen = activeSuggestion !== null || activeAttachedStop !== null;
   const handleMapClick = useMemo(() => {
-    if (isEditing) {
-      return (position: GoogleMapCoordinate) =>
-        callbacksRef.current.onAppendPoint({
-          latitude: position.lat,
-          longitude: position.lng,
-        });
-    }
-
     if (isDetailCardOpen) {
       return () => {
         setActiveSuggestion(null);
@@ -910,7 +948,7 @@ export default function RouteDesignMap({
     }
 
     return undefined;
-  }, [isDetailCardOpen, isEditing]);
+  }, [isDetailCardOpen]);
 
   // Toạ độ neo card: NGAY DƯỚI chấm/marker đang mở (GoogleMapCanvas tự vẽ card
   // tại vị trí này qua OverlayView) — null khi không có card nào mở. Hai state
@@ -1025,14 +1063,13 @@ export default function RouteDesignMap({
   const activeCardContent = suggestionPopup ?? attachedStopPopup;
 
   return (
-    <div className={`relative h-full ${isEditing ? "cursor-crosshair" : ""}`}>
+    <div className="relative h-full">
       <GoogleMapCanvas
         anchorContent={activeCardContent}
         anchorPosition={activeCardAnchor}
         ariaLabel={t("routes.designMapAria")}
         center={center}
         fitPoints={fitPoints}
-        markers={mapMarkers}
         onMapClick={handleMapClick}
         onMapReady={handleMapReady}
         pointMarkers={mapPointMarkers}

@@ -1,0 +1,43 @@
+import type {
+  TripSettlementProcessingState,
+  TripSettlementStatus,
+} from "../../../api/vietride";
+import { formatDateTime } from "../../../utils/date";
+
+export function formatWalletDate(value?: string | null) {
+  return formatDateTime(value ?? undefined);
+}
+
+export function processingStateClass(state?: TripSettlementProcessingState) {
+  switch (state) {
+    case "COMPLETED":
+      return "bg-emerald-50 text-emerald-700";
+    case "READY_FOR_SETTLEMENT":
+      return "bg-blue-50 text-blue-700";
+    case "ON_HOLD":
+      return "bg-amber-50 text-amber-800";
+    case "RETRY_SCHEDULED":
+      return "bg-orange-50 text-orange-800";
+    case "CANCELLED":
+      return "bg-red-50 text-red-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}
+
+// status cũ (không có processingState trên response) vẫn cần map màu — giữ
+// map riêng vì bộ giá trị enum khác nhau (4 so với 5 trạng thái).
+export function settlementStatusClass(status: TripSettlementStatus) {
+  switch (status) {
+    case "SETTLED":
+      return "bg-emerald-50 text-emerald-700";
+    case "ELIGIBLE":
+      return "bg-blue-50 text-blue-700";
+    case "PENDING_HOLD":
+      return "bg-amber-50 text-amber-800";
+    case "CANCELLED":
+      return "bg-red-50 text-red-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}

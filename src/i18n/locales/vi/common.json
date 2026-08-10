@@ -215,6 +215,8 @@
     "accountInfo": "Thông tin tài khoản",
     "roleLabel": "Vai trò",
     "systemRole": "Quản trị viên hệ thống",
+    "operatorAdminRole": "Quản trị viên nhà xe",
+    "operatorStaffRole": "Nhân viên nhà xe",
     "securityTitle": "Bảo mật tài khoản",
     "securityHint": "Tài khoản quản trị hệ thống được quản lý bởi cơ chế bảo mật của hệ thống.",
     "home": "Trang chủ",
@@ -259,7 +261,17 @@
     "logoAdminOnly": "Chỉ admin nhà xe được cập nhật logo.",
     "logoUrlMissing": "Hệ thống không nhận được đường dẫn logo sau khi tải lên.",
     "logoUpdated": "Logo nhà xe đã được cập nhật.",
-    "profileUpdated": "Hồ sơ đã được cập nhật."
+    "profileUpdated": "Hồ sơ đã được cập nhật.",
+    "personalInfoTitle": "Thông tin cá nhân",
+    "operatorInfoTitle": "Thông tin nhà xe",
+    "statusActive": "Đang hoạt động",
+    "statusInactive": "Ngừng hoạt động",
+    "changesDiscarded": "Đã huỷ thay đổi.",
+    "discardChangesTitle": "Huỷ thay đổi?",
+    "discardChangesMessage": "Các thay đổi chưa lưu sẽ bị mất. Bạn có chắc muốn huỷ?",
+    "discardChangesConfirm": "Huỷ thay đổi",
+    "continueEditing": "Tiếp tục chỉnh sửa",
+    "retry": "Thử lại"
   }
 }
 

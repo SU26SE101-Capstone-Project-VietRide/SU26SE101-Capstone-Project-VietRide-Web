@@ -100,4 +100,38 @@ describe("Admin Operators", () => {
     );
   });
 
+  it("loads every API page before applying client-side table pagination", async () => {
+    const user = userEvent.setup();
+    const operators = Array.from({ length: 9 }, (_, index) => ({
+      ...pendingOperator,
+      operatorId: `operator-${index + 1}`,
+      name: `Operator ${index + 1}`,
+    }));
+    vi.mocked(getAdminOperators).mockImplementation(async (params = {}) => {
+      const page = params.page ?? 1;
+      const pageSize = 8;
+      const start = (page - 1) * pageSize;
+
+      return {
+        items: operators.slice(start, start + pageSize),
+        page,
+        pageSize,
+        totalItems: operators.length,
+        totalPages: 2,
+        hasNextPage: page === 1,
+        hasPreviousPage: page > 1,
+      };
+    });
+
+    render(<Operators />);
+
+    await waitFor(() =>
+      expect(getAdminOperators).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "2" }));
+    expect(await screen.findByText("Operator 9")).toBeInTheDocument();
+  });
+
 });

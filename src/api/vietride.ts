@@ -29,6 +29,20 @@ export type PagedResult<T> = {
   hasNextPage: boolean;
 };
 
+export type NotificationAction =
+  | { type: "OPEN_BOOKING_DETAIL"; params: { bookingId: string } }
+  | {
+      type: "OPEN_CREW_TRIP_BOOKING";
+      params: { tripId: string; bookingId: string };
+    }
+  | { type: "OPEN_TRIP_DETAIL"; params: { tripId: string } }
+  | { type: "OPEN_TRIP_TRACKING"; params: { tripId: string } }
+  | { type: "OPEN_PARCEL_DETAIL"; params: { parcelId: string } }
+  | { type: "OPEN_WALLET"; params: Record<string, never> }
+  | { type: "OPEN_SUBSCRIPTION"; params: Record<string, never> }
+  | { type: "OPEN_SHUTTLE_TRACKING"; params: { shuttleTripId: string } }
+  | { type: "NONE"; params: Record<string, never> };
+
 export type NotificationItem = {
   id: string;
   userId: string;
@@ -36,6 +50,11 @@ export type NotificationItem = {
   title: string;
   body: string;
   data: unknown | null;
+  action?: NotificationAction | null;
+  actionType?: string;
+  actionParams?: string | Record<string, unknown>;
+  notificationType?: string;
+  deepLink?: string | null;
   readAt: string | null;
   createdAt: string;
 };
@@ -400,22 +419,74 @@ export type FinancialListParams = Pick<
 > & {
   from?: string;
   to?: string;
+  // Chuỗi tìm kiếm chung (2..100 ký tự sau trim) — xem
+  // FE-REQUEST-operator-wallet-transparency-RESPONSE.md §10. UUID hợp lệ thì
+  // exact-match theo ID hỗ trợ; chuỗi thường match referenceCode/note theo
+  // exact/prefix không phân biệt hoa/thường (Backend tự escape).
+  search?: string;
 };
 
 export type WalletTransactionType = "CREDIT" | "DEBIT";
 
+// Ghi rõ metadata đối soát của MỘT movement có đủ để hiển thị hay không —
+// dữ liệu lịch sử trước khi có contract mới vẫn hợp lệ về tiền (canonical
+// amount luôn dùng được) nhưng có thể thiếu vài field mô tả nguồn gốc.
+export type FinancialDataCompleteness = "COMPLETE" | "PARTIAL";
+
+export type OperatorWalletLastSettlement = {
+  settlementId: string;
+  amount: number;
+  method: "AUTO_WEEKLY" | "ADMIN_MANUAL" | string;
+  settledAt: string;
+};
+
 export type OperatorWallet = {
   operatorId: string;
+  // Tiền ĐÃ được credit vào ví sau khi tất toán — không đồng nghĩa rút được
+  // ra ngân hàng (xem withdrawalSupported). Không cộng các field bên dưới
+  // vào balance để ra "tổng tài sản" — mỗi field mô tả một giai đoạn khác
+  // nhau trong vòng đời tất toán.
   balance: number;
+  currency?: string;
+  // Quyền lợi đã ghi nhận ở ledger nhưng chuyến CHƯA có settlement marker
+  awaitingTripCompletionAmount?: number;
+  awaitingTripCompletionCount?: number;
+  // Tiền của settlement đang trong 7 ngày giữ để đối soát (hold window)
   pendingHoldAmount: number;
+  pendingHoldCount?: number;
+  // Đã qua hold, đủ điều kiện tất toán — CHƯA chắc đã chuyển tiền ngay
   eligibleAmount: number;
+  eligibleCount?: number;
+  nextEligibleAt?: string | null;
+  // Lần xử lý tất toán tự động dự kiến tiếp theo — luôn là LỊCH DỰ KIẾN,
+  // không phải cam kết tiền chắc chắn chuyển đúng giờ đó.
+  nextScheduledSettlementAttemptAt?: string | null;
+  // Metric lịch sử (tổng đã tất toán từ trước tới nay) — không phải số dư
+  // còn lại, không được dùng để suy ra balance.
+  lifetimeSettledAmount?: number;
+  lastSettlement?: OperatorWalletLastSettlement | null;
+  // false ở V1: không có luồng rút tiền ra ngân hàng — FE phải ẩn/disable
+  // mọi hành động rút tiền khi field này false.
+  withdrawalSupported?: boolean;
+  // Chỉ đổi khi balance đổi
   updatedAt: string;
+  // Thời điểm Backend tính các aggregate hiện tại (awaiting/hold/eligible...)
+  calculatedAt?: string;
+};
+
+export type WalletRelatedSettlement = {
+  settlementId: string;
+  tripId: string;
+  method: "AUTO_WEEKLY" | "ADMIN_MANUAL" | string;
 };
 
 export type WalletTransaction = {
   transactionId: string;
   type: WalletTransactionType;
+  // Luôn dương — giữ lại để tương thích client cũ, KHÔNG dùng để suy dấu.
   amount: number;
+  // Dùng field này để hiển thị +/-: CREDIT dương, DEBIT âm.
+  signedAmount?: number;
   balanceBefore: number;
   balanceAfter: number;
   referenceType: string;
@@ -429,11 +500,17 @@ export type WalletTransaction = {
     email: string;
     role: string;
   } | null;
+  // Có khi movement đến từ settlement — cho phép đối chiếu sang tab tất toán
+  relatedSettlement?: WalletRelatedSettlement | null;
+  adjustmentReason?: string | null;
+  dataCompleteness?: FinancialDataCompleteness;
+  missingFields?: string[];
 };
 
 export type WalletTransactionParams = FinancialListParams & {
   type?: WalletTransactionType;
   referenceType?: string;
+  dateField?: "createdAt";
 };
 
 export type TripSettlementStatus =
@@ -442,19 +519,58 @@ export type TripSettlementStatus =
   | "SETTLED"
   | "CANCELLED";
 
+// Trạng thái xử lý chi tiết hơn status — ưu tiên field này cho chip/copy giải
+// thích người dùng (status cũ vẫn còn để tương thích ngược).
+export type TripSettlementProcessingState =
+  | "ON_HOLD"
+  | "READY_FOR_SETTLEMENT"
+  | "RETRY_SCHEDULED"
+  | "COMPLETED"
+  | "CANCELLED";
+
+// [CẦN BE XÁC NHẬN] Field nội bộ của object `trip` enrichment chưa được tài
+// liệu hoá field-by-field trong response mẫu — chỉ biết nó có thể null khi
+// enrichment fail-soft (dataCompleteness=PARTIAL). Giữ optional/unknown-safe,
+// không giả định tên field cụ thể ngoài tripId đã có sẵn ở top-level.
+export type TripSettlementTripSummary = {
+  tripId?: string;
+  routeName?: string;
+  departureTime?: string;
+} | null;
+
 export type TripSettlement = {
   settlementId: string;
   tripId: string;
   operatorId?: string;
   status: TripSettlementStatus;
+  processingState?: TripSettlementProcessingState;
   eligibleAt: string | null;
+  // netAmount giữ nguyên tên cũ để tương thích; netEntitlementAmount là field
+  // canonical mới theo contract — ưu tiên hiển thị field này khi có.
   netAmount: number;
+  netEntitlementAmount?: number;
+  grossSalesAmount?: number;
+  passengerPaidAmount?: number;
+  vietRideFundedAmount?: number;
+  operatorFundedDiscountAmount?: number;
+  refundAmount?: number;
+  recognizedAdjustmentAmount?: number;
   settlementMethod: "AUTO_WEEKLY" | "ADMIN_MANUAL" | null;
   settledAt: string | null;
   createdAt: string;
   failureCount?: number;
+  attemptCount?: number;
   activeFailureCode?: string | null;
+  // Lý do trung tính khi đang RETRY_SCHEDULED — ví dụ SYSTEM_PROCESSING_DELAY.
+  // KHÔNG hiển thị nguyên văn reason nội bộ kiểu "nền tảng không đủ tiền".
+  delayReason?: string | null;
+  lastAttemptAt?: string | null;
+  nextRetryAt?: string | null;
+  cancelReason?: string | null;
   severity?: "HIGH" | "WARNING" | null;
+  // Có khi processingState=COMPLETED — cho phép đối chiếu sang tab biến động ví
+  walletTransactionId?: string | null;
+  trip?: TripSettlementTripSummary;
   operator?: {
     operatorId: string;
     name: string;
@@ -472,6 +588,7 @@ export type TripSettlement = {
 export type OperatorTripSettlementParams = FinancialListParams & {
   status?: TripSettlementStatus;
   tripId?: string;
+  dateField?: "createdAt" | "tripTerminalAt" | "eligibleAt" | "settledAt";
 };
 
 export type AdminTripSettlementParams = OperatorTripSettlementParams & {
@@ -479,6 +596,13 @@ export type AdminTripSettlementParams = OperatorTripSettlementParams & {
   stuckOnly?: boolean;
   severity?: "HIGH" | "WARNING";
 };
+
+// BUSINESS_EVENT: occurredAt là thời điểm nghiệp vụ thật. FALLBACK: chưa có
+// timestamp thật, occurredAt đang dùng tạm createdAt của ledger.
+export type LedgerOccurredAtSource =
+  | "BUSINESS_EVENT"
+  | "LEDGER_CREATED_AT_FALLBACK"
+  | string;
 
 export type OperatorLedgerEntry = {
   ledgerEntryId: string;
@@ -494,14 +618,31 @@ export type OperatorLedgerEntry = {
   amount: number;
   referenceType: string;
   referenceId: string | null;
+  // Mã Booking/Parcel để người dùng đối chiếu — null trên row lịch sử cũ,
+  // KHÔNG tự chế mã thay thế.
+  referenceCode?: string | null;
   note?: string | null;
   createdAt: string;
+  occurredAt?: string;
+  occurredAtSource?: LedgerOccurredAtSource;
+  // Số voucher nhà xe tài trợ trên audit row — audit row amount luôn = 0,
+  // không trừ operatorFundedVoucherAmount thêm lần nữa vào net.
+  operatorFundedVoucherAmount?: number;
+  adjustmentReason?: string | null;
+  affectsRevenue?: boolean;
+  affectsSettlement?: boolean;
+  settlement?: {
+    settlementId: string;
+    status: TripSettlementStatus;
+    processingState?: TripSettlementProcessingState;
+  } | null;
 };
 
 export type OperatorLedgerParams = FinancialListParams & {
   tripId?: string;
   entryType?: string;
   referenceType?: string;
+  dateField?: "createdAt" | "occurredAt";
 };
 
 export type OperatorInvoice = {
@@ -1861,10 +2002,10 @@ export type CreateAdminVoucherRequest = {
   perUserLimit: number;
   validFrom: string;
   validUntil: string;
-  newUserOnly: boolean;
-  applicablePaymentMethods: PaymentMethod[];
+  newUserOnly?: boolean;
+  applicablePaymentMethods?: PaymentMethod[];
   applicableServices: VoucherService[];
-  applicableRouteIds: string[] | null;
+  applicableRouteIds?: string[] | null;
   applicableOperatorIds: string[] | null;
   fundingType: string;
 };
@@ -2802,6 +2943,7 @@ export type OperatorDriverSchedule = {
   driverUserId?: string;
   assistantId?: string | null;
   assistantUserId?: string | null;
+  baseFare: number | null;
   departureTime: string;
   effectiveFrom: string;
   validFrom?: string;
@@ -2834,6 +2976,7 @@ export type OperatorDriverScheduleRequest = {
   vehicleId?: string | null;
   driverUserId: string;
   assistantUserId?: string | null;
+  baseFare?: number | null;
   departureTime: string;
   validFrom: string;
   validUntil?: string | null;
@@ -2870,6 +3013,7 @@ export type OperatorDriverSchedulePatch = {
   driverUserId?: string;
   assistantUserId?: string | null;
   vehicleId?: string | null;
+  baseFare?: number | null;
   validUntil?: string | null;
   isActive?: boolean;
 };

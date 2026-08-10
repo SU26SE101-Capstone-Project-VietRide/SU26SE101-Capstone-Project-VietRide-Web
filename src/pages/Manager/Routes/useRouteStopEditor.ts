@@ -31,7 +31,10 @@ type UseRouteStopEditorParams = {
   originStationId: string;
   activeRouteKey: string;
   activeRouteName: string;
-  invalidateLocalGeometry: (routeId?: string) => void;
+  invalidateLocalGeometry: (
+    routeId?: string,
+    options?: { keepViaPoints?: boolean },
+  ) => void;
   // Đánh dấu tuyến đang chọn có thay đổi chưa lưu (bật nút "Lưu tuyến")
   markRouteDirty: () => void;
   setError: (message: string) => void;
@@ -188,7 +191,10 @@ export function useRouteStopEditor({
 
     // Chỉ thao tác cục bộ: điểm dừng đổi → đường đi đã lưu không còn khớp
     if (selectedRoute) {
-      invalidateLocalGeometry(selectedRoute.id);
+      // Giữ điểm nắn user đã kéo — chỉ điểm dừng đổi, không phải đổi bến/tuyến;
+      // auto-fetch kế tiếp tự áp lại đường ngay (xem useRouteGeometry.ts) nên
+      // vẫn kéo nắn tiếp được luôn, không phải bấm chọn lại phương án.
+      invalidateLocalGeometry(selectedRoute.id, { keepViaPoints: true });
       markRouteDirty();
     }
 
@@ -227,7 +233,10 @@ export function useRouteStopEditor({
         return;
       }
 
-      invalidateLocalGeometry(selectedRoute.id);
+      // Giữ điểm nắn user đã kéo — chỉ điểm dừng đổi, không phải đổi bến/tuyến;
+      // auto-fetch kế tiếp tự áp lại đường ngay (xem useRouteGeometry.ts) nên
+      // vẫn kéo nắn tiếp được luôn, không phải bấm chọn lại phương án.
+      invalidateLocalGeometry(selectedRoute.id, { keepViaPoints: true });
       markRouteDirty();
     }
 

@@ -5,7 +5,6 @@ import { FiArrowLeft, FiArrowRight, FiEdit2, FiInfo, FiSave, FiX } from "react-i
 import type {
   OperatorVehicle,
   SeatLayoutJson,
-  VehicleSeatType,
   VehicleType,
 } from "../../../api/vietride";
 import { DetailItem } from "../../../components/DetailLayout";
@@ -28,7 +27,6 @@ import {
 import {
   getVehicleSeatStats,
   parseVehicleSeatLayout,
-  setVehicleSeatType,
 } from "./vehicleSeatHelpers";
 
 export type VehiclePanelMode = "info" | "seats";
@@ -234,22 +232,10 @@ export function VehicleDetailsPanel({
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [createStep, setCreateStep] = useState<VehiclePanelMode>("info");
-  const [selectedSeatType, setSelectedSeatType] = useState<VehicleSeatType>("STANDARD");
-  const [seatTypeOverrides, setSeatTypeOverrides] = useState<Record<string, VehicleSeatType>>({});
-  const createBaseLayout = useMemo(
+  const createLayout = useMemo(
     () => (isCreate ? createSeatLayoutPreview(form, vehicleTypes) : null),
     [form, isCreate, vehicleTypes],
   );
-  const createLayout = useMemo(() => {
-    if (!createBaseLayout) {
-      return null;
-    }
-
-    return Object.entries(seatTypeOverrides).reduce(
-      (current, [coordinateKey, type]) => setVehicleSeatType(current, coordinateKey, type),
-      createBaseLayout,
-    );
-  }, [createBaseLayout, seatTypeOverrides]);
   const activeMode = isCreate ? createStep : mode;
   const stats = getVehicleSeatStats(isCreate ? createLayout : seatLayout, vehicle?.totalSeats ?? 0);
   const isBusy = isInfoSaving || isSeatSaving;
@@ -283,13 +269,6 @@ export function VehicleDetailsPanel({
     if (onValidateCreateInfo()) {
       setCreateStep("seats");
     }
-  }
-
-  function assignSeatType(coordinateKey: string) {
-    setSeatTypeOverrides((current) => ({
-      ...current,
-      [coordinateKey]: selectedSeatType,
-    }));
   }
 
   return createPortal((
@@ -354,13 +333,7 @@ export function VehicleDetailsPanel({
 
               
               {isCreate ? (
-                <VehicleSeatLayout
-                  layout={createLayout}
-                  mode="assign-type"
-                  selectedSeatType={selectedSeatType}
-                  onSelectSeatType={setSelectedSeatType}
-                  onAssignType={assignSeatType}
-                />
+                <VehicleSeatLayout layout={createLayout} />
               ) : isSeatLoading ? (
                 <div className="space-y-3" aria-live="polite"><div className="h-16 animate-pulse rounded-xl bg-gray-100" /><div className="h-80 animate-pulse rounded-2xl bg-gray-100" /></div>
               ) : (

@@ -215,6 +215,8 @@
     "accountInfo": "Account information",
     "roleLabel": "Role",
     "systemRole": "System administrator",
+    "operatorAdminRole": "Operator admin",
+    "operatorStaffRole": "Operator staff",
     "securityTitle": "Account security",
     "securityHint": "System administrator accounts are managed by the platform security controls.",
     "home": "Home",
@@ -259,7 +261,17 @@
     "logoAdminOnly": "Only the operator admin can update the logo.",
     "logoUrlMissing": "The system did not receive the logo URL after upload.",
     "logoUpdated": "Operator logo updated.",
-    "profileUpdated": "Profile updated."
+    "profileUpdated": "Profile updated.",
+    "personalInfoTitle": "Personal information",
+    "operatorInfoTitle": "Operator information",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "changesDiscarded": "Changes discarded.",
+    "discardChangesTitle": "Discard changes?",
+    "discardChangesMessage": "Unsaved changes will be lost. Are you sure you want to discard them?",
+    "discardChangesConfirm": "Discard changes",
+    "continueEditing": "Continue editing",
+    "retry": "Retry"
   }
 }
 

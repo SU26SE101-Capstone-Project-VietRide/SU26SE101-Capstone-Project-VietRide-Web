@@ -1,0 +1,149 @@
+import { useState } from "react";
+import { FiChevronDown, FiChevronUp } from "react-icons/fi";
+import type { TripSettlement } from "../../../api/vietride";
+import { formatCurrency } from "../../../utils/currency";
+import { formatWalletDate, settlementStatusClass } from "./walletFormat";
+import { DataCompletenessBadge, ProcessingStateBadge } from "./WalletBadges";
+import { EmptyRow, type Translate } from "./walletTableShared";
+
+export function SettlementsTable({ items, t }: { items: TripSettlement[]; t: Translate }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  return (
+    <div className="overflow-x-auto p-4">
+      <table className="w-full table-fixed text-center text-sm">
+        <thead>
+          <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
+            <th className="px-4 py-3">{t("wallet.trip")}</th>
+            <th className="px-4 py-3">{t("wallet.statusLabel")}</th>
+            <th className="px-4 py-3">{t("wallet.receivedAmount")}</th>
+            <th className="px-4 py-3">{t("wallet.form")}</th>
+            <th className="px-4 py-3" />
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 ? (
+            <EmptyRow columns={5} t={t} />
+          ) : (
+            items.map((item) => (
+              <SettlementRowGroup
+                key={item.settlementId}
+                item={item}
+                t={t}
+                expanded={expandedId === item.settlementId}
+                onToggle={() =>
+                  setExpandedId((current) => (current === item.settlementId ? null : item.settlementId))
+                }
+              />
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SettlementRowGroup({
+  item,
+  t,
+  expanded,
+  onToggle,
+}: {
+  item: TripSettlement;
+  t: Translate;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const netAmount = item.netEntitlementAmount ?? item.netAmount;
+
+  return (
+    <>
+      <tr className="cursor-pointer border-t border-gray-100 hover:bg-gray-50" onClick={onToggle}>
+        <td className="whitespace-nowrap px-4 py-3 text-gray-700">
+          {item.trip?.routeName || t("wallet.tripFallback", { id: item.tripId.slice(0, 8) })}
+        </td>
+        <td className="whitespace-nowrap px-4 py-3">
+          {item.processingState ? (
+            <ProcessingStateBadge state={item.processingState} t={t} />
+          ) : (
+            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${settlementStatusClass(item.status)}`}>
+              {t(`wallet.status.${item.status}`)}
+            </span>
+          )}
+        </td>
+        <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatCurrency(netAmount)}</td>
+        <td className="px-4 py-3">
+          {item.settlementMethod ? t(`wallet.methods.${item.settlementMethod}`) : "-"}
+        </td>
+        <td className="px-4 py-3 text-gray-400">{expanded ? <FiChevronUp /> : <FiChevronDown />}</td>
+      </tr>
+      {expanded && <SettlementDetailRow item={item} t={t} />}
+    </>
+  );
+}
+
+function SettlementDetailRow({ item, t }: { item: TripSettlement; t: Translate }) {
+  return (
+    <tr className="border-t border-gray-100 bg-gray-50/60">
+      <td colSpan={5} className="px-4 py-4 text-left">
+        <SettlementStateDetail item={item} t={t} />
+        <SettlementBreakdown item={item} t={t} />
+      </td>
+    </tr>
+  );
+}
+
+function SettlementStateDetail({ item, t }: { item: TripSettlement; t: Translate }) {
+  const state = item.processingState;
+
+  return (
+    <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600">
+      {state === "ON_HOLD" && item.eligibleAt && (
+        <span>{t("wallet.eligibleAt")}: {formatWalletDate(item.eligibleAt)}</span>
+      )}
+      {state === "RETRY_SCHEDULED" && (
+        <>
+          {item.delayReason && <span>{t(`wallet.delayReason.${item.delayReason}`, { defaultValue: t("wallet.delayReason.default") })}</span>}
+          {item.attemptCount !== undefined && <span>{t("wallet.attemptCount", { count: item.attemptCount })}</span>}
+          {item.lastAttemptAt && <span>{t("wallet.lastAttemptAt")}: {formatWalletDate(item.lastAttemptAt)}</span>}
+          {item.nextRetryAt && <span>{t("wallet.nextRetryAt")}: {formatWalletDate(item.nextRetryAt)}</span>}
+        </>
+      )}
+      {state === "COMPLETED" && (
+        <>
+          {item.settledAt && <span>{t("wallet.settledAt")}: {formatWalletDate(item.settledAt)}</span>}
+          {item.settledBy?.displayName && <span>{t("wallet.settledBy")}: {item.settledBy.displayName}</span>}
+        </>
+      )}
+      {state === "CANCELLED" && item.cancelReason && <span>{t("wallet.cancelReason")}: {item.cancelReason}</span>}
+      <DataCompletenessBadge completeness={item.trip === null ? "PARTIAL" : undefined} t={t} />
+    </div>
+  );
+}
+
+const BREAKDOWN_FIELDS = [
+  "grossSalesAmount",
+  "passengerPaidAmount",
+  "vietRideFundedAmount",
+  "operatorFundedDiscountAmount",
+  "refundAmount",
+  "recognizedAdjustmentAmount",
+] as const;
+
+function SettlementBreakdown({ item, t }: { item: TripSettlement; t: Translate }) {
+  const hasBreakdown = BREAKDOWN_FIELDS.some((field) => item[field] !== undefined);
+  if (!hasBreakdown) return null;
+
+  return (
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-gray-700 sm:grid-cols-3">
+      {BREAKDOWN_FIELDS.map((field) =>
+        item[field] === undefined ? null : (
+          <div key={field} className="flex justify-between gap-2">
+            <dt className="text-gray-500">{t(`wallet.breakdown.${field}`)}</dt>
+            <dd className="font-semibold">{formatCurrency(item[field])}</dd>
+          </div>
+        ),
+      )}
+    </dl>
+  );
+}

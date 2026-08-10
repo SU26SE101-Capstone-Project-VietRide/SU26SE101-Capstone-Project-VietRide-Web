@@ -274,7 +274,10 @@ export default function GoogleMapCanvas({
               center: initialCenterRef.current,
               clickableIcons: true,
               fullscreenControl: false,
-              gestureHandling: scrollWheelZoom ? "cooperative" : "none",
+              // "greedy": cuộn chuột luôn zoom map ngay, không cần giữ ctrl —
+              // đổi từ "cooperative" để bỏ banner đen gợi ý "Sử dụng ctrl +
+              // cuộn..." mà Google tự hiện khi cuộn không giữ ctrl.
+              gestureHandling: scrollWheelZoom ? "greedy" : "none",
               mapTypeControl: false,
               renderingType: "RASTER",
               rotateControl: false,

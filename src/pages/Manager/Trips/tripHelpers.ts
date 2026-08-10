@@ -24,7 +24,7 @@ export const emptyForm: ScheduleForm = {
   assistantId: "",
   departureAt: "",
   arrivalEstimate: "",
-  fare: "250000",
+  baseFare: "",
   recurrence: "daily",
 };
 
@@ -126,6 +126,7 @@ export function toRouteOption(route: OperatorRoute): RouteOption {
     origin: route.originStation?.name ?? route.originStationId,
     destination: route.destinationStation?.name ?? route.destinationStationId,
     status: route.isActive ? "active" : "inactive",
+    baseFare: route.baseFare,
     distanceKm: route.totalDistanceKm,
     durationMinutes: route.estimatedDurationMinutes,
   };
@@ -156,7 +157,10 @@ export function toStaffOption(user: OperatorUser): StaffOption {
   };
 }
 
-export function recurrenceToDays(recurrence: string) {
+export function recurrenceToDays(
+  recurrence: string,
+  departureAt?: string,
+) {
   if (recurrence === "daily") {
     return [1, 2, 3, 4, 5, 6, 7];
   }
@@ -166,7 +170,12 @@ export function recurrenceToDays(recurrence: string) {
   }
 
   if (recurrence === "weekly") {
-    return [1];
+    if (!departureAt) {
+      return undefined;
+    }
+
+    const weekday = new Date(departureAt).getDay();
+    return Number.isNaN(weekday) ? undefined : [weekday || 7];
   }
 
   return undefined;
@@ -179,6 +188,7 @@ export function toTripSchedule(
 ): TripSchedule {
   return {
     ...form,
+    baseFare: schedule.baseFare === null ? "" : String(schedule.baseFare),
     id: schedule.id,
     code: `SCH-${schedule.id.slice(0, 8).toUpperCase()}`,
     routeId: schedule.routeId,
@@ -215,7 +225,7 @@ export function toTripScheduleFromApi(
     assistantId: schedule.assistantUserId ?? schedule.assistantId ?? "",
     departureAt,
     arrivalEstimate,
-    fare: String(schedule.route?.baseFare ?? ""),
+    baseFare: schedule.baseFare === null ? "" : String(schedule.baseFare),
     recurrence: "once",
     status: schedule.isActive ? "open" : "draft",
     routeName: schedule.route?.name,

@@ -17,6 +17,7 @@ import {
   type AdminLocation,
 } from "../../../api/vietride";
 import { ApiRequestError } from "../../../api/client";
+import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
 import { useToast } from "../../../components/toast/useToast";
 import {
@@ -146,7 +147,9 @@ export default function RoutesPage() {
   const selectedStopIdRef = useRef(selectedStopId);
   // Ref phá vòng phụ thuộc stopEditor → geometry → mapPoints → stopEditor:
   // handler chỉ chạy sau render nên tham chiếu qua ref là an toàn
-  const invalidateGeometryRef = useRef<(routeId?: string) => void>(() => {});
+  const invalidateGeometryRef = useRef<
+    (routeId?: string, options?: { keepViaPoints?: boolean }) => void
+  >(() => {});
   // Ref tương tự cho effect auto-fill — không đưa object geometry vào deps
   const applyComputedGeometryRef = useRef<(points: RouteCoordinate[]) => void>(
     () => {},
@@ -188,7 +191,8 @@ export default function RoutesPage() {
     originStationId: routeForm.originStationId,
     activeRouteKey,
     activeRouteName,
-    invalidateLocalGeometry: (routeId) => invalidateGeometryRef.current(routeId),
+    invalidateLocalGeometry: (routeId, options) =>
+      invalidateGeometryRef.current(routeId, options),
     markRouteDirty: () => setIsRouteDirty(true),
     // Lỗi validation của hành động (khi bấm thêm điểm dừng/tuyến thay thế/bến...)
     // trước đây hiện qua banner đầu màn — giờ báo qua toast (không có ô inline
@@ -305,6 +309,7 @@ export default function RoutesPage() {
     stations,
     setStations,
     updateRoute,
+    hasSelectedRoute: Boolean(selectedRouteId),
     // Lỗi validation của hành động (khi bấm thêm điểm dừng/tuyến thay thế/bến...)
     // trước đây hiện qua banner đầu màn — giờ báo qua toast (không có ô inline
     // riêng cho các lỗi này).
@@ -340,20 +345,20 @@ export default function RoutesPage() {
     const seq = ++selectRouteSeqRef.current;
 
     try {
-      const [routeResult, stopResult, stationResult, locationResult] =
+      const [routeItems, stopItems, stationItems, locationResult] =
         await Promise.all([
-          getOperatorRoutes({ page: 1, pageSize: 50 }),
-          getOperatorStops({ page: 1, pageSize: 50 }),
-          getOperatorStations({ page: 1, pageSize: 100 }),
+          fetchAllPages((params) => getOperatorRoutes(params)),
+          fetchAllPages((params) => getOperatorStops(params)),
+          fetchAllPages((params) => getOperatorStations(params)),
           getPublicLocations(),
         ]);
       // Ghi đè cache bằng danh sách mới nhất — kể cả khi phiên này thành stale
       // (user vừa chọn tuyến khác) thì dữ liệu server vẫn tươi, cache dùng được
-      writeSessionCache<OperatorRoute[]>(cacheKey, routeResult.items);
+      writeSessionCache<OperatorRoute[]>(cacheKey, routeItems);
       const nextRouteSummary =
-        routeResult.items.find(
+        routeItems.find(
           (item) => item.id === selectedRouteIdRef.current,
-        ) ?? routeResult.items[0];
+        ) ?? routeItems[0];
       const nextRoute = nextRouteSummary
         ? await getOperatorRoute(nextRouteSummary.id)
         : undefined;
@@ -361,8 +366,8 @@ export default function RoutesPage() {
         ? await getAlternativeRoutes(nextRoute.id, { page: 1, pageSize: 2 })
         : undefined;
       const nextStop =
-        stopResult.items.find((item) => item.id === selectedStopIdRef.current) ??
-        stopResult.items[0];
+        stopItems.find((item) => item.id === selectedStopIdRef.current) ??
+        stopItems[0];
 
       // User đã chọn tuyến khác trong lúc refresh → bỏ qua toàn bộ kết quả phiên này
       if (seq !== selectRouteSeqRef.current) {
@@ -371,14 +376,14 @@ export default function RoutesPage() {
 
       setRoutes(
         nextRoute
-          ? routeResult.items.map((route) =>
+          ? routeItems.map((route) =>
               route.id === nextRoute.id ? nextRoute : route,
             )
-          : routeResult.items,
+          : routeItems,
       );
-      setStops(stopResult.items);
+      setStops(stopItems);
       setStations(
-        mergeStations([], stationResult.items.map(toStationOption)).filter(
+        mergeStations([], stationItems.map(toStationOption)).filter(
           (station) => station.id && station.name,
         ),
       );
@@ -734,9 +739,9 @@ export default function RoutesPage() {
       name: basics.name,
       originStationId: basics.originStationId,
       destinationStationId: basics.destinationStationId,
-      returnRouteId: null,
-      baseFare: emptyRouteForm.baseFare,
-      isActive: emptyRouteForm.isActive,
+      returnRouteId: basics.returnRouteId || null,
+      baseFare: basics.baseFare,
+      isActive: basics.isActive,
       pathPolyline: basics.pathPolyline || undefined,
       // Create không polyline bắt buộc manualMetrics (contract 8.6) — chưa có
       // ước lượng thì gửi 0/0, chỉnh lại sau trong tab Thông tin
@@ -1083,6 +1088,7 @@ export default function RoutesPage() {
         open={isStationModalOpen}
         onClose={() => setIsStationModalOpen(false)}
         canManageRoutes={canManageRoutes}
+        hasSelectedRoute={Boolean(selectedRouteId)}
         stations={stations}
         locations={locations}
         manager={stationManager}
@@ -1092,6 +1098,7 @@ export default function RoutesPage() {
       <CreateRouteModal
         open={isCreateRouteModalOpen}
         onClose={() => setIsCreateRouteModalOpen(false)}
+        routes={routes}
         stations={stations}
         onSubmit={handleCreateRoute}
         onOpenExistingRoute={(routeId) => {

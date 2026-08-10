@@ -14,6 +14,7 @@ import {
 } from "../../../api/vietride";
 import ToastProvider from "../../../components/toast/ToastProvider";
 import TripsPage from "./index";
+import * as tripHelpers from "./tripHelpers";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -141,6 +142,7 @@ describe("TripsPage", () => {
           vehicleId: "vehicle-1",
           driverUserId: "driver-active",
           assistantUserId: null,
+          baseFare: null,
           departureTime: "08:00:00",
           effectiveFrom: "2026-09-01",
           validFrom: "2026-09-01",
@@ -291,6 +293,7 @@ describe("TripsPage", () => {
     renderPage();
 
     await screen.findByText("SCH-SCHEDULE");
+    expect(screen.getByText("trips.routeFareFallback")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await user.click(
@@ -304,7 +307,101 @@ describe("TripsPage", () => {
     expect(
       within(dialog).getByText("trips.businessRules"),
     ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText("trips.ticketPrice"),
+    ).not.toBeInTheDocument();
   });
+
+  it.each([
+    {
+      frequency: "once",
+      optionName: "trips.recurrenceOnce",
+      departure: new Date(2026, 7, 21, 1),
+      date: "2026-08-21",
+      weekday: 5,
+      validUntil: "2026-08-21",
+    },
+    {
+      frequency: "weekly",
+      optionName: "trips.recurrenceWeekly",
+      departure: new Date(2026, 7, 20, 1),
+      date: "2026-08-20",
+      weekday: 4,
+      validUntil: null,
+    },
+  ])(
+    "maps $frequency to the selected weekday and correct validity",
+    async ({ frequency, optionName, departure, date, weekday, validUntil }) => {
+      const nowSpy = vi
+        .spyOn(Date, "now")
+        .mockReturnValue(new Date(2026, 7, 19, 12).getTime());
+      const nextDepartureSpy = vi
+        .spyOn(tripHelpers, "getNextSuggestedDeparture")
+        .mockReturnValue(departure);
+      const user = userEvent.setup();
+      vi.mocked(createOperatorDriverSchedule).mockResolvedValue({
+        id: `schedule-${frequency}`,
+        operatorId: "operator-1",
+        routeId: "route-1",
+        vehicleId: "vehicle-1",
+        driverUserId: "driver-active",
+        assistantUserId: null,
+        baseFare: null,
+        departureTime: "01:00:00",
+        effectiveFrom: date,
+        validFrom: date,
+        validUntil,
+        dayOfWeek: [weekday],
+        isActive: false,
+      });
+
+      try {
+        renderPage();
+        await screen.findByText("SCH-SCHEDULE");
+        await user.click(
+          screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+        );
+
+        const dialog = await screen.findByRole("dialog");
+        await user.click(
+          within(dialog).getByRole("button", {
+            name: "trips.suggestNextDeparture",
+          }),
+        );
+        expect(
+          within(dialog).getByText(`${date} 01:00`),
+        ).toBeInTheDocument();
+
+        await user.click(
+          within(dialog).getByRole("button", {
+            name: "trips.recurrenceDaily",
+          }),
+        );
+        await user.click(screen.getByRole("option", { name: optionName }));
+        await user.click(
+          within(dialog).getByRole("button", { name: "trips.saveDraft" }),
+        );
+
+        await waitFor(() => {
+          expect(createOperatorDriverSchedule).toHaveBeenCalledWith({
+            routeId: "route-1",
+            vehicleId: "vehicle-1",
+            driverUserId: "driver-active",
+            assistantUserId: null,
+            baseFare: null,
+            departureTime: "01:00:00",
+            validFrom: date,
+            validUntil,
+            dayOfWeek: [weekday],
+            isActive: false,
+          });
+        });
+      } finally {
+        nowSpy.mockRestore();
+        nextDepartureSpy.mockRestore();
+      }
+    },
+  );
 
   it("lets the backend enforce subscription limits when six schedules already exist", async () => {
     vi.mocked(getOperatorDriverSchedules).mockResolvedValue({
@@ -315,6 +412,7 @@ describe("TripsPage", () => {
         vehicleId: "vehicle-1",
         driverUserId: "driver-active",
         assistantUserId: null,
+        baseFare: null,
         departureTime: `${String(index).padStart(2, "0")}:00:00`,
         effectiveFrom: "2026-09-01",
         validFrom: "2026-09-01",
@@ -402,6 +500,7 @@ describe("TripsPage", () => {
       vehicleId: "vehicle-1",
       driverUserId: "driver-inactive",
       assistantUserId: null,
+      baseFare: null,
       departureTime: "08:00:00",
       effectiveFrom: "2026-09-01",
       validFrom: "2026-09-01",
@@ -446,6 +545,56 @@ describe("TripsPage", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+
+  it("forces FUTURE_ONLY and sends only baseFare when the schedule fare changes", async () => {
+    vi.mocked(updateOperatorDriverSchedule).mockResolvedValue({
+      id: "schedule-12345678",
+      operatorId: "operator-1",
+      routeId: "route-1",
+      vehicleId: "vehicle-1",
+      driverUserId: "driver-active",
+      assistantUserId: null,
+      baseFare: 300_000,
+      departureTime: "08:00:00",
+      effectiveFrom: "2026-09-01",
+      validFrom: "2026-09-01",
+      isActive: true,
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("SCH-SCHEDULE");
+    await user.click(screen.getByRole("button", { name: "trips.edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const allPending = within(dialog).getByRole("radio", {
+      name: /trips\.applyToAllPending/,
+    });
+    await user.click(allPending);
+    await user.type(
+      within(dialog).getByPlaceholderText("trips.scheduleBaseFarePlaceholder"),
+      "300000",
+    );
+
+    expect(allPending).toBeDisabled();
+    expect(
+      within(dialog).getByRole("radio", {
+        name: /trips\.applyToFutureOnly/,
+      }),
+    ).toBeChecked();
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "trips.openForOperation" }),
+    );
+
+    await waitFor(() => {
+      expect(updateOperatorDriverSchedule).toHaveBeenCalledWith(
+        "schedule-12345678",
+        "FUTURE_ONLY",
+        { baseFare: 300_000 },
+      );
+    });
+  });
   it("deletes a schedule after confirming in the modal", async () => {
     vi.mocked(deleteOperatorDriverSchedule).mockResolvedValue({
       deleted: true,

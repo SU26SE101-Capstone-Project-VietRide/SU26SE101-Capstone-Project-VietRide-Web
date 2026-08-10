@@ -87,11 +87,32 @@ describe("Admin Service Packages", () => {
     expect(createAdminSubscriptionPlan).not.toHaveBeenCalled();
   });
 
-  it("localizes API save failures and displays them above the modal form", async () => {
+  it("surfaces the API's real error message when save fails", async () => {
     const interaction = userEvent.setup();
     vi.mocked(createAdminSubscriptionPlan).mockRejectedValue(
       new Error("One or more validation errors occurred."),
     );
+    render(<Packages />);
+
+    await interaction.click(await screen.findByRole("button", { name: "packages.create" }));
+    const dialog = screen.getByRole("dialog");
+    const nameInput = dialog.querySelector<HTMLInputElement>("input:not([type])");
+    const limitInputs = dialog.querySelectorAll<HTMLInputElement>('input[type="number"]');
+
+    expect(nameInput).not.toBeNull();
+    fireEvent.change(nameInput!, { target: { value: "Business" } });
+    limitInputs.forEach((input) => fireEvent.change(input, { target: { value: "1" } }));
+
+    await interaction.click(within(dialog).getByRole("button", { name: "packages.savePackage" }));
+    expect(useToastFeedback).toHaveBeenLastCalledWith({
+      message: "",
+      error: "One or more validation errors occurred.",
+    });
+  });
+
+  it("falls back to a generic message when save fails without an Error instance", async () => {
+    const interaction = userEvent.setup();
+    vi.mocked(createAdminSubscriptionPlan).mockRejectedValue("network down");
     render(<Packages />);
 
     await interaction.click(await screen.findByRole("button", { name: "packages.create" }));
