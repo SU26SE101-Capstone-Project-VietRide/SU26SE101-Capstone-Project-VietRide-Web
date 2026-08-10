@@ -77,6 +77,8 @@ export default function ProposalsPanel({
     "PENDING",
   );
   const [rejectReason, setRejectReason] = useState("");
+  // Đang ở bước nhập lý do từ chối (bước 2 của luồng duyệt)
+  const [rejecting, setRejecting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
@@ -188,8 +190,18 @@ export default function ProposalsPanel({
     [currentPath, proposedPath],
   );
 
+  // Đóng modal về đúng trạng thái ban đầu — mở đề xuất khác không kế thừa
+  // bước từ chối dở dang của đề xuất trước.
+  function closeDetails() {
+    setSelectedRequest(null);
+    setRejecting(false);
+    setRejectReason("");
+  }
+
   async function openDetails(request: RouteChangeProposal) {
     setSelectedRequest(request);
+    setRejecting(false);
+    setRejectReason("");
     setError("");
     try {
       const detail = await getOperatorRouteChangeProposal(request.id);
@@ -207,7 +219,7 @@ export default function ProposalsPanel({
       (err.code === "ROUTE_CHANGE_PROPOSAL_STALE" ||
         err.code === "ROUTE_CHANGE_PROPOSAL_NOT_PENDING")
     ) {
-      setSelectedRequest(null);
+      closeDetails();
       setMessage(t("routeEta.proposalNoLongerPending"));
       await loadRequests();
       onProposalsChanged?.();
@@ -223,7 +235,7 @@ export default function ProposalsPanel({
     setMessage("");
     try {
       await approveOperatorRouteChangeProposal(request.id);
-      setSelectedRequest(null);
+      closeDetails();
       setMessage(t("routeEta.approvedMessage"));
       await loadRequests();
       onProposalsChanged?.();
@@ -245,8 +257,7 @@ export default function ProposalsPanel({
       await rejectOperatorRouteChangeProposal(request.id, {
         reason: rejectReason.trim() || null,
       });
-      setRejectReason("");
-      setSelectedRequest(null);
+      closeDetails();
       setMessage(t("routeEta.rejectedMessage"));
       await loadRequests();
       onProposalsChanged?.();
@@ -368,7 +379,7 @@ export default function ProposalsPanel({
 
       <Modal
         open={selectedRequest !== null}
-        onClose={() => setSelectedRequest(null)}
+        onClose={closeDetails}
         title={selectedRequest?.snapshot.name ?? ""}
         subtitle={selectedRequest ? selectedRequest.tripId : ""}
         wide
@@ -448,17 +459,77 @@ export default function ProposalsPanel({
                 </p>
               )}
             </div>
+            {/* Duyệt và từ chối tách làm hai bước: trước đây ô "Lý do từ chối"
+                luôn hiện ngay cạnh nút Duyệt, khiến người duyệt tưởng phải điền
+                lý do mới bấm được. Giờ chỉ khi chọn Từ chối mới mở ô lý do. */}
             {selectedRequest.status === "PENDING" && (
-              <>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-gray-700">{t("routeEta.rejectReason")}</span>
-                  <textarea value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} maxLength={500} className="min-h-24 w-full rounded-lg border border-gray-200 p-3" />
-                </label>
-                <div className="flex gap-2">
-                  <button type="button" disabled={Boolean(actionId)} onClick={() => void approve(selectedRequest)} className="flex-1 rounded-lg bg-green-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{actionId ? tc("processing") : t("routeEta.approve")}</button>
-                  <button type="button" disabled={Boolean(actionId)} onClick={() => void reject(selectedRequest)} className="flex-1 rounded-lg border border-red-200 px-4 py-2 font-semibold text-red-700 disabled:opacity-60">{t("routeEta.reject")}</button>
-                </div>
-              </>
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                {rejecting ? (
+                  <div className="space-y-3">
+                    <label className="block text-sm">
+                      <span className="mb-1 block font-medium text-gray-700">
+                        {t("routeEta.rejectReason")}
+                      </span>
+                      <span className="mb-1.5 block text-xs text-gray-500">
+                        {t("routeEta.rejectReasonHint")}
+                      </span>
+                      <textarea
+                        autoFocus
+                        value={rejectReason}
+                        onChange={(event) => setRejectReason(event.target.value)}
+                        maxLength={500}
+                        placeholder={t("routeEta.rejectReasonPlaceholder")}
+                        className="min-h-24 w-full rounded-lg border border-gray-200 p-3 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+                      />
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={Boolean(actionId)}
+                        onClick={() => void reject(selectedRequest)}
+                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {actionId ? tc("processing") : t("routeEta.confirmReject")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={Boolean(actionId)}
+                        onClick={() => {
+                          setRejecting(false);
+                          setRejectReason("");
+                        }}
+                        className="cursor-pointer rounded-lg border border-gray-200 px-4 py-2.5 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                      >
+                        {tc("cancel")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mb-3 text-sm text-gray-600">
+                      {t("routeEta.decisionHint")}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={Boolean(actionId)}
+                        onClick={() => void approve(selectedRequest)}
+                        className="flex-1 cursor-pointer rounded-lg bg-green-600 px-4 py-2.5 font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {actionId ? tc("processing") : t("routeEta.approve")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={Boolean(actionId)}
+                        onClick={() => setRejecting(true)}
+                        className="flex-1 cursor-pointer rounded-lg border border-red-200 px-4 py-2.5 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        {t("routeEta.reject")}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
         )}

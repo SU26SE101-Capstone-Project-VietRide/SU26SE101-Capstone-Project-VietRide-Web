@@ -29,7 +29,6 @@ const emptyOperatorForm: RegisterOperatorRequest = {
   taxCode: "",
   addressStreet: "",
   addressWard: "",
-  addressDistrict: "",
   addressProvince: "",
   representativeName: "",
   representativePhone: "",
@@ -59,7 +58,7 @@ const stepRequiredFields: Array<Array<keyof RegisterOperatorRequest>> = [
     "businessRegistrationNumber",
     "taxCode",
   ],
-  ["addressStreet", "addressWard", "addressDistrict", "addressProvince"],
+  ["addressStreet", "addressWard", "addressProvince"],
   [
     "representativeName",
     "representativePhone",
@@ -169,7 +168,6 @@ export default function Register() {
       form.taxCode,
       form.addressStreet,
       form.addressWard,
-      form.addressDistrict,
       form.addressProvince,
       form.representativeName,
       form.representativePhone,
@@ -212,7 +210,6 @@ export default function Register() {
         taxCode: form.taxCode.trim(),
         addressStreet: form.addressStreet.trim(),
         addressWard: form.addressWard.trim(),
-        addressDistrict: form.addressDistrict.trim(),
         addressProvince: form.addressProvince.trim(),
         representativeName: form.representativeName.trim(),
         representativePhone: form.representativePhone.trim(),
@@ -559,13 +556,6 @@ export default function Register() {
                         value={form.addressWard}
                         onChange={(value) => updateForm("addressWard", value)}
                         placeholder="Ward 1"
-                      />
-                      <Field
-                        icon={<FiMapPin />}
-                        label={t("district")}
-                        value={form.addressDistrict}
-                        onChange={(value) => updateForm("addressDistrict", value)}
-                        placeholder="District 1"
                       />
                       <div className="sm:col-span-2">
                         <Field

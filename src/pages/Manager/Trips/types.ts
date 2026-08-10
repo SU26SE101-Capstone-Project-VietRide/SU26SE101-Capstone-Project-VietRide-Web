@@ -35,9 +35,19 @@ export type ScheduleForm = {
   driverId: string;
   assistantId: string;
   departureAt: string;
+  // Chỉ để hiển thị/validate phía client — BE tự tính estimatedArrivalTime từ
+  // route.estimatedDurationMinutes lúc sinh Trip, không nhận field này.
   arrivalEstimate: string;
+  // Ngày kết thúc lịch (YYYY-MM-DD). "" = không giới hạn -> gửi null cho BE.
+  validUntil: string;
   baseFare: string;
-  recurrence: string;
+  // Lịch chạy MỘT LẦN: dayOfWeek = đúng thứ của ngày khởi hành và
+  // validUntil = validFrom. Ngược lại là lịch lặp theo dayOfWeek bên dưới.
+  isOneTime: boolean;
+  // Các thứ trong tuần theo chuẩn ISO 1..7 (1 = Thứ 2). Đây là mô hình THẬT của
+  // BE (IReadOnlyCollection<int>, validate 1..7) — mọi tổ hợp đều hợp lệ, không
+  // bị bó vào vài preset cố định.
+  dayOfWeek: number[];
 };
 
 export type TripSchedule = ScheduleForm & {

@@ -351,8 +351,6 @@
     "searchLabel": "Tìm khu vực",
     "filterStatus": "Lọc theo trạng thái",
     "code": "Mã khu vực",
-    "codePlaceholder": "Ví dụ: HN",
-    "codeHint": "Dùng chữ, số, dấu gạch ngang hoặc gạch dưới.",
     "name": "Tên khu vực",
     "namePlaceholder": "Ví dụ: Hà Nội",
     "nameHint": "Đây là tên người dùng nhìn thấy khi chọn nơi đi hoặc nơi đến.",
@@ -375,7 +373,20 @@
     "saved": "Đã lưu thông tin khu vực.",
     "saveFailed": "Không thể lưu thông tin khu vực.",
     "deactivateConfirm": "Ngừng sử dụng khu vực {{name}}? Khu vực này sẽ không xuất hiện trong các tìm kiếm mới.",
-    "activateConfirm": "Cho phép tìm kiếm lại theo khu vực {{name}}?"
+    "activateConfirm": "Cho phép tìm kiếm lại theo khu vực {{name}}?",
+    "type": "Cấp hành chính",
+    "typeHint": "Tỉnh/Thành phố là cấp trên; Phường/Xã/Đặc khu bắt buộc trực thuộc một tỉnh/thành.",
+    "parent": "Trực thuộc",
+    "parentHint": "Chỉ chọn được tỉnh/thành đang hoạt động.",
+    "selectParent": "Chọn tỉnh/thành phố",
+    "codeDigitsHint": "Mã gồm đúng {{count}} chữ số, giữ nguyên số 0 ở đầu.",
+    "types": {
+      "PROVINCE": "Tỉnh",
+      "MUNICIPALITY": "Thành phố trực thuộc TƯ",
+      "WARD": "Phường",
+      "COMMUNE": "Xã",
+      "SPECIAL_ZONE": "Đặc khu"
+    }
   },
   "stations": {
     "title": "Quản lý bến nền tảng",
@@ -401,8 +412,6 @@
     "slugHint": "Hệ thống tự tạo slug từ tên và khu vực của bến; trường này không thể chỉnh sửa trực tiếp.",
     "city": "Tỉnh/Thành phố",
     "ward": "Xã/Phường",
-    "location": "Khu vực",
-    "noLocation": "Chưa gắn khu vực",
     "shuttle": "Trung chuyển",
     "supportsShuttle": "Bến hỗ trợ xe trung chuyển",
     "operatingHours": "Giờ hoạt động",
@@ -461,7 +470,14 @@
     "mergedMessage": "Đã gộp {{source}} vào {{target}}.",
     "mergedMessageWithCount": "Đã gộp {{source}} vào {{target}} và chuyển {{count}} liên kết.",
     "deactivatedMessage": "Đã vô hiệu hóa {{station}}.",
-    "activatedMessage": "Đã kích hoạt {{station}}."
+    "activatedMessage": "Đã kích hoạt {{station}}.",
+    "province": "Tỉnh/Thành phố",
+    "selectProvince": "Chọn tỉnh/thành phố",
+    "wardLocation": "Phường/Xã",
+    "selectWard": "Chọn phường/xã",
+    "loadingWards": "Đang tải phường/xã…",
+    "derivedLocationLabel": "Địa giới hành chính của bến",
+    "derivedLocationHint": "Hệ thống tự suy ra từ phường/xã đã chọn, không sửa trực tiếp được."
   },
   "packages": {
     "title": "Quản lý Gói Dịch vụ",
@@ -657,6 +673,7 @@
       "PARCEL_ADDITIONAL_PAYMENT_HOLD": "Thu thêm phí gửi hàng",
       "SETTLEMENT_TO_OPERATOR": "Thanh toán cho nhà xe",
       "TRIP_SETTLEMENT": "Thanh toán chuyến xe",
+      "SUBSCRIPTION_PAYMENT": "Thanh toán gói dịch vụ",
       "SYSTEM_ADJUSTMENT": "Điều chỉnh số dư",
       "REFUND": "Hoàn tiền khách hàng"
     },
@@ -801,6 +818,15 @@
   "reports": {
     "title": "Báo cáo hệ thống",
     "subtitle": "Theo dõi lượt đặt vé, chuyến xe, đơn hàng hóa và doanh thu trong khoảng thời gian UTC đã chọn.",
+    "dateRangeTitle": "Khoảng thời gian báo cáo",
+    "dateRangeHint": "Chọn khoảng thời gian để cập nhật số liệu toàn hệ thống.",
+    "viewingPeriod": "Đang xem: {{from}} – {{to}}",
+    "quickRanges": "Chọn nhanh",
+    "last7Days": "7 ngày",
+    "last30Days": "30 ngày",
+    "thisMonth": "Tháng này",
+    "thisQuarter": "Quý này",
+    "applyFilters": "Áp dụng",
     "dateRequired": "Vui lòng chọn ngày bắt đầu và ngày kết thúc.",
     "invalidDateRange": "Ngày kết thúc phải từ ngày bắt đầu trở đi và khoảng lọc không vượt quá 366 ngày.",
     "loadFailed": "Không thể tải báo cáo nền tảng.",
@@ -849,4 +875,3 @@
     "page": "Trang cursor {{page}}"
   }
 }
-

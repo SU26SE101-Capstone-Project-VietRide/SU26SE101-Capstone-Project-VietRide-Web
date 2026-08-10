@@ -11,7 +11,7 @@ import {
   FiTruck,
 } from "react-icons/fi";
 import {
-  getAdminLocations,
+  getPublicLocations,
   getAdminStations,
   mergeAdminStations,
   updateAdminStation,
@@ -19,6 +19,7 @@ import {
   type AdminStation,
 } from "../../../api/vietride";
 import { fetchAllPages } from "../../../api/pagination";
+import { matchProvinceCode } from "../../../utils/locationMatching";
 import { type PlaceSelection } from "../../../components/PlacePicker";
 import { StatCard } from "../../../components/StatCard";
 import Modal from "../../../components/Modal";
@@ -51,6 +52,17 @@ export default function AdminStations() {
   });
   const [stations, setStations] = useState<AdminStation[]>([]);
   const [locations, setLocations] = useState<AdminLocation[]>([]);
+  // Cascade tỉnh -> phường/xã cho ô Location của bến đang sửa
+  // Ghi đè khoá theo bến: đổi bến thì tự quay về tỉnh suy từ dữ liệu bến đó,
+  // không cần effect reset (tránh setState đồng bộ trong effect).
+  const [provinceOverride, setProvinceOverride] = useState<{
+    stationId: string;
+    code: string;
+  } | null>(null);
+  const [wardResult, setWardResult] = useState<{
+    provinceCode: string;
+    wards: AdminLocation[];
+  } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<
     "ALL" | "ACTIVE" | "INACTIVE"
@@ -91,12 +103,9 @@ export default function AdminStations() {
             sortBy: "updatedAt",
             sortDir: "desc",
           })),
-          fetchAllPages(({ page, pageSize }) => getAdminLocations({
-            page,
-            pageSize,
-            sortBy: "sortOrder",
-            sortDir: "asc",
-          })),
+          // Danh mục nay có hai cấp: nạp cả catalog sẽ là hàng trăm request.
+          // Chỉ lấy tỉnh/thành; phường/xã tải theo tỉnh khi người dùng chọn.
+          getPublicLocations(),
         ]);
 
         if (ignore) {
@@ -138,6 +147,7 @@ export default function AdminStations() {
     };
   }, [reloadKey]);
 
+
   const filteredStations = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
 
@@ -175,6 +185,39 @@ export default function AdminStations() {
     stations.find((station) => station.id === selectedStationId) ?? stations[0];
   const editableForm =
     form ?? (selectedStation ? toForm(selectedStation) : null);
+  // Tỉnh suy từ tên tỉnh snapshot của bến; người dùng đổi thì override thắng
+  const derivedProvinceCode = matchProvinceCode(
+    "",
+    selectedStation?.city,
+    locations,
+  );
+  const provinceCode =
+    provinceOverride && provinceOverride.stationId === selectedStation?.id
+      ? provinceOverride.code
+      : derivedProvinceCode;
+  // Tải phường/xã của tỉnh đang chọn. Kết quả mang theo tỉnh của chính nó nên
+  // response về muộn của tỉnh trước không lẫn sang tỉnh đang chọn.
+  useEffect(() => {
+    if (!provinceCode) return;
+
+    let ignore = false;
+    getPublicLocations({ parentCode: provinceCode })
+      .then((result) => {
+        if (ignore) return;
+        setWardResult({
+          provinceCode,
+          wards: result.filter((location) => location.isActive),
+        });
+      })
+      .catch(() => {
+        if (ignore) return;
+        setWardResult({ provinceCode, wards: [] });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [provinceCode]);
   const activeCount = stations.filter(
     (station) => station.isActive !== false,
   ).length;
@@ -267,7 +310,7 @@ export default function AdminStations() {
 
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
-    if (!form.name.trim() || !form.addressStreet.trim() || !form.city.trim()) {
+    if (!form.name.trim() || !form.addressStreet.trim()) {
       setAlert({ tone: "error", message: t("stations.requiredFields") });
       return;
     }
@@ -305,8 +348,8 @@ export default function AdminStations() {
         name: form.name.trim(),
         addressStreet: form.addressStreet.trim(),
         locationId: form.locationId || null,
-        city: form.city.trim(),
-        ward: form.ward.trim(),
+        // KHÔNG gửi city/ward: handler BE bỏ qua và tự suy từ hierarchy của
+        // locationId. Gửi lên chỉ tạo ảo giác "sửa được" cho người dùng.
         latitude,
         longitude,
         contactPhone: form.contactPhone.trim() || null,
@@ -534,6 +577,23 @@ export default function AdminStations() {
           <StationEditorPanel
             form={editableForm}
             locations={locations}
+            provinceCode={provinceCode}
+            onProvinceChange={(nextProvinceCode) => {
+              setProvinceOverride({
+                stationId: selectedStation.id,
+                code: nextProvinceCode,
+              });
+              // Đổi tỉnh thì Location cũ không còn hợp lệ
+              setForm((current) =>
+                current ? { ...current, locationId: "" } : current,
+              );
+            }}
+            wards={
+              wardResult?.provinceCode === provinceCode ? wardResult.wards : []
+            }
+            isLoadingWards={
+              Boolean(provinceCode) && wardResult?.provinceCode !== provinceCode
+            }
             selectedPlace={selectedPlace}
             customFacility={customFacility}
             isSaving={isSaving}

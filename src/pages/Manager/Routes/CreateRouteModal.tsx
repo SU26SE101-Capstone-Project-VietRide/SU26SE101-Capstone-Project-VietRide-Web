@@ -16,6 +16,7 @@ import {
 } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
+import Checkbox from "../../../components/form/Checkbox";
 import { ApiRequestError } from "../../../api/client";
 import {
   inputClass,
@@ -451,27 +452,12 @@ export default function CreateRouteModal({
                     {t("routes.activeRouteHint")}
                   </span>
                 </span>
-                <span
-                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
-                    basics.isActive ? "bg-vr-600" : "bg-gray-300"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    aria-label={t("routes.activeRoute")}
-                    className="peer sr-only"
-                    checked={basics.isActive}
-                    onChange={(event) =>
-                      updateBasics("isActive", event.target.checked)
-                    }
-                  />
-                  <span
-                    aria-hidden="true"
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                      basics.isActive ? "translate-x-5" : "translate-x-0.5"
-                    }`}
-                  />
-                </span>
+                <Checkbox
+                  checked={basics.isActive}
+                  onChange={(checked) => updateBasics("isActive", checked)}
+                  aria-label={t("routes.activeRoute")}
+                  size="md"
+                />
               </label>
             </div>
           </section>

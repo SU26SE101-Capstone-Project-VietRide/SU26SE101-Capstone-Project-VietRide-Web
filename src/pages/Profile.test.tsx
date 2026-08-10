@@ -62,7 +62,6 @@ const baseOperator: OperatorProfile = {
   address: {
     street: "123 Đường A",
     ward: "Phường 1",
-    district: "Quận 1",
     province: "TP.HCM",
   },
   representativeName: "Nguyễn Văn A",

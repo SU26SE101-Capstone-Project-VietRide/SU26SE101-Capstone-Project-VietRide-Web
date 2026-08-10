@@ -123,6 +123,10 @@ export function useRouteStopEditor({
   async function addStopFromSuggestion(
     suggestion: StopSuggestion,
     options: { allowPickup: boolean; allowDropoff: boolean },
+    // Location cấp phường/xã do người dùng xác nhận ở StopWardConfirmModal.
+    // Bắt buộc với kind googlePlace: BE yêu cầu đúng một trong
+    // locationId/locationCode và không cho sửa Location sau khi tạo.
+    locationId?: string,
   ) {
     // Hoist điều kiện kind ra ngoài .some — operatorStop dedupe theo stopId
     // (đúng như cũ); googlePlace dedupe theo googlePlaceId (nit): chấm Google
@@ -152,6 +156,11 @@ export function useRouteStopEditor({
     let longitude = suggestion.longitude;
 
     if (suggestion.kind === "googlePlace") {
+      if (!locationId) {
+        setError(t("routes.stopWardRequired"));
+        return;
+      }
+
       const createdStop = await createOperatorStop({
         name: suggestion.name,
         address: suggestion.address,
@@ -159,6 +168,7 @@ export function useRouteStopEditor({
         longitude: suggestion.longitude,
         googlePlaceId: suggestion.googlePlaceId,
         description: "",
+        locationId,
       });
 
       stopId = createdStop.id;

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import Checkbox from "../../../components/form/Checkbox";
 import { FiTag } from "react-icons/fi";
 import type { OperatorRoute } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
@@ -197,11 +198,9 @@ export default function VoucherModal({
                             : "text-gray-700 hover:bg-gray-50"
                         }`}
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={checked}
                           onChange={() => toggleRoute(route.id)}
-                          className="h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
                         />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">

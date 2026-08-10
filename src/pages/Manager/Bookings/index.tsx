@@ -29,6 +29,7 @@ import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 import { inputClass } from "../../../components/form/formClasses";
 import { StatCard } from "../../../components/StatCard";
+import { fetchAllPages } from "../../../api/pagination";
 
 const PAGE_SIZE = 20;
 const actionIconClass =
@@ -119,6 +120,8 @@ export default function BookingsList() {
   const [bookingsPage, setBookingsPage] =
     useState<PagedResult<OperatorBookingListItem>>(emptyPage);
   const [stats, setStats] = useState<BookingStatsAggregate | null>(null);
+  const [pendingBookings, setPendingBookings] = useState(0);
+  const [noShowPassengers, setNoShowPassengers] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState("");
   const [openDetail, setOpenDetail] = useState(false);
@@ -180,14 +183,40 @@ export default function BookingsList() {
   useEffect(() => {
     let isCurrent = true;
 
-    async function loadStats() {try {
-        const result = await getOperatorBookingStats({
-          groupBy: "date",
-        });
-        if (isCurrent) setStats(result);
-      } catch {
-        if (isCurrent) setStats(null);
-      }
+    async function loadStats() {
+      const [statsResult, pendingResult, noShowResult] =
+        await Promise.allSettled([
+          getOperatorBookingStats({ groupBy: "date" }),
+          getOperatorBookings({
+            status: "PENDING_PAYMENT",
+            page: 1,
+            pageSize: 1,
+          }),
+          fetchAllPages(({ page: nextPage, pageSize }) =>
+            getOperatorBookings({
+              status: "NO_SHOW",
+              page: nextPage,
+              pageSize,
+            }),
+          ),
+        ]);
+
+      if (!isCurrent) return;
+
+      setStats(statsResult.status === "fulfilled" ? statsResult.value : null);
+      setPendingBookings(
+        pendingResult.status === "fulfilled"
+          ? pendingResult.value.totalItems
+          : 0,
+      );
+      setNoShowPassengers(
+        noShowResult.status === "fulfilled"
+          ? noShowResult.value.reduce(
+              (total, booking) => total + booking.seatCount,
+              0,
+            )
+          : 0,
+      );
     }
 
     void loadStats();
@@ -202,18 +231,19 @@ export default function BookingsList() {
       key:
         | "totalBookings"
         | "totalCompleted"
+        | "totalNoShows"
     ) => items.reduce((total, item) => total + (item[key] ?? 0), 0);
 
     return {
       totalBookings:
         stats?.totalBookings ??
         (items.length > 0 ? sum("totalBookings") : bookingsPage.totalItems),
-      totalCompleted: stats?.totalCompleted ?? sum("totalCompleted"),
-      pendingBookings: stats?.pendingBookings ?? 0,
-      totalNoShows: stats?.totalNoShows ?? 0,
-      totalPassengers: stats?.totalPassengers ?? 0,
+      totalCompleted: sum("totalCompleted"),
+      pendingBookings,
+      totalNoShows: sum("totalNoShows"),
+      totalPassengers: noShowPassengers,
     };
-  }, [bookingsPage.totalItems, stats]);
+  }, [bookingsPage.totalItems, noShowPassengers, pendingBookings, stats]);
 
   function statusBadge(status?: string | null) {
     const key = normalizeStatus(status);

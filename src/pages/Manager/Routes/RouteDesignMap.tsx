@@ -29,6 +29,7 @@ import type { RoadRouteOption } from "./geometry";
 import { estimateCoachDurationMinutes, type RouteCoordinate } from "./polyline";
 import StopDetailCard from "./StopDetailCard";
 import type { RouteMapPoint, StopSuggestion } from "./types";
+import Checkbox from "../../../components/form/Checkbox";
 
 const defaultRouteMapCenter: GoogleMapCoordinate = {
   lat: 10.7769,
@@ -986,19 +987,11 @@ export default function RouteDesignMap({
       {showPickupDropoffOptions && (
       <div className="mt-2 flex items-center gap-4">
         <label className="flex items-center gap-1.5 text-xs text-gray-700">
-          <input
-            type="checkbox"
-            checked={allowPickup}
-            onChange={(event) => setAllowPickup(event.target.checked)}
-          />
+          <Checkbox checked={allowPickup} onChange={setAllowPickup} />
           {t("routes.allowPickup")}
         </label>
         <label className="flex items-center gap-1.5 text-xs text-gray-700">
-          <input
-            type="checkbox"
-            checked={allowDropoff}
-            onChange={(event) => setAllowDropoff(event.target.checked)}
-          />
+          <Checkbox checked={allowDropoff} onChange={setAllowDropoff} />
           {t("routes.allowDropoff")}
         </label>
       </div>

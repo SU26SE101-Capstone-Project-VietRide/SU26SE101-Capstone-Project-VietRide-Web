@@ -9,6 +9,7 @@ import CampaignVoucherSelector from "./CampaignVoucherSelector";
 import { Field } from "./formControls";
 import type { CampaignForm } from "./types";
 import { isActiveOperator } from "./voucherHelpers";
+import Checkbox from "../../../components/form/Checkbox";
 
 type CampaignModalProps = {
   open: boolean;
@@ -142,16 +143,15 @@ export default function CampaignModal({
           }
         />
         <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
-          <input
-            type="checkbox"
+          <Checkbox
+            className="mt-0.5"
             checked={campaignForm.isActive}
-            onChange={(event) =>
+            onChange={(checked) =>
               setCampaignForm((current) => ({
                 ...current,
-                isActive: event.target.checked,
+                isActive: checked,
               }))
             }
-            className="mt-1 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
           />
           <span>
             <span className="block text-sm font-bold text-gray-900">

@@ -143,7 +143,6 @@ describe("ManagerPackages", () => {
         planId: "plan-pro",
         billingPeriod: "YEARLY",
         paymentMethod: "VNPAY",
-        returnUrl: "http://localhost:3000/payments/return",
       },
       expect.any(String),
     );
@@ -356,7 +355,6 @@ describe("ManagerPackages", () => {
           planId: "plan-pro",
           billingPeriod: "YEARLY",
           paymentMethod: "VNPAY",
-          returnUrl: "http://localhost:3000/payments/return",
         },
         expect.any(String),
       );

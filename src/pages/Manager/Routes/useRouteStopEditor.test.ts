@@ -190,10 +190,11 @@ describe("useRouteStopEditor - addStopFromSuggestion", () => {
     };
 
     await act(async () => {
-      await result.current.addStopFromSuggestion(suggestion, {
-        allowPickup: true,
-        allowDropoff: true,
-      });
+      await result.current.addStopFromSuggestion(
+        suggestion,
+        { allowPickup: true, allowDropoff: true },
+        "ward-location-1",
+      );
     });
 
     await waitFor(() => {
@@ -204,11 +205,41 @@ describe("useRouteStopEditor - addStopFromSuggestion", () => {
         longitude: 106.5,
         googlePlaceId: "place-1",
         description: "",
+        locationId: "ward-location-1",
       });
     });
     expect(onStopCreated).toHaveBeenCalledWith(createdStop);
     expect(result.current.currentRouteStops).toHaveLength(1);
     expect(result.current.currentRouteStops[0].stopId).toBe("new-stop");
+  });
+
+  it("b2) googlePlace thiếu phường/xã → báo lỗi, không gọi createOperatorStop", async () => {
+    const setError = vi.fn();
+    const { result } = renderHook(() =>
+      useRouteStopEditor(buildParams({ setError })),
+    );
+
+    const suggestion: StopSuggestion = {
+      kind: "googlePlace",
+      id: "place-2",
+      name: "Địa điểm Google",
+      address: "123 Đường ABC",
+      latitude: 10.5,
+      longitude: 106.5,
+      distanceFromStartKm: 25,
+      googlePlaceId: "place-2",
+    };
+
+    await act(async () => {
+      await result.current.addStopFromSuggestion(suggestion, {
+        allowPickup: true,
+        allowDropoff: true,
+      });
+    });
+
+    expect(createOperatorStop).not.toHaveBeenCalled();
+    expect(setError).toHaveBeenCalledWith("routes.stopWardRequired");
+    expect(result.current.currentRouteStops).toHaveLength(0);
   });
 
   it("c) trùng stopId → setError, không thêm", async () => {

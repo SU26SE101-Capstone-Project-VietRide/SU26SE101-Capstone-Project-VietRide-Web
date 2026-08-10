@@ -99,12 +99,10 @@ export type AdminOperator = {
   address?: {
     street?: string;
     ward?: string;
-    district?: string;
     province?: string;
   };
   addressStreet?: string;
   addressWard?: string;
-  addressDistrict?: string;
   addressProvince?: string;
   representativeName?: string;
   representativePhone?: string;
@@ -125,7 +123,6 @@ export type CreateAdminOperatorRequest = {
   taxCode: string;
   addressStreet: string;
   addressWard: string;
-  addressDistrict: string;
   addressProvince: string;
   representativeName: string;
   representativePhone: string;
@@ -217,7 +214,6 @@ export type OperatorProfile = {
   address: {
     street: string;
     ward: string;
-    district: string;
     province: string;
   };
   representativeName: string;
@@ -249,7 +245,6 @@ export type UpdateOperatorProfileRequest = {
   logoUrl?: string | null;
   addressStreet: string;
   addressWard: string;
-  addressDistrict: string;
   addressProvince: string;
   representativeName: string;
   representativePhone: string;
@@ -267,7 +262,6 @@ export type RegisterOperatorRequest = Pick<
   | "taxCode"
   | "addressStreet"
   | "addressWard"
-  | "addressDistrict"
   | "addressProvince"
   | "representativeName"
   | "representativePhone"
@@ -385,24 +379,38 @@ export type OperatorSubscriptionDetail = {
   pendingUpgrade?: SubscriptionPendingUpgrade | null;
 };
 
+// returnUrl đã bị bỏ: Backend tự chọn mode OPERATOR_WEB và dùng
+// VNPAY_WEB_RETURN_URL phía server (VNPAY_WEB_MOBILE_SDK_HANDOFF.md §2.1, §4).
+// FE không được hardcode URL return nữa.
 export type SubscriptionUpgradeRequest = {
   planId: string;
   billingPeriod: SubscriptionBillingPeriod;
   paymentMethod: "VNPAY";
-  returnUrl: string;
 };
 
 export type SubscriptionUpgradeResult = {
-  subscriptionId: string;
   upgradeAttemptId: string;
   status: string;
   paymentId: string;
-  amount: number;
-  billingPeriod: SubscriptionBillingPeriod;
   paymentRedirectUrl: string | null;
   dueAt: string | null;
-  activePlan: SubscriptionPlanReference;
-  pendingTargetPlan: SubscriptionPlanReference;
+  // Các field dưới đây không có trong response mẫu 202 của handoff doc —
+  // để optional để FE không crash nếu Backend đã lược bớt.
+  subscriptionId?: string;
+  amount?: number;
+  billingPeriod?: SubscriptionBillingPeriod;
+  activePlan?: SubscriptionPlanReference;
+  pendingTargetPlan?: SubscriptionPlanReference;
+};
+
+// Trạng thái đọc-only của VNPay web return. Chỉ IPN mới đổi được trạng thái
+// thanh toán; endpoint này chỉ để FE hiển thị (handoff §2.2).
+export type VnPayReturnStatus = {
+  vnPayTxnRef: string;
+  paymentId: string;
+  referenceType: string;
+  referenceId: string;
+  status: string;
 };
 
 export type SubscriptionRetryPaymentResult = {
@@ -669,7 +677,8 @@ export type OperatorInvoiceDetail = OperatorInvoice & {
     contactPhone: string;
     addressStreet: string;
     addressWard: string | null;
-    addressDistrict: string;
+    /** Hoá đơn phát hành trước khi BE bỏ district vẫn còn trường này */
+    addressDistrict?: string | null;
     addressProvince: string;
   };
   invoiceWebUrl: string;
@@ -888,11 +897,32 @@ export type AdminOutboxDlqPage = {
   unavailableServices: string[];
 };
 
+/** Cấp tỉnh/thành — code đúng 2 chữ số, không có parent */
+export const LOCATION_TOP_LEVEL_TYPES = ["PROVINCE", "MUNICIPALITY"] as const;
+/** Cấp phường/xã/đặc khu — code đúng 5 chữ số, bắt buộc có parent active */
+export const LOCATION_LEAF_TYPES = [
+  "WARD",
+  "COMMUNE",
+  "SPECIAL_ZONE",
+] as const;
+
+export type LocationTopLevelType = (typeof LOCATION_TOP_LEVEL_TYPES)[number];
+export type LocationLeafType = (typeof LOCATION_LEAF_TYPES)[number];
+export type LocationType = LocationTopLevelType | LocationLeafType;
+
+export function isLeafLocationType(type: string): type is LocationLeafType {
+  return (LOCATION_LEAF_TYPES as readonly string[]).includes(type);
+}
+
 export type AdminLocation = {
   id: string;
   code: string;
   name: string;
-  type: "PROVINCE" | "MUNICIPALITY" | string;
+  type: LocationType | string;
+  /** Null với cấp tỉnh/thành */
+  parentId?: string | null;
+  parentCode?: string | null;
+  parentName?: string | null;
   sortOrder: number;
   isActive: boolean;
   createdAt?: string;
@@ -902,12 +932,22 @@ export type AdminLocation = {
 export type AdminLocationRequest = {
   code: string;
   name: string;
-  type: "PROVINCE" | "MUNICIPALITY";
+  type: LocationType;
   sortOrder?: number;
   isActive?: boolean;
+  /** Bắt buộc với leaf; bỏ qua với top-level */
+  parentCode?: string;
 };
 
 export type UpdateAdminLocationRequest = Partial<AdminLocationRequest>;
+
+/** Query của `GET /v1/locations` — KHÁC hẳn StationSearchParams */
+export type PublicLocationParams = {
+  /** Bỏ trống: chỉ trả top-level. Có: chỉ trả children active trực thuộc */
+  parentCode?: string;
+  /** unaccent + ILIKE trên code hoặc name, trong scope hiện tại */
+  search?: string;
+};
 
 export type OperatorStationRequest = {
   stationId?: string;
@@ -916,9 +956,9 @@ export type OperatorStationRequest = {
   contactPhone?: string;
   instructions?: string;
   name?: string;
-  // Create mới: name/city/ward/latitude/longitude bắt buộc (BE validate); link chỉ cần stationId
-  city?: string;
-  ward?: string;
+  // Create mới: name + latitude/longitude + đúng một trong locationId/locationCode.
+  // KHÔNG gửi city/ward: handler BE suy ra từ Location hierarchy và bỏ qua hai
+  // field này nếu client gửi lên.
   latitude?: number;
   longitude?: number;
   addressStreet?: string;
@@ -930,15 +970,37 @@ export type OperatorStationRequest = {
   locationCode?: string;
 };
 
-export type OperatorStation = OperatorStationRequest & {
+/**
+ * `OperatorStationDto` — mapping Operator–Station. Mọi thuộc tính của bến nằm
+ * trong `station`, không phẳng ở cấp ngoài.
+ *
+ * Riêng response của POST có thêm nhánh cảnh báo: khi đã tồn tại Station active
+ * trong bán kính 100 m, BE trả `200` nhưng **không tạo và không link**, đồng
+ * thời omit `operatorId`/`stationId`/`isActive`. Vì vậy `stationId` phải là
+ * optional và caller bắt buộc kiểm tra `warning` trước khi coi là thành công.
+ */
+export type OperatorStation = {
   id?: string;
-  operatorId: string;
-  stationId: string;
+  operatorId?: string;
+  stationId?: string;
   station?: Station;
+  displayNameOverride?: string | null;
+  counterLocation?: string | null;
+  contactPhone?: string | null;
+  instructions?: string | null;
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  warning?: { code: string; message: string } | null;
+  nearbyStations?: Station[];
 };
+
+export const STATION_DUPLICATE_NEARBY = "STATION_DUPLICATE_NEARBY";
+
+/** True khi BE từ chối tạo vì đã có bến active trong bán kính 100 m */
+export function isNearbyStationWarning(result: OperatorStation): boolean {
+  return result.warning?.code === STATION_DUPLICATE_NEARBY;
+}
 
 export type OperatorStop = {
   id: string;
@@ -950,6 +1012,10 @@ export type OperatorStop = {
   address: string | null;
   googlePlaceId: string | null;
   locationId?: string | null;
+  /** Tên tỉnh/thành parent, BE suy ra từ Location hierarchy */
+  city?: string | null;
+  /** Tên phường/xã/đặc khu leaf */
+  ward?: string | null;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -1895,6 +1961,15 @@ export type FleetLatestResponse = {
   generatedAt: string;
 };
 
+// BE trả kèm hồ sơ hành khách của từng lượt đặt (ShuttlePassengerProfile).
+// Optional vì payload cũ trước Day 44 không có trường này.
+export type ShuttlePassengerProfile = {
+  passengerUserId: string | null;
+  displayName: string | null;
+  phone: string | null;
+  ticketIds: string[];
+};
+
 export type ShuttleBookingGroup = {
   bookingId: string;
   passengerCount: number;
@@ -1904,6 +1979,7 @@ export type ShuttleBookingGroup = {
   distanceToStationMeters: number | null;
   roadDistanceMeters?: number | null;
   requestedAt: string;
+  passengers?: ShuttlePassengerProfile[] | null;
 };
 
 export type ShuttleDirection = "INBOUND_TO_STATION" | "OUTBOUND_FROM_STATION";
@@ -1936,6 +2012,83 @@ export type CreateShuttleTripResult = {
   mainTripId: string;
   assignedPassengerCount: number;
   remainingPassengerCount: number;
+};
+
+export const INCIDENT_CATEGORIES = [
+  "TRAFFIC_JAM",
+  "VEHICLE_BREAKDOWN",
+  "ACCIDENT",
+  "WEATHER",
+  "OTHER",
+] as const;
+
+export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
+export type IncidentStatus = "OPEN" | "RESOLVED";
+
+export type OperatorIncident = {
+  incidentId: string;
+  category: IncidentCategory | string;
+  description: string | null;
+  photoUrls: string[];
+  latitude: number | null;
+  longitude: number | null;
+  reportedAt: string;
+  status: IncidentStatus | string;
+  resolvedAt: string | null;
+  resolvedByUserId: string | null;
+  resolutionNote: string | null;
+  trip: {
+    tripId: string;
+    status: string;
+    departureDateTime: string;
+    route: {
+      routeId: string;
+      name: string;
+      originStation: { stationId: string; name: string };
+      destinationStation: { stationId: string; name: string };
+    };
+  };
+  /** displayName/role có thể null khi Identity batch lookup thiếu hồ sơ */
+  reporter: {
+    userId: string;
+    displayName: string | null;
+    role: string | null;
+  };
+};
+
+export type OperatorIncidentParams = PageParams & {
+  tripId?: string;
+  category?: IncidentCategory;
+  /** Chỉ OPEN hoặc RESOLVED; kế thừa `status` từ PageParams */
+  from?: string;
+  to?: string;
+};
+
+export type OperatorShuttleTripStatus =
+  | "SCHEDULED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export type OperatorShuttleTripListItem = {
+  shuttleTripId: string;
+  mainTripId: string;
+  direction: ShuttleDirection;
+  status: OperatorShuttleTripStatus;
+  scheduledDepartureTime: string;
+  scheduledEndTime: string;
+  actualDepartureTime: string | null;
+  completedAt: string | null;
+  vehicle: { id: string; licensePlate: string };
+  driver: { id: string; displayName: string | null; phone: string | null };
+  passengerCount: number;
+  stopCount: number;
+};
+
+// `status` nhận nhiều giá trị ngăn cách bởi dấu phẩy (BE tự split).
+export type OperatorShuttleTripsParams = PageParams & {
+  from?: string;
+  to?: string;
 };
 
 export type ShuttleTrackingLatest = {
@@ -2561,7 +2714,6 @@ export type AdminOperatorDetail = AdminOperator & {
   address: {
     street: string | null;
     ward: string | null;
-    district: string | null;
     province: string | null;
   } | null;
   representativeName: string | null;
@@ -2735,11 +2887,40 @@ export type VehicleType = {
   updatedAt?: string;
 };
 
+export type TripSearchPointType = "STATION" | "STOP";
+
+/** Một điểm đón hoặc trả hợp lệ trong kết quả Trip Search */
+export type TripSearchPoint = {
+  type: TripSearchPointType;
+  stationId: string | null;
+  stopId: string | null;
+  name: string;
+  address: string | null;
+  orderIndex: number;
+  estimatedTime: string | null;
+  allowPickup: boolean;
+  allowDropoff: boolean;
+};
+
+/**
+ * Hai mode loại trừ nhau. Có đủ cặp Station ID thì mode Station thắng và mọi
+ * province/ward code gửi kèm đều bị bỏ qua.
+ *
+ * `originLocationCode`/`destinationLocationCode` của contract cũ đã bị BE gỡ:
+ * gửi lên chỉ bị ASP.NET bỏ qua rồi trả 422 vì thiếu cặp hợp lệ.
+ */
 export type PublicTripSearchParams = {
-  originStationId: string;
-  destinationStationId: string;
+  originStationId?: string;
+  destinationStationId?: string;
+  /** Đúng 2 chữ số, top-level active */
+  originProvinceCode?: string;
+  /** Đúng 5 chữ số, leaf active thuộc originProvinceCode */
+  originWardCode?: string;
+  destinationProvinceCode?: string;
+  destinationWardCode?: string;
   departureDate: string;
   passengerCount: number;
+  /** @deprecated BE vẫn bind để tương thích nhưng handler không dùng */
   allowAlongRoutePickup?: boolean;
 };
 
@@ -2764,8 +2945,13 @@ export type PublicTrip = {
   effectiveFare?: number;
   surchargePeriodId?: string | null;
   surchargePeriodName?: string | null;
+  /** Terminal của Route — KHÔNG mặc định là điểm khách chọn khi đi qua Stop */
   originStation: Pick<Station, "id" | "name">;
   destinationStation: Pick<Station, "id" | "name">;
+  /** Điểm đón hợp lệ; chỉ có trong response của /v1/trips/search */
+  pickupPoints?: TripSearchPoint[];
+  /** Điểm trả hợp lệ; pickup.orderIndex phải nhỏ hơn dropoff.orderIndex */
+  dropoffPoints?: TripSearchPoint[];
   stops: Array<{
     stopId: string;
     name?: string;
@@ -2955,6 +3141,9 @@ export type OperatorDriverSchedule = {
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  // Luôn "Asia/Ho_Chi_Minh" theo contract hiện tại — departureTime/validFrom
+  // luôn hiểu theo timezone này dù field vắng mặt trên response cũ.
+  timeZone?: string;
   route?: OperatorRoute;
   vehicle?: OperatorVehicle;
   driver?: Pick<
@@ -3219,7 +3408,7 @@ export function getAdminOperatorUsers(params: AdminUserParams = {}) {
 }
 
 export async function getAdminLocations(
-  params: Omit<PageParams, "status"> & { isActive?: boolean } = {},
+  params: Omit<PageParams, "status"> & { isActive?: boolean; type?: LocationType; parentCode?: string } = {},
 ) {
   const response = await apiRequest<
     PagedResult<AdminLocation> | AdminLocation[]
@@ -3444,6 +3633,18 @@ export function upgradeOperatorSubscription(
   );
 }
 
+// Nhận NGUYÊN chuỗi query VNPay (window.location.search) và chuyển thẳng lên
+// Backend — không parse/lọc/đổi tên/sắp lại thứ tự param vì chữ ký vnp_SecureHash
+// được tính trên đúng chuỗi đó (handoff §2.2). Endpoint public: chính chữ ký
+// trong query xác thực request, nên không gắn Authorization.
+export function getVnPayReturnStatus(rawQuery: string) {
+  const query = rawQuery.startsWith("?") ? rawQuery : `?${rawQuery}`;
+  return apiRequest<VnPayReturnStatus>(
+    `/v1/payments/vnpay-return-status${query}`,
+    { authenticated: false },
+  );
+}
+
 export function retryOperatorSubscriptionPayment(
   upgradeAttemptId: string,
   idempotencyKey: string = createIdempotencyKey(),
@@ -3615,7 +3816,9 @@ export function searchStations(params: StationSearchParams) {
   return apiRequest<Station[]>(`/v1/stations/search${buildQuery(params)}`);
 }
 
-export function getPublicLocations(params: StationSearchParams = {}) {
+// `data` là array phẳng, không phải paged payload.
+// Không truyền parentCode -> chỉ tỉnh/thành; có parentCode -> chỉ phường/xã trực thuộc.
+export function getPublicLocations(params: PublicLocationParams = {}) {
   return apiRequest<AdminLocation[]>(`/v1/locations${buildQuery(params)}`, {
     authenticated: false,
   });
@@ -5040,6 +5243,32 @@ export function getOperatorShuttleRequests(
 ) {
   return apiRequest<PagedResult<ShuttleRequestGroup>>(
     `/v1/operator/shuttle-requests${buildQuery(params)}`,
+    { signal },
+  );
+}
+
+// Tenant lấy từ JWT — không có query operatorId. Sort cố định reportedAt DESC.
+export function getOperatorIncidents(
+  params: OperatorIncidentParams = {},
+  signal?: AbortSignal,
+) {
+  return apiRequest<PagedResult<OperatorIncident>>(
+    `/v1/operator/incidents${buildQuery(params)}`,
+    { signal },
+  );
+}
+
+// Không tồn tại và khác tenant đều trả 404 INCIDENT_NOT_FOUND — không phân biệt trên UI.
+export function getOperatorIncident(incidentId: string) {
+  return apiRequest<OperatorIncident>(`/v1/operator/incidents/${incidentId}`);
+}
+
+export function getOperatorShuttleTrips(
+  params: OperatorShuttleTripsParams = {},
+  signal?: AbortSignal,
+) {
+  return apiRequest<PagedResult<OperatorShuttleTripListItem>>(
+    `/v1/operator/shuttle-trips${buildQuery(params)}`,
     { signal },
   );
 }

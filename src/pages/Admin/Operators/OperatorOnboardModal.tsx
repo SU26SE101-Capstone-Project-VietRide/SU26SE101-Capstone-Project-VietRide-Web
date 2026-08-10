@@ -82,10 +82,6 @@ export default function OperatorOnboardModal({
               <input className={inputClass} {...field("addressWard")} />
             </div>
             <div>
-              <label className={labelClass}>{t("operators.district")}</label>
-              <input className={inputClass} {...field("addressDistrict")} />
-            </div>
-            <div>
               <label className={labelClass}>{t("operators.province")}</label>
               <input className={inputClass} {...field("addressProvince")} />
             </div>

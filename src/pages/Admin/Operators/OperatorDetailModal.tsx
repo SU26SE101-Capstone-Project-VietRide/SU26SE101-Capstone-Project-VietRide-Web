@@ -104,7 +104,6 @@ export default function OperatorDetailModal({
           <DetailSection title={t("operators.address")}>
             <InfoRow label={t("operators.street")} value={getOperatorAddress(operator).street} />
             <InfoRow label={t("operators.ward")} value={getOperatorAddress(operator).ward} />
-            <InfoRow label={t("operators.district")} value={getOperatorAddress(operator).district} />
             <InfoRow label={t("operators.province")} value={getOperatorAddress(operator).province} />
           </DetailSection>
 

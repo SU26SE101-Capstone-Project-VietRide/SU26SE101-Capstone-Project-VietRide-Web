@@ -14,6 +14,7 @@ import {
 import { toNumber } from "../../utils/number";
 import { formatCurrency } from "../../utils/currency";
 import { inputClass, labelClass } from "../../components/form/formClasses";
+import Checkbox from "../../components/form/Checkbox";
 
 function formatNumber(n: number) {
   return n.toLocaleString("vi-VN");
@@ -487,11 +488,11 @@ function Toggle({
         <span className="block text-sm font-semibold text-gray-800">{label}</span>
         <span className="mt-1 block text-xs font-normal leading-5 text-gray-500">{description}</span>
       </span>
-      <input
-        type="checkbox"
+      <Checkbox
+        size="md"
+        className="mt-0.5"
         checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 text-vr-600 accent-vr-600 focus:ring-vr-500"
+        onChange={onChange}
       />
     </label>
   );

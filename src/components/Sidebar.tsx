@@ -16,6 +16,7 @@ import {
   FiFileText,
   FiDatabase,
   FiCreditCard,
+  FiAlertTriangle,
 } from "react-icons/fi";
 import logo from "../assets/Login/logo.svg";
 import { AiOutlineLogout } from "react-icons/ai";
@@ -72,6 +73,11 @@ const operatorAdminMenuConfig: MenuSection[] = [
         labelKey: "manager.dispatch",
         path: "/manager/dispatch",
         icon: <FiNavigation />,
+      },
+      {
+        labelKey: "manager.incidents",
+        path: "/manager/incidents",
+        icon: <FiAlertTriangle />,
       },
       {
         labelKey: "manager.vouchers",
@@ -146,6 +152,11 @@ const operatorStaffMenuConfig: MenuSection[] = [
         labelKey: "manager.dispatch",
         path: "/manager/dispatch",
         icon: <FiNavigation />,
+      },
+      {
+        labelKey: "manager.incidents",
+        path: "/manager/incidents",
+        icon: <FiAlertTriangle />,
       },
       {
         labelKey: "manager.vouchers",

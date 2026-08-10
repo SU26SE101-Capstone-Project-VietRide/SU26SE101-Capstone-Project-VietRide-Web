@@ -47,6 +47,9 @@ import {
   getOperatorRouteStopMetrics,
   getOperatorDriverSchedules,
   getOperatorFleetLatest,
+  getOperatorIncident,
+  getOperatorIncidents,
+  getOperatorShuttleTrips,
   getOperatorInvoice,
   getOperatorInvoices,
   getOperatorBooking,
@@ -55,6 +58,7 @@ import {
   getNotifications,
   getOperatorSubscription,
   getOperatorSubscriptionPlans,
+  getVnPayReturnStatus,
   getOperatorTripSettlements,
   getOperatorWallet,
   getOperatorWalletTransactions,
@@ -924,7 +928,6 @@ describe("vietride API", () => {
       taxCode: "0301234567",
       addressStreet: "123 Nguyen Van Linh",
       addressWard: "Ward 1",
-      addressDistrict: "District 1",
       addressProvince: "Ho Chi Minh City",
       representativeName: "Nguyen Van A",
       representativePhone: "0901234567",
@@ -943,8 +946,7 @@ describe("vietride API", () => {
           taxCode: "0301234567",
           addressStreet: "123 Nguyen Van Linh",
           addressWard: "Ward 1",
-          addressDistrict: "District 1",
-          addressProvince: "Ho Chi Minh City",
+              addressProvince: "Ho Chi Minh City",
           representativeName: "Nguyen Van A",
           representativePhone: "0901234567",
           password: "secret123",
@@ -1942,7 +1944,6 @@ describe("vietride API", () => {
         planId: "plan-1",
         billingPeriod: "YEARLY",
         paymentMethod: "VNPAY",
-        returnUrl: "https://app.vietride.vn/manager/packages",
       },
       "33333333-3333-4333-8333-333333333333",
     );
@@ -2007,7 +2008,6 @@ describe("vietride API", () => {
           planId: "plan-1",
           billingPeriod: "YEARLY",
           paymentMethod: "VNPAY",
-          returnUrl: "https://app.vietride.vn/manager/packages",
         }),
         headers: expect.objectContaining({
           "Idempotency-Key": "33333333-3333-4333-8333-333333333333",
@@ -2023,6 +2023,76 @@ describe("vietride API", () => {
           "Idempotency-Key": "44444444-4444-4444-8444-444444444444",
         }),
       }),
+    );
+  });
+
+  it("forwards the raw VNPay return query untouched and without an Authorization header", async () => {
+    // Có token trong localStorage nhưng endpoint này là public — chữ ký
+    // vnp_SecureHash mới là thứ xác thực, nên KHÔNG được gắn Authorization.
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "operator@vietride.vn",
+          displayName: "Operator",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        void input;
+        void init;
+        return new Response(
+          JSON.stringify({
+            data: {
+              vnPayTxnRef: "VR-SUBSCRIPTION-001",
+              paymentId: "payment-1",
+              referenceType: "SUBSCRIPTION",
+              referenceId: "subscription-1",
+              status: "PENDING_REDIRECT",
+            },
+          }),
+          { status: 200 },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Chuỗi cố ý giữ thứ tự param và ký tự đã encode y như VNPay trả về:
+    // parse rồi dựng lại sẽ đổi thứ tự/encoding và làm sai chữ ký.
+    const rawQuery =
+      "?vnp_Amount=1000000&vnp_ResponseCode=00&vnp_TxnRef=VR-SUBSCRIPTION-001&vnp_PayDate=20260810101500&vnp_SecureHash=abc%2Fdef%2B123";
+
+    const result = await getVnPayReturnStatus(rawQuery);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://api.vietride.online/v1/payments/vnpay-return-status${rawQuery}`,
+      expect.objectContaining({ method: "GET" }),
+    );
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers ?? {};
+    expect(headers).not.toHaveProperty("Authorization");
+    expect(result.vnPayTxnRef).toBe("VR-SUBSCRIPTION-001");
+  });
+
+  it("accepts a VNPay return query without a leading question mark", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: { status: "PENDING_REDIRECT" } }), {
+        status: 200,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getVnPayReturnStatus("vnp_ResponseCode=00&vnp_TxnRef=VR-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/payments/vnpay-return-status?vnp_ResponseCode=00&vnp_TxnRef=VR-1",
+      expect.objectContaining({ method: "GET" }),
     );
   });
 
@@ -2733,6 +2803,125 @@ describe("UI gaps API contracts", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "https://api.vietride.online/v1/tracking/operator/fleet-latest",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("lists operator incidents with enum filters and a date range", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorIncidents({
+      page: 1,
+      pageSize: 20,
+      status: "OPEN",
+      category: "VEHICLE_BREAKDOWN",
+      from: "2026-08-01",
+      to: "2026-08-10",
+    });
+    await getOperatorIncident("incident-1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/incidents?page=1&pageSize=20&status=OPEN&category=VEHICLE_BREAKDOWN&from=2026-08-01&to=2026-08-10",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/incidents/incident-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("lists operator shuttle trips with paging, date range and multi status", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorShuttleTrips({
+      page: 2,
+      pageSize: 10,
+      from: "2026-08-01",
+      to: "2026-08-10",
+      status: "SCHEDULED,IN_PROGRESS",
+    });
+    await getOperatorShuttleTrips();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/shuttle-trips?page=2&pageSize=10&from=2026-08-01&to=2026-08-10&status=SCHEDULED%2CIN_PROGRESS",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/shuttle-trips",
       expect.objectContaining({ method: "GET" }),
     );
   });

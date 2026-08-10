@@ -36,7 +36,6 @@ type ProfileState = {
   bio: string;
   street: string;
   ward: string;
-  district: string;
   city: string;
   postalCode: string;
   taxId: string;
@@ -56,7 +55,6 @@ const emptyProfile: ProfileState = {
   bio: "",
   street: "",
   ward: "",
-  district: "",
   city: "",
   postalCode: "",
   taxId: "",
@@ -77,7 +75,6 @@ function toProfileState(operator: OperatorProfile): ProfileState {
     bio: operator.registrationStatus,
     street: operator.address.street,
     ward: operator.address.ward,
-    district: operator.address.district,
     city: operator.address.province,
     postalCode: operator.businessRegistrationNumber,
     taxId: operator.taxCode,
@@ -365,7 +362,6 @@ export default function Profile() {
         logoUrl: uploadedUrl,
         addressStreet: formData.street,
         addressWard: formData.ward,
-        addressDistrict: formData.district,
         addressProvince: serverOperator.address.province,
         representativeName: formData.representativeName,
         representativePhone: formData.representativePhone,
@@ -406,7 +402,6 @@ export default function Profile() {
         logoUrl: serverOperator.logoUrl ?? undefined,
         addressStreet: formData.street,
         addressWard: formData.ward,
-        addressDistrict: formData.district,
         addressProvince: formData.city,
         representativeName: formData.representativeName,
         representativePhone: formData.representativePhone,
@@ -706,16 +701,6 @@ export default function Profile() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>{t("profilePage.district")}</label>
-                      <input
-                        type="text"
-                        name="district"
-                        value={formData.district}
-                        onChange={handleChange}
-                        className={inputClass}
-                      />
-                    </div>
-                    <div>
                       <label className={labelClass}>{t("profilePage.cityState")}</label>
                       <input
                         type="text"
@@ -743,7 +728,6 @@ export default function Profile() {
                   <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <Field label={t("profilePage.street")} value={profile.street} />
                     <Field label={t("profilePage.ward")} value={profile.ward} />
-                    <Field label={t("profilePage.district")} value={profile.district} />
                     <Field label={t("profilePage.cityState")} value={profile.city} />
                     <Field
                       label={t("profilePage.businessRegistrationNumber")}

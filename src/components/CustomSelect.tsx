@@ -11,7 +11,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { FiCheck, FiChevronDown } from "react-icons/fi";
+import { FiCheck, FiChevronDown, FiSearch } from "react-icons/fi";
 
 type SelectChangeEvent = {
   target: {
@@ -39,6 +39,9 @@ type CustomSelectProps = {
   className?: string;
   allowWrap?: boolean;
   disabled?: boolean;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  emptyMessage?: string;
   children: ReactNode;
   "aria-label"?: string;
 };
@@ -77,6 +80,16 @@ function toOptions(children: ReactNode): CustomSelectOption[] {
     });
 }
 
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
+
 export default function CustomSelect({
   value,
   defaultValue,
@@ -84,6 +97,9 @@ export default function CustomSelect({
   className = "",
   allowWrap = false,
   disabled = false,
+  searchable = false,
+  searchPlaceholder = "Search options",
+  emptyMessage = "No matching options",
   children,
   "aria-label": ariaLabel,
 }: CustomSelectProps) {
@@ -95,24 +111,43 @@ export default function CustomSelect({
   );
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const listboxId = useId();
   const selectedValue = String(isControlled ? value : internalValue);
   const selectedOption =
     options.find((option) => option.value === selectedValue) ?? options[0];
+  const normalizedSearchTerm = normalizeSearchText(searchTerm);
+  const visibleOptions = useMemo(
+    () =>
+      !searchable || !normalizedSearchTerm
+        ? options
+        : options.filter((option) =>
+            normalizeSearchText(option.text).includes(normalizedSearchTerm),
+          ),
+    [normalizedSearchTerm, options, searchable],
+  );
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
+        setSearchTerm("");
       }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, []);
+
+  useEffect(() => {
+    if (isOpen && searchable) {
+      searchInputRef.current?.focus();
+    }
+  }, [isOpen, searchable]);
 
   function commit(nextValue: string) {
     if (!isControlled) {
@@ -121,17 +156,19 @@ export default function CustomSelect({
 
     onChange?.({ target: { value: nextValue } });
     setIsOpen(false);
+    setSearchTerm("");
   }
 
   function moveActive(delta: number) {
-    if (options.length === 0) return;
+    if (visibleOptions.length === 0) return;
 
     setActiveIndex((current) => {
       let next = current;
 
-      for (let step = 0; step < options.length; step += 1) {
-        next = (next + delta + options.length) % options.length;
-        if (!options[next]?.disabled) return next;
+      for (let step = 0; step < visibleOptions.length; step += 1) {
+        next =
+          (next + delta + visibleOptions.length) % visibleOptions.length;
+        if (!visibleOptions[next]?.disabled) return next;
       }
 
       return current;
@@ -142,7 +179,11 @@ export default function CustomSelect({
     const button = rootRef.current?.querySelector("button");
     if (!button) return;
     const rect = button.getBoundingClientRect();
-    const preferredHeight = Math.min(288, Math.max(160, options.length * 42 + 8));
+    const searchHeight = searchable ? 58 : 0;
+    const preferredHeight = Math.min(
+      346,
+      Math.max(160, options.length * 42 + 8 + searchHeight),
+    );
     const spaceBelow = window.innerHeight - rect.bottom - 8;
     const spaceAbove = rect.top - 8;
     const openAbove = spaceBelow < preferredHeight && spaceAbove > spaceBelow;
@@ -153,7 +194,7 @@ export default function CustomSelect({
   }
 
   function openList() {
-    
+    setSearchTerm("");
     updateMenuPosition();
     setActiveIndex(
       Math.max(
@@ -162,6 +203,58 @@ export default function CustomSelect({
       ),
     );
     setIsOpen(true);
+  }
+
+  function closeList(returnFocus = false) {
+    setIsOpen(false);
+    setSearchTerm("");
+    if (returnFocus) {
+      rootRef.current?.querySelector("button")?.focus();
+    }
+  }
+
+  function handleSearchChange(nextSearchTerm: string) {
+    setSearchTerm(nextSearchTerm);
+    const normalizedQuery = normalizeSearchText(nextSearchTerm);
+    const nextOptions = !normalizedQuery
+      ? options
+      : options.filter((option) =>
+          normalizeSearchText(option.text).includes(normalizedQuery),
+        );
+    setActiveIndex(
+      Math.max(
+        0,
+        nextOptions.findIndex((option) => !option.disabled),
+      ),
+    );
+  }
+
+  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveActive(1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveActive(-1);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const activeOption = visibleOptions[activeIndex];
+      if (activeOption && !activeOption.disabled) {
+        commit(activeOption.value);
+      }
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeList(true);
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -184,7 +277,7 @@ export default function CustomSelect({
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       if (isOpen) {
-        const activeOption = options[activeIndex];
+        const activeOption = visibleOptions[activeIndex];
         if (activeOption && !activeOption.disabled) commit(activeOption.value);
         return;
       }
@@ -193,7 +286,7 @@ export default function CustomSelect({
     }
 
     if (event.key === "Escape") {
-      setIsOpen(false);
+      closeList();
     }
   }
 
@@ -208,7 +301,7 @@ export default function CustomSelect({
         disabled={disabled}
         onClick={() => {
           if (isOpen) {
-            setIsOpen(false);
+            closeList();
             return;
           }
 
@@ -229,18 +322,52 @@ export default function CustomSelect({
       {isOpen && !disabled && createPortal(
           <div
             ref={menuRef}
-            id={listboxId}
-            role="listbox"
-            className="fixed z-[100] overflow-auto rounded-xl border border-vr-100 bg-white p-1 text-sm shadow-2xl shadow-vr-900/20"
+            className="fixed z-[100] flex flex-col overflow-hidden rounded-xl border border-vr-100 bg-white text-sm shadow-2xl shadow-vr-900/20"
             style={menuPosition ? { top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: menuPosition.maxHeight } : undefined}
           >
-          {options.map((option, index) => {
+          {searchable && (
+            <div className="shrink-0 border-b border-gray-100 bg-white p-2">
+              <div className="relative">
+                <FiSearch
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={16}
+                />
+                <input
+                  ref={searchInputRef}
+                  role="combobox"
+                  aria-label={searchPlaceholder}
+                  aria-autocomplete="list"
+                  aria-controls={listboxId}
+                  aria-expanded="true"
+                  aria-activedescendant={
+                    visibleOptions[activeIndex]
+                      ? `${listboxId}-option-${activeIndex}`
+                      : undefined
+                  }
+                  value={searchTerm}
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder={searchPlaceholder}
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-vr-500 focus:bg-white focus:ring-2 focus:ring-vr-100"
+                />
+              </div>
+            </div>
+          )}
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label={ariaLabel}
+            className="min-h-0 flex-1 overflow-auto p-1"
+          >
+          {visibleOptions.map((option, index) => {
             const isSelected = option.value === selectedValue;
             const isActive = index === activeIndex;
 
             return (
               <button
                 key={`${option.value}-${index}`}
+                id={`${listboxId}-option-${index}`}
                 type="button"
                 role="option"
                 aria-selected={isSelected}
@@ -262,6 +389,12 @@ export default function CustomSelect({
               </button>
             );
           })}
+          {visibleOptions.length === 0 && (
+            <p className="px-3 py-6 text-center text-sm text-gray-500" role="status">
+              {emptyMessage}
+            </p>
+          )}
+          </div>
           </div>,
           document.body,
         )}

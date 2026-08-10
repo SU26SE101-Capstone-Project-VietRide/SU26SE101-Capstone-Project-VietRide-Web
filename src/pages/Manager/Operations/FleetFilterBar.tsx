@@ -44,6 +44,7 @@ export default function FleetFilterBar({
               className="appearance-none rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-8 text-sm font-medium text-gray-800 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
             >
               <option value="all">{t("gps.allStatus")}</option>
+              <option value="disrupted">{t("gps.disruptedStatus")}</option>
               <option value="moving">{t("gps.moving")}</option>
               <option value="idle">{t("gps.stopped")}</option>
               <option value="offline">{t("gps.signalLostStatus")}</option>

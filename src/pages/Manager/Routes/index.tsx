@@ -58,6 +58,7 @@ import RouteMapWorkspace from "./RouteMapWorkspace";
 import RouteEmptyState from "./RouteEmptyState";
 import RouteDetailSkeleton from "./RouteDetailSkeleton";
 import StationManagementModal from "./StationManagementModal";
+import StopWardConfirmModal from "./StopWardConfirmModal";
 import CreateRouteModal, { type CreateRouteBasics } from "./CreateRouteModal";
 import RemoveRouteStopModal from "./RemoveRouteStopModal";
 import RemoveAlternativeRouteModal from "./RemoveAlternativeRouteModal";
@@ -133,6 +134,12 @@ export default function RoutesPage() {
   // Đang chờ addStopFromSuggestion (tạo stop mới + thêm vào tuyến) — khoá nút
   // "Thêm vào tuyến" trong popup tránh double-submit
   const [isAddingSuggestion, setIsAddingSuggestion] = useState(false);
+  // Gợi ý Google đang chờ xác nhận phường/xã (điểm dừng đã có sẵn thì bỏ qua
+  // bước này vì không tạo Stop mới)
+  const [pendingWardSuggestion, setPendingWardSuggestion] = useState<{
+    suggestion: StopSuggestion;
+    confirm: (locationId: string) => void;
+  } | null>(null);
   // Chống race khi chọn tuyến: mỗi lần chọn/tải mở một "phiên" mới (tăng seq);
   // response về muộn của phiên cũ so seq thấy lệch thì bỏ qua, không đè form/geometry
   // của tuyến đang chọn hiện tại
@@ -655,14 +662,34 @@ export default function RoutesPage() {
     suggestion: StopSuggestion,
     options: { allowPickup: boolean; allowDropoff: boolean },
   ) {
+    // Điểm mới từ Google phải xác nhận phường/xã trước khi tạo Stop — BE không
+    // cho đổi Location sau khi tạo nên không được đoán ngầm.
+    if (suggestion.kind === "googlePlace") {
+      setPendingWardSuggestion({
+        suggestion,
+        confirm: (locationId) =>
+          addSuggestionWithWard(suggestion, options, locationId),
+      });
+      return;
+    }
+
+    void addSuggestionWithWard(suggestion, options);
+  }
+
+  function addSuggestionWithWard(
+    suggestion: StopSuggestion,
+    options: { allowPickup: boolean; allowDropoff: boolean },
+    locationId?: string,
+  ) {
     setIsAddingSuggestion(true);
     runAction(async () => {
       try {
-        await stopEditor.addStopFromSuggestion(suggestion, options);
+        await stopEditor.addStopFromSuggestion(suggestion, options, locationId);
         // F-2: dọn chấm gợi ý từ ô search sau khi thêm thành công — nếu không,
         // chấm cũ (trùng vị trí stop vừa gắn) vẫn còn trong `suggestions` (merge
         // ở trên), bấm lại sẽ báo lỗi duplicate.
         setPickedSuggestion(null);
+        setPendingWardSuggestion(null);
       } finally {
         setIsAddingSuggestion(false);
       }
@@ -1061,6 +1088,15 @@ export default function RoutesPage() {
 
               {activeTab === "alternatives" && (
                 <AlternativeRouteWorkspace
+                  onRequestWardConfirm={(suggestion, add) =>
+                    setPendingWardSuggestion({
+                      suggestion,
+                      confirm: (locationId) => {
+                        add(locationId);
+                        setPendingWardSuggestion(null);
+                      },
+                    })
+                  }
                   canManageRoutes={canManageRoutes}
                   hasSelectedRoute={Boolean(selectedRouteId)}
                   stations={stations}
@@ -1083,6 +1119,16 @@ export default function RoutesPage() {
           />
         )}
       </div>
+
+      <StopWardConfirmModal
+        // Remount theo gợi ý: state khởi tạo lại từ địa chỉ mới, không cần effect reset
+        key={pendingWardSuggestion?.suggestion.id ?? "none"}
+        suggestion={pendingWardSuggestion?.suggestion ?? null}
+        provinces={locations}
+        isSubmitting={isAddingSuggestion || alternatives.isAddingAltSuggestion}
+        onCancel={() => setPendingWardSuggestion(null)}
+        onConfirm={(locationId) => pendingWardSuggestion?.confirm(locationId)}
+      />
 
       <StationManagementModal
         open={isStationModalOpen}

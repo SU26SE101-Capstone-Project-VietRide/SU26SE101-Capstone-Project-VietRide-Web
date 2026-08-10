@@ -2,8 +2,10 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import {
   createOperatorStation,
+  getPublicLocations,
+  isNearbyStationWarning,
   searchStations,
-  updateOperatorStation,
+  type AdminLocation,
 } from "../../../api/vietride";
 import type { PlaceSelection } from "../../../components/PlacePicker";
 import { mergeStations } from "./routeFormUtils";
@@ -32,6 +34,16 @@ type UseStationManagementParams = {
   t: TranslateFn;
 };
 
+function normalizeLocationLabel(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/^(tinh|thanh pho|tp\.?|phuong|xa|thi tran|dac khu)\s+/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function matchesLocationName(left: string, right: string) {
+  const normalizedLeft = normalizeLocationLabel(left);
+  const normalizedRight = normalizeLocationLabel(right);
+  return Boolean(normalizedLeft && normalizedRight && (normalizedLeft === normalizedRight || normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft)));
+}
+
 export function useStationManagement({
   stations,
   setStations,
@@ -43,6 +55,12 @@ export function useStationManagement({
 }: UseStationManagementParams) {
   const [stationPlaceDraft, setStationPlaceDraft] =
     useState<PlaceSelection | null>(null);
+  // Station chỉ nhận Location **leaf** (phường/xã/đặc khu). `GET /v1/locations`
+  // không kèm parentCode chỉ trả tỉnh/thành, nên phải chọn hai cấp: tỉnh trước
+  // để lấy danh sách phường/xã trực thuộc, rồi mới chọn leaf gửi lên BE.
+  const [selectedProvinceCode, setSelectedProvinceCode] = useState("");
+  const [wards, setWards] = useState<AdminLocation[]>([]);
+  const [isLoadingWards, setIsLoadingWards] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [stationSupportsShuttle, setStationSupportsShuttle] = useState(false);
   const [stationRouteRole, setStationRouteRole] =
@@ -87,6 +105,30 @@ export function useStationManagement({
     setSelectedStationId("");
     setStationSupportsShuttle(false);
 
+    setSelectedProvinceCode("");
+    setSelectedLocationId("");
+    setWards([]);
+
+    // Tự ánh xạ tỉnh/thành và phường/xã từ địa chỉ Google vào hierarchy của BE.
+    if (place.city || place.ward) {
+      const provinces = await getPublicLocations();
+      const province = provinces.find((item) => matchesLocationName(item.name, place.city));
+      if (province) {
+        setSelectedProvinceCode(province.code);
+        setIsLoadingWards(true);
+        try {
+          const result = await getPublicLocations({ parentCode: province.code });
+          const activeWards = result.filter((location) => location.isActive);
+          setWards(activeWards);
+          const addressCandidates = [place.ward, ...place.address.split(",")].map((value) => value.trim()).filter(Boolean);
+          const matchedWard = activeWards.find((ward) => addressCandidates.some((candidate) => matchesLocationName(ward.name, candidate)));
+          setSelectedLocationId(matchedWard?.id ?? "");
+        } finally {
+          setIsLoadingWards(false);
+        }
+      }
+    }
+
     // Search theo contract mới: city = tỉnh/TP (Google admin_area_1 = place.province)
     const result = await searchStations({
       q: place.name,
@@ -123,27 +165,6 @@ export function useStationManagement({
     }
   }
 
-  async function handleConfirmShuttleSupport() {
-    const selected = stations.find(
-      (station) => station.id === selectedStationId,
-    );
-    if (!selected?.stationId) {
-      setError(t("routes.stationSelectForShuttle"));
-      return;
-    }
-    await updateOperatorStation(selected.stationId, {
-      supportsShuttle: stationSupportsShuttle,
-    });
-    setStations((current) =>
-      current.map((station) =>
-        station.id === selectedStationId
-          ? { ...station, supportsShuttle: stationSupportsShuttle }
-          : station,
-      ),
-    );
-    showMessage("station", t("routes.shuttleSupportSaved"));
-  }
-
   async function handleAttachStation() {
     if (!selectedStationId) {
       setError(t("routes.stationRequired"));
@@ -160,7 +181,8 @@ export function useStationManagement({
               ...station,
               stationId: created.stationId ?? selectedStationId,
               operatorStationId: created.id,
-              supportsShuttle: created.supportsShuttle ?? stationSupportsShuttle,
+              supportsShuttle:
+                created.station?.supportsShuttle ?? stationSupportsShuttle,
             }
           : station,
       ),
@@ -169,17 +191,24 @@ export function useStationManagement({
     showMessage("station", t("routes.stationAttached"));
   }
 
+  async function selectProvince(provinceCode: string) {
+    setSelectedProvinceCode(provinceCode);
+    setSelectedLocationId("");
+    setWards([]);
+    if (!provinceCode) return;
+
+    setIsLoadingWards(true);
+    try {
+      const result = await getPublicLocations({ parentCode: provinceCode });
+      setWards(result.filter((location) => location.isActive));
+    } finally {
+      setIsLoadingWards(false);
+    }
+  }
+
   async function handleCreateAndAttachStation() {
     if (!stationPlaceDraft) {
       setError(t("routes.stationPlaceRequired"));
-      return;
-    }
-
-    const city = stationPlaceDraft.city.trim();
-    const ward = stationPlaceDraft.ward.trim() || city;
-
-    if (!city || !ward) {
-      setError(t("routes.stationLocationRequired"));
       return;
     }
 
@@ -188,10 +217,9 @@ export function useStationManagement({
       return;
     }
 
+    // Không gửi city/ward: BE suy ra từ hierarchy của leaf và bỏ qua nếu client gửi.
     const created = await createOperatorStation({
       name: stationPlaceDraft.name,
-      city,
-      ward,
       latitude: stationPlaceDraft.latitude,
       longitude: stationPlaceDraft.longitude,
       addressStreet: stationPlaceDraft.address,
@@ -199,27 +227,54 @@ export function useStationManagement({
       locationId: selectedLocationId,
     });
 
+    // 200 kèm warning = BE KHÔNG tạo và KHÔNG link vì đã có bến active trong
+    // bán kính 100 m. Trước đây FE coi đây là thành công rồi dùng stationId
+    // undefined. Giờ nạp các bến gần đó để người dùng chọn gắn thay vì tạo mới.
+    if (isNearbyStationWarning(created)) {
+      const nearby = created.nearbyStations ?? [];
+      if (nearby.length > 0) {
+        setStations((current) => mergeStations(current, nearby));
+        setSelectedStationId(nearby[0].id);
+        setStationSupportsShuttle(nearby[0].supportsShuttle ?? false);
+      }
+      setError(t("routes.stationDuplicateNearby"));
+      return;
+    }
+
+    const ward = wards.find((item) => item.id === selectedLocationId);
+    const createdStationId = created.station?.id ?? created.stationId ?? "";
+    if (!createdStationId) {
+      setError(t("routes.stationCreateFailed"));
+      return;
+    }
+
     const station = created.station ?? {
-      id: created.stationId,
-      name: created.name ?? stationPlaceDraft.name,
-      city: created.city ?? city,
-      ward: created.ward ?? ward,
-      latitude: created.latitude ?? stationPlaceDraft.latitude,
-      longitude: created.longitude ?? stationPlaceDraft.longitude,
-      address: created.addressStreet ?? stationPlaceDraft.address,
-      supportsShuttle: created.supportsShuttle ?? stationSupportsShuttle,
+      id: createdStationId,
+      name: stationPlaceDraft.name,
+      city: ward?.parentName ?? stationPlaceDraft.city,
+      ward: ward?.name ?? stationPlaceDraft.ward,
+      latitude: stationPlaceDraft.latitude,
+      longitude: stationPlaceDraft.longitude,
+      address: stationPlaceDraft.address,
+      supportsShuttle: stationSupportsShuttle,
     };
 
     setStations((current) => mergeStations(current, [station]));
-    setSelectedStationId(station.id);
+    setSelectedStationId(createdStationId);
     setSelectedLocationId("");
+    setSelectedProvinceCode("");
+    setWards([]);
     setStationSupportsShuttle(false);
-    assignStationToRoute(station.id);
+    assignStationToRoute(createdStationId);
     showMessage("station", t("routes.stationCreatedAndAttached"));
   }
 
   return {
     stationPlaceDraft,
+    selectedProvinceCode,
+    selectProvince,
+    wards,
+    isLoadingWards,
     selectedLocationId,
     setSelectedLocationId,
     stationSupportsShuttle,
@@ -231,7 +286,6 @@ export function useStationManagement({
     handleSelectStation,
     handleSelectStationResult,
     applyStationPlace,
-    handleConfirmShuttleSupport,
     handleAttachStation,
     handleCreateAndAttachStation,
   };

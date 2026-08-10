@@ -1,13 +1,16 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { FiRefreshCw } from "react-icons/fi";
 import type {
   ShuttleDirection,
   ShuttleRequestGroup,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
+import Checkbox from "../../../components/form/Checkbox";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
+  bookingPassengerLabel,
   formatDistance,
   formatTime,
   getBookingDistance,
@@ -54,7 +57,10 @@ export default function AssignVehicleModal({
   form,
   onFormChange,
   onSubmit,
+  onRefreshResources,
   directionLabel,
+  resourceError,
+  submitError,
   isLoadingResources,
   isSubmitting,
 }: AssignVehicleModalProps) {
@@ -128,8 +134,10 @@ export default function AssignVehicleModal({
                 <p className="mt-1 font-semibold text-gray-900">
                   {group.stationName}
                 </p>
-                <p className="mt-1 break-all font-mono text-xs text-gray-500">
-                  {t("dispatch.tripLabel")} {group.mainTripId}
+                <p className="mt-1 text-xs text-gray-600">
+                  {t("dispatch.mainTripAt", {
+                    time: formatTime(group.departureDateTime),
+                  })}
                 </p>
               </div>
               <div className="text-right text-xs text-gray-600">
@@ -201,25 +209,27 @@ export default function AssignVehicleModal({
                           : "border-gray-200 bg-white"
                       } ${distanceUnavailable ? "cursor-not-allowed opacity-60" : ""}`}
                     >
-                      <input
+                      <Checkbox
                         id={checkboxId}
-                        type="checkbox"
+                        className="mt-1"
                         checked={form.selectedBookingIds.includes(
                           booking.bookingId,
                         )}
-                        onChange={(event) =>
-                          toggleBooking(booking.bookingId, event.target.checked)
+                        onChange={(checked) =>
+                          toggleBooking(booking.bookingId, checked)
                         }
                         disabled={distanceUnavailable || isSubmitting}
-                        className="mt-1 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
                       />
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-vr-700">
                             {index + 1}
                           </span>
-                          <span className="break-all font-mono text-xs text-gray-500">
-                            {booking.bookingId}
+                          <span className="truncate text-xs font-semibold text-gray-700">
+                            {bookingPassengerLabel(
+                              booking,
+                              t("dispatch.bookingOrdinal", { index: index + 1 }),
+                            )}
                           </span>
                         </span>
                         <span className="mt-1 block text-sm font-medium text-gray-900">
@@ -242,6 +252,28 @@ export default function AssignVehicleModal({
               })}
             </ol>
           </section>
+
+          {/* Danh sách xe/tài xế hỏng thì trước đây select chỉ trống trơn và lỗi
+              chỉ thoáng qua ở toast ngoài modal — người dùng không biết vì sao
+              và cũng không có cách thử lại. */}
+          {resourceError && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <span>{resourceError}</span>
+              <button
+                type="button"
+                onClick={onRefreshResources}
+                disabled={isLoadingResources}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FiRefreshCw
+                  size={13}
+                  className={isLoadingResources ? "animate-spin" : ""}
+                  aria-hidden="true"
+                />
+                {tc("retry")}
+              </button>
+            </div>
+          )}
 
           <section className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -389,6 +421,17 @@ export default function AssignVehicleModal({
               {form.notes.length}/1000
             </p>
           </div>
+
+          {/* Lỗi submit phải nằm ngay cạnh nút gửi: toast ngoài modal biến mất
+              sau vài giây trong khi người dùng vẫn đang nhìn form. */}
+          {submitError && (
+            <p
+              role="alert"
+              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {submitError}
+            </p>
+          )}
 
           <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row">
             <button

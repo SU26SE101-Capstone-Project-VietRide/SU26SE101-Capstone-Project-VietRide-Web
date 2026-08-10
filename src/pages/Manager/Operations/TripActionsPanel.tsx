@@ -25,6 +25,7 @@ import CustomSelect from "../../../components/CustomSelect";
 import { ConfirmModal } from "../../../components/ConfirmModal";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { toDatetimeLocalValue } from "../../../utils/date";
+import Checkbox from "../../../components/form/Checkbox";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -451,11 +452,10 @@ export default function TripActionsPanel({
             </label>
           </div>
           <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-            <input
-              type="checkbox"
+            <Checkbox
+              className="mt-0.5"
               checked={notifyPassengers}
-              onChange={(event) => setNotifyPassengers(event.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+              onChange={setNotifyPassengers}
             />
             <span>
               <span className="block text-sm font-semibold text-gray-800">

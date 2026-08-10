@@ -29,10 +29,15 @@ const vietnameseMessages: Record<string, string> = {
   UNPROCESSABLE_ENTITY: "Dữ liệu gửi lên chưa hợp lệ.",
   SERVICE_UNAVAILABLE: "Dịch vụ hiện không khả dụng.",
   ERROR: "Đã xảy ra lỗi. Vui lòng thử lại.",
+  INVALID_FILTER: "Bộ lọc không hợp lệ.",
+  RACE_LOST: "Dữ liệu vừa được thay đổi bởi thao tác khác, vui lòng tải lại và thử lại.",
+  USER_INACTIVE: "Tài khoản này hiện không hoạt động.",
+  USER_NOT_PASSENGER: "Chỉ tài khoản hành khách mới thực hiện được thao tác này.",
 
   // Auth / tài khoản
   AUTH_ACCOUNT_LOCKED: "Tài khoản đã bị khoá.",
   AUTH_EMAIL_ALREADY_REGISTERED: "Email này đã được đăng ký.",
+  AUTH_EMAIL_ALREADY_VERIFIED: "Email này đã được xác thực trước đó.",
   AUTH_EMAIL_NOT_VERIFIED: "Email chưa được xác thực.",
   AUTH_GOOGLE_TOKEN_INVALID: "Không xác thực được tài khoản Google.",
   AUTH_INITIAL_PASSWORD_TOKEN_EXPIRED: "Link đặt mật khẩu đã hết hạn.",
@@ -95,11 +100,17 @@ const vietnameseMessages: Record<string, string> = {
 
   // Nhà xe (operator)
   OPERATOR_DUPLICATE_REGISTRATION: "Nhà xe này đã đăng ký trước đó.",
+  OPERATOR_NOT_FOUND: "Không tìm thấy nhà xe.",
   OPERATOR_DUPLICATE_TAX_CODE: "Mã số thuế đã được đăng ký bởi nhà xe khác.",
 
   // Hàng hóa / kiện hàng
   PARCEL_ADDITIONAL_PAYMENT_REQUIRED: "Cần thanh toán thêm cho kiện hàng này.",
   PARCEL_CAPACITY_EXCEEDED: "Kiện hàng vượt quá sức chứa cho phép.",
+  PARCEL_CHECK_IN_CLOSED: "Đã quá hạn nhận kiện hàng cho chuyến này.",
+  PARCEL_DELIVERY_REJECTED_WINDOW_EXPIRED:
+    "Đã quá thời hạn hoàn tác việc từ chối nhận hàng.",
+  PARCEL_NOT_DELIVERY_REJECTED:
+    "Kiện hàng không ở trạng thái bị từ chối nhận nên không thể hoàn tác.",
   PARCEL_CARGO_NOT_FOUND: "Không tìm thấy kiện hàng.",
   PARCEL_CARGO_RECOVERY_IN_PROGRESS: "Kiện hàng đang trong quá trình xử lý khôi phục.",
   PARCEL_DELIVERY_TOKEN_EXPIRED: "Mã giao hàng đã hết hạn.",
@@ -110,16 +121,30 @@ const vietnameseMessages: Record<string, string> = {
   PARCEL_NOT_TRANSFERABLE: "Kiện hàng này không thể chuyển tiếp.",
   PARCEL_PRICING_NOT_CONFIGURED: "Chưa cấu hình bảng giá hàng hóa cho tuyến này.",
   PARCEL_RECIPIENT_EMAIL_REQUIRED: "Cần có email người nhận.",
+  BALANCE_ALREADY_PAID: "Kiện hàng này đã thanh toán đủ.",
+  INVALID_CARGO_ACTION: "Thao tác với hàng hoá không hợp lệ.",
+  INVALID_DECISION: "Quyết định duyệt không hợp lệ, chỉ nhận APPROVED hoặc REJECTED.",
+  INVALID_REFUND_AMOUNT: "Kiện hàng này không có khoản hoàn tiền nào để xác nhận.",
+  INVALID_SIZE_CATEGORY: "Nhóm kích thước kiện hàng không hợp lệ.",
   PARCEL_REVIEW_TIMEOUT: "Đã quá thời hạn kiểm tra kiện hàng.",
 
   // Thanh toán / ví
   PAYMENT_ALREADY_PROCESSED: "Giao dịch này đã được xử lý trước đó.",
+  PAYMENT_ALREADY_STARTED: "Giao dịch thanh toán đã được khởi tạo trước đó.",
+  PAYMENT_AMOUNT_INVALID: "Số tiền giao dịch không hợp lệ.",
   PAYMENT_DEADLINE_PASSED: "Đã quá hạn thanh toán.",
   PAYMENT_INSUFFICIENT_WALLET: "Số dư ví không đủ để thanh toán.",
+  PAYMENT_NOT_FOUND: "Không tìm thấy giao dịch thanh toán.",
   PAYMENT_SIGNATURE_INVALID: "Chữ ký giao dịch không hợp lệ.",
   PAYMENT_TIMEOUT: "Giao dịch thanh toán đã hết thời gian chờ.",
   PAYMENT_VNPAY_ERROR: "Cổng thanh toán VNPay gặp lỗi, vui lòng thử lại.",
+  VNPAY_WEB_DISABLED:
+    "Kênh thanh toán VNPay trên web đang tạm khoá, vui lòng thử lại sau.",
+  TRIP_SETTLEMENT_NOT_ELIGIBLE:
+    "Chuyến chưa hết thời gian giữ đối soát nên chưa thể tất toán.",
   PLATFORM_WALLET_INSUFFICIENT_BALANCE: "Số dư ví hệ thống không đủ để thực hiện giao dịch.",
+  WALLET_CONCURRENT_UPDATE:
+    "Ví vừa được cập nhật bởi giao dịch khác, vui lòng thử lại.",
   WALLET_INSUFFICIENT_BALANCE: "Số dư ví không đủ.",
   WALLET_TOP_UP_AMOUNT_TOO_LOW: "Số tiền nạp thấp hơn mức tối thiểu.",
   WALLET_TOP_UP_FAILED: "Nạp tiền vào ví thất bại.",
@@ -178,6 +203,9 @@ const vietnameseMessages: Record<string, string> = {
   SHUTTLE_PICKUP_LOCKED: "Điểm đón trung chuyển đã bị khoá, không thể đổi.",
   SHUTTLE_REQUEST_CUTOFF_PASSED: "Đã quá thời hạn đặt xe trung chuyển.",
   SHUTTLE_REQUEST_NOT_CANCELLABLE: "Yêu cầu trung chuyển này không thể huỷ.",
+  SHUTTLE_STATION_NOT_FOUND: "Không tìm thấy bến trung chuyển.",
+  SHUTTLE_TRIP_TERMINAL:
+    "Chuyến trung chuyển đã kết thúc, không cập nhật được điểm đón.",
   SHUTTLE_REQUEST_SET_CHANGED: "Danh sách yêu cầu trung chuyển đã thay đổi, vui lòng tải lại.",
   SHUTTLE_STATION_NOT_SUPPORTED: "Bến này không hỗ trợ trung chuyển.",
   SHUTTLE_TRIP_INVALID_STATE: "Trạng thái chuyến trung chuyển không hợp lệ.",
@@ -190,10 +218,18 @@ const vietnameseMessages: Record<string, string> = {
   SUBSCRIPTION_MODULE_DISABLED: "Tính năng này không nằm trong gói cước hiện tại.",
   SUBSCRIPTION_PAYMENT_NOT_RETRYABLE: "Không thể thanh toán lại cho gói cước này.",
   SUBSCRIPTION_PAYMENT_PENDING: "Thanh toán gói cước đang chờ xử lý.",
+  SUBSCRIPTION_PLAN_INACTIVE: "Gói cước đang chọn hiện không còn hoạt động.",
+  SUBSCRIPTION_PLAN_NOT_PAYABLE: "Gói cước này chưa có giá để thanh toán.",
+  SUBSCRIPTION_UPGRADE_FORBIDDEN:
+    "Yêu cầu nâng cấp này không thuộc nhà xe của bạn.",
+  SUBSCRIPTION_UPGRADE_NOT_PENDING:
+    "Yêu cầu nâng cấp không còn ở trạng thái chờ thanh toán.",
+  STARTER_PLAN_REQUIRED: "Không thể tắt gói Starter — đây là gói mặc định bắt buộc.",
   SUBSCRIPTION_UPGRADE_EXPIRED: "Yêu cầu nâng cấp gói cước đã hết hạn.",
 
   // Lịch chạy
   DRIVER_SCHEDULE_EDIT_TOO_LATE: "Không thể sửa lịch vì đã quá thời hạn.",
+  DRIVER_SCHEDULE_NOT_FOUND: "Không tìm thấy lịch chạy này.",
   SCHEDULE_HAS_TRIPS: "Không thể xóa lịch vì đã có chuyến được tạo.",
 
   // Chuyến đi / theo dõi
@@ -232,6 +268,7 @@ const vietnameseMessages: Record<string, string> = {
   VEHICLE_TYPE_NOT_FOUND: "Không tìm thấy loại phương tiện.",
 
   // Voucher
+  CAMPAIGN_NOT_FOUND: "Không tìm thấy chiến dịch khuyến mãi.",
   VOUCHER_CODE_CONFLICT: "Mã voucher đã tồn tại.",
   VOUCHER_EXPIRED: "Voucher đã hết hạn.",
   VOUCHER_FORBIDDEN_FUNDING: "Nguồn tài trợ voucher không hợp lệ.",
@@ -248,12 +285,194 @@ const vietnameseMessages: Record<string, string> = {
 // code. Trống vì rà soát 2026-08-10 phát hiện 4/5 chuỗi cũ không còn khớp
 // message thật nào ở BE (đã đổi wording) và chuỗi còn lại chỉ ném từ code nội
 // bộ, không lên tới HTTP — xem lại BE trước khi thêm mới vào đây.
-const vietnameseFieldMessages: Record<string, string> = {};
+// Thông điệp validation BE gắn tay bằng .WithMessage(...) — chuỗi cố định nên
+// khớp nguyên văn được.
+const vietnameseFieldMessages: Record<string, string> = {
+  "SortDir must be 'asc' or 'desc'.":
+    "Chiều sắp xếp chỉ nhận 'asc' hoặc 'desc'.",
+  "SortBy is not supported.": "Trường sắp xếp không được hỗ trợ.",
+  "Status is not supported.": "Trạng thái không được hỗ trợ.",
+  "Phone number must be a Vietnamese number in +84xxxxxxxxx or 0xxxxxxxxx format.":
+    "Số điện thoại phải là số Việt Nam, dạng +84xxxxxxxxx hoặc 0xxxxxxxxx.",
+  "value must be greater than 0.": "Giá trị phải lớn hơn 0.",
+  "validUntil must be after validFrom.":
+    "Ngày kết thúc phải sau ngày bắt đầu.",
+  "totalUsageLimit must be greater than 0 when supplied.":
+    "Tổng lượt sử dụng phải lớn hơn 0.",
+  "perUserLimit must be greater than 0 when supplied.":
+    "Giới hạn mỗi người dùng phải lớn hơn 0.",
+  "minOrderAmount cannot be negative.":
+    "Giá trị đơn tối thiểu không được âm.",
+  "maxDiscountAmount must be greater than 0 when supplied.":
+    "Mức giảm tối đa phải lớn hơn 0.",
+  "from must be an RFC 3339 timestamp.":
+    "Thời điểm bắt đầu không đúng định dạng.",
+  "to must be an RFC 3339 timestamp.":
+    "Thời điểm kết thúc không đúng định dạng.",
+  "from must be earlier than to.":
+    "Thời điểm bắt đầu phải trước thời điểm kết thúc.",
+  "To must be on or after From.":
+    "Ngày kết thúc phải từ ngày bắt đầu trở về sau.",
+  "To is outside the supported date range.":
+    "Ngày kết thúc nằm ngoài khoảng thời gian được hỗ trợ.",
+  "applicableServices must contain only BOOKING or PARCEL.":
+    "Dịch vụ áp dụng chỉ được chọn Đặt vé hoặc Gửi hàng.",
+  "applicableServices must contain at least one service when supplied.":
+    "Vui lòng chọn ít nhất một dịch vụ áp dụng.",
+  "Exactly one of pickupStationId or pickupStopId must be provided.":
+    "Chỉ được chọn một trong hai: bến đón hoặc điểm đón.",
+  "Provide exactly one of locationId or locationCode.":
+    "Chỉ được cung cấp một trong hai: mã địa điểm hoặc ID địa điểm.",
+  "tripId is required and must be a non-empty UUID.":
+    "Thiếu mã chuyến hợp lệ.",
+  "Caller operator id must not be empty.":
+    "Thiếu thông tin nhà xe của người thực hiện.",
+  "code must not exceed 50 characters.":
+    "Mã không được vượt quá 50 ký tự.",
+  "Type must be PROVINCE, MUNICIPALITY, WARD, COMMUNE, or SPECIAL_ZONE.":
+    "Loại địa danh phải là Tỉnh, Thành phố, Phường, Xã hoặc Đặc khu.",
+  "Seat numbers must be unique.": "Số ghế không được trùng nhau.",
+  "PaymentMethod must be WALLET or VNPAY.":
+    "Phương thức thanh toán chỉ nhận Ví hoặc VNPay.",
+  "PhotoUrls must be owned Firebase Parcel evidence URLs.":
+    "Ảnh minh chứng phải được tải lên từ hệ thống.",
+};
+
+// Tên field trong message của FluentValidation là PascalCase đã tách khoảng
+// trắng ("DayOfWeek" -> "Day Of Week"). Chuẩn hoá về không dấu cách, chữ
+// thường để tra bảng.
+function normalizeFieldKey(name: string) {
+  return name.replace(/\s+/g, "").toLowerCase();
+}
+
+const vietnameseFieldNames: Record<string, string> = {
+  amount: "số tiền",
+  assistantuserid: "phụ xe",
+  basefare: "giá vé",
+  billingperiod: "kỳ thanh toán",
+  code: "mã",
+  dayofweek: "các thứ trong tuần",
+  departuredate: "ngày khởi hành",
+  departuretime: "giờ khởi hành",
+  description: "mô tả",
+  displayname: "tên hiển thị",
+  driveruserid: "tài xế",
+  email: "email",
+  from: "thời điểm bắt đầu",
+  licenseplate: "biển số xe",
+  name: "tên",
+  page: "trang",
+  pagesize: "số dòng mỗi trang",
+  password: "mật khẩu",
+  paymentmethod: "phương thức thanh toán",
+  phone: "số điện thoại",
+  planid: "gói cước",
+  reason: "lý do",
+  routeid: "tuyến",
+  status: "trạng thái",
+  to: "thời điểm kết thúc",
+  totalseats: "tổng số ghế",
+  validfrom: "ngày bắt đầu",
+  validuntil: "ngày kết thúc",
+  vehicleid: "phương tiện",
+};
+
+function fieldLabel(rawName: string) {
+  return vietnameseFieldNames[normalizeFieldKey(rawName)] ?? rawName;
+}
+
+function capitalize(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// Thông điệp mặc định của FluentValidation nhúng tên field nên không khớp
+// nguyên văn được — phải dịch theo cấu trúc câu.
+const fluentValidationRules: Array<{
+  pattern: RegExp;
+  translate: (match: RegExpMatchArray) => string;
+}> = [
+  {
+    pattern: /^'(.+?)' must not be (?:empty|null)\.$/,
+    translate: (m) => `Vui lòng nhập ${fieldLabel(m[1])}.`,
+  },
+  {
+    pattern: /^'(.+?)' must be empty\.$/,
+    translate: (m) => capitalize(`${fieldLabel(m[1])} phải để trống.`),
+  },
+  {
+    pattern: /^'(.+?)' is not a valid email address\.$/,
+    translate: (m) => capitalize(`${fieldLabel(m[1])} không đúng định dạng email.`),
+  },
+  {
+    pattern: /^'(.+?)' is not in the correct format\.$/,
+    translate: (m) => capitalize(`${fieldLabel(m[1])} không đúng định dạng.`),
+  },
+  {
+    pattern: /^'(.+?)' must be between (.+?) and (.+?)\.$/,
+    translate: (m) =>
+      capitalize(`${fieldLabel(m[1])} phải nằm trong khoảng ${m[2]} đến ${m[3]}.`),
+  },
+  {
+    pattern: /^'(.+?)' must be greater than or equal to '(.+?)'\.$/,
+    translate: (m) =>
+      capitalize(`${fieldLabel(m[1])} phải lớn hơn hoặc bằng ${m[2]}.`),
+  },
+  {
+    pattern: /^'(.+?)' must be less than or equal to '(.+?)'\.$/,
+    translate: (m) =>
+      capitalize(`${fieldLabel(m[1])} phải nhỏ hơn hoặc bằng ${m[2]}.`),
+  },
+  {
+    pattern: /^'(.+?)' must be greater than '(.+?)'\.$/,
+    translate: (m) => capitalize(`${fieldLabel(m[1])} phải lớn hơn ${m[2]}.`),
+  },
+  {
+    pattern: /^'(.+?)' must be less than '(.+?)'\.$/,
+    translate: (m) => capitalize(`${fieldLabel(m[1])} phải nhỏ hơn ${m[2]}.`),
+  },
+  {
+    pattern: /^'(.+?)' must not be equal to '(.+?)'\.$/,
+    translate: (m) => capitalize(`${fieldLabel(m[1])} không được bằng ${m[2]}.`),
+  },
+  {
+    pattern: /^'(.+?)' must be equal to '(.+?)'\.$/,
+    translate: (m) => capitalize(`${fieldLabel(m[1])} phải bằng ${m[2]}.`),
+  },
+  {
+    // "You entered N characters" là phần thừa với người dùng cuối — bỏ đi.
+    pattern:
+      /^The length of '(.+?)' must be at least (\d+) characters\..*$/,
+    translate: (m) =>
+      capitalize(`${fieldLabel(m[1])} phải có ít nhất ${m[2]} ký tự.`),
+  },
+  {
+    pattern:
+      /^The length of '(.+?)' must be (\d+) characters or fewer\..*$/,
+    translate: (m) =>
+      capitalize(`${fieldLabel(m[1])} không được vượt quá ${m[2]} ký tự.`),
+  },
+  {
+    pattern: /^'(.+?)' is not a valid (.+?)\.$/,
+    translate: (m) => `Giá trị "${m[1]}" không hợp lệ.`,
+  },
+];
+
+function translateFieldMessage(message: string) {
+  const exact = vietnameseFieldMessages[message];
+  if (exact) return exact;
+
+  for (const rule of fluentValidationRules) {
+    const match = message.match(rule.pattern);
+    if (match) return rule.translate(match);
+  }
+
+  return undefined;
+}
 
 export function translateApiErrorMessage(code: string | undefined, fallback: string, status?: number): string {
   if (!i18n.language?.startsWith("vi")) return fallback;
   if (code && vietnameseMessages[code]) return vietnameseMessages[code];
-  const fieldMessage = vietnameseFieldMessages[fallback.trim()];
+  const fieldMessage = translateFieldMessage(fallback.trim());
   if (fieldMessage) return fieldMessage;
   if (status === 401) return vietnameseMessages.AUTH_TOKEN_INVALID;
   if (status === 403) return vietnameseMessages.FORBIDDEN;

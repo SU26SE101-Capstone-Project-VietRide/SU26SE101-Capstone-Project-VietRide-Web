@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import Checkbox from "../../../components/form/Checkbox";
 import { FiTag } from "react-icons/fi";
 import type { AdminOperator, AdminVoucher } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
@@ -262,11 +263,10 @@ export default function VoucherModal({
         </div>
 
         <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
-          <input
-            type="checkbox"
+          <Checkbox
+            className="mt-0.5"
             checked={form.active}
-            onChange={(event) => updateForm("active", event.target.checked)}
-            className="mt-1 h-4 w-4 rounded border-gray-300 text-vr-600 focus:ring-vr-500"
+            onChange={(checked) => updateForm("active", checked)}
           />
           <span>
             <span className="block text-sm font-bold text-gray-900">

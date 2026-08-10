@@ -23,6 +23,8 @@
   "enable": "Kích hoạt",
   "disable": "Vô hiệu hóa",
   "search": "Tìm kiếm",
+  "searchOptions": "Tìm {{label}}...",
+  "noMatchingOptions": "Không tìm thấy lựa chọn phù hợp.",
   "filter": "Lọc",
   "columns": "Cột hiển thị",
   "exportCsv": "Xuất tệp CSV",
@@ -272,6 +274,6 @@
     "discardChangesConfirm": "Huỷ thay đổi",
     "continueEditing": "Tiếp tục chỉnh sửa",
     "retry": "Thử lại"
-  }
+  },
+  "reset": "Đặt lại"
 }
-
