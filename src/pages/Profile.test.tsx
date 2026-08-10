@@ -86,6 +86,8 @@ const operatorAdminUser = {
 describe("Profile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getOperatorProfile).mockReset();
+    vi.mocked(updateOperatorProfile).mockReset();
     authMock.getAuthUser.mockReturnValue(operatorAdminUser);
     authMock.getAuthSession.mockReturnValue({ user: { id: "user-1" } });
   });
@@ -105,12 +107,14 @@ describe("Profile", () => {
     renderProfile();
 
     expect(await screen.findByText("network down")).toBeInTheDocument();
+    expect(getOperatorProfile).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Nhà xe Phương Trang")).not.toBeInTheDocument();
 
     vi.mocked(getOperatorProfile).mockResolvedValueOnce(baseOperator);
     fireEvent.click(screen.getByText("profilePage.retry"));
 
     expect(await screen.findByText("Nhà xe Phương Trang")).toBeInTheDocument();
+    expect(getOperatorProfile).toHaveBeenCalledTimes(2);
   });
 
   it("exits edit mode immediately on cancel when nothing changed (no confirm dialog)", async () => {

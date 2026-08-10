@@ -243,6 +243,7 @@ function ImageUploadControl({
 
 export default function Profile() {
   const { t } = useTranslation("common");
+  const loadOperatorFailedMessage = t("profilePage.loadFailed");
   const [isEditing, setIsEditing] = useState(false);
   const [serverOperator, setServerOperator] = useState<OperatorProfile | null>(
     null,
@@ -302,7 +303,7 @@ export default function Profile() {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err.message : t("profilePage.loadFailed"),
+            err instanceof Error ? err.message : loadOperatorFailedMessage,
           );
         }
       } finally {
@@ -317,7 +318,7 @@ export default function Profile() {
     return () => {
       cancelled = true;
     };
-  }, [t, retryToken]);
+  }, [loadOperatorFailedMessage, retryToken]);
 
   const handleAvatarFile = async (file: File) => {
     setUploadingImage("avatar");
