@@ -48,13 +48,13 @@ export default function VoucherTable({
       <div className="overflow-hidden px-2">
       <table className="w-full table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
         <colgroup>
+          <col className="w-[14%]" />
+          <col className="w-[22%]" />
           <col className="w-[10%]" />
           <col className="w-[18%]" />
-          <col className="w-[10%]" />
-          <col className="w-[22%]" />
-          <col className="w-[15%]" />
-          <col className="w-[12%]" />
           <col className="w-[13%]" />
+          <col className="w-[11%]" />
+          <col className="w-[12%]" />
         </colgroup>
         <thead className="border-b border-gray-200 bg-gray-50">
           <tr>

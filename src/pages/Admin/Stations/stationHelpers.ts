@@ -128,6 +128,12 @@ function toFacilities(value: unknown) {
   );
 }
 
+// Tên thành phố đôi khi được trả kèm mã tỉnh/thành ở cuối (vd: "01").
+// Mã vẫn giữ nguyên trong model; chỉ loại khỏi phần hiển thị cho người dùng.
+export function displayCityName(city?: string | null) {
+  return city?.replace(/\s+\d{2}$/, "").trim() || "";
+}
+
 export function toForm(station: AdminStation): StationForm {
   return {
     name: station.name ?? "",

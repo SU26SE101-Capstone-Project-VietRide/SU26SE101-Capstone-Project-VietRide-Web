@@ -20,6 +20,10 @@ const IDEMPOTENCY_EXEMPT_OPERATIONS = new Set([
   "POST /internal/v1/vouchers/validate",
   // BE SkipIdempotency (contract mục 4.4): create driver-schedule.
   "POST /v1/operator/driver-schedules",
+  // Preview availability: đọc thuần, không tạo reservation nên BE không yêu cầu
+  // key (handoff API-driver-resource-availability mục 7.2 và 8.2).
+  "POST /v1/operator/driver-schedules/availability-check",
+  "POST /v1/operator/shuttle-trips/availability-check",
 ]);
 
 // Exempt theo pattern cho path có id động — BE SkipIdempotency (mục 4.4):

@@ -122,6 +122,7 @@ export default function BookingsList() {
   const [stats, setStats] = useState<BookingStatsAggregate | null>(null);
   const [pendingBookings, setPendingBookings] = useState(0);
   const [noShowPassengers, setNoShowPassengers] = useState(0);
+  const [noShowBookingCount, setNoShowBookingCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState("");
   const [openDetail, setOpenDetail] = useState(false);
@@ -209,14 +210,18 @@ export default function BookingsList() {
           ? pendingResult.value.totalItems
           : 0,
       );
-      setNoShowPassengers(
-        noShowResult.status === "fulfilled"
-          ? noShowResult.value.reduce(
-              (total, booking) => total + booking.seatCount,
-              0,
-            )
-          : 0,
-      );
+      if (noShowResult.status === "fulfilled") {
+        setNoShowBookingCount(noShowResult.value.length);
+        setNoShowPassengers(
+          noShowResult.value.reduce(
+            (total, booking) => total + booking.seatCount,
+            0,
+          ),
+        );
+      } else {
+        setNoShowBookingCount(0);
+        setNoShowPassengers(0);
+      }
     }
 
     void loadStats();
@@ -233,17 +238,27 @@ export default function BookingsList() {
         | "totalCompleted"
         | "totalNoShows"
     ) => items.reduce((total, item) => total + (item[key] ?? 0), 0);
+    const aggregate = (
+      key: "totalCompleted" | "totalNoShows",
+    ) => stats?.[key] ?? (items.length > 0 ? sum(key) : 0);
+    const totalNoShows = aggregate("totalNoShows");
 
     return {
       totalBookings:
         stats?.totalBookings ??
         (items.length > 0 ? sum("totalBookings") : bookingsPage.totalItems),
-      totalCompleted: sum("totalCompleted"),
-      pendingBookings,
-      totalNoShows: sum("totalNoShows"),
+      totalCompleted: aggregate("totalCompleted"),
+      pendingBookings: stats?.pendingBookings ?? pendingBookings,
+      totalNoShows: totalNoShows > 0 ? totalNoShows : noShowBookingCount,
       totalPassengers: noShowPassengers,
     };
-  }, [bookingsPage.totalItems, noShowPassengers, pendingBookings, stats]);
+  }, [
+    bookingsPage.totalItems,
+    noShowBookingCount,
+    noShowPassengers,
+    pendingBookings,
+    stats,
+  ]);
 
   function statusBadge(status?: string | null) {
     const key = normalizeStatus(status);

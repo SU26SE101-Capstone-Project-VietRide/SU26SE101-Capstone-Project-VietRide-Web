@@ -714,7 +714,7 @@ export default function OperationsPage() {
       />
 
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
         {/* Trái: bản đồ đội xe chiếm phần lớn màn hình */}
         <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-inner xl:min-h-[min(72vh,640px)]">
           {/* Badge đề xuất lộ trình chờ duyệt — góc trên bản đồ, chỉ OPERATOR_ADMIN */}

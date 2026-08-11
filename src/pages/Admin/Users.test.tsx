@@ -1,14 +1,23 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getAdminUsers, type AdminUser } from "../../api/vietride";
+import {
+  getAdminUsers,
+  lockAdminUser,
+  unlockAdminUser,
+  type AdminUser,
+} from "../../api/vietride";
 import Users from "./Users";
 
-vi.mock("react-i18next", () => {
-  const t = (key: string) => key;
+// t trả về key để assert cho gọn, nhưng vẫn ghi lại tham số nội suy — nhờ đó
+// bắt được lỗi quên truyền biến cho key có placeholder ({{name}}...).
+const { translate } = vi.hoisted(() => ({
+  translate: vi.fn((key: string) => key),
+}));
 
-  return { useTranslation: () => ({ t }) };
-});
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: translate }),
+}));
 
 vi.mock("../../auth", () => ({
   getAuthUser: () => ({ id: "current-admin" }),
@@ -118,6 +127,45 @@ describe("Admin Users", () => {
       screen.queryByRole("button", { name: "users.createAdminUser" }),
     ).not.toBeInTheDocument();
   });
+
+  // users.lockSuccess / users.unlockSuccess chứa {{name}}; nếu gọi t() mà không
+  // truyền biến thì toast hiện nguyên chuỗi "{{name}}".
+  it.each([
+    ["ACTIVE", "users.lockSuccess", lockAdminUser],
+    ["LOCKED", "users.unlockSuccess", unlockAdminUser],
+  ])(
+    "truyền tên người dùng vào toast khi khoá/mở khoá (%s)",
+    async (status, expectedKey, action) => {
+      const interaction = userEvent.setup();
+      vi.mocked(getAdminUsers).mockResolvedValue({
+        items: [{ ...user, status }],
+        page: 1,
+        pageSize: 10,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
+      vi.mocked(action).mockResolvedValue({ status } as never);
+
+      render(<Users />);
+      await screen.findByText(user.displayName);
+
+      // Nút khoá/mở khoá không có aria-label, nó là nút thứ hai trong ô thao tác
+      // cạnh nút "details".
+      const detailsButton = screen.getByRole("button", { name: "details" });
+      const toggleButton = within(
+        detailsButton.parentElement as HTMLElement,
+      ).getAllByRole("button")[1];
+      await interaction.click(toggleButton);
+      await interaction.click(screen.getByRole("button", { name: "confirm" }));
+
+      expect(action).toHaveBeenCalledWith(user.userId);
+      expect(translate).toHaveBeenCalledWith(expectedKey, {
+        name: user.displayName,
+      });
+    },
+  );
 
   it("keeps pagination visible while only the user table is loading", async () => {
     const browserUser = userEvent.setup();

@@ -12,6 +12,7 @@ import type { AdminLocation } from "../../../api/vietride";
 import type { UseStationManagementResult } from "./useStationManagement";
 import type { StationOption, StationRouteRole } from "./types";
 import StationSearchBox from "./StationSearchBox";
+import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 
 type StationManagementPanelProps = {
   canManageRoutes: boolean;
@@ -63,6 +64,8 @@ export default function StationManagementPanel({
 }: StationManagementPanelProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const { hasModule } = useOperatorSubscription();
+  const shuttleEnabled = hasModule("enableShuttle");
 
   return (
     <div className="space-y-4">
@@ -204,7 +207,7 @@ export default function StationManagementPanel({
                     {t("routes.searchLocationHint")}
                   </p>
                 </div>
-                <label
+                {shuttleEnabled && <label
                   htmlFor="station-supports-shuttle"
                   className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
                 >
@@ -222,7 +225,7 @@ export default function StationManagementPanel({
                       {t("routes.supportsShuttleHint")}
                     </span>
                   </span>
-                </label>
+                </label>}
               </>
             )}
             <button

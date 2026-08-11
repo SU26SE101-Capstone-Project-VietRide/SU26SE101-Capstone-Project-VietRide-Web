@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { io } from "socket.io-client";
 import {
   FiMenu,
   FiBell,
@@ -12,8 +11,13 @@ import {
 } from "react-icons/fi";
 import LanguageSwitcher from "./LanguageSwitcher";
 import OperatorAnnouncementModal from "./OperatorAnnouncementModal";
-import { getAuthSession, getAuthUser, logout } from "../auth";
+import { getAuthUser, logout } from "../auth";
 import { attachSocketAuthRecovery } from "../lib/socketAuthRecovery";
+import {
+  createNotificationSocket,
+  NOTIFICATION_CREATED_EVENT,
+  parseNotificationCreatedEvent,
+} from "../lib/notificationSocket";
 import {
   getNotifications,
   markNotificationRead,
@@ -30,11 +34,12 @@ type NotificationRefreshOptions = {
   silent?: boolean;
 };
 
-const NOTIFICATION_REFRESH_INTERVAL_MS = 15_000;
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const NOTIFICATION_SOCKET_URL =
-  import.meta.env.VITE_NOTIFICATION_SOCKET_URL || API_BASE_URL;
-const NOTIFICATION_SOCKET_PATH = "/notification/socket.io";
+const NOTIFICATION_PAGE_SIZE = 20;
+/**
+ * Realtime `notification:created` là luồng chính; polling chỉ còn là lưới an
+ * toàn cho trường hợp socket chết im lặng, nên giãn ra 60 giây thay vì 15.
+ */
+const NOTIFICATION_FALLBACK_POLL_MS = 60_000;
 
 export default function Topbar({ onMenuToggle }: TopbarProps) {
   const location = useLocation();
@@ -48,6 +53,10 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const [notificationsError, setNotificationsError] = useState("");
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const notificationRefreshInFlightRef = useRef(false);
+  // Refetch trùng lúc đang có request bay không bị bỏ hẳn mà xếp lại một lượt:
+  // response cũ (chụp trước khi notification được persist) không được phép là
+  // tiếng nói cuối cùng về inbox.
+  const notificationRefreshQueuedRef = useRef(false);
 
   const isAdmin = location.pathname.startsWith("/admin");
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
@@ -57,9 +66,16 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const settingsPath =
     authUser?.role === "OPERATOR_ADMIN" ? "/manager/settings" : null;
 
+  const loadNotificationsRef = useRef<
+    (options?: NotificationRefreshOptions) => Promise<void>
+  >(async () => {});
+
   const loadNotifications = useCallback(
     async ({ silent = false }: NotificationRefreshOptions = {}) => {
-      if (notificationRefreshInFlightRef.current) return;
+      if (notificationRefreshInFlightRef.current) {
+        notificationRefreshQueuedRef.current = true;
+        return;
+      }
 
       notificationRefreshInFlightRef.current = true;
       if (!silent) {
@@ -71,7 +87,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
         const [latest, unread] = await Promise.all([
           getNotifications({
             page: 1,
-            pageSize: 20,
+            pageSize: NOTIFICATION_PAGE_SIZE,
             sortBy: "createdAt",
             sortDir: "desc",
           }),
@@ -97,10 +113,18 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
       } finally {
         notificationRefreshInFlightRef.current = false;
         if (!silent) setNotificationsLoading(false);
+        if (notificationRefreshQueuedRef.current) {
+          notificationRefreshQueuedRef.current = false;
+          void loadNotificationsRef.current({ silent: true });
+        }
       }
     },
     [t],
   );
+
+  useEffect(() => {
+    loadNotificationsRef.current = loadNotifications;
+  }, [loadNotifications]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,7 +141,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
 
     const intervalId = window.setInterval(
       refreshSilently,
-      NOTIFICATION_REFRESH_INTERVAL_MS,
+      NOTIFICATION_FALLBACK_POLL_MS,
     );
 
     const handleVisibilityChange = () => {
@@ -127,20 +151,36 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
     window.addEventListener("focus", refreshSilently);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    const accessToken = getAuthSession()?.accessToken;
-    const notificationSocket = accessToken
-      ? io(NOTIFICATION_SOCKET_URL || undefined, {
-          path: NOTIFICATION_SOCKET_PATH,
-          auth: { token: accessToken },
-          transports: ["websocket"],
-        })
-      : null;
+    const notificationSocket = createNotificationSocket();
 
     const disposeAuthRecovery = notificationSocket
       ? attachSocketAuthRecovery(notificationSocket)
       : null;
 
-    notificationSocket?.on("notification:created", refreshSilently);
+    const handleNotificationCreated = (payload: unknown) => {
+      if (cancelled) return;
+
+      // Event mang nguyên DTO nên hiện được ngay, không phải chờ REST. Dedupe
+      // theo `id` vì Socket.IO là at-least-once và event có thể được replay.
+      const incoming = parseNotificationCreatedEvent(payload);
+      if (incoming) {
+        setNotifications((current) =>
+          current.some((item) => item.id === incoming.id)
+            ? current
+            : [incoming, ...current].slice(0, NOTIFICATION_PAGE_SIZE),
+        );
+      }
+
+      // REST inbox là nguồn bền vững: gọi lại để chốt danh sách và số chưa đọc
+      // (và để phủ cả payload lạ mà parser không nhận).
+      refreshSilently();
+    };
+
+    notificationSocket?.on(
+      NOTIFICATION_CREATED_EVENT,
+      handleNotificationCreated,
+    );
+    // Reconnect có thể đã bỏ lỡ event trong lúc mất kết nối — bù bằng REST.
     notificationSocket?.on("connect", refreshSilently);
 
     return () => {

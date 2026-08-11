@@ -122,7 +122,7 @@ describe("Topbar dropdowns", () => {
     );
   });
 
-  it("refreshes notifications every 15 seconds while the tab is visible", async () => {
+  it("keeps a 60 second fallback poll while the tab is visible", async () => {
     vi.useFakeTimers();
     const notification: NotificationItem = {
       id: "notification-1",
@@ -170,6 +170,12 @@ describe("Topbar dropdowns", () => {
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000);
+    });
+    // Polling không còn là luồng realtime chính nên 15 giây chưa có gì xảy ra.
+    expect(getNotifications).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45_000);
     });
 
     expect(getNotifications).toHaveBeenCalledTimes(4);
@@ -240,6 +246,44 @@ describe("Topbar dropdowns", () => {
     ).toHaveTextContent("1");
   });
 
+  // Contract realtime BE 2026-08-11: payload là DTO thô (không envelope, không
+  // userId/deepLink) nên inbox hiện được ngay, và replay cùng `id` không được
+  // tạo item trùng.
+  it("renders the realtime notification payload and deduplicates by id", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/admin/dashboard"]}>
+        <Topbar onMenuToggle={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getNotifications).toHaveBeenCalledTimes(2));
+
+    // REST treo lại: item hiển thị được chỉ có thể đến từ payload realtime.
+    vi.mocked(getNotifications).mockReturnValue(new Promise(() => {}));
+
+    const payload = {
+      id: "notification-realtime",
+      type: "BOOKING_CREATED",
+      title: "Realtime booking",
+      body: "A new booking just arrived.",
+      data: {},
+      action: { type: "OPEN_BOOKING_DETAIL", params: { bookingId: "booking-9" } },
+      readAt: null,
+      createdAt: "2026-08-11T10:30:00+07:00",
+    };
+
+    await act(async () => {
+      socketIoMock.handlers.get("notification:created")?.(payload);
+      socketIoMock.handlers.get("notification:created")?.(payload);
+      await Promise.resolve();
+    });
+
+    await user.click(screen.getByRole("button", { name: "notifications" }));
+
+    expect(screen.getAllByText("Realtime booking")).toHaveLength(1);
+  });
+
   it("pauses polling in a hidden tab and refreshes when it becomes visible", async () => {
     vi.useFakeTimers();
     Object.defineProperty(document, "visibilityState", {
@@ -260,7 +304,7 @@ describe("Topbar dropdowns", () => {
     expect(getNotifications).toHaveBeenCalledTimes(2);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(60_000);
     });
     expect(getNotifications).toHaveBeenCalledTimes(2);
 

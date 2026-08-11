@@ -1,4 +1,5 @@
 import { createIdempotencyKey } from "./api/idempotency";
+import { translateApiErrorMessage } from "./utils/apiErrorMessage";
 import { isRecord } from "./utils/typeGuards";
 
 export type AuthRole = "SYSTEM_ADMIN" | "OPERATOR_ADMIN" | "OPERATOR_STAFF";
@@ -139,7 +140,9 @@ async function postJson<TResponse>(
 
   const payload = await parseJsonResponse(response);
   if (!isRecord(payload)) {
-    throw new Error("Invalid server response");
+    throw new Error(
+      translateApiErrorMessage(undefined, "Invalid server response", 502),
+    );
   }
 
   const data = parseData(payload.data);
@@ -148,7 +151,13 @@ async function postJson<TResponse>(
   const errorMessage = apiError ? asString(apiError.message) : "";
 
   if (!response.ok || !data) {
-    throw new Error(errorMessage || message || "Request failed");
+    // Endpoint auth không đi qua apiRequest nên phải tự dịch message theo
+    // error.code, nếu không toast sẽ hiện nguyên văn tiếng Anh của BE.
+    const errorCode = apiError ? asString(apiError.code) || undefined : undefined;
+    const rawMessage = errorMessage || message || "Request failed";
+    throw new Error(
+      translateApiErrorMessage(errorCode, rawMessage, response.status),
+    );
   }
 
   return {
@@ -271,9 +280,21 @@ export async function register(request: RegisterRequest): Promise<void> {
 
   const payload = await parseJsonResponse(response);
   const message = isRecord(payload) ? asString(payload.message) : "";
+  const apiError =
+    isRecord(payload) && isRecord(payload.error) ? payload.error : null;
 
   if (!response.ok) {
-    throw new Error(message || "Register failed");
+    // Envelope lỗi để lý do ở error.message + error.code, payload.message rỗng —
+    // phải đọc cả hai rồi dịch, nếu không toast sẽ hiện "Register failed".
+    const errorCode = apiError ? asString(apiError.code) || undefined : undefined;
+    const errorMessage = apiError ? asString(apiError.message) : "";
+    throw new Error(
+      translateApiErrorMessage(
+        errorCode,
+        errorMessage || message || "Register failed",
+        response.status,
+      ),
+    );
   }
 }
 

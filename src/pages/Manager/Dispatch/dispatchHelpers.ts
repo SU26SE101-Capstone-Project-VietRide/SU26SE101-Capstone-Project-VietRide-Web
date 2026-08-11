@@ -45,13 +45,23 @@ export function shuttleTripLabel(
   return trip.vehicle.licensePlate.trim() || fallback;
 }
 
-// Tên hành khách để hiển thị thay cho bookingId. BE trả `passengers` kèm mỗi
-// lượt đặt; payload cũ không có thì lùi về nhãn thứ tự.
+// Nhãn chính của một nhóm điều phối là tên tuyến chuyến chính. `mainTripId`
+// chỉ dùng làm khoá kỹ thuật khi gửi request — điều độ viên không đọc UUID —
+// nên tuyến thiếu tên thì lùi về tên bến, không bao giờ lộ UUID.
+export function shuttleRouteLabel(
+  group: ShuttleRequestGroup,
+  fallback: string,
+) {
+  return group.routeName?.trim() || fallback;
+}
+
+// Tên hành khách để hiển thị thay cho bookingId. `passengers` luôn là mảng
+// nhưng `displayName` có thể null khi Identity không tìm được hồ sơ.
 export function bookingPassengerLabel(
   booking: ShuttleBookingGroup,
   fallback: string,
 ) {
-  const names = (booking.passengers ?? [])
+  const names = booking.passengers
     .map((passenger) => passenger.displayName?.trim())
     .filter((name): name is string => Boolean(name));
 

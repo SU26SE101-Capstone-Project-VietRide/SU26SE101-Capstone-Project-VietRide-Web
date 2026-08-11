@@ -1,6 +1,7 @@
 // Form control cục bộ của màn Admin Vouchers (Field, DetailItem).
 // DetailItem ở đây markup KHÁC components/DetailLayout (không viền card) — giữ local.
 import CurrencyInput from "../../../components/CurrencyInput";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 
 type FieldProps = {
@@ -30,7 +31,16 @@ export function Field({
         {label}
         {required && <span className="text-red-500"> *</span>}
       </label>
-      {currency ? (
+      {type === "datetime-local" || type === "date" ? (
+        <CustomDateTimeInput
+          className={inputClass}
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : currency ? (
         <CurrencyInput
           className={inputClass}
           value={value}

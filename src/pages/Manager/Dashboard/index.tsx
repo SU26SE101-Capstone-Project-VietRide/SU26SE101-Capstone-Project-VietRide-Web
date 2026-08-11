@@ -23,6 +23,7 @@ import ParcelRouteChart from "./ParcelRouteChart";
 import ParcelStatusChart from "./ParcelStatusChart";
 import RecentShipmentsTable from "./RecentShipmentsTable";
 import RevenueChart from "./RevenueChart";
+import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 import {
   aggregateBookingStats,
   currentMonth,
@@ -68,6 +69,9 @@ export default function ManagerDashboard() {
   const navigate = useNavigate();
   const role = getAuthUser()?.role;
   const isOperatorAdmin = role === "OPERATOR_ADMIN";
+  const { hasModule } = useOperatorSubscription();
+  const parcelEnabled =
+    !isOperatorAdmin || hasModule("enableParcel");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRevenueMonth, setSelectedRevenueMonth] =
     useState(currentMonth);
@@ -109,6 +113,12 @@ export default function ManagerDashboard() {
   }, []);
 
   const loadShipments = useCallback(async () => {
+    if (!parcelEnabled) {
+      setShipments([]);
+      setShipmentTotal(0);
+      return;
+    }
+
     try {
       const result = await getOperatorParcels({
         page: shipmentPage,
@@ -121,7 +131,7 @@ export default function ManagerDashboard() {
       setShipmentTotal(0);
       appendError("Parcel", error);
     }
-  }, [appendError, shipmentPage]);
+  }, [appendError, parcelEnabled, shipmentPage]);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -208,25 +218,28 @@ export default function ManagerDashboard() {
           },
         }));
 
-        const analyticsParcelTotal = routePerformance.reduce(
-          (total, item) => total + item.parcelCount,
-          0,
-        );
-        if (analyticsParcelTotal > 0) {
-          setParcelRouteTotal(analyticsParcelTotal);
-          setParcelRouteData(
-            [...routePerformance]
-              .sort((first, second) => second.parcelCount - first.parcelCount)
-              .slice(0, 5)
-              .map((item) => ({
-                routeId: item.routeId,
-                name: item.routeName,
-                value: item.parcelCount,
-                sharePercent: (item.parcelCount / analyticsParcelTotal) * 100,
-                tripCount: item.tripCount,
-                completionRatePercent: item.completionRatePercent,
-              })),
+        if (parcelEnabled) {
+          const analyticsParcelTotal = routePerformance.reduce(
+            (total, item) => total + item.parcelCount,
+            0,
           );
+          if (analyticsParcelTotal > 0) {
+            setParcelRouteTotal(analyticsParcelTotal);
+            setParcelRouteData(
+              [...routePerformance]
+                .sort((first, second) => second.parcelCount - first.parcelCount)
+                .slice(0, 5)
+                .map((item) => ({
+                  routeId: item.routeId,
+                  name: item.routeName,
+                  value: item.parcelCount,
+                  sharePercent:
+                    (item.parcelCount / analyticsParcelTotal) * 100,
+                  tripCount: item.tripCount,
+                  completionRatePercent: item.completionRatePercent,
+                })),
+            );
+          }
         }
       } catch (error) {
         appendError("Doanh thu", error);
@@ -249,66 +262,72 @@ export default function ManagerDashboard() {
         appendError(tRef.current("dashboard.errorSourceActiveTrips"), error);
       }
 
-      try {
-        const statusStats = await getOperatorParcelStats({
-          from,
-          to,
-          groupBy: "status",
-        });
-        setParcelStatusData(
-          statusStats.items.map((item, index) => ({
-            key: item.key ?? "UNKNOWN",
-            value: item.count ?? 0,
-            color: statusColor(item.key ?? "UNKNOWN", index),
-          })),
-        );
-      } catch (error) {
-        setParcelStatusData([]);
-        appendError(tRef.current("dashboard.errorSourceParcelStats"), error);
-      }
+      if (parcelEnabled) {
+        try {
+          const statusStats = await getOperatorParcelStats({
+            from,
+            to,
+            groupBy: "status",
+          });
+          setParcelStatusData(
+            statusStats.items.map((item, index) => ({
+              key: item.key ?? "UNKNOWN",
+              value: item.count ?? 0,
+              color: statusColor(item.key ?? "UNKNOWN", index),
+            })),
+          );
+        } catch (error) {
+          setParcelStatusData([]);
+          appendError(tRef.current("dashboard.errorSourceParcelStats"), error);
+        }
 
-      try {
-        const routeStats = await getOperatorParcelStats({
-          from,
-          to,
-          groupBy: "route",
-          limit: 5,
-        });
-        const total = routeStats.totalParcels;
-        setParcelRouteTotal(total);
-        setParcelRouteData(
-          [...routeStats.items]
-            .sort(
-              (first, second) =>
-                (second.parcelCount ?? second.count ?? 0) -
-                (first.parcelCount ?? first.count ?? 0),
-            )
-            .slice(0, 5)
-            .map((item) => {
-              const name =
-                item.routeName ??
-                item.key ??
-                tRef.current("dashboard.unknownRoute");
-              const value = item.parcelCount ?? item.count ?? 0;
-              const analyticsRoute = routePerformance.find(
-                (route) =>
-                  route.routeId === item.routeId || route.routeName === name,
-              );
-              return {
-                routeId: item.routeId,
-                name,
-                value,
-                sharePercent: total > 0 ? (value / total) * 100 : 0,
-                tripCount: analyticsRoute?.tripCount,
-                completionRatePercent: analyticsRoute?.completionRatePercent,
-              };
-            }),
-        );
-      } catch (error) {
-        appendError(
-          tRef.current("dashboard.errorSourceParcelRouteStats"),
-          error,
-        );
+        try {
+          const routeStats = await getOperatorParcelStats({
+            from,
+            to,
+            groupBy: "route",
+            limit: 5,
+          });
+          const total = routeStats.totalParcels;
+          setParcelRouteTotal(total);
+          setParcelRouteData(
+            [...routeStats.items]
+              .sort(
+                (first, second) =>
+                  (second.parcelCount ?? second.count ?? 0) -
+                  (first.parcelCount ?? first.count ?? 0),
+              )
+              .slice(0, 5)
+              .map((item) => {
+                const name =
+                  item.routeName ??
+                  item.key ??
+                  tRef.current("dashboard.unknownRoute");
+                const value = item.parcelCount ?? item.count ?? 0;
+                const analyticsRoute = routePerformance.find(
+                  (route) =>
+                    route.routeId === item.routeId || route.routeName === name,
+                );
+                return {
+                  routeId: item.routeId,
+                  name,
+                  value,
+                  sharePercent: total > 0 ? (value / total) * 100 : 0,
+                  tripCount: analyticsRoute?.tripCount,
+                  completionRatePercent: analyticsRoute?.completionRatePercent,
+                };
+              }),
+          );
+        } catch (error) {
+          appendError(
+            tRef.current("dashboard.errorSourceParcelRouteStats"),
+            error,
+          );
+        }
+      } else {
+        setParcelStatusData([]);
+        setParcelRouteData([]);
+        setParcelRouteTotal(0);
       }
     } else {
       setParcelStatusData([]);
@@ -318,7 +337,7 @@ export default function ManagerDashboard() {
     }
 
     setIsLoading(false);
-  }, [appendError, isOperatorAdmin, selectedRevenueMonth]);
+  }, [appendError, isOperatorAdmin, parcelEnabled, selectedRevenueMonth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -427,24 +446,32 @@ export default function ManagerDashboard() {
 
       <KpiGrid summary={summary} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div
+        className={`grid grid-cols-1 gap-6 ${
+          parcelEnabled ? "lg:grid-cols-3" : "lg:grid-cols-2"
+        }`}
+      >
         <RevenueChart data={revenueData} isLoading={isLoading} />
 
-        <ParcelStatusChart
+        {parcelEnabled && <ParcelStatusChart
           data={parcelStatusData}
           total={parcelStatusTotal}
           isLoading={isLoading}
           isOperatorAdmin={isOperatorAdmin}
-        />
+        />}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <ParcelRouteChart
+      <div
+        className={`grid grid-cols-1 gap-6 ${
+          parcelEnabled ? "lg:grid-cols-3" : "lg:grid-cols-1"
+        }`}
+      >
+        {parcelEnabled && <ParcelRouteChart
           data={parcelRouteData}
           total={parcelRouteTotal}
           isLoading={isLoading}
           isOperatorAdmin={isOperatorAdmin}
-        />
+        />}
 
         <section className="overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex items-start justify-between gap-3">
@@ -505,7 +532,7 @@ export default function ManagerDashboard() {
         </section>
       </div>
 
-      <RecentShipmentsTable
+      {parcelEnabled && <RecentShipmentsTable
         shipments={shipments}
         isLoading={isLoading}
         page={shipmentPage}
@@ -516,7 +543,7 @@ export default function ManagerDashboard() {
         onViewShipment={(shipmentId) =>
           navigate(`/manager/parcels?parcelId=${shipmentId}`)
         }
-      />
+      />}
     </div>
   );
 }

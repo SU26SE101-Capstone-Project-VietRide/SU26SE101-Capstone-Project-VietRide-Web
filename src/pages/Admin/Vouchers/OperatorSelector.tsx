@@ -1,7 +1,9 @@
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FiSearch } from "react-icons/fi";
 import type { AdminOperator } from "../../../api/vietride";
-import { labelClass } from "../../../components/form/formClasses";
 import Checkbox from "../../../components/form/Checkbox";
+import { inputClass, labelClass } from "../../../components/form/formClasses";
 
 type OperatorSelectorProps = {
   operators: AdminOperator[];
@@ -15,36 +17,107 @@ export default function OperatorSelector({
   onChange,
 }: OperatorSelectorProps) {
   const { t } = useTranslation("admin");
+  const [search, setSearch] = useState("");
+  const filteredOperators = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return operators;
+    }
+
+    return operators.filter((operator) =>
+      [operator.name, operator.contactEmail, operator.operatorId]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [operators, search]);
+
   const visibleOperatorIds = operators.map((operator) => operator.operatorId);
   const visibleSelectedOperatorIds = selectedOperatorIds.filter((operatorId) =>
     visibleOperatorIds.includes(operatorId),
   );
+  const allFilteredOperatorsSelected =
+    filteredOperators.length > 0 &&
+    filteredOperators.every((operator) =>
+      selectedOperatorIds.includes(operator.operatorId),
+    );
 
   function toggleOperator(operatorId: string) {
-    const nextOperatorIds = visibleSelectedOperatorIds.includes(operatorId)
-      ? visibleSelectedOperatorIds.filter((id) => id !== operatorId)
-      : [...visibleSelectedOperatorIds, operatorId];
+    onChange(
+      selectedOperatorIds.includes(operatorId)
+        ? selectedOperatorIds.filter((id) => id !== operatorId)
+        : [...selectedOperatorIds, operatorId],
+    );
+  }
 
-    onChange(nextOperatorIds);
+  function toggleAllFilteredOperators() {
+    const filteredOperatorIds = new Set(
+      filteredOperators.map((operator) => operator.operatorId),
+    );
+
+    if (allFilteredOperatorsSelected) {
+      onChange(
+        selectedOperatorIds.filter((operatorId) =>
+          !filteredOperatorIds.has(operatorId),
+        ),
+      );
+      return;
+    }
+
+    onChange([
+      ...selectedOperatorIds,
+      ...filteredOperators
+        .map((operator) => operator.operatorId)
+        .filter((operatorId) => !selectedOperatorIds.includes(operatorId)),
+    ]);
   }
 
   return (
     <div className="mt-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <label className={labelClass}>{t("vouchers.selectOperators")}</label>
-        <span className="text-xs font-medium text-gray-500">
-          {t("vouchers.selectedOperatorsCount", {
-            count: visibleSelectedOperatorIds.length,
-          })}
-        </span>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <span className="text-xs font-medium text-gray-500">
+            {t("vouchers.selectedOperatorsCount", {
+              count: visibleSelectedOperatorIds.length,
+            })}
+          </span>
+          <button
+            type="button"
+            onClick={toggleAllFilteredOperators}
+            disabled={filteredOperators.length === 0}
+            className="rounded-lg border border-vr-200 px-3 py-1.5 text-xs font-semibold text-vr-700 transition hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {allFilteredOperatorsSelected
+              ? t("vouchers.clearSelectedOperators")
+              : t("vouchers.selectAllOperators")}
+          </button>
+        </div>
       </div>
-      <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
-        {operators.length > 0 ? (
+
+      <div className="relative mt-2">
+        <FiSearch
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          size={15}
+        />
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={t("vouchers.searchOperatorsPlaceholder")}
+          aria-label={t("vouchers.searchOperators")}
+          className={`${inputClass} pl-9`}
+        />
+      </div>
+
+      <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+        {operators.length > 0 && filteredOperators.length > 0 ? (
           <div className="space-y-1">
-            {operators.map((operator) => {
-              const checked = visibleSelectedOperatorIds.includes(
-                operator.operatorId,
-              );
+            {filteredOperators.map((operator) => {
+              const checked = selectedOperatorIds.includes(operator.operatorId);
 
               return (
                 <label
@@ -72,12 +145,25 @@ export default function OperatorSelector({
               );
             })}
           </div>
+        ) : operators.length > 0 ? (
+          <p className="px-3 py-2 text-sm text-gray-500">
+            {t("vouchers.searchOperatorsEmpty")}
+          </p>
         ) : (
           <p className="px-3 py-2 text-sm text-gray-500">
             {t("vouchers.noOperatorsAvailable")}
           </p>
         )}
       </div>
+
+      {operators.length > 0 && (
+        <p className="mt-1 text-right text-xs text-gray-500">
+          {t("vouchers.operatorSearchCount", {
+            shown: filteredOperators.length,
+            total: operators.length,
+          })}
+        </p>
+      )}
     </div>
   );
 }

@@ -278,7 +278,7 @@ table thead th {
 }
 
 .table-action-button,
-tbody td button[title] {
+tbody td button[title]:not(.info-hint-button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -300,7 +300,7 @@ tbody td button[title] {
 }
 
 .table-action-button:hover,
-tbody td button[title]:hover {
+tbody td button[title]:not(.info-hint-button):hover {
   border-color: #cbd5e1;
   background: #f8fafc;
   color: #1e293b;
@@ -309,13 +309,13 @@ tbody td button[title]:hover {
 }
 
 .table-action-button:focus-visible,
-tbody td button[title]:focus-visible {
+tbody td button[title]:not(.info-hint-button):focus-visible {
   outline: 2px solid rgba(115, 217, 217, 0.75);
   outline-offset: 2px;
 }
 
 .table-action-button:disabled,
-tbody td button[title]:disabled {
+tbody td button[title]:not(.info-hint-button):disabled {
   cursor: not-allowed;
   opacity: 0.45;
   transform: none;
@@ -323,7 +323,7 @@ tbody td button[title]:disabled {
 }
 
 .table-action-button svg,
-tbody td button[title] svg {
+tbody td button[title]:not(.info-hint-button) svg {
   width: 1rem;
   height: 1rem;
   stroke-width: 2;

@@ -256,6 +256,7 @@
     "fundingType": "Funding source",
     "formBasics": "Basic information",
     "discountRules": "Discount rules",
+    "usageRules": "Usage limits",
     "scopeRules": "Usage scope",
     "issuanceRules": "Issuance and validity",
     "vietrideFunded": "VietRide funded",
@@ -269,6 +270,12 @@
     "operatorScopeHint": "Apply platform-wide or limit this voucher to selected operators.",
     "operatorConsentHint": "For operator-funded vouchers, consent requests will be created for operators in this scope.",
     "selectOperators": "Select applicable operators",
+    "searchOperators": "Search operators",
+    "searchOperatorsPlaceholder": "Search by operator name, email or ID...",
+    "searchOperatorsEmpty": "No matching operators.",
+    "operatorSearchCount": "Showing {{shown}}/{{total}} operators",
+    "selectAllOperators": "Select all",
+    "clearSelectedOperators": "Clear selected",
     "noOperatorsAvailable": "No operators available.",
     "editTitle": "Edit voucher",
     "createTitle": "Create voucher",
@@ -386,7 +393,15 @@
       "WARD": "Ward",
       "COMMUNE": "Commune",
       "SPECIAL_ZONE": "Special zone"
-    }
+    },
+    "typeFullName": {
+      "PROVINCE": "Province",
+      "MUNICIPALITY": "Centrally governed city (municipality)",
+      "WARD": "Ward",
+      "COMMUNE": "Commune",
+      "SPECIAL_ZONE": "Special zone"
+    },
+    "whatIsThis": "What is this?"
   },
   "stations": {
     "title": "Platform station management",

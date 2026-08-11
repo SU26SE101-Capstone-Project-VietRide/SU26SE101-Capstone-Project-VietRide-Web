@@ -47,6 +47,7 @@ function renderTable(routes: RouteOption[]) {
       pageSize={10}
       onPageChange={vi.fn()}
       onEdit={vi.fn()}
+      onChangeCrew={vi.fn()}
       onToggleActive={vi.fn()}
       onDelete={vi.fn()}
     />,

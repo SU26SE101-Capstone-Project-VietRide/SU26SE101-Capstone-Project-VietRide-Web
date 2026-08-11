@@ -1,13 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "../i18n";
 import { ApiRequestError, apiRequest, buildQuery } from "./client";
 
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 describe("api client", () => {
+  const originalLanguage = i18n.language;
+
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
+  });
+
+  afterEach(async () => {
+    await i18n.changeLanguage(originalLanguage);
   });
 
   it("preserves API error code and status", async () => {
@@ -35,6 +42,34 @@ describe("api client", () => {
       message: "Tracking access denied.",
     });
   });
+  // Các service NestJS dùng code VALIDATION_FAILED (khác VALIDATION_ERROR của
+  // .NET) nhưng cùng kiểu envelope: message top-level chung chung, lý do thật
+  // nằm ở fields[]. Nếu không gộp hai code này thì toast chỉ hiện câu chung.
+  it("uu tiên field message cho VALIDATION_FAILED", async () => {
+    await i18n.changeLanguage("vi");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            success: false,
+            statusCode: 400,
+            error: {
+              code: "VALIDATION_FAILED",
+              message: "Validation failed",
+              fields: [{ field: "email", message: "'Email' must not be empty." }],
+            },
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    await expect(apiRequest("/v1/operator/notifications")).rejects.toThrow(
+      "Vui lòng nhập email.",
+    );
+  });
+
   it("parses field-level details from the error envelope", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(

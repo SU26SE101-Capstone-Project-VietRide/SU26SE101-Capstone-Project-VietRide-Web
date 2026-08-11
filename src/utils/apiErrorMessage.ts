@@ -10,12 +10,19 @@ const vietnameseMessages: Record<string, string> = {
   AUTH_TOKEN_INVALID: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
   UNAUTHORIZED: "Bạn chưa được xác thực để thực hiện thao tác này.",
   FORBIDDEN: "Bạn không có quyền thực hiện thao tác này.",
+  ACCESS_DENIED: "Bạn không có quyền truy cập dữ liệu này.",
+  INSUFFICIENT_ROLE: "Vai trò của bạn không đủ quyền cho thao tác này.",
   VALIDATION_ERROR: "Dữ liệu gửi lên chưa hợp lệ.",
+  VALIDATION_FAILED: "Dữ liệu gửi lên chưa hợp lệ.",
   RESOURCE_NOT_FOUND: "Không tìm thấy dữ liệu yêu cầu.",
+  RESOURCE_TRAVEL_TIME_UNAVAILABLE:
+    "Không tính được thời gian di chuyển để kiểm tra lịch trống.",
+  MOBILE_APP_UPDATE_REQUIRED: "Vui lòng cập nhật ứng dụng lên phiên bản mới nhất.",
   RESOURCE_CONFLICT: "Dữ liệu đang xung đột, vui lòng tải lại và thử lại.",
   UPSTREAM_UNAVAILABLE: "Dịch vụ liên quan hiện không khả dụng.",
   INTERNAL_ERROR: "Đã xảy ra lỗi hệ thống. Vui lòng thử lại.",
   IDEMPOTENCY_REQUEST_PENDING: "Yêu cầu trước đó vẫn đang được xử lý.",
+  IDEMPOTENCY_REQUEST_IN_PROGRESS: "Yêu cầu trước đó vẫn đang được xử lý.",
   IDEMPOTENCY_KEY_MISMATCH: "Yêu cầu bị trùng khóa nhưng dữ liệu không giống nhau.",
   IDEMPOTENCY_KEY_REQUIRED: "Thiếu khóa xác thực cho thao tác này.",
   INVALID_SORT_FIELD: "Trường sắp xếp không hợp lệ.",
@@ -101,6 +108,7 @@ const vietnameseMessages: Record<string, string> = {
   // Nhà xe (operator)
   OPERATOR_DUPLICATE_REGISTRATION: "Nhà xe này đã đăng ký trước đó.",
   OPERATOR_NOT_FOUND: "Không tìm thấy nhà xe.",
+  OPERATOR_LOOKUP_UNAVAILABLE: "Không tra cứu được thông tin nhà xe, vui lòng thử lại.",
   OPERATOR_DUPLICATE_TAX_CODE: "Mã số thuế đã được đăng ký bởi nhà xe khác.",
 
   // Hàng hóa / kiện hàng
@@ -137,7 +145,11 @@ const vietnameseMessages: Record<string, string> = {
   PAYMENT_NOT_FOUND: "Không tìm thấy giao dịch thanh toán.",
   PAYMENT_SIGNATURE_INVALID: "Chữ ký giao dịch không hợp lệ.",
   PAYMENT_TIMEOUT: "Giao dịch thanh toán đã hết thời gian chờ.",
+  PAYMENT_CONTEXT_INVALID: "Thông tin ngữ cảnh thanh toán không hợp lệ.",
   PAYMENT_VNPAY_ERROR: "Cổng thanh toán VNPay gặp lỗi, vui lòng thử lại.",
+  INSUFFICIENT_FUNDS: "Số dư không đủ để thực hiện giao dịch.",
+  VNPAY_MOBILE_SDK_DISABLED:
+    "Kênh thanh toán VNPay trên ứng dụng di động đang tạm khoá.",
   VNPAY_WEB_DISABLED:
     "Kênh thanh toán VNPay trên web đang tạm khoá, vui lòng thử lại sau.",
   TRIP_SETTLEMENT_NOT_ELIGIBLE:
@@ -155,7 +167,53 @@ const vietnameseMessages: Record<string, string> = {
 
   // RAG (trợ lý AI)
   RAG_ACCESS_DENIED_FOR_ROLE: "Vai trò của bạn không có quyền truy cập tính năng này.",
+  RAG_ADMIN_REQUIRED: "Chỉ Quản trị hệ thống mới thực hiện được thao tác này.",
+  RAG_CONVERSATION_FORBIDDEN: "Bạn không có quyền truy cập cuộc hội thoại này.",
+  RAG_CONVERSATION_NOT_FOUND: "Không tìm thấy cuộc hội thoại.",
+  RAG_CONVERSATION_SCOPE_MISMATCH:
+    "Cuộc hội thoại không thuộc phạm vi truy cập của bạn.",
+  RAG_DEPENDENCY_UNAVAILABLE: "Dịch vụ trợ lý AI hiện không khả dụng.",
+  RAG_DOCUMENT_EMPTY_CONTENT: "Tài liệu không có nội dung để xử lý.",
+  RAG_DOCUMENT_FILE_INVALID_SIZE: "Dung lượng file tài liệu không hợp lệ.",
+  RAG_DOCUMENT_FILE_INVALID_TYPE: "Định dạng file tài liệu không hợp lệ.",
+  RAG_DOCUMENT_FILE_REQUIRED: "Vui lòng chọn file tài liệu.",
+  RAG_DOCUMENT_FILE_UNSUPPORTED: "Hệ thống không hỗ trợ loại file tài liệu này.",
   RAG_DOCUMENT_NOT_APPROVED: "Tài liệu chưa được duyệt.",
+  RAG_DOCUMENT_NOT_FOUND: "Không tìm thấy tài liệu.",
+  RAG_DOCUMENT_STATUS_CONFLICT: "Trạng thái tài liệu không cho phép thao tác này.",
+  RAG_DOCUMENT_TAXONOMY_INVALID: "Phân loại tài liệu không hợp lệ.",
+  RAG_EMBEDDING_DIMENSION_MISMATCH:
+    "Dữ liệu vector của tài liệu không khớp cấu hình hiện tại.",
+  RAG_EMBEDDING_INVALID: "Không tạo được dữ liệu vector cho tài liệu.",
+  RAG_FEEDBACK_ASSISTANT_ONLY: "Chỉ có thể đánh giá câu trả lời của trợ lý.",
+  RAG_FEEDBACK_FORBIDDEN: "Bạn không có quyền đánh giá tin nhắn này.",
+  RAG_MESSAGE_NOT_FOUND: "Không tìm thấy tin nhắn.",
+  RAG_MESSAGE_TOO_LONG: "Nội dung tin nhắn vượt quá độ dài cho phép.",
+  RAG_OPERATOR_SCOPE_FORBIDDEN: "Bạn không có quyền truy cập dữ liệu nhà xe này.",
+  RAG_OPERATOR_SCOPE_REQUIRED: "Thiếu thông tin nhà xe cho yêu cầu này.",
+  RAG_PROVIDER_CIRCUIT_OPEN:
+    "Dịch vụ AI đang tạm ngắt do lỗi liên tiếp, vui lòng thử lại sau.",
+  RAG_PROVIDER_INVALID_RESPONSE: "Dịch vụ AI trả về dữ liệu không hợp lệ.",
+  RAG_PROVIDER_RATE_LIMITED:
+    "Dịch vụ AI đang quá tải, vui lòng thử lại sau ít phút.",
+  RAG_PROVIDER_UNAVAILABLE: "Dịch vụ AI hiện không khả dụng.",
+  RAG_RATE_LIMIT_EXCEEDED:
+    "Bạn đã gửi quá nhiều yêu cầu tới trợ lý, vui lòng thử lại sau.",
+  RAG_STORAGE_CONFIG_UNAVAILABLE: "Chưa cấu hình kho lưu trữ tài liệu.",
+  RAG_STORAGE_INVALID_RESPONSE: "Kho lưu trữ tài liệu trả về dữ liệu không hợp lệ.",
+  RAG_STORAGE_UNAVAILABLE: "Kho lưu trữ tài liệu hiện không khả dụng.",
+
+  // Cấu hình runtime (màn Admin RAG config)
+  RUNTIME_CONFIG_HISTORY_NOT_FOUND: "Không tìm thấy lịch sử thay đổi cấu hình.",
+  RUNTIME_CONFIG_INVALID_VALUE: "Giá trị cấu hình không hợp lệ.",
+  RUNTIME_CONFIG_NOT_FOUND: "Không tìm thấy khóa cấu hình.",
+  RUNTIME_CONFIG_READONLY: "Khóa cấu hình này chỉ đọc, không thể chỉnh sửa.",
+
+  // Thông báo
+  NOTIFICATION_DEPENDENCY_UNAVAILABLE: "Dịch vụ thông báo hiện không khả dụng.",
+  NOTIFICATION_NOT_FOUND: "Không tìm thấy thông báo.",
+  NOTIFICATION_RECIPIENTS_NOT_FOUND:
+    "Không tìm thấy người nhận nào phù hợp cho thông báo này.",
 
   // Tuyến đường / điểm dừng / bến
   ALTERNATIVE_ROUTE_LIMIT_EXCEEDED: "Đã đạt số lượng tuyến thay thế tối đa.",
@@ -200,7 +258,11 @@ const vietnameseMessages: Record<string, string> = {
   SHUTTLE_PASSENGERS_INCOMPLETE: "Danh sách hành khách trung chuyển chưa đầy đủ.",
   SHUTTLE_PASSENGER_INVALID_STATE: "Trạng thái hành khách trung chuyển không hợp lệ.",
   SHUTTLE_PASSENGER_NOT_FOUND: "Không tìm thấy hành khách trung chuyển.",
+  SHUTTLE_MANIFEST_INCONSISTENT_STATUS:
+    "Trạng thái danh sách đón của chuyến trung chuyển đang không nhất quán.",
   SHUTTLE_PICKUP_LOCKED: "Điểm đón trung chuyển đã bị khoá, không thể đổi.",
+  SHUTTLE_PICKUP_NOT_FOUND: "Không tìm thấy điểm đón trung chuyển.",
+  SHUTTLE_PICKUP_NOT_PENDING: "Điểm đón này không còn ở trạng thái chờ đón.",
   SHUTTLE_REQUEST_CUTOFF_PASSED: "Đã quá thời hạn đặt xe trung chuyển.",
   SHUTTLE_REQUEST_NOT_CANCELLABLE: "Yêu cầu trung chuyển này không thể huỷ.",
   SHUTTLE_STATION_NOT_FOUND: "Không tìm thấy bến trung chuyển.",
@@ -234,7 +296,17 @@ const vietnameseMessages: Record<string, string> = {
 
   // Chuyến đi / theo dõi
   TRACKING_ACCESS_DENIED: "Bạn không có quyền theo dõi vị trí chuyến này.",
+  TRACKING_AUTH_UNAVAILABLE:
+    "Không xác thực được quyền theo dõi, vui lòng thử lại.",
+  TRACKING_CONTEXT_UNAVAILABLE: "Không lấy được dữ liệu theo dõi của chuyến.",
+  TRACKING_DEPENDENCY_UNAVAILABLE: "Dịch vụ theo dõi hành trình hiện không khả dụng.",
+  TRACKING_ROUTE_CONTEXT_UNAVAILABLE: "Không lấy được dữ liệu tuyến để theo dõi.",
+  TRACKING_SHARE_LINK_UNAVAILABLE: "Không tạo được link chia sẻ hành trình.",
+  TRACKING_SHARE_RATE_LIMIT_UNAVAILABLE:
+    "Không kiểm tra được giới hạn chia sẻ, vui lòng thử lại.",
+  TRACKING_SHARE_TOKEN_INVALID: "Link chia sẻ hành trình không hợp lệ hoặc đã hết hạn.",
   TRACKING_TRIP_NOT_ACTIVE: "Chuyến đi hiện không hoạt động để theo dõi.",
+  TRACKING_TRIP_UNAVAILABLE: "Không lấy được thông tin chuyến để theo dõi.",
   TRIP_ALREADY_TERMINAL: "Chuyến đi đã kết thúc.",
   TRIP_CARGO_CAPACITY_EXCEEDED: "Hàng hóa vượt quá sức chứa của chuyến.",
   TRIP_CARGO_TRANSFER_CONFLICT: "Việc chuyển hàng hóa giữa các chuyến bị xung đột.",
@@ -259,6 +331,9 @@ const vietnameseMessages: Record<string, string> = {
   TRIP_STOP_NOT_ARRIVED: "Xe chưa đến điểm dừng này.",
   TRIP_STOP_NOT_FOUND: "Không tìm thấy điểm dừng của chuyến.",
   TRIP_VEHICLE_CONFLICT: "Xe đã có lịch chạy bị trùng.",
+  // Precheck exact-time cũ của substitute-vehicle, tách khỏi engine interval
+  // (handoff API-driver-resource-availability mục 9.3).
+  TRIP_CREW_CONFLICT: "Tài xế hoặc phụ xe đã có lịch bị trùng.",
   TRIP_VEHICLE_SWAP_HELD_SEAT_CONFLICT: "Không thể đổi xe vì có ghế đang được giữ.",
   TRIP_VEHICLE_SWAP_TOO_LATE: "Đã quá thời hạn đổi xe cho chuyến này.",
 

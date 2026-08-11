@@ -4,6 +4,9 @@ import {
   activateAdminCampaign,
   activateOperatorDriverSchedule,
   approveRagDocument,
+  checkDriverScheduleAvailability,
+  checkShuttleTripAvailability,
+  updateOperatorDriverScheduleCrew,
   batchUpdateOperatorParcelRouteFares,
   chatWithRag,
   confirmOperatorParcelRefund,
@@ -49,7 +52,10 @@ import {
   getOperatorFleetLatest,
   getOperatorIncident,
   getOperatorIncidents,
+  getOperatorShuttleRequests,
   getOperatorShuttleTrips,
+  cancelOperatorShuttleRequest,
+  cancelOperatorShuttleTrip,
   getOperatorInvoice,
   getOperatorInvoices,
   getOperatorBooking,
@@ -128,6 +134,23 @@ import {
   upgradeOperatorSubscription,
   unlockAdminUser,
 } from "./vietride";
+
+function setOperatorAdminSession() {
+  localStorage.setItem(
+    "auth",
+    JSON.stringify({
+      accessToken: "operator-token",
+      refreshToken: "refresh-token",
+      expiresInSeconds: 3600,
+      user: {
+        id: "operator-1",
+        email: "ops@operator.vn",
+        displayName: "Operator Admin",
+        role: "OPERATOR_ADMIN",
+      },
+    }),
+  );
+}
 
 describe("vietride API", () => {
   beforeEach(() => {
@@ -660,7 +683,8 @@ describe("vietride API", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await getDriverMeSchedule({ page: 1, pageSize: 10 });
+    // Endpoint lọc theo khoảng ngày, không phân trang (handoff mục 10.1).
+    await getDriverMeSchedule({ from: "2026-08-11", to: "2026-08-25" });
     await updateOperatorRouteGeometry("route-1", {
       pathPolyline: "abc",
     });
@@ -677,7 +701,7 @@ describe("vietride API", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://api.vietride.online/v1/driver/me/schedule?page=1&pageSize=10",
+      "https://api.vietride.online/v1/driver/me/schedule?from=2026-08-11&to=2026-08-25",
       expect.objectContaining({ method: "GET" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -2926,6 +2950,108 @@ describe("UI gaps API contracts", () => {
     );
   });
 
+  it("reads pending shuttle requests as a full PagedResult", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getOperatorShuttleRequests({ page: 1, pageSize: 20 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/shuttle-requests?page=1&pageSize=20",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result.totalPages).toBe(0);
+    expect(result.hasNextPage).toBe(false);
+    expect(result.hasPreviousPage).toBe(false);
+  });
+
+  it("cancels a pending shuttle request with direction, reason and an idempotency key", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            shuttleTripId: "00000000-0000-0000-0000-000000000000",
+            status: "CANCELLED",
+            changedPassengerCount: 2,
+            transitionedAt: "2026-08-11T10:00:00+07:00",
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await cancelOperatorShuttleRequest(
+      "trip-1",
+      "booking-1",
+      "INBOUND_TO_STATION",
+      { reason: "Không còn đủ xe" },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/shuttle-requests/trip-1/booking-1/cancel?direction=INBOUND_TO_STATION",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Không còn đủ xe" }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("cancels a shuttle trip with a reason and an idempotency key", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            shuttleTripId: "shuttle-1",
+            status: "CANCELLED",
+            changedPassengerCount: 2,
+            transitionedAt: null,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await cancelOperatorShuttleTrip(
+      "shuttle-1",
+      { reason: "Điều phối nhầm xe" },
+      "cancel-shuttle-key",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/shuttle-trips/shuttle-1/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Điều phối nhầm xe" }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "cancel-shuttle-key",
+        }),
+      }),
+    );
+  });
+
   it("requests trip eta without stopId to auto-select the next stop", async () => {
     localStorage.setItem(
       "auth",
@@ -3027,6 +3153,144 @@ describe("UI gaps API contracts", () => {
           vehicleId: "vehicle-1",
           validUntil: null,
         }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  // Hai endpoint preview availability là read-only nên BE không nhận
+  // Idempotency-Key (handoff API-driver-resource-availability mục 7.2 và 8.2).
+  it.each([
+    [
+      "driver schedule",
+      () =>
+        checkDriverScheduleAvailability({
+          routeId: "route-1",
+          vehicleId: "vehicle-1",
+          driverUserId: "driver-1",
+          assistantUserId: null,
+          dayOfWeek: [1, 3, 5],
+          departureTime: "08:00:00",
+          validFrom: "2026-08-12",
+          validUntil: "2026-12-31",
+        }),
+      "https://api.vietride.online/v1/operator/driver-schedules/availability-check",
+    ],
+    [
+      "shuttle trip",
+      () =>
+        checkShuttleTripAvailability({
+          mainTripId: "trip-1",
+          direction: "INBOUND_TO_STATION",
+          driverUserId: "driver-1",
+          vehicleId: "vehicle-1",
+          scheduledDepartureTime: "2026-08-12T13:30:00+07:00",
+          scheduledEndTime: "2026-08-12T14:20:00+07:00",
+          orderedBookingIds: ["booking-1", "booking-2"],
+        }),
+      "https://api.vietride.online/v1/operator/shuttle-trips/availability-check",
+    ],
+  ])(
+    "previews %s availability without an idempotency key",
+    async (_label, call, expectedUrl) => {
+      setOperatorAdminSession();
+      const fetchMock = vi.fn(async () => {
+        return new Response(
+          JSON.stringify({
+            data: { available: true, turnaroundMinutes: 30, conflicts: [], hasMore: false },
+          }),
+          { status: 200 },
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const result = await call();
+
+      expect(result.available).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith(
+        expectedUrl,
+        expect.objectContaining({ method: "POST" }),
+      );
+      const [, requestInit] = fetchMock.mock.calls[0] as unknown as [
+        string,
+        { headers: Record<string, string> },
+      ];
+      expect(
+        Object.keys(requestInit.headers).some(
+          (header) => header.toLowerCase() === "idempotency-key",
+        ),
+      ).toBe(false);
+    },
+  );
+
+  // Preview trả HTTP 200 kể cả khi có conflict — không được coi 200 là hợp lệ.
+  it("returns conflicts on a 200 preview response", async () => {
+    setOperatorAdminSession();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              available: false,
+              turnaroundMinutes: 30,
+              conflicts: [
+                {
+                  resourceRole: "ASSISTANT",
+                  resourceId: "assistant-1",
+                  reason: "REPOSITION_REQUIRED",
+                  conflictingSourceType: "TRIP",
+                  conflictingSourceId: "trip-9",
+                  sampleRequestedStartAt: "2026-08-12T10:01:00+07:00",
+                  blockingUntil: "2026-08-12T12:30:00+07:00",
+                  earliestFeasibleStartAt: null,
+                  requiredTravelMinutes: 120,
+                  turnaroundMinutes: 30,
+                },
+              ],
+              hasMore: true,
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const result = await checkShuttleTripAvailability({
+      mainTripId: "trip-1",
+      direction: "OUTBOUND_FROM_STATION",
+      driverUserId: "driver-1",
+      vehicleId: "vehicle-1",
+      scheduledDepartureTime: "2026-08-12T13:30:00+07:00",
+      scheduledEndTime: "2026-08-12T14:20:00+07:00",
+      orderedBookingIds: ["booking-1"],
+    });
+
+    expect(result.available).toBe(false);
+    expect(result.hasMore).toBe(true);
+    expect(result.conflicts[0].resourceRole).toBe("ASSISTANT");
+    expect(result.conflicts[0].earliestFeasibleStartAt).toBeNull();
+  });
+
+  it("updates driver schedule crew through the alias endpoint", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ data: { id: "schedule-1" } }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await updateOperatorDriverScheduleCrew("schedule-1", {
+      driverUserId: "driver-2",
+      assistantUserId: null,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/driver-schedules/schedule-1/crew",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ driverUserId: "driver-2", assistantUserId: null }),
         headers: expect.objectContaining({
           "Idempotency-Key": expect.any(String),
         }),

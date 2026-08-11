@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -49,6 +49,30 @@ const location = {
   updatedAt: "2026-08-01T08:00:00Z",
 } satisfies AdminLocation;
 
+// Bản ghi cấp tỉnh để kiểm tra bộ lọc cấp hành chính có thật sự loại bớt hàng.
+const province = {
+  id: "location-2",
+  code: "02",
+  name: "Lào Cai",
+  type: "PROVINCE",
+  sortOrder: 2,
+  isActive: true,
+  createdAt: "2026-07-01T08:00:00Z",
+  updatedAt: "2026-08-01T08:00:00Z",
+} satisfies AdminLocation;
+
+function catalogue(items: AdminLocation[]) {
+  return {
+    items,
+    page: 1,
+    pageSize: 100,
+    totalItems: items.length,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  };
+}
+
 describe("Admin Locations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -85,6 +109,72 @@ describe("Admin Locations", () => {
     expect(within(dialog).getByText("locations.createdAt")).toBeInTheDocument();
     // Cấp hành chính giờ là thông tin bắt buộc của danh mục hai cấp
     expect(within(dialog).getByText(/^locations\.type$/)).toBeInTheDocument();
+  });
+
+  // "TP.TTTW" là viết tắt không tự giải thích được, nên phải có dấu "!" bấm ra
+  // nghĩa đầy đủ cho người dùng không biết.
+  it("giải thích viết tắt TP.TTTW qua dấu chấm than", async () => {
+    const user = userEvent.setup();
+    render(<AdminLocations />);
+
+    await screen.findByRole("button", { name: location.name }, { timeout: 5_000 });
+
+    const hint = screen.getAllByRole("button", {
+      name: "locations.whatIsThis",
+    })[0];
+    expect(hint).toHaveAttribute("aria-expanded", "false");
+    // Hover trên desktop: dùng title gốc của trình duyệt.
+    expect(hint).toHaveAttribute(
+      "title",
+      "locations.typeFullName.MUNICIPALITY",
+    );
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    await user.click(hint);
+
+    expect(hint).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "locations.typeFullName.MUNICIPALITY",
+    );
+
+    await user.click(hint);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  // BE `GET /v1/admin/locations` KHÔNG bind type/parentCode — gửi lên bị bỏ qua
+  // im lặng nên bộ lọc phải chạy phía client, nếu không nút bấm mà bảng không đổi.
+  it("lọc theo cấp hành chính ngay trên dữ liệu đã tải", async () => {
+    vi.mocked(getAdminLocations).mockResolvedValue(
+      catalogue([location, province]),
+    );
+    const user = userEvent.setup();
+    render(<AdminLocations />);
+
+    await screen.findByRole("button", { name: location.name }, { timeout: 5_000 });
+    expect(
+      screen.getByRole("button", { name: province.name }),
+    ).toBeInTheDocument();
+
+    const callsBeforeFilter = vi.mocked(getAdminLocations).mock.calls.length;
+    await user.click(
+      screen.getByRole("button", { name: /locations\.filterType/ }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: /locations\.types\.MUNICIPALITY/ }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: province.name }),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: location.name }),
+    ).toBeInTheDocument();
+    // Lọc client-side: không được gọi lại API (gọi lại cũng vô ích vì BE bỏ qua).
+    expect(vi.mocked(getAdminLocations).mock.calls).toHaveLength(
+      callsBeforeFilter,
+    );
   });
 
   it("tạo phường/xã kèm cấp hành chính và tỉnh trực thuộc", async () => {
@@ -137,31 +227,34 @@ describe("Admin Locations", () => {
     expect(deleteAdminLocation).not.toHaveBeenCalled();
   });
 
-  it("keeps pagination visible while only the table body is loading", async () => {
+  it("phân trang phía client không gọi lại API", async () => {
+    const many = Array.from({ length: 24 }, (_, index) => ({
+      ...province,
+      id: `location-${index}`,
+      code: String(index).padStart(2, "0"),
+      name: `Địa danh ${index}`,
+    }));
+    vi.mocked(getAdminLocations).mockResolvedValue(catalogue(many));
     const user = userEvent.setup();
-    vi.mocked(getAdminLocations)
-      .mockResolvedValueOnce({
-        items: [location],
-        page: 1,
-        pageSize: 12,
-        totalItems: 24,
-        totalPages: 2,
-        hasNextPage: true,
-        hasPreviousPage: false,
-      })
-      .mockImplementationOnce(() => new Promise<never>(() => undefined));
-
     render(<AdminLocations />);
-    await screen.findByRole("button", { name: location.name }, { timeout: 5_000 });
 
+    await screen.findByRole("button", { name: "Địa danh 0" }, { timeout: 5_000 });
+    // pageSize = 12 nên bản ghi thứ 13 phải nằm ở trang 2.
+    expect(
+      screen.queryByRole("button", { name: "Địa danh 12" }),
+    ).not.toBeInTheDocument();
+
+    const callsBeforePaging = vi.mocked(getAdminLocations).mock.calls.length;
     await user.click(screen.getByTestId("pagination"));
 
-    expect(screen.getByTestId("pagination")).toBeInTheDocument();
-    expect(screen.getByText("loading")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: location.name })).not.toBeInTheDocument();
-    expect(screen.getByRole("table").parentElement).toHaveAttribute(
-      "aria-busy",
-      "true",
+    expect(
+      await screen.findByRole("button", { name: "Địa danh 12" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Địa danh 0" }),
+    ).not.toBeInTheDocument();
+    expect(vi.mocked(getAdminLocations).mock.calls).toHaveLength(
+      callsBeforePaging,
     );
   });
 });

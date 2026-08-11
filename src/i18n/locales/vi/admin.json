@@ -256,6 +256,7 @@
     "fundingType": "Nguồn tài trợ",
     "formBasics": "Thông tin cơ bản",
     "discountRules": "Quy tắc giảm giá",
+    "usageRules": "Giới hạn sử dụng",
     "scopeRules": "Phạm vi áp dụng",
     "issuanceRules": "Phát hành và thời hạn",
     "vietrideFunded": "VietRide tài trợ",
@@ -269,6 +270,12 @@
     "operatorScopeHint": "Chọn toàn hệ thống hoặc giới hạn voucher cho một số nhà xe.",
     "operatorConsentHint": "Nếu nhà xe tài trợ, hệ thống sẽ tạo yêu cầu đồng ý cho các nhà xe trong phạm vi này.",
     "selectOperators": "Chọn nhà xe áp dụng",
+    "searchOperators": "Tìm nhà xe",
+    "searchOperatorsPlaceholder": "Tìm theo tên, email hoặc mã nhà xe...",
+    "searchOperatorsEmpty": "Không tìm thấy nhà xe phù hợp.",
+    "operatorSearchCount": "Hiển thị {{shown}}/{{total}} nhà xe",
+    "selectAllOperators": "Chọn tất cả",
+    "clearSelectedOperators": "Bỏ chọn đã chọn",
     "noOperatorsAvailable": "Chưa có nhà xe để chọn.",
     "editTitle": "Chỉnh sửa voucher",
     "createTitle": "Tạo voucher mới",
@@ -382,11 +389,19 @@
     "codeDigitsHint": "Mã gồm đúng {{count}} chữ số, giữ nguyên số 0 ở đầu.",
     "types": {
       "PROVINCE": "Tỉnh",
-      "MUNICIPALITY": "Thành phố trực thuộc TƯ",
+      "MUNICIPALITY": "TP.TTTW",
       "WARD": "Phường",
       "COMMUNE": "Xã",
       "SPECIAL_ZONE": "Đặc khu"
-    }
+    },
+    "typeFullName": {
+      "PROVINCE": "Tỉnh",
+      "MUNICIPALITY": "Thành phố trực thuộc trung ương",
+      "WARD": "Phường",
+      "COMMUNE": "Xã",
+      "SPECIAL_ZONE": "Đặc khu"
+    },
+    "whatIsThis": "Đây là gì?"
   },
   "stations": {
     "title": "Quản lý bến nền tảng",

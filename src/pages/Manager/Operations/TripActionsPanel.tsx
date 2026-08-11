@@ -372,16 +372,25 @@ export default function TripActionsPanel({
       )}
 
       {canMutate && (
-        <div className="mt-5 border-t border-gray-100 pt-5">
+        <details className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-slate-50/40">
+          <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3.5 text-sm font-semibold text-gray-900 marker:hidden select-none">
+            <span>{t("tripOperations.substitute")}</span>
+            <span className="mt-0.5 text-lg leading-none text-gray-400" aria-hidden="true">⌄</span>
+          </summary>
+          <div className="border-t border-gray-200 px-4 pb-4 pt-4">
+          <p className="mb-4 text-xs text-gray-500">
+            {t("tripOperations.scopeSubstitute")}
+          </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                {t("tripOperations.vehicle")}
+                {t("tripOperations.vehicle")}<span className="text-red-500" aria-hidden="true"> *</span>
               </span>
               <CustomSelect
                 value={newVehicleId}
                 onChange={(event) => setNewVehicleId(event.target.value)}
                 className={inputClass}
+                aria-label={t("tripOperations.vehicle")}
               >
                 <option value="">{t("tripOperations.selectVehicle")}</option>
                 {replacementVehicles.map((vehicle) => (
@@ -393,12 +402,13 @@ export default function TripActionsPanel({
             </label>
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                {t("tripOperations.driver")}
+                {t("tripOperations.driver")}<span className="text-red-500" aria-hidden="true"> *</span>
               </span>
               <CustomSelect
                 value={newDriverUserId}
                 onChange={(event) => setNewDriverUserId(event.target.value)}
                 className={inputClass}
+                aria-label={t("tripOperations.driver")}
               >
                 <option value="">{t("tripOperations.selectDriver")}</option>
                 {drivers.map((driver) => (
@@ -427,18 +437,20 @@ export default function TripActionsPanel({
             </label>
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                {t("tripOperations.reason")}
+                {t("tripOperations.reason")}<span className="text-red-500" aria-hidden="true"> *</span>
               </span>
               <input
+                aria-label={t("tripOperations.reason")}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
                 className={inputClass}
                 maxLength={500}
+                required
               />
             </label>
             <label className="sm:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                {t("tripOperations.recoveryDeparture")}
+                {t("tripOperations.recoveryDeparture")}<span className="text-red-500" aria-hidden="true"> *</span>
               </span>
               <CustomDateTimeInput
                 value={estimatedRecoveryDepartureAt}
@@ -491,16 +503,17 @@ export default function TripActionsPanel({
               {t("tripOperations.disrupt")}
             </button>
           </div>
-        </div>
+          </div>
+        </details>
       )}
 
       {canMutate && (
-        <div className="mt-5 border-t border-gray-100 pt-5">
+        <div className="mt-4 rounded-xl border border-vr-100 bg-vr-50/30 p-4">
           <button
             type="button"
             onClick={toggleChangeRoute}
             aria-expanded={isChangeRouteOpen}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            className="inline-flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
           >
             <FiGitBranch className="text-vr-700" />
             {t("tripOperations.changeRoute")}

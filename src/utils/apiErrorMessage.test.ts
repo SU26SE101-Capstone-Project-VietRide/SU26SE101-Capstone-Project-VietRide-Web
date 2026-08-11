@@ -38,6 +38,16 @@ describe("translateApiErrorMessage", () => {
     // Fallback code các service NestJS gắn theo status khi không có errorCode riêng
     ["NOT_FOUND", "Không tìm thấy dữ liệu yêu cầu."],
     ["SERVICE_UNAVAILABLE", "Dịch vụ hiện không khả dụng."],
+    // Rà soát 2026-08-11: các nhóm service NestJS (rag, notification,
+    // runtime-config, tracking) chưa từng có bản dịch nào.
+    ["RAG_PROVIDER_UNAVAILABLE", "Dịch vụ AI hiện không khả dụng."],
+    ["RAG_DOCUMENT_FILE_UNSUPPORTED", "Hệ thống không hỗ trợ loại file tài liệu này."],
+    ["RAG_CONVERSATION_NOT_FOUND", "Không tìm thấy cuộc hội thoại."],
+    ["RUNTIME_CONFIG_NOT_FOUND", "Không tìm thấy khóa cấu hình."],
+    ["NOTIFICATION_NOT_FOUND", "Không tìm thấy thông báo."],
+    ["TRACKING_SHARE_TOKEN_INVALID", "Link chia sẻ hành trình không hợp lệ hoặc đã hết hạn."],
+    ["INSUFFICIENT_ROLE", "Vai trò của bạn không đủ quyền cho thao tác này."],
+    ["INSUFFICIENT_FUNDS", "Số dư không đủ để thực hiện giao dịch."],
   ])(
     "translates %s to Vietnamese when language is vi",
     async (code, expected) => {

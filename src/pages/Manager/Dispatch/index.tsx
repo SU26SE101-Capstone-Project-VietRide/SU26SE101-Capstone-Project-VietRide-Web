@@ -11,6 +11,9 @@ import { FiClock, FiRefreshCw, FiTruck, FiUsers } from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
 import { createIdempotencyKey } from "../../../api/idempotency";
 import {
+  cancelOperatorShuttleRequest,
+  cancelOperatorShuttleTrip,
+  checkShuttleTripAvailability,
   createOperatorShuttleTrip,
   getOperatorShuttleRequests,
   getOperatorShuttleTrips,
@@ -22,16 +25,25 @@ import {
   type OperatorUser,
   type OperatorVehicle,
   type PagedResult,
+  type ResourceAvailabilityResult,
+  type ShuttleBookingGroup,
   type ShuttleDirection,
   type ShuttleRequestGroup,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
+import { formatDateTime } from "../../../utils/date";
+import {
+  conflictReasonKey,
+  parseResourceConflictError,
+  resourceRoleKey,
+} from "../../../utils/resourceConflict";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
 import AssignVehicleModal, {
   type AssignVehicleForm,
 } from "./AssignVehicleModal";
+import CancelShuttleModal from "./CancelShuttleModal";
 import RequestDetailModal from "./RequestDetailModal";
 import RequestTable from "./RequestTable";
 import ShuttleTrackingCard from "./ShuttleTrackingCard";
@@ -43,6 +55,7 @@ import {
   getSelectedPassengerCount,
   isInboundDirection,
   SHUTTLE_TRIP_ACTIVE_STATUSES,
+  shuttleRouteLabel,
   toDriverOption,
   toVehicleOption,
   type ShuttleDriver,
@@ -53,6 +66,18 @@ import {
 const REQUEST_PAGE_SIZE = 8;
 const RESOURCE_PAGE_SIZE = 50;
 const SHUTTLE_TRIP_PAGE_SIZE = 12;
+
+// Mục tiêu của hộp thoại huỷ: một yêu cầu chờ điều phối (theo
+// mainTripId + bookingId + direction) hoặc một chuyến trung chuyển đã tạo.
+type CancelTarget =
+  | {
+      kind: "request";
+      mainTripId: string;
+      bookingId: string;
+      direction: ShuttleDirection;
+      label: string;
+    }
+  | { kind: "trip"; shuttleTripId: string; label: string };
 
 const EMPTY_ASSIGN_FORM: AssignVehicleForm = {
   vehicleId: "",
@@ -86,6 +111,9 @@ export default function DispatchPanel() {
   const { t: tc } = useTranslation("common");
   const authUser = getAuthUser();
   const canDispatchShuttle = authUser?.role === "OPERATOR_ADMIN";
+  // Hai endpoint huỷ mở cho cả OPERATOR_STAFF, khác với tạo chuyến (chỉ ADMIN).
+  const canCancelShuttle =
+    authUser?.role === "OPERATOR_ADMIN" || authUser?.role === "OPERATOR_STAFF";
   const tRef = useRef(t);
 
   const [searchParams] = useSearchParams();
@@ -96,7 +124,14 @@ export default function DispatchPanel() {
 
   const [groups, setGroups] = useState<ShuttleRequestGroup[]>([]);
   const [page, setPage] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
+  // Metadata phân trang lấy nguyên từ PagedResult của BE — không tự tính
+  // Math.ceil(totalItems / pageSize) nữa.
+  const [pageMeta, setPageMeta] = useState({
+    totalItems: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -108,6 +143,17 @@ export default function DispatchPanel() {
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [resourceError, setResourceError] = useState("");
   const resourcesLoadingRef = useRef(false);
+
+  const [availability, setAvailability] =
+    useState<ResourceAvailabilityResult | null>(null);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+
+  const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelError, setCancelError] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+  const isCancellingRef = useRef(false);
+  const cancelKeyRef = useRef<string | null>(null);
 
   const [openAssignVehicle, setOpenAssignVehicle] = useState(false);
   const [openRequestDetail, setOpenRequestDetail] = useState(false);
@@ -162,17 +208,21 @@ export default function DispatchPanel() {
           return;
         }
 
-        const lastPage = Math.max(
-          1,
-          Math.ceil(result.totalItems / REQUEST_PAGE_SIZE),
-        );
+        // Huỷ bớt yêu cầu có thể làm trang cuối biến mất — lùi về trang cuối
+        // theo `totalPages` của BE thay vì hiển thị danh sách rỗng.
+        const lastPage = Math.max(1, result.totalPages);
         if (page > lastPage) {
           setPage(lastPage);
           return;
         }
 
         setGroups(result.items);
-        setTotalItems(result.totalItems);
+        setPageMeta({
+          totalItems: result.totalItems,
+          totalPages: result.totalPages,
+          hasNextPage: result.hasNextPage,
+          hasPreviousPage: result.hasPreviousPage,
+        });
       } catch (error) {
         if (!ignore) {
           setLoadError(
@@ -384,6 +434,7 @@ export default function DispatchPanel() {
       ...schedule,
     });
     idempotencyKeyRef.current = createIdempotencyKey();
+    setAvailability(null);
     setOpenAssignVehicle(true);
     void loadAssignmentResources();
   }
@@ -395,6 +446,7 @@ export default function DispatchPanel() {
 
     setOpenAssignVehicle(false);
     setAssignError("");
+    setAvailability(null);
     idempotencyKeyRef.current = null;
   }
 
@@ -521,6 +573,19 @@ export default function DispatchPanel() {
       return error instanceof Error ? error.message : t("dispatch.assignFailed");
     }
 
+    // Conflict tài nguyên: message chung không nói rõ vướng ở đâu, phải đọc
+    // error.fields để chỉ đúng tài xế/xe và lý do (handoff mục 6.2 và 11.6).
+    const conflict = parseResourceConflictError(error);
+    if (conflict) {
+      const detail = t(conflictReasonKey(conflict.reason));
+      const role = t(resourceRoleKey(conflict.resourceRole));
+      return conflict.blockingUntil
+        ? `${role}: ${detail} · ${t("resourceConflict.blockingUntil", {
+            time: formatDateTime(conflict.blockingUntil),
+          })}`
+        : `${role}: ${detail}`;
+    }
+
     const messages: Record<string, string> = {
       SHUTTLE_REQUEST_CUTOFF_PASSED: t("dispatch.cutoffPassed", {
         defaultValue: "Đã quá hạn điều phối.",
@@ -555,6 +620,52 @@ export default function DispatchPanel() {
     return (error.code && messages[error.code]) || error.message;
   }
 
+  // Preview và create phải gửi đúng cùng một draft, đặc biệt là thứ tự
+  // orderedBookingIds vì nó quyết định điểm đầu/cuối dùng để tính availability
+  // (handoff mục 8.2). Dựng payload ở một chỗ để hai luồng không lệch nhau.
+  function buildShuttleDraft(group: ShuttleRequestGroup) {
+    return {
+      mainTripId: group.mainTripId,
+      direction: group.direction,
+      vehicleId: assignForm.vehicleId,
+      driverUserId: assignForm.driverId,
+      scheduledDepartureTime: new Date(
+        assignForm.scheduledDepartureTime,
+      ).toISOString(),
+      scheduledEndTime: new Date(assignForm.scheduledEndTime).toISOString(),
+      orderedBookingIds: getOrderedSelectedBookingIds(
+        group,
+        assignForm.selectedBookingIds,
+      ),
+    };
+  }
+
+  async function handleCheckAvailability() {
+    if (!selectedGroup) {
+      return;
+    }
+
+    const validationError = getAssignmentValidationError();
+    if (validationError) {
+      setAssignError(validationError);
+      return;
+    }
+
+    setIsCheckingAvailability(true);
+    setAssignError("");
+    setAvailability(null);
+
+    try {
+      setAvailability(
+        await checkShuttleTripAvailability(buildShuttleDraft(selectedGroup)),
+      );
+    } catch (error) {
+      setAssignError(getSubmitError(error));
+    } finally {
+      setIsCheckingAvailability(false);
+    }
+  }
+
   async function handleAssignVehicle() {
     if (isSubmittingRef.current || !selectedGroup) {
       return;
@@ -584,16 +695,7 @@ export default function DispatchPanel() {
     try {
       const result = await createOperatorShuttleTrip(
         {
-          mainTripId: selectedGroup.mainTripId,
-          direction: selectedGroup.direction,
-          vehicleId: assignForm.vehicleId,
-          driverUserId: assignForm.driverId,
-          scheduledDepartureTime: new Date(
-            assignForm.scheduledDepartureTime,
-          ).toISOString(),
-          scheduledEndTime: new Date(
-            assignForm.scheduledEndTime,
-          ).toISOString(),
+          ...buildShuttleDraft(selectedGroup),
           orderedBookingIds,
           notes: assignForm.notes.trim() || undefined,
         },
@@ -623,6 +725,116 @@ export default function DispatchPanel() {
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
+    }
+  }
+
+  function openCancelRequest(
+    group: ShuttleRequestGroup,
+    booking: ShuttleBookingGroup,
+    passengerLabel: string,
+  ) {
+    if (!canCancelShuttle) {
+      return;
+    }
+
+    setCancelReason("");
+    setCancelError("");
+    cancelKeyRef.current = createIdempotencyKey();
+    setCancelTarget({
+      kind: "request",
+      mainTripId: group.mainTripId,
+      bookingId: booking.bookingId,
+      direction: group.direction,
+      label: `${passengerLabel} · ${shuttleRouteLabel(
+        group,
+        group.stationName,
+      )}`,
+    });
+  }
+
+  function openCancelTrip(trip: OperatorShuttleTripListItem) {
+    if (!canCancelShuttle) {
+      return;
+    }
+
+    setCancelReason("");
+    setCancelError("");
+    cancelKeyRef.current = createIdempotencyKey();
+    setCancelTarget({
+      kind: "trip",
+      shuttleTripId: trip.shuttleTripId,
+      label:
+        trip.vehicle.licensePlate.trim() || t("dispatch.unknownVehicle"),
+    });
+  }
+
+  function closeCancel() {
+    if (isCancellingRef.current) {
+      return;
+    }
+
+    setCancelTarget(null);
+    setCancelReason("");
+    setCancelError("");
+    cancelKeyRef.current = null;
+  }
+
+  async function handleConfirmCancel() {
+    if (!cancelTarget || isCancellingRef.current) {
+      return;
+    }
+
+    const reason = cancelReason.trim();
+    if (!reason) {
+      setCancelError(t("dispatch.cancelReasonRequired"));
+      return;
+    }
+
+    // Giữ nguyên key qua các lần bấm lại của cùng một hộp thoại để BE dedupe
+    // được khi request đầu tiên đã tới nhưng response bị mất.
+    const idempotencyKey = cancelKeyRef.current ?? createIdempotencyKey();
+    cancelKeyRef.current = idempotencyKey;
+    isCancellingRef.current = true;
+    setIsCancelling(true);
+    setCancelError("");
+
+    try {
+      if (cancelTarget.kind === "request") {
+        await cancelOperatorShuttleRequest(
+          cancelTarget.mainTripId,
+          cancelTarget.bookingId,
+          cancelTarget.direction,
+          { reason },
+          idempotencyKey,
+        );
+        setMessage(
+          t("dispatch.cancelRequestSuccess", { label: cancelTarget.label }),
+        );
+        setOpenRequestDetail(false);
+        setSelectedGroup(null);
+      } else {
+        await cancelOperatorShuttleTrip(
+          cancelTarget.shuttleTripId,
+          { reason },
+          idempotencyKey,
+        );
+        setMessage(
+          t("dispatch.cancelTripSuccess", { label: cancelTarget.label }),
+        );
+      }
+
+      setCancelTarget(null);
+      setCancelReason("");
+      cancelKeyRef.current = null;
+      // Điều độ viên khác hoặc safety job có thể đã đổi dữ liệu — tải lại cả
+      // hai danh sách thay vì tự sửa state ở client.
+      setRefreshVersion((current) => current + 1);
+      setShuttleTripsVersion((current) => current + 1);
+    } catch (error) {
+      setCancelError(getSubmitError(error));
+    } finally {
+      isCancellingRef.current = false;
+      setIsCancelling(false);
     }
   }
 
@@ -681,7 +893,7 @@ export default function DispatchPanel() {
           label={t("dispatch.pendingGroups", {
             defaultValue: "Nhóm yêu cầu đang chờ",
           })}
-          value={totalItems}
+          value={pageMeta.totalItems}
           icon={<FiClock size={20} />}
           iconClassName="bg-amber-50 text-amber-700"
         />
@@ -720,7 +932,10 @@ export default function DispatchPanel() {
         <Pagination
           page={page}
           pageSize={REQUEST_PAGE_SIZE}
-          totalItems={totalItems}
+          totalItems={pageMeta.totalItems}
+          totalPages={pageMeta.totalPages}
+          hasNextPage={pageMeta.hasNextPage}
+          hasPreviousPage={pageMeta.hasPreviousPage}
           onPageChange={setPage}
         />
       </section>
@@ -762,9 +977,11 @@ export default function DispatchPanel() {
               key={trip.shuttleTripId}
               trip={trip}
               tracking={trackingByTripId[trip.shuttleTripId]}
+              canCancelShuttle={canCancelShuttle}
               onRefresh={(shuttleTripId) =>
                 void refreshShuttleTracking(shuttleTripId)
               }
+              onCancel={openCancelTrip}
               directionLabel={directionLabel}
             />
           ))}
@@ -798,6 +1015,8 @@ export default function DispatchPanel() {
         form={assignForm}
         onFormChange={(nextForm) => {
           setAssignError("");
+          // Draft đổi thì kết quả preview cũ không còn đúng với payload sắp gửi.
+          setAvailability(null);
           setAssignForm(nextForm);
         }}
         onSubmit={() => void handleAssignVehicle()}
@@ -807,6 +1026,9 @@ export default function DispatchPanel() {
         submitError={assignError}
         isLoadingResources={isLoadingResources}
         isSubmitting={isSubmitting}
+        availability={availability}
+        isCheckingAvailability={isCheckingAvailability}
+        onCheckAvailability={() => void handleCheckAvailability()}
       />
 
       <RequestDetailModal
@@ -814,6 +1036,7 @@ export default function DispatchPanel() {
         onClose={() => setOpenRequestDetail(false)}
         group={selectedGroup}
         canDispatchShuttle={canDispatchShuttle}
+        canCancelShuttle={canCancelShuttle}
         onAssign={() => {
           if (!selectedGroup) {
             return;
@@ -823,7 +1046,39 @@ export default function DispatchPanel() {
           setOpenRequestDetail(false);
           openAssign(group);
         }}
+        onCancelBooking={(booking, passengerLabel) => {
+          if (!selectedGroup) {
+            return;
+          }
+
+          openCancelRequest(selectedGroup, booking, passengerLabel);
+        }}
         directionLabel={directionLabel}
+      />
+
+      <CancelShuttleModal
+        open={cancelTarget !== null}
+        title={
+          cancelTarget?.kind === "trip"
+            ? t("dispatch.cancelShuttleTrip")
+            : t("dispatch.cancelRequest")
+        }
+        message={
+          cancelTarget?.kind === "trip"
+            ? t("dispatch.cancelTripConfirm", { label: cancelTarget.label })
+            : t("dispatch.cancelRequestConfirm", {
+                label: cancelTarget?.label ?? "",
+              })
+        }
+        reason={cancelReason}
+        error={cancelError}
+        busy={isCancelling}
+        onReasonChange={(reason) => {
+          setCancelError("");
+          setCancelReason(reason);
+        }}
+        onClose={closeCancel}
+        onConfirm={() => void handleConfirmCancel()}
       />
     </div>
   );

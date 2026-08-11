@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import type { Translate } from "./walletTableShared";
 
@@ -63,9 +64,21 @@ export function WalletFilters({
         </CustomSelect>
       )}
       <div className="flex items-center gap-2">
-        <input type="date" value={dateFrom} onChange={(event) => onDateFromChange(event.target.value)} className={inputClass} aria-label={t("wallet.dateFrom")} />
+        <CustomDateTimeInput
+          type="date"
+          value={dateFrom}
+          onChange={(event) => onDateFromChange(event.target.value)}
+          className={inputClass}
+          placeholder={t("wallet.dateFrom")}
+        />
         <span className="text-sm text-gray-400">-</span>
-        <input type="date" value={dateTo} onChange={(event) => onDateToChange(event.target.value)} className={inputClass} aria-label={t("wallet.dateTo")} />
+        <CustomDateTimeInput
+          type="date"
+          value={dateTo}
+          onChange={(event) => onDateToChange(event.target.value)}
+          className={inputClass}
+          placeholder={t("wallet.dateTo")}
+        />
       </div>
     </div>
   );

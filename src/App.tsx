@@ -53,6 +53,9 @@ const TripSharingPage = lazy(() => import("./pages/TripSharing/index"));
 const ManagerDashboard = lazy(() => import("./pages/Manager/Dashboard"));
 const AdminDashboard = lazy(() => import("./pages/Admin/Dashboard"));
 const PrivateRoute = lazy(() => import("./components/PrivateRoute"));
+const SubscriptionFeatureRoute = lazy(
+  () => import("./components/SubscriptionFeatureRoute"),
+);
 export default function App() {
   const { t } = useTranslation("common");
 
@@ -118,17 +121,29 @@ export default function App() {
                   element={<Navigate to="/manager/vehicles" replace />}
                 />
                 <Route path="bookings" element={<BookingsList />} />
-                <Route path="parcels" element={<ParcelsList />} />
+                <Route
+                  element={
+                    <SubscriptionFeatureRoute module="enableParcel" />
+                  }
+                >
+                  <Route path="parcels" element={<ParcelsList />} />
+                </Route>
                 <Route path="operations" element={<OperationsCenter />} />
                 <Route
                   path="gps"
                   element={<Navigate to="/manager/operations" replace />}
                 />
                 <Route
-                  path="shuttle-tracking"
-                  element={<Navigate to="/manager/dispatch" replace />}
-                />
-                <Route path="dispatch" element={<DispatchPanel />} />
+                  element={
+                    <SubscriptionFeatureRoute module="enableShuttle" />
+                  }
+                >
+                  <Route
+                    path="shuttle-tracking"
+                    element={<Navigate to="/manager/dispatch" replace />}
+                  />
+                  <Route path="dispatch" element={<DispatchPanel />} />
+                </Route>
                 <Route path="incidents" element={<ManagerIncidents />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="vouchers" element={<ManagerVouchers />} />
@@ -137,7 +152,11 @@ export default function App() {
                   path="reports"
                   element={<Navigate to="/manager/dashboard" replace />}
                 />
-                <Route path="assistant" element={<RagAssistant />} />
+                <Route
+                  element={<SubscriptionFeatureRoute module="enableRag" />}
+                >
+                  <Route path="assistant" element={<RagAssistant />} />
+                </Route>
                 <Route
                   element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}
                 >
@@ -172,7 +191,11 @@ export default function App() {
                     element={<Navigate to="/manager/vehicles" replace />}
                   />
                   <Route path="packages" element={<ManagerPackages />} />
-                  <Route path="policies" element={<ManagerPolicies />} />
+                  <Route
+                    element={<SubscriptionFeatureRoute module="enableRag" />}
+                  >
+                    <Route path="policies" element={<ManagerPolicies />} />
+                  </Route>
                   <Route path="settings" element={<ManagerSettings />} />
                 </Route>
               </Route>

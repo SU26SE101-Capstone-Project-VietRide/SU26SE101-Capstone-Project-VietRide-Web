@@ -5,6 +5,14 @@ type PaginationProps = {
   pageSize: number;
   totalItems: number;
   onPageChange: (page: number) => void;
+  /**
+   * Metadata phân trang lấy thẳng từ `PagedResult` của BE. Truyền vào thì
+   * component dùng nguyên số trang và hai cờ điều hướng của server; bỏ trống
+   * thì vẫn suy ra từ `totalItems`/`pageSize` như trước.
+   */
+  totalPages?: number;
+  hasNextPage?: boolean;
+  hasPreviousPage?: boolean;
 };
 
 function getVisiblePages(currentPage: number, totalPages: number) {
@@ -28,10 +36,19 @@ export default function Pagination({
   pageSize,
   totalItems,
   onPageChange,
+  totalPages: serverTotalPages,
+  hasNextPage,
+  hasPreviousPage,
 }: PaginationProps) {
   const { t } = useTranslation("common");
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  // BE trả `totalPages = 0` khi rỗng; UI vẫn cần một trang để hiển thị.
+  const totalPages = Math.max(
+    1,
+    serverTotalPages ?? Math.ceil(totalItems / pageSize),
+  );
   const currentPage = Math.min(Math.max(page, 1), totalPages);
+  const canGoPrevious = hasPreviousPage ?? currentPage > 1;
+  const canGoNext = hasNextPage ?? currentPage < totalPages;
   const from = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const to = Math.min(currentPage * pageSize, totalItems);
   const visiblePages = getVisiblePages(currentPage, totalPages);
@@ -48,7 +65,7 @@ export default function Pagination({
       <div className="flex flex-wrap gap-1">
         <button
           type="button"
-          disabled={currentPage === 1}
+          disabled={!canGoPrevious}
           onClick={() => goToPage(currentPage - 1)}
           className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -71,7 +88,7 @@ export default function Pagination({
         ))}
         <button
           type="button"
-          disabled={currentPage === totalPages}
+          disabled={!canGoNext}
           onClick={() => goToPage(currentPage + 1)}
           className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
