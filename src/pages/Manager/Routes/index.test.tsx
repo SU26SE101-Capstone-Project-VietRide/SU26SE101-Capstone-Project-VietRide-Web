@@ -2683,12 +2683,15 @@ describe("Manager route setup workflow", () => {
     await screen.findByTestId("route-stop-row-stop-far-away");
 
     // Chấm gợi ý cho stop vừa gắn không còn hiện lại trên bản đồ (không phải
-    // thành viên "ma" của suggestions nữa)
-    expect(
-      screen.queryByTestId(
-        "map-pointmarker-suggest-operatorStop-stop-far-away",
-      ),
-    ).not.toBeInTheDocument();
+    // thành viên "ma" của suggestions nữa). Chờ render kế tiếp vì state
+    // draft và state popup được cập nhật trong hai lượt render liên tiếp.
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId(
+          "map-pointmarker-suggest-operatorStop-stop-far-away",
+        ),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   // Phụ lục spec 2026-08-07: tab "Tuyến thay thế" chuyển map-first — form nhập

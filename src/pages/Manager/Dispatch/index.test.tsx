@@ -187,7 +187,11 @@ describe("Manager Dispatch", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await waitFor(() => expect(getOperatorShuttleTrips).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "dispatch.cancelShuttleTrip" }),
+      ).toBeInTheDocument(),
+    );
     await user.click(
       screen.getByRole("button", { name: "dispatch.cancelShuttleTrip" }),
     );
