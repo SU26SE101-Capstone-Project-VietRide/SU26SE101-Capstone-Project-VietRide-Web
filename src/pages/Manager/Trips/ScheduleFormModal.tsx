@@ -64,6 +64,7 @@ export default function ScheduleFormModal({
   onSave,
 }: ScheduleFormModalProps) {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const selectedRoute = routes.find((route) => route.id === form.routeId);
   const baseFareChanged =
     Boolean(editingSchedule) &&
@@ -178,6 +179,11 @@ export default function ScheduleFormModal({
               label={t("trips.route")}
               required
               value={form.routeId}
+              searchable
+              searchPlaceholder={tc("searchOptions", {
+                label: t("trips.route"),
+              })}
+              emptyMessage={tc("noMatchingOptions")}
               onChange={(value) => onFieldChange("routeId", value)}
             >
               {routes.map((route) => (

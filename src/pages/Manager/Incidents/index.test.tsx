@@ -150,6 +150,28 @@ describe("Manager Incidents", () => {
     ).not.toBeInTheDocument();
   });
 
+
+  it("mở chi tiết an toàn khi BE trả photoUrls null", async () => {
+    const incidentWithoutPhotos: OperatorIncident = {
+      ...incident,
+      photoUrls: null,
+    };
+    vi.mocked(getOperatorIncidents).mockResolvedValue(
+      pageOf([incidentWithoutPhotos]),
+    );
+    vi.mocked(getOperatorIncident).mockResolvedValue(incidentWithoutPhotos);
+
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Xe gặp sự cố động cơ")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("img")).not.toBeInTheDocument();
+  });
+
   it("báo lỗi khi tải danh sách thất bại", async () => {
     vi.mocked(getOperatorIncidents).mockRejectedValue(
       new Error("Không có quyền"),

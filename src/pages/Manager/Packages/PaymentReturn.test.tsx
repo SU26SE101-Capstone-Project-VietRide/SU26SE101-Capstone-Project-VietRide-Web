@@ -77,10 +77,30 @@ const subscription: OperatorSubscriptionDetail = {
   pendingUpgrade: null,
 };
 
+function signIn() {
+  localStorage.setItem(
+    "auth",
+    JSON.stringify({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      expiresInSeconds: 3600,
+      user: {
+        id: "user-1",
+        email: "manager@vietride.test",
+        displayName: "Manager",
+        phone: "0900000000",
+        role: "OPERATOR_ADMIN",
+      },
+    }),
+  );
+}
+
 describe("SubscriptionPaymentReturn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
+    localStorage.clear();
+    signIn();
     vi.mocked(getOperatorSubscription).mockResolvedValue(subscription);
     vi.mocked(getVnPayReturnStatus).mockResolvedValue({
       vnPayTxnRef: "VR-SUBSCRIPTION-001",
@@ -93,6 +113,7 @@ describe("SubscriptionPaymentReturn", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    localStorage.clear();
   });
 
   it("verifies a successful VNPay return with the backend", async () => {
@@ -223,6 +244,64 @@ describe("SubscriptionPaymentReturn", () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(screen.getByText("packages-page")).toBeInTheDocument();
+  });
+
+  // Kịch bản người dùng gặp thật: quay về từ VNPay mà phiên đã mất. Trang phải
+  // vẫn kết luận được bằng endpoint public, KHÔNG được đá về /login.
+  it("still reports the result when the session is gone on return", async () => {
+    localStorage.clear();
+    vi.mocked(getVnPayReturnStatus).mockResolvedValue({
+      vnPayTxnRef: "VR-SUBSCRIPTION-001",
+      paymentId: "payment-1",
+      referenceType: "SUBSCRIPTION",
+      referenceId: "subscription-1",
+      status: "SUCCEEDED",
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=00&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText("paymentReturn.successTitle"),
+    ).toBeInTheDocument();
+    expect(getOperatorSubscription).not.toHaveBeenCalled();
+    expect(screen.getByText("paymentReturn.signedOutNote")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "paymentReturn.signInToContinue" }),
+    ).toHaveAttribute("href", "/login");
+  });
+
+  it("falls back to the public status endpoint when the session expires mid-check", async () => {
+    vi.mocked(getOperatorSubscription).mockRejectedValue(
+      new ApiRequestError("Unauthorized", 401, "UNAUTHORIZED"),
+    );
+    vi.mocked(getVnPayReturnStatus).mockResolvedValue({
+      vnPayTxnRef: "VR-SUBSCRIPTION-001",
+      paymentId: "payment-1",
+      referenceType: "SUBSCRIPTION",
+      referenceId: "subscription-1",
+      status: "SUCCEEDED",
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=00&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText("paymentReturn.successTitle"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("paymentReturn.errorTitle"),
+    ).not.toBeInTheDocument();
   });
 
   it("waits until the paid target plan is active before reporting success", async () => {

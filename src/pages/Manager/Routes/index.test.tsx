@@ -1056,6 +1056,57 @@ describe("Manager route setup workflow", () => {
     );
   });
 
+  it("searches route selectors in the sidebar and route form", async () => {
+    const routeB: OperatorRoute = {
+      ...routeA,
+      id: "route-2",
+      name: "Tuyến B",
+    };
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA, routeB],
+      totalItems: 2,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockImplementation(async (routeId) =>
+      routeId === routeB.id ? routeB : routeA,
+    );
+
+    renderRoutesPage();
+    await waitForLoaded();
+    await screen.findByDisplayValue("Tuyến A");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.routeListTitle" }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "routes.searchRoutePlaceholder",
+      }),
+      { target: { value: "tuyen b" } },
+    );
+    expect(
+      screen.queryByRole("option", { name: /Tuyến A/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: /Tuyến B/ }));
+
+    await waitFor(() => expect(getOperatorRoute).toHaveBeenCalledWith(routeB.id));
+    await screen.findByDisplayValue("Tuyến B");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "routes.returnRouteId" }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "searchOptions" }),
+      { target: { value: "tuyen a" } },
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Tuyến A" }));
+
+    expect(
+      screen.getByRole("button", { name: "routes.returnRouteId" }),
+    ).toHaveTextContent("Tuyến A");
+  });
+
   it("ignores a stale route detail response when another route was selected meanwhile", async () => {
     const routeB: OperatorRoute = {
       ...routeA,
@@ -1179,6 +1230,10 @@ describe("Manager route setup workflow", () => {
     );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "routes.returnRouteId" }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "searchOptions" }),
+      { target: { value: "tuyen a" } },
     );
     fireEvent.click(screen.getByRole("option", { name: "Tuyến A" }));
 

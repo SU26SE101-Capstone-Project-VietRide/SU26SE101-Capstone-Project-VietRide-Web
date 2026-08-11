@@ -5,6 +5,7 @@ import "./App.css";
 import { lazy, Suspense } from "react";
 
 import ToastProvider from "./components/toast/ToastProvider";
+import EntryRedirect from "./components/EntryRedirect";
 
 const ManagerLayout = lazy(() => import("./layouts/ManagerLayout"));
 const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
@@ -81,13 +82,21 @@ export default function App() {
             {/* Passenger trip-share invite (BE shareUrl path). Token only in #hash. */}
             <Route path="/trip-sharing" element={<TripSharingPage />} />
 
-            {/* VNPay redirects the operator's browser to this result page. */}
-            <Route element={<PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />}>
-              <Route
-                path="/payments/return"
-                element={<SubscriptionPaymentReturn />}
-              />
-            </Route>
+            {/*
+              VNPay redirects the operator's browser to this result page.
+              Route PUBLIC có chủ đích: người dùng quay lại sau vài phút ở cổng
+              VNPay, phiên có thể đã hết/không còn trong localStorage (đổi
+              trình duyệt, mở từ app ngân hàng, refresh token bị revoke...).
+              Nếu bọc PrivateRoute thì họ bị đá về /login và MẤT LUÔN query
+              `vnp_*` — không còn cách nào xem lại kết quả giao dịch.
+              Endpoint xác minh `/v1/payments/vnpay-return-status` là
+              [AllowAnonymous], chính chữ ký VNPay trong query xác thực request,
+              nên trang này không cần token để kết luận.
+            */}
+            <Route
+              path="/payments/return"
+              element={<SubscriptionPaymentReturn />}
+            />
 
             {/* Manager routes */}
             <Route
@@ -203,8 +212,8 @@ export default function App() {
             </Route>
 
             {/* Redirects */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<EntryRedirect />} />
+            <Route path="*" element={<EntryRedirect />} />
           </Routes>
         </ToastProvider>
       </Suspense>
