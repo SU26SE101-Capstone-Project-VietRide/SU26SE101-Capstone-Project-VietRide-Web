@@ -1,9 +1,19 @@
-// Chi tiết một sự cố. Chỉ đọc: BE chưa có API resolve nên màn không được dựng
-// nút "Đã xử lý" — `status`/`resolvedAt`/`resolutionNote` là read model.
+// Chi tiết một sự cố. `OPERATOR_ADMIN` đóng được sự cố ngay tại đây; các vai trò
+// còn lại chỉ đọc vì BE trả 403 FORBIDDEN cho `PATCH .../resolve`.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiAlertTriangle, FiExternalLink, FiMapPin } from "react-icons/fi";
+import {
+  FiAlertTriangle,
+  FiCheckCircle,
+  FiExternalLink,
+  FiMapPin,
+} from "react-icons/fi";
 import { Link } from "react-router-dom";
-import type { OperatorIncident } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
+import {
+  resolveOperatorIncident,
+  type OperatorIncident,
+} from "../../../api/vietride";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
 import { formatDateTime } from "../../../utils/date";
@@ -11,20 +21,128 @@ import {
   badgeClassFor,
   categoryBadgeClass,
   incidentMapUrl,
+  inputClass,
   reporterLabel,
   statusBadgeClass,
 } from "./incidentHelpers";
+
+/** Giới hạn của BE sau khi trim; chặn sớm để khỏi ăn 422 VALIDATION_ERROR */
+const RESOLUTION_NOTE_MAX_LENGTH = 1000;
+
+type ResolveFormProps = {
+  incident: OperatorIncident;
+  onResolved: (incident: OperatorIncident) => void;
+  onAlreadyResolved: (incidentId: string) => void;
+};
+
+/**
+ * Form đóng sự cố. Được mount lại theo `key={incidentId}` ở component cha nên
+ * ghi chú đang gõ dở của sự cố trước tự mất, không cần effect reset state.
+ */
+function IncidentResolveForm({
+  incident,
+  onResolved,
+  onAlreadyResolved,
+}: ResolveFormProps) {
+  const { t } = useTranslation("manager");
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [isResolving, setIsResolving] = useState(false);
+  const [resolveError, setResolveError] = useState("");
+
+  async function handleResolve() {
+    if (isResolving) return;
+
+    const note = resolutionNote.trim();
+    if (!note) {
+      setResolveError(t("incidents.resolveNoteRequired"));
+      return;
+    }
+    if (note.length > RESOLUTION_NOTE_MAX_LENGTH) {
+      setResolveError(t("incidents.resolveNoteTooLong"));
+      return;
+    }
+
+    setIsResolving(true);
+    setResolveError("");
+    try {
+      const updated = await resolveOperatorIncident(incident.incidentId, {
+        resolutionNote: note,
+      });
+      onResolved(updated);
+      setResolutionNote("");
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError &&
+        error.code === "INCIDENT_ALREADY_RESOLVED"
+      ) {
+        // Bản ghi vừa được admin khác đóng: cha tải lại chi tiết nên form này
+        // sẽ biến mất, thông báo hiển thị qua toast của màn.
+        setResolveError(t("incidents.resolveAlreadyResolved"));
+        onAlreadyResolved(incident.incidentId);
+        return;
+      }
+      setResolveError(
+        error instanceof Error ? error.message : t("incidents.resolveFailed"),
+      );
+    } finally {
+      setIsResolving(false);
+    }
+  }
+
+  return (
+    <section className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+      <h3 className="text-sm font-bold text-gray-900">
+        {t("incidents.resolveTitle")}
+      </h3>
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium text-gray-600">
+          {t("incidents.resolveNoteLabel")}
+        </span>
+        <textarea
+          className={`${inputClass} min-h-24`}
+          value={resolutionNote}
+          maxLength={RESOLUTION_NOTE_MAX_LENGTH}
+          placeholder={t("incidents.resolveNotePlaceholder")}
+          onChange={(event) => setResolutionNote(event.target.value)}
+        />
+      </label>
+      {resolveError && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {resolveError}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => void handleResolve()}
+        disabled={isResolving}
+        className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <FiCheckCircle aria-hidden="true" />
+        {isResolving ? t("incidents.resolving") : t("incidents.resolveAction")}
+      </button>
+    </section>
+  );
+}
 
 type IncidentDetailModalProps = {
   incident: OperatorIncident | null;
   isLoading: boolean;
   onClose: () => void;
+  /** Chỉ `OPERATOR_ADMIN`; Staff thấy chú thích thay cho form */
+  canResolve: boolean;
+  /** Bản ghi BE trả sau khi đóng — dùng thay cho việc tự gán RESOLVED ở client */
+  onResolved: (incident: OperatorIncident) => void;
+  /** 409 INCIDENT_ALREADY_RESOLVED: admin khác vừa xử lý, phải tải lại */
+  onAlreadyResolved: (incidentId: string) => void;
 };
 
 export default function IncidentDetailModal({
   incident,
   isLoading,
   onClose,
+  canResolve,
+  onResolved,
+  onAlreadyResolved,
 }: IncidentDetailModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -173,7 +291,7 @@ export default function IncidentDetailModal({
               </section>
             )}
 
-            {incident.status === "RESOLVED" && (
+            {incident.status === "RESOLVED" ? (
               <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm">
                 <p className="font-semibold text-emerald-900">
                   {t("incidents.resolvedAt", {
@@ -186,6 +304,17 @@ export default function IncidentDetailModal({
                   </p>
                 )}
               </div>
+            ) : canResolve ? (
+              <IncidentResolveForm
+                key={incident.incidentId}
+                incident={incident}
+                onResolved={onResolved}
+                onAlreadyResolved={onAlreadyResolved}
+              />
+            ) : (
+              <p className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                {t("incidents.resolveStaffHint")}
+              </p>
             )}
 
             <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">

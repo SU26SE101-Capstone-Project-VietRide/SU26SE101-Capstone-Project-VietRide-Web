@@ -25,6 +25,15 @@ Nguồn đã đối chiếu:
 13. `API-Trip.md`
 14. `API-Voucher.md`
 
+Bổ sung ngày 2026-08-12 (BE phát hành lại theo source cùng ngày):
+
+15. `API-Parcel-2026-08-12.md` — bản audit mới, thay thế `API-Parcel.md` khi hai
+    bên mâu thuẫn. Giữ bản cũ vì nó còn phần mô tả service/internal chưa được
+    chép lại.
+16. `API-ETA-Tracking.md` — thay thế `API-Tracking.md` cho phần REST ETA và
+    Socket.IO.
+17. `API-Incident.md` — spec Incident đầu tiên có `PATCH .../resolve`.
+
 ## Coverage theo role
 
 | Nhóm API | SYSTEM_ADMIN | OPERATOR_ADMIN | OPERATOR_STAFF | UI chính |
@@ -56,6 +65,28 @@ Nguồn đã đối chiếu:
 - Thêm tạo/sửa parcel route fare cho `OPERATOR_ADMIN`.
 - Thêm trip cargo capacity cho cả hai operator role; thêm thay xe và disrupt cho `OPERATOR_ADMIN`.
 - Bổ sung `Idempotency-Key` bắt buộc cho trip substitute/disrupt.
+
+## Đợt rà soát 2026-08-12 — 3 spec BE mới
+
+Đối chiếu `API-Parcel-2026-08-12.md`, `API-ETA-Tracking.md`, `API-Incident.md`
+với `src/api/vietride.ts`. Khoảng trống đã đóng trong đợt này:
+
+- `PATCH /v1/operator/incidents/{incidentId}/resolve` — endpoint mới hoàn toàn.
+  Trước đợt này màn Sự cố là read-only vì BE chưa có API đóng sự cố.
+- `GET /v1/operator/parcels/{parcelId}` — trước đây màn Bưu kiện lấy chi tiết
+  bằng endpoint passenger `/v1/parcels/{parcelId}`, thiếu `statusHistory` và các
+  field audit transfer/return/review.
+- `POST /v1/operator/parcels/{parcelId}/resend-delivery-email`.
+- `GET /v1/tracking/trips/{tripId}/eta` — bổ sung hai mode `targetKind=STOP`
+  và `targetKind=STATION` bên cạnh mode legacy `stopId`.
+- `GET /v1/stations/search` — bổ sung `locationScopeCode`.
+
+Cố ý không nối:
+
+- `POST /v1/operator/parcels/{parcelId}/manual-confirm` là alias cùng command với
+  `confirm-delivery` đã có; nối thêm chỉ tạo hai đường gọi cho một hành vi.
+- `POST /v1/driver/trips/{tripId}/incident`, delivery-token flow, share-link và
+  `/shared` namespace: contract xác định actor là Mobile Driver/Passenger.
 
 ## Endpoint không gắn vào ba dashboard role
 

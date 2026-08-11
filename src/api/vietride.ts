@@ -788,6 +788,12 @@ export type StationSearchParams = {
   city?: string;
   ward?: string;
   locationId?: string;
+  /**
+   * Mã hành chính đúng 2 chữ số (root: lấy cả station gắn thẳng root lẫn station
+   * thuộc leaf active) hoặc đúng 5 chữ số (leaf chính xác). Không được gửi kèm
+   * `locationId`; mã không tồn tại/đã tắt/sai độ dài đều là `422 VALIDATION_ERROR`.
+   */
+  locationScopeCode?: string;
 };
 
 export type AdminStationParams = PageParams & {
@@ -1453,6 +1459,78 @@ export type ParcelDetail = {
       licensePlate?: string | null;
     } | null;
   } | null;
+};
+
+/**
+ * Một dòng `statusHistory` của operator parcel detail. Thứ tự BE trả là
+ * `occurredAt` tăng dần, rồi tới id trong DB — giữ nguyên, không sort lại.
+ */
+export type OperatorParcelStatusHistoryItem = {
+  status: string;
+  occurredAt: string;
+  actorType: string;
+  actorId?: string | null;
+  source: string;
+  reason?: string | null;
+};
+
+/**
+ * `GET /v1/operator/parcels/{parcelId}` — chi tiết đã scope theo tenant trong
+ * JWT, là superset của `ParcelDetail` (endpoint passenger `/v1/parcels/{id}`):
+ * thêm `statusHistory`, ảnh bằng chứng của crew và các mốc audit
+ * review/transfer/return.
+ */
+export type OperatorParcelDetail = ParcelDetail & {
+  senderEmail?: string | null;
+  recipientEmail?: string | null;
+  checkInPhotoUrls?: string[] | null;
+  deliveryPhotoUrls?: string[] | null;
+  estimatedLengthCm?: number | null;
+  estimatedWidthCm?: number | null;
+  estimatedHeightCm?: number | null;
+  actualLengthCm?: number | null;
+  actualWidthCm?: number | null;
+  actualHeightCm?: number | null;
+  estimatedDimWeightKg?: number | null;
+  actualDimWeightKg?: number | null;
+  estimatedGrossPriceVnd?: number | null;
+  finalGrossPriceVnd?: number | null;
+  discountAmountVnd?: number | null;
+  depositPercent?: number | null;
+  depositPaymentId?: string | null;
+  balancePaymentId?: string | null;
+  pricePerKgVnd?: number | null;
+  minimumPriceVnd?: number | null;
+  dimWeightFactor?: number | null;
+  settlementPolicyVersion?: number | null;
+  checkedInAt?: string | null;
+  checkedInByUserId?: string | null;
+  reweighedAt?: string | null;
+  reweighedByUserId?: string | null;
+  loadedByUserId?: string | null;
+  confirmedByUserId?: string | null;
+  /** Trạng thái sẽ quay lại sau khi operator xử lý xong pending action */
+  pendingActionResumeStatus?: string | null;
+  rejectionReason?: string | null;
+  cancellationReason?: string | null;
+  reviewDecision?: string | null;
+  reviewedAt?: string | null;
+  reviewedByUserId?: string | null;
+  transferTargetTripId?: string | null;
+  transferRequestedAt?: string | null;
+  transferConfirmedAt?: string | null;
+  transferConfirmedByUserId?: string | null;
+  returnReason?: string | null;
+  returnedAt?: string | null;
+  returnedByUserId?: string | null;
+  statusHistory?: OperatorParcelStatusHistoryItem[] | null;
+};
+
+export type ParcelResendDeliveryEmailResult = {
+  parcelId: string;
+  status: string;
+  /** Hạn của link xác nhận vừa phát lại */
+  expiresAt: string;
 };
 
 export type ParcelDeliveryTokenRequest = {
@@ -2141,6 +2219,11 @@ export type OperatorIncident = {
     displayName: string | null;
     role: string | null;
   };
+};
+
+export type ResolveIncidentRequest = {
+  /** BE trim rồi bắt buộc còn 1..1000 ký tự */
+  resolutionNote: string;
 };
 
 export type OperatorIncidentParams = PageParams & {
@@ -4434,6 +4517,14 @@ export function getOperatorParcels(params: OperatorParcelListParams = {}) {
     `/v1/operator/parcels${buildQuery(params)}`,
   );
 }
+
+// Repository đã scope theo operator trong JWT nên bưu kiện của nhà xe khác cũng
+// trả 404 PARCEL_NOT_FOUND như bản ghi không tồn tại.
+export function getOperatorParcel(parcelId: string) {
+  return apiRequest<OperatorParcelDetail>(
+    `/v1/operator/parcels/${parcelId}`,
+  );
+}
 export function exportOperatorParcelReport(
   params: OperatorParcelReportExportParams = {},
 ) {
@@ -4562,6 +4653,25 @@ export function confirmOperatorParcelDelivery(
     {
       method: "POST",
       body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+// Phát lại email xác nhận giao cho người nhận. Chỉ hợp lệ khi parcel còn ở
+// DELIVERED_PENDING_CONFIRM và người nhận có email — thiếu email là
+// 422 PARCEL_RECIPIENT_EMAIL_REQUIRED, sai trạng thái là
+// 400 PARCEL_NOT_PENDING_CONFIRM.
+export function resendOperatorParcelDeliveryEmail(
+  parcelId: string,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelResendDeliveryEmailResult>(
+    `/v1/operator/parcels/${parcelId}/resend-delivery-email`,
+    {
+      method: "POST",
       headers: {
         "Idempotency-Key": idempotencyKey,
       },
@@ -5378,10 +5488,38 @@ export function getTrackingTripTrail(
   );
 }
 
-// Không truyền stopId thì Tracking tự chọn stop kế tiếp theo sequence (mục 9.6).
-export function getTrackingTripEta(tripId: string, stopId?: string) {
+/**
+ * Ba mode hợp lệ của `GET .../eta`; mọi tổ hợp khác bị Zod chặn bằng
+ * `400 VALIDATION_ERROR` (ví dụ `targetKind=STATION` đi kèm `stopId`, hoặc gửi
+ * cả `stopId` lẫn `stationId`).
+ */
+export type TrackingEtaTargetQuery =
+  | { targetKind: "STOP"; stopId: string }
+  | { targetKind: "STATION"; stationId: string };
+
+/**
+ * Không truyền target thì Tracking tự chọn target đầu tiên còn cache theo chain:
+ * các STOP chưa qua theo `sequence`, rồi tới STATION đích. Truyền chuỗi là mode
+ * legacy `?stopId=`, BE vẫn nhận.
+ *
+ * Cache rỗng hoặc target không thuộc tuyến vẫn là `200` với `{ eta: null }` —
+ * không phải lỗi.
+ */
+export function getTrackingTripEta(
+  tripId: string,
+  target?: string | TrackingEtaTargetQuery,
+) {
+  const query =
+    typeof target === "string"
+      ? { stopId: target }
+      : target === undefined
+        ? {}
+        : target.targetKind === "STATION"
+          ? { targetKind: target.targetKind, stationId: target.stationId }
+          : { targetKind: target.targetKind, stopId: target.stopId };
+
   return apiRequest<TrackingEtaResponse>(
-    `/v1/tracking/trips/${tripId}/eta${buildQuery({ stopId })}`,
+    `/v1/tracking/trips/${tripId}/eta${buildQuery(query)}`,
   );
 }
 
@@ -5451,6 +5589,27 @@ export function getOperatorIncidents(
 // Không tồn tại và khác tenant đều trả 404 INCIDENT_NOT_FOUND — không phân biệt trên UI.
 export function getOperatorIncident(incidentId: string) {
   return apiRequest<OperatorIncident>(`/v1/operator/incidents/${incidentId}`);
+}
+
+// Chỉ OPERATOR_ADMIN; OPERATOR_STAFF gọi vào là 403 FORBIDDEN.
+// BE lấy `resolvedAt` từ server clock, `resolvedByUserId` từ claim `sub`, trim
+// `resolutionNote` rồi trả lại incident detail đã cập nhật — không tự dựng
+// timestamp hay tự gán RESOLVED ở client.
+export function resolveOperatorIncident(
+  incidentId: string,
+  request: ResolveIncidentRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<OperatorIncident>(
+    `/v1/operator/incidents/${incidentId}/resolve`,
+    {
+      method: "PATCH",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
 }
 
 export function getOperatorShuttleTrips(

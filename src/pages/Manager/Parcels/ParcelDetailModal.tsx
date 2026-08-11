@@ -1,13 +1,14 @@
 // Modal chi tiết bưu kiện + các nhánh hành động theo trạng thái (actionKind)
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { FiCheckCircle, FiPackage, FiTruck } from "react-icons/fi";
+import { FiCheckCircle, FiMail, FiPackage, FiTruck } from "react-icons/fi";
 import {
   confirmOperatorParcelRefund,
+  type OperatorParcelDetail,
   overrideOperatorParcelCapacity,
   requestOperatorParcelTransfer,
+  resendOperatorParcelDeliveryEmail,
   returnOperatorParcel,
-  type ParcelDetail,
   updateOperatorParcelStatus,
 } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
@@ -34,7 +35,7 @@ function HighlightItem({ label, value, className = "" }: { label: string; value:
 type ParcelDetailModalProps = {
   open: boolean;
   onClose: () => void;
-  selected: ParcelDetail | null;
+  selected: OperatorParcelDetail | null;
   loading: boolean;
   actionLoading: boolean;
   actionError: string;
@@ -74,10 +75,15 @@ export default function ParcelDetailModal({
     if (selected.status === "DELIVERY_REJECTED") return "RETURN";
     if (selected.status === "RETURN_INITIATED") return "MARK_RETURNED";
     if (selected.status === "TRANSFER_ESCALATED") return "TRANSFER";
+    // Người nhận chưa bấm link xác nhận — chỉ ở trạng thái này BE mới cho phát
+    // lại email; sai trạng thái là 400 PARCEL_NOT_PENDING_CONFIRM.
+    if (selected.status === "DELIVERED_PENDING_CONFIRM") return "RESEND_EMAIL";
     if (selected.status === "PENDING_OPERATOR_ACTION")
       return selected.pendingActionType || "NONE";
     return "NONE";
   }, [selected]);
+
+  const statusHistory = selected?.statusHistory ?? [];
 
   return (
     <Modal
@@ -154,6 +160,44 @@ export default function ParcelDetailModal({
               </DetailSection>
               {selected.photoUrl && <DetailSection title={t("parcels.queue.photoSection")} columns="two"><img src={selected.photoUrl} alt={t("parcels.queue.photoAlt")} loading="lazy" className="max-h-64 rounded-lg border border-gray-200 object-contain" /></DetailSection>}
               {selected.pendingActionReason && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><span className="font-semibold">{t("parcels.queue.pendingReasonLabel")}:</span> {selected.pendingActionReason}</p>}
+              {statusHistory.length > 0 && (
+                <section>
+                  <h3 className="mb-2 text-sm font-bold text-gray-900">
+                    {t("parcels.queue.statusHistorySection")}
+                  </h3>
+                  {/* Giữ nguyên thứ tự BE trả (occurredAt tăng dần) */}
+                  <ol className="space-y-2">
+                    {statusHistory.map((entry, index) => (
+                      <li
+                        key={`${entry.status}-${entry.occurredAt}-${index}`}
+                        className="rounded-lg border border-gray-200 bg-gray-50/60 px-4 py-2.5 text-sm"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-gray-900">
+                            {tc(`enumLabels.${entry.status}`, {
+                              defaultValue: entry.status.replaceAll("_", " "),
+                            })}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {formatDateTime(entry.occurredAt)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-600">
+                          {t("parcels.queue.statusHistoryActor", {
+                            actorType: entry.actorType,
+                            source: entry.source,
+                          })}
+                        </p>
+                        {entry.reason && (
+                          <p className="mt-1 text-xs text-gray-700">
+                            {entry.reason}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              )}
             {actionKind === "REFUND_CONFIRMATION" && (
               <ActionBox title={t("parcels.confirmRefund")}>
                 <TextArea
@@ -334,6 +378,33 @@ export default function ParcelDetailModal({
                   }
                 >
                   {t("parcels.queue.markReturnedButton")}
+                </ActionButton>
+              </ActionBox>
+            )}
+            {actionKind === "RESEND_EMAIL" && (
+              <ActionBox title={t("parcels.queue.resendEmailTitle")}>
+                <p className="text-sm text-gray-600">
+                  {t("parcels.queue.resendEmailDescription")}
+                </p>
+                <ActionButton
+                  disabled={actionLoading || !canOperate}
+                  icon={<FiMail />}
+                  onClick={() =>
+                    askConfirmation(
+                      t("parcels.queue.resendEmailQuestion"),
+                      () =>
+                        finishAction(
+                          t("parcels.queue.resendEmailSentMsg"),
+                          async () => {
+                            await resendOperatorParcelDeliveryEmail(
+                              selected.parcelId,
+                            );
+                          },
+                        ),
+                    )
+                  }
+                >
+                  {t("parcels.queue.resendEmailButton")}
                 </ActionButton>
               </ActionBox>
             )}
