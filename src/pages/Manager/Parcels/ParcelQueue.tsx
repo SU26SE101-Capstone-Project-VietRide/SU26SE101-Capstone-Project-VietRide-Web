@@ -6,10 +6,10 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { FiCheckCircle, FiSearch } from "react-icons/fi";
 import {
+  getOperatorParcel,
   getOperatorParcels,
-  getParcelDetail,
+  type OperatorParcelDetail,
   type OperatorParcelListItem,
-  type ParcelDetail,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
 import Modal from "../../../components/Modal";
@@ -43,7 +43,9 @@ export default function ParcelQueue() {
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState("");
-  const [selected, setSelected] = useState<ParcelDetail | null>(null);
+  // Chi tiết lấy từ endpoint operator: có statusHistory và các mốc audit mà
+  // endpoint passenger `/v1/parcels/{id}` không trả.
+  const [selected, setSelected] = useState<OperatorParcelDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -89,7 +91,7 @@ export default function ParcelQueue() {
       setTargetTripId("");
 
       try {
-        setSelected(await getParcelDetail(parcelId));
+        setSelected(await getOperatorParcel(parcelId));
       } catch (error) {
         setSelected(null);
         setActionError(
@@ -125,7 +127,7 @@ export default function ParcelQueue() {
     setReason("");
     setTargetTripId("");
     try {
-      const detail = await getParcelDetail(item.parcelId);
+      const detail = await getOperatorParcel(item.parcelId);
       setSelected({
         ...detail,
         route: detail.route ?? item.route,

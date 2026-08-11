@@ -73,6 +73,7 @@ import {
   getOperatorVehicle,
   getOperatorVoucherConsents,
   getOperatorVouchers,
+  getOperatorParcel,
   getOperatorParcelReportSummary,
   getOperatorParcelStats,
   getOperatorParcels,
@@ -109,7 +110,9 @@ import {
   resendVerificationEmail,
   requestForgotPassword,
   requestOperatorParcelTransfer,
+  resendOperatorParcelDeliveryEmail,
   resetPassword,
+  resolveOperatorIncident,
   reviewOperatorParcel,
   returnOperatorParcel,
   disruptOperatorTripNoSubstitution,
@@ -2567,6 +2570,89 @@ describe("operator parcel queues", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("reads the operator-scoped parcel detail with its status history", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: { id: "user-1", email: "manager@operator.vn", displayName: "Operator Manager", role: "OPERATOR_ADMIN" },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            parcelId: "parcel-1",
+            parcelCode: "VR-PCL-20260812-ABCDEFGH",
+            status: "DELIVERED_PENDING_CONFIRM",
+            statusHistory: [
+              {
+                status: "LOADED",
+                occurredAt: "2026-08-12T08:00:00+07:00",
+                actorType: "CREW",
+                actorId: "user-9",
+                source: "ASSISTANT_APP",
+                reason: null,
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const detail = await getOperatorParcel("parcel-1");
+
+    expect(detail.statusHistory).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/parcels/parcel-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("resends the delivery confirmation email without a body", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: { id: "user-1", email: "manager@operator.vn", displayName: "Operator Manager", role: "OPERATOR_ADMIN" },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            parcelId: "parcel-1",
+            status: "DELIVERED_PENDING_CONFIRM",
+            expiresAt: "2026-08-13T12:00:00+07:00",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await resendOperatorParcelDeliveryEmail(
+      "parcel-1",
+      "7c072cc3-bdcb-41cc-9048-5c173e77b3e9",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/parcels/parcel-1/resend-delivery-email",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "7c072cc3-bdcb-41cc-9048-5c173e77b3e9",
+        }),
+      }),
+    );
+  });
 });
 describe("operator notification announcements", () => {
   it("sends a trip announcement with an idempotency key", async () => {
@@ -2891,6 +2977,57 @@ describe("UI gaps API contracts", () => {
     );
   });
 
+  it("resolves an operator incident with a stable idempotency key", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              incidentId: "incident-1",
+              status: "RESOLVED",
+              resolvedAt: "2026-08-12T14:35:12+07:00",
+              resolutionNote: "Đã điều xe thay thế",
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveOperatorIncident(
+      "incident-1",
+      { resolutionNote: "Đã điều xe thay thế" },
+      "2cfb8d76-50eb-4ac4-9e60-15b43d66bb67",
+    );
+
+    expect(result.status).toBe("RESOLVED");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/incidents/incident-1/resolve",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ resolutionNote: "Đã điều xe thay thế" }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+          "Idempotency-Key": "2cfb8d76-50eb-4ac4-9e60-15b43d66bb67",
+        }),
+      }),
+    );
+  });
+
   it("lists operator shuttle trips with paging, date range and multi status", async () => {
     localStorage.setItem(
       "auth",
@@ -3081,6 +3218,50 @@ describe("UI gaps API contracts", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("requests trip eta for an explicit stop or station target", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Staff",
+          role: "OPERATOR_STAFF",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ data: { eta: null } }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getTrackingTripEta("11111111-1111-4111-8111-111111111111", {
+      targetKind: "STOP",
+      stopId: "22222222-2222-4222-8222-222222222222",
+    });
+    await getTrackingTripEta("11111111-1111-4111-8111-111111111111", {
+      targetKind: "STATION",
+      stationId: "33333333-3333-4333-8333-333333333333",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/tracking/trips/11111111-1111-4111-8111-111111111111/eta?targetKind=STOP&stopId=22222222-2222-4222-8222-222222222222",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/tracking/trips/11111111-1111-4111-8111-111111111111/eta?targetKind=STATION&stationId=33333333-3333-4333-8333-333333333333",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("requests the preferred batch ETA endpoint", async () => {
     localStorage.setItem(
       "auth",

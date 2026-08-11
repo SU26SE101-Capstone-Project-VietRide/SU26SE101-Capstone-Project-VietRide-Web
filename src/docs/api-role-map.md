@@ -41,7 +41,12 @@ This note maps the Swagger screenshots to frontend usage.
 - `PATCH /v1/operator/driver-schedules/{id}/deactivate`: deactivate a driver schedule; no `Idempotency-Key` (backend SkipIdempotency) (`OPERATOR_ADMIN` only).
 - `DELETE /v1/operator/driver-schedules/{id}`: soft-delete a driver schedule when no trips reference it; requires `Idempotency-Key` (`OPERATOR_ADMIN` only).
 - `GET /v1/tracking/operator/fleet-latest`: latest GPS batch for the operator fleet, optional `status` filter.
-- `GET /v1/tracking/trips/{tripId}/eta`: trip ETA; `stopId` optional, omitted means the next pending stop is auto-selected.
+- `GET /v1/tracking/trips/{tripId}/eta`: trip ETA. Omitting the target auto-selects the first cached target (remaining stops by sequence, then the destination station). Explicit targets are `targetKind=STOP&stopId=` or `targetKind=STATION&stationId=`; the bare `stopId=` form is the legacy mode.
+- `GET /v1/operator/incidents`: list incidents reported on the operator's trips.
+- `GET /v1/operator/incidents/{incidentId}`: incident detail; cross-tenant records return the same `404 INCIDENT_NOT_FOUND`.
+- `PATCH /v1/operator/incidents/{incidentId}/resolve`: close an incident with a resolution note; requires `Idempotency-Key` (`OPERATOR_ADMIN` only).
+- `GET /v1/operator/parcels/{parcelId}`: operator-scoped parcel detail including `statusHistory`.
+- `POST /v1/operator/parcels/{parcelId}/resend-delivery-email`: re-issue the recipient's delivery confirmation link; requires `Idempotency-Key`.
 - `GET /v1/operator/routes/{id}/fare-templates`: list future/override fares for route stops.
 - `POST /v1/operator/routes/{id}/fare-templates`: create a route stop fare override.
 - `GET /v1/operator/routes/{id}/alternative-routes`: list alternative routes.
@@ -70,6 +75,7 @@ This note maps the Swagger screenshots to frontend usage.
 
 - Day 40 admin operations are not available to `OPERATOR_STAFF`.
 - Day 39 driver operations are not available to `OPERATOR_STAFF` either. Staff can monitor the operator-facing screens already authorized by the gateway, but cannot report driver incidents or confirm arrivals on behalf of a driver.
+- Incident list and detail are available to `OPERATOR_STAFF`, but `PATCH /v1/operator/incidents/{incidentId}/resolve` is `OPERATOR_ADMIN` only — hide the resolve control for staff instead of letting the gateway answer `403 FORBIDDEN`.
 - Day 41 report exports are available to both operator roles. `OPERATOR_STAFF` can download the same six booking, parcel, revenue, occupancy, cancellation and refund XLSX reports listed above.
 
 ## Driver / Assistant Boundary

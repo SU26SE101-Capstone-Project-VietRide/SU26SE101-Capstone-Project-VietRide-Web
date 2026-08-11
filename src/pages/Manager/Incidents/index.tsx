@@ -1,7 +1,6 @@
 // Danh sách sự cố do tài xế/phụ xe báo về, phạm vi nhà xe lấy từ JWT.
 //
-// Màn CHỈ ĐỌC: source hiện chưa có API resolve incident, nên không dựng nút
-// "Đã xử lý"; các field resolution chỉ để hiển thị dữ liệu đã xử lý nơi khác.
+// `OPERATOR_ADMIN` đóng được sự cố qua modal chi tiết; `OPERATOR_STAFF` chỉ đọc.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
@@ -20,6 +19,7 @@ import {
   type IncidentStatus,
   type OperatorIncident,
 } from "../../../api/vietride";
+import { getAuthUser } from "../../../auth";
 import CustomSelect from "../../../components/CustomSelect";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Pagination from "../../../components/Pagination";
@@ -62,8 +62,12 @@ export default function ManagerIncidents() {
 
   const [selected, setSelected] = useState<OperatorIncident | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [resolveMessage, setResolveMessage] = useState("");
 
-  useToastFeedback({ message: "", error: loadError });
+  // Chỉ OPERATOR_ADMIN được đóng sự cố; Staff gọi vào sẽ ăn 403 FORBIDDEN
+  const canResolve = getAuthUser()?.role === "OPERATOR_ADMIN";
+
+  useToastFeedback({ message: resolveMessage, error: loadError });
 
   useEffect(() => {
     let ignore = false;
@@ -118,6 +122,31 @@ export default function ManagerIncidents() {
     } finally {
       setIsLoadingDetail(false);
     }
+  }, []);
+
+  // Thay bản ghi bằng đúng object BE trả về sau khi resolve — không tự dựng
+  // `resolvedAt`/`resolvedByUserId` ở client.
+  const handleResolved = useCallback((resolved: OperatorIncident) => {
+    setSelected(resolved);
+    setItems((current) =>
+      current.map((item) =>
+        item.incidentId === resolved.incidentId ? resolved : item,
+      ),
+    );
+    setResolveMessage(tRef.current("incidents.resolveSuccess"));
+  }, []);
+
+  // 409 INCIDENT_ALREADY_RESOLVED: admin khác vừa đóng. Tải lại chi tiết rồi
+  // làm mới danh sách để bộ lọc theo trạng thái khớp dữ liệu mới.
+  const handleAlreadyResolved = useCallback(async (incidentId: string) => {
+    setResolveMessage(tRef.current("incidents.resolveAlreadyResolved"));
+    try {
+      const detail = await getOperatorIncident(incidentId);
+      setSelected(detail);
+    } catch {
+      // Không tải lại được thì vẫn refresh danh sách bên dưới
+    }
+    setReloadKey((current) => current + 1);
   }, []);
 
   function resetFilters() {
@@ -336,7 +365,15 @@ export default function ManagerIncidents() {
       <IncidentDetailModal
         incident={selected}
         isLoading={isLoadingDetail}
-        onClose={() => setSelected(null)}
+        onClose={() => {
+          setSelected(null);
+          setResolveMessage("");
+        }}
+        canResolve={canResolve}
+        onResolved={handleResolved}
+        onAlreadyResolved={(incidentId) => {
+          void handleAlreadyResolved(incidentId);
+        }}
       />
     </div>
   );

@@ -559,15 +559,13 @@ export default function Register() {
                         onChange={(value) => updateForm("addressWard", value)}
                         placeholder="Ward 1"
                       />
-                      <div className="sm:col-span-2">
-                        <Field
-                          icon={<FiMapPin />}
-                          label={t("province")}
-                          value={form.addressProvince}
-                          onChange={(value) => updateForm("addressProvince", value)}
-                          placeholder="Ho Chi Minh City"
-                        />
-                      </div>
+                      <Field
+                        icon={<FiMapPin />}
+                        label={t("province")}
+                        value={form.addressProvince}
+                        onChange={(value) => updateForm("addressProvince", value)}
+                        placeholder="Ho Chi Minh City"
+                      />
                     </div>
                   )}
 

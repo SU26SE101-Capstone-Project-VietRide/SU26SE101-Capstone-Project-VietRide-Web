@@ -2,9 +2,11 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiRequestError } from "../../../api/client";
 import {
   getOperatorIncident,
   getOperatorIncidents,
+  resolveOperatorIncident,
   type OperatorIncident,
 } from "../../../api/vietride";
 import ManagerIncidents from "./index";
@@ -27,8 +29,15 @@ vi.mock("../../../api/vietride", async () => {
     INCIDENT_CATEGORIES: actual.INCIDENT_CATEGORIES,
     getOperatorIncident: vi.fn(),
     getOperatorIncidents: vi.fn(),
+    resolveOperatorIncident: vi.fn(),
   };
 });
+
+// Quyền đóng sự cố phụ thuộc role nên test đổi giá trị này giữa các case
+let currentRole = "OPERATOR_ADMIN";
+vi.mock("../../../auth", () => ({
+  getAuthUser: () => ({ role: currentRole }),
+}));
 
 const incident: OperatorIncident = {
   incidentId: "incident-1",
@@ -80,11 +89,21 @@ function renderPage(entry = "/manager/incidents") {
   );
 }
 
+const resolvedIncident: OperatorIncident = {
+  ...incident,
+  status: "RESOLVED",
+  resolvedAt: "2026-08-10T11:00:00Z",
+  resolvedByUserId: "admin-1",
+  resolutionNote: "Đã điều xe thay thế",
+};
+
 describe("Manager Incidents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentRole = "OPERATOR_ADMIN";
     vi.mocked(getOperatorIncidents).mockResolvedValue(pageOf([incident]));
     vi.mocked(getOperatorIncident).mockResolvedValue(incident);
+    vi.mocked(resolveOperatorIncident).mockResolvedValue(resolvedIncident);
   });
 
   it("hiển thị sự cố kèm loại, trạng thái và người báo", async () => {
@@ -132,7 +151,7 @@ describe("Manager Incidents", () => {
     expect(screen.getByText("incidents.filteredByTrip")).toBeInTheDocument();
   });
 
-  it("mở chi tiết và KHÔNG dựng nút đánh dấu đã xử lý", async () => {
+  it("mở chi tiết và tải bản đầy đủ từ endpoint detail", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("TP.HCM - Hà Nội");
@@ -144,9 +163,100 @@ describe("Manager Incidents", () => {
     await waitFor(() =>
       expect(getOperatorIncident).toHaveBeenCalledWith("incident-1"),
     );
-    // BE chưa có API resolve — màn không được có nút đánh dấu đã xử lý
+  });
+
+  it("OPERATOR_ADMIN đóng sự cố với ghi chú đã trim", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await user.type(
+      within(dialog).getByRole("textbox"),
+      "  Đã điều xe thay thế  ",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "incidents.resolveAction" }),
+    );
+
+    await waitFor(() =>
+      expect(resolveOperatorIncident).toHaveBeenCalledWith("incident-1", {
+        resolutionNote: "Đã điều xe thay thế",
+      }),
+    );
+    // Danh sách và modal dùng đúng object BE trả về
     expect(
-      within(dialog).queryByRole("button", { name: /resolve/i }),
+      await within(dialog).findByText("incidents.statuses.RESOLVED"),
+    ).toBeInTheDocument();
+  });
+
+  it("chặn ghi chú rỗng trước khi gọi BE", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByRole("textbox"), "   ");
+    await user.click(
+      within(dialog).getByRole("button", { name: "incidents.resolveAction" }),
+    );
+
+    expect(
+      within(dialog).getByText("incidents.resolveNoteRequired"),
+    ).toBeInTheDocument();
+    expect(resolveOperatorIncident).not.toHaveBeenCalled();
+  });
+
+  it("409 INCIDENT_ALREADY_RESOLVED thì tải lại chi tiết", async () => {
+    vi.mocked(resolveOperatorIncident).mockRejectedValue(
+      new ApiRequestError(
+        "Incident already resolved",
+        409,
+        "INCIDENT_ALREADY_RESOLVED",
+      ),
+    );
+    // Lần mở đầu vẫn OPEN; lần tải lại sau 409 mới thấy bản đã đóng
+    vi.mocked(getOperatorIncident)
+      .mockResolvedValueOnce(incident)
+      .mockResolvedValueOnce(resolvedIncident);
+
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByRole("textbox"), "Đã xử lý");
+    await user.click(
+      within(dialog).getByRole("button", { name: "incidents.resolveAction" }),
+    );
+
+    // Sau 409 màn tải lại chi tiết và hiện bản đã đóng của admin kia
+    await waitFor(() =>
+      expect(getOperatorIncident).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      await within(dialog).findByText("incidents.statuses.RESOLVED"),
+    ).toBeInTheDocument();
+  });
+
+  it("OPERATOR_STAFF không thấy form đóng sự cố", async () => {
+    currentRole = "OPERATOR_STAFF";
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("incidents.resolveStaffHint"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "incidents.resolveAction",
+      }),
     ).not.toBeInTheDocument();
   });
 
