@@ -390,6 +390,7 @@ export default function TripActionsPanel({
                 value={newVehicleId}
                 onChange={(event) => setNewVehicleId(event.target.value)}
                 className={inputClass}
+                aria-label={t("tripOperations.vehicle")}
               >
                 <option value="">{t("tripOperations.selectVehicle")}</option>
                 {replacementVehicles.map((vehicle) => (
@@ -407,6 +408,7 @@ export default function TripActionsPanel({
                 value={newDriverUserId}
                 onChange={(event) => setNewDriverUserId(event.target.value)}
                 className={inputClass}
+                aria-label={t("tripOperations.driver")}
               >
                 <option value="">{t("tripOperations.selectDriver")}</option>
                 {drivers.map((driver) => (
@@ -438,6 +440,7 @@ export default function TripActionsPanel({
                 {t("tripOperations.reason")}<span className="text-red-500" aria-hidden="true"> *</span>
               </span>
               <input
+                aria-label={t("tripOperations.reason")}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
                 className={inputClass}
