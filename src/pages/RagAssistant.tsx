@@ -68,6 +68,9 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
     setStreaming(true);
 
     let doneEvent: RagChatDoneEvent | null = null;
+    // BE có thể kết thúc stream bằng event `error` (vd RAG_PROVIDER_UNAVAILABLE)
+    // thay vì `done`. Phải nhớ lại để không ghi đè mã lỗi thật bằng thông báo chung.
+    let receivedErrorEvent = false;
     try {
       await streamRagChat(
         {
@@ -104,13 +107,14 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
           } else {
             // Event lỗi của SSE không đi qua createApiRequestError nên phải tự
             // dịch, nếu không sẽ hiện nguyên "RAG_xxx: <message tiếng Anh>".
+            receivedErrorEvent = true;
             setError(
               translateApiErrorMessage(streamEvent.code, streamEvent.message),
             );
           }
         },
       );
-      if (!doneEvent) {
+      if (!doneEvent && !receivedErrorEvent) {
         setError("Trợ lý AI đã dừng trước khi hoàn tất câu trả lời.");
       }
     } catch (streamError) {
