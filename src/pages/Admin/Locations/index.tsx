@@ -354,13 +354,13 @@ export default function AdminLocations() {
           <table className="w-full table-fixed whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-600">
-                <th className="w-[14%] px-3 py-3 text-center sm:px-5">{t("locations.code")}</th>
+                <th className="w-[8%] px-3 py-3 text-center sm:px-5">{t("locations.code")}</th>
                 <th className="w-[24%] px-3 py-3 text-left sm:px-5">{t("locations.name")}</th>
                 <th className="w-[18%] px-3 py-3 text-center sm:px-5">{t("locations.type")}</th>
                 <th className="w-[16%] px-3 py-3 text-center sm:px-5">{t("locations.parent")}</th>
                 <th className="w-[8%] px-3 py-3 text-center sm:px-5">{t("locations.sortOrder")}</th>
                 <th className="w-[10%] px-3 py-3 text-center sm:px-5">{tc("status")}</th>
-                <th className="w-[10%] px-3 py-3 text-center sm:px-5">{tc("actions")}</th>
+                <th className="w-[16%] px-3 py-3 text-center sm:px-5">{tc("actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -370,7 +370,7 @@ export default function AdminLocations() {
                     key={location.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
                   >
-                    <td className="w-[14%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-700 sm:px-5">
+                    <td className="w-[8%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-700 sm:px-5">
                       {location.code}
                     </td>
                     <td className="w-[24%] min-w-0 px-3 py-4 text-left sm:px-5">
@@ -426,7 +426,7 @@ export default function AdminLocations() {
                         {location.isActive ? tc("active") : tc("inactive")}
                       </span>
                     </td>
-                    <td className="w-[18%] whitespace-nowrap px-3 py-4 text-center sm:px-5">
+                    <td className="w-[16%] whitespace-nowrap px-3 py-4 text-center sm:px-5">
                       <div className="flex justify-center gap-2">
                         <button
                           type="button"

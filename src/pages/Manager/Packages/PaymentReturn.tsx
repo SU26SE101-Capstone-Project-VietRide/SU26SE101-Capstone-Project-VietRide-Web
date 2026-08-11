@@ -20,6 +20,7 @@ import {
   type VnPayReturnStatus,
 } from "../../../api/vietride";
 import { ApiRequestError } from "../../../api/client";
+import { getAuthUser } from "../../../auth";
 import LanguageSwitcher from "../../../components/LanguageSwitcher";
 import {
   clearSubscriptionPaymentIntent,
@@ -39,6 +40,12 @@ type PaymentReturnStatus =
 const MAX_VERIFICATION_ATTEMPTS = 30;
 const VERIFICATION_INTERVAL_MS = 2_000;
 const SUCCESS_REDIRECT_DELAY_SECONDS = 5;
+
+// PaymentStatus của Backend (Payment.Domain.Enums.PaymentStatus). Khi không có
+// phiên đăng nhập thì đây là nguồn kết luận duy nhất — nó vẫn do IPN cập nhật,
+// FE không tự suy ra từ URL.
+const PAYMENT_SUCCESS_STATUSES = new Set(["SUCCEEDED"]);
+const PAYMENT_FAILURE_STATUSES = new Set(["FAILED", "EXPIRED"]);
 
 export default function SubscriptionPaymentReturn() {
   const { t } = useTranslation("manager");
@@ -68,6 +75,10 @@ export default function SubscriptionPaymentReturn() {
   const [subscription, setSubscription] =
     useState<OperatorSubscriptionDetail | null>(null);
   const [error, setError] = useState("");
+  // Phiên đăng nhập có thể đã mất trong lúc người dùng ở cổng VNPay (hết hạn,
+  // mở từ app ngân hàng, refresh token bị revoke). Trang vẫn phải kết luận được
+  // giao dịch, chỉ là không tra thêm được trạng thái gói.
+  const [signedOut, setSignedOut] = useState(() => getAuthUser() === null);
   const [redirectSeconds, setRedirectSeconds] = useState(
     SUCCESS_REDIRECT_DELAY_SECONDS,
   );
@@ -95,10 +106,12 @@ export default function SubscriptionPaymentReturn() {
     // Bước 1: đẩy NGUYÊN query VNPay lên Backend để nó xác thực chữ ký và cho
     // biết giao dịch nào đang được nói tới (handoff §2.2). FE không tự tin
     // vnp_ResponseCode trong URL.
+    let latestPaymentStatus: string | null = null;
     try {
       const verified = await getVnPayReturnStatus(rawQuery);
       if (verificationRunRef.current !== runId) return;
       setReturnStatus(verified);
+      latestPaymentStatus = verified.status;
     } catch (err) {
       if (verificationRunRef.current !== runId) return;
 
@@ -140,63 +153,114 @@ export default function SubscriptionPaymentReturn() {
     }
 
     // responseCode = 00 vẫn CHƯA phải thành công: chỉ khi IPN về và backend đổi
-    // trạng thái subscription thì mới được báo thành công (handoff §2.2).
+    // trạng thái thì mới được báo thành công (handoff §2.2).
+    //
+    // Còn phiên đăng nhập → đối chiếu trạng thái subscription (chắc chắn nhất,
+    // vì gói đã kích hoạt là bằng chứng cuối cùng). Mất phiên → poll
+    // `vnpay-return-status` (endpoint public, cũng chỉ do IPN cập nhật) để vẫn
+    // kết luận được thay vì bắt người dùng đăng nhập lại giữa chừng.
+    let hasSession = getAuthUser() !== null;
+    setSignedOut(!hasSession);
     let lastResultStatus: string | null = null;
     for (let attempt = 1; attempt <= MAX_VERIFICATION_ATTEMPTS; attempt += 1) {
-      try {
-        const result = await getOperatorSubscription();
-        if (verificationRunRef.current !== runId) return;
+      if (hasSession) {
+        try {
+          const result = await getOperatorSubscription();
+          if (verificationRunRef.current !== runId) return;
 
-        setSubscription(result);
-        lastResultStatus = result.status;
-        if (import.meta.env.DEV) {
-          console.info("[SubscriptionPayment] RETURN_VERIFICATION_RESULT", {
-            attempt,
-            status: result.status,
-            activePlanId: result.plan.planId,
-            upgradeAttemptId:
-              result.pendingUpgrade?.upgradeAttemptId ?? null,
-            paymentId:
-              result.pendingUpgrade?.latestPayment?.paymentId ?? null,
-            paymentStatus:
-              result.pendingUpgrade?.latestPayment?.status ?? null,
-          });
-        }
-        const targetPlanWasActivated =
-          !paymentIntent?.targetPlanId ||
-          result.plan.planId === paymentIntent.targetPlanId;
-        if (
-          result.status === "ACTIVE" &&
-          !result.pendingUpgrade &&
-          targetPlanWasActivated
-        ) {
-          clearSubscriptionPaymentIntent();
-          setStatus("success");
+          setSubscription(result);
+          lastResultStatus = result.status;
           if (import.meta.env.DEV) {
-            console.info("[SubscriptionPayment] RETURN_VERIFIED", {
+            console.info("[SubscriptionPayment] RETURN_VERIFICATION_RESULT", {
               attempt,
+              status: result.status,
               activePlanId: result.plan.planId,
+              upgradeAttemptId:
+                result.pendingUpgrade?.upgradeAttemptId ?? null,
+              paymentId:
+                result.pendingUpgrade?.latestPayment?.paymentId ?? null,
+              paymentStatus:
+                result.pendingUpgrade?.latestPayment?.status ?? null,
             });
           }
+          const targetPlanWasActivated =
+            !paymentIntent?.targetPlanId ||
+            result.plan.planId === paymentIntent.targetPlanId;
+          if (
+            result.status === "ACTIVE" &&
+            !result.pendingUpgrade &&
+            targetPlanWasActivated
+          ) {
+            clearSubscriptionPaymentIntent();
+            setStatus("success");
+            if (import.meta.env.DEV) {
+              console.info("[SubscriptionPayment] RETURN_VERIFIED", {
+                attempt,
+                activePlanId: result.plan.planId,
+              });
+            }
+            return;
+          }
+        } catch (err) {
+          if (verificationRunRef.current !== runId) return;
+
+          // Phiên hết hạn ngay lúc quay về: KHÔNG báo lỗi và cũng không đá ra
+          // /login — chuyển sang xác minh bằng endpoint public để người dùng
+          // vẫn thấy kết quả giao dịch vừa trả tiền.
+          if (err instanceof ApiRequestError && err.status === 401) {
+            hasSession = false;
+            setSignedOut(true);
+            if (import.meta.env.DEV) {
+              console.warn("[SubscriptionPayment] RETURN_SESSION_EXPIRED", {
+                attempt,
+              });
+            }
+          } else {
+            if (import.meta.env.DEV) {
+              console.error("[SubscriptionPayment] RETURN_VERIFICATION_FAILED", {
+                attempt,
+                message: err instanceof Error ? err.message : String(err),
+              });
+            }
+            setError(
+              err instanceof Error ? err.message : t("packages.loadFailed"),
+            );
+            setStatus("error");
+            return;
+          }
+        }
+      }
+
+      if (!hasSession) {
+        if (latestPaymentStatus && PAYMENT_SUCCESS_STATUSES.has(latestPaymentStatus)) {
+          clearSubscriptionPaymentIntent();
+          setStatus("success");
           return;
         }
-      } catch (err) {
-        if (verificationRunRef.current !== runId) return;
-        if (import.meta.env.DEV) {
-          console.error("[SubscriptionPayment] RETURN_VERIFICATION_FAILED", {
-            attempt,
-            message: err instanceof Error ? err.message : String(err),
-          });
+        if (latestPaymentStatus && PAYMENT_FAILURE_STATUSES.has(latestPaymentStatus)) {
+          clearSubscriptionPaymentIntent();
+          setStatus("failed");
+          return;
         }
-        setError(err instanceof Error ? err.message : t("packages.loadFailed"));
-        setStatus("error");
-        return;
+        lastResultStatus = latestPaymentStatus;
       }
 
       if (attempt < MAX_VERIFICATION_ATTEMPTS) {
         await new Promise<void>((resolve) => {
           window.setTimeout(resolve, VERIFICATION_INTERVAL_MS);
         });
+        if (verificationRunRef.current !== runId) return;
+
+        if (!hasSession) {
+          try {
+            const refreshed = await getVnPayReturnStatus(rawQuery);
+            if (verificationRunRef.current !== runId) return;
+            setReturnStatus(refreshed);
+            latestPaymentStatus = refreshed.status;
+          } catch {
+            // Lỗi tạm thời khi poll lại: giữ nguyên kết quả lần trước và thử tiếp.
+          }
+        }
       }
     }
 
@@ -236,7 +300,9 @@ export default function SubscriptionPaymentReturn() {
   }, [responseCode, verifyPayment]);
 
   useEffect(() => {
-    if (status !== "success") return;
+    // Mất phiên thì không tự chuyển trang: /manager/packages sẽ lại đá ra
+    // /login và người dùng mất luôn kết quả vừa xem.
+    if (status !== "success" || signedOut) return;
 
     const countdownTimer = window.setInterval(() => {
       setRedirectSeconds((seconds) => Math.max(0, seconds - 1));
@@ -249,7 +315,7 @@ export default function SubscriptionPaymentReturn() {
       window.clearInterval(countdownTimer);
       window.clearTimeout(redirectTimer);
     };
-  }, [navigate, status]);
+  }, [navigate, signedOut, status]);
 
   let title = t("paymentReturn.verifyingTitle");
   let description = t("paymentReturn.verifyingDescription");
@@ -259,7 +325,7 @@ export default function SubscriptionPaymentReturn() {
   if (status === "success") {
     title = t("paymentReturn.successTitle");
     description = t("paymentReturn.successDescription", {
-      name: subscription?.plan.name ?? "",
+      name: subscription?.plan.name ?? paymentIntent?.targetPlanName ?? "",
     });
     icon = <FiCheck className="h-9 w-9" aria-hidden="true" />;
     iconClassName = "bg-emerald-100 text-emerald-700";
@@ -382,12 +448,17 @@ export default function SubscriptionPaymentReturn() {
                 <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
                   {description}
                 </p>
-                {status === "success" ? (
+                {status === "success" && !signedOut ? (
                   <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-800">
                     <FiClock className="h-4 w-4" aria-hidden="true" />
                     {t("paymentReturn.redirectingToPackages", {
                       seconds: redirectSeconds,
                     })}
+                  </p>
+                ) : null}
+                {signedOut && status !== "verifying" ? (
+                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                    {t("paymentReturn.signedOutNote")}
                   </p>
                 ) : null}
               </div>
@@ -439,11 +510,13 @@ export default function SubscriptionPaymentReturn() {
                   </button>
                 ) : null}
                 <Link
-                  to="/manager/packages"
+                  to={signedOut ? "/login" : "/manager/packages"}
                   className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-vr-700 px-5 py-3 font-semibold text-white shadow-lg shadow-vr-900/15 transition hover:-translate-y-0.5 hover:bg-vr-800 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-600 focus-visible:ring-offset-2"
                 >
                   <FiArrowLeft className="h-5 w-5" aria-hidden="true" />
-                  {t("paymentReturn.backToPackages")}
+                  {signedOut
+                    ? t("paymentReturn.signInToContinue")
+                    : t("paymentReturn.backToPackages")}
                 </Link>
               </div>
             </div>

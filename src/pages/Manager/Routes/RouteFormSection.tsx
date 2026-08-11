@@ -50,6 +50,7 @@ export default function RouteFormSection({
   metricsLocked,
 }: RouteFormSectionProps) {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   // Hiển thị chỉ đọc khi số liệu được khóa theo đường đi đã tính/vẽ
   const lockedTotalMinutes = Math.max(
     0,
@@ -103,8 +104,14 @@ export default function RouteFormSection({
             {t("routes.returnRouteId")}
           </label>
           <CustomSelect
+            aria-label={t("routes.returnRouteId")}
             className={inputClass}
             value={form.returnRouteId ?? ""}
+            searchable
+            searchPlaceholder={tc("searchOptions", {
+              label: t("routes.returnRouteId"),
+            })}
+            emptyMessage={tc("noMatchingOptions")}
             onChange={(event) =>
               onUpdateField("returnRouteId", event.target.value)
             }

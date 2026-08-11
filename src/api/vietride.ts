@@ -2029,7 +2029,8 @@ export type OperatorIncident = {
   incidentId: string;
   category: IncidentCategory | string;
   description: string | null;
-  photoUrls: string[];
+  /** BE trả null khi tài xế không đính kèm ảnh. */
+  photoUrls: string[] | null;
   latitude: number | null;
   longitude: number | null;
   reportedAt: string;

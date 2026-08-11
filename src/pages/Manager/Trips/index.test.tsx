@@ -329,6 +329,67 @@ describe("TripsPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("searches and selects a route in the schedule form", async () => {
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      items: [
+        {
+          id: "route-1",
+          operatorId: "operator-1",
+          name: "Hồ Chí Minh - Đà Lạt",
+          originStationId: "origin-1",
+          destinationStationId: "destination-1",
+          totalDistanceKm: 300,
+          estimatedDurationMinutes: 420,
+          baseFare: 250_000,
+          isActive: true,
+        },
+        {
+          id: "route-2",
+          operatorId: "operator-1",
+          name: "Hà Nội - Hải Phòng",
+          originStationId: "origin-2",
+          destinationStationId: "destination-2",
+          totalDistanceKm: 120,
+          estimatedDurationMinutes: 150,
+          baseFare: 180_000,
+          isActive: true,
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 2,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("SCH-SCHEDULE");
+    await user.click(
+      screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: /Hồ Chí Minh - Đà Lạt/ }),
+    );
+    await user.type(
+      screen.getByRole("combobox", { name: "searchOptions" }),
+      "hai phong",
+    );
+
+    expect(
+      screen.queryByRole("option", { name: /Hồ Chí Minh - Đà Lạt/ }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("option", { name: /Hà Nội - Hải Phòng/ }),
+    );
+    expect(
+      within(dialog).getByRole("button", { name: /Hà Nội - Hải Phòng/ }),
+    ).toBeInTheDocument();
+  });
+
   // 2026-08-21 là Thứ 6 (ISO 5)
   function stubCreateFlow(departure: Date) {
     const nowSpy = vi

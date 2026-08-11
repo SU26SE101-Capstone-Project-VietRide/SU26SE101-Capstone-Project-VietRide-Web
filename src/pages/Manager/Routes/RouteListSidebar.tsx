@@ -26,6 +26,7 @@ export default function RouteListSidebar({
   onCreateRoute,
 }: RouteListSidebarProps) {
   const { t } = useTranslation("manager");
+  const { t: tc } = useTranslation("common");
   const [search, setSearch] = useState("");
   const filteredRoutes = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -43,6 +44,9 @@ export default function RouteListSidebar({
           aria-label={t("routes.routeListTitle")}
           className={inputClass}
           value={selectedRouteId}
+          searchable
+          searchPlaceholder={t("routes.searchRoutePlaceholder")}
+          emptyMessage={tc("noMatchingOptions")}
           onChange={(event) => onSelectRoute(event.target.value)}
         >
           <option value="">{t("routes.selectRoute")}</option>

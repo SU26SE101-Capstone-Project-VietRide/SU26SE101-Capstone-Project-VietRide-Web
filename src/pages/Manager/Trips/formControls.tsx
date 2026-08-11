@@ -192,6 +192,9 @@ type SelectProps = {
   onChange: (value: string) => void;
   required?: boolean;
   helper?: string;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  emptyMessage?: string;
   children: ReactNode;
 };
 
@@ -201,6 +204,9 @@ export function Select({
   onChange,
   required = false,
   helper,
+  searchable = false,
+  searchPlaceholder,
+  emptyMessage,
   children,
 }: SelectProps) {
   return (
@@ -210,6 +216,9 @@ export function Select({
         className={inputClass}
         allowWrap
         value={value}
+        searchable={searchable}
+        searchPlaceholder={searchPlaceholder}
+        emptyMessage={emptyMessage}
         onChange={(event) => onChange(event.target.value)}
       >
         {children}

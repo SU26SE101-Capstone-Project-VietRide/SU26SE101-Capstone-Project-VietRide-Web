@@ -29,6 +29,7 @@ export default function IncidentDetailModal({
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const mapUrl = incident ? incidentMapUrl(incident) : null;
+  const photoUrls = incident?.photoUrls ?? [];
 
   return (
     <Modal
@@ -146,13 +147,13 @@ export default function IncidentDetailModal({
               />
             </DetailSection>
 
-            {incident.photoUrls.length > 0 && (
+            {photoUrls.length > 0 && (
               <section>
                 <h3 className="mb-2 text-sm font-semibold text-gray-900">
                   {t("incidents.photos")}
                 </h3>
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {incident.photoUrls.map((url) => (
+                  {photoUrls.map((url) => (
                     <a
                       key={url}
                       href={url}
@@ -187,13 +188,16 @@ export default function IncidentDetailModal({
               </div>
             )}
 
-            <Link
-              to={`/manager/operations?tripId=${incident.trip.tripId}`}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-vr-700 hover:underline"
-            >
-              <FiExternalLink size={14} />
-              {t("incidents.viewOnOperations")}
-            </Link>
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+              <p>{t("incidents.operationsHint")}</p>
+              <Link
+                to={`/manager/operations?tripId=${incident.trip.tripId}`}
+                className="mt-2 inline-flex items-center gap-1.5 font-semibold text-vr-800 hover:underline"
+              >
+                <FiExternalLink size={14} />
+                {t("incidents.viewOnOperations")}
+              </Link>
+            </div>
           </div>
         )
       )}

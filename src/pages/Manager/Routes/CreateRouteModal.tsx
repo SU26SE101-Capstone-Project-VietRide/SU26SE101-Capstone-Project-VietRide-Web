@@ -423,6 +423,11 @@ export default function CreateRouteModal({
                   className={inputClass}
                   allowWrap
                   value={basics.returnRouteId}
+                  searchable
+                  searchPlaceholder={tc("searchOptions", {
+                    label: t("routes.returnRouteId"),
+                  })}
+                  emptyMessage={tc("noMatchingOptions")}
                   onChange={(event) =>
                     updateBasics("returnRouteId", event.target.value)
                   }
