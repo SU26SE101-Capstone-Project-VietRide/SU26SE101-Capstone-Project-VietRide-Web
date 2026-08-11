@@ -15,7 +15,11 @@ import { formatCurrency } from "../../../utils/currency";
 import { FieldLabel, FormSection, Input, Select } from "./formControls";
 import ScheduleSummary from "./ScheduleSummary";
 import WeekdayPicker from "./WeekdayPicker";
-import type { DriverScheduleApplyTo } from "../../../api/vietride";
+import ResourceConflictPanel from "../../../components/ResourceConflictPanel";
+import type {
+  DriverScheduleApplyTo,
+  ResourceAvailabilityResult,
+} from "../../../api/vietride";
 import type {
   RouteOption,
   ScheduleForm as ScheduleFormValues,
@@ -44,6 +48,9 @@ type ScheduleFormModalProps = {
   ) => void;
   onSuggestDeparture: () => void;
   onSave: (status: ScheduleStatus) => void;
+  availability: ResourceAvailabilityResult | null;
+  isCheckingAvailability: boolean;
+  onCheckAvailability: () => void;
 };
 
 export default function ScheduleFormModal({
@@ -62,6 +69,9 @@ export default function ScheduleFormModal({
   onFieldChange,
   onSuggestDeparture,
   onSave,
+  availability,
+  isCheckingAvailability,
+  onCheckAvailability,
 }: ScheduleFormModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -87,6 +97,15 @@ export default function ScheduleFormModal({
         <>
           <button
             type="button"
+            onClick={onCheckAvailability}
+            disabled={isSaving || isLoadingResources || isCheckingAvailability}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 bg-white px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <FiAlertCircle />
+            {t("resourceConflict.check")}
+          </button>
+          <button
+            type="button"
             onClick={() => onSave("draft")}
             disabled={isSaving || isLoadingResources}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -107,6 +126,11 @@ export default function ScheduleFormModal({
       }
     >
       <div className="space-y-4">
+        <ResourceConflictPanel
+          result={availability}
+          loading={isCheckingAvailability}
+        />
+
         {editingSchedule ? (
           <div
             className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-800"
@@ -247,7 +271,6 @@ export default function ScheduleFormModal({
                 }
               />
               <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-gray-500">
-                <span>{t("trips.departureTimeTimezoneHint")}</span>
                 {/* P2: nút gợi ý cũ là khối lớn phá vỡ lưới — thu về link nhỏ */}
                 <button
                   type="button"
@@ -266,8 +289,7 @@ export default function ScheduleFormModal({
                   {t("trips.editScheduleDateLocked")}
                 </p>
               ) : null}
-            </div>
-            {/* BE tự tính estimatedArrivalTime từ thời lượng tuyến lúc sinh
+            </div>            {/* BE tự tính estimatedArrivalTime từ thời lượng tuyến lúc sinh
                 Trip và KHÔNG nhận field này (§9.7). Hiển thị dạng dòng thông
                 tin, KHÔNG dùng input — ô nhập (dù disabled) vẫn mời thao tác
                 và làm người dùng tưởng đặt được giờ đến. */}

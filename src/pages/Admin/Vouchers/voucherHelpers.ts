@@ -7,7 +7,7 @@ import type {
   CreateAdminVoucherRequest,
   UpdateAdminVoucherRequest,
 } from "../../../api/vietride";
-import { formatDateOnly } from "../../../utils/date";
+import { formatDateOnly, toDatetimeLocalValue } from "../../../utils/date";
 import { toNumber } from "../../../utils/number";
 import type { CampaignForm, VoucherForm } from "./types";
 
@@ -82,6 +82,15 @@ export function formatInputDate(date: Date) {
   }).format(date);
 }
 
+export function formatInputDateTime(date: Date) {
+  return toDatetimeLocalValue(date);
+}
+
+export function toLocalDateTimeInput(value: string) {
+  const date = parseInputDate(value);
+  return date ? toDatetimeLocalValue(date) : "";
+}
+
 export function formatDisplayDate(value: string) {
   return formatDateOnly(value);
 }
@@ -94,6 +103,11 @@ export function parseInputDate(value: string) {
   }
 
   const vietnameseDate = trimmedValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (trimmedValue.includes("T")) {
+    const datetime = new Date(trimmedValue);
+    return Number.isNaN(datetime.getTime()) ? null : datetime;
+  }
+
   if (vietnameseDate) {
     const [, day, month, year] = vietnameseDate;
     return new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59);
@@ -162,6 +176,7 @@ export function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
   const selectedOperatorIds = toOperatorIds(form.applicableOperatorIds);
 
   return {
+    code: form.code.trim(),
     name: form.name.trim(),
     type: form.discountType,
     value: toNumber(form.discount),
@@ -208,7 +223,7 @@ export function toForm(voucher: AdminVoucher): VoucherForm {
     applicableOperatorIds: operatorIdsToValue(voucher.applicableOperatorIds ?? []),
     minOrderValue: String(voucher.minOrderAmount ?? voucher.minOrderValue ?? 0),
     quantity: String(quantityOf(voucher)),
-    expiryDate: formatDisplayDate(expiryDateOf(voucher)),
+    expiryDate: toLocalDateTimeInput(expiryDateOf(voucher)),
     maxUsagePerUser: String(voucher.perUserLimit ?? voucher.maxUsagePerUser ?? 1),
     active: activeOf(voucher),
   };

@@ -5,10 +5,13 @@ import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import { getAuthUser } from "../auth";
 import AssistantBubble from "../components/AssistantBubble";
+import { OperatorSubscriptionProvider } from "../contexts/OperatorSubscriptionProvider";
+import { useOperatorSubscription } from "../contexts/operatorSubscriptionContext";
 
-export default function ManagerLayout() {
+function ManagerLayoutContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { t } = useTranslation("nav");
+  const { t } = useTranslation(["nav", "common"]);
+  const { isLoading } = useOperatorSubscription();
   const authUser = getAuthUser();
   const role =
     authUser?.role === "OPERATOR_ADMIN" ? "OPERATOR_ADMIN" : "OPERATOR_STAFF";
@@ -29,11 +32,29 @@ export default function ManagerLayout() {
 
         <main className="flex-1 overflow-auto bg-gray-50">
           <div className="p-6">
-            <Outlet />
+            {isLoading ? (
+              <p className="text-sm text-gray-500">
+                {t("common:pageLoading")}
+              </p>
+            ) : (
+              <Outlet />
+            )}
           </div>
         </main>
       </div>
       <AssistantBubble />
     </div>
+  );
+}
+
+export default function ManagerLayout() {
+  const authUser = getAuthUser();
+  const role =
+    authUser?.role === "OPERATOR_ADMIN" ? "OPERATOR_ADMIN" : "OPERATOR_STAFF";
+
+  return (
+    <OperatorSubscriptionProvider role={role}>
+      <ManagerLayoutContent />
+    </OperatorSubscriptionProvider>
   );
 }

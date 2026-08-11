@@ -68,28 +68,33 @@ function WalletScheduleSummary({
   if (!wallet) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-sm">
       {wallet.nextScheduledSettlementAttemptAt && (
-        <span>
-          <FiClock className="mr-1.5 inline text-gray-400" />
-          {t("wallet.nextScheduledAttempt")}: {formatWalletDate(wallet.nextScheduledSettlementAttemptAt)}
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+          <FiClock className="shrink-0 text-amber-600" />
+          <span>{t("wallet.nextScheduledAttempt")}:</span>
+          <strong className="font-semibold">
+            {formatWalletDate(wallet.nextScheduledSettlementAttemptAt)}
+          </strong>
         </span>
       )}
       {wallet.lifetimeSettledAmount !== undefined && (
-        <span>
-          <FiCheckCircle className="mr-1.5 inline text-gray-400" />
-          {t("wallet.lifetimeSettled")}: {formatCurrency(wallet.lifetimeSettledAmount)}
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">
+          <FiCheckCircle className="shrink-0 text-emerald-600" />
+          <span>{t("wallet.lifetimeSettled")}:</span>
+          <strong className="font-semibold">
+            {formatCurrency(wallet.lifetimeSettledAmount)}
+          </strong>
         </span>
       )}
       {wallet.lastSettlement && (
-        <span>
-          {t("wallet.lastSettlement")}: {formatCurrency(wallet.lastSettlement.amount)} (
-          {formatWalletDate(wallet.lastSettlement.settledAt)})
-        </span>
-      )}
-      {wallet.withdrawalSupported === false && (
-        <span className="ml-auto rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-          {t("wallet.withdrawalUnsupported")}
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-blue-900">
+          <FiDollarSign className="shrink-0 text-blue-600" />
+          <span>{t("wallet.lastSettlement")}:</span>
+          <strong className="font-semibold">
+            {formatCurrency(wallet.lastSettlement.amount)} (
+            {formatWalletDate(wallet.lastSettlement.settledAt)})
+          </strong>
         </span>
       )}
     </div>

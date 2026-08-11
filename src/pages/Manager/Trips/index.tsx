@@ -2,17 +2,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiCalendar, FiPlus, FiTrash2, FiTruck, FiUsers } from "react-icons/fi";
 import { getAuthUser } from "../../../auth";
+import {
+  conflictReasonKey,
+  parseResourceConflictError,
+  resourceRoleKey,
+} from "../../../utils/resourceConflict";
 import { ApiRequestError } from "../../../api/client";
 import { fetchAllPages } from "../../../api/pagination";
 import Modal from "../../../components/Modal";
 import { StatCard } from "../../../components/StatCard";
 import { useToast } from "../../../components/toast/useToast";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { toDatetimeLocalValue } from "../../../utils/date";
+import { formatDateTime, toDatetimeLocalValue } from "../../../utils/date";
 import {
   readSessionCache,
   writeSessionCache,
 } from "../../../utils/sessionCache";
+import ChangeCrewModal, { type ChangeCrewForm } from "./ChangeCrewModal";
 import ScheduleFormModal from "./ScheduleFormModal";
 import ScheduleTable from "./ScheduleTable";
 import { SectionHeader } from "./formControls";
@@ -41,6 +47,7 @@ import type {
 } from "./types";
 import {
   activateOperatorDriverSchedule,
+  checkDriverScheduleAvailability,
   createOperatorDriverSchedule,
   deactivateOperatorDriverSchedule,
   deleteOperatorDriverSchedule,
@@ -50,8 +57,10 @@ import {
   getOperatorVehicles,
   getVehicleTypes,
   updateOperatorDriverSchedule,
+  updateOperatorDriverScheduleCrew,
   type DriverScheduleApplyTo,
   type OperatorDriverSchedulePatch,
+  type ResourceAvailabilityResult,
 } from "../../../api/vietride";
 
 // Cache danh mục (tuyến/xe/nhân sự) theo phiên — stale-while-revalidate, hạn 10 phút.
@@ -121,6 +130,16 @@ export default function TripsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   // Lỗi validation/lưu khi form đang mở — không render inline, chỉ đẩy qua toast bên dưới.
   const [formError, setFormError] = useState("");
+  const [availability, setAvailability] =
+    useState<ResourceAvailabilityResult | null>(null);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  // Lịch đang mở modal đổi crew — null nghĩa là modal đóng.
+  const [crewTarget, setCrewTarget] = useState<TripSchedule | null>(null);
+  const [crewForm, setCrewForm] = useState<ChangeCrewForm>({
+    driverId: "",
+    assistantId: "",
+  });
+  const [isSavingCrew, setIsSavingCrew] = useState(false);
   // Toast góc phải cho feedback hành động (tạo/sửa/xoá/bật-tắt/lỗi load).
   const toast = useToast();
   useToastFeedback({ error: formError });
@@ -299,6 +318,8 @@ export default function TripsPage() {
     ) {
       setApplyTo("FUTURE_ONLY");
     }
+    // Draft đổi thì kết quả preview cũ không còn ứng với payload sắp gửi.
+    setAvailability(null);
     setForm((current) => {
       const next: ScheduleForm = { ...current, [key]: value };
 
@@ -390,6 +411,64 @@ export default function TripsPage() {
     }
 
     return "";
+  }
+
+  // Conflict tài nguyên: message chung không nói rõ vướng ở đâu, phải đọc
+  // error.fields để chỉ đúng tài xế/phụ xe/xe và lý do (handoff mục 6.2, 11.6).
+  // ASSISTANT dùng chung code TRIP_DRIVER_CONFLICT nên chỉ resourceRole tách được.
+  function getScheduleError(err: unknown, fallbackKey: string) {
+    const conflict = parseResourceConflictError(err);
+    if (conflict) {
+      const role = t(resourceRoleKey(conflict.resourceRole));
+      const detail = t(conflictReasonKey(conflict.reason));
+      return conflict.blockingUntil
+        ? `${role}: ${detail} · ${t("resourceConflict.blockingUntil", {
+            time: formatDateTime(conflict.blockingUntil),
+          })}`
+        : `${role}: ${detail}`;
+    }
+
+    return err instanceof Error ? err.message : t(fallbackKey);
+  }
+
+  // Preview và create phải gửi đúng cùng một draft, nếu không kết quả kiểm tra
+  // không nói lên điều gì về payload thật (handoff mục 11.1 bước 2).
+  function buildScheduleDraft() {
+    const validFrom = form.departureAt.slice(0, 10);
+    return {
+      routeId: form.routeId,
+      vehicleId: form.vehicleId || null,
+      driverUserId: form.driverId,
+      assistantUserId: form.assistantId || null,
+      departureTime: toScheduleTimeValue(form.departureAt),
+      validFrom,
+      // Lịch một lần luôn chốt validUntil = validFrom. Lịch lặp lấy ngày kết
+      // thúc người dùng chọn; bỏ trống = null = chạy không giới hạn (§9.7).
+      validUntil: form.isOneTime ? validFrom : form.validUntil || null,
+      dayOfWeek: resolveDayOfWeek(form),
+    };
+  }
+
+  async function checkScheduleAvailability() {
+    const validationError = validateSchedule();
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
+    setIsCheckingAvailability(true);
+    setFormError("");
+    setAvailability(null);
+
+    try {
+      setAvailability(
+        await checkDriverScheduleAvailability(buildScheduleDraft()),
+      );
+    } catch (err) {
+      setFormError(getScheduleError(err, "trips.createScheduleFailed"));
+    } finally {
+      setIsCheckingAvailability(false);
+    }
   }
 
   async function saveSchedule(status: ScheduleStatus) {
@@ -504,9 +583,7 @@ export default function TripsPage() {
       } catch (err) {
         // 409 (DRIVER_SCHEDULE_EDIT_TOO_LATE, TRIP_*_CONFLICT...) hiện trong modal
         // vì form vẫn đang mở — user sửa lại field ngay tại chỗ.
-        setFormError(
-          err instanceof Error ? err.message : t("trips.updateScheduleFailed"),
-        );
+        setFormError(getScheduleError(err, "trips.updateScheduleFailed"));
       } finally {
         setIsSaving(false);
       }
@@ -516,20 +593,9 @@ export default function TripsPage() {
     setIsSaving(true);
 
     try {
-      const validFrom = form.departureAt.slice(0, 10);
-      // Lịch một lần luôn chốt validUntil = validFrom. Lịch lặp lấy ngày kết
-      // thúc người dùng chọn; bỏ trống = null = chạy không giới hạn (§9.7).
-      const validUntil = form.isOneTime ? validFrom : form.validUntil || null;
       const saved = await createOperatorDriverSchedule({
-        routeId: form.routeId,
-        vehicleId: form.vehicleId || null,
-        driverUserId: form.driverId,
-        assistantUserId: form.assistantId || null,
-        departureTime: toScheduleTimeValue(form.departureAt),
-        validFrom,
+        ...buildScheduleDraft(),
         baseFare: form.baseFare === "" ? null : Number(form.baseFare),
-        validUntil,
-        dayOfWeek: resolveDayOfWeek(form),
         isActive: status === "open",
       });
       const activeSchedule =
@@ -556,9 +622,7 @@ export default function TripsPage() {
       );
     } catch (err) {
       // Lỗi tạo lịch hiện trong modal vì form vẫn đang mở.
-      setFormError(
-        err instanceof Error ? err.message : t("trips.createScheduleFailed"),
-      );
+      setFormError(getScheduleError(err, "trips.createScheduleFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -676,12 +740,56 @@ export default function TripsPage() {
     setFormModalOpen(true);
   }
 
+  function openCrewModal(schedule: TripSchedule) {
+    setCrewForm({
+      driverId: schedule.driverId,
+      assistantId: schedule.assistantId ?? "",
+    });
+    setCrewTarget(schedule);
+  }
+
+  async function submitCrewChange() {
+    if (!crewTarget || isSavingCrew) {
+      return;
+    }
+
+    setIsSavingCrew(true);
+
+    try {
+      const updated = await updateOperatorDriverScheduleCrew(crewTarget.id, {
+        driverUserId: crewForm.driverId,
+        // "" = bỏ phụ xe; BE nhận null để xoá (mục 7.5).
+        assistantUserId: crewForm.assistantId || null,
+      });
+
+      setSchedules((current) =>
+        current.map((item) =>
+          item.id === crewTarget.id
+            ? {
+                ...item,
+                driverId: updated.driverUserId ?? crewForm.driverId,
+                assistantId:
+                  updated.assistantUserId ?? crewForm.assistantId ?? "",
+              }
+            : item,
+        ),
+      );
+      setCrewTarget(null);
+      toast.success(t("trips.changeCrewSuccess"));
+    } catch (err) {
+      toast.error(getScheduleError(err, "trips.changeCrewFailed"));
+    } finally {
+      setIsSavingCrew(false);
+    }
+  }
+
   function closeFormModal() {
     setFormModalOpen(false);
     setForm(emptyForm);
     setEditingId("");
     setApplyTo("FUTURE_ONLY");
     setFormError("");
+    setAvailability(null);
   }
 
   return (
@@ -778,6 +886,22 @@ export default function TripsPage() {
           onFieldChange={updateForm}
           onSuggestDeparture={suggestNextDepartureTime}
           onSave={(status) => void saveSchedule(status)}
+          availability={availability}
+          isCheckingAvailability={isCheckingAvailability}
+          onCheckAvailability={() => void checkScheduleAvailability()}
+        />
+      )}
+
+      {canManageSchedules && (
+        <ChangeCrewModal
+          schedule={crewTarget}
+          form={crewForm}
+          drivers={drivers}
+          assistants={assistants}
+          isSaving={isSavingCrew}
+          onFormChange={setCrewForm}
+          onClose={() => setCrewTarget(null)}
+          onSubmit={() => void submitCrewChange()}
         />
       )}
 
@@ -826,6 +950,7 @@ export default function TripsPage() {
           pageSize={pageSize}
           onPageChange={setPage}
           onEdit={editSchedule}
+          onChangeCrew={openCrewModal}
           onToggleActive={(schedule) => void toggleScheduleActive(schedule)}
           onDelete={requestDeleteSchedule}
         />

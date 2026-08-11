@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next";
-import Checkbox from "../../../components/form/Checkbox";
 import { FiTag } from "react-icons/fi";
 import type { OperatorRoute } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
@@ -9,8 +8,8 @@ import {
   labelClass,
 } from "../../../components/form/formClasses";
 import Field from "./Field";
+import RouteMultiSelect from "./RouteMultiSelect";
 import {
-  routeIdsToValue,
   toRouteIds,
   type VoucherForm,
   type VoucherServiceTab,
@@ -21,6 +20,7 @@ type VoucherModalProps = {
   form: VoucherForm;
   isEditing: boolean;
   routes: OperatorRoute[];
+  parcelEnabled: boolean;
   onChange: (key: keyof VoucherForm, value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
@@ -31,6 +31,7 @@ export default function VoucherModal({
   form,
   isEditing,
   routes,
+  parcelEnabled,
   onChange,
   onClose,
   onSubmit,
@@ -38,14 +39,6 @@ export default function VoucherModal({
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const selectedRouteIds = toRouteIds(form.applicableRouteIds);
-
-  function toggleRoute(routeId: string) {
-    const nextRouteIds = selectedRouteIds.includes(routeId)
-      ? selectedRouteIds.filter((id) => id !== routeId)
-      : [...selectedRouteIds, routeId];
-
-    onChange("applicableRouteIds", routeIdsToValue(nextRouteIds));
-  }
 
   function handleFieldChange(key: keyof VoucherForm, value: string) {
     if (key === "type") {
@@ -179,52 +172,13 @@ export default function VoucherModal({
         </div></section>
 
         <section className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.scopeRules")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className={labelClass}>
-              {t("vouchers.applicableRoutes")}
-            </label>
-            <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
-              {routes.length > 0 ? (
-                <div className="space-y-1">
-                  {routes.map((route) => {
-                    const checked = selectedRouteIds.includes(route.id);
-
-                    return (
-                      <label
-                        key={route.id}
-                        className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm ${
-                          checked
-                            ? "bg-vr-50 text-vr-800"
-                            : "text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onChange={() => toggleRoute(route.id)}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">
-                            {route.name}
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="px-3 py-2 text-sm text-gray-500">
-                  {t("vouchers.noRoutesAvailable")}
-                </p>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              {selectedRouteIds.length > 0
-                ? t("vouchers.selectedRoutes", {
-                    count: selectedRouteIds.length,
-                  })
-                : t("vouchers.allRoutesHint")}
-            </p>
-          </div>
+          <RouteMultiSelect
+            routes={routes}
+            selectedRouteIds={selectedRouteIds}
+            onChange={(routeIds) =>
+              onChange("applicableRouteIds", routeIds.join(", "))
+            }
+          />
           <div>
             <label className={labelClass}>{t("vouchers.applicableTo")}</label>
             <CustomSelect
@@ -239,7 +193,11 @@ export default function VoucherModal({
               }
             >
               <option value="BOOKING">{t("vouchers.applicableRides")}</option>
-              <option value="PARCEL">{t("vouchers.applicableParcels")}</option>
+              {parcelEnabled && (
+                <option value="PARCEL">
+                  {t("vouchers.applicableParcels")}
+                </option>
+              )}
             </CustomSelect>
           </div>
           <div>

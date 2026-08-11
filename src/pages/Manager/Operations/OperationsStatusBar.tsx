@@ -201,7 +201,9 @@ export default function OperationsStatusBar({
 
       {offline && (
         <p className="mt-2 text-xs text-amber-900">
-          {t("operations.realtimeOfflineHint")}
+          {t("operations.realtimeOfflineHint", {
+            seconds: fallbackPollSeconds,
+          })}
         </p>
       )}
     </section>

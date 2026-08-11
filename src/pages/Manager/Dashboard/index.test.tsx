@@ -11,6 +11,10 @@ import {
 } from "../../../api/vietride";
 import ManagerDashboard from "./index";
 
+const subscriptionAccessMock = vi.hoisted(() => ({
+  parcelEnabled: true,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, unknown>) =>
@@ -24,6 +28,13 @@ vi.mock("react-router-dom", () => ({
 
 vi.mock("../../../auth", () => ({
   getAuthUser: () => ({ role: "OPERATOR_ADMIN" }),
+}));
+
+vi.mock("../../../contexts/operatorSubscriptionContext", () => ({
+  useOperatorSubscription: () => ({
+    hasModule: (module: string) =>
+      module === "enableParcel" ? subscriptionAccessMock.parcelEnabled : true,
+  }),
 }));
 
 vi.mock("recharts", () => {
@@ -81,6 +92,7 @@ vi.mock("../../../api/vietride", () => ({
 describe("Manager Dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    subscriptionAccessMock.parcelEnabled = true;
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date(2026, 7, 2, 9, 30));
 
@@ -277,6 +289,23 @@ describe("Manager Dashboard", () => {
         expect.objectContaining({ status: "IN_PROGRESS" }),
       );
     });
+  });
+
+  it("does not request or render parcel data when the plan disables Parcel", async () => {
+    subscriptionAccessMock.parcelEnabled = false;
+
+    render(<ManagerDashboard />);
+
+    await waitFor(() => {
+      expect(getOperatorBookingStats).toHaveBeenCalledOnce();
+      expect(getOperatorVehicles).toHaveBeenCalledOnce();
+    });
+    expect(getOperatorParcelStats).not.toHaveBeenCalled();
+    expect(getOperatorParcels).not.toHaveBeenCalled();
+    expect(screen.queryByText("dashboard.parcelStatus")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/dashboard\.parcelRouteTotal/),
+    ).not.toBeInTheDocument();
   });
 });
 

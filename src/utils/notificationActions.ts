@@ -72,7 +72,9 @@ export function resolveNotificationAction(
   return inferLegacyAction(notification, data);
 }
 
-function parseNotificationAction(value: unknown): NotificationAction | null {
+export function parseNotificationAction(
+  value: unknown,
+): NotificationAction | null {
   const action = parseUnknownRecord(value);
   const type = readString(action, "type");
   const params = parseUnknownRecord(action?.params) ?? {};

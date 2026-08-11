@@ -57,7 +57,11 @@ function LedgerRow({ item, t, tc }: { item: OperatorLedgerEntry; t: Translate; t
       <td className={"whitespace-nowrap px-4 py-3 font-semibold " + (item.amount < 0 ? "text-red-700" : "text-emerald-700")}>
         {formatCurrency(item.amount)}
       </td>
-      <td className="px-4 py-3">{item.actor?.displayName || tc("enumLabels.SYSTEM", { defaultValue: item.actorType || "-" })}</td>
+      <td className="px-4 py-3">{item.actor?.role === "SYSTEM_ADMIN" ||
+        item.actor?.displayName === "System Admin"
+          ? tc("roles.SYSTEM_ADMIN", { defaultValue: item.actor.displayName })
+          : item.actor?.displayName ||
+            tc("enumLabels.SYSTEM", { defaultValue: item.actorType || "-" })}</td>
       <td className="px-4 py-3">
         {item.settlement ? <ProcessingStateBadge state={item.settlement.processingState} t={t} /> : "-"}
       </td>

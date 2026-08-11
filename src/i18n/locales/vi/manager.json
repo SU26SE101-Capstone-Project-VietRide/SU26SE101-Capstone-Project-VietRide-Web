@@ -134,7 +134,6 @@
     "validUntilHint": "Lịch dừng sinh chuyến sau ngày này.",
     "validUntilEmptyHint": "Để trống nghĩa là lịch chạy không giới hạn thời gian.",
     "validationValidUntil": "Ngày kết thúc phải từ ngày khởi hành trở về sau.",
-    "departureTimeTimezoneHint": "Giờ khởi hành tính theo lịch Việt Nam (Asia/Ho_Chi_Minh, +07:00), không phải giờ UTC.",
     "suggestNextDeparture": "Gợi ý giờ gần nhất",
     "editScheduleDateLocked": "Chỉ giờ khởi hành được cập nhật. Ngày bắt đầu của lịch không sửa được — cần đổi ngày thì tạo lịch mới.",
     "sectionRouteVehicle": "Tuyến, phương tiện & nhân sự",
@@ -237,7 +236,13 @@
     "editScheduleFocusNotice": "Bạn đang chỉnh sửa lịch này. Chọn phạm vi áp dụng bên dưới trước khi lưu — thay đổi sẽ được gửi lên hệ thống.",
     "loadResourcesFailed": "Không thể tải tuyến, xe và nhân sự cho chuyến.",
     "loadSchedulesFailed": "Không thể tải lịch chuyến.",
-    "createScheduleFailed": "Không thể tạo lịch chuyến."
+    "createScheduleFailed": "Không thể tạo lịch chuyến.",
+    "changeCrew": "Đổi tài xế / phụ xe",
+    "changeCrewSubtitle": "Cập nhật nhân sự cho lịch chạy và toàn bộ chuyến chưa khởi hành.",
+    "changeCrewAction": "Lưu nhân sự",
+    "changeCrewCascadeNotice": "Thay đổi này áp dụng cho cả những chuyến đã sinh đang ở trạng thái Đã lên lịch hoặc Đang lên khách.",
+    "changeCrewSuccess": "Đã cập nhật nhân sự cho lịch chạy.",
+    "changeCrewFailed": "Không cập nhật được nhân sự, vui lòng thử lại."
   },
   "routeEta": {
     "title": "Điều chỉnh lộ trình & giờ đến dự kiến",
@@ -945,6 +950,8 @@
     "cancellationReason": "Lý do hủy",
     "statuses": {
       "unknown": "Chưa xác định",
+      "draft": "Bản nháp",
+      "issued": "Đã phát hành",
       "pending": "Chờ xử lý",
       "pending_payment": "Chờ thanh toán",
       "confirmed": "Đã xác nhận",
@@ -1409,7 +1416,7 @@
     "routeGeometryLoading": "Đang tải lộ trình tuyến để vẽ lên bản đồ…",
     "routeGeometryEmpty": "Tuyến của chuyến này chưa có dữ liệu lộ trình nên bản đồ chỉ hiện vị trí xe và hành trình đã đi.",
     "routeGeometryError": "Không tải được lộ trình tuyến. Bấm \"Tải tracking\" để thử lại.",
-    "incidentsChip": "Sự cố tài xế báo"
+    "incidentsChip": "Nhật ký sự cố"
   },
   "dispatch": {
     "title": "Điều phối xe trung chuyển",
@@ -1511,7 +1518,11 @@
     "passengers": "khách",
     "passengerCount": "Số khách",
     "bookingGroups": "lượt đặt vé",
+    "pendingPassengerBookingSummary": "{{passengers}} hành khách từ {{bookings}} lượt đặt vé",
     "suggestedOrder": "Thứ tự đón/trả được đề xuất",
+    "routeOrderHint": "Danh sách đã được sắp xếp theo lộ trình vận hành đề xuất.",
+    "stopCount": "{{count}} điểm",
+    "stopOrdinal": "Điểm {{index}}",
     "station": "Bến phục vụ",
     "roadDistance": "Khoảng cách đường bộ",
     "requestedAt": "Yêu cầu lúc",
@@ -1547,6 +1558,19 @@
     "unassignedDriver": "Chưa phân công tài xế",
     "stopCount": "Số điểm dừng",
     "trackingOnDemandHint": "Bấm nút làm mới để lấy vị trí và giờ đến dự kiến.",
+    "mainRoute": "Tuyến chuyến chính",
+    "cancelRequest": "Huỷ yêu cầu",
+    "cancelShuttleTrip": "Huỷ chuyến trung chuyển",
+    "cancelRequestConfirm": "Huỷ yêu cầu trung chuyển của {{label}}? Hành khách sẽ không được đón/trả tận nơi cho chuyến này.",
+    "cancelTripConfirm": "Huỷ chuyến trung chuyển {{label}}? Xe và tài xế sẽ được giải phóng cho lịch khác.",
+    "cancelReason": "Lý do huỷ",
+    "cancelReasonPlaceholder": "VD: Không còn đủ xe để tổ chức trung chuyển",
+    "cancelReasonHint": "Lý do được lưu cùng thao tác huỷ và gửi thông báo cho hành khách liên quan.",
+    "cancelReasonRequired": "Vui lòng nhập lý do huỷ.",
+    "confirmCancel": "Xác nhận huỷ",
+    "cancelling": "Đang huỷ...",
+    "cancelRequestSuccess": "Đã huỷ yêu cầu trung chuyển của {{label}}.",
+    "cancelTripSuccess": "Đã huỷ chuyến trung chuyển {{label}}.",
     "shuttleStatus": {
       "SCHEDULED": "Đã lên lịch",
       "IN_PROGRESS": "Đang chạy",
@@ -1629,9 +1653,15 @@
     "totalUsageLimit": "Tổng lượt dùng",
     "perUser": "Mỗi người dùng",
     "validFrom": "Hiệu lực từ",
-    "validTo": "Hiệu lực đến",
+    "validTo": "Hạn sử dụng",
     "applicableRouteIds": "Mã tuyến áp dụng",
     "applicableRoutes": "Tuyến áp dụng",
+    "searchRoutes": "Tìm tuyến",
+    "searchRoutesPlaceholder": "Tìm theo tên tuyến hoặc bến...",
+    "searchRoutesEmpty": "Không tìm thấy tuyến phù hợp.",
+    "voucherRouteSearchCount": "Hiển thị {{shown}}/{{total}} tuyến",
+    "selectAllRoutes": "Chọn tất cả",
+    "clearSelectedRoutes": "Bỏ chọn đã chọn",
     "noRoutesAvailable": "Chưa có tuyến. Hãy tạo tuyến trước rồi chọn tại đây.",
     "selectedRoutes": "Đã chọn {{count}} tuyến",
     "allRoutesHint": "Nếu không chọn tuyến, mã giảm giá sẽ áp dụng mà không giới hạn tuyến.",
@@ -1889,6 +1919,13 @@
     "shortDescPlaceholder": "VD: Quy định khi lên xe và trong suốt hành trình",
     "categoryLabel": "Danh mục *",
     "categoryPlaceholder": "VD: Hành khách, Hủy vé, Hành lý",
+    "categories": {
+      "PARCEL": "Hàng hóa",
+      "BOARDING": "Lên xe",
+      "LUGGAGE": "Hành lý",
+      "BOOKING_CHANGE": "Đổi chuyến và thông tin vé",
+      "BOOKING_CANCELLATION": "Hủy vé và hoàn tiền"
+    },
     "contentLabel": "Nội dung chính sách *",
     "contentPlaceholder": "Nhập nội dung chính sách...",
     "contentHint": "Bạn có thể sử dụng dòng mới để tách các điểm (1. Điểm 1, 2. Điểm 2)",
@@ -2050,7 +2087,7 @@
     "topupNote": "Sau khi xác nhận, bạn sẽ được chuyển hướng tới VNPay để thanh toán. Giao dịch sẽ được xử lý trong vòng 1–2 phút.",
     "topupAlert": "Nạp tiền: {{amount}}đ - Sẽ chuyển hướng tới VNPay",
     "monthLabel": "Tháng {{n}}",
-    "balanceHelper": "Đã vào ví sau tất toán, chưa đồng nghĩa rút được ngân hàng",
+    "balanceHelper": "Đã vào ví sau tất toán",
     "awaitingTripCompletion": "Chờ chuyến kết thúc",
     "countHelper": "{{count}} chuyến",
     "nextScheduledAttempt": "Lần xử lý dự kiến tiếp theo",
@@ -2323,7 +2360,7 @@
     "selectVehicle": "Chọn xe",
     "driver": "Tài xế mới",
     "selectDriver": "Chọn tài xế",
-    "assistant": "Phụ xe mới (không bắt buộc)",
+    "assistant": "Phụ xe mới",
     "noAssistant": "Không chọn phụ xe",
     "reason": "Lý do",
     "substitute": "Thay xe",
@@ -2342,8 +2379,8 @@
     "changeRouteFailed": "Không thể đổi lộ trình cho chuyến."
   },
   "incidents": {
-    "title": "Báo cáo sự cố chuyến đi",
-    "subtitle": "Tiếp nhận và tra cứu các sự cố do tài xế hoặc phụ xe báo trong lúc chạy chuyến.",
+    "title": "Nhật ký sự cố chuyến đi",
+    "subtitle": "Tra cứu lịch sử sự cố do tài xế hoặc phụ xe báo; thao tác xử lý thực hiện tại Trung tâm vận hành.",
     "loadFailed": "Không tải được danh sách sự cố.",
     "empty": "Chưa có sự cố nào được báo.",
     "category": "Loại sự cố",
@@ -2382,5 +2419,30 @@
       "OPEN": "Chưa xử lý",
       "RESOLVED": "Đã xử lý"
     }
+  },
+  "resourceConflict": {
+    "previewOk": "Không có xung đột. Vẫn có thể bị từ chối khi lưu nếu có thao tác khác chen vào trước.",
+    "previewAdvisory": "Kết quả kiểm tra chỉ mang tính tham khảo, không giữ chỗ tài nguyên.",
+    "checking": "Đang kiểm tra lịch tài nguyên…",
+    "check": "Kiểm tra xung đột",
+    "blockingUntil": "Bận đến {{time}}",
+    "noFeasibleStart": "Không tìm được giờ bắt đầu khả thi trước chuyến kế tiếp.",
+    "requiredTravel": "Cần {{minutes}} phút di chuyển sang điểm kế tiếp",
+    "reason": {
+      "TIME_OVERLAP": "Trùng thời gian với chuyến khác",
+      "TURNAROUND_REQUIRED": "Chưa đủ thời gian nghỉ/chuyển giao tại cùng điểm",
+      "REPOSITION_REQUIRED": "Chưa đủ thời gian nghỉ cộng thời gian chạy xe sang điểm kế tiếp",
+      "RESOURCE_ACTIVE": "Đang chạy một chuyến khác",
+      "UNKNOWN": "Lịch bị trùng"
+    },
+    "role": {
+      "DRIVER": "Tài xế",
+      "ASSISTANT": "Phụ xe",
+      "VEHICLE": "Phương tiện",
+      "UNKNOWN": "Tài nguyên"
+    },
+    "summary": "Có {{count}} xung đột lịch tài nguyên",
+    "occurrencesFrom": "{{count}} lần, sớm nhất {{time}}",
+    "hasMoreShort": "Danh sách đã bị cắt bớt, có thể còn xung đột khác."
   }
 }

@@ -10,6 +10,7 @@ import PlacePicker, {
 import StationFacilityFields from "./StationFacilityFields";
 import StationScheduleFields from "./StationScheduleFields";
 import {
+  displayCityName,
   inputClass,
   labelClass,
   type OperatingDayKey,
@@ -143,7 +144,7 @@ export default function StationEditorPanel({
               {t("stations.derivedLocationLabel")}
             </p>
             <p className="mt-1 text-sm font-medium text-gray-900">
-              {[form.ward, form.city].filter(Boolean).join(", ") || "—"}
+              {[form.ward, displayCityName(form.city)].filter(Boolean).join(", ") || "—"}
             </p>
             <p className="mt-1 text-xs text-gray-500">
               {t("stations.derivedLocationHint")}

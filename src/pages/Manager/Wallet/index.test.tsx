@@ -176,10 +176,56 @@ describe("ManagerWallet", () => {
   it("hides withdrawal UI when withdrawalSupported is false", async () => {
     renderWallet();
 
-    expect(await screen.findByText("wallet.withdrawalUnsupported")).toBeInTheDocument();
+    expect(await screen.findByText("wallet.currentBalance")).toBeInTheDocument();
+    expect(screen.queryByText("wallet.withdrawalUnsupported")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /rút tiền|withdraw/i })).not.toBeInTheDocument();
   });
 
+  it("uses distinct colors for settlement summary items", async () => {
+    renderWallet();
+
+    const scheduledLabel = await screen.findByText(
+      "wallet.nextScheduledAttempt",
+      { exact: false },
+    );
+    const lifetimeLabel = screen.getByText("wallet.lifetimeSettled", {
+      exact: false,
+    });
+    const latestLabel = screen.getByText("wallet.lastSettlement", {
+      exact: false,
+    });
+
+    expect(scheduledLabel.parentElement).toHaveClass(
+      "border-amber-200",
+      "bg-amber-50",
+      "text-amber-900",
+    );
+    expect(lifetimeLabel.parentElement).toHaveClass(
+      "border-emerald-200",
+      "bg-emerald-50",
+      "text-emerald-900",
+    );
+    expect(latestLabel.parentElement).toHaveClass(
+      "border-blue-200",
+      "bg-blue-50",
+      "text-blue-900",
+    );
+
+  });
+  it("gives cash-flow more width than time and actor columns", async () => {
+    renderWallet();
+
+    const cashFlowHeader = await screen.findByText("wallet.cashFlow");
+    const timeHeader = screen.getByText("wallet.time");
+    const actorHeader = screen.getByText("wallet.actor");
+
+    expect(cashFlowHeader).toHaveClass("w-[22%]");
+    expect(timeHeader).toHaveClass("w-[14%]");
+    expect(actorHeader).toHaveClass("w-[12%]");
+    expect(
+      screen.getByText("wallet.transactionCopy.TRIP_SETTLEMENT_CREDIT"),
+    ).toHaveClass("whitespace-nowrap");
+  });
   it("shows the PARTIAL data-completeness badge without crashing on missing metadata", async () => {
     renderWallet();
 

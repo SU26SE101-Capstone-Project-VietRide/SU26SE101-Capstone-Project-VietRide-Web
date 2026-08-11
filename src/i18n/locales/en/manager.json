@@ -134,7 +134,6 @@
     "validUntilHint": "The schedule stops generating trips after this date.",
     "validUntilEmptyHint": "Leave empty to run the schedule with no end date.",
     "validationValidUntil": "The end date must be on or after the departure date.",
-    "departureTimeTimezoneHint": "Departure time follows the Vietnam calendar (Asia/Ho_Chi_Minh, +07:00), not UTC.",
     "suggestNextDeparture": "Suggest next time",
     "editScheduleDateLocked": "Only the departure time is updated. The schedule's start date cannot be edited — create a new schedule to change it.",
     "sectionRouteVehicle": "Route, vehicle & crew",
@@ -237,7 +236,13 @@
     "editScheduleFocusNotice": "You are editing this schedule. Choose the apply scope below before saving — changes are sent to the system.",
     "loadResourcesFailed": "Unable to load routes, vehicles and staff for trips.",
     "loadSchedulesFailed": "Unable to load trip schedules.",
-    "createScheduleFailed": "Unable to create trip schedule."
+    "createScheduleFailed": "Unable to create trip schedule.",
+    "changeCrew": "Change driver / assistant",
+    "changeCrewSubtitle": "Update the crew for this schedule and every trip that has not departed.",
+    "changeCrewAction": "Save crew",
+    "changeCrewCascadeNotice": "This also applies to already generated trips that are Scheduled or Boarding.",
+    "changeCrewSuccess": "Crew updated for this schedule.",
+    "changeCrewFailed": "Could not update the crew, please try again."
   },
   "routeEta": {
     "title": "Route change & ETA update",
@@ -945,6 +950,8 @@
     "cancellationReason": "Cancellation reason",
     "statuses": {
       "unknown": "Unknown",
+      "draft": "Draft",
+      "issued": "Issued",
       "pending": "Pending",
       "pending_payment": "Pending payment",
       "confirmed": "Confirmed",
@@ -1409,7 +1416,7 @@
     "routeGeometryLoading": "Loading the route path to draw on the map…",
     "routeGeometryEmpty": "This trip's route has no path data, so the map only shows the vehicle position and the trail it has driven.",
     "routeGeometryError": "Could not load the route path. Press \"Load tracking\" to retry.",
-    "incidentsChip": "Driver-reported incidents"
+    "incidentsChip": "Incident log"
   },
   "dispatch": {
     "title": "Shuttle dispatch",
@@ -1547,6 +1554,19 @@
     "unassignedDriver": "No driver assigned",
     "stopCount": "Stops",
     "trackingOnDemandHint": "Press refresh to fetch the position and estimated arrival.",
+    "mainRoute": "Main trip route",
+    "cancelRequest": "Cancel request",
+    "cancelShuttleTrip": "Cancel shuttle trip",
+    "cancelRequestConfirm": "Cancel the shuttle request for {{label}}? These passengers will no longer get door-to-door transfer on this trip.",
+    "cancelTripConfirm": "Cancel shuttle trip {{label}}? The vehicle and driver will be released for other assignments.",
+    "cancelReason": "Cancellation reason",
+    "cancelReasonPlaceholder": "e.g. No vehicle left to run the transfer",
+    "cancelReasonHint": "The reason is stored with the cancellation and notified to the affected passengers.",
+    "cancelReasonRequired": "Please enter a cancellation reason.",
+    "confirmCancel": "Confirm cancellation",
+    "cancelling": "Cancelling...",
+    "cancelRequestSuccess": "Cancelled the shuttle request for {{label}}.",
+    "cancelTripSuccess": "Cancelled shuttle trip {{label}}.",
     "shuttleStatus": {
       "SCHEDULED": "Scheduled",
       "IN_PROGRESS": "In progress",
@@ -1629,9 +1649,15 @@
     "totalUsageLimit": "Total usage limit",
     "perUser": "Per user",
     "validFrom": "Valid from",
-    "validTo": "Valid to",
+    "validTo": "Valid until",
     "applicableRouteIds": "Applicable route IDs",
     "applicableRoutes": "Applicable routes",
+    "searchRoutes": "Search routes",
+    "searchRoutesPlaceholder": "Search by route name or station...",
+    "searchRoutesEmpty": "No matching routes.",
+    "voucherRouteSearchCount": "Showing {{shown}}/{{total}} routes",
+    "selectAllRoutes": "Select all",
+    "clearSelectedRoutes": "Clear selected",
     "noRoutesAvailable": "No routes available. Create routes first, then select them here.",
     "selectedRoutes": "{{count}} route(s) selected",
     "allRoutesHint": "No route selected. The voucher will be sent without route restrictions.",
@@ -1889,6 +1915,13 @@
     "shortDescPlaceholder": "e.g. Rules when boarding and during the trip",
     "categoryLabel": "Category *",
     "categoryPlaceholder": "e.g. Passengers, Cancellation, Baggage",
+    "categories": {
+      "PARCEL": "Parcel shipment",
+      "BOARDING": "Boarding",
+      "LUGGAGE": "Baggage",
+      "BOOKING_CHANGE": "Booking and trip changes",
+      "BOOKING_CANCELLATION": "Booking cancellation and refunds"
+    },
     "contentLabel": "Policy content *",
     "contentPlaceholder": "Enter policy content...",
     "contentHint": "Use line breaks to separate points (1. Point 1, 2. Point 2)",
@@ -2323,7 +2356,7 @@
     "selectVehicle": "Select vehicle",
     "driver": "New driver",
     "selectDriver": "Select driver",
-    "assistant": "New assistant (optional)",
+    "assistant": "New assistant",
     "noAssistant": "No assistant",
     "reason": "Reason",
     "substitute": "Substitute vehicle",
@@ -2342,8 +2375,8 @@
     "changeRouteFailed": "Unable to change the route for this trip."
   },
   "incidents": {
-    "title": "Trip incident reports",
-    "subtitle": "Review incidents reported by drivers or assistants while a trip is running.",
+    "title": "Trip incident log",
+    "subtitle": "Review driver and assistant incident history; handle the active trip in Operations Center.",
     "loadFailed": "Could not load the incident list.",
     "empty": "No incidents have been reported yet.",
     "category": "Incident type",
@@ -2382,5 +2415,30 @@
       "OPEN": "Open",
       "RESOLVED": "Resolved"
     }
+  },
+  "resourceConflict": {
+    "previewOk": "No conflict found. Saving can still be rejected if another change lands first.",
+    "previewAdvisory": "This check is advisory only and does not hold the resource.",
+    "checking": "Checking resource schedule…",
+    "check": "Check conflicts",
+    "blockingUntil": "Busy until {{time}}",
+    "noFeasibleStart": "No feasible start time fits before the next assignment.",
+    "requiredTravel": "Needs {{minutes}} minutes to reposition",
+    "reason": {
+      "TIME_OVERLAP": "Overlaps another assignment",
+      "TURNAROUND_REQUIRED": "Not enough turnaround time at the same location",
+      "REPOSITION_REQUIRED": "Not enough turnaround plus travel time to the next location",
+      "RESOURCE_ACTIVE": "Currently running another assignment",
+      "UNKNOWN": "Schedule conflict"
+    },
+    "role": {
+      "DRIVER": "Driver",
+      "ASSISTANT": "Assistant",
+      "VEHICLE": "Vehicle",
+      "UNKNOWN": "Resource"
+    },
+    "summary": "{{count}} resource schedule conflicts",
+    "occurrencesFrom": "{{count}} occurrences, earliest {{time}}",
+    "hasMoreShort": "The list was truncated; there may be more conflicts."
   }
 }

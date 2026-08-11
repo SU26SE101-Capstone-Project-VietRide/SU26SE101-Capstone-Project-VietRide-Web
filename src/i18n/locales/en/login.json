@@ -114,6 +114,7 @@
     "passwordMin": "Password must be at least 6 characters",
     "failed": "Sign in failed, please try again",
     "registerFailed": "Registration failed, please try again",
+    "verifyEmailFailed": "Email verification failed, please try again",
     "resendVerificationFailed": "Could not resend the verification code"
   },
   "hero": {

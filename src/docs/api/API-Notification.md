@@ -1389,6 +1389,48 @@ Content-Type: application/json
 4. Khi user đọc notification trong inbox, gọi `POST /v1/notifications/{notificationId}/read`; endpoint thành công trả `204 No Content`.
 5. Không xem FCM là source of truth: app có thể bị mất push khi offline, vì vậy inbox `GET /v1/notifications` luôn là nguồn hiển thị chính.
 
+### Realtime Socket.IO (bổ sung 2026-08-11)
+
+BE đã đăng ký `NotificationsRealtimeGateway`, gắn Socket.IO adapter và cho Nginx route
+`/notification/socket.io/` thẳng tới `notification:3002`. Contract cho web:
+
+| Mục | Giá trị |
+|---|---|
+| Origin | Public backend origin (`VITE_API_BASE_URL`), **không** phải cổng Gateway/container |
+| `path` | `/notification/socket.io` (không có tiền tố `/v1`) |
+| Namespace | Mặc định `/` |
+| Auth | `auth.token` = Identity user access token RS256 (fallback `Authorization: Bearer` cho tooling) |
+| Room | Server tự join `notification:user:{sub}`; client **không** emit event join và không gửi `userId` |
+| Event | `notification:created` |
+
+Payload là DTO thô, không bọc envelope `ApiResponse`, **không có `userId` và không có `deepLink`**:
+
+```json
+{
+  "id": "notification-id",
+  "type": "BOOKING_CREATED",
+  "title": "...",
+  "body": "...",
+  "data": {},
+  "action": { "type": "...", "params": {} },
+  "readAt": null,
+  "createdAt": "2026-08-11T10:30:00+07:00"
+}
+```
+
+Ràng buộc phía client:
+
+1. Token thiếu/sai/hết hạn nhận `connect_error.message === "UNAUTHORIZED"`; phải cập nhật
+   `socket.auth.token` sau khi refresh rồi mới `connect()` lại (xem `src/lib/socketAuthRecovery.ts`).
+2. Emit là best-effort sau khi persist + enqueue FCM, và Socket.IO là at-least-once: **dedupe theo
+   `id`** vì event có thể được replay với cùng `id`.
+3. REST inbox là nguồn bền vững: gọi `GET /v1/notifications` khi mở màn hình và sau mỗi lần
+   reconnect để bù event bị bỏ lỡ. Polling chỉ còn là fallback, không phải luồng realtime chính.
+4. Điều hướng theo `action`; `action.type === "NONE"` thì chỉ hiển thị nội dung.
+
+Cấu hình `NOTIFICATION_CORS_ORIGIN` trên server phải liệt kê origin FE (production không nhận `*`),
+nên trước khi BE deploy Notification image + Nginx mới thì FE vẫn thấy hành vi polling cũ.
+
 ## Verification T1–T9
 
 Lệnh real-stack chọn lọc:

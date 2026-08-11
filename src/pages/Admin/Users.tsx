@@ -156,9 +156,14 @@ export default function Users() {
 
       setUsers((current) => current.map(updateUser));
       setSelected((current) => (current ? updateUser(current) : current));
+      // Hai key này có placeholder {{name}} nên bắt buộc truyền biến, nếu không
+      // toast hiện nguyên chuỗi "{{name}}".
+      const name = user.displayName || user.email;
       setMessage({
         tone: "success",
-        text: shouldUnlock ? t("users.unlockSuccess") : t("users.lockSuccess"),
+        text: shouldUnlock
+          ? t("users.unlockSuccess", { name })
+          : t("users.lockSuccess", { name }),
       });
     } catch (error) {
       setMessage({

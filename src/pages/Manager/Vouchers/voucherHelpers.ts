@@ -3,7 +3,7 @@ import type {
   OperatorVoucher,
   UpdateOperatorVoucherRequest,
 } from "../../../api/vietride";
-import { formatDateTime } from "../../../utils/date";
+import { formatDateTime, toDatetimeLocalValue } from "../../../utils/date";
 import { toNumber } from "../../../utils/number";
 
 export type VoucherServiceTab = "BOOKING" | "PARCEL";
@@ -26,6 +26,11 @@ export type VoucherForm = {
 
 export function toIsoLocal(value: string) {
   return value ? new Date(value).toISOString() : new Date().toISOString();
+}
+
+export function toLocalDateTimeInput(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : toDatetimeLocalValue(date);
 }
 
 export function toRouteIds(value: string) {
@@ -77,8 +82,8 @@ export function toForm(voucher: OperatorVoucher): VoucherForm {
     maxDiscountAmount: String(voucher.maxDiscountAmount),
     totalUsageLimit: String(voucher.totalUsageLimit),
     perUserLimit: String(voucher.perUserLimit),
-    validFrom: voucher.validFrom ? voucher.validFrom.slice(0, 16) : "",
-    validUntil: voucher.validUntil ? voucher.validUntil.slice(0, 16) : "",
+    validFrom: voucher.validFrom ? toLocalDateTimeInput(voucher.validFrom) : "",
+    validUntil: voucher.validUntil ? toLocalDateTimeInput(voucher.validUntil) : "",
     applicableService: isParcelVoucher(voucher) ? "PARCEL" : "BOOKING",
     applicableRouteIds: voucher.applicableRouteIds.join(", "),
     fundingType: voucher.fundingType ?? "OPERATOR_FUNDED",

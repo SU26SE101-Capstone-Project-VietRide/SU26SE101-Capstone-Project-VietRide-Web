@@ -151,6 +151,12 @@
     "EXPIRED": "Expired",
     "DRAFT": "Draft",
     "ISSUED": "Issued",
+    "SCHEDULED": "Scheduled",
+    "BOARDING": "Boarding",
+    "IN_PROGRESS": "In progress",
+    "ARRIVED": "Arrived",
+    "DISRUPTED": "Disrupted",
+    "NO_SHOW": "No-show",
     "PROCESSING": "Processing",
     "FAILED": "Failed",
     "COMPLETED": "Completed",
@@ -213,7 +219,13 @@
       "saturday": "Sa"
     }
   },
-  "profilePage": {
+  "roles": {
+    "SYSTEM_ADMIN": "System administrator",
+    "OPERATOR_ADMIN": "Operator admin",
+    "OPERATOR_STAFF": "Operator staff",
+    "DRIVER": "Driver",
+    "ASSISTANT": "Assistant"
+  },  "profilePage": {
     "accountInfo": "Account information",
     "roleLabel": "Role",
     "systemRole": "System administrator",

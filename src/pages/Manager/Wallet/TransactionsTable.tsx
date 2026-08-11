@@ -16,15 +16,15 @@ export function TransactionsTable({
 }) {
   return (
     <div className="overflow-x-auto p-4">
-      <table className="w-full table-fixed text-center text-sm">
+      <table className="w-full min-w-[1100px] table-fixed text-center text-sm">
         <thead>
           <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
-            <th className="px-4 py-3">{t("wallet.time")}</th>
-            <th className="px-4 py-3">{t("wallet.cashFlow")}</th>
-            <th className="px-4 py-3">{t("wallet.change")}</th>
-            <th className="px-4 py-3">{t("wallet.balanceAfter")}</th>
-            <th className="px-4 py-3">{t("wallet.actor")}</th>
-            <th className="px-4 py-3">{t("wallet.relatedSettlement")}</th>
+            <th className="w-[14%] px-3 py-3">{t("wallet.time")}</th>
+            <th className="w-[22%] px-4 py-3">{t("wallet.cashFlow")}</th>
+            <th className="w-[13%] px-3 py-3">{t("wallet.change")}</th>
+            <th className="w-[14%] px-3 py-3">{t("wallet.balanceAfter")}</th>
+            <th className="w-[12%] px-3 py-3">{t("wallet.actor")}</th>
+            <th className="w-[25%] px-4 py-3">{t("wallet.relatedSettlement")}</th>
           </tr>
         </thead>
         <tbody>
@@ -60,8 +60,8 @@ function TransactionRow({
 
   return (
     <tr className="border-t border-gray-100">
-      <td className="whitespace-nowrap px-4 py-3 text-gray-700">{formatWalletDate(item.createdAt)}</td>
-      <td className={`px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
+      <td className="w-[14%] whitespace-nowrap px-3 py-3 text-gray-700">{formatWalletDate(item.createdAt)}</td>
+      <td className={`w-[22%] whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
         {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
         {copy}
         {item.adjustmentReason && (
@@ -69,15 +69,20 @@ function TransactionRow({
         )}
         <DataCompletenessBadge completeness={item.dataCompleteness} missingFields={item.missingFields} t={t} />
       </td>
-      <td className={`whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
+      <td className={`w-[13%] whitespace-nowrap px-3 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
         {isCredit ? "+" : ""}
         {formatCurrency(signed)}
       </td>
-      <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatCurrency(item.balanceAfter)}</td>
-      <td className="px-4 py-3 text-gray-600">
-        {item.actorType === "USER" && item.actor ? item.actor.displayName : tc("enumLabels.SYSTEM", { defaultValue: "-" })}
+      <td className="w-[14%] whitespace-nowrap px-3 py-3 font-semibold">{formatCurrency(item.balanceAfter)}</td>
+      <td className="w-[12%] whitespace-nowrap px-3 py-3 text-gray-600">
+        {item.actor?.role === "SYSTEM_ADMIN" ||
+        item.actor?.displayName === "System Admin"
+          ? tc("roles.SYSTEM_ADMIN", { defaultValue: item.actor.displayName })
+          : item.actorType === "USER" && item.actor
+            ? item.actor.displayName
+            : tc("enumLabels.SYSTEM", { defaultValue: "-" })}
       </td>
-      <td className="px-4 py-3 text-gray-600">
+      <td className="w-[25%] px-4 py-3 text-gray-600">
         {item.relatedSettlement
           ? t("wallet.relatedSettlementValue", { method: t(`wallet.methods.${item.relatedSettlement.method}`, { defaultValue: item.relatedSettlement.method }) })
           : "-"}

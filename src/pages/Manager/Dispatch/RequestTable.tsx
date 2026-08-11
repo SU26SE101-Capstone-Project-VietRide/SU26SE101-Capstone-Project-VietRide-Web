@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { FiClock, FiEye, FiMapPin, FiTruck, FiUsers } from "react-icons/fi";
+import { FiClock, FiEye, FiMap, FiMapPin, FiTruck, FiUsers } from "react-icons/fi";
 import type {
   ShuttleDirection,
   ShuttleRequestGroup,
@@ -13,6 +13,7 @@ import {
   getGroupKey,
   getOrderedBookingGroups,
   isInboundDirection,
+  shuttleRouteLabel,
 } from "./dispatchHelpers";
 
 type RequestTableProps = {
@@ -87,11 +88,19 @@ export default function RequestTable({
                       </span>
                     )}
                   </div>
-                  {/* Định danh nhóm yêu cầu là bến + giờ chuyến chính, không
-                      phải UUID chuyến — điều độ viên không đọc được UUID. */}
+                  {/* Định danh nhóm yêu cầu là tên tuyến + bến + giờ chuyến
+                      chính, không phải UUID chuyến — điều độ viên không đọc
+                      được UUID. */}
                   <p className="mt-2 flex items-start gap-1.5 text-base font-bold text-gray-900">
-                    <FiMapPin
+                    <FiMap
                       className="mt-1 shrink-0 text-vr-600"
+                      aria-hidden="true"
+                    />
+                    {shuttleRouteLabel(group, group.stationName)}
+                  </p>
+                  <p className="mt-1 flex items-start gap-1.5 text-sm text-gray-600">
+                    <FiMapPin
+                      className="mt-0.5 shrink-0 text-gray-400"
                       aria-hidden="true"
                     />
                     {group.stationName}
@@ -124,10 +133,10 @@ export default function RequestTable({
                 </div>
               </header>
 
-              <dl className="grid gap-3 rounded-xl bg-gray-50 p-3 text-sm sm:grid-cols-3">
-                <div>
+              <dl className="grid gap-2.5 rounded-2xl bg-gray-50/80 p-2.5 text-sm sm:grid-cols-3">
+                <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
                   <dt className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-                    <FiClock aria-hidden="true" />
+                    <FiClock className="text-blue-600" aria-hidden="true" />
                     {t("dispatch.mainTripDeparture", {
                       defaultValue: "Khởi hành chuyến chính",
                     })}
@@ -136,8 +145,9 @@ export default function RequestTable({
                     {formatTime(group.departureDateTime)}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-xs font-medium text-gray-500">
+                <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-3">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                    <FiClock className="text-amber-600" aria-hidden="true" />
                     {isInboundDirection(group.direction)
                       ? t("dispatch.dispatchCutoff", {
                           defaultValue: "Hạn hoàn tất trung chuyển",
@@ -150,55 +160,80 @@ export default function RequestTable({
                     {formatTime(group.hardCutoffAt)}
                   </dd>
                 </div>
-                <div>
+                <div className="rounded-xl border border-teal-100 bg-teal-50/70 p-3">
                   <dt className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-                    <FiUsers aria-hidden="true" />
+                    <FiUsers className="text-teal-600" aria-hidden="true" />
                     {t("dispatch.pendingPassengers", {
                       defaultValue: "Khách chờ điều phối",
                     })}
                   </dt>
                   <dd className="mt-1 font-semibold text-gray-900">
-                    {group.pendingPassengerCount} · {bookings.length}{" "}
-                    {t("dispatch.bookingGroups", {
-                      defaultValue: "lượt đặt vé",
+                    {t("dispatch.pendingPassengerBookingSummary", {
+                      passengers: group.pendingPassengerCount,
+                      bookings: bookings.length,
+                      defaultValue:
+                        "{{passengers}} hành khách từ {{bookings}} lượt đặt vé",
                     })}
                   </dd>
                 </div>
               </dl>
 
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  {t("dispatch.suggestedOrder", {
-                    defaultValue: "Thứ tự đón/trả được đề xuất",
-                  })}
-                </p>
-                <ol className="grid gap-2 lg:grid-cols-2">
+                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                  <p className="shrink-0 whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {t("dispatch.suggestedOrder", {
+                      defaultValue: "Thứ tự đón/trả được đề xuất",
+                    })}
+                  </p>
+                  <span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">
+                    {t("dispatch.stopCount", {
+                      count: bookings.length,
+                      defaultValue: "{{count}} điểm",
+                    })}
+                  </span>
+                </div>
+                <ol className="grid gap-2">
                   {bookings.map((booking, index) => (
                     <li
                       key={booking.bookingId}
-                      className="flex min-w-0 gap-3 rounded-lg border border-gray-200 p-3"
+                      className="group flex min-w-0 gap-3 rounded-xl border border-gray-200 bg-white p-3 transition hover:border-vr-200 hover:bg-vr-50/30"
                     >
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-vr-50 text-xs font-bold text-vr-700">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-vr-50 text-xs font-bold text-vr-700 ring-4 ring-white">
                         {index + 1}
                       </span>
-                      <div className="min-w-0">
-                        {/* Tên khách thay cho bookingId; payload cũ chưa có
-                            passengers thì lùi về nhãn "Lượt đặt #n". */}
-                        <p className="truncate text-xs font-semibold text-gray-700">
-                          {bookingPassengerLabel(
-                            booking,
-                            t("dispatch.bookingOrdinal", { index: index + 1 }),
-                          )}
+                      <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-[minmax(150px,0.7fr)_minmax(260px,1.5fr)_auto] sm:items-center">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                            {t("dispatch.stopOrdinal", {
+                              index: index + 1,
+                              defaultValue: "Điểm {{index}}",
+                            })}
+                          </p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-gray-800">
+                            {bookingPassengerLabel(
+                              booking,
+                              t("dispatch.bookingOrdinal", { index: index + 1 }),
+                            )}
+                          </p>
+                        </div>
+                        <p className="flex min-w-0 items-start gap-1.5 text-sm font-medium text-gray-900">
+                          <FiMapPin
+                            className="mt-0.5 shrink-0 text-vr-600"
+                            aria-hidden="true"
+                          />
+                          <span>{booking.pickupAddress}</span>
                         </p>
-                        <p className="mt-1 text-sm font-medium text-gray-900">
-                          {booking.pickupAddress}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {booking.passengerCount}{" "}
-                          {t("dispatch.passengers", { defaultValue: "khách" })}
-                          {" · "}
-                          {formatDistance(getBookingDistance(booking))}
-                        </p>
+                        <div className="flex flex-wrap gap-1.5 sm:justify-end">
+                          <span className="whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                            {booking.passengerCount}{" "}
+                            {t("dispatch.passengers", {
+                              defaultValue: "khách",
+                            })}
+                          </span>
+                          <span className="whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                            {formatDistance(getBookingDistance(booking))}
+                          </span>
+                        </div>
                       </div>
                     </li>
                   ))}

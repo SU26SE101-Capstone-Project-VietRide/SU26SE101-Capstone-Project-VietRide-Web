@@ -13,6 +13,7 @@ import {
 } from "../api/vietride";
 import { getAuthUser } from "../auth";
 import { useToastFeedback } from "../hooks/useToastFeedback";
+import { translateApiErrorMessage } from "../utils/apiErrorMessage";
 
 type RagAssistantProps = {
   embedded?: boolean;
@@ -101,7 +102,11 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
               ),
             );
           } else {
-            setError(`${streamEvent.code}: ${streamEvent.message}`);
+            // Event lỗi của SSE không đi qua createApiRequestError nên phải tự
+            // dịch, nếu không sẽ hiện nguyên "RAG_xxx: <message tiếng Anh>".
+            setError(
+              translateApiErrorMessage(streamEvent.code, streamEvent.message),
+            );
           }
         },
       );

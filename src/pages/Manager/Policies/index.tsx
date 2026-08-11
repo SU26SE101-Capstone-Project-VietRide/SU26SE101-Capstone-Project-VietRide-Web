@@ -28,6 +28,10 @@ import {
 export default function ManagerPolicies() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const categoryLabel = (category: string) => {
+    const key = category.trim().toUpperCase().replace(/[\s-]+/g, "_");
+    return t(`policies.categories.${key}`, { defaultValue: category });
+  };
   // Giữ tham chiếu t mới nhất để callback tải dữ liệu không refetch khi đổi ngôn ngữ
   const tRef = useRef(t);
   useEffect(() => {
@@ -240,7 +244,7 @@ export default function ManagerPolicies() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">
-                      {policy.category}
+                      {categoryLabel(policy.category)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">v{policy.version}</td>
@@ -418,7 +422,7 @@ export default function ManagerPolicies() {
         onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete.id); setPendingDelete(null); }}
         title={tc("delete")}
         message={t("policies.confirmDelete")}
-        children={pendingDelete && (          <div className="rounded-2xl border border-red-100 bg-red-50 p-4">            <p className="text-sm font-semibold text-red-900">{pendingDelete.title}</p>            <p className="mt-1 text-sm leading-5 text-red-800/80">{pendingDelete.description}</p>            <span className="mt-3 inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-red-700">{pendingDelete.category}</span>          </div>        )}
+        children={pendingDelete && (          <div className="rounded-2xl border border-red-100 bg-red-50 p-4">            <p className="text-sm font-semibold text-red-900">{pendingDelete.title}</p>            <p className="mt-1 text-sm leading-5 text-red-800/80">{pendingDelete.description}</p>            <span className="mt-3 inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-red-700">{categoryLabel(pendingDelete.category)}</span>          </div>        )}
         confirmLabel={tc("delete")}
         cancelLabel={tc("cancel")}
         tone="danger"

@@ -45,7 +45,9 @@ export type NotificationAction =
 
 export type NotificationItem = {
   id: string;
-  userId: string;
+  // REST inbox trả `userId`; payload realtime `notification:created` thì không
+  // (room đã khoá theo user nên BE bỏ field này).
+  userId?: string;
   type: string;
   title: string;
   body: string;
@@ -947,6 +949,12 @@ export type PublicLocationParams = {
   parentCode?: string;
   /** unaccent + ILIKE trên code hoặc name, trong scope hiện tại */
   search?: string;
+  /**
+   * Lọc theo cấp hành chính; kết hợp AND với parentCode và search
+   * (handoff API-location-filter-authen mục 10.1). Lưu ý: gửi type cấp lá mà
+   * KHÔNG kèm parentCode thì BE trả `200 []` vì cấp lá không phải top-level.
+   */
+  type?: LocationType;
 };
 
 export type OperatorStationRequest = {
@@ -1962,7 +1970,8 @@ export type FleetLatestResponse = {
 };
 
 // BE trả kèm hồ sơ hành khách của từng lượt đặt (ShuttlePassengerProfile).
-// Optional vì payload cũ trước Day 44 không có trường này.
+// Chỉ displayName/phone có thể null khi Identity không tìm được hồ sơ —
+// `passengers` luôn là mảng (BE khoá contract 2026-08-11).
 export type ShuttlePassengerProfile = {
   passengerUserId: string | null;
   displayName: string | null;
@@ -1977,15 +1986,18 @@ export type ShuttleBookingGroup = {
   pickupLat: number;
   pickupLng: number;
   distanceToStationMeters: number | null;
-  roadDistanceMeters?: number | null;
+  roadDistanceMeters: number | null;
   requestedAt: string;
-  passengers?: ShuttlePassengerProfile[] | null;
+  passengers: ShuttlePassengerProfile[];
 };
 
 export type ShuttleDirection = "INBOUND_TO_STATION" | "OUTBOUND_FROM_STATION";
 
 export type ShuttleRequestGroup = {
   mainTripId: string;
+  // Nhãn tuyến của chuyến chính. `mainTripId` chỉ dùng làm khoá kỹ thuật khi
+  // gửi request, không hiển thị UUID cho điều độ viên.
+  routeName: string;
   direction: ShuttleDirection;
   departureDateTime: string;
   hardCutoffAt: string;
@@ -2012,6 +2024,80 @@ export type CreateShuttleTripResult = {
   mainTripId: string;
   assignedPassengerCount: number;
   remainingPassengerCount: number;
+};
+
+// Kết quả một thao tác lifecycle Shuttle (cancel request / cancel trip).
+// Cancel request chưa assign chưa có ShuttleTrip nên `shuttleTripId` là empty
+// UUID; cancel idempotent no-op có thể trả `transitionedAt = null`.
+export type ShuttleLifecycleResult = {
+  shuttleTripId: string;
+  status: string;
+  changedPassengerCount: number;
+  transitionedAt: string | null;
+};
+
+export type CancelShuttleRequest = {
+  reason: string;
+};
+
+// ==== Resource availability (driver / assistant / vehicle) ====
+// Rule BE: next.start >= previous.end + 30 phút + thời gian chạy xe sang địa
+// điểm kế tiếp (handoff mục 4).
+
+export type ResourceRole = "DRIVER" | "ASSISTANT" | "VEHICLE";
+
+export type ResourceConflictReason =
+  | "TIME_OVERLAP"
+  | "TURNAROUND_REQUIRED"
+  | "REPOSITION_REQUIRED"
+  | "RESOURCE_ACTIVE";
+
+export type ResourceAssignmentSourceType =
+  | "DRIVER_SCHEDULE"
+  | "TRIP"
+  | "SHUTTLE_TRIP";
+
+export type ResourceConflict = {
+  resourceRole: ResourceRole;
+  resourceId: string;
+  reason: ResourceConflictReason;
+  conflictingSourceType: ResourceAssignmentSourceType;
+  conflictingSourceId: string;
+  sampleRequestedStartAt: string;
+  blockingUntil: string;
+  // null nghĩa là dời lịch cũng không chen được trước assignment kế tiếp.
+  earliestFeasibleStartAt: string | null;
+  requiredTravelMinutes: number | null;
+  turnaroundMinutes: number;
+};
+
+export type ResourceAvailabilityResult = {
+  available: boolean;
+  turnaroundMinutes: number;
+  // Tối đa 100 item; hasMore=true nghĩa là còn conflict chưa trả về.
+  conflicts: ResourceConflict[];
+  hasMore: boolean;
+};
+
+export type DriverScheduleAvailabilityRequest = {
+  routeId: string;
+  vehicleId?: string | null;
+  driverUserId: string;
+  assistantUserId?: string | null;
+  dayOfWeek: number[];
+  departureTime: string;
+  validFrom: string;
+  validUntil?: string | null;
+};
+
+export type ShuttleTripAvailabilityRequest = {
+  mainTripId: string;
+  direction: ShuttleDirection;
+  driverUserId: string;
+  vehicleId: string;
+  scheduledDepartureTime: string;
+  scheduledEndTime: string;
+  orderedBookingIds: string[];
 };
 
 export const INCIDENT_CATEGORIES = [
@@ -2817,6 +2903,26 @@ export type OperatorVehicle = {
   seatLayoutJson?: SeatLayoutJson | string;
   createdAt?: string;
   updatedAt?: string;
+  usablePassengerCapacity?: number;
+  // Projection assignment của xe (mục 9.6). currentAssignment chỉ là reservation
+  // đã chuyển ACTIVE — reservation tới giờ nhưng còn RESERVED vẫn nằm ở
+  // nextAssignment, đừng suy ra từ đồng hồ.
+  currentAssignment?: VehicleAssignment | null;
+  nextAssignment?: VehicleAssignment | null;
+};
+
+// tripId và shuttleTripId loại trừ nhau theo sourceType. driverUserId là driver
+// của đúng assignment đó, KHÔNG phải driver cố định của xe.
+export type VehicleAssignment = {
+  sourceType: "TRIP" | "SHUTTLE_TRIP";
+  tripId: string | null;
+  shuttleTripId: string | null;
+  driverUserId: string;
+  plannedStartAt: string;
+  plannedEndAt: string;
+  status: "RESERVED" | "ACTIVE";
+  startStationId: string | null;
+  endStationId: string | null;
 };
 
 export type VehicleStatus = "ACTIVE" | "MAINTENANCE" | "OFF_DUTY" | "RETIRED";
@@ -3187,6 +3293,30 @@ export type DriverScheduleItem = OperatorDriverSchedule & {
   assistantName?: string;
 };
 
+// GET /v1/driver/me/schedule — query không filter status nên trips có thể ở mọi
+// trạng thái kể cả CANCELLED/DISRUPTED (mục 10.1).
+export type DriverMeScheduleParams = {
+  from?: string;
+  to?: string;
+};
+
+export type DriverMeScheduleTrip = {
+  tripId: string;
+  operatorId: string;
+  routeId: string;
+  vehicleId: string;
+  departureDateTime: string;
+  estimatedArrivalTime: string;
+  status: string;
+  assignmentRole: "DRIVER" | "ASSISTANT";
+};
+
+export type DriverMeSchedule = {
+  from: string;
+  to: string;
+  trips: DriverMeScheduleTrip[];
+};
+
 export type RouteGeometryRequest = {
   pathPolyline: string | null;
   // Chỉ dùng khi pathPolyline=null: set metrics thủ công rồi clear geometry
@@ -3408,8 +3538,16 @@ export function getAdminOperatorUsers(params: AdminUserParams = {}) {
   );
 }
 
+/**
+ * `GET /v1/admin/locations` chỉ bind `page`, `pageSize`, `search`, `isActive`
+ * (AdminLocationsController.GetAsync). Gửi thêm `type`/`parentCode` sẽ bị
+ * ASP.NET bỏ qua IM LẶNG — không lỗi, chỉ là trả về dữ liệu chưa lọc. Muốn lọc
+ * theo cấp hành chính hoặc theo tỉnh trực thuộc thì dùng
+ * `getAllAdminLocations()` rồi lọc phía client; xem
+ * `src/docs/BE_ADMIN_LOCATION_FILTER_GAP.md`.
+ */
 export async function getAdminLocations(
-  params: Omit<PageParams, "status"> & { isActive?: boolean; type?: LocationType; parentCode?: string } = {},
+  params: Omit<PageParams, "status"> & { isActive?: boolean } = {},
 ) {
   const response = await apiRequest<
     PagedResult<AdminLocation> | AdminLocation[]
@@ -4086,6 +4224,19 @@ export function createRouteFareTemplate(
   );
 }
 
+// Preview conflict trước khi tạo/sửa lịch lặp. Preview KHÔNG validate tồn tại/
+// role/status/tenant của vehicle và user — chỉ create/mutation mới validate
+// (mục 7.2 + 14.1). Đừng dùng available=true như cam kết cho lần create sau.
+export function checkDriverScheduleAvailability(
+  request: DriverScheduleAvailabilityRequest,
+  signal?: AbortSignal,
+) {
+  return apiRequest<ResourceAvailabilityResult>(
+    "/v1/operator/driver-schedules/availability-check",
+    { method: "POST", body: request, signal },
+  );
+}
+
 export function createOperatorDriverSchedule(
   request: OperatorDriverScheduleRequest,
 ) {
@@ -4121,6 +4272,18 @@ export function updateOperatorDriverSchedule(
   );
 }
 
+// Alias của update với applyTo=ALL_PENDING (mục 7.5) — kéo theo toàn bộ behavior
+// và error của ALL_PENDING, và yêu cầu schedule đã có effective vehicleId.
+export function updateOperatorDriverScheduleCrew(
+  id: string,
+  request: { driverUserId: string; assistantUserId?: string | null },
+) {
+  return apiRequest<OperatorDriverSchedule>(
+    `/v1/operator/driver-schedules/${id}/crew`,
+    { method: "PATCH", body: request },
+  );
+}
+
 // BE đánh dấu SkipIdempotency cho deactivate (mục 4.4 contract); path nằm trong
 // exempt list của src/api/idempotency.ts nên không có Idempotency-Key.
 export function deactivateOperatorDriverSchedule(id: string) {
@@ -4137,8 +4300,10 @@ export function deleteOperatorDriverSchedule(id: string) {
   );
 }
 
-export function getDriverMeSchedule(params: PageParams = {}) {
-  return apiRequest<PagedResult<DriverScheduleItem>>(
+// Không phải PagedResult và không nhận page/pageSize: BE trả { from, to, trips }
+// và lọc theo khoảng ngày (mục 10.1). from/to phải truyền theo cặp.
+export function getDriverMeSchedule(params: DriverMeScheduleParams = {}) {
+  return apiRequest<DriverMeSchedule>(
     `/v1/driver/me/schedule${buildQuery(params)}`,
   );
 }
@@ -5248,6 +5413,30 @@ export function getOperatorShuttleRequests(
   );
 }
 
+// `direction` là query bắt buộc và phải lấy từ đúng nhóm pending đang mở: sai
+// chiều vẫn bind được nhưng không match manifest và trả
+// SHUTTLE_REQUEST_NOT_CANCELLABLE.
+export function cancelOperatorShuttleRequest(
+  mainTripId: string,
+  bookingId: string,
+  direction: ShuttleDirection,
+  request: CancelShuttleRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ShuttleLifecycleResult>(
+    `/v1/operator/shuttle-requests/${mainTripId}/${bookingId}/cancel${buildQuery(
+      { direction },
+    )}`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
 // Tenant lấy từ JWT — không có query operatorId. Sort cố định reportedAt DESC.
 export function getOperatorIncidents(
   params: OperatorIncidentParams = {},
@@ -5274,6 +5463,18 @@ export function getOperatorShuttleTrips(
   );
 }
 
+// Preview conflict trước khi tạo ShuttleTrip. Advisory: không reserve, không
+// giữ lock — create vẫn có thể trả 409 nếu request khác thắng race (mục 8.2).
+export function checkShuttleTripAvailability(
+  request: ShuttleTripAvailabilityRequest,
+  signal?: AbortSignal,
+) {
+  return apiRequest<ResourceAvailabilityResult>(
+    "/v1/operator/shuttle-trips/availability-check",
+    { method: "POST", body: request, signal },
+  );
+}
+
 export function createOperatorShuttleTrip(
   request: CreateShuttleTripRequest,
   idempotencyKey = createIdempotencyKey(),
@@ -5285,6 +5486,25 @@ export function createOperatorShuttleTrip(
       "Idempotency-Key": idempotencyKey,
     },
   });
+}
+
+// Cancel giải phóng driver/vehicle cho assignment khác — sau khi gọi phải
+// refetch cả pending requests và danh sách ShuttleTrip.
+export function cancelOperatorShuttleTrip(
+  shuttleTripId: string,
+  request: CancelShuttleRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ShuttleLifecycleResult>(
+    `/v1/operator/shuttle-trips/${shuttleTripId}/cancel`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
 }
 
 export function getShuttleTripLatest(shuttleTripId: string) {

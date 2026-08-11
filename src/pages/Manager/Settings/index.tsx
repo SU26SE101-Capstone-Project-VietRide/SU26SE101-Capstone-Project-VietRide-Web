@@ -35,6 +35,7 @@ import {
   inputClass,
   labelClass,
 } from "../../../components/form/formClasses";
+import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 
 const CURRENT_OPERATOR_ID = "op1";
 
@@ -101,6 +102,8 @@ export default function ManagerSettings() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const toast = useToast();
+  const { hasModule } = useOperatorSubscription();
+  const parcelEnabled = hasModule("enableParcel");
   const tRef = useRef(t);
   useEffect(() => {
     tRef.current = t;
@@ -110,7 +113,9 @@ export default function ManagerSettings() {
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: "pricing", label: t("settings.tabPricing"), icon: <FiPercent /> },
     { id: "booking", label: t("settings.tabBooking"), icon: <FiBookOpen /> },
-    { id: "parcel", label: t("settings.tabParcel"), icon: <FiPackage /> },
+    ...(parcelEnabled
+      ? [{ id: "parcel" as const, label: t("settings.tabParcel"), icon: <FiPackage /> }]
+      : []),
   ];
   const [config, setConfig] = useState<OperatorConfig>({ ...defaultConfig });
   const [savedSnapshot, setSavedSnapshot] = useState<OperatorConfig>({
@@ -590,7 +595,7 @@ export default function ManagerSettings() {
           </div>
         )}
 
-        {tab === "parcel" && (
+        {parcelEnabled && tab === "parcel" && (
           <div>
             <h3 className="mb-5 text-base font-semibold text-gray-800">
               {t("settings.parcelPolicy")}

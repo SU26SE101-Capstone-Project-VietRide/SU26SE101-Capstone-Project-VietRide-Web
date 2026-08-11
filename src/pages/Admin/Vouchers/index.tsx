@@ -28,7 +28,7 @@ import {
   emptyForm,
   expiryDateOf,
   formatDisplayDate,
-  formatInputDate,
+  formatInputDateTime,
   formatNumber,
   maxDiscountAmountOf,
   parseInputDate,
@@ -140,7 +140,7 @@ export default function Vouchers() {
       ...emptyForm,
       applicableTo: "rides",
       name: "Giam 20% chuyen dau",
-      expiryDate: formatInputDate(
+      expiryDate: formatInputDateTime(
         new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       ),
     });

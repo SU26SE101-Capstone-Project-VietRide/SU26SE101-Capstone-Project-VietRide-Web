@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../../../api/client";
 import {
+  checkDriverScheduleAvailability,
   createOperatorDriverSchedule,
   deleteOperatorDriverSchedule,
   getOperatorDriverSchedules,
@@ -11,6 +12,7 @@ import {
   getOperatorVehicles,
   getVehicleTypes,
   updateOperatorDriverSchedule,
+  updateOperatorDriverScheduleCrew,
 } from "../../../api/vietride";
 import ToastProvider from "../../../components/toast/ToastProvider";
 import TripsPage from "./index";
@@ -38,6 +40,7 @@ vi.mock("../../../auth", () => ({
 
 vi.mock("../../../api/vietride", () => ({
   activateOperatorDriverSchedule: vi.fn(),
+  checkDriverScheduleAvailability: vi.fn(),
   createOperatorDriverSchedule: vi.fn(),
   deactivateOperatorDriverSchedule: vi.fn(),
   deleteOperatorDriverSchedule: vi.fn(),
@@ -47,6 +50,7 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorVehicles: vi.fn(),
   getVehicleTypes: vi.fn(),
   updateOperatorDriverSchedule: vi.fn(),
+  updateOperatorDriverScheduleCrew: vi.fn(),
 }));
 
 // TripsPage gọi useToast — phải render trong ToastProvider như trên App thật.
@@ -471,6 +475,148 @@ describe("TripsPage", () => {
     } finally {
       restore();
     }
+  });
+
+  // Preview gửi ĐÚNG draft sắp submit (trừ isActive/baseFare chỉ có ở create),
+  // vì thứ tự/nội dung payload quyết định kết quả availability (handoff mục 11.1).
+  it("previews availability with the same draft that create would send", async () => {
+    const restore = stubCreateFlow(new Date(2026, 7, 21, 1));
+
+    try {
+      vi.mocked(checkDriverScheduleAvailability).mockResolvedValue({
+        available: true,
+        turnaroundMinutes: 30,
+        conflicts: [],
+        hasMore: false,
+      });
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByText("SCH-SCHEDULE");
+      await user.click(
+        screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+      );
+
+      const dialog = await screen.findByRole("dialog");
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "trips.suggestNextDeparture",
+        }),
+      );
+      await user.click(
+        within(dialog).getByRole("button", { name: "resourceConflict.check" }),
+      );
+
+      await waitFor(() => {
+        expect(checkDriverScheduleAvailability).toHaveBeenCalledWith({
+          routeId: "route-1",
+          vehicleId: "vehicle-1",
+          driverUserId: "driver-active",
+          assistantUserId: null,
+          departureTime: "01:00:00",
+          validFrom: "2026-08-21",
+          validUntil: null,
+          dayOfWeek: [1, 2, 3, 4, 5, 6, 7],
+        });
+      });
+      // Preview không tự lưu — create chỉ chạy khi bấm nút lưu.
+      expect(createOperatorDriverSchedule).not.toHaveBeenCalled();
+      expect(
+        await within(dialog).findByText("resourceConflict.previewOk"),
+      ).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  // available=false vẫn là HTTP 200 — nếu không render thì user không hề biết
+  // có xung đột (handoff mục 6.1 và checklist 14.3).
+  it("renders conflicts returned by a successful preview response", async () => {
+    const restore = stubCreateFlow(new Date(2026, 7, 21, 1));
+
+    try {
+      vi.mocked(checkDriverScheduleAvailability).mockResolvedValue({
+        available: false,
+        turnaroundMinutes: 30,
+        conflicts: [
+          {
+            resourceRole: "ASSISTANT",
+            resourceId: "assistant-1",
+            reason: "REPOSITION_REQUIRED",
+            conflictingSourceType: "TRIP",
+            conflictingSourceId: "trip-9",
+            sampleRequestedStartAt: "2026-08-21T10:01:00+07:00",
+            blockingUntil: "2026-08-21T12:30:00+07:00",
+            earliestFeasibleStartAt: null,
+            requiredTravelMinutes: 120,
+            turnaroundMinutes: 30,
+          },
+        ],
+        hasMore: false,
+      });
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByText("SCH-SCHEDULE");
+      await user.click(
+        screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+      );
+
+      const dialog = await screen.findByRole("dialog");
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "trips.suggestNextDeparture",
+        }),
+      );
+      await user.click(
+        within(dialog).getByRole("button", { name: "resourceConflict.check" }),
+      );
+
+      expect(
+        await within(dialog).findByText(/resourceConflict\.summary/),
+      ).toBeInTheDocument();
+      // Role phải lấy từ conflict, không suy từ error code (ASSISTANT dùng
+      // chung code TRIP_DRIVER_CONFLICT với DRIVER).
+      expect(
+        within(dialog).getByText(/resourceConflict\.role\.ASSISTANT/),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByText("resourceConflict.noFeasibleStart"),
+      ).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  // Alias /crew luôn chạy applyTo=ALL_PENDING nên đổi crew ở đây cascade sang
+  // các chuyến đã sinh; modal sửa mặc định FUTURE_ONLY thì không (mục 7.5).
+  it("đổi crew qua alias /crew và gửi null khi bỏ phụ xe", async () => {
+    vi.mocked(updateOperatorDriverScheduleCrew).mockResolvedValue({
+      id: "schedule-12345678",
+      driverUserId: "driver-active",
+    } as never);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("SCH-SCHEDULE");
+
+    await user.click(screen.getByRole("button", { name: "trips.changeCrew" }));
+
+    const dialog = await screen.findByRole("dialog");
+    // Cảnh báo cascade phải hiện, nếu không operator tưởng chỉ đổi lịch tương lai.
+    expect(
+      within(dialog).getByText("trips.changeCrewCascadeNotice"),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "trips.changeCrewAction" }),
+    );
+
+    await waitFor(() => {
+      expect(updateOperatorDriverScheduleCrew).toHaveBeenCalledWith(
+        "schedule-12345678",
+        { driverUserId: "driver-active", assistantUserId: null },
+      );
+    });
+    // Không được đi qua endpoint update thường.
+    expect(updateOperatorDriverSchedule).not.toHaveBeenCalled();
   });
 
   it("pins a one-time schedule to the departure weekday and closes the date range", async () => {

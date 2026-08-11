@@ -21,11 +21,16 @@ import {
 import logo from "../assets/Login/logo.svg";
 import { AiOutlineLogout } from "react-icons/ai";
 import { logout, type AuthRole } from "../auth";
+import {
+  useOperatorSubscription,
+  type SubscriptionModule,
+} from "../contexts/operatorSubscriptionContext";
 
 type MenuItem = {
   labelKey: string;
   path: string;
   icon: React.ReactNode;
+  requiredModule?: SubscriptionModule;
 };
 
 type MenuSection = {
@@ -63,6 +68,7 @@ const operatorAdminMenuConfig: MenuSection[] = [
         labelKey: "manager.parcels",
         path: "/manager/parcels",
         icon: <FiPackage />,
+        requiredModule: "enableParcel",
       },
       {
         labelKey: "manager.operations",
@@ -73,6 +79,7 @@ const operatorAdminMenuConfig: MenuSection[] = [
         labelKey: "manager.dispatch",
         path: "/manager/dispatch",
         icon: <FiNavigation />,
+        requiredModule: "enableShuttle",
       },
       {
         labelKey: "manager.incidents",
@@ -93,6 +100,7 @@ const operatorAdminMenuConfig: MenuSection[] = [
         labelKey: "manager.policies",
         path: "/manager/policies",
         icon: <FiFileText />,
+        requiredModule: "enableRag",
       },
     ],
   },
@@ -261,12 +269,20 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation(["nav", "common"]);
+  const { hasModule } = useOperatorSubscription();
   const menuConfigByRole: Record<AuthRole, MenuSection[]> = {
     SYSTEM_ADMIN: adminMenuConfig,
     OPERATOR_ADMIN: operatorAdminMenuConfig,
     OPERATOR_STAFF: operatorStaffMenuConfig,
   };
-  const menus = menuConfigByRole[role].filter((s) => s.items.length > 0);
+  const menus = menuConfigByRole[role]
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => !item.requiredModule || hasModule(item.requiredModule),
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const handleLogout = async () => {
     await logout();

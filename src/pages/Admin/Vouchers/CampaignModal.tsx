@@ -118,6 +118,7 @@ export default function CampaignModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label={t("vouchers.validFrom")}
+            type="datetime-local"
             value={campaignForm.validFrom}
             placeholder="dd/mm/yyyy"
             onChange={(value) =>
@@ -127,6 +128,7 @@ export default function CampaignModal({
           />
           <Field
             label={t("vouchers.validUntil")}
+            type="datetime-local"
             value={campaignForm.validUntil}
             placeholder="dd/mm/yyyy"
             onChange={(value) =>

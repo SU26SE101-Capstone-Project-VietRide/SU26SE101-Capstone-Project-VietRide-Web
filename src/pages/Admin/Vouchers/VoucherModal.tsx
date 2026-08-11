@@ -24,6 +24,43 @@ type VoucherModalProps = {
   operators: AdminOperator[];
 };
 
+function SectionHeading({ title }: { title: string }) {
+  return (
+    <div className="mb-5 flex items-center gap-3">
+      <span className="h-5 w-1 shrink-0 rounded-full bg-vr-500" />
+      <h3 className="text-base font-bold text-slate-900">{title}</h3>
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  disabled = false,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className={labelClass}>{label}</label>
+      <CustomSelect
+        className={inputClass}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {children}
+      </CustomSelect>
+    </div>
+  );
+}
+
 export default function VoucherModal({
   open,
   onClose,
@@ -71,45 +108,45 @@ export default function VoucherModal({
         </>
       }
     >
-      <div className="space-y-1">
-        <div className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0 grid gap-4 sm:grid-cols-2">
-          <div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><h3 className="text-base font-bold text-slate-900">{t("vouchers.formBasics")}</h3></div>
-          <Field
-            label={t("vouchers.voucherCode")}
-            value={form.code}
-            disabled={Boolean(editingVoucher)}
-            onChange={(value) => updateForm("code", value)}
-            placeholder={t("vouchers.codePlaceholder")}
-            required
-          />
-          <Field
-            label={t("vouchers.displayName")}
-            value={form.name}
-            onChange={(value) => updateForm("name", value)}
-            required
-          />
-        </div>
+      <div className="space-y-0">
+        <section className="border-b border-slate-100 py-5 first:pt-1">
+          <SectionHeading title={t("vouchers.formBasics")} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={t("vouchers.voucherCode")}
+              value={form.code}
+              disabled={Boolean(editingVoucher)}
+              onChange={(value) => updateForm("code", value)}
+              placeholder={t("vouchers.codePlaceholder")}
+              required
+            />
+            <Field
+              label={t("vouchers.displayName")}
+              value={form.name}
+              onChange={(value) => updateForm("name", value)}
+              required
+            />
+          </div>
+          <div className="mt-4">
+            <label className={labelClass}>{tc("description")}</label>
+            <textarea
+              className={`${inputClass} min-h-[88px] resize-y`}
+              value={form.description}
+              onChange={(event) => updateForm("description", event.target.value)}
+              placeholder={t("vouchers.bookingDescPlaceholder")}
+              rows={3}
+            />
+          </div>
+        </section>
 
-        <div>
-          <label className={labelClass}>{tc("description")}</label>
-          <textarea
-            className={inputClass + " min-h-[88px]"}
-            value={form.description}
-            onChange={(event) => updateForm("description", event.target.value)}
-            placeholder={t("vouchers.bookingDescPlaceholder")}
-            rows={3}
-          />
-        </div>
-
-        <div className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0 grid gap-4 sm:grid-cols-2">
-          <div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><h3 className="text-base font-bold text-slate-900">{t("vouchers.discountRules")}</h3></div>
-          <div>
-            <label className={labelClass}>{t("vouchers.discountType")}</label>
-            <CustomSelect
-              className={inputClass}
+        <section className="border-b border-slate-100 py-5">
+          <SectionHeading title={t("vouchers.discountRules")} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField
+              label={t("vouchers.discountType")}
               value={form.discountType}
               disabled={Boolean(editingVoucher)}
-              onChange={(event) => updateForm("discountType", event.target.value)}
+              onChange={(value) => updateForm("discountType", value)}
             >
               <option value="PERCENT_OFF">
                 {t("vouchers.percentDiscount")}
@@ -117,81 +154,69 @@ export default function VoucherModal({
               <option value="FIXED_AMOUNT">
                 {t("vouchers.fixedDiscount")}
               </option>
-            </CustomSelect>
-          </div>
-          <Field
-            label={
-              form.discountType === "FIXED_AMOUNT"
-                ? t("vouchers.fixedDiscountValue")
-                : t("vouchers.discountValue")
-            }
-            value={form.discount}
-            type="number"
-            currency={form.discountType === "FIXED_AMOUNT"}
-            onChange={(value) => updateForm("discount", value)}
-            required
-          />
-        </div>
-
-        <div
-          className={
-            form.discountType === "PERCENT_OFF"
-              ? "grid gap-4 sm:grid-cols-2"
-              : "grid gap-4"
-          }
-        >
-          {form.discountType === "PERCENT_OFF" && (
+            </SelectField>
             <Field
-              label={t("vouchers.maxDiscountAmount")}
-              value={form.maxDiscountAmount}
+              label={
+                form.discountType === "FIXED_AMOUNT"
+                  ? t("vouchers.fixedDiscountValue")
+                  : t("vouchers.discountValue")
+              }
+              value={form.discount}
               type="number"
-              currency
-              onChange={(value) => updateForm("maxDiscountAmount", value)}
+              currency={form.discountType === "FIXED_AMOUNT"}
+              onChange={(value) => updateForm("discount", value)}
               required
             />
-          )}
-          <div>
-            <label className={labelClass}>{t("vouchers.applicable")}</label>
-            <CustomSelect
-              className={inputClass}
+            {form.discountType === "PERCENT_OFF" && (
+              <Field
+                label={t("vouchers.maxDiscountAmount")}
+                value={form.maxDiscountAmount}
+                type="number"
+                currency
+                onChange={(value) => updateForm("maxDiscountAmount", value)}
+                required
+              />
+            )}
+            <SelectField
+              label={t("vouchers.applicable")}
               value={form.applicableTo}
-              onChange={(event) => updateForm("applicableTo", event.target.value)}
+              onChange={(value) => updateForm("applicableTo", value)}
             >
               <option value="all">{t("vouchers.allServicesFull")}</option>
               <option value="rides">{t("vouchers.ridesOnlyFull")}</option>
               <option value="parcels">{t("vouchers.parcelsOnly")}</option>
-            </CustomSelect>
+            </SelectField>
           </div>
-        </div>
+        </section>
 
-        <div className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0 grid gap-4 sm:grid-cols-2">
-          <div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><h3 className="text-base font-bold text-slate-900">{t("vouchers.discountRules")}</h3></div>
-          <Field
-            label={t("vouchers.minOrder")}
-            value={form.minOrderValue}
-            type="number"
-            currency
-            onChange={(value) => updateForm("minOrderValue", value)}
-          />
-          <Field
-            label={t("vouchers.maxUsagePerUser")}
-            value={form.maxUsagePerUser}
-            type="number"
-            onChange={(value) => updateForm("maxUsagePerUser", value)}
-          />
-            </div>
+        <section className="border-b border-slate-100 py-5">
+          <SectionHeading title={t("vouchers.usageRules")} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={t("vouchers.minOrder")}
+              value={form.minOrderValue}
+              type="number"
+              currency
+              onChange={(value) => updateForm("minOrderValue", value)}
+            />
+            <Field
+              label={t("vouchers.maxUsagePerUser")}
+              value={form.maxUsagePerUser}
+              type="number"
+              onChange={(value) => updateForm("maxUsagePerUser", value)}
+            />
+          </div>
+        </section>
 
-        <div className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0 grid gap-4 sm:grid-cols-2">
-          <div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><h3 className="text-base font-bold text-slate-900">{t("vouchers.scopeRules")}</h3></div>
+        <section className="border-b border-slate-100 py-5">
+          <SectionHeading title={t("vouchers.scopeRules")} />
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>{t("vouchers.fundingType")}</label>
-              <CustomSelect
-                className={inputClass}
+              <SelectField
+                label={t("vouchers.fundingType")}
                 value={form.fundingType}
                 disabled={Boolean(editingVoucher)}
-                onChange={(event) =>
-                  updateForm("fundingType", event.target.value)
-                }
+                onChange={(value) => updateForm("fundingType", value)}
               >
                 <option value="VIETRIDE_FUNDED">
                   {t("vouchers.vietrideFunded")}
@@ -199,7 +224,7 @@ export default function VoucherModal({
                 <option value="OPERATOR_FUNDED">
                   {t("vouchers.operatorFunded")}
                 </option>
-              </CustomSelect>
+              </SelectField>
               <p className="mt-1 text-xs text-gray-500">
                 {form.fundingType === "VIETRIDE_FUNDED"
                   ? t("vouchers.vietrideFundedHint")
@@ -207,14 +232,11 @@ export default function VoucherModal({
               </p>
             </div>
             <div>
-              <label className={labelClass}>{t("vouchers.operatorScope")}</label>
-              <CustomSelect
-                className={inputClass}
+              <SelectField
+                label={t("vouchers.operatorScope")}
                 value={form.operatorScope}
                 disabled={Boolean(editingVoucher)}
-                onChange={(event) =>
-                  updateForm("operatorScope", event.target.value)
-                }
+                onChange={(value) => updateForm("operatorScope", value)}
               >
                 <option value="ALL_OPERATORS">
                   {t("vouchers.allOperators")}
@@ -222,7 +244,7 @@ export default function VoucherModal({
                 <option value="SELECTED_OPERATORS">
                   {t("vouchers.selectedOperators")}
                 </option>
-              </CustomSelect>
+              </SelectField>
               <p className="mt-1 text-xs text-gray-500">
                 {form.fundingType === "OPERATOR_FUNDED"
                   ? t("vouchers.operatorConsentHint")
@@ -234,35 +256,38 @@ export default function VoucherModal({
           {!editingVoucher &&
             (form.operatorScope === "SELECTED_OPERATORS" ||
               form.fundingType === "OPERATOR_FUNDED") && (
-            <OperatorSelector
-              operators={operators.filter(isActiveOperator)}
-              selectedOperatorIds={toOperatorIds(form.applicableOperatorIds)}
-              onChange={(operatorIds) =>
-                updateForm("applicableOperatorIds", operatorIdsToValue(operatorIds))
-              }
-            />
-          )}
-        <div className="border-b border-slate-100 py-5">
-          <div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><h3 className="text-base font-bold text-slate-900">{t("vouchers.issuanceRules")}</h3></div>
-          <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label={t("vouchers.quantity")}
-            value={form.quantity}
-            type="number"
-            onChange={(value) => updateForm("quantity", value)}
-            required
-          />
-          <Field
-            label={t("vouchers.expiryDate")}
-            value={form.expiryDate}
-            placeholder="dd/mm/yyyy"
-            onChange={(value) => updateForm("expiryDate", value)}
-            required
-          />
-          </div>
-        </div>
+              <OperatorSelector
+                operators={operators.filter(isActiveOperator)}
+                selectedOperatorIds={toOperatorIds(form.applicableOperatorIds)}
+                onChange={(operatorIds) =>
+                  updateForm("applicableOperatorIds", operatorIdsToValue(operatorIds))
+                }
+              />
+            )}
+        </section>
 
-        <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
+        <section className="border-b border-slate-100 py-5">
+          <SectionHeading title={t("vouchers.issuanceRules")} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={t("vouchers.quantity")}
+              value={form.quantity}
+              type="number"
+              onChange={(value) => updateForm("quantity", value)}
+              required
+            />
+            <Field
+              label={t("vouchers.expiryDate")}
+              value={form.expiryDate}
+              type="datetime-local"
+              placeholder="dd/mm/yyyy"
+              onChange={(value) => updateForm("expiryDate", value)}
+              required
+            />
+          </div>
+        </section>
+
+        <label className="mt-5 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4">
           <Checkbox
             className="mt-0.5"
             checked={form.active}

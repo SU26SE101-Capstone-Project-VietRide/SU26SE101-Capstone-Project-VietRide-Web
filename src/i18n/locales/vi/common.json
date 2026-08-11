@@ -151,6 +151,12 @@
     "EXPIRED": "Đã hết hạn",
     "DRAFT": "Bản nháp",
     "ISSUED": "Đã xuất hóa đơn",
+    "SCHEDULED": "Đã lên lịch",
+    "BOARDING": "Đang lên xe",
+    "IN_PROGRESS": "Đang chạy",
+    "ARRIVED": "Đã đến nơi",
+    "DISRUPTED": "Bị gián đoạn",
+    "NO_SHOW": "Không lên xe",
     "PROCESSING": "Đang xử lý",
     "FAILED": "Thất bại",
     "COMPLETED": "Hoàn tất",
@@ -213,7 +219,13 @@
       "saturday": "T7"
     }
   },
-  "profilePage": {
+  "roles": {
+    "SYSTEM_ADMIN": "Quản trị viên hệ thống",
+    "OPERATOR_ADMIN": "Quản trị viên nhà xe",
+    "OPERATOR_STAFF": "Nhân viên nhà xe",
+    "DRIVER": "Tài xế",
+    "ASSISTANT": "Phụ xe"
+  },  "profilePage": {
     "accountInfo": "Thông tin tài khoản",
     "roleLabel": "Vai trò",
     "systemRole": "Quản trị viên hệ thống",

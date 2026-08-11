@@ -1,5 +1,12 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiEdit2,
@@ -24,12 +31,63 @@ import {
   type LocationType,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import InfoHint from "../../../components/InfoHint";
 import Modal from "../../../components/Modal";
 import { ConfirmModal } from "../../../components/ConfirmModal";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
 import { formatDateTime } from "../../../utils/date";
 import Checkbox from "../../../components/form/Checkbox";
+
+// Khớp cách BE tìm kiếm: unaccent + ILIKE contains. KHÔNG dùng
+// normalizeLocationName() vì hàm đó cắt luôn tiền tố "phường/xã/tỉnh" — hợp cho
+// việc so khớp địa chỉ Google, nhưng gõ "phường" vào ô tìm kiếm sẽ thành rỗng
+// và khớp mọi bản ghi.
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .trim();
+}
+
+// Danh mục ~3.4k bản ghi = 34 trang ở pageSize tối đa (BE cap 100). Tải tuần
+// tự mất vài giây nên đọc trang 1 để biết totalPages rồi lấy các trang còn lại
+// song song theo lô, tránh bắn 33 request cùng lúc.
+const LOCATION_FETCH_PAGE_SIZE = 100;
+const LOCATION_FETCH_CONCURRENCY = 8;
+
+async function fetchAllAdminLocations(): Promise<AdminLocation[]> {
+  const firstPage = await getAdminLocations({
+    page: 1,
+    pageSize: LOCATION_FETCH_PAGE_SIZE,
+  });
+  const items = [...firstPage.items];
+  const remainingPages = Array.from(
+    { length: Math.max(firstPage.totalPages - 1, 0) },
+    (_, index) => index + 2,
+  );
+
+  for (
+    let offset = 0;
+    offset < remainingPages.length;
+    offset += LOCATION_FETCH_CONCURRENCY
+  ) {
+    const batch = remainingPages.slice(
+      offset,
+      offset + LOCATION_FETCH_CONCURRENCY,
+    );
+    const results = await Promise.all(
+      batch.map((page) =>
+        getAdminLocations({ page, pageSize: LOCATION_FETCH_PAGE_SIZE }),
+      ),
+    );
+    results.forEach((result) => items.push(...result.items));
+  }
+
+  return items;
+}
 
 type LocationForm = {
   code: string;
@@ -112,13 +170,12 @@ export default function AdminLocations() {
   useEffect(() => {
     tRef.current = t;
   });
-  const [items, setItems] = useState<AdminLocation[]>([]);
+  const [allLocations, setAllLocations] = useState<AdminLocation[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [administrativeType, setAdministrativeType] = useState<"" | LocationType>("");
   const [parentCode, setParentCode] = useState("");
   const [page, setPage] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -137,23 +194,18 @@ export default function AdminLocations() {
   } | null>(null);
   const pageSize = 12;
 
+  // BE `GET /v1/admin/locations` chỉ lọc được search + isActive; type và
+  // parentCode bị bỏ qua im lặng (xem docs/BE_ADMIN_LOCATION_FILTER_GAP.md).
+  // Danh mục hành chính chỉ ~3.4k bản ghi và gần như không đổi, nên tải trọn
+  // một lần rồi lọc/phân trang phía client — cách duy nhất để mọi tổ hợp bộ lọc
+  // đúng, kể cả khi cần xem cả bản ghi đã tắt.
   const loadLocations = useCallback(async () => {
     setLoading(true);
 
     try {
-      const result = await getAdminLocations({
-        page,
-        pageSize,
-        search: search.trim() || undefined,
-        isActive: status ? status === "ACTIVE" : undefined,
-        type: administrativeType || undefined,
-        parentCode: parentCode || undefined,
-      });
-      setItems(result.items);
-      setTotalItems(result.totalItems);
+      setAllLocations(await fetchAllAdminLocations());
     } catch (error) {
-      setItems([]);
-      setTotalItems(0);
+      setAllLocations([]);
       setMessage({
         tone: "error",
         text:
@@ -164,12 +216,45 @@ export default function AdminLocations() {
     } finally {
       setLoading(false);
     }
-  }, [administrativeType, page, pageSize, parentCode, search, status]);
+  }, []);
+
+  const filteredLocations = useMemo(() => {
+    const keyword = normalizeSearchText(search);
+
+    return allLocations.filter((location) => {
+      if (status && (status === "ACTIVE") !== location.isActive) {
+        return false;
+      }
+      if (administrativeType && location.type !== administrativeType) {
+        return false;
+      }
+      if (parentCode && location.parentCode !== parentCode) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      // Khớp giống BE: contains trên code hoặc name, bỏ dấu, không phân biệt hoa thường.
+      return (
+        normalizeSearchText(location.code).includes(keyword) ||
+        normalizeSearchText(location.name).includes(keyword)
+      );
+    });
+  }, [allLocations, administrativeType, parentCode, search, status]);
+
+  const totalItems = filteredLocations.length;
+  // Xoá bản ghi cuối của trang cuối có thể đẩy page vượt quá dữ liệu còn lại —
+  // kẹp lúc đọc thay vì setState trong effect để không tạo render thừa.
+  const safePage = Math.min(page, Math.max(1, Math.ceil(totalItems / pageSize)));
+  const items = useMemo(
+    () => filteredLocations.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filteredLocations, safePage, pageSize],
+  );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadLocations();
-    }, 200);
+    // Hoãn sang macrotask: gọi thẳng trong effect là setState đồng bộ khi
+    // request resolve ngay (mock trong test), gây cascading render.
+    const timer = window.setTimeout(() => void loadLocations(), 0);
     return () => window.clearTimeout(timer);
   }, [loadLocations, reloadKey]);
 
@@ -344,7 +429,7 @@ export default function AdminLocations() {
             </option>
             {provinces.map((province) => (
               <option key={province.id} value={province.code}>
-                {province.name} · {province.code}
+                {province.name}
               </option>
             ))}
           </CustomSelect>
@@ -388,8 +473,11 @@ export default function AdminLocations() {
                       </p>
                     </td>
                     <td className="w-[18%] whitespace-nowrap px-3 py-4 text-center sm:px-5">
+                      {/* inline-flex + gap: chữ viết tắt và dấu "!" tách nhau ra
+                          và cùng nằm giữa theo trục dọc, thay vì dấu "!" dính
+                          sát chữ và trôi theo baseline. */}
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
                           isLeafLocationType(location.type)
                             ? "bg-sky-50 text-sky-700"
                             : "bg-violet-50 text-violet-700"
@@ -398,16 +486,17 @@ export default function AdminLocations() {
                         {t(`locations.types.${location.type}`, {
                           defaultValue: location.type,
                         })}
+                        {location.type === "MUNICIPALITY" && (
+                          <InfoHint
+                            label={t("locations.whatIsThis")}
+                            text={t("locations.typeFullName.MUNICIPALITY")}
+                          />
+                        )}
                       </span>
                     </td>
                     <td className="w-[16%] whitespace-nowrap px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
                       {location.parentName ? (
-                        <>
-                          {location.parentName}
-                          <span className="ml-1 font-mono text-xs text-gray-400">
-                            {location.parentCode}
-                          </span>
-                        </>
+                        location.parentName
                       ) : (
                         <span className="text-gray-300">—</span>
                       )}
@@ -492,13 +581,10 @@ export default function AdminLocations() {
           </table>
         </div>
         <Pagination
-          page={page}
+          page={safePage}
           pageSize={pageSize}
           totalItems={totalItems}
-          onPageChange={(nextPage) => {
-            setLoading(true);
-            setPage(nextPage);
-          }}
+          onPageChange={setPage}
         />
       </section>
 
@@ -568,10 +654,16 @@ export default function AdminLocations() {
                 <dt className="text-xs font-medium text-gray-500">
                   {t("locations.type")}
                 </dt>
-                <dd className="mt-1 font-semibold text-gray-900">
+                <dd className="mt-1 flex items-center gap-1.5 font-semibold text-gray-900">
                   {t(`locations.types.${viewing.type}`, {
                     defaultValue: viewing.type,
                   })}
+                  {viewing.type === "MUNICIPALITY" && (
+                    <InfoHint
+                      label={t("locations.whatIsThis")}
+                      text={t("locations.typeFullName.MUNICIPALITY")}
+                    />
+                  )}
                 </dd>
               </div>
               <div className="rounded-xl border border-gray-100 bg-slate-50 p-4">
@@ -580,7 +672,7 @@ export default function AdminLocations() {
                 </dt>
                 <dd className="mt-1 font-semibold text-gray-900">
                   {viewing.parentName
-                    ? `${viewing.parentName} · ${viewing.parentCode}`
+                    ? `${viewing.parentName}`
                     : "—"}
                 </dd>
               </div>
@@ -702,6 +794,12 @@ export default function AdminLocations() {
                   ),
                 )}
               </CustomSelect>
+              {form.type === "MUNICIPALITY" && (
+                <span className="mt-1.5 block text-xs font-medium text-vr-700">
+                  {t("locations.types.MUNICIPALITY")} ={" "}
+                  {t("locations.typeFullName.MUNICIPALITY")}
+                </span>
+              )}
               <span className="mt-1.5 block text-xs text-gray-500">
                 {t("locations.typeHint")}
               </span>
@@ -752,7 +850,7 @@ export default function AdminLocations() {
                   <option value="">{t("locations.selectParent")}</option>
                   {provinces.map((province) => (
                     <option key={province.id} value={province.code}>
-                      {province.name} · {province.code}
+                      {province.name}
                     </option>
                   ))}
                 </CustomSelect>

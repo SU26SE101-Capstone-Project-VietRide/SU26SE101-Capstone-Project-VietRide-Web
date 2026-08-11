@@ -4,7 +4,7 @@ import { FiEdit2, FiGitMerge, FiPower } from "react-icons/fi";
 import { type AdminStation } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
-import { iconButtonClass } from "./stationHelpers";
+import { displayCityName, iconButtonClass } from "./stationHelpers";
 
 type StationTableProps = {
   stations: AdminStation[];
@@ -68,8 +68,7 @@ export default function StationTable({
                   </p>
                 </td>
                 <td className="px-4 py-3 text-center text-gray-700">
-                  {station.city ||
-                    "-"}
+                  {displayCityName(station.city) || "-"}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 pr-6 text-center text-gray-700">
                   <span

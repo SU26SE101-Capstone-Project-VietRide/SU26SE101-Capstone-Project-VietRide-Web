@@ -302,7 +302,9 @@ export default function Register() {
       });
     } catch (err) {
       logRegistrationError("VERIFY_OTP_REQUEST_FAILED", err);
-      setError(err instanceof Error ? err.message : "Email verification failed");
+      setError(
+        err instanceof Error ? err.message : t("errors.verifyEmailFailed"),
+      );
     } finally {
       setLoading(false);
     }

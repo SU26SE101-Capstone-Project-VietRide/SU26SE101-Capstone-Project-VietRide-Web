@@ -18,6 +18,7 @@ import {
 } from "../../../api/vietride";
 import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
+import { toDatetimeLocalValue } from "../../../utils/date";
 import VoucherModal from "./VoucherModal";
 import VoucherTable from "./VoucherTable";
 import {
@@ -30,6 +31,7 @@ import {
   type VoucherForm,
   type VoucherServiceTab,
 } from "./voucherHelpers";
+import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 
 const emptyForm: VoucherForm = {
   code: "",
@@ -40,10 +42,10 @@ const emptyForm: VoucherForm = {
   maxDiscountAmount: "50000",
   totalUsageLimit: "100",
   perUserLimit: "1",
-  validFrom: new Date().toISOString().slice(0, 16),
-  validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 16),
+  validFrom: toDatetimeLocalValue(new Date()),
+  validUntil: toDatetimeLocalValue(
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  ),
   applicableService: "BOOKING",
   applicableRouteIds: "",
   fundingType: "OPERATOR_FUNDED",
@@ -58,6 +60,9 @@ export default function ManagerVouchers() {
     tRef.current = t;
   });
   const isOperatorAdmin = getAuthUser()?.role === "OPERATOR_ADMIN";
+  const { hasModule } = useOperatorSubscription();
+  const parcelEnabled =
+    !isOperatorAdmin || hasModule("enableParcel");
   const [activeServiceTab, setActiveServiceTab] =
     useState<VoucherServiceTab>("BOOKING");
   const [voucherSearch, setVoucherSearch] = useState("");
@@ -118,7 +123,9 @@ export default function ManagerVouchers() {
     [vouchers],
   );
   const currentServiceVouchers =
-    activeServiceTab === "BOOKING" ? bookingVouchers : parcelVouchers;
+    activeServiceTab === "BOOKING" || !parcelEnabled
+      ? bookingVouchers
+      : parcelVouchers;
 
   const filteredVouchers = useMemo(() => {
     const source = isOperatorAdmin ? currentServiceVouchers : vouchers;
@@ -136,7 +143,10 @@ export default function ManagerVouchers() {
   );
   function openCreateModal() {
     setSelectedVoucher(null);
-    setForm({ ...emptyForm, applicableService: activeServiceTab });
+    setForm({
+      ...emptyForm,
+      applicableService: parcelEnabled ? activeServiceTab : "BOOKING",
+    });
     setIsModalOpen(true);
   }
 
@@ -263,7 +273,7 @@ export default function ManagerVouchers() {
         </div>
       </div>
 
-      {isOperatorAdmin && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label={t("vouchers.totalVouchers")} value={vouchers.length} icon={<FiTag size={20} />} iconClassName="bg-vr-50 text-vr-700" /><StatCard label={t("vouchers.activeVouchers")} value={activeCount} icon={<FiTag size={20} />} iconClassName="bg-emerald-50 text-emerald-700" /><StatCard label={t("vouchers.bookingVouchers")} value={bookingVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-blue-50 text-blue-700" /><StatCard label={t("vouchers.parcelVouchers")} value={parcelVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-amber-50 text-amber-700" /></div>}
+      {isOperatorAdmin && <div className={`grid gap-4 sm:grid-cols-2 ${parcelEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}><StatCard label={t("vouchers.totalVouchers")} value={vouchers.length} icon={<FiTag size={20} />} iconClassName="bg-vr-50 text-vr-700" /><StatCard label={t("vouchers.activeVouchers")} value={activeCount} icon={<FiTag size={20} />} iconClassName="bg-emerald-50 text-emerald-700" /><StatCard label={t("vouchers.bookingVouchers")} value={bookingVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-blue-50 text-blue-700" />{parcelEnabled && <StatCard label={t("vouchers.parcelVouchers")} value={parcelVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-amber-50 text-amber-700" />}</div>}
 
 
       {isOperatorAdmin ? (
@@ -280,7 +290,7 @@ export default function ManagerVouchers() {
               </h2>
             </div>
             <div className="inline-flex w-full rounded-full bg-gray-100 p-1 sm:w-auto">
-              <button
+              {parcelEnabled && <button
                 type="button"
                 onClick={() => setActiveServiceTab("BOOKING")}
                 className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none ${
@@ -299,7 +309,7 @@ export default function ManagerVouchers() {
                 >
                   {bookingVouchers.length}
                 </span>
-              </button>
+              </button>}
               <button
                 type="button"
                 onClick={() => setActiveServiceTab("PARCEL")}
@@ -349,6 +359,7 @@ export default function ManagerVouchers() {
         form={form}
         isEditing={Boolean(selectedVoucher)}
         routes={routes}
+        parcelEnabled={parcelEnabled}
         onChange={updateForm}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmit}

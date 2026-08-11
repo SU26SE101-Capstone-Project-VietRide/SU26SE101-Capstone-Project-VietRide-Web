@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "./i18n";
 import {
   clearAuthSession,
   getAuthUser,
@@ -92,6 +93,87 @@ describe("auth", () => {
         }),
       }),
     );
+  });
+
+  // login/register không đi qua apiRequest nên trước đây bỏ qua bảng dịch,
+  // khiến toast hiện nguyên văn tiếng Anh của BE.
+  describe("dịch message lỗi theo error.code", () => {
+    let originalLanguage: string;
+
+    beforeEach(async () => {
+      originalLanguage = i18n.language;
+      await i18n.changeLanguage("vi");
+    });
+
+    afterEach(async () => {
+      await i18n.changeLanguage(originalLanguage);
+    });
+
+    const errorEnvelope = (code: string, message: string, status: number) =>
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              statusCode: status,
+              error: { code, message },
+            }),
+            { status },
+          ),
+      );
+
+    it.each([
+      [
+        "AUTH_INVALID_CREDENTIALS",
+        "Invalid email or password.",
+        401,
+        "Email hoặc mật khẩu không đúng.",
+      ],
+      [
+        "AUTH_ACCOUNT_LOCKED",
+        "Account is locked. Please contact support.",
+        403,
+        "Tài khoản đã bị khoá.",
+      ],
+    ])("login: %s", async (code, english, status, vietnamese) => {
+      vi.stubGlobal("fetch", errorEnvelope(code, english, status));
+
+      await expect(
+        login({ email: "user@vietride.vn", password: "wrong-password" }),
+      ).rejects.toThrow(vietnamese);
+    });
+
+    it("register: đọc error.message thay vì rơi về 'Register failed'", async () => {
+      vi.stubGlobal(
+        "fetch",
+        errorEnvelope(
+          "AUTH_EMAIL_ALREADY_REGISTERED",
+          "Email is already registered.",
+          409,
+        ),
+      );
+
+      await expect(
+        register({
+          displayName: "Nguyen Van A",
+          email: "user@vietride.vn",
+          phone: "0901234567",
+          password: "secret123",
+        }),
+      ).rejects.toThrow("Email này đã được đăng ký.");
+    });
+
+    it("giữ nguyên message tiếng Anh khi đang ở ngôn ngữ EN", async () => {
+      await i18n.changeLanguage("en");
+      vi.stubGlobal(
+        "fetch",
+        errorEnvelope("AUTH_INVALID_CREDENTIALS", "Invalid email or password.", 401),
+      );
+
+      await expect(
+        login({ email: "user@vietride.vn", password: "wrong-password" }),
+      ).rejects.toThrow("Invalid email or password.");
+    });
   });
 
   it("calls logout with refresh token and clears the session", async () => {

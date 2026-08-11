@@ -110,17 +110,9 @@ export default function Login() {
                 </div>
 
                 <div>
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <label className="text-sm font-semibold text-slate-800">
-                      {t("password")} <span className="text-red-500">*</span>
-                    </label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-sm font-semibold text-vr-700 hover:text-vr-900"
-                    >
-                      {t("forgotPassword")}
-                    </Link>
-                  </div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-800">
+                    {t("password")} <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative w-full max-w-lg">
                     <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
@@ -153,11 +145,20 @@ export default function Login() {
                   )}
                 </div>
 
-                <Checkbox
-                  checked={rememberMe}
-                  onChange={setRememberMe}
-                  label={t("rememberMe")}
-                />
+                {/* Ghi nhớ đăng nhập + Quên mật khẩu nằm cùng hàng dưới ô mật khẩu */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Checkbox
+                    checked={rememberMe}
+                    onChange={setRememberMe}
+                    label={t("rememberMe")}
+                  />
+                  <Link
+                    to="/forgot-password"
+                    className="text-sm font-semibold text-vr-700 hover:text-vr-900"
+                  >
+                    {t("forgotPassword")}
+                  </Link>
+                </div>
 
                 <button
                   type="submit"

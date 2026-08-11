@@ -33,6 +33,7 @@ import { PendingUpgradeItem, UsageItem } from "./packageDetails";
 import OperatorInvoiceSection from "./OperatorInvoiceSection";
 import PlanCard from "./PlanCard";
 import PurchasePlanModal from "./PurchasePlanModal";
+import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 
 const PENDING_PAYMENT_REFRESH_INTERVAL_MS = 5_000;
 
@@ -44,6 +45,7 @@ type IdempotentAction = {
 export default function ManagerPackages() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const { syncSubscription } = useOperatorSubscription();
   const [subscription, setSubscription] =
     useState<OperatorSubscriptionDetail | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -126,9 +128,10 @@ export default function ManagerPackages() {
       normalizePendingPaymentDeadline(subscriptionResult);
 
     setSubscription(normalizedSubscription);
+    syncSubscription(normalizedSubscription);
     setPlans(planResult);
     return normalizedSubscription;
-  }, []);
+  }, [syncSubscription]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -170,6 +173,7 @@ export default function ManagerPackages() {
         if (!isCurrent) return;
 
         setSubscription(result);
+        syncSubscription(result);
         if (import.meta.env.DEV) {
           console.info("[SubscriptionPayment] PENDING_SYNC_RESULT", {
             status: result.status,
@@ -202,7 +206,7 @@ export default function ManagerPackages() {
       isCurrent = false;
       window.clearInterval(timer);
     };
-  }, [hasPendingPayment]);
+  }, [hasPendingPayment, syncSubscription]);
 
   useEffect(() => {
     if (!pendingUpgrade) return;

@@ -4,7 +4,7 @@
 // "Đã xử lý"; các field resolution chỉ để hiển thị dữ liệu đã xử lý nơi khác.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   FiAlertTriangle,
   FiEye,
@@ -21,6 +21,7 @@ import {
   type OperatorIncident,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Pagination from "../../../components/Pagination";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatDateTime } from "../../../utils/date";
@@ -156,6 +157,12 @@ export default function ManagerIncidents() {
       {linkedTripId && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-vr-200 bg-vr-50 px-4 py-3 text-sm text-vr-900">
           <span>{t("incidents.filteredByTrip")}</span>
+          <Link
+            to={`/manager/operations?tripId=${linkedTripId}`}
+            className="font-semibold text-vr-800 hover:underline"
+          >
+            {t("incidents.viewOnOperations")}
+          </Link>
         </div>
       )}
 
@@ -202,7 +209,7 @@ export default function ManagerIncidents() {
 
           <label>
             <span className={labelClass}>{t("incidents.from")}</span>
-            <input
+            <CustomDateTimeInput
               type="date"
               value={from}
               onChange={(event) => {
@@ -215,12 +222,12 @@ export default function ManagerIncidents() {
 
           <label>
             <span className={labelClass}>{t("incidents.to")}</span>
-            <input
+            <CustomDateTimeInput
               type="date"
               value={to}
-              // BE bắt to >= from; chặn ngay ở input để khỏi ăn 422
-              min={from || undefined}
               onChange={(event) => {
+                // BE bắt to >= from; chặn ngay ở input để khỏi ăn 422
+                if (from && event.target.value < from) return;
                 setTo(event.target.value);
                 setPage(1);
               }}

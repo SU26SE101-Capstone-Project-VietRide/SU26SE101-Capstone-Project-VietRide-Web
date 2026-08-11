@@ -122,11 +122,14 @@ function createApiRequestError(payload: unknown, status: number): ApiRequestErro
     ...field,
     message: translateApiErrorMessage(undefined, field.message),
   }));
-  // VALIDATION_ERROR có message top-level chung chung ("One or more validation
-  // errors occurred."); lý do cụ thể nằm ở error.fields[].message (BE trả field
-  // nào sai và tại sao) nên ưu tiên hiện field message thay vì bản dịch chung.
+  // VALIDATION_ERROR / VALIDATION_FAILED có message top-level chung chung ("One
+  // or more validation errors occurred." / "Validation failed"); lý do cụ thể
+  // nằm ở error.fields[].message (BE trả field nào sai và tại sao) nên ưu tiên
+  // hiện field message thay vì bản dịch chung.
+  const isValidationCode =
+    code === "VALIDATION_ERROR" || code === "VALIDATION_FAILED";
   const displayMessage =
-    code === "VALIDATION_ERROR" && fields.length > 0
+    isValidationCode && fields.length > 0
       ? fields.map((field) => field.message).filter(Boolean).join(" ")
       : translateApiErrorMessage(code, message, status);
   return new ApiRequestError(message, status, code, fields, displayMessage);
@@ -293,7 +296,12 @@ export async function apiSseRequest(
   }
 
   if (!response.body) {
-    throw new Error("Streaming response body is unavailable");
+    throw new Error(
+      translateApiErrorMessage(
+        "UPSTREAM_UNAVAILABLE",
+        "Streaming response body is unavailable",
+      ),
+    );
   }
 
   const reader = response.body.getReader();

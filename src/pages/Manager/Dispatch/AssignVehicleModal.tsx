@@ -2,11 +2,14 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { FiRefreshCw } from "react-icons/fi";
 import type {
+  ResourceAvailabilityResult,
   ShuttleDirection,
   ShuttleRequestGroup,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import Modal from "../../../components/Modal";
+import ResourceConflictPanel from "../../../components/ResourceConflictPanel";
 import Checkbox from "../../../components/form/Checkbox";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
@@ -18,6 +21,7 @@ import {
   getOrderedSelectedBookingIds,
   getSelectedPassengerCount,
   isInboundDirection,
+  shuttleRouteLabel,
   type ShuttleDriver,
   type ShuttleVehicle,
 } from "./dispatchHelpers";
@@ -46,6 +50,9 @@ type AssignVehicleModalProps = {
   submitError: string;
   isLoadingResources: boolean;
   isSubmitting: boolean;
+  availability: ResourceAvailabilityResult | null;
+  isCheckingAvailability: boolean;
+  onCheckAvailability: () => void;
 };
 
 export default function AssignVehicleModal({
@@ -63,6 +70,9 @@ export default function AssignVehicleModal({
   submitError,
   isLoadingResources,
   isSubmitting,
+  availability,
+  isCheckingAvailability,
+  onCheckAvailability,
 }: AssignVehicleModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -132,6 +142,9 @@ export default function AssignVehicleModal({
                   {directionLabel(group.direction)}
                 </p>
                 <p className="mt-1 font-semibold text-gray-900">
+                  {shuttleRouteLabel(group, group.stationName)}
+                </p>
+                <p className="mt-1 text-xs text-gray-600">
                   {group.stationName}
                 </p>
                 <p className="mt-1 text-xs text-gray-600">
@@ -349,16 +362,11 @@ export default function AssignVehicleModal({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="dispatch-scheduled-departure"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">
                 {t("dispatch.scheduledDeparture")}
-              </label>
-              <input
-                id="dispatch-scheduled-departure"
-                name="scheduledDepartureTime"
+              </span>
+              <CustomDateTimeInput
                 type="datetime-local"
                 value={form.scheduledDepartureTime}
                 onChange={(event) =>
@@ -368,20 +376,14 @@ export default function AssignVehicleModal({
                   })
                 }
                 disabled={isSubmitting}
-                required
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500 disabled:bg-gray-100"
               />
-            </div>
-            <div>
-              <label
-                htmlFor="dispatch-scheduled-end"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">
                 {t("dispatch.scheduledEnd")}
-              </label>
-              <input
-                id="dispatch-scheduled-end"
-                name="scheduledEndTime"
+              </span>
+              <CustomDateTimeInput
                 type="datetime-local"
                 value={form.scheduledEndTime}
                 onChange={(event) =>
@@ -391,10 +393,9 @@ export default function AssignVehicleModal({
                   })
                 }
                 disabled={isSubmitting}
-                required
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500 disabled:bg-gray-100"
               />
-            </div>
+            </label>
           </div>
 
           <div>
@@ -433,7 +434,25 @@ export default function AssignVehicleModal({
             </p>
           )}
 
+          <ResourceConflictPanel
+            result={availability}
+            loading={isCheckingAvailability}
+          />
+
           <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row">
+            <button
+              type="button"
+              onClick={onCheckAvailability}
+              disabled={
+                isSubmitting ||
+                isCheckingAvailability ||
+                isLoadingResources ||
+                form.selectedBookingIds.length === 0
+              }
+              className="min-h-11 flex-1 rounded-lg border border-vr-200 px-4 py-2 font-medium text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("resourceConflict.check")}
+            </button>
             <button
               type="button"
               onClick={onClose}

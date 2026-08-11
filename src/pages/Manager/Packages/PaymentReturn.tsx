@@ -5,7 +5,6 @@ import {
   FiArrowLeft,
   FiCheck,
   FiClock,
-  FiCreditCard,
   FiLoader,
   FiRefreshCw,
   FiShield,
@@ -319,7 +318,7 @@ export default function SubscriptionPaymentReturn() {
 
   let title = t("paymentReturn.verifyingTitle");
   let description = t("paymentReturn.verifyingDescription");
-  let icon = <FiLoader className="h-9 w-9 animate-spin" aria-hidden="true" />;
+  let icon = <FiLoader className="h-8 w-8 animate-spin" aria-hidden="true" />;
   let iconClassName = "bg-vr-100 text-vr-700";
 
   if (status === "success") {
@@ -327,39 +326,39 @@ export default function SubscriptionPaymentReturn() {
     description = t("paymentReturn.successDescription", {
       name: subscription?.plan.name ?? paymentIntent?.targetPlanName ?? "",
     });
-    icon = <FiCheck className="h-9 w-9" aria-hidden="true" />;
+    icon = <FiCheck className="h-8 w-8" aria-hidden="true" />;
     iconClassName = "bg-emerald-100 text-emerald-700";
   } else if (status === "processing") {
     title = t("paymentReturn.processingTitle");
     description = t("paymentReturn.processingDescription");
-    icon = <FiClock className="h-9 w-9" aria-hidden="true" />;
+    icon = <FiClock className="h-8 w-8" aria-hidden="true" />;
     iconClassName = "bg-amber-100 text-amber-700";
   } else if (status === "cancelled") {
     title = t("paymentReturn.cancelledTitle");
     description = t("paymentReturn.cancelledDescription");
-    icon = <FiX className="h-9 w-9" aria-hidden="true" />;
+    icon = <FiX className="h-8 w-8" aria-hidden="true" />;
     iconClassName = "bg-gray-100 text-gray-600";
   } else if (status === "failed") {
     title = t("paymentReturn.failedTitle");
     description = t("paymentReturn.failedDescription", {
       code: responseCode ?? "-",
     });
-    icon = <FiX className="h-9 w-9" aria-hidden="true" />;
+    icon = <FiX className="h-8 w-8" aria-hidden="true" />;
     iconClassName = "bg-red-100 text-red-700";
   } else if (status === "invalid") {
     title = t("paymentReturn.invalidTitle");
     description = t("paymentReturn.invalidDescription");
-    icon = <FiX className="h-9 w-9" aria-hidden="true" />;
+    icon = <FiX className="h-8 w-8" aria-hidden="true" />;
     iconClassName = "bg-red-100 text-red-700";
   } else if (status === "notFound") {
     title = t("paymentReturn.notFoundTitle");
     description = t("paymentReturn.notFoundDescription");
-    icon = <FiX className="h-9 w-9" aria-hidden="true" />;
+    icon = <FiX className="h-8 w-8" aria-hidden="true" />;
     iconClassName = "bg-red-100 text-red-700";
   } else if (status === "error") {
     title = t("paymentReturn.errorTitle");
     description = t("paymentReturn.errorDescription");
-    icon = <FiX className="h-9 w-9" aria-hidden="true" />;
+    icon = <FiX className="h-8 w-8" aria-hidden="true" />;
     iconClassName = "bg-red-100 text-red-700";
   }
 
@@ -367,162 +366,139 @@ export default function SubscriptionPaymentReturn() {
   // khi chưa gọi được status API.
   const transactionReference =
     returnStatus?.vnPayTxnRef ?? vnpTransactionReference;
+  // Mất phiên thì không đọc được subscription, nhưng tên gói vừa chọn vẫn còn
+  // trong payment intent nên vẫn hiển thị được ngữ cảnh.
+  const planName = subscription?.plan.name ?? paymentIntent?.targetPlanName ?? "";
   const canRetry = status === "processing" || status === "error";
 
   useToastFeedback({ error });
   return (
-    <main className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-5 sm:px-6 sm:py-8">
-      <div
-        className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-vr-500/20 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -bottom-48 -right-32 h-[30rem] w-[30rem] rounded-full bg-cyan-400/10 blur-3xl"
-        aria-hidden="true"
-      />
-
-      <div className="relative mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-6xl flex-col sm:min-h-[calc(100vh-4rem)]">
-        <header className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 text-white">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-lg shadow-black/15">
-              <img
-                src={logo}
-                alt=""
-                width={40}
-                height={40}
-                className="h-10 w-10 object-contain"
-              />
-            </div>
-            <div>
-              <p className="text-lg font-bold tracking-tight">{tc("brand")}</p>
-              <p className="text-xs text-slate-400">VNPay</p>
-            </div>
-          </div>
-          <LanguageSwitcher compact />
-        </header>
-
-        <div className="flex flex-1 items-center justify-center py-8 sm:py-12">
-          <section className="grid w-full max-w-4xl overflow-hidden rounded-[2rem] border border-white/10 bg-white shadow-2xl shadow-black/30 md:grid-cols-[0.82fr_1.18fr]">
-            <header className="relative overflow-hidden bg-gradient-to-br from-vr-900 via-vr-800 to-slate-900 px-7 py-8 text-white sm:px-10 sm:py-11 md:min-h-[34rem]">
-              <div
-                className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full border-[44px] border-white/5"
-                aria-hidden="true"
-              />
-              <div
-                className="pointer-events-none absolute -bottom-24 -left-20 h-64 w-64 rounded-full bg-vr-400/10 blur-2xl"
-                aria-hidden="true"
-              />
-
-              <div className="relative flex h-full flex-col">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 shadow-inner">
-                  <FiCreditCard className="h-6 w-6" aria-hidden="true" />
-                </div>
-                <p className="mt-8 text-xs font-bold uppercase tracking-[0.2em] text-vr-200">
-                  VNPay
-                </p>
-                <h1 className="mt-3 max-w-sm text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-                  {t("paymentReturn.pageTitle")}
-                </h1>
-
-                <div className="mt-8 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-4 text-sm leading-6 text-slate-200 md:mt-auto">
-                  <FiShield
-                    className="mt-0.5 h-5 w-5 shrink-0 text-vr-200"
-                    aria-hidden="true"
-                  />
-                  <span>{t("paymentReturn.securityNote")}</span>
-                </div>
-              </div>
-            </header>
-
-            <div className="flex flex-col px-6 py-8 sm:px-10 sm:py-11">
-              <div
-                className={`flex h-16 w-16 items-center justify-center rounded-2xl ring-8 ring-slate-50 ${iconClassName}`}
-              >
-                {icon}
-              </div>
-
-              <div className="mt-6" aria-live="polite">
-                <h2 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                  {title}
-                </h2>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
-                  {description}
-                </p>
-                {status === "success" && !signedOut ? (
-                  <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-800">
-                    <FiClock className="h-4 w-4" aria-hidden="true" />
-                    {t("paymentReturn.redirectingToPackages", {
-                      seconds: redirectSeconds,
-                    })}
-                  </p>
-                ) : null}
-                {signedOut && status !== "verifying" ? (
-                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-                    {t("paymentReturn.signedOutNote")}
-                  </p>
-                ) : null}
-              </div>
-
-              {responseCode || transactionReference || subscription?.plan.name ? (
-                <dl className="mt-7 divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-slate-50 px-5 text-left text-sm">
-                  {transactionReference ? (
-                    <div className="grid gap-1 py-4 sm:grid-cols-2 sm:gap-4">
-                      <dt className="text-slate-500">
-                        {t("paymentReturn.transactionReference")}
-                      </dt>
-                      <dd className="break-all font-semibold text-slate-950 sm:text-right">
-                        {transactionReference}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {responseCode ? (
-                    <div className="grid gap-1 py-4 sm:grid-cols-2 sm:gap-4">
-                      <dt className="text-slate-500">
-                        {t("paymentReturn.responseCode")}
-                      </dt>
-                      <dd className="font-semibold text-slate-950 sm:text-right">
-                        {responseCode}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {subscription?.plan.name ? (
-                    <div className="grid gap-1 py-4 sm:grid-cols-2 sm:gap-4">
-                      <dt className="text-slate-500">
-                        {t("paymentReturn.currentPlan")}
-                      </dt>
-                      <dd className="font-semibold text-slate-950 sm:text-right">
-                        {subscription.plan.name}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
-              ) : null}
-
-              <div className="mt-auto flex flex-col-reverse gap-3 pt-8 sm:flex-row">
-                {canRetry ? (
-                  <button
-                    type="button"
-                    onClick={() => void verifyPayment()}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-600 focus-visible:ring-offset-2"
-                  >
-                    <FiRefreshCw className="h-4 w-4" aria-hidden="true" />
-                    {t("paymentReturn.retry")}
-                  </button>
-                ) : null}
-                <Link
-                  to={signedOut ? "/login" : "/manager/packages"}
-                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-vr-700 px-5 py-3 font-semibold text-white shadow-lg shadow-vr-900/15 transition hover:-translate-y-0.5 hover:bg-vr-800 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-600 focus-visible:ring-offset-2"
-                >
-                  <FiArrowLeft className="h-5 w-5" aria-hidden="true" />
-                  {signedOut
-                    ? t("paymentReturn.signInToContinue")
-                    : t("paymentReturn.backToPackages")}
-                </Link>
-              </div>
-            </div>
-          </section>
-        </div>
+    <main className="relative flex min-h-screen items-center justify-center bg-vr-500 px-4 py-10 sm:px-6 sm:py-12">
+      <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
+        <LanguageSwitcher />
       </div>
+
+      <section className="w-full max-w-xl rounded-[1.75rem] bg-slate-50 px-7 py-9 text-center shadow-xl sm:px-12 sm:py-12">
+        <img
+          src={logo}
+          alt={tc("brand")}
+          className="mx-auto h-20 w-20 object-contain"
+        />
+        <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-vr-700">
+          {t("paymentReturn.pageTitle")}
+        </p>
+
+        <div
+          className={`mx-auto mt-5 flex h-16 w-16 items-center justify-center rounded-full ${iconClassName}`}
+        >
+          {icon}
+        </div>
+
+        <div aria-live="polite">
+          <h1 className="mt-5 text-3xl font-bold text-slate-900 sm:text-4xl">
+            {title}
+          </h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600">
+            {description}
+          </p>
+        </div>
+
+        {status === "success" && !signedOut ? (
+          <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-vr-200 bg-vr-50 px-3.5 py-1.5 text-xs font-semibold text-vr-800">
+            <FiClock className="h-4 w-4" aria-hidden="true" />
+            {t("paymentReturn.redirectingToPackages", {
+              seconds: redirectSeconds,
+            })}
+          </p>
+        ) : null}
+
+        {signedOut && status !== "verifying" ? (
+          <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm leading-6 text-amber-900">
+            {t("paymentReturn.signedOutNote")}
+          </p>
+        ) : null}
+
+        {transactionReference || responseCode || planName ? (
+          <dl className="mt-7 overflow-hidden rounded-xl border border-slate-200 bg-white text-left text-sm">
+            {transactionReference ? (
+              <DetailRow
+                label={t("paymentReturn.transactionReference")}
+                value={transactionReference}
+                monospace
+              />
+            ) : null}
+            {responseCode ? (
+              <DetailRow
+                label={t("paymentReturn.responseCode")}
+                value={responseCode}
+                monospace
+              />
+            ) : null}
+            {planName ? (
+              <DetailRow label={t("paymentReturn.currentPlan")} value={planName} />
+            ) : null}
+          </dl>
+        ) : null}
+
+        <div className="mt-7 flex items-start gap-3 rounded-xl border border-vr-200 bg-vr-50 p-4 text-left text-sm leading-6 text-slate-600">
+          <FiShield
+            className="mt-0.5 h-5 w-5 shrink-0 text-vr-700"
+            aria-hidden="true"
+          />
+          <span>{t("paymentReturn.securityNote")}</span>
+        </div>
+
+        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row">
+          {canRetry ? (
+            <button
+              type="button"
+              onClick={() => void verifyPayment()}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 font-semibold text-slate-700 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40"
+            >
+              <FiRefreshCw className="h-4 w-4" aria-hidden="true" />
+              {t("paymentReturn.retry")}
+            </button>
+          ) : null}
+          <Link
+            to={signedOut ? "/login" : "/manager/packages"}
+            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-vr-500 px-5 py-3.5 font-semibold text-white transition hover:bg-vr-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40"
+          >
+            <FiArrowLeft className="h-5 w-5" aria-hidden="true" />
+            {signedOut
+              ? t("paymentReturn.signInToContinue")
+              : t("paymentReturn.backToPackages")}
+          </Link>
+        </div>
+      </section>
     </main>
+  );
+}
+
+/**
+ * Một dòng chi tiết giao dịch. Giá trị dài (mã giao dịch là UUID 36 ký tự) phải
+ * nằm trên MỘT dòng — xuống hàng giữa chuỗi mã khiến người dùng đọc/copy sai —
+ * nên cho cuộn ngang trong ô thay vì wrap.
+ */
+function DetailRow({
+  label,
+  value,
+  monospace = false,
+}: {
+  label: string;
+  value: string;
+  monospace?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-start gap-1 border-b border-slate-100 px-4 py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <dt className="shrink-0 text-slate-500">{label}</dt>
+      <dd
+        className={`w-full min-w-0 overflow-x-auto whitespace-nowrap font-semibold text-slate-900 sm:w-auto sm:text-right ${
+          monospace ? "font-mono text-xs" : ""
+        }`}
+        title={value}
+      >
+        {value}
+      </dd>
+    </div>
   );
 }
