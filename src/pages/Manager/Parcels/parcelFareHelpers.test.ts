@@ -5,6 +5,7 @@ import {
   buildNextFareSelection,
   getRouteFareSummary,
   parcelSizeCategories,
+  stripDiacritics,
 } from "./parcelFareHelpers";
 
 const now = new Date("2026-08-10T03:00:00Z");
@@ -110,5 +111,20 @@ describe("parcel fare route summaries", () => {
 
     expect(summary.hasScheduledWindow).toBe(true);
     expect(buildNextFareSelection(summary)).toBeNull();
+  });
+
+  // Ô tìm kiếm bảng giá trước đây so khớp có dấu nên gõ không dấu là ra rỗng —
+  // trông y như bộ lọc hỏng.
+  describe("stripDiacritics", () => {
+    it("khớp được khi người dùng gõ không dấu", () => {
+      expect(stripDiacritics("Đà Lạt")).toBe("da lat");
+      expect(stripDiacritics("Hồ Chí Minh - Đà Lạt")).toContain("da lat");
+      expect(stripDiacritics("  Bến Xe Miền Đông  ")).toBe("ben xe mien dong");
+    });
+
+    it("xử lý cả chữ Đ hoa lẫn đ thường", () => {
+      expect(stripDiacritics("ĐÀ NẴNG")).toBe("da nang");
+      expect(stripDiacritics("đà nẵng")).toBe("da nang");
+    });
   });
 });

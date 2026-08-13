@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -104,5 +105,61 @@ describe("Manager bookings stats", () => {
         "bookings.totalPassengersHelper:3",
       ),
     ).toBeInTheDocument();
+  });
+
+  // BE đã có `search` OR-match mã vé / tên người đặt / SĐT người đặt. Trước đây
+  // FE đoán bằng regex "≥7 chữ số là SĐT", nên gõ tên người đặt không bao giờ ra.
+  it("gửi nguyên chuỗi vào `search` thay vì đoán phone/code", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <BookingsList />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getOperatorBookings).toHaveBeenCalled());
+
+    await user.type(
+      screen.getByPlaceholderText("bookings.searchPlaceholder"),
+      "Nguyen Van A",
+    );
+
+    await waitFor(
+      () =>
+        expect(getOperatorBookings).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: "Nguyen Van A" }),
+        ),
+      { timeout: 3_000 },
+    );
+    expect(getOperatorBookings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ bookingCode: "Nguyen Van A" }),
+    );
+  });
+
+  it("số điện thoại cũng đi qua `search`, không tách sang passengerPhone", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <BookingsList />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getOperatorBookings).toHaveBeenCalled());
+
+    await user.type(
+      screen.getByPlaceholderText("bookings.searchPlaceholder"),
+      "0901234567",
+    );
+
+    await waitFor(
+      () =>
+        expect(getOperatorBookings).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: "0901234567" }),
+        ),
+      { timeout: 3_000 },
+    );
+    expect(getOperatorBookings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ passengerPhone: "0901234567" }),
+    );
   });
 });

@@ -1,7 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getAdminOperators,
   getAdminUsers,
   lockAdminUser,
   unlockAdminUser,
@@ -25,6 +26,7 @@ vi.mock("../../auth", () => ({
 
 vi.mock("../../api/vietride", () => ({
   getAdminOperatorUsers: vi.fn(),
+  getAdminOperators: vi.fn(),
   getAdminUsers: vi.fn(),
   lockAdminUser: vi.fn(),
   unlockAdminUser: vi.fn(),
@@ -55,6 +57,46 @@ describe("Admin Users", () => {
       hasNextPage: false,
       hasPreviousPage: false,
     });
+    vi.mocked(getAdminOperators).mockResolvedValue({
+      items: [
+        {
+          operatorId: "operator-1",
+          name: "Nhà xe Phương Trang",
+          contactEmail: "ops@example.com",
+          contactPhone: "0900000000",
+          businessRegistrationNumber: "BR-1",
+          taxCode: "TAX-1",
+          registrationStatus: "APPROVED",
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+  });
+
+  // BE nhận `operatorId` từ đầu, màn chỉ thiếu ô chọn nhà xe.
+  it("lọc người dùng theo nhà xe", async () => {
+    const actor = userEvent.setup();
+    render(<Users />);
+
+    await screen.findByText(user.displayName);
+
+    await actor.click(
+      screen.getByRole("button", { name: "users.filterOperator" }),
+    );
+    await actor.click(
+      await screen.findByRole("option", { name: "Nhà xe Phương Trang" }),
+    );
+
+    await waitFor(() =>
+      expect(getAdminUsers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ operatorId: "operator-1", page: 1 }),
+      ),
+    );
   });
 
   it("shows the user's avatar in the table", async () => {

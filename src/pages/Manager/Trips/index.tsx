@@ -151,6 +151,7 @@ export default function TripsPage() {
   const [isLoadingResources, setIsLoadingResources] = useState(
     cachedResources === null,
   );
+  const [resourcesReloadKey, setResourcesReloadKey] = useState(0);
   // STAFF: BE hiện 403 GET driver-schedules (xem ghi chú ở effect bên dưới) —
   // khởi tạo false ngay để không hiện skeleton cho một request sẽ không gọi.
   const [isLoadingSchedules, setIsLoadingSchedules] = useState(
@@ -159,33 +160,41 @@ export default function TripsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [scheduleTotalItems, setScheduleTotalItems] = useState(0);
-  const [scheduleStats, setScheduleStats] = useState({ total: 0, open: 0, draft: 0, oneTime: 0 });
+  const [scheduleStats, setScheduleStats] = useState({ total: 0, open: 0, draft: 0 });
   const [scheduleStatsVersion, setScheduleStatsVersion] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("");
+  const [routeFilter, setRouteFilter] = useState("");
+  const [driverFilter, setDriverFilter] = useState("");
   const [formModalOpen, setFormModalOpen] = useState(false);
   const pageSize = 8;
 
   const drivers = useMemo(
-    () => staff.filter((person) => person.role === "driver"),
+    () => staff.filter((person) => person.role === "driver" && person.status === "active"),
     [staff],
   );
   const assistants = useMemo(
-    () => staff.filter((person) => person.role === "assistant"),
+    () => staff.filter((person) => person.role === "assistant" && person.status === "active"),
     [staff],
   );
   const editingSchedule = schedules.find((item) => item.id === editingId);
 
   useEffect(() => {
+    const refreshResources = () => setResourcesReloadKey((current) => current + 1);
+    window.addEventListener("vietride:operator-user-status-changed", refreshResources);
+    return () => window.removeEventListener("vietride:operator-user-status-changed", refreshResources);
+  }, []);
+  useEffect(() => {
     let ignore = false;
 
     async function loadResources() {
       try {
-        const [routeItems, vehicleItems, userItems, vehicleTypeItems] = await Promise.all([
+        const [routeItems, vehicleItems, driverItems, assistantItems, vehicleTypeItems] = await Promise.all([
           fetchAllPages((params) => getOperatorRoutes(params)),
           fetchAllPages((params) => getOperatorVehicles(params)),
-          fetchAllPages((params) => getOperatorUsers(params)),
+          fetchAllPages((params) => getOperatorUsers({ ...params, role: "DRIVER", status: "ACTIVE" })),
+          fetchAllPages((params) => getOperatorUsers({ ...params, role: "ASSISTANT", status: "ACTIVE" })),
           fetchAllPages((params) => getVehicleTypes(params)),
         ]);
 
@@ -210,9 +219,16 @@ export default function TripsPage() {
               option.vehicleType,
           };
         });
-        const nextStaff = userItems
-          .filter((user) => user.role === "DRIVER" || user.role === "ASSISTANT")
-          .map(toStaffOption);
+        // Hai lời gọi riêng cho DRIVER và ASSISTANT có thể trả trùng một người
+        // (BE đổi role giữa hai request, hoặc một người mang cả hai vai trò) —
+        // gộp thẳng sẽ nhân đôi họ trong mọi ô chọn nhân sự. Khử theo id.
+        const nextStaff = [
+          ...new Map(
+            [...driverItems, ...assistantItems]
+              .map(toStaffOption)
+              .map((person) => [person.id, person]),
+          ).values(),
+        ];
 
         // Ghi đè cache bằng dữ liệu mới nhất cho lần vào màn tiếp theo
         writeSessionCache<TripResourcesCache>(cacheKey, {
@@ -227,9 +243,7 @@ export default function TripsPage() {
         if (nextVehicles.length > 0) {
           setVehicles(nextVehicles);
         }
-        if (nextStaff.length > 0) {
-          setStaff(nextStaff);
-        }
+        setStaff(nextStaff);
 
         if (!hasSetFormDefaultsRef.current) {
           hasSetFormDefaultsRef.current = true;
@@ -268,7 +282,7 @@ export default function TripsPage() {
       ignore = true;
     };
     // toast API là object memo hoá ổn định — không làm effect refetch
-  }, [cacheKey, toast]);
+  }, [cacheKey, resourcesReloadKey, toast]);
 
   useEffect(() => {
     if (!canManageSchedules) {
@@ -278,18 +292,19 @@ export default function TripsPage() {
     let ignore = false;
     async function loadScheduleStats() {
       try {
-        const [all, open, draft, oneTime] = await Promise.all([
+        // Bỏ thẻ "lịch chạy một lần": domain chỉ có lịch lặp theo tuần nên BE
+        // không có `isOneTime`. Trước đây query đó bị bỏ qua im lặng và thẻ
+        // hiển thị đúng bằng tổng số lịch — một con số sai, không phải thiếu.
+        const [all, open, draft] = await Promise.all([
           getOperatorDriverSchedules({ page: 1, pageSize: 1 }),
           getOperatorDriverSchedules({ page: 1, pageSize: 1, isActive: true }),
           getOperatorDriverSchedules({ page: 1, pageSize: 1, isActive: false }),
-          getOperatorDriverSchedules({ page: 1, pageSize: 1, isOneTime: true }),
         ]);
         if (!ignore) {
           setScheduleStats({
             total: all.totalItems,
             open: open.totalItems,
             draft: draft.totalItems,
-            oneTime: oneTime.totalItems,
           });
         }
       } catch {
@@ -323,6 +338,8 @@ export default function TripsPage() {
           search,
           isActive: statusFilter === "" ? undefined : statusFilter === "open",
           vehicleTypeId: vehicleTypeFilter || undefined,
+          routeId: routeFilter || undefined,
+          driverUserId: driverFilter || undefined,
         });
 
         if (!ignore) {
@@ -349,7 +366,7 @@ export default function TripsPage() {
     return () => {
       ignore = true;
     };
-  }, [canManageSchedules, page, pageSize, search, statusFilter, vehicleTypeFilter, toast]);
+  }, [canManageSchedules, driverFilter, page, pageSize, routeFilter, search, statusFilter, vehicleTypeFilter, toast]);
 
   function updateForm<K extends keyof ScheduleForm>(
     key: K,
@@ -475,6 +492,32 @@ export default function TripsPage() {
   // Conflict tài nguyên: message chung không nói rõ vướng ở đâu, phải đọc
   // error.fields để chỉ đúng tài xế/phụ xe/xe và lý do (handoff mục 6.2, 11.6).
   // ASSISTANT dùng chung code TRIP_DRIVER_CONFLICT nên chỉ resourceRole tách được.
+  function handleCrewValidationError(err: unknown) {
+    if (!(err instanceof ApiRequestError)) {
+      return false;
+    }
+
+    const invalidDriver = err.fields.some((field) => field.field === "driverUserId");
+    const invalidAssistant = err.fields.some((field) => field.field === "assistantUserId");
+    if (!invalidDriver && !invalidAssistant) {
+      return false;
+    }
+
+    setForm((current) => ({
+      ...current,
+      ...(invalidDriver ? { driverId: "" } : {}),
+      ...(invalidAssistant ? { assistantId: "" } : {}),
+    }));
+    setCrewForm((current) => ({
+      ...current,
+      ...(invalidDriver ? { driverId: "" } : {}),
+      ...(invalidAssistant ? { assistantId: "" } : {}),
+    }));
+    setResourcesReloadKey((current) => current + 1);
+    setFormError(t("trips.crewNoLongerActive"));
+    setCrewTarget(null);
+    return true;
+  }
   function getScheduleError(err: unknown, fallbackKey: string) {
     const conflict = parseResourceConflictError(err);
     if (conflict) {
@@ -641,6 +684,9 @@ export default function TripsPage() {
         setFormModalOpen(false);
         toast.success(t("trips.scheduleUpdated"));
       } catch (err) {
+        if (handleCrewValidationError(err)) {
+          return;
+        }
         // 409 (DRIVER_SCHEDULE_EDIT_TOO_LATE, TRIP_*_CONFLICT...) hiện trong modal
         // vì form vẫn đang mở — user sửa lại field ngay tại chỗ.
         setFormError(getScheduleError(err, "trips.updateScheduleFailed"));
@@ -684,6 +730,9 @@ export default function TripsPage() {
           : t("trips.scheduleSaved"),
       );
     } catch (err) {
+      if (handleCrewValidationError(err)) {
+        return;
+      }
       // Lỗi tạo lịch hiện trong modal vì form vẫn đang mở.
       setFormError(getScheduleError(err, "trips.createScheduleFailed"));
     } finally {
@@ -845,6 +894,9 @@ export default function TripsPage() {
       setCrewTarget(null);
       toast.success(t("trips.changeCrewSuccess"));
     } catch (err) {
+      if (handleCrewValidationError(err)) {
+        return;
+      }
       toast.error(getScheduleError(err, "trips.changeCrewFailed"));
     } finally {
       setIsSavingCrew(false);
@@ -883,7 +935,7 @@ export default function TripsPage() {
         ) : null}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           label={t("trips.totalSchedules")}
           value={scheduleStats.total}
@@ -903,13 +955,6 @@ export default function TripsPage() {
           value={scheduleStats.draft}
           icon={<FiUsers size={20} />}
           iconClassName="bg-emerald-50 text-emerald-700"
-          isLoading={isLoadingSchedules}
-        />
-        <StatCard
-          label={t("trips.oneTimeSchedules")}
-          value={scheduleStats.oneTime}
-          icon={<FiCalendar size={20} />}
-          iconClassName="bg-amber-50 text-amber-700"
           isLoading={isLoadingSchedules}
         />
       </div>
@@ -1005,6 +1050,7 @@ export default function TripsPage() {
           schedules={schedules}
           routes={routes}
           vehicles={vehicles}
+          drivers={drivers}
           canManageSchedules={canManageSchedules}
           isLoading={isLoadingSchedules}
           page={page}
@@ -1013,9 +1059,13 @@ export default function TripsPage() {
           search={search}
           statusFilter={statusFilter}
           vehicleTypeFilter={vehicleTypeFilter}
+          routeFilter={routeFilter}
+          driverFilter={driverFilter}
           onSearchChange={(value) => { setSearch(value); setPage(1); }}
           onStatusFilterChange={(value) => { setStatusFilter(value); setPage(1); }}
           onVehicleTypeFilterChange={(value) => { setVehicleTypeFilter(value); setPage(1); }}
+          onRouteFilterChange={(value) => { setRouteFilter(value); setPage(1); }}
+          onDriverFilterChange={(value) => { setDriverFilter(value); setPage(1); }}
           onPageChange={setPage}
           onEdit={editSchedule}
           onChangeCrew={openCrewModal}
@@ -1026,3 +1076,9 @@ export default function TripsPage() {
     </div>
   );
 }
+
+
+
+
+
+

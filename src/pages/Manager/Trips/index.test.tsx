@@ -137,11 +137,11 @@ describe("TripsPage", () => {
           operatorId: "operator-1",
         },
         {
-          userId: "driver-inactive",
-          email: "inactive@operator.vn",
-          displayName: "Tài xế ngừng hoạt động",
+          userId: "driver-secondary",
+          email: "secondary@operator.vn",
+          displayName: "Tài xế dự phòng",
           role: "DRIVER",
-          status: "INACTIVE",
+          status: "ACTIVE",
           operatorId: "operator-1",
         },
       ],
@@ -204,8 +204,8 @@ describe("TripsPage", () => {
 
     renderPage();
 
-    // 4 thẻ KPI đều là skeleton, không thẻ nào hiện số 0
-    expect(screen.getAllByTestId("stat-card-skeleton")).toHaveLength(4);
+    // 3 thẻ KPI đều là skeleton, không thẻ nào hiện số 0
+    expect(screen.getAllByTestId("stat-card-skeleton")).toHaveLength(3);
     expect(screen.queryByText("0")).not.toBeInTheDocument();
     // Bảng hiện hàng skeleton thay vì empty-state "chưa có lịch"
     expect(screen.getByTestId("schedules-table-skeleton")).toBeInTheDocument();
@@ -276,13 +276,14 @@ describe("TripsPage", () => {
 
     renderPage();
 
-    // Bốn KPI đều lấy từ API schedules, nên chờ query thống kê hoàn tất.
+    // Ba KPI đều lấy từ API schedules, nên chờ query thống kê hoàn tất.
+    // Thẻ "lịch chạy một lần" đã bỏ: BE không có `isOneTime`, query đó từng bị
+    // nuốt im lặng nên thẻ hiển thị đúng bằng tổng số lịch.
     await waitFor(() => {
       for (const labelKey of [
         "trips.totalSchedules",
         "trips.openSchedules",
         "trips.draftSchedules",
-        "trips.oneTimeSchedules",
       ]) {
         const card = screen.getByText(labelKey).parentElement?.parentElement?.parentElement as HTMLElement;
         expect(within(card).getByText("1")).toBeInTheDocument();
@@ -769,7 +770,7 @@ describe("TripsPage", () => {
       operatorId: "operator-1",
       routeId: "route-1",
       vehicleId: "vehicle-1",
-      driverUserId: "driver-inactive",
+      driverUserId: "driver-secondary",
       assistantUserId: null,
       baseFare: null,
       departureTime: "08:00:00",
@@ -795,7 +796,7 @@ describe("TripsPage", () => {
       within(dialog).getByRole("button", { name: /Tài xế đang hoạt động/ }),
     );
     await user.click(
-      screen.getByRole("option", { name: /Tài xế ngừng hoạt động/ }),
+      screen.getAllByRole("option", { name: /Tài xế dự phòng/ })[0],
     );
 
     await user.click(
@@ -807,7 +808,7 @@ describe("TripsPage", () => {
       expect(updateOperatorDriverSchedule).toHaveBeenCalledWith(
         "schedule-12345678",
         "ALL_PENDING",
-        { driverUserId: "driver-inactive" },
+        { driverUserId: "driver-secondary" },
       );
     });
     // Feedback thành công hiện dạng toast (portal vào body), không còn banner inline
@@ -1169,5 +1170,41 @@ describe("TripsPage", () => {
     expect(getOperatorDriverSchedules).not.toHaveBeenCalled();
     expect(screen.queryByText("Hồ Chí Minh - Đà Lạt")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "trips.createScheduleTitle" })).not.toBeInTheDocument();
+  });
+
+  // routeId + driverUserId BE nhận sẵn từ đầu, màn chỉ thiếu ô chọn.
+  it("gửi routeId và driverUserId khi lọc theo tuyến / tài xế", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
+
+    // Tên tuyến/tài xế còn xuất hiện ở các select của form tạo lịch — chỉ tìm
+    // trong listbox đang mở, nếu không sẽ khớp nhiều phần tử.
+    async function pickOption(filterLabel: string, optionName: string) {
+      await user.click(screen.getByRole("button", { name: filterLabel }));
+      const listbox = screen.getByRole("listbox");
+      await user.click(within(listbox).getByRole("option", { name: optionName }));
+    }
+
+    await pickOption("trips.filterRoute", "Hồ Chí Minh - Đà Lạt");
+
+    await waitFor(() =>
+      expect(getOperatorDriverSchedules).toHaveBeenLastCalledWith(
+        expect.objectContaining({ routeId: "route-1", page: 1 }),
+      ),
+    );
+
+    await pickOption("trips.filterDriver", "Tài xế đang hoạt động");
+
+    await waitFor(() =>
+      expect(getOperatorDriverSchedules).toHaveBeenLastCalledWith(
+        // Hai bộ lọc cộng dồn theo AND
+        expect.objectContaining({
+          routeId: "route-1",
+          driverUserId: "driver-active",
+        }),
+      ),
+    );
   });
 });

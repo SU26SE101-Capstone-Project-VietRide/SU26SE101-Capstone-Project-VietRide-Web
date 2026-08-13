@@ -52,6 +52,7 @@ import {
   createEmptyFarePrices,
   getRouteFareSummary,
   parcelSizeCategories,
+  stripDiacritics,
   type FareEditorMode,
 } from "./parcelFareHelpers";
 type FareSort = "priceAsc" | "priceDesc";
@@ -154,11 +155,23 @@ export default function ParcelsList() {
 
   const pendingActionCount = useMemo(() => summary?.totalRejected ?? 0, [summary]);
   const filteredRouteFares = useMemo(() => {
-    const query = fareSearch.trim().toLocaleLowerCase();
+    // Bỏ dấu hai vế: gõ "da lat" phải ra "Đà Lạt". So khớp có dấu là lý do ô
+    // tìm kiếm này trông như hỏng — người dùng hiếm khi gõ đủ dấu.
+    const query = stripDiacritics(fareSearch);
     return routeFares
       .filter((fare) => {
-        const routeName = routes.find((route) => route.id === fare.routeId)?.name ?? "";
-        const matchesSearch = !query || routeName.toLocaleLowerCase().includes(query);
+        const route = routes.find((item) => item.id === fare.routeId);
+        // Khớp cả tên bến đi/bến đến như `search` của BE, không chỉ tên tuyến
+        const haystack = stripDiacritics(
+          [
+            route?.name,
+            route?.originStation?.name,
+            route?.destinationStation?.name,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        );
+        const matchesSearch = !query || haystack.includes(query);
         const matchesSize = !fareSizeFilter || fare.sizeCategory === fareSizeFilter;
         return matchesSearch && matchesSize;
       })

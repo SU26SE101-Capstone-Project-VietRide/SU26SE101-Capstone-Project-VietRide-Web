@@ -1,5 +1,5 @@
 import { useToastFeedback } from "../../hooks/useToastFeedback";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiCheck,
@@ -7,6 +7,7 @@ import {
   FiEye,
   FiFileText,
   FiPlus,
+  FiSearch,
   FiShield,
   FiTrash2,
   FiX,
@@ -68,6 +69,14 @@ export default function AdminPolicies() {
   const { t: tc } = useTranslation("common");
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [activeTab, setActiveTab] = useState<PolicyTab>("for_operator");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [categoryDraft, setCategoryDraft] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"updatedAt" | "createdAt" | "title">(
+    "updatedAt",
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -99,7 +108,18 @@ export default function AdminPolicies() {
     setError("");
     try {
       const audience = toPolicyAudience(activeTab);
-      const current = await getAdminPolicies({ page, pageSize, policyType: audience });
+      // `search`, `category`, `active`, `sortBy` BE đã hỗ trợ sẵn — màn này
+      // trước đây mới gửi mỗi `policyType`.
+      const current = await getAdminPolicies({
+        page,
+        pageSize,
+        policyType: audience,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        ...(categoryFilter ? { category: categoryFilter } : {}),
+        ...(activeFilter ? { active: activeFilter === "ACTIVE" } : {}),
+        sortBy,
+        sortDir: sortBy === "title" ? "asc" : "desc",
+      });
       setPolicies(current.items.map(toPolicy));
       setTotalItems(current.totalItems);
     } catch (reason) {
@@ -113,7 +133,32 @@ export default function AdminPolicies() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, page]);
+  }, [activeFilter, activeTab, categoryFilter, debouncedSearch, page, sortBy]);
+
+  // Ô tìm kiếm và ô nhóm đều đi thẳng lên BE nên phải debounce; đổi điều kiện
+  // thì về trang 1 vì tổng số bản ghi đã khác.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setCategoryFilter(categoryDraft.trim());
+      setPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [categoryDraft, search]);
+
+  // Gợi ý cho ô nhóm: lấy từ dữ liệu đang hiển thị, không phải danh sách cố định
+  const knownCategories = useMemo(
+    () =>
+      [
+        ...new Set(
+          policies
+            .map((policy) => policy.category)
+            .filter((category): category is string => Boolean(category)),
+        ),
+      ].sort(),
+    [policies],
+  );
 
   // Đếm badge tab tách riêng: chỉ chạy lúc mount và sau mutation làm đổi số lượng
   // (create/delete); đổi trang hay update không kéo thêm 2 request đếm.
@@ -312,6 +357,68 @@ export default function AdminPolicies() {
             {tabCounts.user}
           </span>
         </button>
+      </div>
+
+      {/* BE đã hỗ trợ sẵn search/category/active/sort; màn chỉ thiếu UI */}
+      <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_200px_180px_180px]">
+        <div className="relative min-w-0">
+          <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            aria-label={t("policies.searchLabel")}
+            placeholder={t("policies.searchPlaceholder")}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className={`${inputClass} pl-10`}
+          />
+        </div>
+        {/*
+          `category` là free text ở cả FE lẫn BE (admin tự đặt: Terms,
+          Cancellation, Privacy...), nên đây là ô nhập chứ không phải dropdown.
+          `datalist` gợi ý các nhóm đang có trên trang để đỡ phải gõ lại.
+        */}
+        <div className="min-w-0">
+          <input
+            type="text"
+            list="policy-category-options"
+            aria-label={t("policies.filterCategory")}
+            placeholder={t("policies.filterCategory")}
+            value={categoryDraft}
+            onChange={(event) => setCategoryDraft(event.target.value)}
+            className={inputClass}
+          />
+          <datalist id="policy-category-options">
+            {knownCategories.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
+        </div>
+        <CustomSelect
+          aria-label={t("policies.filterActive")}
+          className={inputClass}
+          value={activeFilter}
+          onChange={(event) => {
+            setActiveFilter(event.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">{t("policies.filterActive")}</option>
+          <option value="ACTIVE">{tc("active")}</option>
+          <option value="INACTIVE">{tc("inactive")}</option>
+        </CustomSelect>
+        <CustomSelect
+          aria-label={t("policies.sortLabel")}
+          className={inputClass}
+          value={sortBy}
+          onChange={(event) => {
+            setSortBy(event.target.value as typeof sortBy);
+            setPage(1);
+          }}
+        >
+          <option value="updatedAt">{t("policies.sortUpdatedAt")}</option>
+          <option value="createdAt">{t("policies.sortCreatedAt")}</option>
+          <option value="title">{t("policies.sortTitle")}</option>
+        </CustomSelect>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">

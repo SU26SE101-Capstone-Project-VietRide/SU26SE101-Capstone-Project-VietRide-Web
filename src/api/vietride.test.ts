@@ -34,6 +34,8 @@ import {
   getAdminPlatformWalletTransactions,
   getAdminPolicies,
   getAdminRevenueAnalytics,
+  getAdminStations,
+  getAdminStationSummary,
   getAdminTripSettlements,
   getAdminLocations,
   getAdminSubscriptionPlans,
@@ -47,6 +49,7 @@ import {
   getInternalTripCargoCapacity,
   getInternalTripParcelAvailability,
   getOperatorRoute,
+  getOperatorRoutes,
   getOperatorRouteStopMetrics,
   getOperatorDriverSchedules,
   getOperatorFleetLatest,
@@ -1843,6 +1846,66 @@ describe("vietride API", () => {
       expect.objectContaining({
         method: "POST",
       }),
+    );
+  });
+
+  it("gửi đúng allow-list mới của các list endpoint đã siết strict-query", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "System Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async (input: string) => {
+      void input;
+      return Response.json({ success: true, data: {} }, { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getAdminStations({
+      page: 1,
+      pageSize: 20,
+      search: "mien dong",
+      isActive: true,
+      supportsShuttle: true,
+      sortBy: "updatedAt",
+      sortDir: "desc",
+    });
+    await getAdminStationSummary();
+    await getAdminLocations({
+      page: 1,
+      pageSize: 50,
+      type: "WARD",
+      parentCode: "79",
+      isActive: true,
+    });
+    await getAdminVouchers({ page: 1, pageSize: 20, service: "BOOKING" });
+    await getOperatorRoutes({ page: 1, pageSize: 20, isActive: false });
+
+    const urls = fetchMock.mock.calls.map((call) => call[0]);
+    expect(urls[0]).toBe(
+      "https://api.vietride.online/v1/admin/stations?page=1&pageSize=20&search=mien+dong&isActive=true&supportsShuttle=true&sortBy=updatedAt&sortDir=desc",
+    );
+    expect(urls[1]).toBe(
+      "https://api.vietride.online/v1/admin/stations/summary",
+    );
+    expect(urls[2]).toBe(
+      "https://api.vietride.online/v1/admin/locations?page=1&pageSize=50&type=WARD&parentCode=79&isActive=true",
+    );
+    expect(urls[3]).toBe(
+      "https://api.vietride.online/v1/admin/vouchers?page=1&pageSize=20&service=BOOKING",
+    );
+    // `/v1/operator/routes` không nhận `status` — chỉ boolean `isActive`
+    expect(urls[4]).toBe(
+      "https://api.vietride.online/v1/operator/routes?page=1&pageSize=20&isActive=false",
     );
   });
 

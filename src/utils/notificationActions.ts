@@ -39,6 +39,12 @@ export function getNotificationActionPath(
       return isAdmin ? "/admin/wallet-settlement" : "/manager/wallet";
     case "OPEN_SUBSCRIPTION":
       return isAdmin ? "/admin/packages" : "/manager/packages";
+    case "OPEN_INVOICE":
+      return isAdmin
+        ? withQuery("/admin/wallet-settlement", { invoiceId: action.params.invoiceId })
+        : withQuery("/manager/packages", { invoiceId: action.params.invoiceId });
+    case "OPEN_OPERATOR_STATUS":
+      return isAdmin ? "/admin/operators" : "/manager/profile";
     case "OPEN_SHUTTLE_TRACKING":
       return withQuery("/manager/dispatch", {
         shuttleTripId: action.params.shuttleTripId,
@@ -52,11 +58,11 @@ export function resolveNotificationAction(
   notification: NotificationItem,
 ): NotificationAction {
   const directAction = parseNotificationAction(notification.action);
-  if (directAction) return directAction;
+  if (directAction && directAction.type !== "NONE") return directAction;
 
   const data = parseUnknownRecord(notification.data);
   const nestedAction = parseNotificationAction(data?.action);
-  if (nestedAction) return nestedAction;
+  if (nestedAction && nestedAction.type !== "NONE") return nestedAction;
 
   const actionType =
     notification.actionType ?? readString(data, "actionType");
@@ -67,7 +73,7 @@ export function resolveNotificationAction(
     type: actionType,
     params: actionParams ?? {},
   });
-  if (fcmAction) return fcmAction;
+  if (fcmAction && fcmAction.type !== "NONE") return fcmAction;
 
   return inferLegacyAction(notification, data);
 }
@@ -108,8 +114,13 @@ export function parseNotificationAction(
         ? { type, params: { shuttleTripId } }
         : null;
     }
+    case "OPEN_INVOICE": {
+      const invoiceId = readString(params, "invoiceId");
+      return invoiceId ? { type, params: { invoiceId } } : null;
+    }
     case "OPEN_WALLET":
     case "OPEN_SUBSCRIPTION":
+    case "OPEN_OPERATOR_STATUS":
     case "NONE":
       return { type, params: {} };
     default:
@@ -132,6 +143,17 @@ function inferLegacyAction(
   }
   if (normalizedType.includes("SUBSCRIPTION")) {
     return { type: "OPEN_SUBSCRIPTION", params: {} };
+  }
+
+  if (normalizedType.includes("INVOICE") || normalizedType.includes("BILLING") || normalizedType.includes("PAYMENT_INVOICE")) {
+    const invoiceId = readString(data, "invoiceId");
+    return invoiceId
+      ? { type: "OPEN_INVOICE", params: { invoiceId } }
+      : { type: "OPEN_SUBSCRIPTION", params: {} };
+  }
+
+  if (normalizedType.includes("OPERATOR_SUSPENDED") || normalizedType.includes("OPERATOR_SUSPEND") || normalizedType.includes("OPERATOR_STATUS") || normalizedType.includes("OPERATOR_PAUSED")) {
+    return { type: "OPEN_OPERATOR_STATUS", params: {} };
   }
 
   const shuttleTripId = readString(data, "shuttleTripId");

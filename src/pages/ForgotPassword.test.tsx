@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import ForgotPassword from "./ForgotPassword";
 import { requestForgotPassword, resetPassword } from "../api/vietride";
@@ -69,9 +69,21 @@ describe("ForgotPassword", () => {
       status: "ACTIVE",
     });
 
+    // Đặt lại mật khẩu thành công thì màn điều hướng sang /login và mang câu
+    // thông báo trong router state, không hiện toast tại chỗ nữa — nên phải
+    // dựng sẵn route /login để đọc được state đó.
+    function LoginProbe() {
+      const location = useLocation();
+      const state = location.state as { message?: string } | null;
+      return <div data-testid="login-route">{state?.message ?? ""}</div>;
+    }
+
     render(
-      <MemoryRouter>
-        <ForgotPassword />
+      <MemoryRouter initialEntries={["/forgot-password"]}>
+        <Routes>
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/login" element={<LoginProbe />} />
+        </Routes>
       </MemoryRouter>,
     );
 
@@ -81,9 +93,12 @@ describe("ForgotPassword", () => {
     await user.type(screen.getByPlaceholderText("hello@vietride.vn"), "ops@operator.vn");
     await user.click(screen.getByRole("button", { name: /send otp/i }));
 
-    expect(requestForgotPassword).toHaveBeenCalledWith({
-      email: "ops@operator.vn",
-    });
+    // Tham số thứ hai là Idempotency-Key: màn giữ key trong ref để lần bấm gửi
+    // lại dùng đúng key cũ, BE không tạo thêm OTP mới.
+    expect(requestForgotPassword).toHaveBeenCalledWith(
+      { email: "ops@operator.vn" },
+      expect.any(String),
+    );
     expect(useToastFeedback).toHaveBeenLastCalledWith({ message: "OTP sent for 5 minutes.", error: "" });
 
     await user.type(screen.getByPlaceholderText("Enter 6 digits"), "123456");
@@ -91,11 +106,18 @@ describe("ForgotPassword", () => {
     await user.type(screen.getByPlaceholderText("Re-enter password"), "Password123");
     await user.click(screen.getByRole("button", { name: /reset password/i }));
 
-    expect(resetPassword).toHaveBeenCalledWith({
-      email: "ops@operator.vn",
-      code: "123456",
-      newPassword: "Password123",
-    });
-    expect(useToastFeedback).toHaveBeenCalledWith({ message: "Password reset successfully.", error: "" });
+    expect(resetPassword).toHaveBeenCalledWith(
+      {
+        email: "ops@operator.vn",
+        code: "123456",
+        newPassword: "Password123",
+      },
+      expect.any(String),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("login-route")).toHaveTextContent(
+        "Password reset successfully.",
+      ),
+    );
   });
 });

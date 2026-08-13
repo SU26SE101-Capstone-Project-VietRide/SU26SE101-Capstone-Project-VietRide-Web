@@ -2,7 +2,6 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -39,55 +38,6 @@ import { StatCard } from "../../../components/StatCard";
 import { formatDateTime } from "../../../utils/date";
 import Checkbox from "../../../components/form/Checkbox";
 
-// Khớp cách BE tìm kiếm: unaccent + ILIKE contains. KHÔNG dùng
-// normalizeLocationName() vì hàm đó cắt luôn tiền tố "phường/xã/tỉnh" — hợp cho
-// việc so khớp địa chỉ Google, nhưng gõ "phường" vào ô tìm kiếm sẽ thành rỗng
-// và khớp mọi bản ghi.
-function normalizeSearchText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/gi, "d")
-    .toLowerCase()
-    .trim();
-}
-
-// Danh mục ~3.4k bản ghi = 34 trang ở pageSize tối đa (BE cap 100). Tải tuần
-// tự mất vài giây nên đọc trang 1 để biết totalPages rồi lấy các trang còn lại
-// song song theo lô, tránh bắn 33 request cùng lúc.
-const LOCATION_FETCH_PAGE_SIZE = 100;
-const LOCATION_FETCH_CONCURRENCY = 8;
-
-async function fetchAllAdminLocations(): Promise<AdminLocation[]> {
-  const firstPage = await getAdminLocations({
-    page: 1,
-    pageSize: LOCATION_FETCH_PAGE_SIZE,
-  });
-  const items = [...firstPage.items];
-  const remainingPages = Array.from(
-    { length: Math.max(firstPage.totalPages - 1, 0) },
-    (_, index) => index + 2,
-  );
-
-  for (
-    let offset = 0;
-    offset < remainingPages.length;
-    offset += LOCATION_FETCH_CONCURRENCY
-  ) {
-    const batch = remainingPages.slice(
-      offset,
-      offset + LOCATION_FETCH_CONCURRENCY,
-    );
-    const results = await Promise.all(
-      batch.map((page) =>
-        getAdminLocations({ page, pageSize: LOCATION_FETCH_PAGE_SIZE }),
-      ),
-    );
-    results.forEach((result) => items.push(...result.items));
-  }
-
-  return items;
-}
 
 type LocationForm = {
   code: string;
@@ -170,8 +120,10 @@ export default function AdminLocations() {
   useEffect(() => {
     tRef.current = t;
   });
-  const [allLocations, setAllLocations] = useState<AdminLocation[]>([]);
+  const [items, setItems] = useState<AdminLocation[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("");
   const [administrativeType, setAdministrativeType] = useState<"" | LocationType>("");
   const [parentCode, setParentCode] = useState("");
@@ -194,18 +146,26 @@ export default function AdminLocations() {
   } | null>(null);
   const pageSize = 12;
 
-  // BE `GET /v1/admin/locations` chỉ lọc được search + isActive; type và
-  // parentCode bị bỏ qua im lặng (xem docs/BE_ADMIN_LOCATION_FILTER_GAP.md).
-  // Danh mục hành chính chỉ ~3.4k bản ghi và gần như không đổi, nên tải trọn
-  // một lần rồi lọc/phân trang phía client — cách duy nhất để mọi tổ hợp bộ lọc
-  // đúng, kể cả khi cần xem cả bản ghi đã tắt.
+  // Toàn bộ search/filter chạy server-side. Trước đây BE bỏ qua `type` và
+  // `parentCode` nên màn phải tải trọn danh mục ~3.4k bản ghi bằng 34 request
+  // rồi lọc ở client; BE đã bổ sung nên giờ chỉ còn đúng 1 request mỗi trang.
   const loadLocations = useCallback(async () => {
     setLoading(true);
 
     try {
-      setAllLocations(await fetchAllAdminLocations());
+      const result = await getAdminLocations({
+        page,
+        pageSize,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        ...(status ? { isActive: status === "ACTIVE" } : {}),
+        ...(administrativeType ? { type: administrativeType } : {}),
+        ...(parentCode ? { parentCode } : {}),
+      });
+      setItems(result.items);
+      setTotalItems(result.totalItems);
     } catch (error) {
-      setAllLocations([]);
+      setItems([]);
+      setTotalItems(0);
       setMessage({
         tone: "error",
         text:
@@ -216,40 +176,22 @@ export default function AdminLocations() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [administrativeType, debouncedSearch, page, parentCode, status]);
 
-  const filteredLocations = useMemo(() => {
-    const keyword = normalizeSearchText(search);
-
-    return allLocations.filter((location) => {
-      if (status && (status === "ACTIVE") !== location.isActive) {
-        return false;
-      }
-      if (administrativeType && location.type !== administrativeType) {
-        return false;
-      }
-      if (parentCode && location.parentCode !== parentCode) {
-        return false;
-      }
-      if (!keyword) {
-        return true;
-      }
-      // Khớp giống BE: contains trên code hoặc name, bỏ dấu, không phân biệt hoa thường.
-      return (
-        normalizeSearchText(location.code).includes(keyword) ||
-        normalizeSearchText(location.name).includes(keyword)
-      );
-    });
-  }, [allLocations, administrativeType, parentCode, search, status]);
-
-  const totalItems = filteredLocations.length;
-  // Xoá bản ghi cuối của trang cuối có thể đẩy page vượt quá dữ liệu còn lại —
-  // kẹp lúc đọc thay vì setState trong effect để không tạo render thừa.
+  // Xoá bản ghi cuối của trang cuối làm `page` vượt quá dữ liệu còn lại — kẹp
+  // lúc đọc thay vì setState trong effect để không tạo render thừa.
   const safePage = Math.min(page, Math.max(1, Math.ceil(totalItems / pageSize)));
-  const items = useMemo(
-    () => filteredLocations.slice((safePage - 1) * pageSize, safePage * pageSize),
-    [filteredLocations, safePage, pageSize],
-  );
+
+  // Search giờ đi thẳng lên BE nên phải debounce, nếu không mỗi phím là một
+  // request. Đổi từ khoá thì về trang 1 vì tổng số bản ghi đã khác.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     // Hoãn sang macrotask: gọi thẳng trong effect là setState đồng bộ khi

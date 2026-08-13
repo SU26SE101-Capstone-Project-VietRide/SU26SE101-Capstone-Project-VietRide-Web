@@ -1,5 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorInvoices,
@@ -17,7 +18,13 @@ const translate = (key: string, options?: Record<string, string>) =>
   options?.name ? `${key} ${options.name}` : key;
 
 function renderPackages() {
-  return render(<ToastProvider><ManagerPackages /></ToastProvider>);
+  // OperatorInvoiceSection dùng useSearchParams để mở chi tiết hoá đơn theo
+  // query string, nên màn phải nằm trong Router như trên app thật.
+  return render(
+    <MemoryRouter initialEntries={["/manager/packages"]}>
+      <ToastProvider><ManagerPackages /></ToastProvider>
+    </MemoryRouter>,
+  );
 }
 
 vi.mock("react-i18next", () => ({

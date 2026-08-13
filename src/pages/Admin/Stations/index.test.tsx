@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getPublicLocations,
   getAdminStations,
+  getAdminStationSummary,
   mergeAdminStations,
   updateAdminStation,
   type AdminStation,
@@ -24,6 +25,7 @@ vi.mock("../../../components/PlacePicker", () => ({
 vi.mock("../../../api/vietride", () => ({
   getPublicLocations: vi.fn(),
   getAdminStations: vi.fn(),
+  getAdminStationSummary: vi.fn(),
   mergeAdminStations: vi.fn(),
   updateAdminStation: vi.fn(),
 }));
@@ -59,6 +61,12 @@ describe("AdminStations", () => {
       totalPages: 1,
       hasNextPage: false,
       hasPreviousPage: false,
+    });
+    vi.mocked(getAdminStationSummary).mockResolvedValue({
+      total: 1,
+      active: 1,
+      inactive: 0,
+      supportsShuttle: 0,
     });
     // Không kèm parentCode -> tỉnh/thành; có parentCode -> phường/xã trực thuộc
     vi.mocked(getPublicLocations).mockImplementation((params) =>
@@ -169,5 +177,45 @@ describe("AdminStations", () => {
         }),
       ),
     );
+  });
+
+  // Trước đây màn tải trọn danh sách bến (fetchAllPages) rồi lọc ở client bằng
+  // so khớp có phân biệt dấu. Giờ mọi bộ lọc đi thẳng lên BE.
+  it("gửi search/isActive/supportsShuttle lên BE thay vì lọc client", async () => {
+    const user = userEvent.setup();
+    render(<AdminStations />);
+
+    await screen.findByText(station.name, {}, { timeout: 5_000 });
+    expect(vi.mocked(getAdminStations).mock.calls).toHaveLength(1);
+
+    await user.type(
+      screen.getByPlaceholderText("stations.searchPlaceholder"),
+      "mien dong",
+    );
+
+    await waitFor(
+      () =>
+        expect(getAdminStations).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: "mien dong", page: 1 }),
+        ),
+      { timeout: 3_000 },
+    );
+  });
+
+  it("lấy 4 thẻ thống kê từ /summary chứ không đếm trên trang hiện tại", async () => {
+    vi.mocked(getAdminStationSummary).mockResolvedValue({
+      total: 128,
+      active: 120,
+      inactive: 8,
+      supportsShuttle: 31,
+    });
+    render(<AdminStations />);
+
+    await screen.findByText(station.name, {}, { timeout: 5_000 });
+
+    // Trang chỉ có 1 bến nhưng thẻ phải hiện tổng toàn hệ thống
+    await waitFor(() => expect(screen.getByText("128")).toBeInTheDocument());
+    expect(screen.getByText("120")).toBeInTheDocument();
+    expect(screen.getByText("31")).toBeInTheDocument();
   });
 });

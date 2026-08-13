@@ -158,4 +158,54 @@ describe("ParcelQueue", () => {
       ),
     );
   });
+
+  // Dropdown trước đây chỉ có 3 trạng thái nên 19 trạng thái còn lại của
+  // ParcelStatus không có cách nào lọc, dù BE nhận hết.
+  it("lọc được mọi ParcelStatus của BE, không chỉ ba hàng đợi ưu tiên", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ParcelQueue />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getOperatorParcels).toHaveBeenCalled());
+
+    await user.click(
+      screen.getByRole("button", { name: "parcels.queue.tabListAriaLabel" }),
+    );
+
+    // Một trạng thái giữa vòng đời — trước đây không có trong dropdown
+    await user.click(screen.getByRole("option", { name: "enumLabels.IN_TRANSIT" }));
+
+    await waitFor(() =>
+      expect(getOperatorParcels).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "IN_TRANSIT", page: 1 }),
+      ),
+    );
+  });
+
+  it("giữ nguyên hàng đợi ưu tiên kèm pendingActionType", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ParcelQueue />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getOperatorParcels).toHaveBeenCalled());
+
+    await user.click(
+      screen.getByRole("button", { name: "parcels.queue.tabListAriaLabel" }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "parcels.queue.tabOperatorAction" }),
+    );
+
+    await waitFor(() =>
+      expect(getOperatorParcels).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "PENDING_OPERATOR_ACTION" }),
+      ),
+    );
+  });
 });

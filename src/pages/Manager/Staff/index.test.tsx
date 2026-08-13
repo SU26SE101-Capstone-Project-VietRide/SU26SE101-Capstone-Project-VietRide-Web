@@ -126,4 +126,29 @@ describe("Operator staff users", () => {
       ),
     );
   });
+
+  // sortBy/sortDir BE nhận sẵn từ đầu, màn chỉ thiếu ô chọn.
+  it("gửi sortBy/sortDir khi đổi cách sắp xếp", async () => {
+    const user = userEvent.setup();
+    render(<StaffPage />);
+
+    await waitFor(() => expect(getOperatorUsers).toHaveBeenCalled());
+    // Mặc định: mới nhất trước
+    expect(getOperatorUsers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sortBy: "createdAt", sortDir: "desc" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "staff.sortLabel" }));
+    await user.click(screen.getByRole("option", { name: "staff.sortNameAsc" }));
+
+    await waitFor(() =>
+      expect(getOperatorUsers).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sortBy: "displayName",
+          sortDir: "asc",
+          page: 1,
+        }),
+      ),
+    );
+  });
 });

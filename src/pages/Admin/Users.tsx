@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiActivity, FiEye, FiKey, FiLock, FiSearch, FiUnlock, FiUser, FiUsers } from "react-icons/fi";
 import {
+  getAdminOperators,
   getAdminUsers,
   lockAdminUser,
   unlockAdminUser,
+  type AdminOperator,
   type AdminUser,
   type AdminUserRole,
 } from "../../api/vietride";
@@ -70,6 +72,8 @@ export default function Users() {
   const [searchTerm, setSearchTerm] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
+  const [operatorId, setOperatorId] = useState("");
+  const [operators, setOperators] = useState<AdminOperator[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [page, setPage] = useState(1);
@@ -97,6 +101,8 @@ export default function Users() {
           search: searchTerm.trim() || undefined,
           role: role || undefined,
           status: status || undefined,
+          // BE đã nhận `operatorId` từ đầu, màn chỉ thiếu ô chọn
+          operatorId: operatorId || undefined,
           sortBy: "createdAt",
           sortDir: "desc",
         });
@@ -128,7 +134,23 @@ export default function Users() {
       ignore = true;
       window.clearTimeout(timer);
     };
-  }, [page, role, searchTerm, status]);
+  }, [operatorId, page, role, searchTerm, status]);
+
+  // Danh sách nhà xe chỉ để dựng ô chọn. Tải một trang đủ lớn thay vì tải hết —
+  // ô này là bộ lọc phụ, không đáng để bắn nhiều request lúc mở màn.
+  useEffect(() => {
+    let ignore = false;
+    void getAdminOperators({ page: 1, pageSize: 100, sortBy: "name", sortDir: "asc" })
+      .then((result) => {
+        if (!ignore) setOperators(result.items);
+      })
+      .catch(() => {
+        // Thiếu ô lọc nhà xe không được chặn bảng chính
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const roleLabel = (userRole: AdminUserRole) => {
     const labels: Record<string, string> = {
@@ -195,10 +217,11 @@ export default function Users() {
         <StatCard label={tc("enumLabels.PENDING_INITIAL_PASSWORD")} value={users.filter((user) => user.status === "PENDING_INITIAL_PASSWORD").length} icon={<FiKey size={20} />} iconClassName="bg-amber-50 text-amber-700" />
       </div>
       <PersonnelTable
-        toolbar={<div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_220px_200px]">
+        toolbar={<div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_220px_200px_220px]">
           <div className="relative"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="search" placeholder={t("users.searchPlaceholder")} value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" /></div>
           <CustomSelect value={role} onChange={(event) => { setRole(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.allRoles")}</option><option value="PASSENGER">{t("users.customer")}</option><option value="OPERATOR_ADMIN">{t("users.operatorAdmin")}</option><option value="OPERATOR_STAFF">{t("users.operatorStaff")}</option><option value="DRIVER">{t("users.driver")}</option><option value="ASSISTANT">{t("users.assistant")}</option><option value="SYSTEM_ADMIN">{t("users.systemAdmin")}</option></CustomSelect>
           <CustomSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.allStatuses")}</option><option value="ACTIVE">{tc("active")}</option><option value="LOCKED">{t("users.locked")}</option><option value="PENDING_EMAIL_VERIFICATION">{tc("enumLabels.PENDING_EMAIL_VERIFICATION")}</option><option value="PENDING_INITIAL_PASSWORD">{tc("enumLabels.PENDING_INITIAL_PASSWORD")}</option><option value="DELETED">{tc("enumLabels.DELETED")}</option></CustomSelect>
+          <CustomSelect aria-label={t("users.filterOperator")} value={operatorId} onChange={(event) => { setOperatorId(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.filterOperator")}</option>{operators.map((operator) => <option key={operator.operatorId} value={operator.operatorId}>{operator.name}</option>)}</CustomSelect>
         </div>}
         columns={[
           { key: "name", header: t("users.fullName"), headerClassName: "w-[20%] px-4 py-3 text-left", cellClassName: "w-[20%] px-4 py-4 text-left", render: (user) => <div className="flex items-center gap-3"><UserAvatar user={user} /><span className="truncate whitespace-nowrap text-sm font-semibold text-gray-900">{user.displayName || "-"}</span></div> },

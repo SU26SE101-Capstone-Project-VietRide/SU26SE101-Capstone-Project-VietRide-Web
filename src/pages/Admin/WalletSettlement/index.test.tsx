@@ -282,4 +282,35 @@ describe("Admin WalletSettlement", () => {
       ),
     );
   });
+
+  // Màn phân trang server-side; trước đây ô tìm kiếm lại lọc mảng của đúng
+  // trang đang xem nên gõ mã nằm ở trang sau là ra bảng rỗng.
+  it("gửi search lên BE cho cả đối soát lẫn giao dịch, và reset về trang 1", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter
+        initialEntries={["/admin/wallet-settlement?tab=settlements"]}
+      >
+        <WalletSettlement />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText(settlement.operatorId);
+
+    await user.type(
+      screen.getByPlaceholderText("walletSettlement.searchPlaceholder"),
+      "VR-20260813",
+    );
+
+    await waitFor(
+      () =>
+        expect(getAdminTripSettlements).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: "VR-20260813", page: 1 }),
+        ),
+      { timeout: 3_000 },
+    );
+    expect(getAdminPlatformWalletTransactions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "VR-20260813", page: 1 }),
+    );
+  });
 });

@@ -1,5 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiPlus, FiRefreshCw, FiSearch, FiTag, FiTrash2 } from "react-icons/fi";
 import {
@@ -58,39 +58,26 @@ export default function Vouchers() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [voucherPage, setVoucherPage] = useState(1);
+  const [totalVouchers, setTotalVouchers] = useState(0);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
+  const [counts, setCounts] = useState({ active: 0, booking: 0, parcel: 0 });
+  // Tạo/sửa/xoá voucher làm số liệu thẻ lệch — bump để đếm lại
+  const [reloadCountsKey, setReloadCountsKey] = useState(0);
   const pageSize = 8;
 
-  const filteredVouchers = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return vouchers.filter((voucher) => {
-      const matchesSearch =
-        !query ||
-        [voucher.code, voucher.name, voucher.description]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
-      const isActive = activeOf(voucher);
-      const matchesStatus =
-        !statusFilter || (statusFilter === "ACTIVE" ? isActive : !isActive);
-      const matchesService =
-        !serviceFilter ||
-        (voucher.applicableServices ?? []).includes(serviceFilter);
-      return matchesSearch && matchesStatus && matchesService;
-    });
-  }, [search, serviceFilter, statusFilter, vouchers]);
+  // Search/filter/paging đều server-side. BE `search` khớp code hoặc name;
+  // `service` khớp phần tử trong applicableServices.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setVoucherPage(1);
+    }, 350);
 
-  const paginatedVouchers = useMemo(
-    () =>
-      filteredVouchers.slice(
-        (voucherPage - 1) * pageSize,
-        voucherPage * pageSize,
-      ),
-    [filteredVouchers, voucherPage],
-  );
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   // tRef để loadVouchers không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
   const tRef = useRef(t);
@@ -103,11 +90,20 @@ export default function Vouchers() {
     setError("");
 
     try {
-      const [voucherItems, operatorItems] = await Promise.all([
-        fetchAllPages((params) => getAdminVouchers(params)),
+      const [voucherResult, operatorItems] = await Promise.all([
+        getAdminVouchers({
+          page: voucherPage,
+          pageSize,
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          ...(statusFilter ? { isActive: statusFilter === "ACTIVE" } : {}),
+          ...(serviceFilter ? { service: serviceFilter } : {}),
+        }),
+        // Danh sách nhà xe chỉ dùng cho ô chọn phạm vi trong modal, không liên
+        // quan tới bảng voucher — vẫn cần đủ để hiển thị tên theo id.
         fetchAllPages((params) => getAdminOperators(params)),
       ]);
-      setVouchers(voucherItems);
+      setVouchers(voucherResult.items);
+      setTotalVouchers(voucherResult.totalItems);
       setOperators(operatorItems);
     } catch (err) {
       setError(
@@ -118,7 +114,7 @@ export default function Vouchers() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [debouncedSearch, serviceFilter, statusFilter, voucherPage]);
 
   useEffect(() => {
     // Giữ queueMicrotask để thoả rule react-hooks/set-state-in-effect
@@ -126,6 +122,31 @@ export default function Vouchers() {
       void loadVouchers();
     });
   }, [loadVouchers]);
+
+  // Ba thẻ thống kê đếm trên toàn bộ voucher nên không suy được từ trang hiện
+  // tại — hỏi `totalItems` bằng ba truy vấn pageSize=1.
+  useEffect(() => {
+    let ignore = false;
+    void Promise.all([
+      getAdminVouchers({ page: 1, pageSize: 1, isActive: true }),
+      getAdminVouchers({ page: 1, pageSize: 1, service: "BOOKING" }),
+      getAdminVouchers({ page: 1, pageSize: 1, service: "PARCEL" }),
+    ])
+      .then(([active, booking, parcel]) => {
+        if (ignore) return;
+        setCounts({
+          active: active.totalItems,
+          booking: booking.totalItems,
+          parcel: parcel.totalItems,
+        });
+      })
+      .catch(() => {
+        // Thẻ thống kê lỗi không được chặn bảng chính
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [reloadCountsKey]);
 
   function updateForm<K extends keyof VoucherForm>(
     key: K,
@@ -195,6 +216,7 @@ export default function Vouchers() {
       );
       setCreateOpen(false);
       setEditingVoucher(null);
+      setReloadCountsKey((current) => current + 1);
       setMessage(
         t("vouchers.saveSuccess", {
           action: editingVoucher
@@ -221,6 +243,7 @@ export default function Vouchers() {
         current.filter((voucher) => voucher.id !== deletingVoucher.id),
       );
       setDeletingVoucher(null);
+      setReloadCountsKey((current) => current + 1);
       setMessage(t("vouchers.deleteSuccess", { id: deletingVoucher.code }));
     } catch (err) {
       setError(err instanceof Error ? err.message : t("vouchers.createFailed"));
@@ -229,13 +252,9 @@ export default function Vouchers() {
 
   const { getApplicableLabel, getFundingLabel, getOperatorScopeLabel } =
     useVoucherLabels();
-  const activeCount = vouchers.filter(activeOf).length;
-  const bookingCount = vouchers.filter((voucher) =>
-    voucher.applicableServices?.includes("BOOKING"),
-  ).length;
-  const parcelCount = vouchers.filter((voucher) =>
-    voucher.applicableServices?.includes("PARCEL"),
-  ).length;
+  const activeCount = counts.active;
+  const bookingCount = counts.booking;
+  const parcelCount = counts.parcel;
   const voucherToolbar = (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div className="relative min-w-0 flex-1">
@@ -357,10 +376,10 @@ export default function Vouchers() {
         ) : (
           <VoucherTable
             toolbar={voucherToolbar}
-            vouchers={paginatedVouchers}
+            vouchers={vouchers}
             page={voucherPage}
             pageSize={pageSize}
-            totalItems={filteredVouchers.length}
+            totalItems={totalVouchers}
             onPageChange={setVoucherPage}
             getFundingLabel={getFundingLabel}
             getOperatorScopeLabel={getOperatorScopeLabel}

@@ -13,8 +13,10 @@ import {
   getRagDocuments,
   getRagFeedback,
   type RagDocument,
+  type RagDocumentParams,
   type RagFeedback,
 } from "../../../api/vietride";
+import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 import { RagDocumentUploadModal } from "./RagDocumentUploadModal";
@@ -26,6 +28,31 @@ const statusClass: Record<string, string> = {
   REJECTED: "bg-rose-50 text-rose-700",
   ARCHIVED: "bg-slate-100 text-slate-600",
 };
+
+// Đúng enum của ListDocumentsQuerySchema bên service RAG. Zod strip key lạ chứ
+// không báo lỗi, nên giá trị sai sẽ im lặng trả về dữ liệu chưa lọc.
+const DOCUMENT_STATUSES = [
+  "PENDING_REVIEW",
+  "APPROVED",
+  "REJECTED",
+  "ARCHIVED",
+] as const;
+const INGEST_STATUSES = [
+  "PENDING",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+] as const;
+const ACCESS_LEVELS = ["PUBLIC", "OPERATOR", "ADMIN"] as const;
+const DOCUMENT_CATEGORIES = [
+  "CUSTOMER_SUPPORT",
+  "OPERATOR_POLICY",
+  "PLATFORM_ADMIN",
+] as const;
+const DOCUMENT_TYPES = ["FAQ", "POLICY", "SOP", "GUIDE", "TERMS"] as const;
+
+const filterClass =
+  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
 
 function feedbackTone(rating: number) {
   return rating > 0
@@ -40,6 +67,11 @@ export default function RagAudit() {
   const [feedback, setFeedback] = useState<RagFeedback[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [ingestStatusFilter, setIngestStatusFilter] = useState("");
+  const [accessLevelFilter, setAccessLevelFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [documentTypeFilter, setDocumentTypeFilter] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(true);
@@ -66,6 +98,21 @@ export default function RagAudit() {
         search,
         sortBy: "createdAt",
         sortDir: "desc",
+        ...(statusFilter
+          ? { status: statusFilter as RagDocumentParams["status"] }
+          : {}),
+        ...(ingestStatusFilter
+          ? { ingestStatus: ingestStatusFilter as RagDocumentParams["ingestStatus"] }
+          : {}),
+        ...(accessLevelFilter
+          ? { accessLevel: accessLevelFilter as RagDocumentParams["accessLevel"] }
+          : {}),
+        ...(categoryFilter
+          ? { category: categoryFilter as RagDocumentParams["category"] }
+          : {}),
+        ...(documentTypeFilter
+          ? { documentType: documentTypeFilter as RagDocumentParams["documentType"] }
+          : {}),
       });
 
       setDocuments(documentResult.items);
@@ -75,7 +122,15 @@ export default function RagAudit() {
         err instanceof Error ? err.message : tRef.current("ragAudit.loadFailed"),
       );
     }
-  }, [page, search]);
+  }, [
+    accessLevelFilter,
+    categoryFilter,
+    documentTypeFilter,
+    ingestStatusFilter,
+    page,
+    search,
+    statusFilter,
+  ]);
 
   // Feedback có pagination riêng, độc lập với page/search của bảng documents.
   const loadFeedback = useCallback(async () => {
@@ -200,6 +255,99 @@ export default function RagAudit() {
                 placeholder={t("ragAudit.searchPlaceholder")}
               />
             </div>
+          </div>
+
+          {/*
+            Năm bộ lọc này BE đã hỗ trợ sẵn từ đầu nhưng màn chưa dựng UI — bảng
+            hiện cột trạng thái và cấp truy cập mà không lọc được theo chúng.
+          */}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <CustomSelect
+              aria-label={t("ragAudit.filterStatus")}
+              className={filterClass}
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">{t("ragAudit.filterStatus")}</option>
+              {DOCUMENT_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`ragAudit.status.${value}`, {
+                    defaultValue: value.replaceAll("_", " "),
+                  })}
+                </option>
+              ))}
+            </CustomSelect>
+            <CustomSelect
+              aria-label={t("ragAudit.filterIngestStatus")}
+              className={filterClass}
+              value={ingestStatusFilter}
+              onChange={(event) => {
+                setIngestStatusFilter(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">{t("ragAudit.filterIngestStatus")}</option>
+              {INGEST_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {tc(`enumLabels.${value}`, { defaultValue: value })}
+                </option>
+              ))}
+            </CustomSelect>
+            <CustomSelect
+              aria-label={t("ragAudit.filterAccessLevel")}
+              className={filterClass}
+              value={accessLevelFilter}
+              onChange={(event) => {
+                setAccessLevelFilter(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">{t("ragAudit.filterAccessLevel")}</option>
+              {ACCESS_LEVELS.map((value) => (
+                <option key={value} value={value}>
+                  {tc(`enumLabels.${value}`, { defaultValue: value })}
+                </option>
+              ))}
+            </CustomSelect>
+            <CustomSelect
+              aria-label={t("ragAudit.filterCategory")}
+              className={filterClass}
+              value={categoryFilter}
+              onChange={(event) => {
+                setCategoryFilter(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">{t("ragAudit.filterCategory")}</option>
+              {DOCUMENT_CATEGORIES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`ragAudit.categories.${value}`, {
+                    defaultValue: value.replaceAll("_", " "),
+                  })}
+                </option>
+              ))}
+            </CustomSelect>
+            <CustomSelect
+              aria-label={t("ragAudit.filterDocumentType")}
+              className={filterClass}
+              value={documentTypeFilter}
+              onChange={(event) => {
+                setDocumentTypeFilter(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">{t("ragAudit.filterDocumentType")}</option>
+              {DOCUMENT_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`ragAudit.documentTypes.${value}`, {
+                    defaultValue: value,
+                  })}
+                </option>
+              ))}
+            </CustomSelect>
           </div>
 
           <div className="mt-4 overflow-x-auto">

@@ -97,11 +97,6 @@ function journeyLabel(booking: Pick<OperatorBookingListItem, "trip">) {
   const endpoints = [booking.trip.originName, booking.trip.destinationName].filter(Boolean);
   return endpoints.length > 0 ? endpoints.join(" → ") : "-";
 }
-function isPhoneSearch(value: string) {
-  const normalized = value.replace(/[\s+().-]/g, "");
-  return /^\d{7,}$/.test(normalized);
-}
-
 export default function BookingsList() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -149,13 +144,11 @@ export default function BookingsList() {
       setListError("");
 
       try {
-        const searchParams = debouncedSearch
-          ? isPhoneSearch(debouncedSearch)
-            ? { passengerPhone: debouncedSearch }
-            : { bookingCode: debouncedSearch }
-          : {};
+        // BE đã có `search` OR-match mã đặt vé / tên người đặt / SĐT người đặt,
+        // nên bỏ heuristic đoán "chuỗi ≥7 chữ số là số điện thoại". Heuristic đó
+        // khiến gõ tên người đặt không bao giờ ra kết quả.
         const result = await getOperatorBookings({
-          ...searchParams,
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
           status: statusFilter || undefined,
           page,
           pageSize: PAGE_SIZE,
