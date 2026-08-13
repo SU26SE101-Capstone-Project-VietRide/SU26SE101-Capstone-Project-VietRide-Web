@@ -139,6 +139,7 @@ export function toVehicleOption(vehicle: OperatorVehicle): VehicleOption {
   return {
     id: vehicle.vehicleId || vehicle.id || "",
     plate: vehicle.licensePlate,
+    vehicleTypeId: vehicle.vehicleTypeId,
     vehicleType:
       vehicle.vehicleTypeCode ||
       vehicle.vehicleTypeName ||
@@ -149,6 +150,12 @@ export function toVehicleOption(vehicle: OperatorVehicle): VehicleOption {
         ? "available"
         : toResourceStatus(vehicle.status),
   };
+}
+
+export function isShuttle16SeatVehicle(vehicle?: VehicleOption | null) {
+  const type = vehicle?.vehicleType?.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[ -]+/g, "_");
+  const isShuttleType = type === "SHUTTLE_16_SEAT" || type?.includes("SHUTTLE") || type?.includes("TRUNG_CHUYEN");
+  return Boolean(isShuttleType && vehicle?.seats === 16);
 }
 
 export function toStaffOption(user: OperatorUser): StaffOption {
@@ -214,7 +221,6 @@ export function toTripSchedule(
     ...form,
     baseFare: schedule.baseFare === null ? "" : String(schedule.baseFare),
     id: schedule.id,
-    code: `SCH-${schedule.id.slice(0, 8).toUpperCase()}`,
     routeId: schedule.routeId,
     vehicleId: schedule.vehicleId,
     driverId: schedule.driverUserId ?? schedule.driverId ?? "",
@@ -247,7 +253,6 @@ export function toTripScheduleFromApi(
 
   return {
     id: schedule.id,
-    code: `SCH-${schedule.id.slice(0, 8).toUpperCase()}`,
     routeId: schedule.routeId,
     vehicleId: schedule.vehicleId,
     driverId: schedule.driverUserId ?? schedule.driverId ?? "",

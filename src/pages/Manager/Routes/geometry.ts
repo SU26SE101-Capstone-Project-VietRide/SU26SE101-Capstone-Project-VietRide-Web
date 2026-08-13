@@ -3,6 +3,7 @@ import { isRecord } from "../../../utils/typeGuards";
 import {
   decodeGooglePolyline,
   parseGoogleDurationSeconds,
+  projectPointOntoPolyline,
   type RouteCoordinate,
 } from "./polyline";
 
@@ -38,6 +39,30 @@ export function calculatePathDistance(points: RouteCoordinate[]) {
     (total, point, index) => total + distanceKmBetween(points[index], point),
     0,
   );
+}
+
+// Phải khớp với RouteGeometryValidator.MaximumWaypointDistanceMeters ở BE.
+export const maximumRouteWaypointDistanceKm = 0.5;
+
+export type RouteGeometryWaypoint = RouteCoordinate & {
+  id?: string;
+  name?: string;
+};
+
+export function findRouteGeometryWaypointMismatches(
+  path: RouteCoordinate[],
+  waypoints: RouteGeometryWaypoint[],
+) {
+  if (path.length < 2) {
+    return [];
+  }
+
+  return waypoints
+    .map((waypoint) => ({
+      waypoint,
+      distanceToPathKm: projectPointOntoPolyline(path, waypoint).distanceToPathKm,
+    }))
+    .filter(({ distanceToPathKm }) => distanceToPathKm > maximumRouteWaypointDistanceKm);
 }
 
 // Một phương án đường Google trả về — points đã decode, số liệu đã quy đổi km/phút

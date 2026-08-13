@@ -33,6 +33,7 @@ import {
   toScheduleDateTime,
   toScheduleTimeValue,
   toStaffOption,
+  isShuttle16SeatVehicle,
   toTripSchedule,
   toTripScheduleFromApi,
   toVehicleOption,
@@ -113,7 +114,11 @@ export default function TripsPage() {
           driverId:
             cachedResources.staff.find((item) => item.role === "driver")?.id ??
             "",
-          // Phụ xe là field OPTIONAL ở BE (assistantUserId nullable) — không
+          assistantId:
+            !isShuttle16SeatVehicle(cachedResources.vehicles[0])
+              ? cachedResources.staff.find((item) => item.role === "assistant")?.id ?? ""
+              : "",
+          // Xe trung chuyển 16 chỗ mới được để trống phụ xe.
           // tự gán người đầu danh sách, nếu không mọi lịch đều âm thầm có phụ
           // xe mà người tạo không hề chọn.
         }
@@ -153,17 +158,15 @@ export default function TripsPage() {
   );
   const [isSaving, setIsSaving] = useState(false);
   const [page, setPage] = useState(1);
+  const [scheduleTotalItems, setScheduleTotalItems] = useState(0);
+  const [scheduleStats, setScheduleStats] = useState({ total: 0, open: 0, draft: 0, oneTime: 0 });
+  const [scheduleStatsVersion, setScheduleStatsVersion] = useState(0);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState("");
   const [formModalOpen, setFormModalOpen] = useState(false);
   const pageSize = 8;
 
-  const activeRoutes = useMemo(
-    () => routes.filter((route) => route.status === "active"),
-    [routes],
-  );
-  const availableVehicles = useMemo(
-    () => vehicles.filter((vehicle) => vehicle.status === "available"),
-    [vehicles],
-  );
   const drivers = useMemo(
     () => staff.filter((person) => person.role === "driver"),
     [staff],
@@ -237,7 +240,11 @@ export default function TripsPage() {
             driverId:
               nextStaff.find((item) => item.role === "driver")?.id ??
               current.driverId,
-            // Không tự chọn phụ xe — xem ghi chú ở lazy initializer phía trên.
+            assistantId:
+              !isShuttle16SeatVehicle(nextVehicles[0])
+                ? nextStaff.find((item) => item.role === "assistant")?.id ?? current.assistantId
+                : "",
+            // Xe trung chuyển 16 chỗ mới được để trống phụ xe.
           }));
         }
       } catch (err) {
@@ -264,6 +271,38 @@ export default function TripsPage() {
   }, [cacheKey, toast]);
 
   useEffect(() => {
+    if (!canManageSchedules) {
+      return;
+    }
+
+    let ignore = false;
+    async function loadScheduleStats() {
+      try {
+        const [all, open, draft, oneTime] = await Promise.all([
+          getOperatorDriverSchedules({ page: 1, pageSize: 1 }),
+          getOperatorDriverSchedules({ page: 1, pageSize: 1, isActive: true }),
+          getOperatorDriverSchedules({ page: 1, pageSize: 1, isActive: false }),
+          getOperatorDriverSchedules({ page: 1, pageSize: 1, isOneTime: true }),
+        ]);
+        if (!ignore) {
+          setScheduleStats({
+            total: all.totalItems,
+            open: open.totalItems,
+            draft: draft.totalItems,
+            oneTime: oneTime.totalItems,
+          });
+        }
+      } catch {
+        // Danh sách chính vẫn hiển thị được nếu một truy vấn KPI lỗi.
+      }
+    }
+    void loadScheduleStats();
+    return () => {
+      ignore = true;
+    };
+  }, [canManageSchedules, scheduleStatsVersion]);
+
+  useEffect(() => {
     // BE hiện stack [Authorize] class-level (chỉ OPERATOR_ADMIN) cùng
     // method-level (STAFF,ADMIN) trên GET driver-schedules — ASP.NET Core
     // ghép AND nên STAFF luôn nhận 403 dù contract công bố STAFF được xem.
@@ -278,12 +317,17 @@ export default function TripsPage() {
 
     async function loadSchedules() {
       try {
-        const scheduleItems = await fetchAllPages((params) =>
-          getOperatorDriverSchedules(params),
-        );
+        const result = await getOperatorDriverSchedules({
+          page,
+          pageSize,
+          search,
+          isActive: statusFilter === "" ? undefined : statusFilter === "open",
+          vehicleTypeId: vehicleTypeFilter || undefined,
+        });
 
         if (!ignore) {
-          setSchedules(scheduleItems.map(toTripScheduleFromApi));
+          setSchedules(result.items.map(toTripScheduleFromApi));
+          setScheduleTotalItems(result.totalItems);
         }
       } catch (err) {
         if (!ignore) {
@@ -305,7 +349,7 @@ export default function TripsPage() {
     return () => {
       ignore = true;
     };
-  }, [canManageSchedules, toast]);
+  }, [canManageSchedules, page, pageSize, search, statusFilter, vehicleTypeFilter, toast]);
 
   function updateForm<K extends keyof ScheduleForm>(
     key: K,
@@ -322,6 +366,13 @@ export default function TripsPage() {
     setAvailability(null);
     setForm((current) => {
       const next: ScheduleForm = { ...current, [key]: value };
+
+      if (key === "vehicleId" && !next.assistantId) {
+        const selectedVehicle = vehicles.find((vehicle) => vehicle.id === next.vehicleId);
+        if (!isShuttle16SeatVehicle(selectedVehicle)) {
+          next.assistantId = assistants[0]?.id ?? "";
+        }
+      }
 
       if (key === "departureAt" || key === "routeId") {
         const selectedRoute = routes.find((route) => route.id === next.routeId);
@@ -365,6 +416,14 @@ export default function TripsPage() {
       !form.arrivalEstimate
     ) {
       return t("trips.validationRequired");
+    }
+
+    const selectedVehicle = vehicles.find((vehicle) => vehicle.id === form.vehicleId);
+    const canSkipAssistant = Boolean(
+      selectedVehicle && isShuttle16SeatVehicle(selectedVehicle),
+    );
+    if (!canSkipAssistant && !form.assistantId) {
+      return t("trips.validationAssistantRequired");
     }
 
     if (form.baseFare !== "") {
@@ -547,6 +606,7 @@ export default function TripsPage() {
         );
 
         // Cập nhật item từ response, giữ lại các field hiển thị chỉ có ở client.
+        setScheduleStatsVersion((current) => current + 1);
         setSchedules((current) =>
           current.map((item) =>
             item.id === editingId
@@ -603,6 +663,7 @@ export default function TripsPage() {
           ? await activateOperatorDriverSchedule(saved.id)
           : saved;
 
+      setScheduleStatsVersion((current) => current + 1);
       setSchedules((current) => [
         toTripSchedule(activeSchedule, form, status),
         ...current,
@@ -612,7 +673,9 @@ export default function TripsPage() {
         routeId: routes[0]?.id ?? "",
         vehicleId: vehicles[0]?.id ?? "",
         driverId: drivers[0]?.id ?? "",
-        // Phụ xe optional — mặc định "Không có phụ xe"
+        assistantId:
+          !isShuttle16SeatVehicle(vehicles[0]) ? assistants[0]?.id ?? "" : "",
+        // Xe trung chuyển 16 chỗ mới được để trống phụ xe.
       });
       setFormModalOpen(false);
       toast.success(
@@ -663,6 +726,7 @@ export default function TripsPage() {
           ? await deactivateOperatorDriverSchedule(schedule.id)
           : await activateOperatorDriverSchedule(schedule.id);
 
+      setScheduleStatsVersion((current) => current + 1);
       setSchedules((current) =>
         current.map((item) =>
           item.id === schedule.id
@@ -699,6 +763,7 @@ export default function TripsPage() {
 
     try {
       await deleteOperatorDriverSchedule(deleteTarget.id);
+      setScheduleStatsVersion((current) => current + 1);
       setSchedules((current) =>
         current.filter((item) => item.id !== deleteTarget.id),
       );
@@ -733,7 +798,9 @@ export default function TripsPage() {
       routeId: routes[0]?.id ?? "",
       vehicleId: vehicles[0]?.id ?? "",
       driverId: drivers[0]?.id ?? "",
-      // Phụ xe optional — mặc định "Không có phụ xe"
+      assistantId:
+        !isShuttle16SeatVehicle(vehicles[0]) ? assistants[0]?.id ?? "" : "",
+      // Xe trung chuyển 16 chỗ mới được để trống phụ xe.
     });
     setEditingId("");
     setFormError("");
@@ -762,6 +829,7 @@ export default function TripsPage() {
         assistantUserId: crewForm.assistantId || null,
       });
 
+      setScheduleStatsVersion((current) => current + 1);
       setSchedules((current) =>
         current.map((item) =>
           item.id === crewTarget.id
@@ -817,36 +885,29 @@ export default function TripsPage() {
 
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard
-          label={t("trips.activeRoutes")}
-          value={activeRoutes.length}
+          label={t("trips.totalSchedules")}
+          value={scheduleStats.total}
           icon={<FiCalendar size={20} />}
           iconClassName="bg-vr-50 text-vr-700"
-          isLoading={isLoadingResources}
-        />
-        <StatCard
-          label={t("trips.availableVehicles")}
-          value={availableVehicles.length}
-          icon={<FiTruck size={20} />}
-          iconClassName="bg-blue-50 text-blue-700"
-          isLoading={isLoadingResources}
-        />
-        <StatCard
-          label={t("trips.availableDrivers")}
-          value={drivers.filter((driver) => driver.status === "active" || driver.status === "available").length}
-          icon={<FiUsers size={20} />}
-          iconClassName="bg-emerald-50 text-emerald-700"
-          isLoading={isLoadingResources}
+          isLoading={isLoadingSchedules}
         />
         <StatCard
           label={t("trips.openSchedules")}
-          // STAFF: danh sách lịch không tải được (xem ghi chú ở effect
-          // loadSchedules) — hiện "-" thay vì 0 để không ngụ ý "không có lịch".
-          value={
-            canManageSchedules
-              ? schedules.filter((schedule) => schedule.status === "open")
-                  .length
-              : "-"
-          }
+          value={scheduleStats.open}
+          icon={<FiTruck size={20} />}
+          iconClassName="bg-blue-50 text-blue-700"
+          isLoading={isLoadingSchedules}
+        />
+        <StatCard
+          label={t("trips.draftSchedules")}
+          value={scheduleStats.draft}
+          icon={<FiUsers size={20} />}
+          iconClassName="bg-emerald-50 text-emerald-700"
+          isLoading={isLoadingSchedules}
+        />
+        <StatCard
+          label={t("trips.oneTimeSchedules")}
+          value={scheduleStats.oneTime}
           icon={<FiCalendar size={20} />}
           iconClassName="bg-amber-50 text-amber-700"
           isLoading={isLoadingSchedules}
@@ -934,7 +995,7 @@ export default function TripsPage() {
           }
         >
           <p className="text-sm text-gray-600">
-            {t("trips.deleteScheduleConfirm", { code: deleteTarget?.code })}
+            {t("trips.deleteScheduleConfirm")}
           </p>
         </Modal>
       ) : null}
@@ -948,6 +1009,13 @@ export default function TripsPage() {
           isLoading={isLoadingSchedules}
           page={page}
           pageSize={pageSize}
+          totalItems={scheduleTotalItems}
+          search={search}
+          statusFilter={statusFilter}
+          vehicleTypeFilter={vehicleTypeFilter}
+          onSearchChange={(value) => { setSearch(value); setPage(1); }}
+          onStatusFilterChange={(value) => { setStatusFilter(value); setPage(1); }}
+          onVehicleTypeFilterChange={(value) => { setVehicleTypeFilter(value); setPage(1); }}
           onPageChange={setPage}
           onEdit={editSchedule}
           onChangeCrew={openCrewModal}

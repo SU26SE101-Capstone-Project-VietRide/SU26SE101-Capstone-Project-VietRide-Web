@@ -52,6 +52,10 @@ const routeEndpointPinPath =
 // chiều dài) — tránh 2 bubble đè nhau khi các phương án bám sát nhau
 const bubblePositionFractions = [0.4, 0.55, 0.7];
 
+// Các phương án chưa chọn dùng màu riêng và sáng hơn để không bị chìm vào
+// nền bản đồ hoặc bị nhầm với tuyến đang chọn.
+const routeOptionColors = ["#2563eb", "#c026d3", "#ea580c"];
+
 // Mảng rỗng ổn định identity — trả về từ memo khi không có nhãn/marker để mảng
 // pointMarkers gộp không đổi identity vô cớ (đổi identity giữa lúc kéo là
 // GoogleMapCanvas gỡ + vẽ lại marker, cắt đứt thao tác kéo đang diễn ra)
@@ -533,9 +537,10 @@ export default function RouteDesignMap({
         .sort((first, second) => first.zIndex - second.zIndex)
         .map(
           (line): GoogleMapPolyline => ({
-            // Cùng tông màu tuyến đang chọn, chỉ giảm độ đậm cho phương án
-            // chưa chọn — kiểu Google Maps thật (không dùng xám rời tông).
-            color: activeColor,
+            // Tuyến đang chọn giữ màu chính; mỗi phương án chưa chọn có màu riêng.
+            color: line.selected
+              ? activeColor
+              : routeOptionColors[line.index % routeOptionColors.length],
             id: line.isSavedPath
               ? "route-geometry"
               : `route-option-${line.index}`,
@@ -547,7 +552,7 @@ export default function RouteDesignMap({
                   : undefined,
             onMouseDown:
               line.selected && hasSavedOrDraftPath ? grabLine : undefined,
-            opacity: line.selected ? 1 : 0.4,
+            opacity: line.selected ? 1 : 0.78,
             // Đang kéo nắn đường này → bám thẳng qua điểm dưới tay chuột thay
             // vì đợi request tính đường bộ thật (xem dragPreviewLinePositions)
             path:
@@ -617,11 +622,14 @@ export default function RouteDesignMap({
       return noPointMarkers;
     }
 
-    return routeOptions.map((option, index): GoogleMapPointMarker => {
+    return routeOptions
+      .map((option, index): GoogleMapPointMarker | null => {
       const selected = index === selectedOptionIndex;
-      // Cùng màu tuyến đang chọn cho cả viền nhãn — chỉ chữ + độ đậm viền khác
-      // nhau để phân biệt, đồng bộ với màu đường (không còn tông xám rời).
-      const optionColor = activeColor;
+      // Chỉ đặt nhãn trên tuyến chưa chọn, tránh che dọc theo tuyến chính.
+      if (selected) {
+        return null;
+      }
+      const optionColor = routeOptionColors[index % routeOptionColors.length];
       // Bubble đặt lệch nhau theo index (40%/55%/70% chiều dài đường) — các
       // phương án chạy gần nhau sẽ không chồng bubble lên cùng một chỗ
       const fraction =
@@ -652,7 +660,7 @@ export default function RouteDesignMap({
         },
         id: `route-option-label-${index}`,
         label: {
-          color: selected ? activeColor : "#475569",
+          color: optionColor,
           fontSize: "11px",
           fontWeight: selected ? "700" : "600",
           text: duration,
@@ -669,9 +677,10 @@ export default function RouteDesignMap({
           duration,
           km: option.totalDistanceKm,
         }),
-        zIndex: selected ? 4 : 3,
+        zIndex: 4,
       };
-    });
+    })
+      .filter((marker): marker is GoogleMapPointMarker => marker !== null);
   }, [
     activeColor,
     canSelectOption,

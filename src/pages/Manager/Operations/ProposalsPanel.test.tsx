@@ -96,7 +96,10 @@ describe("Operations ProposalsPanel", () => {
     vi.mocked(getOperatorRouteChangeProposal).mockResolvedValue(proposal);
     vi.mocked(getTrackingTripRouteGeometry).mockResolvedValue({
       tripId: "trip-1",
-      points: [],
+      geometry: null,
+      originStation: null,
+      intermediateStops: [],
+      destinationStation: null,
     });
   });
 

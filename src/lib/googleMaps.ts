@@ -37,6 +37,8 @@ export type GoogleMapInstance = {
     handler: (event?: GoogleMapMouseEvent) => void,
   ) => GoogleMapsEventListener;
   fitBounds: (bounds: GoogleLatLngBoundsInstance, padding?: number) => void;
+  // Optional để mock/test cũ không gãy — caller phải guard trước khi dùng
+  getZoom?: () => number | undefined;
   panTo: (position: GoogleMapCoordinate) => void;
   setCenter: (position: GoogleMapCoordinate) => void;
   // Optional để mock/test cũ không gãy — caller phải guard trước khi dùng
@@ -117,6 +119,8 @@ type GoogleMarkerIcon = {
   fillColor?: string;
   fillOpacity?: number;
   path: string;
+  /** Độ, thuận chiều kim đồng hồ từ hướng bắc — xoay Symbol quanh gốc path. */
+  rotation?: number;
   scale?: number;
   strokeColor?: string;
   strokeOpacity?: number;
@@ -144,6 +148,10 @@ export type GoogleMarkerInstance = {
   // Optional (mock/test cũ không gãy): dời marker tại chỗ thay vì gỡ + vẽ lại —
   // giữ nguyên instance để không cắt đứt thao tác kéo đang diễn ra
   setPosition?: (position: GoogleMapCoordinate) => void;
+  // Cùng lý do với setPosition, nhưng cho hình dạng: marker xe đổi `rotation`
+  // mỗi lần có điểm GPS mới, gỡ + vẽ lại từng nhịp thì xe nháy và mất InfoWindow
+  // đang mở.
+  setIcon?: (icon: GoogleMarkerIcon) => void;
 };
 
 export type GoogleInfoWindowInstance = {

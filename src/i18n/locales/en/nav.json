@@ -16,6 +16,8 @@
     "trips": "Schedules",
     "routeEta": "Route change & ETA",
     "routes": "Routes & stops",
+    "routeManagement": "Route management",
+    "stations": "Operator stations",
     "vehicles": "Vehicles & seats",
     "staff": "Staff",
     "capacity": "Capacity & seats",

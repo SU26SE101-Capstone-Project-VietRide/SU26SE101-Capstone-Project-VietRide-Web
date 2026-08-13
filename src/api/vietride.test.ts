@@ -1846,6 +1846,50 @@ describe("vietride API", () => {
     );
   });
 
+  it("maps RAG document search to the `q` query param", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "System Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        {
+          success: true,
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 8,
+            totalItems: 0,
+            totalPages: 0,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          },
+        },
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getRagDocuments({ page: 1, pageSize: 8, search: "chính sách" });
+
+    // Service RAG đặt tên tham số tìm kiếm là `q`; gửi `search` sẽ bị Zod strip
+    // và ô tìm kiếm im lặng không lọc gì.
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/rag/documents?page=1&pageSize=8&q=ch%C3%ADnh+s%C3%A1ch",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("calls Tracking APIs for operator roles", async () => {
     localStorage.setItem(
       "auth",

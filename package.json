@@ -12,6 +12,8 @@
     "test:watch": "vitest",
     "preview": "vite preview",
     "seed:operator-users": "node scripts/seed-operator-users.mjs",
+    "seed:trip-route": "node scripts/seed-trip-route-path.mjs",
+    "simulate:trip-gps": "node scripts/simulate-trip-gps.mjs",
     "prepare": "husky"
   },
   "dependencies": {

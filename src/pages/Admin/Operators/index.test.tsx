@@ -134,4 +134,27 @@ describe("Admin Operators", () => {
     expect(await screen.findByText("Operator 9")).toBeInTheDocument();
   });
 
+  it("keeps rows the BE matched on non-name fields", async () => {
+    // BE tìm trên name/contactEmail/contactPhone/businessRegistrationNumber/
+    // taxCode. Trước đây màn lọc lại ở client theo mỗi `name` nên dòng khớp
+    // email hay mã số thuế bị vứt đi và bảng hiện rỗng.
+    const user = userEvent.setup();
+    render(<Operators />);
+
+    expect(
+      await screen.findByText(pendingOperator.name, {}, { timeout: 5_000 }),
+    ).toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText("operators.searchPlaceholder"),
+      "dalat@example.com",
+    );
+
+    await waitFor(() =>
+      expect(getAdminOperators).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: "dalat@example.com" }),
+      ),
+    );
+    expect(await screen.findByText(pendingOperator.name)).toBeInTheDocument();
+  });
 });

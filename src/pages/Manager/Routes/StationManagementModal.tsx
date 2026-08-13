@@ -6,14 +6,12 @@ import Modal from "../../../components/Modal";
 import type { AdminLocation } from "../../../api/vietride";
 import StationManagementPanel from "./StationManagementPanel";
 import type { UseStationManagementResult } from "./useStationManagement";
-import type { StationOption } from "./types";
 
 type StationManagementModalProps = {
   open: boolean;
   onClose: () => void;
   canManageRoutes: boolean;
   hasSelectedRoute: boolean;
-  stations: StationOption[];
   locations: AdminLocation[];
   manager: UseStationManagementResult;
   onRunAction: (action: () => Promise<void>) => void;
@@ -24,7 +22,6 @@ export default function StationManagementModal({
   onClose,
   canManageRoutes,
   hasSelectedRoute,
-  stations,
   locations,
   manager,
   onRunAction,
@@ -43,7 +40,6 @@ export default function StationManagementModal({
       <StationManagementPanel
         canManageRoutes={canManageRoutes}
         hasSelectedRoute={hasSelectedRoute}
-        stations={stations}
         locations={locations}
         manager={manager}
         onRunAction={onRunAction}

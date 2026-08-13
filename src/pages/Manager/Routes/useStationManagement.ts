@@ -1,6 +1,7 @@
 // Hook cục bộ: state + thao tác tìm/tạo/gắn bến của màn Routes
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import {
+  attachOperatorStation,
   createOperatorStation,
   getPublicLocations,
   isNearbyStationWarning,
@@ -171,18 +172,16 @@ export function useStationManagement({
       return;
     }
 
-    const created = await createOperatorStation({
-      stationId: selectedStationId,
-    });
+    const attached = await attachOperatorStation(selectedStationId);
     setStations((current) =>
       current.map((station) =>
         station.id === selectedStationId
           ? {
               ...station,
-              stationId: created.stationId ?? selectedStationId,
-              operatorStationId: created.id,
+              stationId: attached.stationId ?? selectedStationId,
+              operatorStationId: attached.id,
               supportsShuttle:
-                created.station?.supportsShuttle ?? stationSupportsShuttle,
+                attached.station?.supportsShuttle ?? stationSupportsShuttle,
             }
           : station,
       ),
@@ -207,6 +206,11 @@ export function useStationManagement({
   }
 
   async function handleCreateAndAttachStation() {
+    if (selectedStationId) {
+      await handleAttachStation();
+      return;
+    }
+
     if (!stationPlaceDraft) {
       setError(t("routes.stationPlaceRequired"));
       return;
@@ -236,8 +240,12 @@ export function useStationManagement({
         setStations((current) => mergeStations(current, nearby));
         setSelectedStationId(nearby[0].id);
         setStationSupportsShuttle(nearby[0].supportsShuttle ?? false);
+        await attachOperatorStation(nearby[0].id);
+        assignStationToRoute(nearby[0].id);
+        showMessage("station", t("routes.stationAttached"));
+      } else {
+        setError(t("routes.stationDuplicateNearby"));
       }
-      setError(t("routes.stationDuplicateNearby"));
       return;
     }
 
@@ -248,6 +256,7 @@ export function useStationManagement({
       return;
     }
 
+    const attached = await attachOperatorStation(createdStationId);
     const station = created.station ?? {
       id: createdStationId,
       name: stationPlaceDraft.name,
@@ -259,7 +268,15 @@ export function useStationManagement({
       supportsShuttle: stationSupportsShuttle,
     };
 
-    setStations((current) => mergeStations(current, [station]));
+    setStations((current) =>
+      mergeStations(current, [
+        {
+          ...station,
+          stationId: attached.stationId ?? createdStationId,
+          operatorStationId: attached.id,
+        },
+      ]),
+    );
     setSelectedStationId(createdStationId);
     setSelectedLocationId("");
     setSelectedProvinceCode("");

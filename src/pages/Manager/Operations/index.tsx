@@ -54,8 +54,11 @@ import {
   applyFleetGpsUpdate,
   buildFleetVehicles,
   getFleetStatus,
+  markPassedStops,
   mergeTripsById,
+  resolveVehicleHeading,
   routeGeometryPath,
+  routeStopMarkers,
   splitRouteAtPosition,
   type RealtimeStatus,
   type RouteGeometryStatus,
@@ -64,6 +67,7 @@ import {
   FALLBACK_POLL_INTERVAL_MS,
   useOperationsSocket,
 } from "./useOperationsSocket";
+import { useTripRoadRoute } from "./useTripRoadRoute";
 
 // Nhãn hiển thị chuyến trong header panel theo dõi
 function tripLabel(trip: OperatorTripListItem): string {
@@ -415,10 +419,31 @@ export default function OperationsPage() {
     return routeGeometryResult.geometry;
   }, [routeGeometryRefreshKey, routeGeometryResult, selectedTripId]);
 
+  // Polyline tuyến do BE trả về (đã bám đường bộ vì được soạn ở màn Tuyến & điểm dừng)
   const routePath = useMemo(
     () => routeGeometryPath(routeGeometry),
     [routeGeometry],
   );
+
+  // Bến đi / điểm dừng / bến đến của chuyến — vừa vẽ marker, vừa làm waypoint
+  // để tính lại đường bộ khi tuyến chưa lưu polyline
+  const routeStops = useMemo(
+    () => routeStopMarkers(routeGeometry),
+    [routeGeometry],
+  );
+  const routeStopPositions = useMemo(
+    () => routeStops.map((stop) => stop.position),
+    [routeStops],
+  );
+
+  // Tuyến chưa lưu polyline: hỏi Google Routes đúng dãy bến/điểm dừng đó để có
+  // đường bám đường bộ, thay vì nối thẳng các điểm thành đường chim bay.
+  const roadRoute = useTripRoadRoute(
+    routeStopPositions,
+    routePath.length < 2 && routeStopPositions.length > 1,
+  );
+  const effectiveRoutePath =
+    routePath.length > 1 ? routePath : roadRoute.path;
 
   // Vị trí mới nhất của xe đang chọn — ưu tiên GPS realtime, lùi về toạ độ
   // trong danh sách fleet khi chuyến chưa có bản ghi tracking riêng.
@@ -432,9 +457,28 @@ export default function OperationsPage() {
 
   // Cắt lộ trình tại vị trí xe để tô "đã đi" khác "chưa đi".
   const routeProgress = useMemo(
-    () => splitRouteAtPosition(routePath, selectedVehiclePosition),
-    [routePath, selectedVehiclePosition],
+    () => splitRouteAtPosition(effectiveRoutePath, selectedVehiclePosition),
+    [effectiveRoutePath, selectedVehiclePosition],
   );
+
+  // Bến/điểm dừng xe đã chạy qua thì marker mờ đi — nhìn bản đồ là biết ngay
+  // chuyến đang ở chặng nào mà không phải đọc panel.
+  const routeStopsWithProgress = useMemo(
+    () =>
+      markPassedStops(routeStops, effectiveRoutePath, selectedVehiclePosition),
+    [effectiveRoutePath, routeStops, selectedVehiclePosition],
+  );
+
+  // Chọn chuyến thì khung nhìn phải bao trọn NGUYÊN tuyến + vị trí xe, thay vì
+  // dán vào xe ở zoom 14 (mỗi điểm GPS lại panTo nên không bao giờ thấy được xe
+  // đang ở đoạn nào của tuyến). Thiếu tuyến thì vẫn rơi về focusCenter như cũ.
+  const selectedFitPoints = useMemo(() => {
+    if (!selectedTripId) return [];
+
+    const points = [...effectiveRoutePath];
+    if (selectedVehiclePosition) points.push(selectedVehiclePosition);
+    return points.length > 1 ? points : [];
+  }, [effectiveRoutePath, selectedTripId, selectedVehiclePosition]);
 
   const routeGeometryStatus = useMemo<RouteGeometryStatus>(() => {
     const tripId = selectedTripId?.trim() ?? "";
@@ -446,10 +490,15 @@ export default function OperationsPage() {
       return "loading";
     }
     if (routeGeometryResult.failed) return "error";
+    if (routePath.length > 1) return "ready";
+    // Không có polyline lưu sẵn: đang/đã tính lại đường bộ từ bến + điểm dừng
+    if (roadRoute.status === "loading") return "loading";
+    if (roadRoute.status === "ready") return "estimated";
     // Có response nhưng không đủ điểm để vẽ vẫn là "không có lộ trình" —
     // phân biệt với lỗi mạng để panel nói đúng nguyên nhân.
-    return routePath.length > 1 ? "ready" : "empty";
+    return "empty";
   }, [
+    roadRoute.status,
     routeGeometryRefreshKey,
     routeGeometryResult,
     routePath,
@@ -488,6 +537,22 @@ export default function OperationsPage() {
                 vehicle.status === "disrupted"
                   ? "disrupted"
                   : getFleetStatus(event),
+              // Thiết bị không gửi hướng thì suy từ vị trí trước đó; xe gần như
+              // đứng yên thì giữ hướng cũ thay vì bẻ marker về bắc.
+              headingDeg:
+                resolveVehicleHeading(event.headingDeg, [
+                  { latitude: event.latitude, longitude: event.longitude },
+                  ...(vehicle.position
+                    ? [
+                        {
+                          latitude: vehicle.position.lat,
+                          longitude: vehicle.position.lng,
+                        },
+                      ]
+                    : []),
+                ]) ??
+                vehicle.headingDeg ??
+                null,
             }
           : vehicle,
       ),
@@ -754,7 +819,11 @@ export default function OperationsPage() {
             <FleetMap
               vehicles={filtered}
               selectedId={selectedTripId}
-              focusCenter={focusCenter}
+              // Đã có khung nhìn theo tuyến thì bỏ qua focusCenter — hai cơ chế
+              // cùng lái camera sẽ giật qua lại mỗi lần có điểm GPS mới
+              focusCenter={selectedFitPoints.length > 1 ? null : focusCenter}
+              fitPoints={selectedFitPoints}
+              routeStops={routeStopsWithProgress}
               routeTraveledPath={routeProgress.traveled}
               routeRemainingPath={routeProgress.remaining}
               trailPath={trailPath}

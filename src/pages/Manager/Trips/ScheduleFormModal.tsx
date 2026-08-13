@@ -28,6 +28,7 @@ import type {
   TripSchedule,
   VehicleOption,
 } from "./types";
+import { isShuttle16SeatVehicle } from "./tripHelpers";
 
 type ScheduleFormModalProps = {
   open: boolean;
@@ -75,10 +76,15 @@ export default function ScheduleFormModal({
 }: ScheduleFormModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const selectedVehicle = vehicles.find(
+    (vehicle) => vehicle.id === form.vehicleId,
+  );
+  const canSkipAssistant = Boolean(
+    selectedVehicle && isShuttle16SeatVehicle(selectedVehicle),
+  );
   const selectedRoute = routes.find((route) => route.id === form.routeId);
   const baseFareChanged =
-    Boolean(editingSchedule) &&
-    form.baseFare !== editingSchedule?.baseFare;
+    Boolean(editingSchedule) && form.baseFare !== editingSchedule?.baseFare;
 
   return (
     <Modal
@@ -89,7 +95,7 @@ export default function ScheduleFormModal({
       icon={<FiCalendar />}
       title={
         editingSchedule
-          ? t("trips.editScheduleTitle", { code: editingSchedule.code })
+          ? t("trips.editScheduleTitle")
           : t("trips.createScheduleTitle")
       }
       subtitle={t("trips.createScheduleSubtitle")}
@@ -219,13 +225,13 @@ export default function ScheduleFormModal({
             <Select
               label={t("trips.vehicle")}
               required
-              helper={t("trips.vehicleRequiredHint")}
               value={form.vehicleId}
               onChange={(value) => onFieldChange("vehicleId", value)}
             >
               {vehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.plate} · {vehicle.seats} {t("trips.seats")} ·{" "}
+                  {vehicle.plate} · {vehicle.vehicleType} · {vehicle.seats}{" "}
+                  {t("trips.seats")} ·{" "}
                   {t(`trips.resourceStatus.${vehicle.status}`)}
                 </option>
               ))}
@@ -238,16 +244,19 @@ export default function ScheduleFormModal({
             >
               {drivers.map((driver) => (
                 <option key={driver.id} value={driver.id}>
-                  {driver.name} · {t(`trips.resourceStatus.${driver.status}`)}
+                  {driver.name}
                 </option>
               ))}
             </Select>
             <Select
               label={t("trips.assistant")}
+              required={!canSkipAssistant}
               value={form.assistantId}
               onChange={(value) => onFieldChange("assistantId", value)}
             >
-              <option value="">{t("trips.noAssistant")}</option>
+              {canSkipAssistant ? (
+                <option value="">{t("trips.noAssistant")}</option>
+              ) : null}
               {assistants.map((assistant) => (
                 <option key={assistant.id} value={assistant.id}>
                   {assistant.name}
@@ -289,7 +298,8 @@ export default function ScheduleFormModal({
                   {t("trips.editScheduleDateLocked")}
                 </p>
               ) : null}
-            </div>            {/* BE tự tính estimatedArrivalTime từ thời lượng tuyến lúc sinh
+            </div>{" "}
+            {/* BE tự tính estimatedArrivalTime từ thời lượng tuyến lúc sinh
                 Trip và KHÔNG nhận field này (§9.7). Hiển thị dạng dòng thông
                 tin, KHÔNG dùng input — ô nhập (dù disabled) vẫn mời thao tác
                 và làm người dùng tưởng đặt được giờ đến. */}
@@ -360,18 +370,30 @@ export default function ScheduleFormModal({
                   }
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  {/* P2: hiện luôn giá tuyến để người dùng biết đang so với gì */}
-                  {selectedRoute?.baseFare
-                    ? t("trips.scheduleBaseFareHintWithRoute", {
-                        fare: formatCurrency(selectedRoute.baseFare),
-                      })
-                    : t("trips.scheduleBaseFareHint")}
+                  {t("trips.scheduleBaseFareHint")}
                 </p>
+                {selectedRoute ? (
+                  selectedRoute.baseFare !== undefined &&
+                  selectedRoute.baseFare !== null &&
+                  selectedRoute.baseFare > 0 ? (
+                    <p className="mt-1 text-xs font-medium text-gray-600">
+                      {t("trips.routeBaseFareValue", {
+                        fare: formatCurrency(selectedRoute.baseFare),
+                      })}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs font-medium text-amber-700">
+                      {t("trips.routeBaseFareNotSet")}
+                    </p>
+                  )
+                ) : null}
               </div>
             </FormSection>
-            <details className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+            <details className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 mt-2.5">
               <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-gray-900">
-                <span className="text-vr-700"><FiAlertCircle /></span>
+                <span className="text-vr-700">
+                  <FiAlertCircle />
+                </span>
                 {t("trips.businessRules")}
               </summary>
               <ul className="mt-3 space-y-2 text-sm leading-6 text-gray-600">

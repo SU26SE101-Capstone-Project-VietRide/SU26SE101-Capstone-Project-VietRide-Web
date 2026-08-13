@@ -30,7 +30,11 @@ import {
   projectPointOntoPolyline,
   type RouteCoordinate,
 } from "./polyline";
-import { distanceKmBetween, requestRoadGeometry } from "./geometry";
+import {
+  distanceKmBetween,
+  findRouteGeometryWaypointMismatches,
+  requestRoadGeometry,
+} from "./geometry";
 import {
   detailStopsToDrafts,
   draftRouteId,
@@ -768,7 +772,7 @@ export default function RoutesPage() {
       destinationStationId: basics.destinationStationId,
       returnRouteId: basics.returnRouteId || null,
       baseFare: basics.baseFare,
-      isActive: basics.isActive,
+      isActive: true,
       pathPolyline: basics.pathPolyline || undefined,
       // Create không polyline bắt buộc manualMetrics (contract 8.6) — chưa có
       // ước lượng thì gửi 0/0, chỉnh lại sau trong tab Thông tin
@@ -911,6 +915,16 @@ export default function RoutesPage() {
     }
 
     const hasPolyline = geometry.routePathPoints.length >= 2;
+    if (hasPolyline && geometry.isGeometryDirty) {
+      const mismatches = findRouteGeometryWaypointMismatches(
+        geometry.routePathPoints,
+        routeMapPoints,
+      );
+      if (mismatches.length > 0) {
+        toast.error(t("routes.routeGeometryWaypointMismatch"));
+        return;
+      }
+    }
     // Chụp seq (không tăng): nếu user chọn tuyến khác trong lúc lưu thì response
     // save không được đè form của tuyến mới — chỉ cập nhật list + báo đã lưu
     const seq = selectRouteSeqRef.current;
@@ -1054,7 +1068,7 @@ export default function RoutesPage() {
                   canManageRoutes={canManageRoutes}
                   routes={routes}
                   stations={stations}
-                  selectedRouteId={selectedRouteId}
+                          selectedRouteId={selectedRouteId}
                   routeForm={routeForm}
                   onUpdateField={updateRoute}
                   routeFeedbackMessage={messageScope === "route" ? message : ""}
@@ -1100,7 +1114,7 @@ export default function RoutesPage() {
                   canManageRoutes={canManageRoutes}
                   hasSelectedRoute={Boolean(selectedRouteId)}
                   stations={stations}
-                  stops={stops}
+                          stops={stops}
                   workspace={alternatives}
                   referencePath={geometry.routePathPoints}
                 />
@@ -1135,7 +1149,6 @@ export default function RoutesPage() {
         onClose={() => setIsStationModalOpen(false)}
         canManageRoutes={canManageRoutes}
         hasSelectedRoute={Boolean(selectedRouteId)}
-        stations={stations}
         locations={locations}
         manager={stationManager}
         onRunAction={runAction}

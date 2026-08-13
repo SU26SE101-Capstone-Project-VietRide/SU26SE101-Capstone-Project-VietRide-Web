@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createAlternativeRoute,
   createOperatorRouteFull,
+
   createOperatorStation,
   createOperatorStop,
   getAlternativeRoutes,
@@ -198,6 +199,7 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
 vi.mock("../../../api/vietride", () => ({
   createOperatorRouteFull: vi.fn(),
   createAlternativeRoute: vi.fn(),
+  attachOperatorStation: vi.fn(),
   createOperatorStation: vi.fn(),
   createOperatorStop: vi.fn(),
   deleteAlternativeRoute: vi.fn(),
@@ -786,51 +788,14 @@ describe("Manager route setup workflow", () => {
     expect(screen.getByText("routes.routeManagement")).toBeInTheDocument();
   });
 
-  it("searches and attaches a platform station outside the preloaded list", async () => {
-    const platformStation = {
-      id: "station-page-8",
-      name: "Bến xe Miền Đông mới",
-      city: "Thành phố Hồ Chí Minh",
-      ward: "Phường Long Bình",
-      latitude: 10.877,
-      longitude: 106.814,
-      supportsShuttle: false,
-    };
-    vi.mocked(searchStations).mockResolvedValue([platformStation]);
-    vi.mocked(createOperatorStation).mockResolvedValue({
-      id: "operator-station-1",
-      operatorId: "operator-1",
-      stationId: platformStation.id,
-      station: platformStation,
-    });
-
+  it("removes the old existing-station picker from station management", async () => {
     renderRoutesPage();
     await waitForLoaded();
-    fireEvent.click(
-      screen.getByRole("button", { name: /routes.stationManagement/ }),
-    );
-
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "routes.searchStations" }),
-      { target: { value: "Miền Đông" } },
-    );
-    await waitFor(() =>
-      expect(searchStations).toHaveBeenCalledWith({ q: "Miền Đông" }),
-    );
-    fireEvent.click(
-      await screen.findByRole("option", {
-        name: /Bến xe Miền Đông mới/,
-      }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "routes.attachStation" }),
-    );
-
-    await waitFor(() =>
-      expect(createOperatorStation).toHaveBeenCalledWith({
-        stationId: platformStation.id,
-      }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /routes.stationManagement/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByText("routes.stationExistingTitle")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox", { name: "routes.searchStations" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "routes.createAndAttachStation" })).toBeDisabled();
   });
 
   // Bug owner báo qua screenshot: chọn "Dùng làm bến đi" rồi bấm "Gắn bến" khi
@@ -839,92 +804,17 @@ describe("Manager route setup workflow", () => {
   // tạo" (vì updateRoute chặn đổi originStationId của tuyến đã tạo). Fix: ẩn
   // hẳn dropdown vai trò khi đã có tuyến chọn sẵn — gán vai trò chỉ còn ý nghĩa
   // lúc CHƯA tạo tuyến (xem useStationManagement.ts, StationManagementPanel.tsx).
-  it("hides the origin/destination role picker and never shows the locked-route error toast when a route is already selected", async () => {
-    vi.mocked(getOperatorRoutes).mockResolvedValue({
-      ...emptyPage,
-      items: [routeA],
-      totalItems: 1,
-      totalPages: 1,
-    });
+  it("hides the origin/destination role picker when a route is already selected", async () => {
+    vi.mocked(getOperatorRoutes).mockResolvedValue({ ...emptyPage, items: [routeA], totalItems: 1, totalPages: 1 });
     vi.mocked(getOperatorRoute).mockResolvedValue(routeA);
-    vi.mocked(getOperatorStations).mockResolvedValue({
-      ...emptyPage,
-      items: operatorStations,
-      totalItems: operatorStations.length,
-      totalPages: 1,
-      pageSize: 100,
-    });
-
-    const platformStation = {
-      id: "station-page-9",
-      name: "Bến xe Miền Đông mới",
-      city: "Thành phố Hồ Chí Minh",
-      ward: "Phường Long Bình",
-      latitude: 10.877,
-      longitude: 106.814,
-      supportsShuttle: false,
-    };
-    vi.mocked(searchStations).mockResolvedValue([platformStation]);
-    vi.mocked(createOperatorStation).mockResolvedValue({
-      id: "operator-station-9",
-      operatorId: "operator-1",
-      stationId: platformStation.id,
-      station: platformStation,
-    });
-
+    vi.mocked(getOperatorStations).mockResolvedValue({ ...emptyPage, items: operatorStations, totalItems: operatorStations.length, totalPages: 1, pageSize: 100 });
     renderRoutesPage(["/manager/routes?routeId=route-1"]);
     await waitForLoaded();
-    // waitForLoaded() chỉ đợi skeleton biến mất — route detail (deep-link
-    // ?routeId=) tải bất đồng bộ riêng, phải đợi nó xong (form hiện đúng tên
-    // tuyến) thì hasSelectedRoute mới chắc chắn true khi mở modal bến.
     await screen.findByDisplayValue(routeA.name);
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /routes.stationManagement/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /routes.stationManagement/ }));
     const dialog = await screen.findByRole("dialog");
-
-    // Không còn dropdown "Dùng làm bến đi/đến" khi đã có tuyến chọn sẵn
-    expect(
-      within(dialog).queryByRole("option", { name: "routes.useAsOrigin" }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.change(
-      within(dialog).getByRole("textbox", { name: "routes.searchStations" }),
-      { target: { value: "Miền Đông" } },
-    );
-    fireEvent.click(
-      await within(dialog).findByRole("option", {
-        name: /Bến xe Miền Đông mới/,
-      }),
-    );
-    expect(
-      within(dialog).queryByRole("checkbox", {
-        name: "routes.supportsShuttle",
-      }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByRole("button", {
-        name: "routes.confirmShuttle",
-      }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "routes.attachStation" }),
-    );
-
-    // Chỉ hiện toast gắn bến thành công — KHÔNG hiện toast lỗi khoá bến đi/đến.
-    // "routes.stationsLockedHint" cũng là hint tĩnh cố định dưới ô chọn bến
-    // đi/đến trong form tuyến (RouteFormSection.tsx) nên không dùng
-    // queryByText suông — phải soi đúng trong khu vực toast (data-testid="toast").
-    expect(
-      await screen.findByText("routes.stationAttached"),
-    ).toBeInTheDocument();
-    const toastTexts = screen
-      .getAllByTestId("toast")
-      .map((toast) => toast.textContent);
-    expect(
-      toastTexts.some((text) => text?.includes("routes.stationsLockedHint")),
-    ).toBe(false);
+    expect(within(dialog).queryByRole("button", { name: "routes.stationRouteRoleNone" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox", { name: "routes.searchStations" })).not.toBeInTheDocument();
   });
 
   it("gợi ý sẵn tỉnh từ địa chỉ rồi bắt chọn phường/xã trước khi tạo bến", async () => {
@@ -1022,6 +912,7 @@ describe("Manager route setup workflow", () => {
         }),
       ),
     );
+    expect(createOperatorStation).toHaveBeenCalledWith(expect.objectContaining({ locationId: "location-ward-xh" }));
     // city/ward do BE suy ra từ hierarchy — FE không được gửi lên
     const payload = vi.mocked(createOperatorStation).mock.calls[0][0];
     expect(payload).not.toHaveProperty("city");
@@ -1184,7 +1075,7 @@ describe("Manager route setup workflow", () => {
       baseFare: 275_000,
       totalDistanceKm: 315.5,
       estimatedDurationMinutes: 375,
-      isActive: false,
+      isActive: true,
       stops: [],
     });
 
@@ -1244,9 +1135,6 @@ describe("Manager route setup workflow", () => {
     fireEvent.change(baseFareInput as HTMLInputElement, {
       target: { value: "275000" },
     });
-    fireEvent.click(
-      within(dialog).getByRole("checkbox", { name: "routes.activeRoute" }),
-    );
     // Google Routes lỗi (mặc định môi trường test) → chờ fallback haversine
     // rồi cho phép chỉnh tay km/thời lượng trước khi gửi manualMetrics.
     expect(
@@ -1281,7 +1169,7 @@ describe("Manager route setup workflow", () => {
           destinationStationId,
           returnRouteId: routeA.id,
           baseFare: 275_000,
-          isActive: false,
+          isActive: true,
           stops: [],
           manualMetrics: {
             totalDistanceKm: 315.5,

@@ -143,7 +143,10 @@ describe("Manager Operations Center", () => {
     vi.mocked(getPublicTrip).mockRejectedValue(new Error("not available"));
     vi.mocked(getTrackingTripRouteGeometry).mockResolvedValue({
       tripId: "trip-1",
-      points: [],
+      geometry: null,
+      originStation: null,
+      intermediateStops: [],
+      destinationStation: null,
     });
     vi.mocked(getOperatorVehicles).mockResolvedValue({
       items: [

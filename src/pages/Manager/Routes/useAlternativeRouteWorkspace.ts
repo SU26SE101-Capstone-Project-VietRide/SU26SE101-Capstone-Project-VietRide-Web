@@ -26,7 +26,10 @@ import {
   type OperatorRouteRequest,
   type OperatorStop,
 } from "../../../api/vietride";
-import { distanceKmBetween } from "./geometry";
+import {
+  distanceKmBetween,
+  findRouteGeometryWaypointMismatches,
+} from "./geometry";
 import {
   encodeGooglePolyline,
   estimateCoachDurationMinutes,
@@ -631,6 +634,17 @@ export function useAlternativeRouteWorkspace({
     }
     if (altGeometry.routePathPoints.length < 2) {
       toastError(t("routes.alternativeGeometryRequired"));
+      return;
+    }
+
+    const geometryMismatches = altGeometry.isGeometryDirty
+      ? findRouteGeometryWaypointMismatches(
+          altGeometry.routePathPoints,
+          altMapPoints,
+        )
+      : [];
+    if (geometryMismatches.length > 0) {
+      toastError(t("routes.routeGeometryWaypointMismatch"));
       return;
     }
 
