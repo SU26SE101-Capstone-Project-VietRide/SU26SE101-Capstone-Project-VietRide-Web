@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { splitRouteAtPosition } from "./gpsHelpers";
+import {
+  bearingBetween,
+  markPassedStops,
+  resolveVehicleHeading,
+  routeGeometryPath,
+  routeStopMarkers,
+  splitRouteAtPosition,
+  type TripRouteMarker,
+} from "./gpsHelpers";
 
 // Tuyến thẳng theo kinh độ ở vĩ độ TP.HCM — 0.01 độ lng ~ 1.09 km.
 const route = [
@@ -64,5 +72,234 @@ describe("splitRouteAtPosition", () => {
       traveled: [],
       remaining: [],
     });
+  });
+});
+
+describe("routeGeometryPath", () => {
+  // Shape contract hiện hành: polyline nằm trong geometry.points. Đọc nhầm ở
+  // cấp cao nhất là bản đồ Trung tâm vận hành không vẽ được lộ trình nào.
+  it("đọc polyline tuyến từ geometry.points", () => {
+    expect(
+      routeGeometryPath({
+        tripId: "trip-1",
+        geometry: {
+          source: "ROUTE_POLYLINE",
+          points: [
+            { latitude: 10.77, longitude: 106.7 },
+            { latitude: 10.78, longitude: 106.71 },
+          ],
+        },
+      }),
+    ).toEqual([
+      { lat: 10.77, lng: 106.7 },
+      { lat: 10.78, lng: 106.71 },
+    ]);
+  });
+
+  it("vẫn đọc được shape phẳng cũ của BE", () => {
+    expect(
+      routeGeometryPath({
+        tripId: "trip-1",
+        points: [
+          { latitude: 10.78, longitude: 106.71, orderIndex: 1 },
+          { latitude: 10.77, longitude: 106.7, orderIndex: 0 },
+        ],
+      }),
+    ).toEqual([
+      { lat: 10.77, lng: 106.7 },
+      { lat: 10.78, lng: 106.71 },
+    ]);
+  });
+
+  it("không nối marker thành tuyến giả khi geometry rỗng", () => {
+    expect(
+      routeGeometryPath({
+        tripId: "trip-1",
+        geometry: null,
+        originStation: {
+          stationId: "station-1",
+          name: "Bến A",
+          latitude: 10.77,
+          longitude: 106.7,
+        },
+        destinationStation: {
+          stationId: "station-2",
+          name: "Bến B",
+          latitude: 11.5,
+          longitude: 107.4,
+        },
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("routeStopMarkers", () => {
+  it("xếp bến đi → điểm dừng theo sequence → bến đến", () => {
+    const markers = routeStopMarkers({
+      tripId: "trip-1",
+      geometry: null,
+      originStation: {
+        stationId: "station-1",
+        name: "Bến A",
+        latitude: 10.77,
+        longitude: 106.7,
+      },
+      intermediateStops: [
+        {
+          stopId: "stop-2",
+          name: "Dừng 2",
+          sequence: 2,
+          latitude: 11.0,
+          longitude: 107.0,
+        },
+        {
+          stopId: "stop-1",
+          name: "Dừng 1",
+          sequence: 1,
+          latitude: 10.9,
+          longitude: 106.9,
+        },
+      ],
+      destinationStation: {
+        stationId: "station-2",
+        name: "Bến B",
+        latitude: 11.5,
+        longitude: 107.4,
+      },
+    });
+
+    expect(markers.map((marker) => marker.name)).toEqual([
+      "Bến A",
+      "Dừng 1",
+      "Dừng 2",
+      "Bến B",
+    ]);
+    expect(markers.map((marker) => marker.kind)).toEqual([
+      "origin",
+      "stop",
+      "stop",
+      "destination",
+    ]);
+    expect(markers[0].position).toEqual({ lat: 10.77, lng: 106.7 });
+  });
+
+  it("bỏ qua bến thiếu toạ độ hợp lệ (BE trả null)", () => {
+    expect(
+      routeStopMarkers({
+        tripId: "trip-1",
+        geometry: null,
+        originStation: null,
+        intermediateStops: [],
+        destinationStation: null,
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("bearingBetween", () => {
+  it("trả 90 độ khi đi thẳng về hướng đông", () => {
+    expect(
+      Math.round(
+        bearingBetween({ lat: 10.77, lng: 106.7 }, { lat: 10.77, lng: 106.71 }),
+      ),
+    ).toBe(90);
+  });
+
+  it("trả 0 độ khi đi thẳng lên bắc", () => {
+    expect(
+      Math.round(
+        bearingBetween({ lat: 10.77, lng: 106.7 }, { lat: 10.78, lng: 106.7 }),
+      ),
+    ).toBe(0);
+  });
+
+  it("chuẩn hoá về khoảng 0–360 khi đi hướng tây", () => {
+    const heading = bearingBetween(
+      { lat: 10.77, lng: 106.7 },
+      { lat: 10.77, lng: 106.69 },
+    );
+    expect(Math.round(heading)).toBe(270);
+  });
+});
+
+describe("resolveVehicleHeading", () => {
+  it("ưu tiên headingDeg do thiết bị gửi", () => {
+    expect(
+      resolveVehicleHeading(135, [
+        { latitude: 10.77, longitude: 106.7 },
+        { latitude: 10.77, longitude: 106.69 },
+      ]),
+    ).toBe(135);
+  });
+
+  it("chuẩn hoá headingDeg vượt ngoài 0–360", () => {
+    expect(resolveVehicleHeading(450, [])).toBe(90);
+    expect(resolveVehicleHeading(-90, [])).toBe(270);
+  });
+
+  it("suy hướng từ hai điểm GPS khi thiết bị không gửi", () => {
+    const heading = resolveVehicleHeading(undefined, [
+      { latitude: 10.77, longitude: 106.71 },
+      { latitude: 10.77, longitude: 106.7 },
+    ]);
+    expect(Math.round(heading ?? -1)).toBe(90);
+  });
+
+  it("trả null khi xe gần như đứng yên — marker giữ hướng cũ thay vì quay loạn", () => {
+    expect(
+      resolveVehicleHeading(undefined, [
+        { latitude: 10.77, longitude: 106.7 },
+        // ~1m, dưới ngưỡng nhiễu
+        { latitude: 10.77, longitude: 106.700009 },
+      ]),
+    ).toBeNull();
+  });
+
+  it("lùi về điểm xa hơn trong trail khi điểm liền kề quá sát", () => {
+    const heading = resolveVehicleHeading(undefined, [
+      { latitude: 10.77, longitude: 106.71 },
+      { latitude: 10.77, longitude: 106.709995 },
+      { latitude: 10.77, longitude: 106.7 },
+    ]);
+    expect(Math.round(heading ?? -1)).toBe(90);
+  });
+
+  it("trả null khi chưa có điểm nào", () => {
+    expect(resolveVehicleHeading(undefined, [])).toBeNull();
+  });
+});
+
+describe("markPassedStops", () => {
+  const stops: TripRouteMarker[] = [
+    { id: "a", kind: "origin", name: "Bến A", position: { lat: 10.77, lng: 106.7 } },
+    { id: "b", kind: "stop", name: "Dừng 1", position: { lat: 10.77, lng: 106.71 } },
+    { id: "c", kind: "destination", name: "Bến B", position: { lat: 10.77, lng: 106.72 } },
+  ];
+
+  it("đánh dấu đúng các điểm nằm sau lưng xe", () => {
+    // Xe ở giữa điểm dừng 1 và bến đến
+    const marked = markPassedStops(stops, route, { lat: 10.77, lng: 106.715 });
+    expect(marked.map((stop) => stop.passed)).toEqual([true, true, false]);
+  });
+
+  it("tính bến đi là đã qua khi xe đang đứng ngay tại đó", () => {
+    const marked = markPassedStops(stops, route, { lat: 10.77, lng: 106.7 });
+    expect(marked.map((stop) => stop.passed)).toEqual([true, false, false]);
+  });
+
+  it("không mờ điểm nào khi xe lệch quá xa tuyến", () => {
+    // Cách tuyến ~11km — chiếu lên tuyến không còn ý nghĩa
+    const marked = markPassedStops(stops, route, { lat: 10.87, lng: 106.715 });
+    expect(marked.every((stop) => stop.passed === undefined)).toBe(true);
+  });
+
+  it("không mờ điểm nào khi chưa có vị trí xe", () => {
+    expect(markPassedStops(stops, route, null)).toEqual(stops);
+  });
+
+  it("không mờ điểm nào khi tuyến chưa có đường đi", () => {
+    expect(markPassedStops(stops, [], { lat: 10.77, lng: 106.715 })).toEqual(
+      stops,
+    );
   });
 });

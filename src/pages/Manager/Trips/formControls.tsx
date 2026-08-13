@@ -42,14 +42,16 @@ export function FormSection({
   title,
   columns = 2,
   children,
+  className,
 }: {
   title: string;
   // 1 khi section tự nó đã nằm trong một cột hẹp (tránh chia nhỏ field thêm lần nữa)
   columns?: 1 | 2;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
+    <fieldset className={`rounded-xl border border-gray-200 p-4 ${className ?? ""}`}>
       <legend className="px-1 text-sm font-bold text-gray-900">{title}</legend>
       <div className={`grid gap-4 ${columns === 2 ? "md:grid-cols-2" : ""}`}>
         {children}
@@ -58,46 +60,25 @@ export function FormSection({
   );
 }
 
-type SectionHeaderProps = {
+export function SectionHeader({
+  icon,
+  title,
+  subtitle,
+}: {
   icon: ReactNode;
   title: string;
-  subtitle: string;
-};
-
-export function SectionHeader({ icon, title, subtitle }: SectionHeaderProps) {
+  subtitle?: string;
+}) {
   return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
-        {icon}
-      </div>
-      <div>
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5 shrink-0 text-vr-600">{icon}</div>
+      <div className="min-w-0">
         <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-        <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
+        {subtitle ? <p className="mt-1 text-sm text-gray-500">{subtitle}</p> : null}
       </div>
     </div>
   );
 }
-
-type PanelProps = {
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
-};
-
-export function Panel({ title, icon, children }: PanelProps) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
-        <span className="text-vr-700">{icon}</span>
-        {title}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-// Nhãn field dùng chung — dấu * chỉ là chỉ dấu thị giác, aria-hidden để screen
-// reader đọc theo thuộc tính required của control chứ không đọc "sao".
 export function FieldLabel({
   label,
   required = false,

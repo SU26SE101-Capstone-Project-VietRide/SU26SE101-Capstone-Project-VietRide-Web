@@ -16,7 +16,6 @@ import {
 } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
-import Checkbox from "../../../components/form/Checkbox";
 import { ApiRequestError } from "../../../api/client";
 import {
   inputClass,
@@ -448,22 +447,7 @@ export default function CreateRouteModal({
                 onChange={(value) => updateBasics("baseFare", value)}
                 currency
               />
-              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 transition hover:border-vr-200 hover:bg-vr-50/50">
-                <span>
-                  <span className="block text-sm font-semibold text-gray-900">
-                    {t("routes.activeRoute")}
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                    {t("routes.activeRouteHint")}
-                  </span>
-                </span>
-                <Checkbox
-                  checked={basics.isActive}
-                  onChange={(checked) => updateBasics("isActive", checked)}
-                  aria-label={t("routes.activeRoute")}
-                  size="md"
-                />
-              </label>
+    
             </div>
           </section>
 

@@ -187,20 +187,25 @@ describe("RouteDesignMap", () => {
         marker.id.startsWith("route-option-label-"),
       );
     expect(selected?.opacity).toBe(1);
-    // Cùng tông màu tuyến đang chọn, chỉ giảm độ đậm — không còn tách màu xám riêng
-    expect(dimmed).toMatchObject({ color: "#0f766e", opacity: 0.4 });
+    // Mỗi tuyến chưa chọn có màu riêng và rõ hơn; lớp hit vẫn vô hình.
+    expect(dimmed).toMatchObject({ color: "#c026d3", opacity: 0.78 });
     expect(dimmedHit).toMatchObject({
-      color: "#0f766e",
+      color: "#c026d3",
       opacity: 0,
       weight: 18,
     });
     expect((selected?.zIndex ?? 0) > (dimmed?.zIndex ?? 0)).toBe(true);
     expect(typeof dimmed?.onClick).toBe("function");
     expect(typeof dimmedHit?.onClick).toBe("function");
-    expect(
-      polylines.every((polyline) => polyline.color === "#0f766e"),
-    ).toBe(true);
-    optionLabels?.forEach((label, index) => {
+    expect(new Set(polylines.map((polyline) => polyline.color))).toEqual(
+      new Set(["#0f766e", "#c026d3", "#ea580c"]),
+    );
+    expect(optionLabels?.map((label) => label.id)).toEqual([
+      "route-option-label-1",
+      "route-option-label-2",
+    ]);
+    optionLabels?.forEach((label) => {
+      const index = Number(label.id?.split("-").at(-1));
       expect(label.icon?.strokeColor).toBe(
         polylines.find((polyline) => polyline.id === `route-option-${index}`)
           ?.color,

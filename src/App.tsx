@@ -16,6 +16,8 @@ const ParcelsList = lazy(() => import("./pages/Manager/Parcels/index"));
 const StaffList = lazy(() => import("./pages/Manager/Staff/index"));
 const VehiclesList = lazy(() => import("./pages/Manager/Vehicles/index"));
 const RoutesList = lazy(() => import("./pages/Manager/Routes/index"));
+const ManagerStations = lazy(() => import("./pages/Manager/Stations/index"));
+const ManagerRouteManagement = lazy(() => import("./pages/Manager/RouteManagement/index"));
 const OperationsCenter = lazy(() => import("./pages/Manager/Operations/index"));
 const DispatchPanel = lazy(() => import("./pages/Manager/Dispatch/index"));
 const ManagerIncidents = lazy(() => import("./pages/Manager/Incidents/index"));
@@ -114,6 +116,8 @@ export default function App() {
                 <Route path="dashboard" element={<ManagerDashboard />} />
                 <Route path="trips" element={<TripsList />} />
                 <Route path="routes" element={<RoutesList />} />
+                <Route path="stations" element={<ManagerStations />} />
+                <Route path="route-management" element={<ManagerRouteManagement />} />
                 <Route path="vehicles" element={<VehiclesList />} />
                 {/* Màn Capacity cũ đã gộp vào màn Vehicles */}
                 <Route

@@ -11,7 +11,6 @@ vi.mock("react-i18next", () => ({
 
 const schedule: TripSchedule = {
   id: "schedule-1",
-  code: "TRIP-001",
   status: "open",
   routeId: "route-1",
   routeName: "Hồ Chí Minh - Đà Lạt",

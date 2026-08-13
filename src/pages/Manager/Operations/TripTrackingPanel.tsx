@@ -139,9 +139,11 @@ export default function TripTrackingPanel({
           <span>
             {routeGeometryStatus === "loading"
               ? t("operations.routeGeometryLoading")
-              : routeGeometryStatus === "empty"
-                ? t("operations.routeGeometryEmpty")
-                : t("operations.routeGeometryError")}
+              : routeGeometryStatus === "estimated"
+                ? t("operations.routeGeometryEstimated")
+                : routeGeometryStatus === "empty"
+                  ? t("operations.routeGeometryEmpty")
+                  : t("operations.routeGeometryError")}
           </span>
         </div>
       )}

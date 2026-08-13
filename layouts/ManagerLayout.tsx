@@ -17,28 +17,21 @@ function ManagerLayoutContent() {
     authUser?.role === "OPERATOR_ADMIN" ? "OPERATOR_ADMIN" : "OPERATOR_STAFF";
 
   return (
-    <div className="flex h-screen bg-white">
+    <div className="flex h-dvh min-h-0 min-w-0 overflow-hidden bg-white">
       <Sidebar
         role={role}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           userName={t("layout.managerDashboard")}
         />
 
-        {/*
-          `relative` bắt buộc: main là vùng cuộn duy nhất của content. Không có
-          nó, mọi element `position: absolute` trong page (vd class `sr-only`
-          của Tailwind) lấy containing block là viewport nên KHÔNG bị
-          overflow-auto cắt — chúng kéo dài chiều cao document và đẻ ra thanh
-          cuộn thứ hai của cả cửa sổ trình duyệt.
-        */}
-        <main className="relative flex-1 overflow-auto bg-gray-50">
-          <div className="p-6">
+        <main className="min-h-0 min-w-0 flex-1 overflow-auto bg-gray-50">
+          <div className="min-w-0 p-6">
             {isLoading ? (
               <p className="text-sm text-gray-500">
                 {t("common:pageLoading")}

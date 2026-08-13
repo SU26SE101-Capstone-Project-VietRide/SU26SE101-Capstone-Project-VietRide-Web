@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import {
   loadGoogleMapsLibrary,
   type GoogleCircleInstance,
+  type GoogleInfoWindowInstance,
   type GoogleMapCoordinate,
   type GoogleMapInstance,
   type GoogleMapsEventListener,
@@ -57,11 +58,18 @@ export type GoogleMapPointMarker = {
     fillColor?: string;
     fillOpacity?: number;
     path: string;
+    /** Độ, thuận chiều kim đồng hồ từ hướng bắc. Dùng cho marker xe xoay theo hướng chạy. */
+    rotation?: number;
     scale?: number;
     strokeColor?: string;
+    strokeOpacity?: number;
     strokeWeight?: number;
   };
   id: string;
+  // Nội dung InfoWindow mở khi hover/click marker — giống marker vòng tròn.
+  // Không truyền thì marker chỉ có tooltip native của `title`.
+  infoDescription?: string[];
+  infoTitle?: string;
   label?: {
     color?: string;
     fontSize?: string;
@@ -98,6 +106,10 @@ type GoogleMapCanvasProps = {
   // bản đồ + addListener mousemove/mouseup cho kéo nắn tuỳ chỉnh). Gọi 1 lần khi
   // bản đồ sẵn sàng — caller giữ trong ref, KHÔNG setState từ callback này.
   onMapReady?: (map: GoogleMapInstance) => void;
+  // Mức zoom hiện tại của bản đồ, phát khi người dùng zoom. Caller dùng để co
+  // giãn marker theo zoom. Truyền hàm ỔN ĐỊNH (useCallback) — đổi identity mỗi
+  // render sẽ gỡ + gắn lại listener liên tục.
+  onZoomChanged?: (zoom: number) => void;
   pointMarkers?: GoogleMapPointMarker[];
   polylines?: GoogleMapPolyline[];
   /** Safe caller-owned copy instead of exposing loader/config details to users. */
@@ -116,7 +128,10 @@ type ReadyMap = {
 
 const defaultClassName = "h-full min-h-60 w-full";
 
-function buildInfoContent(marker: GoogleMapMarker) {
+function buildInfoContent(marker: {
+  description?: string[];
+  title?: string;
+}) {
   const wrapper = document.createElement("div");
   wrapper.className = "min-w-40 py-1";
 
@@ -149,6 +164,7 @@ function clearPolylines(polylines: GooglePolylineInstance[]) {
 // listener bind một lần + data mới nhất để dispatcher gọi đúng callback hiện tại
 type PooledPointMarker = {
   data: GoogleMapPointMarker;
+  iconKey: string;
   listeners: Array<GoogleMapsEventListener | undefined>;
   overlay: GoogleMarkerInstance;
   positionKey: string;
@@ -157,16 +173,30 @@ type PooledPointMarker = {
 
 // Khóa "hình dạng" của marker — đổi khóa này mới phải gỡ + vẽ lại instance;
 // KHÔNG gồm position (dời tại chỗ bằng setPosition) và callback (đọc qua data)
+// Marker chỉ có InfoWindow (không onClick) vẫn phải clickable — clickable:false
+// tắt luôn cả mouseover nên sẽ không bao giờ mở được thẻ thông tin
+function isPointMarkerClickable(marker: GoogleMapPointMarker) {
+  return Boolean(
+    marker.onClick || marker.infoTitle || marker.infoDescription?.length,
+  );
+}
+
 function buildPointMarkerStyleKey(marker: GoogleMapPointMarker) {
   return JSON.stringify({
-    clickable: Boolean(marker.onClick),
+    clickable: isPointMarkerClickable(marker),
     cursor: marker.cursor,
     draggable: marker.draggable,
-    icon: marker.icon,
     label: marker.label,
     title: marker.title,
     zIndex: marker.zIndex,
   });
+}
+
+// `icon` tách khỏi styleKey vì marker xe đổi icon liên tục (xoay theo hướng
+// chạy, co theo mức zoom). Nằm trong styleKey thì mỗi điểm GPS lại gỡ + vẽ lại
+// marker: xe nháy và InfoWindow đang mở bị đóng.
+function buildPointMarkerIconKey(marker: GoogleMapPointMarker) {
+  return JSON.stringify(marker.icon ?? null);
 }
 
 function removePooledPointMarker(entry: PooledPointMarker) {
@@ -187,6 +217,7 @@ export default function GoogleMapCanvas({
   markers = [],
   onMapClick,
   onMapReady,
+  onZoomChanged,
   pointMarkers = [],
   polylines = [],
   errorFallback,
@@ -210,6 +241,10 @@ export default function GoogleMapCanvas({
   const onMapReadyRef = useRef(onMapReady);
   // Pool marker Symbol theo id — reconcile thay vì gỡ + vẽ lại toàn bộ
   const pointMarkerPoolRef = useRef(new Map<string, PooledPointMarker>());
+  // InfoWindow dùng chung cho marker Symbol — tạo LƯỜI một lần và giữ qua các
+  // lượt reconcile (effect chạy lại mỗi khi mảng marker đổi, tạo mới mỗi lượt
+  // là rò overlay)
+  const pointInfoWindowRef = useRef<GoogleInfoWindowInstance | null>(null);
   // OverlayView neo card tuỳ ý (popup gợi ý điểm dừng) — tạo LƯỜI một lần khi
   // thực sự cần (có cả anchorPosition lẫn anchorContent), giữ instance qua ref
   // để đổi vị trí/nội dung không phải gỡ + vẽ lại toàn bộ overlay
@@ -384,6 +419,28 @@ export default function GoogleMapCanvas({
     };
   }, [onMapClick, readyMap]);
 
+  // Mức zoom hiện tại đẩy ngược lên caller để marker co/giãn theo. Không có nó
+  // thì icon giữ nguyên kích thước pixel ở mọi mức zoom: zoom rộng cả đội xe
+  // chồng lên nhau che mất bản đồ, zoom sát thì xe lại quá nhỏ so với con đường.
+  useEffect(() => {
+    if (!readyMap || !onZoomChanged) {
+      return;
+    }
+
+    const emit = () => {
+      const nextZoom = readyMap.instance.getZoom?.();
+      if (typeof nextZoom === "number") {
+        onZoomChanged(nextZoom);
+      }
+    };
+
+    emit();
+    const listener = readyMap.instance.addListener("zoom_changed", emit);
+    return () => {
+      listener?.remove();
+    };
+  }, [onZoomChanged, readyMap]);
+
   useEffect(() => {
     if (!readyMap) {
       return;
@@ -500,15 +557,18 @@ export default function GoogleMapCanvas({
     pointMarkers.forEach((marker) => {
       seenIds.add(marker.id);
       const styleKey = buildPointMarkerStyleKey(marker);
+      const iconKey = buildPointMarkerIconKey(marker);
       const positionKey = `${marker.position.lat},${marker.position.lng}`;
       let entry = pool.get(marker.id);
 
-      // Hình dạng đổi (icon/label/draggable...) → buộc phải vẽ lại instance.
-      // Vị trí đổi mà instance không hỗ trợ setPosition (mock cũ) cũng vẽ lại.
+      // Hình dạng đổi (label/draggable/zIndex...) → buộc phải vẽ lại instance.
+      // Vị trí hoặc icon đổi mà instance không hỗ trợ setter tại chỗ (mock cũ)
+      // cũng vẽ lại.
       if (
         entry &&
         (entry.styleKey !== styleKey ||
-          (entry.positionKey !== positionKey && !entry.overlay.setPosition))
+          (entry.positionKey !== positionKey && !entry.overlay.setPosition) ||
+          (entry.iconKey !== iconKey && !entry.overlay.setIcon))
       ) {
         removePooledPointMarker(entry);
         pool.delete(marker.id);
@@ -521,13 +581,17 @@ export default function GoogleMapCanvas({
           entry.overlay.setPosition?.(marker.position);
           entry.positionKey = positionKey;
         }
+        if (entry.iconKey !== iconKey && marker.icon) {
+          entry.overlay.setIcon?.(marker.icon);
+          entry.iconKey = iconKey;
+        }
         // Handler đọc qua entry.data nên chỉ cần cập nhật data, không rebind
         entry.data = marker;
         return;
       }
 
       const overlay = new MarkerClass({
-        clickable: Boolean(marker.onClick),
+        clickable: isPointMarkerClickable(marker),
         cursor: marker.cursor,
         draggable: marker.draggable,
         icon: marker.icon,
@@ -539,6 +603,7 @@ export default function GoogleMapCanvas({
       });
       const nextEntry: PooledPointMarker = {
         data: marker,
+        iconKey,
         listeners: [],
         overlay,
         positionKey,
@@ -546,8 +611,29 @@ export default function GoogleMapCanvas({
       };
       // Listener bind MỘT lần khi tạo, dispatch qua entry.data để luôn gọi
       // callback của render mới nhất mà không phải gỡ/gắn lại listener mỗi render
+      const showInfo = () => {
+        const { infoDescription, infoTitle } = nextEntry.data;
+        if (!infoTitle && !infoDescription?.length) {
+          return;
+        }
+
+        const infoWindow = (pointInfoWindowRef.current ??=
+          new readyMap.library.InfoWindow());
+        infoWindow.setContent(
+          buildInfoContent({
+            description: infoDescription,
+            title: infoTitle,
+          }),
+        );
+        infoWindow.setPosition(nextEntry.data.position);
+        infoWindow.open({ map: readyMap.instance });
+      };
       nextEntry.listeners = [
-        overlay.addListener("click", () => nextEntry.data.onClick?.()),
+        overlay.addListener("mouseover", showInfo),
+        overlay.addListener("click", () => {
+          showInfo();
+          nextEntry.data.onClick?.();
+        }),
         overlay.addListener("drag", (event) => {
           if (event?.latLng) {
             nextEntry.data.onDrag?.({
@@ -584,6 +670,8 @@ export default function GoogleMapCanvas({
     return () => {
       pool.forEach((entry) => removePooledPointMarker(entry));
       pool.clear();
+      pointInfoWindowRef.current?.close();
+      pointInfoWindowRef.current = null;
     };
   }, []);
 
@@ -684,11 +772,15 @@ export default function GoogleMapCanvas({
           {errorFallback ?? error}
         </div>
       )}
-      {readyMap && markers.length === 0 && polylines.length === 0 && emptyState && (
-        <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-center text-xs text-gray-600 shadow-sm">
-          {emptyState}
-        </div>
-      )}
+      {readyMap &&
+        markers.length === 0 &&
+        pointMarkers.length === 0 &&
+        polylines.length === 0 &&
+        emptyState && (
+          <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-center text-xs text-gray-600 shadow-sm">
+            {emptyState}
+          </div>
+        )}
       {anchorContainer &&
         anchorPosition &&
         anchorContent &&

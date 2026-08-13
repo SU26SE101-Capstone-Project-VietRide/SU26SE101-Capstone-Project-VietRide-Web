@@ -18,6 +18,7 @@ export type VehicleOption = {
   id: string;
   plate: string;
   vehicleType: string;
+  vehicleTypeId?: string;
   seats: number;
   status: ResourceStatus;
 };
@@ -52,7 +53,6 @@ export type ScheduleForm = {
 
 export type TripSchedule = ScheduleForm & {
   id: string;
-  code: string;
   status: ScheduleStatus;
   routeName?: string;
   vehiclePlate?: string;

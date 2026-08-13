@@ -54,6 +54,16 @@ const operatorAdminMenuConfig: MenuSection[] = [
         icon: <FiNavigation />,
       },
       {
+        labelKey: "manager.routeManagement",
+        path: "/manager/route-management",
+        icon: <FiMap />,
+      },
+      {
+        labelKey: "manager.stations",
+        path: "/manager/stations",
+        icon: <FiMapPin />,
+      },
+      {
         labelKey: "manager.vehicles",
         path: "/manager/vehicles",
         icon: <FiTruck />,
@@ -135,6 +145,16 @@ const operatorStaffMenuConfig: MenuSection[] = [
         labelKey: "manager.routes",
         path: "/manager/routes",
         icon: <FiNavigation />,
+      },
+      {
+        labelKey: "manager.routeManagement",
+        path: "/manager/route-management",
+        icon: <FiMap />,
+      },
+      {
+        labelKey: "manager.stations",
+        path: "/manager/stations",
+        icon: <FiMapPin />,
       },
       {
         labelKey: "manager.vehicles",

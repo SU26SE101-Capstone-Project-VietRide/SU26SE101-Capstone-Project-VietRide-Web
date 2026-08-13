@@ -1,7 +1,7 @@
-// Panel quản lý bến: chọn bến sẵn có / tìm và tạo bến mới rồi gắn vào tuyến.
+// Panel quản lý bến: tìm địa điểm, tạo bến mới và tự động gắn vào tuyến.
 // Nội dung này được hiển thị bên trong StationManagementModal (luôn mở, không collapse).
 import { useTranslation } from "react-i18next";
-import { FiCheckCircle, FiMapPin } from "react-icons/fi";
+import { FiMapPin } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import Checkbox from "../../../components/form/Checkbox";
 import PlacePicker, {
@@ -10,13 +10,11 @@ import PlacePicker, {
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import type { AdminLocation } from "../../../api/vietride";
 import type { UseStationManagementResult } from "./useStationManagement";
-import type { StationOption, StationRouteRole } from "./types";
-import StationSearchBox from "./StationSearchBox";
+import type { StationRouteRole } from "./types";
 import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 
 type StationManagementPanelProps = {
   canManageRoutes: boolean;
-  stations: StationOption[];
   locations: AdminLocation[];
   manager: UseStationManagementResult;
   onRunAction: (action: () => Promise<void>) => void;
@@ -56,7 +54,6 @@ function findMatchingProvinceCode(
 
 export default function StationManagementPanel({
   canManageRoutes,
-  stations,
   locations,
   manager,
   onRunAction,
@@ -69,55 +66,6 @@ export default function StationManagementPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-gray-200 p-4">
-        <p className="text-sm font-bold text-gray-900">
-          {t("routes.stationExistingTitle")}
-        </p>
-        <div className="mt-3 space-y-3">
-          <StationSearchBox
-            selectedStation={
-              stations.find(
-                (station) => station.id === manager.selectedStationId,
-              ) ?? null
-            }
-            onClear={() => manager.handleSelectStation("")}
-            onSelect={manager.handleSelectStationResult}
-          />
-          {canManageRoutes && (
-            <>
-              {!hasSelectedRoute && (
-                <CustomSelect
-                  className={inputClass}
-                  value={manager.stationRouteRole}
-                  onChange={(event) =>
-                    manager.setStationRouteRole(
-                      event.target.value as StationRouteRole,
-                    )
-                  }
-                >
-                  <option value="">{t("routes.stationRouteRoleNone")}</option>
-                  <option value="origin">{t("routes.useAsOrigin")}</option>
-                  <option value="destination">
-                    {t("routes.useAsDestination")}
-                  </option>
-                </CustomSelect>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onRunAction(manager.handleAttachStation)}
-                  disabled={!manager.selectedStationId}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:opacity-50"
-                >
-                  <FiCheckCircle size={16} />
-                  {t("routes.attachStation")}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
       {canManageRoutes && (
         <div className="rounded-lg border border-gray-200 p-4">
           <p className="text-sm font-bold text-gray-900">
@@ -228,18 +176,26 @@ export default function StationManagementPanel({
                 </label>}
               </>
             )}
+            {!hasSelectedRoute && (
+              <CustomSelect className={inputClass} value={manager.stationRouteRole} onChange={(event) => manager.setStationRouteRole(event.target.value as StationRouteRole)}>
+                <option value="">{t("routes.stationRouteRoleNone")}</option>
+                <option value="origin">{t("routes.useAsOrigin")}</option>
+                <option value="destination">{t("routes.useAsDestination")}</option>
+              </CustomSelect>
+            )}
             <button
               type="button"
               onClick={() => onRunAction(manager.handleCreateAndAttachStation)}
               disabled={
-                !manager.stationPlaceDraft ||
-                Boolean(manager.selectedStationId) ||
-                !manager.selectedLocationId
+                !manager.selectedStationPlace ||
+                (!manager.selectedStationId && !manager.selectedLocationId)
               }
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:opacity-50"
             >
               <FiMapPin size={16} />
-              {t("routes.createAndAttachStation")}
+              {manager.selectedStationId
+                ? t("routes.attachStation")
+                : t("routes.createAndAttachStation")}
             </button>
           </div>
         </div>

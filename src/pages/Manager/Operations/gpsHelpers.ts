@@ -2,10 +2,14 @@ import type {
   FleetLatestItem,
   OperatorTripListItem,
   TripRouteGeometry,
+  TripRouteGeometryPoint,
 } from "../../../api/vietride";
 import type { FleetVehicleMapPoint } from "./FleetMap";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
+import { decodeGooglePolyline } from "../../../lib/googlePolyline";
 import { isRecord } from "../../../utils/typeGuards";
+
+export { decodeGooglePolyline };
 
 export type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
 
@@ -14,10 +18,14 @@ export type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
  * null nên khi BE không trả về lộ trình, bản đồ lặng lẽ không vẽ gì và người
  * dùng không phân biệt được "chưa tải xong" với "tuyến này không có dữ liệu".
  */
+// "estimated" = tuyến chưa lưu polyline nên đường trên bản đồ do client tự tính
+// lại theo đường bộ qua bến/điểm dừng (Google Routes) — vẫn là đường thật, nhưng
+// không phải lộ trình đã duyệt nên phải nói rõ cho điều độ viên.
 export type RouteGeometryStatus =
   | "idle"
   | "loading"
   | "ready"
+  | "estimated"
   | "empty"
   | "error";
 
@@ -87,6 +95,9 @@ export function buildFleetVehicles(
       position: location
         ? { lat: location.latitude, lng: location.longitude }
         : null,
+      // Lượt tải đầu chưa có điểm trước để suy hướng — chỉ dùng được hướng do
+      // thiết bị gửi. Các điểm GPS sau đó sẽ tự suy ra trong applyFleetGpsUpdate.
+      headingDeg: location?.headingDeg ?? null,
     } satisfies FleetVehicleMapPoint;
   });
 }
@@ -97,62 +108,58 @@ export function applyFleetGpsUpdate(
   current: FleetVehicleMapPoint[],
   event: FleetLatestItem,
 ): FleetVehicleMapPoint[] {
-  return current.map((vehicle) =>
-    vehicle.id === event.tripId
-      ? {
-          ...vehicle,
-          position: { lat: event.latitude, lng: event.longitude },
-          speedKmh: event.speedKmh ?? null,
-          status: resolveFleetStatus(event.status, event),
-        }
-      : vehicle,
-  );
+  return current.map((vehicle) => {
+    if (vehicle.id !== event.tripId) return vehicle;
+
+    const nextPosition = { lat: event.latitude, lng: event.longitude };
+    return {
+      ...vehicle,
+      position: nextPosition,
+      speedKmh: event.speedKmh ?? null,
+      status: resolveFleetStatus(event.status, event),
+      // Thiết bị không gửi hướng thì suy từ đoạn vừa đi. Giữ hướng cũ khi xe
+      // gần như đứng yên — nếu không marker sẽ quay loạn theo nhiễu GPS.
+      headingDeg:
+        resolveVehicleHeading(event.headingDeg, [
+          { latitude: event.latitude, longitude: event.longitude },
+          ...(vehicle.position
+            ? [
+                {
+                  latitude: vehicle.position.lat,
+                  longitude: vehicle.position.lng,
+                },
+              ]
+            : []),
+        ]) ?? vehicle.headingDeg ?? null,
+    };
+  });
 }
 
-// Lưu ý: bản decode polyline này trùng logic với `Manager/Routes/polyline.ts`
-// nhưng khác kiểu trả về (GoogleMapCoordinate vs RouteCoordinate) — chủ đích
-// giữ 2 bản riêng theo module, chưa hợp nhất trong đợt refactor này.
-export function decodeGooglePolyline(encoded: string): GoogleMapCoordinate[] {
-  const coordinates: GoogleMapCoordinate[] = [];
-  let index = 0;
-  let latitude = 0;
-  let longitude = 0;
-
-  while (index < encoded.length) {
-    let result = 0;
-    let shift = 0;
-    let byte: number;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20 && index < encoded.length);
-    latitude += result & 1 ? ~(result >> 1) : result >> 1;
-
-    result = 0;
-    shift = 0;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20 && index < encoded.length);
-    longitude += result & 1 ? ~(result >> 1) : result >> 1;
-
-    coordinates.push({ lat: latitude / 1e5, lng: longitude / 1e5 });
-  }
-
-  return coordinates;
+function orderedPoints(points: TripRouteGeometryPoint[]): GoogleMapCoordinate[] {
+  return [...points]
+    .sort((left, right) => (left.orderIndex ?? 0) - (right.orderIndex ?? 0))
+    .map((point) => ({ lat: point.latitude, lng: point.longitude }));
 }
 
+/**
+ * Polyline THẬT của tuyến (bám đường bộ) từ response route-geometry.
+ *
+ * Contract hiện hành trả polyline trong `geometry.points` và `geometry: null`
+ * khi tuyến chưa lưu đường; trước đây hàm này chỉ đọc shape phẳng cũ nên bản đồ
+ * Trung tâm vận hành không bao giờ vẽ được lộ trình. Các nhánh phía sau giữ lại
+ * shape cũ để không vỡ trong lúc BE rolling deploy.
+ */
 export function routeGeometryPath(
   geometry: TripRouteGeometry | null,
 ): GoogleMapCoordinate[] {
   if (!geometry) return [];
 
+  if (geometry.geometry?.points?.length) {
+    return orderedPoints(geometry.geometry.points);
+  }
+
   if (geometry.points?.length) {
-    return [...geometry.points]
-      .sort((left, right) => (left.orderIndex ?? 0) - (right.orderIndex ?? 0))
-      .map((point) => ({ lat: point.latitude, lng: point.longitude }));
+    return orderedPoints(geometry.points);
   }
 
   const geoJson = geometry.geoJson;
@@ -167,6 +174,62 @@ export function routeGeometryPath(
   }
 
   return geometry.encodedPolyline ? decodeGooglePolyline(geometry.encodedPolyline) : [];
+}
+
+export type TripRouteMarkerKind = "origin" | "stop" | "destination";
+
+export type TripRouteMarker = {
+  id: string;
+  kind: TripRouteMarkerKind;
+  name: string;
+  /** true = xe đã chạy qua điểm này. Marker mờ đi nhưng vẫn nổi hơn polyline. */
+  passed?: boolean;
+  position: GoogleMapCoordinate;
+};
+
+/**
+ * Chuỗi điểm của tuyến theo đúng thứ tự chạy: bến đi → các điểm dừng (theo
+ * sequence) → bến đến. Vừa là marker trên bản đồ, vừa là waypoint để tính lại
+ * đường bộ khi tuyến chưa lưu polyline.
+ */
+export function routeStopMarkers(
+  geometry: TripRouteGeometry | null,
+): TripRouteMarker[] {
+  if (!geometry) return [];
+
+  const markers: TripRouteMarker[] = [];
+  const origin = geometry.originStation;
+  if (origin) {
+    markers.push({
+      id: `origin-${origin.stationId}`,
+      kind: "origin",
+      name: origin.name,
+      position: { lat: origin.latitude, lng: origin.longitude },
+    });
+  }
+
+  [...(geometry.intermediateStops ?? [])]
+    .sort((left, right) => left.sequence - right.sequence)
+    .forEach((stop) => {
+      markers.push({
+        id: `stop-${stop.stopId}`,
+        kind: "stop",
+        name: stop.name,
+        position: { lat: stop.latitude, lng: stop.longitude },
+      });
+    });
+
+  const destination = geometry.destinationStation;
+  if (destination) {
+    markers.push({
+      id: `destination-${destination.stationId}`,
+      kind: "destination",
+      name: destination.name,
+      position: { lat: destination.latitude, lng: destination.longitude },
+    });
+  }
+
+  return markers;
 }
 
 // Xe lệch quá xa lộ trình thì việc "chiếu" lên tuyến không còn ý nghĩa (đi sai
@@ -261,6 +324,137 @@ export function splitRouteAtPosition(
     traveled: [...routePath.slice(0, best.index + 1), best.point],
     remaining: [best.point, ...routePath.slice(best.index + 1)],
   };
+}
+
+/**
+ * Hướng đi (độ, thuận chiều kim đồng hồ từ bắc) giữa hai toạ độ. Dùng để xoay
+ * marker xe khi thiết bị tài xế không gửi `headingDeg`.
+ */
+export function bearingBetween(
+  from: GoogleMapCoordinate,
+  to: GoogleMapCoordinate,
+): number {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const deltaLng = toRad(to.lng - from.lng);
+  const fromLat = toRad(from.lat);
+  const toLat = toRad(to.lat);
+  const y = Math.sin(deltaLng) * Math.cos(toLat);
+  const x =
+    Math.cos(fromLat) * Math.sin(toLat) -
+    Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLng);
+  const degrees = (Math.atan2(y, x) * 180) / Math.PI;
+  return (degrees + 360) % 360;
+}
+
+// Hai điểm GPS quá sát nhau thì hướng tính ra chỉ là nhiễu — xe đứng yên sẽ
+// quay mòng mòng. Dưới ngưỡng này giữ nguyên hướng cũ.
+const MIN_HEADING_DISTANCE_METERS = 8;
+
+function planarDistanceMeters(
+  from: GoogleMapCoordinate,
+  to: GoogleMapCoordinate,
+) {
+  const lngScale = Math.cos((from.lat * Math.PI) / 180) || 1;
+  const dx = (to.lng - from.lng) * lngScale;
+  const dy = to.lat - from.lat;
+  return Math.sqrt(dx * dx + dy * dy) * METERS_PER_LAT_DEGREE;
+}
+
+/**
+ * Hướng xoay của marker xe. Ưu tiên `headingDeg` do thiết bị gửi; thiếu thì suy
+ * từ hai điểm GPS gần nhất. `trail` xếp mới nhất trước.
+ *
+ * Trả null khi không đủ dữ kiện — caller giữ nguyên hướng đang hiển thị thay vì
+ * bẻ marker về hướng bắc.
+ */
+export function resolveVehicleHeading(
+  headingDeg: number | null | undefined,
+  trail: Array<{ latitude: number; longitude: number }>,
+): number | null {
+  if (typeof headingDeg === "number" && Number.isFinite(headingDeg)) {
+    return ((headingDeg % 360) + 360) % 360;
+  }
+
+  const newest = trail[0];
+  if (!newest) return null;
+
+  const current = { lat: newest.latitude, lng: newest.longitude };
+  // Lùi dần về quá khứ tới khi đủ xa để hướng có nghĩa
+  for (let index = 1; index < trail.length; index += 1) {
+    const previous = {
+      lat: trail[index].latitude,
+      lng: trail[index].longitude,
+    };
+    if (planarDistanceMeters(previous, current) >= MIN_HEADING_DISTANCE_METERS) {
+      return bearingBetween(previous, current);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Quãng đường dọc theo tuyến tính từ đầu tuyến tới điểm chiếu của `point`, kèm
+ * khoảng lệch khỏi tuyến. Dùng để so tiến độ của xe với vị trí từng điểm dừng.
+ */
+function alongRouteMeters(
+  routePath: GoogleMapCoordinate[],
+  point: GoogleMapCoordinate,
+): { alongMeters: number; offRouteMeters: number } | null {
+  if (routePath.length < 2) return null;
+
+  let cumulative = 0;
+  let bestOffRoute = Number.POSITIVE_INFINITY;
+  let bestAlong = 0;
+
+  for (let index = 0; index < routePath.length - 1; index += 1) {
+    const start = routePath[index];
+    const end = routePath[index + 1];
+    const projection = projectOnSegment(point, start, end);
+    if (projection.distanceMeters < bestOffRoute) {
+      bestOffRoute = projection.distanceMeters;
+      bestAlong = cumulative + projection.ratio * planarDistanceMeters(start, end);
+    }
+    cumulative += planarDistanceMeters(start, end);
+  }
+
+  return { alongMeters: bestAlong, offRouteMeters: bestOffRoute };
+}
+
+// Xe đang đỗ ngay tại bến vẫn tính là đã tới nơi — GPS lệch vài chục mét không
+// được làm điểm dừng nhấp nháy giữa "đã qua" và "chưa qua".
+const STOP_REACHED_TOLERANCE_METERS = 60;
+
+/**
+ * Đánh dấu điểm dừng nào xe đã chạy qua, so theo quãng đường dọc tuyến chứ
+ * không theo khoảng cách đường chim bay tới xe — tuyến có đoạn quay đầu thì
+ * khoảng cách thẳng cho kết quả sai.
+ *
+ * Không xác định được tiến độ (chưa có vị trí xe, chưa có tuyến, hoặc xe lệch
+ * quá xa tuyến) thì trả nguyên danh sách: thà không mờ điểm nào còn hơn mờ nhầm.
+ */
+export function markPassedStops(
+  stops: TripRouteMarker[],
+  routePath: GoogleMapCoordinate[],
+  vehiclePosition: GoogleMapCoordinate | null,
+): TripRouteMarker[] {
+  if (!vehiclePosition || routePath.length < 2) return stops;
+
+  const vehicle = alongRouteMeters(routePath, vehiclePosition);
+  if (!vehicle || vehicle.offRouteMeters > OFF_ROUTE_THRESHOLD_METERS) {
+    return stops;
+  }
+
+  return stops.map((stop) => {
+    const projected = alongRouteMeters(routePath, stop.position);
+    if (!projected) return stop;
+    return {
+      ...stop,
+      passed:
+        projected.alongMeters <=
+        vehicle.alongMeters + STOP_REACHED_TOLERANCE_METERS,
+    };
+  });
 }
 
 export function statusLabel(s: FleetStatus, t: (key: string) => string) {

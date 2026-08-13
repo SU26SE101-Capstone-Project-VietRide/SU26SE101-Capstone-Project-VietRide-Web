@@ -3240,8 +3240,36 @@ export type TripRouteGeometryPoint = {
   orderIndex?: number;
 };
 
+// Bến đầu/cuối kèm theo lộ trình — dùng vẽ marker và làm waypoint tính đường
+export type TripRouteGeometryStation = {
+  stationId: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type TripRouteGeometryStop = {
+  stopId: string;
+  name: string;
+  sequence: number;
+  latitude: number;
+  longitude: number;
+};
+
 export type TripRouteGeometry = {
   tripId: string;
+  tripStatus?: string;
+  // Shape theo contract hiện hành: polyline THẬT của tuyến nằm trong
+  // `geometry.points`; `geometry: null` nghĩa là tuyến chưa lưu polyline —
+  // client KHÔNG được nối các marker bên dưới thành tuyến giả (đường chim bay).
+  geometry?: {
+    source: "ROUTE_POLYLINE";
+    points: TripRouteGeometryPoint[];
+  } | null;
+  originStation?: TripRouteGeometryStation | null;
+  intermediateStops?: TripRouteGeometryStop[];
+  destinationStation?: TripRouteGeometryStation | null;
+  // Shape phẳng cũ (BE trước contract mới) — vẫn đọc được để không vỡ khi rolling deploy
   encodedPolyline?: string;
   geoJson?: unknown;
   points?: TripRouteGeometryPoint[];
@@ -3367,6 +3395,8 @@ export type OperatorDriverScheduleParams = PageParams & {
   routeId?: string;
   driverUserId?: string;
   isActive?: boolean;
+  vehicleTypeId?: string;
+  isOneTime?: boolean;
 };
 
 export type DriverScheduleItem = OperatorDriverSchedule & {
@@ -4141,6 +4171,10 @@ export function createOperatorStation(request: OperatorStationRequest) {
     method: "POST",
     body: request,
   });
+}
+
+export function attachOperatorStation(stationId: string) {
+  return createOperatorStation({ stationId });
 }
 
 export function getOperatorStations(params: PageParams = {}) {
@@ -5393,8 +5427,13 @@ export function getRagFeedback(params: PageParams = {}) {
 }
 
 export function getRagDocuments(params: RagDocumentParams = {}) {
+  // Endpoint này nhận từ khoá qua `q`, không phải `search` như các list khác.
+  // Zod schema của service RAG strip key lạ nên gửi `search` không lỗi — nó chỉ
+  // bị bỏ qua, ô tìm kiếm trông như hỏng. Đổi tên ngay tại tầng API để page
+  // vẫn dùng chung tên `search` với phần còn lại của app.
+  const { search, ...rest } = params;
   return apiRequest<PagedResult<RagDocument>>(
-    `/v1/rag/documents${buildQuery(params)}`,
+    `/v1/rag/documents${buildQuery({ ...rest, ...(search ? { q: search } : {}) })}`,
   );
 }
 

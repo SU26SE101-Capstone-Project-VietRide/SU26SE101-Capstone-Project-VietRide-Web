@@ -105,7 +105,7 @@ describe("TripsPage", () => {
           operatorId: "operator-1",
           vehicleTypeId: "type-1",
           licensePlate: "51B-123.45",
-          totalSeats: 40,
+          totalSeats: 16,
           maxCargoWeightKg: 1_000,
           status: "ACTIVE",
         },
@@ -118,7 +118,7 @@ describe("TripsPage", () => {
       hasPreviousPage: false,
     });
     vi.mocked(getVehicleTypes).mockResolvedValue({
-      items: [{ id: "type-1", code: "SLEEPER", displayName: "Xe giường nằm", defaultSeatCount: 40, estimatedPassengerLuggageKgPerSeat: 10, isSystemDefined: true, isActive: true }],
+      items: [{ id: "type-1", code: "SHUTTLE_16_SEAT", displayName: "Xe trung chuyển 16 chỗ", defaultSeatCount: 16, estimatedPassengerLuggageKgPerSeat: 10, isSystemDefined: true, isActive: true }],
       page: 1,
       pageSize: 100,
       totalItems: 1,
@@ -276,21 +276,22 @@ describe("TripsPage", () => {
 
     renderPage();
 
-    // 3 thẻ danh mục hiện số từ cache ngay, không skeleton
-    for (const labelKey of [
-      "trips.activeRoutes",
-      "trips.availableVehicles",
-      "trips.availableDrivers",
-    ]) {
-      const card = screen.getByText(labelKey).parentElement?.parentElement?.parentElement as HTMLElement;
-      expect(within(card).getByText("1")).toBeInTheDocument();
-      expect(
-        within(card).queryByTestId("stat-card-skeleton"),
-      ).not.toBeInTheDocument();
-    }
+    // Bốn KPI đều lấy từ API schedules, nên chờ query thống kê hoàn tất.
+    await waitFor(() => {
+      for (const labelKey of [
+        "trips.totalSchedules",
+        "trips.openSchedules",
+        "trips.draftSchedules",
+        "trips.oneTimeSchedules",
+      ]) {
+        const card = screen.getByText(labelKey).parentElement?.parentElement?.parentElement as HTMLElement;
+        expect(within(card).getByText("1")).toBeInTheDocument();
+        expect(within(card).queryByTestId("stat-card-skeleton")).not.toBeInTheDocument();
+      }
+    });
 
     // Schedules không cache — vẫn load bình thường rồi hiện dữ liệu
-    expect(await screen.findByText("SCH-SCHEDULE")).toBeInTheDocument();
+    expect(await screen.findByText("Hồ Chí Minh - Đà Lạt")).toBeInTheDocument();
     const openCard = screen.getByText("trips.openSchedules")
       .parentElement as HTMLElement;
     expect(
@@ -301,7 +302,7 @@ describe("TripsPage", () => {
   it("counts ACTIVE driver accounts instead of only AVAILABLE resources", async () => {
     renderPage();
 
-    const label = await screen.findByText("trips.availableDrivers");
+    const label = await screen.findByText("trips.draftSchedules");
     const card = label.parentElement?.parentElement?.parentElement;
     expect(card).not.toBeNull();
     await waitFor(() => {
@@ -313,7 +314,7 @@ describe("TripsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
     expect(screen.getByText("250.000 đ")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
@@ -369,7 +370,7 @@ describe("TripsPage", () => {
 
     const user = userEvent.setup();
     renderPage();
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
     await user.click(
       screen.getByRole("button", { name: "trips.createScheduleTitle" }),
     );
@@ -429,7 +430,7 @@ describe("TripsPage", () => {
     try {
       const user = userEvent.setup();
       renderPage();
-      await screen.findByText("SCH-SCHEDULE");
+      await screen.findByText("Hồ Chí Minh - Đà Lạt");
       await user.click(
         screen.getByRole("button", { name: "trips.createScheduleTitle" }),
       );
@@ -491,7 +492,7 @@ describe("TripsPage", () => {
       });
       const user = userEvent.setup();
       renderPage();
-      await screen.findByText("SCH-SCHEDULE");
+      await screen.findByText("Hồ Chí Minh - Đà Lạt");
       await user.click(
         screen.getByRole("button", { name: "trips.createScheduleTitle" }),
       );
@@ -555,7 +556,7 @@ describe("TripsPage", () => {
       });
       const user = userEvent.setup();
       renderPage();
-      await screen.findByText("SCH-SCHEDULE");
+      await screen.findByText("Hồ Chí Minh - Đà Lạt");
       await user.click(
         screen.getByRole("button", { name: "trips.createScheduleTitle" }),
       );
@@ -595,7 +596,7 @@ describe("TripsPage", () => {
     } as never);
     const user = userEvent.setup();
     renderPage();
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
 
     await user.click(screen.getByRole("button", { name: "trips.changeCrew" }));
 
@@ -625,7 +626,7 @@ describe("TripsPage", () => {
     try {
       const user = userEvent.setup();
       renderPage();
-      await screen.findByText("SCH-SCHEDULE");
+      await screen.findByText("Hồ Chí Minh - Đà Lạt");
       await user.click(
         screen.getByRole("button", { name: "trips.createScheduleTitle" }),
       );
@@ -717,7 +718,7 @@ describe("TripsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findAllByText("SCH-SCHEDULE");
+    await screen.findAllByText("Hồ Chí Minh - Đà Lạt");
     await user.click(
       screen.getByRole("button", { name: "trips.createScheduleTitle" }),
     );
@@ -745,12 +746,12 @@ describe("TripsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
     await user.click(screen.getByRole("button", { name: "trips.edit" }));
 
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByText("trips.editScheduleTitle SCH-SCHEDULE"),
+      within(dialog).getByText("trips.editScheduleTitle"),
     ).toBeInTheDocument();
     // Form điền sẵn giờ khởi hành của lịch đang sửa
     expect(within(dialog).getByText("2026-09-01 08:00")).toBeInTheDocument();
@@ -780,7 +781,7 @@ describe("TripsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
     await user.click(screen.getByRole("button", { name: "trips.edit" }));
     const dialog = await screen.findByRole("dialog");
 
@@ -879,7 +880,7 @@ describe("TripsPage", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await screen.findByText("SCH-SCHEDULE");
+      await screen.findByText("Hồ Chí Minh - Đà Lạt");
       await user.click(screen.getByRole("button", { name: "trips.edit" }));
       const dialog = await screen.findByRole("dialog");
 
@@ -919,7 +920,7 @@ describe("TripsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
     await user.click(
       screen.getByRole("button", { name: "trips.createScheduleTitle" }),
     );
@@ -998,7 +999,7 @@ describe("TripsPage", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await screen.findByText("SCH-SCHEDULE");
+      await screen.findByText("Hồ Chí Minh - Đà Lạt");
       await user.click(screen.getByRole("button", { name: "trips.edit" }));
       const dialog = await screen.findByRole("dialog");
 
@@ -1061,7 +1062,7 @@ describe("TripsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
     await user.click(screen.getByRole("button", { name: "trips.edit" }));
     const dialog = await screen.findByRole("dialog");
     const allPending = within(dialog).getByRole("radio", {
@@ -1100,7 +1101,7 @@ describe("TripsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
     await user.click(
       screen.getByRole("button", { name: "trips.deleteSchedule" }),
     );
@@ -1108,7 +1109,7 @@ describe("TripsPage", () => {
     // Modal confirm hiện mã lịch — chưa gọi API cho tới khi xác nhận
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByText("trips.deleteScheduleConfirm SCH-SCHEDULE"),
+      within(dialog).getByText("trips.deleteScheduleConfirm"),
     ).toBeInTheDocument();
     expect(deleteOperatorDriverSchedule).not.toHaveBeenCalled();
 
@@ -1124,7 +1125,7 @@ describe("TripsPage", () => {
     // Toast xác nhận xoá thành công thay cho banner inline
     const toast = await screen.findByTestId("toast");
     expect(toast).toHaveTextContent("trips.scheduleDeleted");
-    expect(screen.queryByText("SCH-SCHEDULE")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hồ Chí Minh - Đà Lạt")).not.toBeInTheDocument();
   });
 
   it("shows the has-trips message when delete fails with 409 SCHEDULE_HAS_TRIPS", async () => {
@@ -1135,7 +1136,7 @@ describe("TripsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText("SCH-SCHEDULE");
+    await screen.findByText("Hồ Chí Minh - Đà Lạt");
     await user.click(
       screen.getByRole("button", { name: "trips.deleteSchedule" }),
     );
@@ -1148,7 +1149,7 @@ describe("TripsPage", () => {
     const toast = await screen.findByTestId("toast");
     expect(toast).toHaveTextContent("trips.deleteHasTrips");
     expect(toast).toHaveAttribute("role", "alert");
-    expect(screen.getByText("SCH-SCHEDULE")).toBeInTheDocument();
+    expect(screen.getByText("Hồ Chí Minh - Đà Lạt")).toBeInTheDocument();
   });
 
   it("does not call the schedules API for OPERATOR_STAFF (BE returns 403 for this role — see API-driver shedule.md §3.2)", async () => {
@@ -1166,7 +1167,7 @@ describe("TripsPage", () => {
     await screen.findByText("trips.staffScheduleListUnavailable");
 
     expect(getOperatorDriverSchedules).not.toHaveBeenCalled();
-    expect(screen.queryByText("SCH-SCHEDULE")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hồ Chí Minh - Đà Lạt")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "trips.createScheduleTitle" })).not.toBeInTheDocument();
   });
 });

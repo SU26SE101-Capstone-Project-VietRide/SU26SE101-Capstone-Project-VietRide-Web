@@ -116,24 +116,20 @@ export default function Operators() {
     };
   }, [loadOperators]);
 
-  const filtered = useMemo(
-    () =>
-      operators.filter((operator) =>
-        operator.name.toLowerCase().includes(searchTerm.toLowerCase()),
-      ),
-    [operators, searchTerm],
-  );
-
+  // `operators` đã là kết quả đã lọc: loadOperators gửi thẳng `search` + `status`
+  // lên BE. Không lọc lại ở client — BE tìm trên name/contactEmail/contactPhone/
+  // businessRegistrationNumber/taxCode, lọc lại theo mỗi `name` sẽ vứt bỏ đúng
+  // những dòng khớp email, số điện thoại hay mã số thuế.
   const paginatedOperators = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page],
+    () => operators.slice((page - 1) * pageSize, page * pageSize),
+    [operators, page],
   );
 
   const handleExportCsv = () => {
     downloadCsv(
       "operators.csv",
       [t("operators.operatorName"), tc("email"), t("operators.csvPhone"), tc("status")],
-      filtered.map((operator) => [
+      operators.map((operator) => [
         operator.name,
         operator.contactEmail,
         operator.contactPhone,
@@ -498,7 +494,7 @@ export default function Operators() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          totalItems={filtered.length}
+          totalItems={operators.length}
           onPageChange={setPage}
         />
       </div>
