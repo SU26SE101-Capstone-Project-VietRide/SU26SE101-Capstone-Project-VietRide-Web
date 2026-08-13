@@ -124,6 +124,7 @@ export default function WalletSettlement() {
   const [transactionPage, setTransactionPage] = useState(1);
   const [transactionTotalItems, setTransactionTotalItems] = useState(0);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [transactionType, setTransactionType] = useState<WalletTransactionType | "">("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -168,17 +169,21 @@ export default function WalletSettlement() {
     setPlatformWallet(walletResult);
   }, []);
 
+  // `search` chạy server-side, TRƯỚC khi count và phân trang. Trước đây màn
+  // phân trang server nhưng lại lọc `records` của đúng trang đang xem, nên gõ
+  // mã nằm ở trang 3 trong khi đang ở trang 1 là ra bảng rỗng.
   const loadSettlements = useCallback(async () => {
     const settlementResult = await getAdminTripSettlements({
       page,
       pageSize,
       sortBy: "createdAt",
       sortDir: "desc",
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...settlementFilters(settlementView),
     });
     setRecords(settlementResult.items);
     setTotalItems(settlementResult.totalItems);
-  }, [page, settlementView]);
+  }, [debouncedSearch, page, settlementView]);
 
   const loadTransactions = useCallback(async () => {
     const transactionResult = await getAdminPlatformWalletTransactions({
@@ -187,10 +192,11 @@ export default function WalletSettlement() {
       sortBy: "createdAt",
       sortDir: "desc",
       type: transactionType || undefined,
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
     });
     setTransactions(transactionResult.items);
     setTransactionTotalItems(transactionResult.totalItems);
-  }, [transactionPage, transactionType]);
+  }, [debouncedSearch, transactionPage, transactionType]);
 
   // Refresh toàn bộ: dùng cho nút refresh và sau khi settle thủ công
   const loadData = useCallback(
@@ -237,31 +243,22 @@ export default function WalletSettlement() {
     };
   }, [loadTransactions, runLoad]);
 
-  const filteredRecords = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return records;
+  // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì cả hai tab về
+  // trang 1 vì tổng số bản ghi đã khác.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+      setTransactionPage(1);
+    }, 350);
 
-    return records.filter((record) =>
-      [
-        record.settlementId,
-        record.tripId,
-        record.operatorId,
-        record.operator?.name,
-        record.settledBy?.displayName,
-        record.status,
-        record.settlementMethod,
-        record.activeFailureCode,
-      ].some((value) => value?.toLowerCase().includes(query)),
-    );
-  }, [records, search]);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
-  const filteredTransactions = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return transactions;
-    return transactions.filter((item) => [
-      item.transactionId, item.referenceType, item.note, item.actor?.displayName,
-    ].filter(Boolean).join(" ").toLowerCase().includes(query));
-  }, [search, transactions]);
+  // Không còn lọc ở client: BE đã lọc trước khi phân trang nên `records` /
+  // `transactions` chính là kết quả đã khớp từ khoá.
+  const filteredRecords = records;
+  const filteredTransactions = transactions;
 
   const totals = useMemo(
     () => ({

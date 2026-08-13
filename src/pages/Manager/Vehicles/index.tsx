@@ -90,7 +90,10 @@ export default function VehiclesPage() {
   const canManageVehicles = authUser?.role === "OPERATOR_ADMIN";
   const [searchParams, setSearchParams] = useSearchParams();
   const querySearch = searchParams.get("search") ?? "";
-  const queryStatus = searchParams.get("status") ?? "";
+  const rawQueryStatus = searchParams.get("status") ?? "";
+  // BE chỉ nhận đúng enum ACTIVE|MAINTENANCE|OFF_DUTY|RETIRED và trả 422 cho
+  // giá trị lạ. URL do người dùng sửa tay được nên phải lọc trước khi gửi đi.
+  const queryStatus = isVehicleStatus(rawQueryStatus) ? rawQueryStatus : "";
   const queryVehicleTypeId = searchParams.get("vehicleTypeId") ?? "";
   const parsedPage = Number(searchParams.get("page"));
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;

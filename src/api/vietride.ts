@@ -40,6 +40,8 @@ export type NotificationAction =
   | { type: "OPEN_PARCEL_DETAIL"; params: { parcelId: string } }
   | { type: "OPEN_WALLET"; params: Record<string, never> }
   | { type: "OPEN_SUBSCRIPTION"; params: Record<string, never> }
+  | { type: "OPEN_INVOICE"; params: { invoiceId: string } }
+  | { type: "OPEN_OPERATOR_STATUS"; params: Record<string, never> }
   | { type: "OPEN_SHUTTLE_TRACKING"; params: { shuttleTripId: string } }
   | { type: "NONE"; params: Record<string, never> };
 
@@ -601,10 +603,37 @@ export type OperatorTripSettlementParams = FinancialListParams & {
   dateField?: "createdAt" | "tripTerminalAt" | "eligibleAt" | "settledAt";
 };
 
-export type AdminTripSettlementParams = OperatorTripSettlementParams & {
+/**
+ * Allow-list BE: page, pageSize, operatorId, status, tripId, stuckOnly,
+ * severity, from, to, sortBy, sortDir, search.
+ *
+ * KHÔNG kế thừa `OperatorTripSettlementParams` vì bản operator có `dateField`
+ * còn bản admin thì không — gửi nhầm là 422.
+ *
+ * `search`: UUID thì exact-match settlement ID hoặc trip ID; chuỗi thường khớp
+ * mã trip/reference theo prefix, và tên nhà xe / active failure code theo
+ * contains.
+ */
+export type AdminTripSettlementParams = FinancialListParams & {
+  status?: TripSettlementStatus;
+  tripId?: string;
   operatorId?: string;
   stuckOnly?: boolean;
   severity?: "HIGH" | "WARNING";
+};
+
+/**
+ * Allow-list BE cho `/v1/admin/platform-wallet/transactions`: page, pageSize,
+ * type, referenceType, from, to, sortBy, sortDir, search. Bản operator có thêm
+ * `dateField`, bản admin thì không.
+ *
+ * `search`: UUID thì exact-match transaction ID hoặc reference ID; chuỗi thường
+ * khớp note hoặc tên người thao tác theo contains; enum như
+ * `MANUAL_ADJUSTMENT` khớp chính xác reference type.
+ */
+export type AdminWalletTransactionParams = FinancialListParams & {
+  type?: WalletTransactionType;
+  referenceType?: string;
 };
 
 // BUSINESS_EVENT: occurredAt là thời điểm nghiệp vụ thật. FALLBACK: chưa có
@@ -796,8 +825,27 @@ export type StationSearchParams = {
   locationScopeCode?: string;
 };
 
-export type AdminStationParams = PageParams & {
+/**
+ * Allow-list BE: page, pageSize, search, isActive, supportsShuttle, sortBy,
+ * sortDir. `search` khớp unaccent trên name/city/ward/addressStreet/slug.
+ * `sortBy` chỉ nhận name|createdAt|updatedAt (mặc định name asc).
+ */
+export type AdminStationParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
   isActive?: boolean;
+  supportsShuttle?: boolean;
+  sortBy?: "name" | "createdAt" | "updatedAt";
+  sortDir?: "asc" | "desc";
+};
+
+/** `GET /v1/admin/stations/summary` — đếm trên toàn bộ bến, không nhận query */
+export type AdminStationSummary = {
+  total: number;
+  active: number;
+  inactive: number;
+  supportsShuttle: number;
 };
 
 export type AdminStationRequest = Partial<
@@ -948,6 +996,21 @@ export type AdminLocationRequest = {
 };
 
 export type UpdateAdminLocationRequest = Partial<AdminLocationRequest>;
+
+/**
+ * Query của `GET /v1/admin/locations`. Khai tường minh thay vì mở rộng
+ * `PageParams` vì `PageParams` có `status`/`sortBy`/`sortDir` — không nằm trong
+ * allow-list của endpoint này nên gửi lên là 422.
+ */
+export type AdminLocationParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  isActive?: boolean;
+  type?: LocationType;
+  /** Mã của location cấp trên cùng; trả về con trực tiếp của nó */
+  parentCode?: string;
+};
 
 /** Query của `GET /v1/locations` — KHÁC hẳn StationSearchParams */
 export type PublicLocationParams = {
@@ -1704,9 +1767,16 @@ export type ParcelRouteFare = {
   updatedAt?: string;
 };
 
-export type ParcelRouteFareParams = PageParams & {
+/**
+ * Allow-list BE: routeId, sizeCategory, page, pageSize, search.
+ * `search` khớp tên tuyến hoặc tên bến đi/bến đến trong đúng tenant.
+ */
+export type ParcelRouteFareParams = {
+  page?: number;
+  pageSize?: number;
   routeId?: string;
   sizeCategory?: ParcelSizeCategory;
+  search?: string;
 };
 
 export type CreateParcelRouteFareRequest = {
@@ -1890,10 +1960,28 @@ export type RagDocument = {
   approvedAt?: string | null;
 };
 
-export type RagDocumentParams = PageParams & {
+/**
+ * Query của `GET /v1/rag/documents` (ListDocumentsQuerySchema bên service RAG).
+ *
+ * Lưu ý: từ khoá tìm kiếm ở endpoint này tên là `q`, không phải `search`.
+ * `getRagDocuments` tự đổi tên nên page cứ truyền `search` như mọi màn khác.
+ *
+ * Schema không `.strict()` → key lạ bị Zod strip im lặng, không báo lỗi. Vì vậy
+ * type này phải khai đúng allow-list, sai tên là bộ lọc chết mà không ai biết.
+ */
+export type RagDocumentParams = {
+  page?: number;
+  pageSize?: number;
+  /** createdAt | updatedAt | title | status | ingestStatus */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
   status?: RagDocumentStatus;
+  ingestStatus?: RagIngestStatus;
   accessLevel?: RagDocumentAccessLevel;
   category?: RagDocumentCategory;
+  documentType?: RagDocumentType;
+  operatorId?: string;
+  /** Gửi lên BE dưới tên `q`; khớp title / fileName / description */
   search?: string;
 };
 
@@ -2340,10 +2428,36 @@ export type UpdateAdminVoucherRequest = Partial<
   >
 >;
 
-export type AdminVoucherParams = PageParams & {
-  ownerOperatorId?: string;
+/**
+ * Allow-list BE: fundingType, isActive, search, service, page, pageSize,
+ * sortBy, sortDir. Endpoint chỉ trả voucher nền tảng (ownerOperatorId = null)
+ * nên KHÔNG còn nhận `ownerOperatorId`.
+ */
+export type AdminVoucherParams = {
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
   fundingType?: string;
   isActive?: boolean;
+  /** contains, case-insensitive trên `code` HOẶC `name` */
+  search?: string;
+  /** Khớp phần tử trong `applicableServices` */
+  service?: VoucherService;
+};
+
+/**
+ * Allow-list BE: isActive, search, service, page, pageSize, sortBy, sortDir.
+ * Owner lấy từ JWT — không gửi `ownerOperatorId` hay `fundingType`.
+ */
+export type OperatorVoucherParams = {
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+  isActive?: boolean;
+  search?: string;
+  service?: VoucherService;
 };
 
 export type AdminCampaign = {
@@ -2516,8 +2630,18 @@ export type OperatorBookingParams = {
   status?: string;
   tripId?: string;
   date?: string;
+  /** Filter exact: resolve chính xác passenger qua Identity */
   passengerPhone?: string;
+  /** Filter exact, không phân biệt hoa thường */
   bookingCode?: string;
+  /**
+   * Ô tìm kiếm tổng quát. OR-match: mã đặt vé, tên người đặt, và số điện thoại
+   * người đặt nếu chuỗi normalize được về E.164 Việt Nam.
+   *
+   * BE không index tên từng hành khách (PII) — tìm theo tên hành khách trên vé
+   * sẽ không ra kết quả, chỉ tên NGƯỜI ĐẶT mới khớp.
+   */
+  search?: string;
   page?: number;
   pageSize?: number;
   sortBy?: string;
@@ -2757,10 +2881,24 @@ export type PolicyItem = {
   updatedAt: string;
 };
 
-export type PolicyListParams = PageParams & {
+/**
+ * Query của `GET /v1/admin/policies` và bản operator tương ứng.
+ *
+ * Schema Zod bên service RAG khai `.strict()` — KHÁC với `/v1/rag/documents`.
+ * Gửi key ngoài danh sách này trả **400**, không phải bị strip im lặng. Vì vậy
+ * không mở rộng `PageParams` (nó có `status` không thuộc allow-list).
+ *
+ * Cũng lưu ý: cờ bật/tắt ở đây tên là `active`, không phải `isActive`.
+ */
+export type PolicyListParams = {
+  page?: number;
+  pageSize?: number;
   policyType?: PolicyAudience;
   category?: string;
   active?: boolean;
+  search?: string;
+  sortBy?: "updatedAt" | "createdAt" | "title" | "version";
+  sortDir?: "asc" | "desc";
 };
 
 export type CreatePolicyRequest = Pick<
@@ -3391,12 +3529,20 @@ export type OperatorDriverScheduleRequest = {
   isActive: boolean;
 };
 
-export type OperatorDriverScheduleParams = PageParams & {
+/**
+ * Allow-list BE: page, pageSize, routeId, driverUserId, isActive, search,
+ * vehicleTypeId. Không có `isOneTime` — domain chỉ có lịch lặp theo tuần, BE đã
+ * chốt bỏ hẳn khái niệm này. Cũng không có sortBy/sortDir.
+ */
+export type OperatorDriverScheduleParams = {
+  page?: number;
+  pageSize?: number;
   routeId?: string;
   driverUserId?: string;
   isActive?: boolean;
+  /** OR-match: tên tuyến, biển số xe, tên tài xế, tên phụ xe */
+  search?: string;
   vehicleTypeId?: string;
-  isOneTime?: boolean;
 };
 
 export type DriverScheduleItem = OperatorDriverSchedule & {
@@ -3548,6 +3694,16 @@ export type ForgotPasswordResult = {
   otpTtlMinutes: number;
 };
 
+export type ChangePasswordRequest = {
+  currentPassword: string;
+  newPassword: string;
+};
+
+export type ChangePasswordResult = {
+  userId: string;
+  sessionsRevoked: boolean;
+};
+
 export type ResetPasswordRequest = {
   email: string;
   code: string;
@@ -3585,19 +3741,38 @@ export function setInitialPassword(request: SetInitialPasswordRequest) {
   });
 }
 
-export function requestForgotPassword(request: ForgotPasswordRequest) {
+export function requestForgotPassword(
+  request: ForgotPasswordRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
   return apiRequest<ForgotPasswordResult>("/v1/auth/forgot-password", {
     method: "POST",
     body: request,
     authenticated: false,
+    headers: { "Idempotency-Key": idempotencyKey },
   });
 }
 
-export function resetPassword(request: ResetPasswordRequest) {
+export function resetPassword(
+  request: ResetPasswordRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
   return apiRequest<ResetPasswordResult>("/v1/auth/reset-password", {
     method: "POST",
     body: request,
     authenticated: false,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+export function changePassword(
+  request: ChangePasswordRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ChangePasswordResult>("/v1/auth/change-password", {
+    method: "POST",
+    body: request,
+    headers: { "Idempotency-Key": idempotencyKey },
   });
 }
 
@@ -3652,16 +3827,14 @@ export function getAdminOperatorUsers(params: AdminUserParams = {}) {
 }
 
 /**
- * `GET /v1/admin/locations` chỉ bind `page`, `pageSize`, `search`, `isActive`
- * (AdminLocationsController.GetAsync). Gửi thêm `type`/`parentCode` sẽ bị
- * ASP.NET bỏ qua IM LẶNG — không lỗi, chỉ là trả về dữ liệu chưa lọc. Muốn lọc
- * theo cấp hành chính hoặc theo tỉnh trực thuộc thì dùng
- * `getAllAdminLocations()` rồi lọc phía client; xem
- * `src/docs/BE_ADMIN_LOCATION_FILTER_GAP.md`.
+ * Allow-list BE (`AdminLocationsController`): page, pageSize, search, isActive,
+ * type, parentCode. Key ngoài danh sách này trả 422 VALIDATION_ERROR chứ không
+ * còn bị bỏ qua im lặng như trước — đừng spread `PageParams` vào đây.
+ *
+ * `parentCode` chỉ nhận mã của location cấp trên cùng; truyền mã không tồn tại
+ * hoặc không phải top-level thì BE trả 422 tại field `parentCode`.
  */
-export async function getAdminLocations(
-  params: Omit<PageParams, "status"> & { isActive?: boolean } = {},
-) {
+export async function getAdminLocations(params: AdminLocationParams = {}) {
   const response = await apiRequest<
     PagedResult<AdminLocation> | AdminLocation[]
   >(`/v1/admin/locations${buildQuery(params)}`);
@@ -3980,7 +4153,7 @@ export function getAdminPlatformWallet() {
 }
 
 export function getAdminPlatformWalletTransactions(
-  params: WalletTransactionParams = {},
+  params: AdminWalletTransactionParams = {},
 ) {
   return apiRequest<PagedResult<WalletTransaction>>(
     `/v1/admin/platform-wallet/transactions${buildQuery(params)}`,
@@ -4080,6 +4253,10 @@ export function getAdminStations(params: AdminStationParams = {}) {
   return apiRequest<PagedResult<AdminStation>>(
     `/v1/admin/stations${buildQuery(params)}`,
   );
+}
+
+export function getAdminStationSummary() {
+  return apiRequest<AdminStationSummary>("/v1/admin/stations/summary");
 }
 
 export function getAdminStation(id: string) {
@@ -4251,7 +4428,18 @@ export function deleteOperatorStop(
   );
 }
 
-export function getOperatorRoutes(params: PageParams = {}) {
+/**
+ * Allow-list BE: page, pageSize, search, isActive. Endpoint này KHÔNG nhận
+ * `status` (gửi lên là 422) — dropdown trạng thái map sang boolean `isActive`.
+ */
+export type OperatorRouteParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  isActive?: boolean;
+};
+
+export function getOperatorRoutes(params: OperatorRouteParams = {}) {
   return apiRequest<PagedResult<OperatorRoute>>(
     `/v1/operator/routes${buildQuery(params)}`,
   );
@@ -4818,7 +5006,7 @@ export function unloadAssistantParcel(
   );
 }
 
-export function getOperatorVouchers(params: PageParams = {}) {
+export function getOperatorVouchers(params: OperatorVoucherParams = {}) {
   return apiRequest<PagedResult<OperatorVoucher>>(
     `/v1/operator/vouchers${buildQuery(params)}`,
   );
@@ -5172,8 +5360,28 @@ export function deleteAlternativeRoute(alternativeRouteId: string) {
   );
 }
 
+/**
+ * Allow-list BE: page, pageSize, search, searchIn, sortBy, sortDir,
+ * vehicleTypeId, status, isActive.
+ *
+ * `status` là trạng thái vận hành, enum KHÔNG có `INACTIVE`. `isActive` là cờ
+ * bật/tắt xe khỏi danh mục, độc lập với `status` — "xe đã tắt" phải hỏi bằng
+ * `isActive=false`, không phải `status=INACTIVE` (gửi lên là 422).
+ */
+export type OperatorVehicleParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  searchIn?: string;
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+  vehicleTypeId?: string;
+  status?: VehicleStatus;
+  isActive?: boolean;
+};
+
 export function getOperatorVehicles(
-  params: PageParams & { searchIn?: string; vehicleTypeId?: string } = {},
+  params: OperatorVehicleParams = {},
   signal?: AbortSignal,
 ) {
   return apiRequest<PagedResult<OperatorVehicle>>(

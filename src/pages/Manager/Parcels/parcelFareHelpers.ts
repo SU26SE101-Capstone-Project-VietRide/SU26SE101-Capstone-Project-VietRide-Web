@@ -42,6 +42,19 @@ export type FareSelection = {
   effectiveUntil: string;
 };
 
+/**
+ * Bỏ dấu + thường hoá để so khớp tìm kiếm. Người dùng gõ "da lat" phải khớp
+ * "Đà Lạt"; `toLowerCase().includes()` trần thì không.
+ */
+export function stripDiacritics(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .trim();
+}
+
 export function createEmptyFarePrices(): Record<ParcelSizeCategory, string> {
   return {
     SMALL: "",

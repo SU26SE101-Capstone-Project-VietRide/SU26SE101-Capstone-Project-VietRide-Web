@@ -13,12 +13,13 @@ import {
 import {
   getPublicLocations,
   getAdminStations,
+  getAdminStationSummary,
   mergeAdminStations,
   updateAdminStation,
   type AdminLocation,
   type AdminStation,
+  type AdminStationSummary,
 } from "../../../api/vietride";
-import { fetchAllPages } from "../../../api/pagination";
 import { matchProvinceCode } from "../../../utils/locationMatching";
 import { type PlaceSelection } from "../../../components/PlacePicker";
 import { StatCard } from "../../../components/StatCard";
@@ -64,6 +65,15 @@ export default function AdminStations() {
     wards: AdminLocation[];
   } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [totalItems, setTotalItems] = useState(0);
+  const [summary, setSummary] = useState<AdminStationSummary | null>(null);
+  // Danh sách ứng viên gộp lấy riêng bằng chính list API: bảng chính giờ chỉ
+  // giữ đúng một trang nên không còn đủ bến để dựng dropdown này.
+  const [mergeSearch, setMergeSearch] = useState("");
+  const [mergeCandidates, setMergeCandidates] = useState<AdminStation[]>([]);
+  const [isLoadingMergeCandidates, setIsLoadingMergeCandidates] =
+    useState(false);
   const [filterStatus, setFilterStatus] = useState<
     "ALL" | "ACTIVE" | "INACTIVE"
   >("ALL");
@@ -89,20 +99,40 @@ export default function AdminStations() {
     selectedStationIdRef.current = selectedStationId;
   }, [selectedStationId]);
 
+  // Search giờ đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+      setPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
   useEffect(() => {
     let ignore = false;
 
+    // Toàn bộ search/filter/sort chạy server-side. BE `search` khớp unaccent
+    // trên name/city/ward/addressStreet/slug nên bỏ được lớp lọc client cũ —
+    // lớp đó vừa phân biệt dấu vừa buộc phải tải trọn danh sách bến.
     async function loadStations() {
       setIsLoading(true);
 
       try {
-        const [stationItems, locationItems] = await Promise.all([
-          fetchAllPages(({ page, pageSize }) => getAdminStations({
+        const [stationPage, locationItems] = await Promise.all([
+          getAdminStations({
             page,
             pageSize,
             sortBy: "updatedAt",
             sortDir: "desc",
-          })),
+            ...(debouncedSearch ? { search: debouncedSearch } : {}),
+            ...(filterStatus === "ALL"
+              ? {}
+              : { isActive: filterStatus === "ACTIVE" }),
+            ...(filterType === "ALL"
+              ? {}
+              : { supportsShuttle: filterType === "SHUTTLE" }),
+          }),
           // Danh mục nay có hai cấp: nạp cả catalog sẽ là hàng trăm request.
           // Chỉ lấy tỉnh/thành; phường/xã tải theo tỉnh khi người dùng chọn.
           getPublicLocations(),
@@ -112,7 +142,9 @@ export default function AdminStations() {
           return;
         }
 
+        const stationItems = stationPage.items;
         setStations(stationItems);
+        setTotalItems(stationPage.totalItems);
         setLocations(locationItems);
         const selected =
           stationItems.find(
@@ -124,6 +156,7 @@ export default function AdminStations() {
       } catch (error) {
         if (!ignore) {
           setStations([]);
+          setTotalItems(0);
           setLocations([]);
           setForm(null);
           setAlert({
@@ -145,42 +178,57 @@ export default function AdminStations() {
     return () => {
       ignore = true;
     };
+  }, [debouncedSearch, filterStatus, filterType, page, pageSize, reloadKey]);
+
+  // 4 thẻ thống kê đếm trên TOÀN BỘ bến nên không thể suy từ trang hiện tại —
+  // BE có endpoint summary riêng cho đúng việc này.
+  useEffect(() => {
+    let ignore = false;
+    void getAdminStationSummary()
+      .then((result) => {
+        if (!ignore) setSummary(result);
+      })
+      .catch(() => {
+        // Thẻ thống kê hỏng không được chặn bảng chính
+      });
+    return () => {
+      ignore = true;
+    };
   }, [reloadKey]);
 
+  // Dropdown chọn bến đích để gộp: tìm theo từ khoá riêng, lấy đúng một trang.
+  useEffect(() => {
+    if (!openMerge) return;
 
-  const filteredStations = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    let ignore = false;
+    const timer = window.setTimeout(() => {
+      setIsLoadingMergeCandidates(true);
+      void getAdminStations({
+        page: 1,
+        pageSize: 20,
+        isActive: true,
+        sortBy: "name",
+        sortDir: "asc",
+        ...(mergeSearch.trim() ? { search: mergeSearch.trim() } : {}),
+      })
+        .then((result) => {
+          if (!ignore) setMergeCandidates(result.items);
+        })
+        .catch(() => {
+          if (!ignore) setMergeCandidates([]);
+        })
+        .finally(() => {
+          if (!ignore) setIsLoadingMergeCandidates(false);
+        });
+    }, 350);
 
-    return stations.filter((station) => {
-      const matchesSearch =
-        !query ||
-        [
-          station.name,
-          station.slug,
-          station.addressStreet,
-          station.city,
-          station.ward,
-        ]
-          .filter(Boolean)
-          .some((value) => value?.toLowerCase().includes(query));
-      const matchesStatus =
-        filterStatus === "ALL" ||
-        (filterStatus === "ACTIVE"
-          ? station.isActive !== false
-          : station.isActive === false);
-      const matchesType =
-        filterType === "ALL" ||
-        (filterType === "SHUTTLE"
-          ? station.supportsShuttle
-          : !station.supportsShuttle);
+    return () => {
+      ignore = true;
+      window.clearTimeout(timer);
+    };
+  }, [mergeSearch, openMerge]);
 
-      return matchesSearch && matchesStatus && matchesType;
-    });
-  }, [filterStatus, filterType, searchTerm, stations]);
-  const paginatedStations = filteredStations.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
+  const paginatedStations = stations;
   const selectedStation =
     stations.find((station) => station.id === selectedStationId) ?? stations[0];
   const editableForm =
@@ -218,13 +266,11 @@ export default function AdminStations() {
       ignore = true;
     };
   }, [provinceCode]);
-  const activeCount = stations.filter(
-    (station) => station.isActive !== false,
-  ).length;
-  const inactiveCount = stations.length - activeCount;
-  const shuttleCount = stations.filter(
-    (station) => station.supportsShuttle,
-  ).length;
+  // Lấy từ `/summary` — đếm trên toàn bộ bến, không phải trang đang xem.
+  const totalStations = summary?.total ?? 0;
+  const activeCount = summary?.active ?? 0;
+  const inactiveCount = summary?.inactive ?? 0;
+  const shuttleCount = summary?.supportsShuttle ?? 0;
 
   const selectedPlace = useMemo<PlaceSelection | null>(() => {
     if (!form) {
@@ -251,7 +297,10 @@ export default function AdminStations() {
   function selectStation(station: AdminStation) {
     setSelectedStationId(station.id);
     setForm(toForm(station));
-    setMergeTargetId(stations.find((item) => item.id !== station.id)?.id ?? "");
+    // Không chọn sẵn bến đích nữa: ứng viên gộp giờ tải theo từ khoá riêng,
+    // đoán bừa một bến trong trang hiện tại là mời gọi gộp nhầm.
+    setMergeTargetId("");
+    setMergeSearch("");
     setCustomFacility("");
     setAlert(null);
   }
@@ -416,7 +465,9 @@ export default function AdminStations() {
       return;
     }
 
-    const target = stations.find((station) => station.id === mergeTargetId);
+    const target = mergeCandidates.find(
+      (station) => station.id === mergeTargetId,
+    );
     if (!target) {
       setAlert({ tone: "error", message: t("stations.invalidMergeTarget") });
       return;
@@ -483,7 +534,7 @@ export default function AdminStations() {
         <StatCard
           icon={<FiMapPin size={20} />}
           label={t("stations.totalStations")}
-          value={stations.length}
+          value={totalStations}
           iconClassName="bg-vr-50 text-vr-700"
         />
         <StatCard
@@ -557,7 +608,7 @@ export default function AdminStations() {
             isSaving={isSaving}
             page={page}
             pageSize={pageSize}
-            totalItems={filteredStations.length}
+            totalItems={totalItems}
             onPageChange={setPage}
             onEdit={openStationEditor}
             onMerge={openStationMerge}
@@ -618,9 +669,12 @@ export default function AdminStations() {
         >
           <StationMergePanel
             selectedStation={selectedStation}
-            stations={stations}
+            stations={mergeCandidates}
             mergeTargetId={mergeTargetId}
+            mergeSearch={mergeSearch}
+            isLoadingCandidates={isLoadingMergeCandidates}
             isSaving={isSaving}
+            onMergeSearchChange={setMergeSearch}
             onMergeTargetChange={setMergeTargetId}
             onMerge={() => setMergeConfirmationOpen(true)}
           />

@@ -76,4 +76,34 @@ describe("RAG audit feedback pagination", () => {
     );
     expect(await screen.findByText("Second page feedback")).toBeInTheDocument();
   });
+
+  // Sáu bộ lọc này BE hỗ trợ sẵn từ đầu nhưng màn chưa dựng UI — bảng hiện cột
+  // trạng thái và cấp truy cập mà không lọc được theo chúng.
+  it("gửi các bộ lọc tài liệu lên BE", async () => {
+    const user = userEvent.setup();
+    render(<RagAudit />);
+
+    await waitFor(() => expect(getRagDocuments).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: "ragAudit.filterStatus" }));
+    await user.click(screen.getByRole("option", { name: "ragAudit.status.APPROVED" }));
+
+    await waitFor(() =>
+      expect(getRagDocuments).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "APPROVED", page: 1 }),
+      ),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "ragAudit.filterAccessLevel" }),
+    );
+    await user.click(screen.getByRole("option", { name: "enumLabels.PUBLIC" }));
+
+    await waitFor(() =>
+      expect(getRagDocuments).toHaveBeenLastCalledWith(
+        // Các bộ lọc cộng dồn theo AND, không ghi đè nhau
+        expect.objectContaining({ status: "APPROVED", accessLevel: "PUBLIC" }),
+      ),
+    );
+  });
 });

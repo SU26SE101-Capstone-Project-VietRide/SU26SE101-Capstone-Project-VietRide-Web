@@ -1,6 +1,7 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { FiCreditCard, FiDownload, FiEye } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import {
@@ -18,6 +19,8 @@ import InvoiceDetailContent from "./InvoiceDetailContent";
 export default function OperatorInvoiceSection() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedInvoiceId = searchParams.get("invoiceId");
   const [invoices, setInvoices] = useState<OperatorInvoice[]>([]);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -28,6 +31,14 @@ export default function OperatorInvoiceSection() {
   const [detail, setDetail] = useState<OperatorInvoiceDetail | null>(null);
   const [detailLoadingId, setDetailLoadingId] = useState("");
   const pageSize = 8;
+
+  useEffect(() => {
+    if (!linkedInvoiceId) return;
+    void openInvoiceDetail(linkedInvoiceId);
+    const next = new URLSearchParams(searchParams);
+    next.delete("invoiceId");
+    setSearchParams(next, { replace: true });
+  }, [linkedInvoiceId]);
 
   useEffect(() => {
     let ignore = false;

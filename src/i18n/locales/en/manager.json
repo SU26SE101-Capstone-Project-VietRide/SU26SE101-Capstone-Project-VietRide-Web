@@ -75,6 +75,10 @@
     "allStatuses": "All statuses",
     "filterVehicleType": "Filter by vehicle type",
     "allVehicleTypes": "All vehicle types",
+    "filterRoute": "Filter by route",
+    "allRoutes": "All routes",
+    "filterDriver": "Filter by driver",
+    "allDrivers": "All drivers",
     "tripCode": "Trip code",
     "route": "Route",
     "schedule": "Schedule",
@@ -114,7 +118,6 @@
     "totalSchedules": "Total schedules",
     "openSchedules": "Open schedules",
     "draftSchedules": "Draft / paused schedules",
-    "oneTimeSchedules": "One-time schedules",
 
     "createScheduleTitle": "Create trip schedule",
     "editScheduleTitle": "Edit schedule",
@@ -250,6 +253,7 @@
     "changeCrewAction": "Save crew",
     "changeCrewCascadeNotice": "This also applies to already generated trips that are Scheduled or Boarding.",
     "changeCrewSuccess": "Crew updated for this schedule.",
+    "crewNoLongerActive": "The driver or assistant was just locked. Please choose active crew and try again.",
     "changeCrewFailed": "Could not update the crew, please try again."
   },
   "routeEta": {
@@ -850,7 +854,22 @@
     "needsInitialPassword": "Needs password setup",
     "allRoles": "All roles",
     "allStatuses": "All statuses",
+    "sortLabel": "Sort",
+    "sortNewest": "Newest",
+    "sortOldest": "Oldest",
+    "sortNameAsc": "Name (A→Z)",
+    "sortNameDesc": "Name (Z→A)",
     "viewDetail": "View details",
+    "lockUser": "Lock account",
+    "unlockUser": "Unlock account",
+    "lockConfirmTitle": "Lock staff account?",
+    "unlockConfirmTitle": "Unlock staff account?",
+    "lockConfirmMessage": "This account will not be able to sign in and will no longer appear in new crew pickers.",
+    "unlockConfirmMessage": "This account can sign in again unless it is locked at platform level.",
+    "lockSuccess": "Staff account locked.",
+    "unlockSuccess": "Staff account unlocked.",
+    "lockMissingUser": "Could not find the staff ID for this action.",
+    "lockActionFailed": "Could not lock or unlock this account.",
     "resendInitialPassword": "Resend password setup link",
     "resendInitialPasswordDisabledHint": "This person already set their password — the link can only be resent while status is \"Needs initial password\".",
     "loading": "Loading staff...",
@@ -900,7 +919,7 @@
     "cancelled": "Cancelled",
     "paid": "Paid",
     "pendingPayment": "Awaiting payment",
-    "searchPlaceholder": "Search by booking code or phone number...",
+    "searchPlaceholder": "Search by booking code, buyer name or phone number...",
     "allStatuses": "All statuses",
     "bookingCode": "Booking code",
     "route": "Route",
@@ -2505,3 +2524,5 @@
     "hasMoreShort": "The list was shortened; there may be more conflicts."
   }
 }
+
+

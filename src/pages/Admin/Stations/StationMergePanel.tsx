@@ -7,9 +7,13 @@ import { inputClass, labelClass } from "./stationHelpers";
 
 type StationMergePanelProps = {
   selectedStation: AdminStation;
+  /** Một trang kết quả từ list API, lọc theo `mergeSearch` — không phải toàn bộ bến */
   stations: AdminStation[];
   mergeTargetId: string;
+  mergeSearch: string;
+  isLoadingCandidates: boolean;
   isSaving: boolean;
+  onMergeSearchChange: (value: string) => void;
   onMergeTargetChange: (stationId: string) => void;
   onMerge: () => void;
 };
@@ -18,11 +22,18 @@ export default function StationMergePanel({
   selectedStation,
   stations,
   mergeTargetId,
+  mergeSearch,
+  isLoadingCandidates,
   isSaving,
+  onMergeSearchChange,
   onMergeTargetChange,
   onMerge,
 }: StationMergePanelProps) {
   const { t } = useTranslation("admin");
+  const { t: tc } = useTranslation("common");
+  const candidates = stations.filter(
+    (station) => station.id !== selectedStation.id,
+  );
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5">
@@ -38,20 +49,41 @@ export default function StationMergePanel({
           {selectedStation.name}
         </p>
       </div>
+      {/*
+        Danh sách bến đích lấy từ list API theo từ khoá, không phải toàn bộ bến:
+        bảng chính đã phân trang server-side nên không còn giữ đủ dữ liệu để
+        dựng dropdown này.
+      */}
+      <label className="mt-4 block">
+        <span className={labelClass}>{t("stations.mergeSearchLabel")}</span>
+        <input
+          type="search"
+          className={inputClass}
+          value={mergeSearch}
+          onChange={(event) => onMergeSearchChange(event.target.value)}
+          placeholder={t("stations.mergeSearchPlaceholder")}
+        />
+      </label>
       <label className="mt-4 block">
         <span className={labelClass}>{t("stations.mergeTarget")}</span>
         <CustomSelect
           className={inputClass}
           value={mergeTargetId}
           onChange={(event) => onMergeTargetChange(event.target.value)}
+          disabled={isLoadingCandidates || candidates.length === 0}
         >
-          {stations
-            .filter((station) => station.id !== selectedStation.id)
-            .map((station) => (
-              <option key={station.id} value={station.id}>
-                {station.name} - {station.city}
-              </option>
-            ))}
+          <option value="">
+            {isLoadingCandidates
+              ? tc("loading")
+              : candidates.length === 0
+                ? t("stations.mergeNoCandidate")
+                : t("stations.mergeTargetPlaceholder")}
+          </option>
+          {candidates.map((station) => (
+            <option key={station.id} value={station.id}>
+              {station.name} - {station.city}
+            </option>
+          ))}
         </CustomSelect>
       </label>
       <button

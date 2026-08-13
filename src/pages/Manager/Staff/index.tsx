@@ -1,14 +1,19 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { createIdempotencyKey } from "../../../api/idempotency";
+import { getAuthUser } from "../../../auth";
+import { lockOperatorUser, unlockOperatorUser } from "../../../api/operatorUserActions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiActivity,
   FiEye,
   FiKey,
+  FiLock,
   FiMail,
   FiPlus,
   FiSearch,
   FiTruck,
+  FiUnlock,
   FiUser,
   FiUsers,
 } from "react-icons/fi";
@@ -119,6 +124,13 @@ function getUserId(user: Pick<OperatorUser, "userId"> & { id?: string }) {
   return user.userId || user.id || "";
 }
 
+/** Gộp `sortBy` + `sortDir` vào một ô chọn cho gọn toolbar */
+type SortOption =
+  | "createdAt:desc"
+  | "createdAt:asc"
+  | "displayName:asc"
+  | "displayName:desc";
+
 export default function StaffPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -131,6 +143,7 @@ export default function StaffPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [sort, setSort] = useState<SortOption>("createdAt:desc");
   const [openAdd, setOpenAdd] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
   const [users, setUsers] = useState<OperatorUser[]>([]);
@@ -142,6 +155,9 @@ export default function StaffPage() {
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [lockTarget, setLockTarget] = useState<OperatorUser | null>(null);
+  const [isLockingUser, setIsLockingUser] = useState(false);
+  const lockAttemptRef = useRef<{ userId: string; action: "lock" | "unlock"; key: string } | null>(null);
   const pageSize = 8;
 
   // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Bookings)
@@ -160,12 +176,15 @@ export default function StaffPage() {
     setError("");
 
     try {
+      const [sortBy, sortDir] = sort.split(":") as [string, "asc" | "desc"];
       const result = await getOperatorUsers({
         page,
         pageSize,
         search: debouncedSearch,
         role: roleFilter || undefined,
         status: statusFilter || undefined,
+        sortBy,
+        sortDir,
       });
 
       setUsers(result.items);
@@ -177,7 +196,7 @@ export default function StaffPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedSearch, page, roleFilter, statusFilter]);
+  }, [debouncedSearch, page, roleFilter, sort, statusFilter]);
 
   useEffect(() => {
     async function run() {
@@ -270,6 +289,57 @@ export default function StaffPage() {
     setError("");
   }
 
+  function openLockConfirmation(user: OperatorUser) {
+    const manageable = user.role === "DRIVER" || user.role === "ASSISTANT";
+    const canAct = getAuthUser()?.role === "OPERATOR_ADMIN" && manageable &&
+      (user.status === "ACTIVE" || user.status === "LOCKED");
+    if (!canAct) return;
+    setLockTarget(user);
+    setError("");
+    setMessage("");
+  }
+
+  async function confirmLockAction() {
+    if (!lockTarget) return;
+    const userId = getUserId(lockTarget);
+    const action = lockTarget.status === "ACTIVE" ? "lock" : "unlock";
+    if (!userId) {
+      setError(t("staff.lockMissingUser"));
+      return;
+    }
+
+    const previousAttempt = lockAttemptRef.current;
+    const key = previousAttempt?.userId === userId && previousAttempt.action === action
+      ? previousAttempt.key
+      : createIdempotencyKey();
+    lockAttemptRef.current = { userId, action, key };
+    setIsLockingUser(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = action === "lock"
+        ? await lockOperatorUser(userId, key)
+        : await unlockOperatorUser(userId, key);
+      lockAttemptRef.current = null;
+      setLockTarget(null);
+      await loadUsers();
+      window.dispatchEvent(new CustomEvent("vietride:operator-user-status-changed", { detail: { userId, status: result.status } }));
+      setMessage(
+        result.status === "LOCKED"
+          ? t("staff.lockSuccess")
+          : t("staff.unlockSuccess"),
+      );
+    } catch (err) {
+      // Giữ lockAttemptRef để nút thử lại dùng đúng Idempotency-Key của nghiệp vụ.
+      setError(
+        err instanceof Error ? err.message : t("staff.lockActionFailed"),
+      );
+    } finally {
+      setIsLockingUser(false);
+    }
+  }
+
   function updateUserForm(key: keyof CreateOperatorUserRequest, value: string) {
     setUserForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -323,14 +393,24 @@ export default function StaffPage() {
         />
       </div>
       <PersonnelTable
-        toolbar={<div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div><div className="flex flex-wrap gap-2"><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect></div></div>}
+        toolbar={<div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div><div className="flex flex-wrap gap-2"><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect>{/* sortBy/sortDir BE đã nhận sẵn, màn chỉ thiếu ô chọn */}<CustomSelect aria-label={t("staff.sortLabel")} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={sort} onChange={(event) => { setSort(event.target.value as SortOption); setPage(1); }}><option value="createdAt:desc">{t("staff.sortNewest")}</option><option value="createdAt:asc">{t("staff.sortOldest")}</option><option value="displayName:asc">{t("staff.sortNameAsc")}</option><option value="displayName:desc">{t("staff.sortNameDesc")}</option></CustomSelect></div></div>}
         columns={[
           { key: "name", header: t("staff.fullName"), headerClassName: "w-[20%] px-3 py-3 text-left", cellClassName: "w-[20%] px-3 py-4 text-left", render: (user) => <div className="flex min-w-0 items-center justify-start gap-3">{user.avatarUrl ? ( <img src={user.avatarUrl} alt={user.displayName || user.email} width={40} height={40} loading="lazy" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover" /> ) : ( <RoleAvatar role={user.role} name={user.displayName || user.email} /> )}<span className="min-w-0 truncate text-sm font-semibold text-gray-900" title={user.displayName || "-"}>{user.displayName || "-"}</span></div> },
           { key: "email", header: tc("email"), headerClassName: "w-[24%] px-3 py-3 text-center", cellClassName: "w-[24%] px-3 py-4 text-center text-sm text-gray-600", render: (user) => <span className="block truncate" title={user.email}>{user.email}</span> },
           { key: "phone", header: tc("phone"), headerClassName: "w-[10%] px-3 py-3 text-center", cellClassName: "w-[10%] px-3 py-4 text-center text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
-          { key: "role", header: t("staff.role"), headerClassName: "w-[18%] px-3 py-3 text-center", cellClassName: "w-[18%] px-3 py-4 text-center text-sm text-gray-700", render: (user) => roleLabel(user.role) },
+          { key: "role", header: t("staff.role"), headerClassName: "w-[13%] px-3 py-3 text-center", cellClassName: "w-[13%] px-3 py-4 text-center text-sm text-gray-700", render: (user) => roleLabel(user.role) },
           { key: "status", header: tc("status"), headerClassName: "w-[18%] px-3 py-3 text-center", cellClassName: "w-[18%] px-3 py-4 text-center", render: (user) => <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-700"}`}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</span> },
-          { key: "actions", header: tc("actions"), headerClassName: "w-[10%] px-2 py-3 text-center", cellClassName: "w-[10%] px-2 py-4 text-center text-sm", render: (user) => { const canResend = user.status === "PENDING_INITIAL_PASSWORD"; return <div className="flex items-center justify-center gap-2"><button type="button" onClick={() => handleOpenDetail(user)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700" title={t("staff.viewDetail")} aria-label={t("staff.viewDetail")}><FiEye size={16} /></button><button type="button" onClick={() => handleResendInitialPassword(user)} disabled={!canResend} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:bg-transparent disabled:hover:text-gray-600" title={canResend ? t("staff.resendInitialPassword") : t("staff.resendInitialPasswordDisabledHint")} aria-label={t("staff.resendInitialPassword")}><FiMail size={16} /></button></div>; } },
+          { key: "actions", header: tc("actions"), headerClassName: "w-[15%] px-2 py-3 text-center", cellClassName: "w-[15%] px-2 py-4 text-center text-sm", render: (user) => {
+            const canResend = user.status === "PENDING_INITIAL_PASSWORD";
+            const canLock = getAuthUser()?.role === "OPERATOR_ADMIN" &&
+              (user.role === "DRIVER" || user.role === "ASSISTANT") &&
+              (user.status === "ACTIVE" || user.status === "LOCKED");
+            return <div className="flex items-center justify-center gap-2">
+              <button type="button" onClick={() => handleOpenDetail(user)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700" title={t("staff.viewDetail")} aria-label={t("staff.viewDetail")}><FiEye size={16} /></button>
+              <button type="button" onClick={() => handleResendInitialPassword(user)} disabled={!canResend} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:bg-transparent disabled:hover:text-gray-600" title={canResend ? t("staff.resendInitialPassword") : t("staff.resendInitialPasswordDisabledHint")} aria-label={t("staff.resendInitialPassword")}><FiMail size={16} /></button>
+              {canLock && <button type="button" onClick={() => openLockConfirmation(user)} className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border ${user.status === "ACTIVE" ? "border-amber-200 text-amber-700 hover:bg-amber-50" : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"}`} title={user.status === "ACTIVE" ? t("staff.lockUser") : t("staff.unlockUser")} aria-label={user.status === "ACTIVE" ? t("staff.lockUser") : t("staff.unlockUser")}>{user.status === "ACTIVE" ? <FiLock size={16} /> : <FiUnlock size={16} />}</button>}
+            </div>;
+          } },
         ]}
         rows={users}
         getRowKey={(user) => getUserId(user)}
@@ -435,6 +515,28 @@ export default function StaffPage() {
           </section>
         </div>
       </Modal>
+
+      {lockTarget && (
+        <Modal
+          open
+          onClose={() => !isLockingUser && setLockTarget(null)}
+          title={lockTarget.status === "ACTIVE" ? t("staff.lockConfirmTitle") : t("staff.unlockConfirmTitle")}
+          subtitle={lockTarget.displayName || lockTarget.email}
+          icon={lockTarget.status === "ACTIVE" ? <FiLock /> : <FiUnlock />}
+          footer={
+            <>
+              <button type="button" disabled={isLockingUser} onClick={() => setLockTarget(null)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">{tc("cancel")}</button>
+              <button type="button" disabled={isLockingUser} onClick={() => void confirmLockAction()} className="rounded-lg bg-vr-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {isLockingUser ? tc("loading") : lockTarget.status === "ACTIVE" ? t("staff.lockUser") : t("staff.unlockUser")}
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm leading-6 text-gray-600">
+            {lockTarget.status === "ACTIVE" ? t("staff.lockConfirmMessage") : t("staff.unlockConfirmMessage")}
+          </p>
+        </Modal>
+      )}
 
       <StaffDetailModal
         open={openDetail}
@@ -560,3 +662,7 @@ function StaffDetailModal({
     </Modal>
   );
 }
+
+
+
+

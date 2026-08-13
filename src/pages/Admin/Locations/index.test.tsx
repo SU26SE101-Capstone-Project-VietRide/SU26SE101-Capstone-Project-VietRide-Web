@@ -141,9 +141,9 @@ describe("Admin Locations", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
-  // BE `GET /v1/admin/locations` KHÔNG bind type/parentCode — gửi lên bị bỏ qua
-  // im lặng nên bộ lọc phải chạy phía client, nếu không nút bấm mà bảng không đổi.
-  it("lọc theo cấp hành chính ngay trên dữ liệu đã tải", async () => {
+  // BE đã bind `type`; bộ lọc phải gửi lên server chứ không lọc lại tập đã tải,
+  // nếu không nó chỉ lọc đúng trang đang xem.
+  it("gửi cấp hành chính lên BE thay vì lọc phía client", async () => {
     vi.mocked(getAdminLocations).mockResolvedValue(
       catalogue([location, province]),
     );
@@ -151,11 +151,8 @@ describe("Admin Locations", () => {
     render(<AdminLocations />);
 
     await screen.findByRole("button", { name: location.name }, { timeout: 5_000 });
-    expect(
-      screen.getByRole("button", { name: province.name }),
-    ).toBeInTheDocument();
 
-    const callsBeforeFilter = vi.mocked(getAdminLocations).mock.calls.length;
+    vi.mocked(getAdminLocations).mockResolvedValue(catalogue([location]));
     await user.click(
       screen.getByRole("button", { name: /locations\.filterType/ }),
     );
@@ -163,17 +160,42 @@ describe("Admin Locations", () => {
       screen.getByRole("option", { name: /locations\.types\.MUNICIPALITY/ }),
     );
 
+    await waitFor(() =>
+      expect(getAdminLocations).toHaveBeenLastCalledWith(
+        expect.objectContaining({ type: "MUNICIPALITY", page: 1 }),
+      ),
+    );
     await waitFor(() => {
       expect(
         screen.queryByRole("button", { name: province.name }),
       ).not.toBeInTheDocument();
     });
-    expect(
-      screen.getByRole("button", { name: location.name }),
-    ).toBeInTheDocument();
-    // Lọc client-side: không được gọi lại API (gọi lại cũng vô ích vì BE bỏ qua).
-    expect(vi.mocked(getAdminLocations).mock.calls).toHaveLength(
-      callsBeforeFilter,
+  });
+
+  it("gửi search và parentCode lên BE, không tải trọn danh mục", async () => {
+    const user = userEvent.setup();
+    render(<AdminLocations />);
+
+    await screen.findByRole("button", { name: location.name }, { timeout: 5_000 });
+
+    // Mở màn chỉ được gọi đúng một request — trước đây là 34 request để tải hết
+    // ~3.4k bản ghi rồi lọc ở client.
+    expect(vi.mocked(getAdminLocations).mock.calls).toHaveLength(1);
+    expect(getAdminLocations).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, pageSize: 12 }),
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("locations.search"),
+      "vung tau",
+    );
+
+    await waitFor(
+      () =>
+        expect(getAdminLocations).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: "vung tau", page: 1 }),
+        ),
+      { timeout: 3_000 },
     );
   });
 
@@ -227,34 +249,40 @@ describe("Admin Locations", () => {
     expect(deleteAdminLocation).not.toHaveBeenCalled();
   });
 
-  it("phân trang phía client không gọi lại API", async () => {
-    const many = Array.from({ length: 24 }, (_, index) => ({
-      ...province,
-      id: `location-${index}`,
-      code: String(index).padStart(2, "0"),
-      name: `Địa danh ${index}`,
+  it("phân trang server-side: đổi trang là gọi lại API với page mới", async () => {
+    const pageOf = (start: number) =>
+      Array.from({ length: 12 }, (_, index) => ({
+        ...province,
+        id: `location-${start + index}`,
+        code: String(start + index).padStart(2, "0"),
+        name: `Địa danh ${start + index}`,
+      }));
+    vi.mocked(getAdminLocations).mockImplementation(async (params = {}) => ({
+      items: pageOf(((params.page ?? 1) - 1) * 12),
+      page: params.page ?? 1,
+      pageSize: 12,
+      totalItems: 24,
+      totalPages: 2,
+      hasNextPage: (params.page ?? 1) < 2,
+      hasPreviousPage: (params.page ?? 1) > 1,
     }));
-    vi.mocked(getAdminLocations).mockResolvedValue(catalogue(many));
     const user = userEvent.setup();
     render(<AdminLocations />);
 
     await screen.findByRole("button", { name: "Địa danh 0" }, { timeout: 5_000 });
-    // pageSize = 12 nên bản ghi thứ 13 phải nằm ở trang 2.
     expect(
       screen.queryByRole("button", { name: "Địa danh 12" }),
     ).not.toBeInTheDocument();
 
-    const callsBeforePaging = vi.mocked(getAdminLocations).mock.calls.length;
     await user.click(screen.getByTestId("pagination"));
 
+    await waitFor(() =>
+      expect(getAdminLocations).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+      ),
+    );
     expect(
       await screen.findByRole("button", { name: "Địa danh 12" }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Địa danh 0" }),
-    ).not.toBeInTheDocument();
-    expect(vi.mocked(getAdminLocations).mock.calls).toHaveLength(
-      callsBeforePaging,
-    );
   });
 });

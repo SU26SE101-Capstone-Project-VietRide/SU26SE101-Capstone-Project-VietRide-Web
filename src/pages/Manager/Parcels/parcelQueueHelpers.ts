@@ -14,8 +14,11 @@ export type ParcelFilter = {
   pendingActionType?: string;
 };
 
-export const queueTabs: ParcelFilter[] = [
-  { value: "ALL", labelKey: "all" },
+/**
+ * Ba hàng đợi cần xử lý gấp — để trên đầu dropdown vì đây là việc điều hành
+ * viên mở màn này để làm.
+ */
+const priorityQueues: ParcelFilter[] = [
   {
     value: "PENDING_OPERATOR_ACTION",
     labelKey: "parcels.queue.tabOperatorAction",
@@ -31,6 +34,43 @@ export const queueTabs: ParcelFilter[] = [
     labelKey: "enumLabels.RETURN_INITIATED",
     status: "RETURN_INITIATED",
   },
+];
+
+/**
+ * Toàn bộ ParcelStatus của BE (`apps/parcel/.../Enums/ParcelStatus.cs`), xếp
+ * theo vòng đời đơn hàng. Trước đây dropdown chỉ có 3 trạng thái nên 19 trạng
+ * thái còn lại không có cách nào lọc, dù `/v1/operator/parcels` nhận hết.
+ */
+const lifecycleStatuses = [
+  "PENDING_OPERATOR_REVIEW",
+  "PENDING_PAYMENT",
+  "PENDING",
+  "PENDING_ADDITIONAL_PAYMENT",
+  "RESERVED",
+  "CHECKED_IN",
+  "PENDING_FINAL_PAYMENT",
+  "READY_TO_LOAD",
+  "LOADED",
+  "IN_TRANSIT",
+  "PENDING_TRANSFER_CONFIRM",
+  "TRANSFER_ESCALATED",
+  "UNLOADED",
+  "DELIVERED_PENDING_CONFIRM",
+  "DELIVERY_CONFIRMED",
+  "RETURNED",
+  "CANCELLED",
+  "REJECTED",
+  "EXPIRED",
+] as const;
+
+export const queueTabs: ParcelFilter[] = [
+  { value: "ALL", labelKey: "all" },
+  ...priorityQueues,
+  ...lifecycleStatuses.map((status) => ({
+    value: status,
+    labelKey: `enumLabels.${status}`,
+    status,
+  })),
 ];
 
 const needsActionStatuses = new Set([

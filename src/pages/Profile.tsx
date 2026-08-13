@@ -1,10 +1,11 @@
 import { FiCamera, FiChevronRight, FiEdit2, FiHome, FiLoader } from "react-icons/fi";
 import { formatVietnamPhoneForDisplay } from "../utils/phone";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useToastFeedback } from "../hooks/useToastFeedback";
 import {
+  clearAuthSession,
   getAuthSession,
   getAuthUser,
   getHomePathForRole,
@@ -12,11 +13,13 @@ import {
   type AuthRole,
 } from "../auth";
 import {
+  changePassword,
   getOperatorProfile,
   updateMyAvatar,
   updateOperatorProfile,
   type OperatorProfile,
 } from "../api/vietride";
+import { createIdempotencyKey } from "../api/idempotency";
 import {
   FirebaseImageError,
   uploadFirebaseImages,
@@ -273,6 +276,13 @@ export default function Profile() {
   const [profile, setProfile] = useState<ProfileState>(emptyProfile);
   const [formData, setFormData] = useState(profile);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const navigate = useNavigate();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const passwordKeyRef = useRef<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isDirty = JSON.stringify(formData) !== JSON.stringify(profile);
 
@@ -442,6 +452,42 @@ export default function Profile() {
     setShowDiscardConfirm(false);
   };
 
+  const handleChangePassword = async (event: FormEvent) => {
+    event.preventDefault();
+    setPasswordError("");
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError(t("profilePage.passwordRequired"));
+      return;
+    }
+    if (newPassword.length < 8 || newPassword.length > 128 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setPasswordError(t("profilePage.passwordRules"));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(t("profilePage.passwordMismatch"));
+      return;
+    }
+
+    const idempotencyKey = passwordKeyRef.current ?? createIdempotencyKey();
+    passwordKeyRef.current = idempotencyKey;
+    setPasswordLoading(true);
+    try {
+      await changePassword({ currentPassword, newPassword }, idempotencyKey);
+      clearAuthSession();
+      try {
+        const { clearFirebaseAuthSession } = await import("../config/firebase");
+        await clearFirebaseAuthSession();
+      } catch {
+        // Local VietRide session is already cleared; Firebase is optional.
+      }
+      navigate("/login", { replace: true, state: { message: t("profilePage.passwordChanged") } });
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : t("profilePage.passwordChangeFailed"));
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -811,6 +857,31 @@ export default function Profile() {
         </div>
       )}
 
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+        <h2 className="text-base font-bold tracking-tight text-gray-900">
+          {t("profilePage.changePasswordTitle")}
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-gray-600">{t("profilePage.changePasswordHint")}</p>
+        <form onSubmit={handleChangePassword} className="mt-5 max-w-xl space-y-4">
+          {passwordError && <InlineAlert tone="error"><p>{passwordError}</p></InlineAlert>}
+          <div>
+            <label className={labelClass}>{t("profilePage.currentPassword")}</label>
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={inputClass} autoComplete="current-password" />
+          </div>
+          <div>
+            <label className={labelClass}>{t("profilePage.newPassword")}</label>
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} autoComplete="new-password" />
+            <p className="mt-1 text-xs text-gray-500">{t("profilePage.passwordRules")}</p>
+          </div>
+          <div>
+            <label className={labelClass}>{t("profilePage.confirmPassword")}</label>
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} autoComplete="new-password" />
+          </div>
+          <button type="submit" disabled={passwordLoading} className="rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-60">
+            {passwordLoading ? t("profilePage.changingPassword") : t("profilePage.changePassword")}
+          </button>
+        </form>
+      </section>
       <ConfirmModal
         open={showDiscardConfirm}
         onClose={() => setShowDiscardConfirm(false)}

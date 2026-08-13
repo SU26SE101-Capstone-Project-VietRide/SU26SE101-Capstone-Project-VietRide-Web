@@ -1,16 +1,20 @@
-import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FiArrowLeft, FiArrowRight, FiKey, FiLock, FiMail } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useToastFeedback } from "../hooks/useToastFeedback";
 import { requestForgotPassword, resetPassword } from "../api/vietride";
+import { createIdempotencyKey } from "../api/idempotency";
+import { clearAuthSession } from "../auth";
 import logo from "../assets/Login/logo.svg";
 import login_2 from "../assets/Login/login_2.png";
 
 export default function ForgotPassword() {
   const { t } = useTranslation("login");
   const { t: tc } = useTranslation("common");
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -19,7 +23,16 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
+  const forgotKeyRef = useRef<string | null>(null);
+  const resetKeyRef = useRef<string | null>(null);
   useToastFeedback({ message, error });
+
+  useEffect(() => {
+    if (otpSecondsLeft <= 0) return;
+    const timer = window.setInterval(() => setOtpSecondsLeft((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [otpSecondsLeft]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -42,9 +55,12 @@ export default function ForgotPassword() {
       setLoading(true);
 
       try {
-        const result = await requestForgotPassword({ email: trimmedEmail });
+        const key = forgotKeyRef.current ?? createIdempotencyKey();
+        forgotKeyRef.current = key;
+        const result = await requestForgotPassword({ email: trimmedEmail }, key);
         setOtpRequested(true);
         setEmail(result.email);
+        setOtpSecondsLeft(result.otpTtlMinutes * 60);
         setMessage(
           t("forgotPasswordPage.otpSent", {
             minutes: result.otpTtlMinutes,
@@ -84,12 +100,15 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
+      const key = resetKeyRef.current ?? createIdempotencyKey();
+      resetKeyRef.current = key;
       await resetPassword({
         email: trimmedEmail,
         code: code.trim(),
         newPassword,
-      });
-      setMessage(t("forgotPasswordPage.resetSuccess"));
+      }, key);
+      clearAuthSession();
+      navigate("/login", { replace: true, state: { message: t("forgotPasswordPage.resetSuccess") } });
       setCode("");
       setNewPassword("");
       setConfirmPassword("");
@@ -184,6 +203,8 @@ export default function ForgotPassword() {
                           className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
                         />
                       </div>
+                    
+                      {otpSecondsLeft > 0 && <p className="mt-1 text-xs text-gray-500">{Math.floor(otpSecondsLeft / 60)}:{String(otpSecondsLeft % 60).padStart(2, "0")}</p>}
                     </div>
 
                     <div>
