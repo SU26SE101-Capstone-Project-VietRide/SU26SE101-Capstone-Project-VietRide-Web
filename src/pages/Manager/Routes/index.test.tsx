@@ -1764,8 +1764,12 @@ describe("Manager route setup workflow", () => {
             .getAttribute("data-opacity"),
         ),
       ).toBeLessThan(1);
+      // Bubble chỉ đặt trên tuyến CHƯA chọn để không che tuyến chính đang đậm
       expect(
-        screen.getByTestId("map-pointmarker-route-option-label-0"),
+        screen.queryByTestId("map-pointmarker-route-option-label-0"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId("map-pointmarker-route-option-label-1"),
       ).toBeInTheDocument();
       expect(
         screen.getByTestId("map-pointmarker-route-option-label-2"),
