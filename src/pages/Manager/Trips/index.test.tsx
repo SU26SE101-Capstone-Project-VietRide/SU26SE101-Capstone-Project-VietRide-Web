@@ -1025,9 +1025,10 @@ describe("TripsPage", () => {
         .parentElement as HTMLElement;
       expect(within(validUntilField).getByText("2026-09-30")).toBeInTheDocument();
 
-      // Đổi sang 25-09-2026 qua lịch (lịch mở đúng tháng 9 vì đã có giá trị)
+      // Đổi sang 25-09-2026 qua lịch (lịch mở đúng tháng 9 vì đã có giá trị).
+      // Ô ngày dùng aria-label ISO nên tên khả truy cập là "2026-09-25", không phải "25".
       await user.click(validUntilField.querySelector("button") as HTMLElement);
-      await user.click(await screen.findByRole("button", { name: "25" }));
+      await user.click(await screen.findByRole("button", { name: "2026-09-25" }));
 
       await user.click(
         within(dialog).getByRole("button", { name: "trips.openForOperation" }),
@@ -1195,6 +1196,8 @@ describe("TripsPage", () => {
       ),
     );
 
+    // Bộ lọc tài xế nằm trong panel lọc nâng cao, phải mở panel trước.
+    await user.click(screen.getByRole("button", { name: /trips\.advancedFilters/ }));
     await pickOption("trips.filterDriver", "Tài xế đang hoạt động");
 
     await waitFor(() =>

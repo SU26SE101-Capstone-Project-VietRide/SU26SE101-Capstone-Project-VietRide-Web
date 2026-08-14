@@ -23,6 +23,9 @@ type CustomDateTimeInputProps = {
   className?: string;
   disabled?: boolean;
   placeholder?: string;
+  min?: string;
+  max?: string;
+  "aria-label"?: string;
 };
 
 function pad(value: number) {
@@ -88,6 +91,9 @@ export default function CustomDateTimeInput({
   className = "",
   disabled = false,
   placeholder,
+  min,
+  max,
+  "aria-label": ariaLabel,
 }: CustomDateTimeInputProps) {
   const { t, i18n } = useTranslation("common");
   const isControlled = value !== undefined;
@@ -118,6 +124,8 @@ export default function CustomDateTimeInput({
   }).format(cursor);
   const isTimeOnly = type === "time";
   const isDateOnly = type === "date" || type === "month" || type === "week";
+  const minDateValue = min?.split("T")[0];
+  const maxDateValue = max?.split("T")[0];
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -130,6 +138,13 @@ export default function CustomDateTimeInput({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, []);
 
+  function isDateOutsideRange(dateValue: string) {
+    return Boolean(
+      (minDateValue && dateValue < minDateValue) ||
+      (maxDateValue && dateValue > maxDateValue),
+    );
+  }
+
   function commit(nextValue: string, close = false) {
     if (!isControlled) {
       setInternalValue(nextValue);
@@ -141,6 +156,8 @@ export default function CustomDateTimeInput({
 
   function commitDate(date: Date) {
     const dateValue = toDateValue(date);
+
+    if (isDateOutsideRange(dateValue)) return;
 
     if (type === "datetime-local") {
       commit(`${dateValue}T${toTimeValue(selectedTime.hour, selectedTime.minute)}`);
@@ -195,6 +212,7 @@ export default function CustomDateTimeInput({
       <button
         ref={triggerRef}
         type="button"
+        aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => {
           if (isOpen) {
@@ -273,18 +291,23 @@ export default function CustomDateTimeInput({
                   const dateValue = toDateValue(date);
                   const isCurrentMonth = date.getMonth() === cursor.getMonth();
                   const isSelected = dateValue === toDateValue(selectedDate);
+                  const isDateDisabled = isDateOutsideRange(dateValue);
 
                   return (
                     <button
                       key={dateValue}
                       type="button"
+                      aria-label={dateValue}
+                      disabled={isDateDisabled}
                       onClick={() => commitDate(date)}
                       className={`h-9 rounded-lg text-sm transition ${
-                        isSelected
-                          ? "bg-vr-600 font-bold text-white shadow-sm"
-                          : isCurrentMonth
-                            ? "text-gray-800 hover:bg-vr-50"
-                            : "text-gray-400 hover:bg-gray-50"
+                        isDateDisabled
+                          ? "cursor-not-allowed text-gray-300"
+                          : isSelected
+                            ? "bg-vr-600 font-bold text-white shadow-sm"
+                            : isCurrentMonth
+                              ? "text-gray-800 hover:bg-vr-50"
+                              : "text-gray-400 hover:bg-gray-50"
                       }`}
                     >
                       {date.getDate()}

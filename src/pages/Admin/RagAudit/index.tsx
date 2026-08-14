@@ -2,14 +2,12 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  FiCheck,
   FiFileText,
   FiRefreshCw,
   FiSearch,
   FiUploadCloud,
 } from "react-icons/fi";
 import {
-  approveRagDocument,
   getRagDocuments,
   getRagFeedback,
   type RagDocument,
@@ -27,6 +25,9 @@ const statusClass: Record<string, string> = {
   APPROVED: "bg-emerald-50 text-emerald-700",
   REJECTED: "bg-rose-50 text-rose-700",
   ARCHIVED: "bg-slate-100 text-slate-600",
+  PROCESSING: "bg-blue-50 text-blue-700",
+  COMPLETED: "bg-emerald-50 text-emerald-700",
+  FAILED: "bg-rose-50 text-rose-700",
 };
 
 // Đúng enum của ListDocumentsQuerySchema bên service RAG. Zod strip key lạ chứ
@@ -176,29 +177,6 @@ export default function RagAudit() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadFeedback]);
-
-  async function handleApproveDocument(id: string) {
-    setError("");
-    setMessage("");
-
-    try {
-      const approved = await approveRagDocument(id);
-      setDocuments((current) =>
-        current.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                title: approved.title || item.title,
-                status: "APPROVED",
-              }
-            : item,
-        ),
-      );
-      setMessage(t("ragAudit.statusUpdated", { title: approved.title || id }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("ragAudit.actionFailed"));
-    }
-  }
 
   useToastFeedback({ message, error });
   return (
@@ -351,13 +329,15 @@ export default function RagAudit() {
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[760px] whitespace-nowrap text-sm">
+            <table className="w-full min-w-[1180px] whitespace-nowrap text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                  <th className="px-4 py-3">{tc("title")}</th>
-                  <th className="px-4 py-3 text-center">{t("ragAudit.permission")}</th>
-                  <th className="px-4 py-3 text-center">{tc("status")}</th>
-                  <th className="px-4 py-3 text-center">{tc("actions")}</th>
+                  <th className="w-[28%] px-4 py-3">{tc("title")}</th>
+                  <th className="w-[13%] px-4 py-3 text-center">{t("ragAudit.permission")}</th>
+                  <th className="w-[13%] px-4 py-3 text-center">{t("ragAudit.category")}</th>
+                  <th className="w-[12%] px-4 py-3 text-center">{t("ragAudit.documentType")}</th>
+                  <th className="w-[14%] px-4 py-3 text-center">{t("ragAudit.ingestStatus")}</th>
+                  <th className="w-[12%] px-4 py-3 text-center">{tc("status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -381,6 +361,27 @@ export default function RagAudit() {
                         defaultValue: document.accessLevel,
                       })}
                     </td>
+                    <td className="px-4 py-3 text-center text-gray-700">
+                      {t("ragAudit.categories." + document.category, {
+                        defaultValue: document.category.replaceAll("_", " "),
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-700">
+                      {t("ragAudit.documentTypes." + document.documentType, {
+                        defaultValue: document.documentType,
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {document.ingestStatus ? (
+                        <span className={"rounded-full px-2.5 py-1 text-xs font-semibold " + (statusClass[document.ingestStatus] ?? "bg-gray-100 text-gray-600")}>
+                          {tc("enumLabels." + document.ingestStatus, {
+                            defaultValue: document.ingestStatus,
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -392,13 +393,6 @@ export default function RagAudit() {
                           defaultValue: document.status.replaceAll("_", " "),
                         })}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button type="button" disabled={document.status !== "PENDING_REVIEW" && document.status !== "PENDING"} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent" onClick={() => void handleApproveDocument(document.id)} title={document.status === "PENDING_REVIEW" || document.status === "PENDING" ? tc("approve") : t("ragAudit.alreadyProcessed")} aria-label={document.status === "PENDING_REVIEW" || document.status === "PENDING" ? tc("approve") : t("ragAudit.alreadyProcessed")}>
-                          <FiCheck size={16} />
-                        </button>
-                      </div>
                     </td>
                   </tr>
                 ))}
@@ -430,26 +424,37 @@ export default function RagAudit() {
               </p>
             )}
             {feedback.map((item) => (
-              <div
+              <article
                 key={item.id}
-                className="rounded-lg border border-gray-100 bg-slate-50 p-3"
+                className="rounded-lg border border-gray-100 bg-slate-50 p-4"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-gray-900">
-                      {item.comment || t("ragAudit.noComment")}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {item.role ?? "-"} - {formatDateTime(item.createdAt)}
-                    </p>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-500">
+                      {t("ragAudit.conversationRole")}
+                    </span>
+                    <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-vr-700">
+                      {tc("roles." + (item.conversation?.role ?? item.role ?? ""), {
+                        defaultValue: item.conversation?.role ?? item.role ?? "-",
+                      })}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {formatDateTime(item.message?.createdAt ?? item.createdAt)}
+                    </span>
                   </div>
                   <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${feedbackTone(item.rating)}`}
+                    className={"shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold " + feedbackTone(item.rating)}
                   >
                     {item.rating > 0 ? "+1" : "-1"}
                   </span>
                 </div>
-              </div>
+                <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {t("ragAudit.assistantResponse")}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-gray-800">
+                  {item.message?.content || item.comment || t("ragAudit.noResponse")}
+                </p>
+              </article>
             ))}
           </div>
           <Pagination

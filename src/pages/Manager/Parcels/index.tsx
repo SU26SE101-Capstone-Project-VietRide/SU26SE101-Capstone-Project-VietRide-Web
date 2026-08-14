@@ -10,6 +10,8 @@ import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
   FiAlertTriangle,
+  FiArrowDown,
+  FiArrowUp,
   FiEdit2,
   FiPackage,
   FiPlus,
@@ -189,6 +191,15 @@ export default function ParcelsList() {
   // Search/sort/paging của bảng giá đã chuyển hẳn sang BE — `routeFares` chính
   // là một trang kết quả đã lọc và sắp xếp sẵn.
   const paginatedRouteFares = routeFares;
+
+  function toggleFareSort() {
+    setFareSort((current) => current === "priceAsc" ? "priceDesc" : "priceAsc");
+    setFarePage(1);
+  }
+
+  function fareSortIcon() {
+    return fareSort === "priceAsc" ? <FiArrowUp aria-hidden="true" size={14} /> : <FiArrowDown aria-hidden="true" size={14} />;
+  }
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -675,10 +686,6 @@ export default function ParcelsList() {
                   <option value="SCHEDULED">{t("parcels.routeFareStatus.SCHEDULED")}</option>
                   <option value="EXPIRED">{t("parcels.routeFareStatus.EXPIRED")}</option>
                 </CustomSelect>
-                <CustomSelect value={fareSort} onChange={(event) => { setFareSort(event.target.value as FareSort); setFarePage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100 lg:w-48">
-                  <option value="priceAsc">{t("parcels.priceLowToHigh")}</option>
-                  <option value="priceDesc">{t("parcels.priceHighToLow")}</option>
-                </CustomSelect>
               </div>
             </div>
             <div className="w-full overflow-hidden">
@@ -695,7 +702,7 @@ export default function ParcelsList() {
                   <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="whitespace-nowrap px-4 py-3">{t("parcels.route")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.sizeCategory")}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.fee")}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center"><button type="button" onClick={toggleFareSort} className="inline-flex items-center justify-center gap-1.5 font-semibold transition hover:text-vr-700" aria-label={t("parcels.fee")} title={fareSort === "priceAsc" ? t("parcels.priceHighToLow") : t("parcels.priceLowToHigh")}>{t("parcels.fee")}{fareSortIcon()}</button></th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveFrom")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveUntil")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{tc("actions")}</th>

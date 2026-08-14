@@ -213,8 +213,8 @@ export default function ManagerIncidents() {
       )}
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-2 lg:grid-cols-6">
-          <label>
+        <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="lg:col-span-5">
             <span className={labelClass}>{t("incidents.searchLabel")}</span>
             <input
               type="search"

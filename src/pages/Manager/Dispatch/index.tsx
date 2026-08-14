@@ -40,6 +40,7 @@ import {
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import AssignVehicleModal, {
   type AssignVehicleForm,
 } from "./AssignVehicleModal";
@@ -950,28 +951,36 @@ export default function DispatchPanel() {
             onChange={(event) => setRequestSearch(event.target.value)}
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
           />
-          <input
-            type="date"
-            aria-label={t("dispatch.requestFromLabel")}
-            value={requestFrom}
-            max={requestTo || undefined}
-            onChange={(event) => {
-              setRequestFrom(event.target.value);
-              setPage(1);
-            }}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
-          />
-          <input
-            type="date"
-            aria-label={t("dispatch.requestToLabel")}
-            value={requestTo}
-            min={requestFrom || undefined}
-            onChange={(event) => {
-              setRequestTo(event.target.value);
-              setPage(1);
-            }}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
-          />
+          <label className="min-w-0">
+            <span className="sr-only">{t("dispatch.requestFromLabel")}</span>
+            <CustomDateTimeInput
+              type="date"
+              value={requestFrom}
+              max={requestTo || undefined}
+              placeholder={t("dispatch.requestFromLabel")}
+              onChange={(event) => {
+                if (requestTo && event.target.value > requestTo) return;
+                setRequestFrom(event.target.value);
+                setPage(1);
+              }}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+            />
+          </label>
+          <label className="min-w-0">
+            <span className="sr-only">{t("dispatch.requestToLabel")}</span>
+            <CustomDateTimeInput
+              type="date"
+              value={requestTo}
+              min={requestFrom || undefined}
+              placeholder={t("dispatch.requestToLabel")}
+              onChange={(event) => {
+                if (requestFrom && event.target.value < requestFrom) return;
+                setRequestTo(event.target.value);
+                setPage(1);
+              }}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+            />
+          </label>
         </div>
 
         <RequestTable

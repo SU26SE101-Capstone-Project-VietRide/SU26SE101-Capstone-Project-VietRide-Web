@@ -1978,6 +1978,24 @@ export type RagFeedbackRequest = {
   comment?: string | null;
 };
 
+export type RagFeedbackMessage = {
+  id: string;
+  role?: RagRole;
+  content?: string | null;
+  citedChunkIds?: string[];
+  queryRewritten?: string | null;
+  responseLength?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RagFeedbackConversation = {
+  id: string;
+  userId?: string | null;
+  operatorId?: string | null;
+  role?: RagRole;
+};
+
 export type RagFeedback = {
   id: string;
   messageId: string;
@@ -1988,6 +2006,11 @@ export type RagFeedback = {
   role?: RagRole;
   createdAt: string;
   updatedAt?: string;
+  chunkIds?: string[];
+  citedChunkIds?: string[];
+  responseLength?: number | null;
+  message?: RagFeedbackMessage;
+  conversation?: RagFeedbackConversation;
 };
 
 export type RagDocumentUploadRequest = {

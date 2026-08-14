@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -225,17 +225,19 @@ describe("ParcelQueue", () => {
 
     await waitFor(() => expect(getOperatorParcels).toHaveBeenCalled());
 
+    await user.click(screen.getByRole("button", { name: "trips.advancedFilters" }));
     await user.click(
-      screen.getByRole("button", { name: "parcels.queue.dateFieldLabel" }),
+      screen.getByRole("button", { name: "parcels.queue.dateFieldSelectLabel" }),
     );
     await user.click(
       screen.getByRole("option", {
         name: "parcels.queue.dateFieldPaymentDeadline",
       }),
     );
-    fireEvent.change(screen.getByLabelText("parcels.queue.dateFromLabel"), {
-      target: { value: "2026-08-01" },
-    });
+    await user.click(
+      screen.getByRole("button", { name: "parcels.queue.dateFromLabel" }),
+    );
+    await user.click(screen.getByRole("button", { name: "2026-08-01" }));
 
     await waitFor(() =>
       expect(getOperatorParcels).toHaveBeenLastCalledWith(
