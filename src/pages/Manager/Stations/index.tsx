@@ -4,6 +4,7 @@ import { FiMapPin, FiRefreshCw, FiSearch } from "react-icons/fi";
 import { getOperatorStations, type OperatorStation } from "../../../api/vietride";
 import { StatCard } from "../../../components/StatCard";
 import Pagination from "../../../components/Pagination";
+import CustomSelect from "../../../components/CustomSelect";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 
 const PAGE_SIZE = 10;
@@ -22,6 +23,8 @@ export default function ManagerStationsPage() {
   const { t: tc } = useTranslation("common");
   const [items, setItems] = useState<OperatorStation[]>([]);
   const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
+  const [shuttleFilter, setShuttleFilter] = useState("");
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -34,7 +37,17 @@ export default function ManagerStationsPage() {
     setIsLoading(true);
     setError("");
     try {
-      const result = await getOperatorStations({ page, pageSize: PAGE_SIZE, ...(search.trim() ? { search: search.trim() } : {}) });
+      // `isActive` là cờ của liên kết nhà xe–bến; `supportsShuttle` là cờ của
+      // chính cái bến. BE coi đây là hai khái niệm riêng, không gộp.
+      const result = await getOperatorStations({
+        page,
+        pageSize: PAGE_SIZE,
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(activeFilter ? { isActive: activeFilter === "ACTIVE" } : {}),
+        ...(shuttleFilter ? { supportsShuttle: shuttleFilter === "SHUTTLE" } : {}),
+        sortBy: "name",
+        sortDir: "asc",
+      });
       setItems(result.items);
       setTotalItems(result.totalItems);
       setTotalPages(result.totalPages);
@@ -47,7 +60,7 @@ export default function ManagerStationsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, search, t]);
+  }, [activeFilter, page, search, shuttleFilter, t]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 0);
@@ -78,9 +91,21 @@ export default function ManagerStationsPage() {
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-4">
-          <div className="relative max-w-xl">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input aria-label={t("stations.searchLabel")} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t("stations.searchPlaceholder")} className={`${inputClass} pl-9`} />
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_220px]">
+            <div className="relative">
+              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input aria-label={t("stations.searchLabel")} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t("stations.searchPlaceholder")} className={`${inputClass} pl-9`} />
+            </div>
+            <CustomSelect aria-label={t("stations.filterActive")} value={activeFilter} onChange={(event) => { setActiveFilter(event.target.value); setPage(1); }} className={inputClass}>
+              <option value="">{t("stations.allActive")}</option>
+              <option value="ACTIVE">{tc("active")}</option>
+              <option value="INACTIVE">{tc("inactive")}</option>
+            </CustomSelect>
+            <CustomSelect aria-label={t("stations.filterShuttle")} value={shuttleFilter} onChange={(event) => { setShuttleFilter(event.target.value); setPage(1); }} className={inputClass}>
+              <option value="">{t("stations.allShuttle")}</option>
+              <option value="SHUTTLE">{t("stations.shuttleOnly")}</option>
+              <option value="NON_SHUTTLE">{t("stations.nonShuttleOnly")}</option>
+            </CustomSelect>
           </div>
         </div>
         {error ? <p className="px-5 py-10 text-center text-sm text-red-600">{error}</p> : (

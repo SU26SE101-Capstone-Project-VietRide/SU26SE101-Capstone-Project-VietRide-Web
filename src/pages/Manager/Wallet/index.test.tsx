@@ -218,10 +218,12 @@ describe("ManagerWallet", () => {
     const cashFlowHeader = await screen.findByText("wallet.cashFlow");
     const timeHeader = screen.getByText("wallet.time");
     const actorHeader = screen.getByText("wallet.actor");
+    const settlementHeader = screen.getByText("wallet.relatedSettlement");
 
     expect(cashFlowHeader).toHaveClass("w-[22%]");
-    expect(timeHeader).toHaveClass("w-[14%]");
+    expect(timeHeader).toHaveClass("w-[11%]");
     expect(actorHeader).toHaveClass("w-[12%]");
+    expect(settlementHeader).toHaveClass("w-[28%]");
     expect(
       screen.getByText("wallet.transactionCopy.TRIP_SETTLEMENT_CREDIT"),
     ).toHaveClass("whitespace-nowrap");

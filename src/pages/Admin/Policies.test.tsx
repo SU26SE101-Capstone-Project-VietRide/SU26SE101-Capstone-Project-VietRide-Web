@@ -90,8 +90,7 @@ describe("Admin Policies", () => {
 
     await screen.findByText(policy.title);
 
-    await user.click(screen.getByRole("button", { name: "policies.sortLabel" }));
-    await user.click(screen.getByRole("option", { name: "policies.sortTitle" }));
+    await user.click(screen.getByRole("button", { name: "policies.sortTitle" }));
 
     await waitFor(() =>
       expect(getAdminPolicies).toHaveBeenLastCalledWith(

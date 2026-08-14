@@ -160,6 +160,7 @@
     "PROCESSING": "Processing",
     "FAILED": "Failed",
     "COMPLETED": "Completed",
+    "REFUNDED": "Refunded",
     "ELIGIBLE": "Eligible",
     "SETTLED": "Settled",
     "CREDIT": "Credit",

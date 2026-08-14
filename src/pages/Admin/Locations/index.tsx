@@ -320,7 +320,7 @@ export default function AdminLocations() {
       </div>
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-[minmax(0,1fr)_repeat(3,minmax(160px,1fr))]">
+        <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(145px,0.85fr)_minmax(160px,0.85fr)_minmax(200px,1.1fr)]">
           <div className="relative">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input

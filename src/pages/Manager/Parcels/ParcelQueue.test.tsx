@@ -9,6 +9,7 @@ import {
   type OperatorParcelDetail,
   type OperatorParcelListItem,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import ParcelQueue from "./ParcelQueue";
 
 vi.mock("react-i18next", () => ({
@@ -183,6 +184,94 @@ describe("ParcelQueue", () => {
         expect.objectContaining({ status: "IN_TRANSIT", page: 1 }),
       ),
     );
+  });
+
+  // Trước đây ô tìm kiếm duy nhất bắt nhập CHÍNH XÁC mã chuyến; giờ BE có
+  // `search` OR-match mã đơn + tên/SĐT người gửi và người nhận.
+  it("gửi search tổng quát thay vì bắt nhập mã chuyến", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ParcelQueue />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getOperatorParcels).toHaveBeenCalled());
+
+    await user.type(
+      screen.getByPlaceholderText("parcels.queue.searchPlaceholder"),
+      "Nguyen Van A",
+    );
+
+    await waitFor(
+      () =>
+        expect(getOperatorParcels).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: "Nguyen Van A", page: 1 }),
+        ),
+      { timeout: 3_000 },
+    );
+    expect(getOperatorParcels).not.toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: "Nguyen Van A" }),
+    );
+  });
+
+  it("gửi khoảng ngày dạng YYYY-MM-DD kèm dateField", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ParcelQueue />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getOperatorParcels).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: "trips.advancedFilters" }));
+    await user.click(
+      screen.getByRole("button", { name: "parcels.queue.dateFieldSelectLabel" }),
+    );
+    await user.click(
+      screen.getByRole("option", {
+        name: "parcels.queue.dateFieldPaymentDeadline",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "parcels.queue.dateFromLabel" }),
+    );
+    await user.click(screen.getByRole("button", { name: "2026-08-01" }));
+
+    await waitFor(() =>
+      expect(getOperatorParcels).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          from: "2026-08-01",
+          dateField: "finalPaymentDeadline",
+          sortBy: "finalPaymentDeadline",
+        }),
+      ),
+    );
+  });
+
+  // 422 SEARCH_TOO_BROAD không phải "không có đơn nào" — phải hiện hướng dẫn
+  // thu hẹp từ khoá thay vì empty state.
+  it("hiện hướng dẫn riêng khi BE trả SEARCH_TOO_BROAD", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorParcels).mockRejectedValue(
+      new ApiRequestError("too broad", 422, "SEARCH_TOO_BROAD"),
+    );
+
+    render(
+      <MemoryRouter>
+        <ParcelQueue />
+      </MemoryRouter>,
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("parcels.queue.searchPlaceholder"),
+      "a",
+    );
+
+    expect(
+      await screen.findByText("parcels.queue.searchTooBroad", {}, { timeout: 3_000 }),
+    ).toBeInTheDocument();
   });
 
   it("giữ nguyên hàng đợi ưu tiên kèm pendingActionType", async () => {

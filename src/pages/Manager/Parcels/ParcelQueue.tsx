@@ -2,22 +2,28 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import CustomSelect from "../../../components/CustomSelect";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { FiCheckCircle, FiSearch } from "react-icons/fi";
+import { FiArrowDown, FiArrowUp, FiCheckCircle, FiSearch, FiSliders } from "react-icons/fi";
 import {
   getOperatorParcel,
   getOperatorParcels,
   type OperatorParcelDetail,
   type OperatorParcelListItem,
+  type OperatorParcelListParams,
+  type ParcelSizeCategory,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import { getAuthUser } from "../../../auth";
 import Modal from "../../../components/Modal";
 import { PersonnelTable } from "../../../components/PersonnelTable";
 import { formatDateTime } from "../../../utils/date";
 import ParcelDetailModal from "./ParcelDetailModal";
+import { parcelSizeCategories } from "./parcelFareHelpers";
 import {
   actionLabel,
+  inputClass,
   pageSize,
   queueTabs,
   statusTone,
@@ -36,8 +42,19 @@ export default function ParcelQueue() {
   });
   const canOperate = getAuthUser()?.role === "OPERATOR_ADMIN";
   const [queue, setQueue] = useState("ALL");
-  const [tripIdDraft, setTripIdDraft] = useState("");
-  const [tripId, setTripId] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [dateField, setDateField] =
+    useState<NonNullable<OperatorParcelListParams["dateField"]>>("createdAt");
+  const [sizeCategory, setSizeCategory] = useState("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const advancedFilterCount = Number(Boolean(dateFrom)) + Number(Boolean(dateTo)) + Number(Boolean(sizeCategory));
+  // BE có thể trả 422 SEARCH_TOO_BROAD — đó KHÔNG phải "không có kết quả",
+  // phải nói người dùng gõ cụ thể hơn thay vì hiện empty state.
+  const [searchTooBroad, setSearchTooBroad] = useState(false);
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<OperatorParcelListItem[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -58,27 +75,62 @@ export default function ParcelQueue() {
   const loadList = useCallback(async () => {
     setLoading(true);
     setListError("");
+    setSearchTooBroad(false);
     try {
       const activeFilter = queueTabs.find((tab) => tab.value === queue);
       const result = await getOperatorParcels({
         status: activeFilter?.status,
         pendingActionType: activeFilter?.pendingActionType,
-        tripId: tripId || undefined,
         page,
         pageSize,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        ...(dateFrom ? { from: dateFrom } : {}),
+        ...(dateTo ? { to: dateTo } : {}),
+        // `dateField` chỉ có nghĩa khi kèm khoảng ngày
+        ...(dateFrom || dateTo ? { dateField } : {}),
+        ...(sizeCategory
+          ? { sizeCategory: sizeCategory as ParcelSizeCategory }
+          : {}),
+        sortBy: dateFrom || dateTo ? dateField : "createdAt",
+        sortDir,
       });
       setItems(result.items);
       setTotalItems(result.totalItems);
     } catch (error) {
       setItems([]);
       setTotalItems(0);
+      // Từ khoá quá chung: giữ nguyên keyword, hướng dẫn thu hẹp — không được
+      // hiển thị như danh sách rỗng.
+      if (error instanceof ApiRequestError && error.code === "SEARCH_TOO_BROAD") {
+        setSearchTooBroad(true);
+        return;
+      }
       setListError(
         error instanceof Error ? error.message : tRef.current("parcels.loadFailed"),
       );
     } finally {
       setLoading(false);
     }
-  }, [page, queue, tripId]);
+  }, [
+    dateField,
+    dateFrom,
+    dateTo,
+    debouncedSearch,
+    page,
+    queue,
+    sizeCategory,
+    sortDir,
+  ]);
+
+  // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
 
   const openLinkedParcelDetail = useCallback(
@@ -209,15 +261,72 @@ export default function ParcelQueue() {
     setConfirmState({ label, run: action });
   }
 
+  function toggleCreatedAtSort() {
+    setSortDir((current) => (current === "desc" ? "asc" : "desc"));
+    setPage(1);
+  }
+
+  function createdAtSortIcon() {
+    return sortDir === "desc" ? <FiArrowDown aria-hidden="true" size={14} /> : <FiArrowUp aria-hidden="true" size={14} />;
+  }
+
   useToastFeedback({ message, error: actionError || listError });
   return (
     <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
       <PersonnelTable
-        toolbar={<div className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_280px]"><form className="flex min-w-0 flex-col gap-2 sm:flex-row" onSubmit={(event) => { event.preventDefault(); setTripId(tripIdDraft.trim()); setPage(1); }}><label className="relative min-w-0 flex-1"><span className="sr-only">{t("parcels.queue.filterByTripSr")}</span><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={tripIdDraft} onChange={(event) => setTripIdDraft(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 pl-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35" placeholder={t("parcels.queue.tripIdPlaceholder")} /></label><button type="submit" className="inline-flex items-center justify-center rounded-lg bg-vr-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-vr-600">{tc("search")}</button></form><CustomSelect value={queue} onChange={(event) => { setQueue(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35" aria-label={t("parcels.queue.tabListAriaLabel")}>{queueTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.labelKey === "all" ? tc("all") : tab.labelKey.startsWith("enumLabels.") ? tc(tab.labelKey) : t(tab.labelKey)}</option>)}</CustomSelect></div>}
+        toolbar={<div className="space-y-3">
+          {/*
+            Trước đây ô này bắt nhập CHÍNH XÁC mã chuyến — nhân viên không tra
+            được đơn khi khách gọi hỏi. BE đã có `search` OR-match mã đơn và
+            tên/SĐT của cả người gửi lẫn người nhận.
+          */}
+          <div className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_280px_auto]">
+            <label className="relative min-w-0">
+              <span className="sr-only">{t("parcels.queue.searchLabel")}</span>
+              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} className={`${inputClass} pl-10`} placeholder={t("parcels.queue.searchPlaceholder")} />
+            </label>
+            <CustomSelect value={queue} onChange={(event) => { setQueue(event.target.value); setPage(1); }} className={inputClass} aria-label={t("parcels.queue.tabListAriaLabel")}>{queueTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.labelKey === "all" ? tc("all") : tab.labelKey.startsWith("enumLabels.") ? tc(tab.labelKey) : t(tab.labelKey)}</option>)}</CustomSelect>
+            <button type="button" onClick={() => setShowAdvancedFilters((current) => !current)} aria-expanded={showAdvancedFilters} aria-label={t("trips.advancedFilters")} className={"inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-vr-500/30 " + (advancedFilterCount > 0 ? "border-vr-300 bg-vr-50 text-vr-800" : "border-gray-200 bg-white text-gray-700 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700")}>
+              <FiSliders aria-hidden="true" size={16} />
+              {t("trips.advancedFilters")}{advancedFilterCount > 0 ? " (" + advancedFilterCount + ")" : ""}
+            </button>
+          </div>
+          {showAdvancedFilters ? (
+            <div className="mt-3 space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs font-semibold text-gray-600">{t("parcels.queue.dateFieldLabel")}</p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs font-medium text-gray-500">{t("parcels.queue.dateFieldSelectLabel")}</span>
+                  <CustomSelect value={dateField} onChange={(event) => { setDateField(event.target.value as typeof dateField); setPage(1); }} className={inputClass} aria-label={t("parcels.queue.dateFieldSelectLabel")}>
+                    <option value="createdAt">{t("parcels.queue.dateFieldCreatedAt")}</option>
+                    <option value="finalPaymentDeadline">{t("parcels.queue.dateFieldPaymentDeadline")}</option>
+                  </CustomSelect>
+                </label>
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs font-medium text-gray-500">{t("parcels.queue.dateFromLabel")}</span>
+                  <CustomDateTimeInput type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className={inputClass} aria-label={t("parcels.queue.dateFromLabel")} placeholder={t("parcels.queue.dateFromPlaceholder")} />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs font-medium text-gray-500">{t("parcels.queue.dateToLabel")}</span>
+                  <CustomDateTimeInput type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className={inputClass} aria-label={t("parcels.queue.dateToLabel")} placeholder={t("parcels.queue.dateToPlaceholder")} />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs font-medium text-gray-500">{t("parcels.queue.sizeFilterLabel")}</span>
+                  <CustomSelect value={sizeCategory} onChange={(event) => { setSizeCategory(event.target.value); setPage(1); }} className={inputClass} aria-label={t("parcels.queue.sizeFilterLabel")}>
+                    <option value="">{t("parcels.queue.allSizes")}</option>
+                    {parcelSizeCategories.map((size) => <option key={size} value={size}>{t("parcels.sizeCategories." + size, { defaultValue: size })}</option>)}
+                  </CustomSelect>
+                </label>
+              </div>
+            </div>
+          ) : null}
+          {searchTooBroad && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{t("parcels.queue.searchTooBroad")}</p>}
+        </div>}
         columns={[
           { key: "code", header: t("parcels.orderCode"), headerClassName: "w-[20%] px-5 py-3 text-center", cellClassName: "w-[20%] px-5 py-4 pr-6", render: (item) => <p className="whitespace-nowrap font-semibold text-gray-900">{item.parcelCode}</p> },
-          { key: "route", header: t("parcels.queue.routeNameLabel"), headerClassName: "w-[21%] px-5 py-3 pl-8 text-center", cellClassName: "w-[21%] px-5 py-4 pl-8 text-center text-sm", render: (item) => <><p className="font-medium text-gray-800">{item.route?.routeName || item.routeName || t("parcels.queue.noRouteName")}</p><p className="mt-1 text-xs text-gray-500">{formatDateTime(item.createdAt)}</p></> },
+          { key: "route", header: <button type="button" onClick={toggleCreatedAtSort} className="inline-flex items-center justify-center gap-1.5 font-semibold transition hover:text-vr-700" aria-label={t("parcels.queue.sortLabel")} title={sortDir === "desc" ? t("parcels.queue.sortNewest") : t("parcels.queue.sortOldest")}>{t("parcels.queue.routeNameLabel")}{createdAtSortIcon()}</button>, headerClassName: "w-[21%] px-5 py-3 pl-8 text-center", cellClassName: "w-[21%] px-5 py-4 pl-8 text-center text-sm", render: (item) => <><p className="font-medium text-gray-800">{item.route?.routeName || item.routeName || t("parcels.queue.noRouteName")}</p><p className="mt-1 text-xs text-gray-500">{formatDateTime(item.createdAt)}</p></> },
           { key: "recipient", header: t("parcels.recipient"), headerClassName: "w-[16%] px-5 py-3 text-center", cellClassName: "w-[16%] px-5 py-4 text-center text-sm", render: (item) => <><p className="font-medium text-gray-800">{item.recipientName || "-"}</p><p className="mt-1 text-gray-500">{formatVietnamPhoneForDisplay(item.recipientPhone)}</p></> },
           { key: "size", header: t("parcels.sizeCategory"), headerClassName: "w-[10%] px-2 py-3 text-center", cellClassName: "w-[10%] px-2 py-4 text-center text-sm text-gray-700", render: (item) => <>{item.sizeCategory ? t(`parcels.sizeCategories.${item.sizeCategory}`, { defaultValue: item.sizeCategory }) : "-"}<br /><span className="text-xs text-gray-500">{item.actualWeightKg == null ? "-" : `${item.actualWeightKg} kg`}</span></> },
           { key: "status", header: t("parcels.queue.colStatus"), headerClassName: "w-[20%] px-5 py-3 text-center", cellClassName: "w-[20%] px-5 py-4 text-center", render: (item) => <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusTone(item)}`}>{actionLabel(item, t, tc)}</span> },

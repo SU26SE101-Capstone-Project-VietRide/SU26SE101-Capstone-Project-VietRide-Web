@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   approveAdminOperator,
   getAdminOperators,
+  getAdminOperatorSummary,
+  exportAdminOperators,
   type AdminOperator,
 } from "../../../api/vietride";
 import Operators from "./index";
@@ -17,6 +19,8 @@ vi.mock("../../../api/vietride", () => ({
   createAdminOperator: vi.fn(),
   getAdminOperatorDetail: vi.fn(),
   getAdminOperators: vi.fn(),
+  getAdminOperatorSummary: vi.fn(),
+  exportAdminOperators: vi.fn(),
   reactivateAdminOperator: vi.fn(),
   rejectAdminOperator: vi.fn(),
   suspendAdminOperator: vi.fn(),
@@ -40,6 +44,14 @@ describe("Admin Operators", () => {
     vi.mocked(approveAdminOperator).mockImplementation(async (operatorId) => {
       isApproved = true;
       return { operatorId, message: "approved" };
+    });
+    vi.mocked(getAdminOperatorSummary).mockResolvedValue({
+      total: 1,
+      pending: 1,
+      approved: 0,
+      suspended: 0,
+      rejected: 0,
+      active: 1,
     });
     vi.mocked(getAdminOperators).mockImplementation(async (params = {}) => {
       const operator = {
@@ -93,14 +105,15 @@ describe("Admin Operators", () => {
     expect(
       screen.getByRole("button", { name: "operators.allStatus" }),
     ).toBeInTheDocument();
-    await waitFor(() =>
-      expect(getAdminOperators).toHaveBeenLastCalledWith(
-        expect.objectContaining({ status: undefined }),
-      ),
-    );
+    // Quay về "tất cả trạng thái": key `status` bị bỏ hẳn khỏi query thay vì
+    // gửi `status=undefined` (BE strict-query từ chối query rỗng/lạ).
+    await waitFor(() => {
+      const lastCall = vi.mocked(getAdminOperators).mock.calls.at(-1)?.[0] ?? {};
+      expect(lastCall.status).toBeUndefined();
+    });
   });
 
-  it("loads every API page before applying client-side table pagination", async () => {
+  it("phân trang server-side: mỗi trang là một request riêng", async () => {
     const user = userEvent.setup();
     const operators = Array.from({ length: 9 }, (_, index) => ({
       ...pendingOperator,
@@ -125,13 +138,44 @@ describe("Admin Operators", () => {
 
     render(<Operators />);
 
+    // Mở màn chỉ tải trang 1 — trước đây fetchAllPages kéo hết mọi trang
+    expect(
+      await screen.findByText("Operator 1", {}, { timeout: 5_000 }),
+    ).toBeInTheDocument();
+    expect(getAdminOperators).not.toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2 }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "2" }));
+
     await waitFor(() =>
-      expect(getAdminOperators).toHaveBeenCalledWith(
+      expect(getAdminOperators).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 2 }),
       ),
     );
-    await user.click(screen.getByRole("button", { name: "2" }));
     expect(await screen.findByText("Operator 9")).toBeInTheDocument();
+  });
+
+  // Export lấy CSV do BE dựng, dùng đúng bộ lọc của danh sách nhưng KHÔNG kèm
+  // page/pageSize — nếu kèm thì chỉ xuất được trang đang xem.
+  it("xuất CSV qua BE với đúng filter, không kèm phân trang", async () => {
+    const user = userEvent.setup();
+    vi.mocked(exportAdminOperators).mockResolvedValue(
+      new Blob(["operatorId,name"], { type: "text/csv" }),
+    );
+    const createObjectURL = vi.fn(() => "blob:mock");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
+
+    render(<Operators />);
+    await screen.findByText(pendingOperator.name, {}, { timeout: 5_000 });
+
+    await user.click(screen.getByRole("button", { name: /exportCsv/ }));
+
+    await waitFor(() => expect(exportAdminOperators).toHaveBeenCalled());
+    const params = vi.mocked(exportAdminOperators).mock.calls.at(-1)?.[0] ?? {};
+    expect(params).not.toHaveProperty("page");
+    expect(params).not.toHaveProperty("pageSize");
   });
 
   it("keeps rows the BE matched on non-name fields", async () => {

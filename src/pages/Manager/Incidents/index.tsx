@@ -52,6 +52,8 @@ export default function ManagerIncidents() {
   const [items, setItems] = useState<OperatorIncident[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [category, setCategory] = useState<IncidentCategory | "">("");
   const [status, setStatus] = useState<IncidentStatus | "">("");
   const [from, setFrom] = useState("");
@@ -68,6 +70,16 @@ export default function ManagerIncidents() {
   const canResolve = getAuthUser()?.role === "OPERATOR_ADMIN";
 
   useToastFeedback({ message: resolveMessage, error: loadError });
+
+  // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     let ignore = false;
@@ -86,6 +98,11 @@ export default function ManagerIncidents() {
           ...(from ? { from } : {}),
           ...(to ? { to } : {}),
           ...(linkedTripId ? { tripId: linkedTripId } : {}),
+          // BE hỏi Identity để khớp tên người báo — 503 UPSTREAM_UNAVAILABLE
+          // KHÔNG có nghĩa là không có sự cố nào.
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          sortBy: "reportedAt",
+          sortDir: "desc",
         });
         if (ignore) return;
         setItems(result.items);
@@ -108,7 +125,7 @@ export default function ManagerIncidents() {
     return () => {
       ignore = true;
     };
-  }, [category, from, linkedTripId, page, reloadKey, status, to]);
+  }, [category, debouncedSearch, from, linkedTripId, page, reloadKey, status, to]);
 
   const openDetail = useCallback(async (incident: OperatorIncident) => {
     // Hiện ngay bản ghi của danh sách rồi thay bằng bản chi tiết khi về
@@ -197,6 +214,17 @@ export default function ManagerIncidents() {
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
         <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="lg:col-span-5">
+            <span className={labelClass}>{t("incidents.searchLabel")}</span>
+            <input
+              type="search"
+              aria-label={t("incidents.searchLabel")}
+              className={inputClass}
+              placeholder={t("incidents.searchPlaceholder")}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
           <label>
             <span className={labelClass}>{t("incidents.category")}</span>
             <CustomSelect

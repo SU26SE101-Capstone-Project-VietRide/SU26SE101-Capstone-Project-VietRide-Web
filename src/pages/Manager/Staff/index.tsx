@@ -6,6 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiActivity,
+  FiArrowDown,
+  FiArrowUp,
   FiEye,
   FiKey,
   FiLock,
@@ -344,6 +346,17 @@ export default function StaffPage() {
     setUserForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function toggleNameSort() {
+    setSort((current) => (current === "displayName:asc" ? "displayName:desc" : "displayName:asc"));
+    setPage(1);
+  }
+
+  function nameSortIcon() {
+    if (sort === "displayName:asc") return <FiArrowUp aria-hidden="true" size={14} />;
+    if (sort === "displayName:desc") return <FiArrowDown aria-hidden="true" size={14} />;
+    return <span aria-hidden="true" className="text-base leading-none text-gray-300">↕</span>;
+  }
+
   useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
@@ -393,9 +406,9 @@ export default function StaffPage() {
         />
       </div>
       <PersonnelTable
-        toolbar={<div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div><div className="flex flex-wrap gap-2"><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect>{/* sortBy/sortDir BE đã nhận sẵn, màn chỉ thiếu ô chọn */}<CustomSelect aria-label={t("staff.sortLabel")} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700" value={sort} onChange={(event) => { setSort(event.target.value as SortOption); setPage(1); }}><option value="createdAt:desc">{t("staff.sortNewest")}</option><option value="createdAt:asc">{t("staff.sortOldest")}</option><option value="displayName:asc">{t("staff.sortNameAsc")}</option><option value="displayName:desc">{t("staff.sortNameDesc")}</option></CustomSelect></div></div>}
+        toolbar={<div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_300px] lg:items-center"><div className="relative min-w-0"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div><div className="contents"><CustomSelect className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 lg:w-[220px]" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 lg:w-[300px]" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect>{/* sortBy/sortDir BE đã nhận sẵn, màn chỉ thiếu ô chọn */}</div></div>}
         columns={[
-          { key: "name", header: t("staff.fullName"), headerClassName: "w-[20%] px-3 py-3 text-left", cellClassName: "w-[20%] px-3 py-4 text-left", render: (user) => <div className="flex min-w-0 items-center justify-start gap-3">{user.avatarUrl ? ( <img src={user.avatarUrl} alt={user.displayName || user.email} width={40} height={40} loading="lazy" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover" /> ) : ( <RoleAvatar role={user.role} name={user.displayName || user.email} /> )}<span className="min-w-0 truncate text-sm font-semibold text-gray-900" title={user.displayName || "-"}>{user.displayName || "-"}</span></div> },
+          { key: "name", header: <button type="button" onClick={toggleNameSort} className="inline-flex items-center gap-1.5 font-semibold transition hover:text-vr-700" aria-label={t("staff.sortNameAsc")}>{t("staff.fullName")}{nameSortIcon()}</button>, headerClassName: "w-[20%] px-3 py-3 text-left", cellClassName: "w-[20%] px-3 py-4 text-left", render: (user) => <div className="flex min-w-0 items-center justify-start gap-3">{user.avatarUrl ? ( <img src={user.avatarUrl} alt={user.displayName || user.email} width={40} height={40} loading="lazy" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover" /> ) : ( <RoleAvatar role={user.role} name={user.displayName || user.email} /> )}<span className="min-w-0 truncate text-sm font-semibold text-gray-900" title={user.displayName || "-"}>{user.displayName || "-"}</span></div> },
           { key: "email", header: tc("email"), headerClassName: "w-[24%] px-3 py-3 text-center", cellClassName: "w-[24%] px-3 py-4 text-center text-sm text-gray-600", render: (user) => <span className="block truncate" title={user.email}>{user.email}</span> },
           { key: "phone", header: tc("phone"), headerClassName: "w-[10%] px-3 py-3 text-center", cellClassName: "w-[10%] px-3 py-4 text-center text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
           { key: "role", header: t("staff.role"), headerClassName: "w-[13%] px-3 py-3 text-center", cellClassName: "w-[13%] px-3 py-4 text-center text-sm text-gray-700", render: (user) => roleLabel(user.role) },

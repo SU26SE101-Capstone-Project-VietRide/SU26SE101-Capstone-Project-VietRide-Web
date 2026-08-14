@@ -19,12 +19,12 @@ export function TransactionsTable({
       <table className="w-full min-w-[1100px] table-fixed text-center text-sm">
         <thead>
           <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
-            <th className="w-[14%] px-3 py-3">{t("wallet.time")}</th>
+            <th className="w-[11%] px-3 py-3">{t("wallet.time")}</th>
             <th className="w-[22%] px-4 py-3">{t("wallet.cashFlow")}</th>
             <th className="w-[13%] px-3 py-3">{t("wallet.change")}</th>
-            <th className="w-[14%] px-3 py-3">{t("wallet.balanceAfter")}</th>
+            <th className="w-[11%] px-3 py-3">{t("wallet.balanceAfter")}</th>
             <th className="w-[12%] px-3 py-3">{t("wallet.actor")}</th>
-            <th className="w-[25%] px-4 py-3">{t("wallet.relatedSettlement")}</th>
+            <th className="w-[28%] px-4 py-3">{t("wallet.relatedSettlement")}</th>
           </tr>
         </thead>
         <tbody>
@@ -60,7 +60,7 @@ function TransactionRow({
 
   return (
     <tr className="border-t border-gray-100">
-      <td className="w-[14%] whitespace-nowrap px-3 py-3 text-gray-700">{formatWalletDate(item.createdAt)}</td>
+      <td className="w-[11%] whitespace-nowrap px-3 py-3 text-gray-700">{formatWalletDate(item.createdAt)}</td>
       <td className={`w-[22%] whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
         {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
         {copy}
@@ -82,7 +82,7 @@ function TransactionRow({
             ? item.actor.displayName
             : tc("enumLabels.SYSTEM", { defaultValue: "-" })}
       </td>
-      <td className="w-[25%] px-4 py-3 text-gray-600">
+      <td className="w-[28%] px-4 py-3 text-gray-600">
         {item.relatedSettlement
           ? t("wallet.relatedSettlementValue", { method: t(`wallet.methods.${item.relatedSettlement.method}`, { defaultValue: item.relatedSettlement.method }) })
           : "-"}

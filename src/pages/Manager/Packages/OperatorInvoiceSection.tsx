@@ -23,6 +23,8 @@ export default function OperatorInvoiceSection() {
   const linkedInvoiceId = searchParams.get("invoiceId");
   const [invoices, setInvoices] = useState<OperatorInvoice[]>([]);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState("");
@@ -48,9 +50,12 @@ export default function OperatorInvoiceSection() {
       setError("");
 
       try {
+        // `search`: contains trên số hoá đơn; nếu chuỗi là UUID hợp lệ thì BE
+        // còn OR-match chính xác `paymentId`.
         const result = await getOperatorInvoices({
           page,
           pageSize,
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
           sortBy: "createdAt",
           sortDir: "desc",
         });
@@ -75,7 +80,17 @@ export default function OperatorInvoiceSection() {
     return () => {
       ignore = true;
     };
-  }, [page, t]);
+  }, [debouncedSearch, page, t]);
+
+  // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   async function openInvoiceDetail(invoiceId: string) {
     setDetailLoadingId(invoiceId);
@@ -122,6 +137,14 @@ export default function OperatorInvoiceSection() {
         <p className="mt-1 text-sm text-gray-500">
           {t("packages.invoicesHint")}
         </p>
+        <input
+          type="search"
+          aria-label={t("packages.invoiceSearchLabel")}
+          placeholder={t("packages.invoiceSearchPlaceholder")}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="mt-3 w-full max-w-md rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+        />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

@@ -2,6 +2,8 @@ import { useToastFeedback } from "../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FiArrowDown,
+  FiArrowUp,
   FiCheck,
   FiEdit2,
   FiEye,
@@ -360,7 +362,7 @@ export default function AdminPolicies() {
       </div>
 
       {/* BE đã hỗ trợ sẵn search/category/active/sort; màn chỉ thiếu UI */}
-      <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_200px_180px_180px]">
+      <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_200px_180px]">
         <div className="relative min-w-0">
           <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -406,19 +408,6 @@ export default function AdminPolicies() {
           <option value="ACTIVE">{tc("active")}</option>
           <option value="INACTIVE">{tc("inactive")}</option>
         </CustomSelect>
-        <CustomSelect
-          aria-label={t("policies.sortLabel")}
-          className={inputClass}
-          value={sortBy}
-          onChange={(event) => {
-            setSortBy(event.target.value as typeof sortBy);
-            setPage(1);
-          }}
-        >
-          <option value="updatedAt">{t("policies.sortUpdatedAt")}</option>
-          <option value="createdAt">{t("policies.sortCreatedAt")}</option>
-          <option value="title">{t("policies.sortTitle")}</option>
-        </CustomSelect>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -426,10 +415,10 @@ export default function AdminPolicies() {
           <table className="w-full min-w-[920px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3 text-left">{tc("title")}</th>
+                <th className="px-5 py-3 text-left"><button type="button" onClick={() => { setSortBy("title"); setPage(1); }} aria-label={t("policies.sortTitle")} className="inline-flex items-center gap-1.5 text-left transition hover:text-vr-700">{tc("title")}<FiArrowUp size={14} className={sortBy === "title" ? "text-vr-600" : "text-gray-300"} aria-hidden="true" /></button></th>
                 <th className="px-5 py-3 text-center">{t("policies.type")}</th>
                 <th className="px-5 py-3 text-center">{t("policies.version")}</th>
-                <th className="px-5 py-3 text-center">{t("policies.updatedAt")}</th>
+                <th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("createdAt"); setPage(1); }} aria-label={t("policies.sortCreatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-700">{t("policies.createdAt")}<FiArrowDown size={14} className={sortBy === "createdAt" ? "text-vr-600" : "text-gray-300"} aria-hidden="true" /></button></th><th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("updatedAt"); setPage(1); }} aria-label={t("policies.sortUpdatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-700">{t("policies.updatedAt")}<FiArrowDown size={14} className={sortBy === "updatedAt" ? "text-vr-600" : "text-gray-300"} aria-hidden="true" /></button></th>
                 <th className="px-5 py-3 text-center">{tc("status")}</th>
                 <th className="px-5 py-3 text-center">{tc("actions")}</th>
               </tr>
@@ -437,14 +426,14 @@ export default function AdminPolicies() {
             <tbody>
               {!loading && paginatedPolicies.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">
                     {t("policies.empty")}
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">
                     {t("policies.loading")}
                   </td>
                 </tr>
@@ -470,6 +459,9 @@ export default function AdminPolicies() {
                     </span>
                   </td>
                   <td className="px-5 py-4 text-center text-gray-600">v{policy.version}</td>
+                  <td className="px-5 py-4 text-center text-gray-600">
+                    {formatDateOnly(policy.createdAt)}
+                  </td>
                   <td className="px-5 py-4 text-center text-gray-600">
                     {formatDateOnly(policy.updatedAt)}
                   </td>

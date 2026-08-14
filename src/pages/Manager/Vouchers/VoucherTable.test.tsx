@@ -30,90 +30,51 @@ function makeVoucher(index: number): OperatorVoucher {
   } as OperatorVoucher;
 }
 
+function renderTable(props: Partial<Parameters<typeof VoucherTable>[0]> = {}) {
+  const onPageChange = vi.fn();
+  render(
+    <VoucherTable
+      toolbar={null}
+      vouchers={Array.from({ length: 8 }, (_, index) => makeVoucher(index))}
+      isLoading={false}
+      page={1}
+      pageSize={8}
+      totalItems={20}
+      onPageChange={onPageChange}
+      onEdit={vi.fn()}
+      onToggle={vi.fn()}
+      onDelete={vi.fn()}
+      {...props}
+    />,
+  );
+  return { onPageChange };
+}
+
 describe("Manager VoucherTable", () => {
-  // PersonnelTable render thẳng `rows` và không tự cắt theo trang. Trước đây
-  // VoucherTable truyền cả danh sách nên bảng hiện mọi voucher còn thanh phân
-  // trang chỉ là trang trí — bấm trang 2 thì số trang đổi mà hàng thì không.
-  it("chỉ render đúng số hàng của một trang", () => {
-    const vouchers = Array.from({ length: 20 }, (_, index) =>
-      makeVoucher(index),
-    );
+  // Bảng giờ là controlled component: BE đã phân trang, component chỉ render
+  // đúng những dòng được truyền vào và KHÔNG tự cắt lại.
+  it("render đúng các dòng được truyền vào, không tự cắt", () => {
+    renderTable();
 
-    render(
-      <VoucherTable
-        toolbar={null}
-        vouchers={vouchers}
-        isLoading={false}
-        onEdit={vi.fn()}
-        onToggle={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
-
-    // pageSize = 8
     expect(screen.getByText("CODE0")).toBeInTheDocument();
     expect(screen.getByText("CODE7")).toBeInTheDocument();
-    expect(screen.queryByText("CODE8")).not.toBeInTheDocument();
-    expect(screen.queryByText("CODE19")).not.toBeInTheDocument();
   });
 
-  it("đổi trang thì đổi luôn hàng hiển thị", async () => {
-    const user = userEvent.setup();
-    const vouchers = Array.from({ length: 20 }, (_, index) =>
-      makeVoucher(index),
-    );
+  // Tổng số bản ghi phải lấy từ `totalItems` của BE, không phải `rows.length` —
+  // nếu lấy nhầm thì trang 1 luôn là trang cuối.
+  it("dựng phân trang theo totalItems của BE chứ không theo số dòng", () => {
+    renderTable();
 
-    render(
-      <VoucherTable
-        toolbar={null}
-        vouchers={vouchers}
-        isLoading={false}
-        onEdit={vi.fn()}
-        onToggle={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    // 20 bản ghi / pageSize 8 = 3 trang
+    expect(screen.getByRole("button", { name: "3" })).toBeInTheDocument();
+  });
+
+  it("báo trang mới lên cha thay vì tự đổi state", async () => {
+    const user = userEvent.setup();
+    const { onPageChange } = renderTable();
 
     await user.click(screen.getByRole("button", { name: "2" }));
 
-    expect(screen.getByText("CODE8")).toBeInTheDocument();
-    expect(screen.queryByText("CODE0")).not.toBeInTheDocument();
-  });
-
-  // Lọc xong danh sách ngắn lại, trang đang đứng có thể vượt quá dữ liệu còn
-  // lại — phải kẹp về trang cuối hợp lệ thay vì hiện bảng rỗng.
-  it("kẹp trang khi bộ lọc làm danh sách ngắn đi", async () => {
-    const user = userEvent.setup();
-    const vouchers = Array.from({ length: 20 }, (_, index) =>
-      makeVoucher(index),
-    );
-
-    const { rerender } = render(
-      <VoucherTable
-        toolbar={null}
-        vouchers={vouchers}
-        isLoading={false}
-        onEdit={vi.fn()}
-        onToggle={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "3" }));
-    expect(screen.getByText("CODE16")).toBeInTheDocument();
-
-    rerender(
-      <VoucherTable
-        toolbar={null}
-        vouchers={vouchers.slice(0, 3)}
-        isLoading={false}
-        onEdit={vi.fn()}
-        onToggle={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("CODE0")).toBeInTheDocument();
-    expect(screen.getByText("CODE2")).toBeInTheDocument();
+    expect(onPageChange).toHaveBeenCalledWith(2);
   });
 });

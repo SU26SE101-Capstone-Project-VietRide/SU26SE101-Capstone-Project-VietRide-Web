@@ -6,6 +6,7 @@ import {
   getAdminCampaigns,
   getAdminOperators,
   getAdminVouchers,
+  getAdminVoucherSummary,
 } from "../../../api/vietride";
 import Vouchers from "./index";
 
@@ -25,6 +26,7 @@ vi.mock("../../../api/vietride", () => ({
   getAdminOperators: vi.fn(),
   getAdminVoucherConsents: vi.fn(),
   getAdminVouchers: vi.fn(),
+  getAdminVoucherSummary: vi.fn(),
   updateAdminCampaign: vi.fn(),
   updateAdminVoucher: vi.fn(),
 }));
@@ -32,6 +34,13 @@ vi.mock("../../../api/vietride", () => ({
 describe("Admin Vouchers table", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getAdminVoucherSummary).mockResolvedValue({
+      total: 1,
+      active: 1,
+      booking: 1,
+      parcel: 0,
+      expiringIn7Days: 0,
+    });
     vi.mocked(getAdminVouchers).mockResolvedValue({
       items: [
         {

@@ -130,11 +130,13 @@ describe("Manager Incidents", () => {
     );
 
     await waitFor(() =>
-      expect(getOperatorIncidents).toHaveBeenLastCalledWith({
-        page: 1,
-        pageSize: 20,
-        category: "VEHICLE_BREAKDOWN",
-      }),
+      expect(getOperatorIncidents).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 1,
+          pageSize: 20,
+          category: "VEHICLE_BREAKDOWN",
+        }),
+      ),
     );
   });
 
@@ -142,11 +144,13 @@ describe("Manager Incidents", () => {
     renderPage("/manager/incidents?tripId=trip-1");
 
     await waitFor(() =>
-      expect(getOperatorIncidents).toHaveBeenCalledWith({
-        page: 1,
-        pageSize: 20,
-        tripId: "trip-1",
-      }),
+      expect(getOperatorIncidents).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          pageSize: 20,
+          tripId: "trip-1",
+        }),
+      ),
     );
     expect(screen.getByText("incidents.filteredByTrip")).toBeInTheDocument();
   });

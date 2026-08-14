@@ -103,6 +103,7 @@ export default function Users() {
           status: status || undefined,
           // BE đã nhận `operatorId` từ đầu, màn chỉ thiếu ô chọn
           operatorId: operatorId || undefined,
+          // `from`/`to` lọc inclusive theo createdAt, dạng YYYY-MM-DD
           sortBy: "createdAt",
           sortDir: "desc",
         });
@@ -217,7 +218,7 @@ export default function Users() {
         <StatCard label={tc("enumLabels.PENDING_INITIAL_PASSWORD")} value={users.filter((user) => user.status === "PENDING_INITIAL_PASSWORD").length} icon={<FiKey size={20} />} iconClassName="bg-amber-50 text-amber-700" />
       </div>
       <PersonnelTable
-        toolbar={<div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_220px_200px_220px]">
+        toolbar={<div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_180px_170px_190px]">
           <div className="relative"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="search" placeholder={t("users.searchPlaceholder")} value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" /></div>
           <CustomSelect value={role} onChange={(event) => { setRole(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.allRoles")}</option><option value="PASSENGER">{t("users.customer")}</option><option value="OPERATOR_ADMIN">{t("users.operatorAdmin")}</option><option value="OPERATOR_STAFF">{t("users.operatorStaff")}</option><option value="DRIVER">{t("users.driver")}</option><option value="ASSISTANT">{t("users.assistant")}</option><option value="SYSTEM_ADMIN">{t("users.systemAdmin")}</option></CustomSelect>
           <CustomSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.allStatuses")}</option><option value="ACTIVE">{tc("active")}</option><option value="LOCKED">{t("users.locked")}</option><option value="PENDING_EMAIL_VERIFICATION">{tc("enumLabels.PENDING_EMAIL_VERIFICATION")}</option><option value="PENDING_INITIAL_PASSWORD">{tc("enumLabels.PENDING_INITIAL_PASSWORD")}</option><option value="DELETED">{tc("enumLabels.DELETED")}</option></CustomSelect>

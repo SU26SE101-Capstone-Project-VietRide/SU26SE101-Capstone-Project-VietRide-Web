@@ -17,6 +17,9 @@ export type PageParams = {
 
 export type VoucherService = "BOOKING" | "PARCEL" | string;
 
+/** Kiểu giảm giá của voucher — dùng cho query `type` của list voucher */
+export type VoucherDiscountType = "PERCENT_OFF" | "FIXED_AMOUNT";
+
 export type PaymentMethod = "VNPAY" | "WALLET" | string;
 
 export type PagedResult<T> = {
@@ -169,6 +172,9 @@ export type AdminUserParams = PageParams & {
   role?: string;
   operatorId?: string;
   includeDeleted?: boolean;
+  /** `YYYY-MM-DD`, inclusive theo `createdAt` */
+  from?: string;
+  to?: string;
 };
 
 export type AdminUserActionResult = {
@@ -716,6 +722,12 @@ export type OperatorInvoiceDetail = OperatorInvoice & {
   downloadApiUrl: string;
 };
 
+/**
+ * Allow-list BE: page, pageSize, status, from, to, sortBy, sortDir, search.
+ * `search`: contains không phân biệt hoa thường trên `invoiceNumber`; nếu chuỗi
+ * parse được thành UUID thì OR-match chính xác `paymentId`.
+ * `sortBy`: issuedAt | createdAt | amount | invoiceNumber.
+ */
 export type OperatorInvoiceParams = FinancialListParams & {
   status?: OperatorInvoice["status"];
 };
@@ -1645,12 +1657,40 @@ export type OperatorParcelReportSummary = {
   source?: string;
 };
 
-export type OperatorParcelListParams = Pick<
-  PageParams,
-  "page" | "pageSize" | "status"
-> & {
+/**
+ * Allow-list BE: status, tripId, pendingActionType, page, pageSize, search,
+ * from, to, dateField, sizeCategory, routeId, sortBy, sortDir.
+ */
+export type OperatorParcelListParams = {
+  page?: number;
+  pageSize?: number;
+  status?: string;
   tripId?: string;
   pendingActionType?: string;
+  /**
+   * OR-match (contains, có unaccent cho tên và mã nội địa): mã đơn, tên/SĐT
+   * người gửi, tên/SĐT người nhận.
+   *
+   * KHÔNG khớp mã chuyến — Parcel không có trip code canonical, muốn lọc theo
+   * chuyến thì dùng `tripId`, theo tuyến thì dùng `routeId`.
+   *
+   * Từ khoá quá chung có thể nhận `422 SEARCH_TOO_BROAD`; đó KHÔNG phải kết quả
+   * rỗng, phải yêu cầu người dùng nhập cụ thể hơn.
+   */
+  search?: string;
+  /** `YYYY-MM-DD`, inclusive theo giờ Việt Nam. Không gửi timestamp UTC. */
+  from?: string;
+  to?: string;
+  /** Mặc định `createdAt` khi có khoảng ngày */
+  dateField?: "createdAt" | "finalPaymentDeadline";
+  sizeCategory?: ParcelSizeCategory;
+  /**
+   * Lọc theo `tripSnapshotRouteId`. Đơn cũ có snapshot null sẽ KHÔNG khớp, kể
+   * cả khi chuyến hiện tại đang thuộc tuyến đó.
+   */
+  routeId?: string;
+  sortBy?: "createdAt" | "finalPaymentDeadline";
+  sortDir?: "asc" | "desc";
 };
 
 export type OperatorParcelListItem = {
@@ -1771,12 +1811,37 @@ export type ParcelRouteFare = {
  * Allow-list BE: routeId, sizeCategory, page, pageSize, search.
  * `search` khớp tên tuyến hoặc tên bến đi/bến đến trong đúng tenant.
  */
+/** Trạng thái hiệu lực của một khung giá, neo theo `effectiveAt` */
+export type ParcelRouteFareStatus = "ACTIVE" | "SCHEDULED" | "EXPIRED";
+
 export type ParcelRouteFareParams = {
   page?: number;
   pageSize?: number;
   routeId?: string;
   sizeCategory?: ParcelSizeCategory;
   search?: string;
+  sortBy?: "priceVnd" | "effectiveFrom";
+  sortDir?: "asc" | "desc";
+  /**
+   * `YYYY-MM-DD` — ngày neo để phân loại hiệu lực. Chỉ gửi `effectiveAt` thì
+   * mặc định lấy `ACTIVE` của ngày đó; gửi `status` mà không có `effectiveAt`
+   * thì BE neo vào hôm nay.
+   */
+  effectiveAt?: string;
+  /** Window không có `effectiveUntil` không bao giờ bị coi là EXPIRED */
+  status?: ParcelRouteFareStatus;
+};
+
+/**
+ * `GET /v1/operator/parcel-route-fares/summary` — không nhận query,
+ * tenant-scoped. Thay cho việc tải toàn bộ fare rồi tự group ở client.
+ */
+export type ParcelRouteFareSummaryItem = {
+  routeId: string;
+  /** Không trùng lặp, theo thứ tự enum SMALL → MEDIUM → LARGE → EXTRA_LARGE */
+  configuredSizeCategories: ParcelSizeCategory[];
+  hasActiveWindow: boolean;
+  hasScheduledWindow: boolean;
 };
 
 export type CreateParcelRouteFareRequest = {
@@ -1913,6 +1978,24 @@ export type RagFeedbackRequest = {
   comment?: string | null;
 };
 
+export type RagFeedbackMessage = {
+  id: string;
+  role?: RagRole;
+  content?: string | null;
+  citedChunkIds?: string[];
+  queryRewritten?: string | null;
+  responseLength?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RagFeedbackConversation = {
+  id: string;
+  userId?: string | null;
+  operatorId?: string | null;
+  role?: RagRole;
+};
+
 export type RagFeedback = {
   id: string;
   messageId: string;
@@ -1923,6 +2006,11 @@ export type RagFeedback = {
   role?: RagRole;
   createdAt: string;
   updatedAt?: string;
+  chunkIds?: string[];
+  citedChunkIds?: string[];
+  responseLength?: number | null;
+  message?: RagFeedbackMessage;
+  conversation?: RagFeedbackConversation;
 };
 
 export type RagDocumentUploadRequest = {
@@ -2314,12 +2402,29 @@ export type ResolveIncidentRequest = {
   resolutionNote: string;
 };
 
-export type OperatorIncidentParams = PageParams & {
+/**
+ * Allow-list BE: tripId, category, status, from, to, page, pageSize, search,
+ * reportedByUserId, sortBy, sortDir.
+ */
+export type OperatorIncidentParams = {
+  page?: number;
+  pageSize?: number;
   tripId?: string;
   category?: IncidentCategory;
-  /** Chỉ OPEN hoặc RESOLVED; kế thừa `status` từ PageParams */
+  /** Chỉ OPEN hoặc RESOLVED */
+  status?: string;
+  /** `YYYY-MM-DD`, inclusive */
   from?: string;
   to?: string;
+  /**
+   * OR-match mô tả sự cố và tên người báo (BE hỏi Identity).
+   * Identity chết thì trả `503 UPSTREAM_UNAVAILABLE` — đó KHÔNG phải "không có
+   * sự cố nào", không được hiển thị thành danh sách rỗng.
+   */
+  search?: string;
+  reportedByUserId?: string;
+  sortBy?: "reportedAt" | "resolvedAt";
+  sortDir?: "asc" | "desc";
 };
 
 export type OperatorShuttleTripStatus =
@@ -2433,10 +2538,19 @@ export type UpdateAdminVoucherRequest = Partial<
  * sortBy, sortDir. Endpoint chỉ trả voucher nền tảng (ownerOperatorId = null)
  * nên KHÔNG còn nhận `ownerOperatorId`.
  */
+export type VoucherSortBy =
+  | "createdAt"
+  | "validFrom"
+  | "validUntil"
+  | "code"
+  | "name"
+  | "isActive"
+  | "usedCount";
+
 export type AdminVoucherParams = {
   page?: number;
   pageSize?: number;
-  sortBy?: string;
+  sortBy?: VoucherSortBy;
   sortDir?: "asc" | "desc";
   fundingType?: string;
   isActive?: boolean;
@@ -2444,20 +2558,45 @@ export type AdminVoucherParams = {
   search?: string;
   /** Khớp phần tử trong `applicableServices` */
   service?: VoucherService;
+  type?: VoucherDiscountType;
+  /**
+   * `YYYY-MM-DD`. KHÁC `isActive`: `isActive` là cờ bật/tắt, còn `validAt` hỏi
+   * cửa sổ `validFrom..validUntil` có giao với ngày đó không. Voucher đã hết hạn
+   * vẫn có thể `isActive=true`.
+   */
+  validAt?: string;
 };
 
 /**
- * Allow-list BE: isActive, search, service, page, pageSize, sortBy, sortDir.
- * Owner lấy từ JWT — không gửi `ownerOperatorId` hay `fundingType`.
+ * Allow-list BE: isActive, search, service, type, validAt, page, pageSize,
+ * sortBy, sortDir. Owner lấy từ JWT — không gửi `ownerOperatorId` hay
+ * `fundingType`.
  */
 export type OperatorVoucherParams = {
   page?: number;
   pageSize?: number;
-  sortBy?: string;
+  sortBy?: VoucherSortBy;
   sortDir?: "asc" | "desc";
   isActive?: boolean;
   search?: string;
   service?: VoucherService;
+  type?: VoucherDiscountType;
+  validAt?: string;
+};
+
+/**
+ * `GET /v1/{admin|operator}/vouchers/summary` — không nhận query, đếm trên toàn
+ * bộ voucher trong phạm vi (platform hoặc tenant), không đổi theo filter list.
+ */
+export type VoucherSummary = {
+  total: number;
+  /** Đếm cờ `isActive`, KHÔNG đồng nghĩa đang trong cửa sổ hiệu lực */
+  active: number;
+  /** `booking` và `parcel` có thể chồng lắp nếu voucher áp dụng cả hai */
+  booking: number;
+  parcel: number;
+  /** Đang bật, đã bắt đầu, và hết hạn trong 7 ngày tới */
+  expiringIn7Days: number;
 };
 
 export type AdminCampaign = {
@@ -2713,7 +2852,10 @@ export type BookingStatsItem = {
   date?: string;
   totalBookings: number;
   totalCancellations?: number;
+  /** Số **booking** no-show */
   totalNoShows?: number;
+  /** Số **hành khách** no-show — khác `totalNoShows`, đừng dùng lẫn */
+  noShowPassengerCount?: number;
   totalPartialNoShows?: number;
   totalCompleted?: number;
 };
@@ -2722,7 +2864,10 @@ export type BookingStatsAggregate = {
   items: BookingStatsItem[];
   totalBookings?: number;
   totalCancellations?: number;
+  /** Số **booking** no-show */
   totalNoShows?: number;
+  /** Số **hành khách** no-show — thay cho việc tải hết booking NO_SHOW để cộng */
+  noShowPassengerCount?: number;
   totalPartialNoShows?: number;
   totalCompleted?: number;
   totalPassengers?: number;
@@ -3539,10 +3684,23 @@ export type OperatorDriverScheduleParams = {
   pageSize?: number;
   routeId?: string;
   driverUserId?: string;
+  assistantUserId?: string;
   isActive?: boolean;
   /** OR-match: tên tuyến, biển số xe, tên tài xế, tên phụ xe */
   search?: string;
   vehicleTypeId?: string;
+  /** 1 = Thứ Hai … 7 = Chủ Nhật */
+  dayOfWeek?: number;
+  /**
+   * `HH:mm`, inclusive. KHÔNG hỗ trợ ca qua nửa đêm — gửi
+   * `departureFrom=22:00&departureTo=02:00` sẽ nhận 422, phải tách hai request.
+   */
+  departureFrom?: string;
+  departureTo?: string;
+  /** `YYYY-MM-DD` nằm trong `validFrom..validUntil`; độc lập với `isActive` */
+  effectiveAt?: string;
+  sortBy?: "departureTime" | "effectiveFrom";
+  sortDir?: "asc" | "desc";
 };
 
 export type DriverScheduleItem = OperatorDriverSchedule & {
@@ -3780,10 +3938,76 @@ export function getAdminOperatorDetail(operatorId: string) {
   return apiRequest<AdminOperatorDetail>(`/v1/admin/operators/${operatorId}`);
 }
 
-export function getAdminOperators(params: PageParams = {}) {
+/**
+ * Allow-list BE: page, pageSize, search, sortBy, sortDir, status, isActive,
+ * from, to, dateField.
+ *
+ * `status` (registrationStatus) và `isActive` là HAI khái niệm riêng: nhà xe đã
+ * duyệt vẫn có thể bị tắt. Không gộp chúng thành một dropdown.
+ */
+export type AdminOperatorParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: "PENDING" | "APPROVED" | "SUSPENDED" | "REJECTED";
+  isActive?: boolean;
+  /** `YYYY-MM-DD`, inclusive */
+  from?: string;
+  to?: string;
+  /** Mặc định `createdAt` khi có khoảng ngày */
+  dateField?: "createdAt" | "approvedAt";
+  sortBy?:
+    | "name"
+    | "contactEmail"
+    | "contactPhone"
+    | "businessRegistrationNumber"
+    | "taxCode"
+    | "registrationStatus"
+    | "isActive"
+    | "createdAt"
+    | "approvedAt"
+    | "suspendedAt";
+  sortDir?: "asc" | "desc";
+};
+
+/** Bộ lọc dùng chung cho list và export; export KHÔNG nhận page/pageSize */
+export type AdminOperatorExportParams = Omit<
+  AdminOperatorParams,
+  "page" | "pageSize"
+>;
+
+/**
+ * `GET /v1/admin/operators/summary` — không nhận query, đếm trên toàn platform
+ * và KHÔNG đổi theo filter của list.
+ */
+export type AdminOperatorSummary = {
+  total: number;
+  pending: number;
+  approved: number;
+  suspended: number;
+  rejected: number;
+  active: number;
+};
+
+export function getAdminOperators(params: AdminOperatorParams = {}) {
   return apiRequest<PagedResult<AdminOperator>>(
     `/v1/admin/operators${buildQuery(params)}`,
   );
+}
+
+export function getAdminOperatorSummary() {
+  return apiRequest<AdminOperatorSummary>("/v1/admin/operators/summary");
+}
+
+/**
+ * Tải CSV do BE dựng: UTF-8 BOM (Excel đọc đúng tiếng Việt), escape RFC 4180,
+ * và xuất **toàn bộ** dòng khớp filter chứ không chỉ trang hiện tại.
+ * Không parse CSV rồi dựng lại ở browser.
+ */
+export function exportAdminOperators(params: AdminOperatorExportParams = {}) {
+  return apiBlobRequest(`/v1/admin/operators/export${buildQuery(params)}`, {
+    headers: { Accept: "text/csv" },
+  });
 }
 
 export function createAdminOperator(request: CreateAdminOperatorRequest) {
@@ -4354,7 +4578,25 @@ export function attachOperatorStation(stationId: string) {
   return createOperatorStation({ stationId });
 }
 
-export function getOperatorStations(params: PageParams = {}) {
+/**
+ * Allow-list BE: page, pageSize, search, isActive, supportsShuttle, sortBy,
+ * sortDir.
+ *
+ * Hai cờ boolean là HAI khái niệm khác nhau, không được gộp thành một trạng
+ * thái: `isActive` là cờ của liên kết OperatorStation (nhà xe có dùng bến này
+ * không), còn `supportsShuttle` là cờ canonical của chính cái bến.
+ */
+export type OperatorStationParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  isActive?: boolean;
+  supportsShuttle?: boolean;
+  sortBy?: "name" | "createdAt" | "updatedAt";
+  sortDir?: "asc" | "desc";
+};
+
+export function getOperatorStations(params: OperatorStationParams = {}) {
   return apiRequest<PagedResult<OperatorStation>>(
     `/v1/operator/stations${buildQuery(params)}`,
   );
@@ -4389,7 +4631,20 @@ export function deleteOperatorStation(
   );
 }
 
-export function getOperatorStops(params: PageParams = {}) {
+/**
+ * Allow-list BE: page, pageSize, search, isActive, routeId.
+ * `routeId` lọc membership qua bảng route-stop ngay trong SQL, trước count và
+ * paging — không cần tải hết stop rồi tự đối chiếu.
+ */
+export type OperatorStopParams = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  isActive?: boolean;
+  routeId?: string;
+};
+
+export function getOperatorStops(params: OperatorStopParams = {}) {
   return apiRequest<PagedResult<OperatorStop>>(
     `/v1/operator/stops${buildQuery(params)}`,
   );
@@ -4437,6 +4692,10 @@ export type OperatorRouteParams = {
   pageSize?: number;
   search?: string;
   isActive?: boolean;
+  originStationId?: string;
+  destinationStationId?: string;
+  sortBy?: "name" | "totalDistanceKm" | "estimatedDurationMinutes";
+  sortDir?: "asc" | "desc";
 };
 
 export function getOperatorRoutes(params: OperatorRouteParams = {}) {
@@ -4931,6 +5190,12 @@ export function createOperatorParcelRouteFare(
   });
 }
 
+export function getOperatorParcelRouteFareSummary() {
+  return apiRequest<ParcelRouteFareSummaryItem[]>(
+    "/v1/operator/parcel-route-fares/summary",
+  );
+}
+
 export function getOperatorParcelRouteFares(
   params: ParcelRouteFareParams = {},
 ) {
@@ -5004,6 +5269,10 @@ export function unloadAssistantParcel(
       },
     },
   );
+}
+
+export function getOperatorVoucherSummary() {
+  return apiRequest<VoucherSummary>("/v1/operator/vouchers/summary");
 }
 
 export function getOperatorVouchers(params: OperatorVoucherParams = {}) {
@@ -5100,6 +5369,10 @@ export function getAdminVoucherConsents(voucherId: string) {
   return apiRequest<AdminVoucherConsentResult>(
     `/v1/admin/vouchers/${voucherId}/consents`,
   );
+}
+
+export function getAdminVoucherSummary() {
+  return apiRequest<VoucherSummary>("/v1/admin/vouchers/summary");
 }
 
 export async function getAdminVouchers(params: AdminVoucherParams = {}) {
@@ -5788,8 +6061,26 @@ export function getTrackingTripRouteGeometry(tripId: string) {
   );
 }
 
+/**
+ * Allow-list BE: page, pageSize, from, to, mainTripId, search.
+ *
+ * Endpoint này **tự thân đã là hàng đợi pending/unassigned** — không có
+ * `status` và không có `unassignedOnly`. Muốn xem lịch sử đã gán/đã huỷ thì
+ * dùng `getOperatorShuttleTrips`.
+ */
+export type ShuttleRequestParams = {
+  page?: number;
+  pageSize?: number;
+  /** `YYYY-MM-DD` theo `requestedAt`, inclusive */
+  from?: string;
+  to?: string;
+  mainTripId?: string;
+  /** Địa chỉ đón hoặc tên/SĐT hành khách */
+  search?: string;
+};
+
 export function getOperatorShuttleRequests(
-  params: PageParams = {},
+  params: ShuttleRequestParams = {},
   signal?: AbortSignal,
 ) {
   return apiRequest<PagedResult<ShuttleRequestGroup>>(

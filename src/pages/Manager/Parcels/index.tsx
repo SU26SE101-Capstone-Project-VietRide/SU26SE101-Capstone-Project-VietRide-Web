@@ -10,6 +10,8 @@ import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
   FiAlertTriangle,
+  FiArrowDown,
+  FiArrowUp,
   FiEdit2,
   FiPackage,
   FiPlus,
@@ -23,11 +25,14 @@ import {
   batchUpdateOperatorParcelRouteFares,
   getOperatorParcelReportSummary,
   getOperatorParcelRouteFares,
+  getOperatorParcelRouteFareSummary,
   getOperatorRoutes,
   type OperatorParcelReportSummary,
   type OperatorRoute,
   type ParcelRouteFare,
   type ParcelSizeCategory,
+  type ParcelRouteFareStatus,
+  type ParcelRouteFareSummaryItem,
   updateOperatorParcelRouteFare,
 } from "../../../api/vietride";
 import { fetchAllPages } from "../../../api/pagination";
@@ -52,8 +57,8 @@ import {
   createEmptyFarePrices,
   getRouteFareSummary,
   parcelSizeCategories,
-  stripDiacritics,
   type FareEditorMode,
+  type RouteFareStatus,
 } from "./parcelFareHelpers";
 type FareSort = "priceAsc" | "priceDesc";
 const routePickerPageSize = 8;
@@ -109,8 +114,13 @@ export default function ParcelsList() {
   const [error, setError] = useState("");
   const [farePage, setFarePage] = useState(1);
   const [fareSearch, setFareSearch] = useState("");
+  const [debouncedFareSearch, setDebouncedFareSearch] = useState("");
   const [fareSizeFilter, setFareSizeFilter] = useState<"" | ParcelSizeCategory>("");
+  const [fareStatusFilter, setFareStatusFilter] = useState<"" | ParcelRouteFareStatus>("");
   const [fareSort, setFareSort] = useState<FareSort>("priceAsc");
+  const [fareTotalItems, setFareTotalItems] = useState(0);
+  const [fareSummaries, setFareSummaries] = useState<ParcelRouteFareSummaryItem[]>([]);
+  const [selectedRouteFares, setSelectedRouteFares] = useState<ParcelRouteFare[]>([]);
   const [fareRouteId, setFareRouteId] = useState("");
   const [fareSizeCategory, setFareSizeCategory] = useState<ParcelSizeCategory>("SMALL");
   const [farePrice, setFarePrice] = useState("");
@@ -137,77 +147,147 @@ export default function ParcelsList() {
     () => routes.find((route) => route.id === fareRouteId) ?? null,
     [fareRouteId, routes],
   );
+  // Trình soạn giá cần TOÀN BỘ khung giá của tuyến đang chọn (để biết cửa sổ
+  // hiệu lực và từng mức giá), mà `routeFares` giờ chỉ là một trang — nên hỏi
+  // riêng theo `routeId` thay vì suy từ trang đang xem.
   const selectedRouteFareSummary = useMemo(
     () =>
-      fareRouteId
-        ? getRouteFareSummary(fareRouteId, routeFares)
-        : null,
-    [fareRouteId, routeFares],
+      fareRouteId ? getRouteFareSummary(fareRouteId, selectedRouteFares) : null,
+    [fareRouteId, selectedRouteFares],
   );
-  const routePickerOptions = useMemo<RouteFarePickerOption[]>(
-    () =>
-      routePickerRoutes.map((route) => ({
+  // Badge trong ô chọn tuyến lấy từ endpoint summary của BE. Picker chỉ đọc
+  // `status` và `configuredSizeCount` nên không cần dựng lại `window`.
+  const routePickerOptions = useMemo<RouteFarePickerOption[]>(() => {
+    const byRouteId = new Map(
+      fareSummaries.map((item) => [item.routeId, item]),
+    );
+    return routePickerRoutes.map((route) => {
+      const item = byRouteId.get(route.id);
+      const configuredSizeCount = item?.configuredSizeCategories.length ?? 0;
+      const status: RouteFareStatus =
+        configuredSizeCount === 0
+          ? "UNPRICED"
+          : item?.hasActiveWindow
+            ? configuredSizeCount < parcelSizeCategories.length
+              ? "INCOMPLETE"
+              : "ACTIVE"
+            : item?.hasScheduledWindow
+              ? "SCHEDULED"
+              : "EXPIRED";
+
+      return {
         route,
-        summary: getRouteFareSummary(route.id, routeFares),
-      })),
-    [routeFares, routePickerRoutes],
-  );
+        summary: {
+          status,
+          configuredSizeCount,
+          window: null,
+          hasScheduledWindow: item?.hasScheduledWindow ?? false,
+        },
+      };
+    });
+  }, [fareSummaries, routePickerRoutes]);
 
   const pendingActionCount = useMemo(() => summary?.totalRejected ?? 0, [summary]);
-  const filteredRouteFares = useMemo(() => {
-    // Bỏ dấu hai vế: gõ "da lat" phải ra "Đà Lạt". So khớp có dấu là lý do ô
-    // tìm kiếm này trông như hỏng — người dùng hiếm khi gõ đủ dấu.
-    const query = stripDiacritics(fareSearch);
-    return routeFares
-      .filter((fare) => {
-        const route = routes.find((item) => item.id === fare.routeId);
-        // Khớp cả tên bến đi/bến đến như `search` của BE, không chỉ tên tuyến
-        const haystack = stripDiacritics(
-          [
-            route?.name,
-            route?.originStation?.name,
-            route?.destinationStation?.name,
-          ]
-            .filter(Boolean)
-            .join(" "),
-        );
-        const matchesSearch = !query || haystack.includes(query);
-        const matchesSize = !fareSizeFilter || fare.sizeCategory === fareSizeFilter;
-        return matchesSearch && matchesSize;
-      })
-      .sort((left, right) => fareSort === "priceAsc" ? left.priceVnd - right.priceVnd : right.priceVnd - left.priceVnd);
-  }, [fareSearch, fareSizeFilter, fareSort, routeFares, routes]);
+  // Search/sort/paging của bảng giá đã chuyển hẳn sang BE — `routeFares` chính
+  // là một trang kết quả đã lọc và sắp xếp sẵn.
+  const paginatedRouteFares = routeFares;
 
-  const paginatedRouteFares = useMemo(
-    () => filteredRouteFares.slice((farePage - 1) * pageSize, farePage * pageSize),
-    [farePage, filteredRouteFares],
-  );
+  function toggleFareSort() {
+    setFareSort((current) => current === "priceAsc" ? "priceDesc" : "priceAsc");
+    setFarePage(1);
+  }
+
+  function fareSortIcon() {
+    return fareSort === "priceAsc" ? <FiArrowUp aria-hidden="true" size={14} /> : <FiArrowDown aria-hidden="true" size={14} />;
+  }
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
     try {
-      const [
-        summaryResult,
-        fareItems,
-        routeItems,      ] = await Promise.all([getOperatorParcelReportSummary({
-          from: fromDate,
-          to: toDate,
-        }),
-        fetchAllPages((params) => getOperatorParcelRouteFares(params)),
-        fetchAllPages((params) => getOperatorRoutes(params)),
-      ]);
+      const [summaryResult, fareResult, fareSummaryItems, routeItems] =
+        await Promise.all([
+          getOperatorParcelReportSummary({ from: fromDate, to: toDate }),
+          // Bảng giá: search/sort/status/paging đều server-side
+          getOperatorParcelRouteFares({
+            page: farePage,
+            pageSize,
+            ...(debouncedFareSearch ? { search: debouncedFareSearch } : {}),
+            ...(fareSizeFilter
+              ? { sizeCategory: fareSizeFilter as ParcelSizeCategory }
+              : {}),
+            ...(fareStatusFilter
+              ? { status: fareStatusFilter as ParcelRouteFareStatus }
+              : {}),
+            sortBy: "priceVnd",
+            sortDir: fareSort === "priceAsc" ? "asc" : "desc",
+          }),
+          // Tóm tắt theo tuyến cho ô chọn trong modal — thay cho việc tải toàn
+          // bộ fare rồi tự group bằng getRouteFareSummary().
+          getOperatorParcelRouteFareSummary(),
+          fetchAllPages((params) => getOperatorRoutes(params)),
+        ]);
 
       setSummary(summaryResult);
-      setRouteFares(fareItems);
+      setRouteFares(fareResult.items);
+      setFareTotalItems(fareResult.totalItems);
+      setFareSummaries(fareSummaryItems);
       setRoutes(routeItems);
     } catch (err) {
       setError(err instanceof Error ? err.message : tRef.current("parcels.loadFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [fromDate, toDate]);
+  }, [
+    debouncedFareSearch,
+    farePage,
+    fareSizeFilter,
+    fareSort,
+    fareStatusFilter,
+    fromDate,
+    toDate,
+  ]);
+
+  // Ô tìm kiếm bảng giá giờ đi thẳng lên BE nên phải debounce.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedFareSearch(fareSearch.trim());
+      setFarePage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [fareSearch]);
+
+  // Tải mọi khung giá của tuyến đang soạn. pageSize 100 là dư: mỗi tuyến chỉ có
+  // tối đa 4 loại kích cỡ × vài cửa sổ hiệu lực.
+  useEffect(() => {
+    let ignore = false;
+
+    if (!fareRouteId) {
+      // Hoãn sang macrotask: gọi setState thẳng trong effect gây cascading render
+      const clearTimer = window.setTimeout(() => setSelectedRouteFares([]), 0);
+      return () => window.clearTimeout(clearTimer);
+    }
+
+    void getOperatorParcelRouteFares({ routeId: fareRouteId, page: 1, pageSize: 100 })
+      .then((result) => {
+        if (ignore) return;
+        setSelectedRouteFares(result.items);
+        // Prefill form ngay khi có dữ liệu thật của tuyến vừa chọn
+        if (!editingFare) {
+          applyFareSelection(
+            buildFareSelection(getRouteFareSummary(fareRouteId, result.items)),
+          );
+        }
+      })
+      .catch(() => {
+        if (!ignore) setSelectedRouteFares([]);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [editingFare, fareRouteId, fareMessage]);
 
   useEffect(() => {
     if (!isFareModalOpen || editingFare) return;
@@ -286,8 +366,10 @@ export default function ParcelsList() {
   }
 
   function handleSelectFareRoute(option: RouteFarePickerOption) {
+    // Chỉ chọn tuyến ở đây. Giá được prefill trong effect bên dưới, sau khi tải
+    // xong toàn bộ khung giá của tuyến — summary từ BE cố tình không mang theo
+    // từng mức giá nên không đủ để điền form.
     setFareRouteId(option.route.id);
-    applyFareSelection(buildFareSelection(option.summary));
     setFareError("");
   }
 
@@ -597,9 +679,12 @@ export default function ParcelsList() {
                   <option value="">{t("parcels.allSizeCategories")}</option>
                   {parcelSizeCategories.map((size) => <option key={size} value={size}>{t("parcels.sizeCategories." + size)}</option>)}
                 </CustomSelect>
-                <CustomSelect value={fareSort} onChange={(event) => setFareSort(event.target.value as FareSort)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100 lg:w-48">
-                  <option value="priceAsc">{t("parcels.priceLowToHigh")}</option>
-                  <option value="priceDesc">{t("parcels.priceHighToLow")}</option>
+                {/* BE phân loại hiệu lực theo ngày neo; window không có ngày kết thúc không bao giờ là EXPIRED */}
+                <CustomSelect value={fareStatusFilter} onChange={(event) => { setFareStatusFilter(event.target.value as "" | ParcelRouteFareStatus); setFarePage(1); }} aria-label={t("parcels.fareStatusFilterLabel")} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100 lg:w-48">
+                  <option value="">{t("parcels.allFareStatuses")}</option>
+                  <option value="ACTIVE">{t("parcels.routeFareStatus.ACTIVE")}</option>
+                  <option value="SCHEDULED">{t("parcels.routeFareStatus.SCHEDULED")}</option>
+                  <option value="EXPIRED">{t("parcels.routeFareStatus.EXPIRED")}</option>
                 </CustomSelect>
               </div>
             </div>
@@ -617,7 +702,7 @@ export default function ParcelsList() {
                   <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="whitespace-nowrap px-4 py-3">{t("parcels.route")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.sizeCategory")}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.fee")}</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center"><button type="button" onClick={toggleFareSort} className="inline-flex items-center justify-center gap-1.5 font-semibold transition hover:text-vr-700" aria-label={t("parcels.fee")} title={fareSort === "priceAsc" ? t("parcels.priceHighToLow") : t("parcels.priceLowToHigh")}>{t("parcels.fee")}{fareSortIcon()}</button></th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveFrom")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveUntil")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{tc("actions")}</th>
@@ -674,7 +759,7 @@ export default function ParcelsList() {
             <Pagination
               page={farePage}
               pageSize={pageSize}
-              totalItems={filteredRouteFares.length}
+              totalItems={fareTotalItems}
               onPageChange={setFarePage}
             />
           </section>

@@ -64,14 +64,19 @@ describe("Manager bookings stats", () => {
     vi.mocked(getOperatorBooking).mockRejectedValue(
       new Error("Booking detail should not load in this test"),
     );
+    // `noShowPassengerCount` (số HÀNH KHÁCH) do BE tính sẵn; `totalNoShows` vẫn
+    // là số BOOKING. Trước đây FE phải tải hết booking NO_SHOW rồi cộng seatCount.
     vi.mocked(getOperatorBookingStats).mockResolvedValue({
       totalBookings: 9,
+      totalNoShows: 3,
+      noShowPassengerCount: 3,
       items: [
         {
           date: "2026-08-10",
           totalBookings: 9,
           totalCompleted: 4,
           totalNoShows: 3,
+          noShowPassengerCount: 3,
         },
       ],
     });
