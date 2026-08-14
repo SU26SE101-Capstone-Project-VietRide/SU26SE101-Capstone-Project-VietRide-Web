@@ -29,7 +29,6 @@ import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 import { inputClass } from "../../../components/form/formClasses";
 import { StatCard } from "../../../components/StatCard";
-import { fetchAllPages } from "../../../api/pagination";
 
 const PAGE_SIZE = 20;
 const actionIconClass =
@@ -178,43 +177,31 @@ export default function BookingsList() {
     let isCurrent = true;
 
     async function loadStats() {
-      const [statsResult, pendingResult, noShowResult] =
-        await Promise.allSettled([
-          getOperatorBookingStats({ groupBy: "date" }),
-          getOperatorBookings({
-            status: "PENDING_PAYMENT",
-            page: 1,
-            pageSize: 1,
-          }),
-          fetchAllPages(({ page: nextPage, pageSize }) =>
-            getOperatorBookings({
-              status: "NO_SHOW",
-              page: nextPage,
-              pageSize,
-            }),
-          ),
-        ]);
+      // `noShowPassengerCount` do BE tính sẵn — trước đây màn phải tải TOÀN BỘ
+      // booking NO_SHOW rồi tự cộng `seatCount`.
+      // Lưu ý: `totalNoShows` là số BOOKING, `noShowPassengerCount` là số HÀNH
+      // KHÁCH; hai con số này khác nhau, không dùng lẫn.
+      const [statsResult, pendingResult] = await Promise.allSettled([
+        getOperatorBookingStats({ groupBy: "date" }),
+        getOperatorBookings({
+          status: "PENDING_PAYMENT",
+          page: 1,
+          pageSize: 1,
+        }),
+      ]);
 
       if (!isCurrent) return;
 
-      setStats(statsResult.status === "fulfilled" ? statsResult.value : null);
+      const statsValue =
+        statsResult.status === "fulfilled" ? statsResult.value : null;
+      setStats(statsValue);
       setPendingBookings(
         pendingResult.status === "fulfilled"
           ? pendingResult.value.totalItems
           : 0,
       );
-      if (noShowResult.status === "fulfilled") {
-        setNoShowBookingCount(noShowResult.value.length);
-        setNoShowPassengers(
-          noShowResult.value.reduce(
-            (total, booking) => total + booking.seatCount,
-            0,
-          ),
-        );
-      } else {
-        setNoShowBookingCount(0);
-        setNoShowPassengers(0);
-      }
+      setNoShowBookingCount(statsValue?.totalNoShows ?? 0);
+      setNoShowPassengers(statsValue?.noShowPassengerCount ?? 0);
     }
 
     void loadStats();

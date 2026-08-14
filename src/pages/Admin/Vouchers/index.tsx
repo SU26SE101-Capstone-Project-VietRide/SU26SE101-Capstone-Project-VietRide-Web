@@ -7,9 +7,11 @@ import {
   deleteAdminVoucher,
   getAdminOperators,
   getAdminVouchers,
+  getAdminVoucherSummary,
   updateAdminVoucher,
   type AdminOperator,
   type AdminVoucher,
+  type VoucherSummary,
 } from "../../../api/vietride";
 import { fetchAllPages } from "../../../api/pagination";
 import CustomSelect from "../../../components/CustomSelect";
@@ -63,7 +65,7 @@ export default function Vouchers() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
-  const [counts, setCounts] = useState({ active: 0, booking: 0, parcel: 0 });
+  const [summary, setSummary] = useState<VoucherSummary | null>(null);
   // Tạo/sửa/xoá voucher làm số liệu thẻ lệch — bump để đếm lại
   const [reloadCountsKey, setReloadCountsKey] = useState(0);
   const pageSize = 8;
@@ -123,22 +125,14 @@ export default function Vouchers() {
     });
   }, [loadVouchers]);
 
-  // Ba thẻ thống kê đếm trên toàn bộ voucher nên không suy được từ trang hiện
-  // tại — hỏi `totalItems` bằng ba truy vấn pageSize=1.
+  // Thẻ thống kê đếm trên toàn bộ voucher nền tảng và KHÔNG đổi theo filter của
+  // danh sách. BE đã có endpoint summary riêng, thay cho ba truy vấn pageSize=1
+  // chỉ để đọc `totalItems`.
   useEffect(() => {
     let ignore = false;
-    void Promise.all([
-      getAdminVouchers({ page: 1, pageSize: 1, isActive: true }),
-      getAdminVouchers({ page: 1, pageSize: 1, service: "BOOKING" }),
-      getAdminVouchers({ page: 1, pageSize: 1, service: "PARCEL" }),
-    ])
-      .then(([active, booking, parcel]) => {
-        if (ignore) return;
-        setCounts({
-          active: active.totalItems,
-          booking: booking.totalItems,
-          parcel: parcel.totalItems,
-        });
+    void getAdminVoucherSummary()
+      .then((result) => {
+        if (!ignore) setSummary(result);
       })
       .catch(() => {
         // Thẻ thống kê lỗi không được chặn bảng chính
@@ -252,9 +246,9 @@ export default function Vouchers() {
 
   const { getApplicableLabel, getFundingLabel, getOperatorScopeLabel } =
     useVoucherLabels();
-  const activeCount = counts.active;
-  const bookingCount = counts.booking;
-  const parcelCount = counts.parcel;
+  const activeCount = summary?.active ?? 0;
+  const bookingCount = summary?.booking ?? 0;
+  const parcelCount = summary?.parcel ?? 0;
   const voucherToolbar = (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div className="relative min-w-0 flex-1">

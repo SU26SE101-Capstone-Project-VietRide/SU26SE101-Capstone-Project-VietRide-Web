@@ -167,6 +167,9 @@ export default function TripsPage() {
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("");
   const [routeFilter, setRouteFilter] = useState("");
   const [driverFilter, setDriverFilter] = useState("");
+  const [dayOfWeekFilter, setDayOfWeekFilter] = useState("");
+  const [departureFrom, setDepartureFrom] = useState("");
+  const [departureTo, setDepartureTo] = useState("");
   const [formModalOpen, setFormModalOpen] = useState(false);
   const pageSize = 8;
 
@@ -340,6 +343,13 @@ export default function TripsPage() {
           vehicleTypeId: vehicleTypeFilter || undefined,
           routeId: routeFilter || undefined,
           driverUserId: driverFilter || undefined,
+          // 1 = Thứ Hai … 7 = Chủ Nhật
+          ...(dayOfWeekFilter ? { dayOfWeek: Number(dayOfWeekFilter) } : {}),
+          // BE không hỗ trợ ca qua nửa đêm (22:00→02:00 sẽ trả 422)
+          ...(departureFrom ? { departureFrom } : {}),
+          ...(departureTo ? { departureTo } : {}),
+          sortBy: "departureTime",
+          sortDir: "asc",
         });
 
         if (!ignore) {
@@ -366,7 +376,7 @@ export default function TripsPage() {
     return () => {
       ignore = true;
     };
-  }, [canManageSchedules, driverFilter, page, pageSize, routeFilter, search, statusFilter, vehicleTypeFilter, toast]);
+  }, [canManageSchedules, dayOfWeekFilter, departureFrom, departureTo, driverFilter, page, pageSize, routeFilter, search, statusFilter, vehicleTypeFilter, toast]);
 
   function updateForm<K extends keyof ScheduleForm>(
     key: K,
@@ -1061,11 +1071,17 @@ export default function TripsPage() {
           vehicleTypeFilter={vehicleTypeFilter}
           routeFilter={routeFilter}
           driverFilter={driverFilter}
+          dayOfWeekFilter={dayOfWeekFilter}
+          departureFrom={departureFrom}
+          departureTo={departureTo}
           onSearchChange={(value) => { setSearch(value); setPage(1); }}
           onStatusFilterChange={(value) => { setStatusFilter(value); setPage(1); }}
           onVehicleTypeFilterChange={(value) => { setVehicleTypeFilter(value); setPage(1); }}
           onRouteFilterChange={(value) => { setRouteFilter(value); setPage(1); }}
           onDriverFilterChange={(value) => { setDriverFilter(value); setPage(1); }}
+          onDayOfWeekFilterChange={(value) => { setDayOfWeekFilter(value); setPage(1); }}
+          onDepartureFromChange={(value) => { setDepartureFrom(value); setPage(1); }}
+          onDepartureToChange={(value) => { setDepartureTo(value); setPage(1); }}
           onPageChange={setPage}
           onEdit={editSchedule}
           onChangeCrew={openCrewModal}

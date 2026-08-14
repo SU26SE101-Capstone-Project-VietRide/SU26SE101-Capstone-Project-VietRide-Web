@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiCheck, FiEdit2, FiTrash2, FiX } from "react-icons/fi";
 import type { OperatorVoucher } from "../../../api/vietride";
@@ -9,38 +8,35 @@ import { formatDate, formatMoney, truncateVoucherName } from "./voucherHelpers";
 
 type VoucherTableProps = {
   toolbar: ReactNode;
+  /** Đúng một trang do BE trả về, không phải toàn bộ danh sách */
   vouchers: OperatorVoucher[];
   isLoading: boolean;
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
   onEdit: (voucher: OperatorVoucher) => void;
   onToggle: (voucher: OperatorVoucher) => void;
   onDelete: (voucher: OperatorVoucher) => void;
 };
 
-export default function VoucherTable({ toolbar, vouchers, isLoading, onEdit, onToggle, onDelete }: VoucherTableProps) {
+export default function VoucherTable({ toolbar, vouchers, isLoading, page, pageSize, totalItems, onPageChange, onEdit, onToggle, onDelete }: VoucherTableProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [page, setPage] = useState(1);
-  const pageSize = 8;
-  // PersonnelTable render thẳng `rows`, KHÔNG tự cắt theo trang — trước đây
-  // truyền cả danh sách vào nên bảng luôn hiện mọi voucher còn thanh phân trang
-  // chỉ là trang trí: bấm sang trang 2 thì số trang đổi mà hàng thì không.
-  const totalItems = vouchers.length;
-  // Lọc xong số hàng đổi, trang đang đứng có thể vượt quá dữ liệu còn lại.
-  const safePage = Math.min(page, Math.max(1, Math.ceil(totalItems / pageSize)));
-  const rows = vouchers.slice((safePage - 1) * pageSize, safePage * pageSize);
-
+  // Phân trang do BE quyết định: `vouchers` là đúng MỘT trang server trả về,
+  // `totalItems` lấy từ `totalItems` của response chứ không phải `rows.length`.
   return (
     <PersonnelTable
       toolbar={toolbar}
-      rows={rows}
+      rows={vouchers}
       getRowKey={(voucher) => voucher.id}
       isLoading={isLoading}
       loadingMessage={t("vouchers.loading")}
       emptyMessage={t("vouchers.emptyOperatorVoucher")}
-      page={safePage}
+      page={page}
       pageSize={pageSize}
       totalItems={totalItems}
-      onPageChange={setPage}
+      onPageChange={onPageChange}
       className="w-full table-fixed whitespace-nowrap"
       columns={[
         { key: "code", header: t("vouchers.code"), headerClassName: "w-[14%] px-3 py-3 text-center", cellClassName: "w-[14%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-700", render: (voucher) => voucher.code },

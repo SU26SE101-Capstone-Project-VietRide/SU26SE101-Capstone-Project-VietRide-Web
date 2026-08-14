@@ -117,6 +117,10 @@ export default function DispatchPanel() {
   const tRef = useRef(t);
 
   const [searchParams] = useSearchParams();
+  const [requestSearch, setRequestSearch] = useState("");
+  const [debouncedRequestSearch, setDebouncedRequestSearch] = useState("");
+  const [requestFrom, setRequestFrom] = useState("");
+  const [requestTo, setRequestTo] = useState("");
   const linkedShuttleTripId = searchParams.get("shuttleTripId");
   useEffect(() => {
     tRef.current = t;
@@ -199,9 +203,15 @@ export default function DispatchPanel() {
       setLoadError("");
 
       try {
+        // Endpoint này tự thân đã là hàng đợi pending/unassigned — KHÔNG gửi
+        // `status` hay `unassignedOnly` (sẽ 422). Lịch sử đã gán/huỷ nằm ở
+        // `getOperatorShuttleTrips`.
         const result = await getOperatorShuttleRequests({
           page,
           pageSize: REQUEST_PAGE_SIZE,
+          ...(debouncedRequestSearch ? { search: debouncedRequestSearch } : {}),
+          ...(requestFrom ? { from: requestFrom } : {}),
+          ...(requestTo ? { to: requestTo } : {}),
         });
 
         if (ignore) {
@@ -242,7 +252,17 @@ export default function DispatchPanel() {
     return () => {
       ignore = true;
     };
-  }, [page, refreshVersion]);
+  }, [debouncedRequestSearch, page, refreshVersion, requestFrom, requestTo]);
+
+  // Search đi thẳng lên BE nên phải debounce; đổi điều kiện thì về trang 1.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedRequestSearch(requestSearch.trim());
+      setPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [requestSearch]);
 
   const loadAssignmentResources = useCallback(
     async (force = false) => {
@@ -918,6 +938,40 @@ export default function DispatchPanel() {
                 "Danh sách được phân trang trực tiếp từ hệ thống; mỗi thẻ là một chuyến chính và một chiều trung chuyển.",
             })}
           </p>
+        </div>
+
+        {/* Query kiểu `date`: gửi YYYY-MM-DD theo `requestedAt`, inclusive */}
+        <div className="grid gap-3 border-b border-gray-100 px-5 pb-4 sm:grid-cols-[minmax(0,1fr)_170px_170px]">
+          <input
+            type="search"
+            aria-label={t("dispatch.requestSearchLabel")}
+            placeholder={t("dispatch.requestSearchPlaceholder")}
+            value={requestSearch}
+            onChange={(event) => setRequestSearch(event.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+          />
+          <input
+            type="date"
+            aria-label={t("dispatch.requestFromLabel")}
+            value={requestFrom}
+            max={requestTo || undefined}
+            onChange={(event) => {
+              setRequestFrom(event.target.value);
+              setPage(1);
+            }}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
+          />
+          <input
+            type="date"
+            aria-label={t("dispatch.requestToLabel")}
+            value={requestTo}
+            min={requestFrom || undefined}
+            onChange={(event) => {
+              setRequestTo(event.target.value);
+              setPage(1);
+            }}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
+          />
         </div>
 
         <RequestTable

@@ -5,6 +5,7 @@ import {
   batchUpdateOperatorParcelRouteFares,
   getOperatorParcelReportSummary,
   getOperatorParcelRouteFares,
+  getOperatorParcelRouteFareSummary,
   getOperatorRoutes,
   type OperatorRoute,
   type ParcelRouteFare,
@@ -85,6 +86,7 @@ vi.mock("../../../api/vietride", async (importOriginal) => {
     batchUpdateOperatorParcelRouteFares: vi.fn(),
     getOperatorParcelReportSummary: vi.fn(),
     getOperatorParcelRouteFares: vi.fn(),
+    getOperatorParcelRouteFareSummary: vi.fn(),
     getOperatorRoutes: vi.fn(),
     updateOperatorParcelRouteFare: vi.fn(),
   };
@@ -134,6 +136,14 @@ describe("parcel route fare workflow", () => {
       hasNextPage: false,
       hasPreviousPage: false,
     });
+    vi.mocked(getOperatorParcelRouteFareSummary).mockResolvedValue([
+      {
+        routeId: route.id,
+        configuredSizeCategories: ["SMALL", "MEDIUM", "LARGE", "EXTRA_LARGE"],
+        hasActiveWindow: true,
+        hasScheduledWindow: false,
+      },
+    ]);
     vi.mocked(getOperatorRoutes).mockResolvedValue({
       items: [route],
       page: 1,
@@ -190,12 +200,16 @@ describe("parcel route fare workflow", () => {
       await screen.findByRole("option", { name: /Cần Thơ - Hồ Chí Minh/ }),
     );
 
+    // Khung giá của tuyến đang chọn nay tải riêng theo `routeId` (bảng chính chỉ
+    // còn một trang), nên phần prefill đến sau một nhịp async.
     expect(
-      screen.getByText("parcels.routeFareNoticeTitles.ACTIVE"),
+      await screen.findByText("parcels.routeFareNoticeTitles.ACTIVE"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("textbox", { name: "parcels.sizeCategories.SMALL" }),
-    ).toHaveValue("10000");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "parcels.sizeCategories.SMALL" }),
+      ).toHaveValue("10000"),
+    );
 
     await user.click(
       screen.getByRole("button", { name: "parcels.fareBatchActions.UPDATE" }),

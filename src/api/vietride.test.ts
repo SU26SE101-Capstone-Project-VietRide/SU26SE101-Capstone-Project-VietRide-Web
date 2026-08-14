@@ -50,6 +50,12 @@ import {
   getInternalTripParcelAvailability,
   getOperatorRoute,
   getOperatorRoutes,
+  getOperatorVoucherSummary,
+  getAdminVoucherSummary,
+  getOperatorParcelRouteFares,
+  getOperatorParcelRouteFareSummary,
+  getAdminOperatorSummary,
+  exportAdminOperators,
   getOperatorRouteStopMetrics,
   getOperatorDriverSchedules,
   getOperatorFleetLatest,
@@ -1907,6 +1913,135 @@ describe("vietride API", () => {
     expect(urls[4]).toBe(
       "https://api.vietride.online/v1/operator/routes?page=1&pageSize=20&isActive=false",
     );
+  });
+
+  it("gửi đúng query của đợt search/filter enhancements P0-P2", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "System Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async (input: string) => {
+      void input;
+      return Response.json({ success: true, data: {} }, { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorVouchers({
+      page: 1,
+      pageSize: 20,
+      type: "PERCENT_OFF",
+      validAt: "2026-08-14",
+      sortBy: "usedCount",
+      sortDir: "desc",
+    });
+    await getOperatorVoucherSummary();
+    await getAdminVoucherSummary();
+    await getOperatorParcelRouteFares({
+      page: 1,
+      pageSize: 20,
+      effectiveAt: "2026-08-14",
+      status: "ACTIVE",
+      sortBy: "priceVnd",
+      sortDir: "asc",
+    });
+    await getOperatorParcelRouteFareSummary();
+    await getOperatorParcels({
+      page: 1,
+      pageSize: 20,
+      search: "Nguyen Van A",
+      from: "2026-08-01",
+      to: "2026-08-14",
+      dateField: "finalPaymentDeadline",
+      sizeCategory: "LARGE",
+      routeId: "route-1",
+      sortBy: "finalPaymentDeadline",
+      sortDir: "asc",
+    });
+    await getOperatorDriverSchedules({
+      page: 1,
+      pageSize: 20,
+      dayOfWeek: 5,
+      departureFrom: "05:00",
+      departureTo: "11:00",
+      effectiveAt: "2026-08-14",
+      sortBy: "departureTime",
+      sortDir: "asc",
+    });
+    await getAdminOperatorSummary();
+
+    const urls = fetchMock.mock.calls.map((call) => call[0]);
+    const base = "https://api.vietride.online";
+    expect(urls[0]).toBe(
+      `${base}/v1/operator/vouchers?page=1&pageSize=20&type=PERCENT_OFF&validAt=2026-08-14&sortBy=usedCount&sortDir=desc`,
+    );
+    expect(urls[1]).toBe(`${base}/v1/operator/vouchers/summary`);
+    expect(urls[2]).toBe(`${base}/v1/admin/vouchers/summary`);
+    expect(urls[3]).toBe(
+      `${base}/v1/operator/parcel-route-fares?page=1&pageSize=20&effectiveAt=2026-08-14&status=ACTIVE&sortBy=priceVnd&sortDir=asc`,
+    );
+    expect(urls[4]).toBe(`${base}/v1/operator/parcel-route-fares/summary`);
+    expect(urls[5]).toBe(
+      `${base}/v1/operator/parcels?page=1&pageSize=20&search=Nguyen+Van+A&from=2026-08-01&to=2026-08-14&dateField=finalPaymentDeadline&sizeCategory=LARGE&routeId=route-1&sortBy=finalPaymentDeadline&sortDir=asc`,
+    );
+    expect(urls[6]).toBe(
+      `${base}/v1/operator/driver-schedules?page=1&pageSize=20&dayOfWeek=5&departureFrom=05%3A00&departureTo=11%3A00&effectiveAt=2026-08-14&sortBy=departureTime&sortDir=asc`,
+    );
+    expect(urls[7]).toBe(`${base}/v1/admin/operators/summary`);
+  });
+
+  it("tải CSV nhà xe từ BE với đúng filter, không kèm page/pageSize", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "system-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "System Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(
+      async () =>
+        new Response("operatorId,name\n", {
+          status: 200,
+          headers: { "Content-Type": "text/csv; charset=utf-8" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const blob = await exportAdminOperators({
+      status: "APPROVED",
+      isActive: true,
+      from: "2026-08-01",
+      to: "2026-08-31",
+      dateField: "approvedAt",
+      sortBy: "name",
+      sortDir: "asc",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/admin/operators/export?status=APPROVED&isActive=true&from=2026-08-01&to=2026-08-31&dateField=approvedAt&sortBy=name&sortDir=asc",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ Accept: "text/csv" }),
+      }),
+    );
+    // jsdom và node dùng hai lớp Blob khác realm nên không assert instanceof
+    expect(blob.type).toContain("text/csv");
   });
 
   it("maps RAG document search to the `q` query param", async () => {

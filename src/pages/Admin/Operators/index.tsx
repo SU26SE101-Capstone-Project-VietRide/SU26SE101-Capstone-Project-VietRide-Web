@@ -17,21 +17,22 @@ import {
 } from "react-icons/fi";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
-import { fetchAllPages } from "../../../api/pagination";
 import {
   approveAdminOperator,
   createAdminOperator,
   getAdminOperators,
+  getAdminOperatorSummary,
+  exportAdminOperators,
   getAdminOperatorDetail,
   rejectAdminOperator,
   suspendAdminOperator,
   reactivateAdminOperator,
   type AdminOperator,
+  type AdminOperatorSummary,
   type CreateAdminOperatorRequest,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import { ConfirmModal } from "../../../components/ConfirmModal";
-import { downloadCsv } from "../../../utils/csv";
 import OperatorDetailModal from "./OperatorDetailModal";
 import OperatorOnboardModal from "./OperatorOnboardModal";
 import {
@@ -53,6 +54,15 @@ export default function Operators() {
   const [filterStatus, setFilterStatus] = useState<OperatorStatus | "ALL">(
     "ALL",
   );
+  const [activationFilter, setActivationFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [dateField, setDateField] = useState<"createdAt" | "approvedAt">(
+    "createdAt",
+  );
+  const [totalItems, setTotalItems] = useState(0);
+  const [summary, setSummary] = useState<AdminOperatorSummary | null>(null);
+  const [summaryReloadKey, setSummaryReloadKey] = useState(0);
   const [operators, setOperators] = useState<AdminOperator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -78,22 +88,35 @@ export default function Operators() {
     tRef.current = t;
   });
 
+  // Bộ lọc dùng chung cho danh sách và cho export CSV — export nhận đúng bộ này
+  // nhưng KHÔNG nhận page/pageSize.
+  const listFilters = useMemo(
+    () => ({
+      ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}),
+      ...(filterStatus === "ALL" ? {} : { status: filterStatus }),
+      // `isActive` là cờ bật/tắt riêng, KHÔNG phải registrationStatus
+      ...(activationFilter ? { isActive: activationFilter === "ACTIVE" } : {}),
+      ...(dateFrom ? { from: dateFrom } : {}),
+      ...(dateTo ? { to: dateTo } : {}),
+      ...(dateFrom || dateTo ? { dateField } : {}),
+    }),
+    [activationFilter, dateField, dateFrom, dateTo, filterStatus, searchTerm],
+  );
+
   // Một loader duy nhất dùng chung cho effect (debounce) và các mutation phía dưới
   const loadOperators = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
     try {
-      const items = await fetchAllPages(({ page: nextPage, pageSize }) =>
-        getAdminOperators({
-          page: nextPage,
-          pageSize,
-          search: searchTerm,
-          status: filterStatus === "ALL" ? undefined : filterStatus,
-        }),
-      );
+      const result = await getAdminOperators({
+        page,
+        pageSize,
+        ...listFilters,
+      });
 
-      setOperators(items);
+      setOperators(result.items);
+      setTotalItems(result.totalItems);
     } catch (err) {
       setError(
         err instanceof Error
@@ -103,7 +126,7 @@ export default function Operators() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterStatus, searchTerm]);
+  }, [listFilters, page]);
 
   useEffect(() => {
     // Debounce theo pattern của Users.tsx để tránh gọi API mỗi lần gõ phím
@@ -116,38 +139,44 @@ export default function Operators() {
     };
   }, [loadOperators]);
 
-  // `operators` đã là kết quả đã lọc: loadOperators gửi thẳng `search` + `status`
-  // lên BE. Không lọc lại ở client — BE tìm trên name/contactEmail/contactPhone/
-  // businessRegistrationNumber/taxCode, lọc lại theo mỗi `name` sẽ vứt bỏ đúng
-  // những dòng khớp email, số điện thoại hay mã số thuế.
-  const paginatedOperators = useMemo(
-    () => operators.slice((page - 1) * pageSize, page * pageSize),
-    [operators, page],
-  );
+  // Thẻ thống kê đếm trên toàn platform, KHÔNG đổi theo filter của danh sách.
+  useEffect(() => {
+    let ignore = false;
+    void getAdminOperatorSummary()
+      .then((result) => {
+        if (!ignore) setSummary(result);
+      })
+      .catch(() => {
+        // Thẻ thống kê lỗi không được chặn bảng chính
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [summaryReloadKey]);
 
-  const handleExportCsv = () => {
-    downloadCsv(
-      "operators.csv",
-      [t("operators.operatorName"), tc("email"), t("operators.csvPhone"), tc("status")],
-      operators.map((operator) => [
-        operator.name,
-        operator.contactEmail,
-        operator.contactPhone,
-        operator.registrationStatus,
-      ]),
-    );
+  // BE dựng sẵn CSV (UTF-8 BOM cho Excel, escape RFC 4180) và xuất TOÀN BỘ dòng
+  // khớp filter — không chỉ trang đang xem. Không parse rồi dựng lại ở browser.
+  const handleExportCsv = async () => {
+    setError("");
+    try {
+      const blob = await exportAdminOperators(listFilters);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `operators-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("operators.exportFailed"),
+      );
+    }
   };
 
-  const pendingCount = operators.filter(
-    (operator) => toKnownStatus(operator.registrationStatus) === "PENDING",
-  ).length;
-  const approvedCount = operators.filter(
-    (operator) => toKnownStatus(operator.registrationStatus) === "APPROVED",
-  ).length;
-  const restrictedCount = operators.filter((operator) => {
-    const status = toKnownStatus(operator.registrationStatus);
-    return status === "SUSPENDED" || status === "REJECTED";
-  }).length;
+  // Lấy từ `/summary`: đếm trên toàn platform chứ không phải trang đang xem.
+  const pendingCount = summary?.pending ?? 0;
+  const approvedCount = summary?.approved ?? 0;
+  const restrictedCount = (summary?.suspended ?? 0) + (summary?.rejected ?? 0);
 
   const handleApprove = async () => {
     if (!selectedOperator) return;
@@ -164,6 +193,7 @@ export default function Operators() {
       setPage(1);
       setOpenApprove(false);
       setMessage(t("operators.approvedAlert", { name: selectedOperator.name }));
+      setSummaryReloadKey((current) => current + 1);
       setSelectedOperator(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.approveFailed"));
@@ -180,6 +210,7 @@ export default function Operators() {
       await rejectAdminOperator(selectedOperator.operatorId, rejectReason.trim());
       await loadOperators();
       setMessage(t("operators.rejectedAlert", { name: selectedOperator.name, reason: rejectReason.trim() }));
+      setSummaryReloadKey((current) => current + 1);
       setOpenReject(false);
       setRejectReason("");
       setSelectedOperator(null);
@@ -226,6 +257,7 @@ export default function Operators() {
       await reactivateAdminOperator(operator.operatorId);
       await loadOperators();
       setMessage(t("operators.reactivatedAlert", { name: operator.name }));
+      setSummaryReloadKey((current) => current + 1);
       setPendingReactivate(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.reactivateFailed"));
@@ -352,14 +384,67 @@ export default function Operators() {
             <option value="REJECTED">{tc("rejected")}</option>
           </CustomSelect>
 
+          {/* `isActive` tách hẳn khỏi registrationStatus: nhà xe đã duyệt vẫn có thể bị tắt */}
+          <CustomSelect
+            value={activationFilter}
+            onChange={(e) => {
+              setActivationFilter(e.target.value);
+              setPage(1);
+            }}
+            aria-label={t("operators.filterActivation")}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium focus:outline-none focus:border-vr-500"
+          >
+            <option value="">{t("operators.allActivation")}</option>
+            <option value="ACTIVE">{tc("active")}</option>
+            <option value="INACTIVE">{tc("inactive")}</option>
+          </CustomSelect>
+
           <button
             type="button"
-            onClick={handleExportCsv}
+            onClick={() => void handleExportCsv()}
             className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50"
           >
             <FiDownload className="inline mr-2" size={16} />
             {tc("exportCsv")}
           </button>
+        </div>
+
+        {/* Khoảng ngày: gửi YYYY-MM-DD, BE tự đổi sang UTC theo giờ Việt Nam */}
+        <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          <CustomSelect
+            value={dateField}
+            onChange={(e) => {
+              setDateField(e.target.value as typeof dateField);
+              setPage(1);
+            }}
+            aria-label={t("operators.dateFieldLabel")}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium focus:outline-none focus:border-vr-500"
+          >
+            <option value="createdAt">{t("operators.dateFieldCreatedAt")}</option>
+            <option value="approvedAt">{t("operators.dateFieldApprovedAt")}</option>
+          </CustomSelect>
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
+            aria-label={t("operators.dateFromLabel")}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:outline-none focus:border-vr-500"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
+            aria-label={t("operators.dateToLabel")}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:outline-none focus:border-vr-500"
+          />
         </div>
 
 
@@ -391,7 +476,7 @@ export default function Operators() {
               </tr>
             </thead>
             <tbody>
-              {paginatedOperators.map((operator, idx) => {
+              {operators.map((operator, idx) => {
                 const status = toKnownStatus(operator.registrationStatus);
   return (
                   <tr
@@ -494,7 +579,7 @@ export default function Operators() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          totalItems={operators.length}
+          totalItems={totalItems}
           onPageChange={setPage}
         />
       </div>

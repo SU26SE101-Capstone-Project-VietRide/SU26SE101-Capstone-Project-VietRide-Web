@@ -1,5 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiTag } from "react-icons/fi";
 import Modal from "../../../components/Modal";
@@ -12,9 +12,12 @@ import {
   getOperatorRoutes,
   deleteOperatorVoucher,
   getOperatorVouchers,
+  getOperatorVoucherSummary,
   updateOperatorVoucher,
   type OperatorRoute,
   type OperatorVoucher,
+  type VoucherDiscountType,
+  type VoucherSummary,
 } from "../../../api/vietride";
 import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
@@ -23,8 +26,6 @@ import VoucherModal from "./VoucherModal";
 import VoucherTable from "./VoucherTable";
 import {
   getVoucherId,
-  isBookingVoucher,
-  isParcelVoucher,
   toCreateRequest,
   toForm,
   toUpdateRequest,
@@ -32,6 +33,8 @@ import {
   type VoucherServiceTab,
 } from "./voucherHelpers";
 import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
+
+const VOUCHER_PAGE_SIZE = 8;
 
 const emptyForm: VoucherForm = {
   code: "",
@@ -66,8 +69,13 @@ export default function ManagerVouchers() {
   const [activeServiceTab, setActiveServiceTab] =
     useState<VoucherServiceTab>("BOOKING");
   const [voucherSearch, setVoucherSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [voucherTypeFilter, setVoucherTypeFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [summary, setSummary] = useState<VoucherSummary | null>(null);
+  const [reloadSummaryKey, setReloadSummaryKey] = useState(0);
   const [vouchers, setVouchers] = useState<OperatorVoucher[]>([]);
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [form, setForm] = useState<VoucherForm>(emptyForm);
@@ -80,18 +88,35 @@ export default function ManagerVouchers() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Tải danh sách voucher + tuyến, dùng chung cho effect khởi tạo và nút tải lại
+  // Toàn bộ search/filter/sort/paging chạy server-side. BE đã bổ sung `type` và
+  // `validAt`, nên màn không còn phải tải hết voucher rồi lọc ở client.
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
     try {
-      const [voucherItems, routeItems] = await Promise.all([
-        fetchAllPages((params) => getOperatorVouchers(params)),
+      const [voucherResult, routeItems] = await Promise.all([
+        getOperatorVouchers({
+          page,
+          pageSize: VOUCHER_PAGE_SIZE,
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          ...(statusFilter ? { isActive: statusFilter === "ACTIVE" } : {}),
+          ...(voucherTypeFilter
+            ? { type: voucherTypeFilter as VoucherDiscountType }
+            : {}),
+          // Tab dịch vụ chỉ áp cho OPERATOR_ADMIN; STAFF xem toàn bộ
+          ...(isOperatorAdmin
+            ? { service: parcelEnabled ? activeServiceTab : "BOOKING" }
+            : {}),
+          sortBy: "createdAt",
+          sortDir: "desc",
+        }),
+        // Danh sách tuyến chỉ dùng cho ô chọn phạm vi trong modal
         fetchAllPages((params) => getOperatorRoutes(params)),
       ]);
 
-      setVouchers(voucherItems);
+      setVouchers(voucherResult.items);
+      setTotalItems(voucherResult.totalItems);
       setRoutes(routeItems);
     } catch (err) {
       setError(
@@ -100,7 +125,15 @@ export default function ManagerVouchers() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [
+    activeServiceTab,
+    debouncedSearch,
+    isOperatorAdmin,
+    page,
+    parcelEnabled,
+    statusFilter,
+    voucherTypeFilter,
+  ]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -108,35 +141,37 @@ export default function ManagerVouchers() {
     }, 0);
 
     return () => window.clearTimeout(timerId);
-  }, [isOperatorAdmin, loadData]);
+  }, [loadData]);
 
-  const activeCount = useMemo(
-    () => vouchers.filter((voucher) => voucher.isActive).length,
-    [vouchers],
-  );
-  const bookingVouchers = useMemo(
-    () => vouchers.filter(isBookingVoucher),
-    [vouchers],
-  );
-  const parcelVouchers = useMemo(
-    () => vouchers.filter(isParcelVoucher),
-    [vouchers],
-  );
-  const currentServiceVouchers =
-    activeServiceTab === "BOOKING" || !parcelEnabled
-      ? bookingVouchers
-      : parcelVouchers;
+  // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(voucherSearch.trim());
+      setPage(1);
+    }, 350);
 
-  const filteredVouchers = useMemo(() => {
-    const source = isOperatorAdmin ? currentServiceVouchers : vouchers;
-    const query = voucherSearch.trim().toLowerCase();
-    return source.filter((voucher) => {
-      const matchesSearch = !query || voucher.code.toLowerCase().includes(query) || voucher.name.toLowerCase().includes(query);
-      const matchesStatus = !statusFilter || (statusFilter === "ACTIVE" ? voucher.isActive : !voucher.isActive);
-      const matchesType = !voucherTypeFilter || voucher.type === voucherTypeFilter;
-      return matchesSearch && matchesStatus && matchesType;
-    });
-  }, [currentServiceVouchers, isOperatorAdmin, statusFilter, voucherSearch, voucherTypeFilter, vouchers]);
+    return () => window.clearTimeout(timer);
+  }, [voucherSearch]);
+
+  // Thẻ thống kê đếm trên toàn bộ voucher của nhà xe, KHÔNG đổi theo filter của
+  // danh sách — vì vậy dùng endpoint summary riêng thay vì đếm trên trang.
+  useEffect(() => {
+    if (!isOperatorAdmin) return;
+
+    let ignore = false;
+    void getOperatorVoucherSummary()
+      .then((result) => {
+        if (!ignore) setSummary(result);
+      })
+      .catch(() => {
+        // Thẻ thống kê lỗi không được chặn bảng chính
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [isOperatorAdmin, reloadSummaryKey]);
+
+  const filteredVouchers = vouchers;
 
   const voucherToolbar = (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" placeholder={t("vouchers.searchPlaceholder")} value={voucherSearch} onChange={(event) => setVoucherSearch(event.target.value)} /></div><CustomSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[210px]" aria-label={t("vouchers.filterStatus")}><option value="">{t("vouchers.allStatuses")}</option><option value="ACTIVE">{t("vouchers.enabled")}</option><option value="INACTIVE">{t("vouchers.disabled")}</option></CustomSelect><CustomSelect value={voucherTypeFilter} onChange={(event) => setVoucherTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[240px]" aria-label={t("vouchers.filterType")}><option value="">{t("vouchers.allTypes")}</option><option value="PERCENT_OFF">{tc("voucherTypes.PERCENT_OFF")}</option><option value="FIXED_AMOUNT">{tc("voucherTypes.FIXED_AMOUNT")}</option></CustomSelect></div>
@@ -178,12 +213,14 @@ export default function ManagerVouchers() {
           ),
         );
         setMessage(t("vouchers.updateSuccess"));
+        setReloadSummaryKey((current) => current + 1);
       } else {
         const createdVoucher = await createOperatorVoucher(
           toCreateRequest(form),
         );
         setVouchers((current) => [createdVoucher, ...current]);
         setMessage(t("vouchers.createSuccess"));
+        setReloadSummaryKey((current) => current + 1);
       }
 
       setIsModalOpen(false);
@@ -236,6 +273,7 @@ export default function ManagerVouchers() {
       );
       setDeletingVoucher(null);
       setMessage(t("vouchers.deleteOperatorSuccess"));
+      setReloadSummaryKey((current) => current + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("vouchers.deleteFailed"));
     }
@@ -273,7 +311,7 @@ export default function ManagerVouchers() {
         </div>
       </div>
 
-      {isOperatorAdmin && <div className={`grid gap-4 sm:grid-cols-2 ${parcelEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}><StatCard label={t("vouchers.totalVouchers")} value={vouchers.length} icon={<FiTag size={20} />} iconClassName="bg-vr-50 text-vr-700" /><StatCard label={t("vouchers.activeVouchers")} value={activeCount} icon={<FiTag size={20} />} iconClassName="bg-emerald-50 text-emerald-700" /><StatCard label={t("vouchers.bookingVouchers")} value={bookingVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-blue-50 text-blue-700" />{parcelEnabled && <StatCard label={t("vouchers.parcelVouchers")} value={parcelVouchers.length} icon={<FiTag size={20} />} iconClassName="bg-amber-50 text-amber-700" />}</div>}
+      {isOperatorAdmin && <div className={`grid gap-4 sm:grid-cols-2 ${parcelEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}><StatCard label={t("vouchers.totalVouchers")} value={summary?.total ?? 0} icon={<FiTag size={20} />} iconClassName="bg-vr-50 text-vr-700" /><StatCard label={t("vouchers.activeVouchers")} value={summary?.active ?? 0} icon={<FiTag size={20} />} iconClassName="bg-emerald-50 text-emerald-700" /><StatCard label={t("vouchers.bookingVouchers")} value={summary?.booking ?? 0} icon={<FiTag size={20} />} iconClassName="bg-blue-50 text-blue-700" />{parcelEnabled && <StatCard label={t("vouchers.parcelVouchers")} value={summary?.parcel ?? 0} icon={<FiTag size={20} />} iconClassName="bg-amber-50 text-amber-700" />}</div>}
 
 
       {isOperatorAdmin ? (
@@ -307,7 +345,7 @@ export default function ManagerVouchers() {
                       : "bg-white text-gray-500"
                   }`}
                 >
-                  {bookingVouchers.length}
+                  {summary?.booking ?? 0}
                 </span>
               </button>}
               <button
@@ -327,7 +365,7 @@ export default function ManagerVouchers() {
                       : "bg-white text-gray-500"
                   }`}
                 >
-                  {parcelVouchers.length}
+                  {summary?.parcel ?? 0}
                 </span>
               </button>
             </div>
@@ -336,6 +374,10 @@ export default function ManagerVouchers() {
             toolbar={voucherToolbar}
             vouchers={filteredVouchers}
             isLoading={isLoading}
+            page={page}
+            pageSize={VOUCHER_PAGE_SIZE}
+            totalItems={totalItems}
+            onPageChange={setPage}
             onEdit={openEditModal}
             onToggle={handleToggle}
             onDelete={setDeletingVoucher}
@@ -346,6 +388,10 @@ export default function ManagerVouchers() {
           toolbar={voucherToolbar}
           vouchers={filteredVouchers}
           isLoading={isLoading}
+          page={page}
+          pageSize={VOUCHER_PAGE_SIZE}
+          totalItems={totalItems}
+          onPageChange={setPage}
           onEdit={openEditModal}
           onToggle={handleToggle}
           onDelete={setDeletingVoucher}
