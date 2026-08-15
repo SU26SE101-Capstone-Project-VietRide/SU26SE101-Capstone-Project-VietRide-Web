@@ -115,14 +115,15 @@ describe("Admin Operators", () => {
 
   it("phân trang server-side: mỗi trang là một request riêng", async () => {
     const user = userEvent.setup();
-    const operators = Array.from({ length: 9 }, (_, index) => ({
+    // 11 bản ghi / 10 mỗi trang = 2 trang (mọi bảng dùng chung pageSize 10)
+    const operators = Array.from({ length: 11 }, (_, index) => ({
       ...pendingOperator,
       operatorId: `operator-${index + 1}`,
       name: `Operator ${index + 1}`,
     }));
     vi.mocked(getAdminOperators).mockImplementation(async (params = {}) => {
       const page = params.page ?? 1;
-      const pageSize = 8;
+      const pageSize = params.pageSize ?? 10;
       const start = (page - 1) * pageSize;
 
       return {
@@ -153,7 +154,7 @@ describe("Admin Operators", () => {
         expect.objectContaining({ page: 2 }),
       ),
     );
-    expect(await screen.findByText("Operator 9")).toBeInTheDocument();
+    expect(await screen.findByText("Operator 11")).toBeInTheDocument();
   });
 
   // Export lấy CSV do BE dựng, dùng đúng bộ lọc của danh sách nhưng KHÔNG kèm

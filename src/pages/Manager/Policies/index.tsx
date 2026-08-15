@@ -55,7 +55,7 @@ export default function ManagerPolicies() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const pageSize = 8;
+  const pageSize = 10;
   const startRequest = useLatestRequest();
 
   const loadPolicies = useCallback(async () => {

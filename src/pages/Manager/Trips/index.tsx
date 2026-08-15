@@ -172,7 +172,7 @@ export default function TripsPage() {
   const [departureFrom, setDepartureFrom] = useState("");
   const [departureTo, setDepartureTo] = useState("");
   const [formModalOpen, setFormModalOpen] = useState(false);
-  const pageSize = 8;
+  const pageSize = 10;
 
   // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Staff/Bookings)
   useEffect(() => {

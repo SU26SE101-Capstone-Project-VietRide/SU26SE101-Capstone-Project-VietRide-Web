@@ -35,7 +35,7 @@ import {
   statusBadgeClass,
 } from "./incidentHelpers";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 export default function ManagerIncidents() {
   const { t } = useTranslation("manager");

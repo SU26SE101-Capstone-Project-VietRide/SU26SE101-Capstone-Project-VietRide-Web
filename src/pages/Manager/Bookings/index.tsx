@@ -30,7 +30,7 @@ import { formatDateTime } from "../../../utils/date";
 import { inputClass } from "../../../components/form/formClasses";
 import { StatCard } from "../../../components/StatCard";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const actionIconClass =
   "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 disabled:cursor-not-allowed disabled:opacity-50";
 

@@ -97,7 +97,7 @@ export default function Operators() {
   // Khoá chung cho 4 thao tác đổi trạng thái (duyệt/từ chối/tạm ngưng/mở lại):
   // tại một thời điểm chỉ có đúng một modal mở nên không cần tách từng cờ.
   const [isActing, setIsActing] = useState(false);
-  const pageSize = 8;
+  const pageSize = 10;
   const startRequest = useLatestRequest();
 
   // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)

@@ -83,7 +83,7 @@ import {
 } from "./dispatchHelpers";
 import { useShuttleTrackingSocket } from "./useShuttleTrackingSocket";
 
-const REQUEST_PAGE_SIZE = 8;
+const REQUEST_PAGE_SIZE = 10;
 const RESOURCE_PAGE_SIZE = 50;
 const SHUTTLE_TRIP_PAGE_SIZE = 12;
 // Mức zoom khi bám một xe, giống màn Operations.

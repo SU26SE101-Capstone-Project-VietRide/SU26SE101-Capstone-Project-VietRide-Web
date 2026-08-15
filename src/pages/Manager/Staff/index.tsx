@@ -170,7 +170,7 @@ export default function StaffPage() {
   const [lockTarget, setLockTarget] = useState<OperatorUser | null>(null);
   const [isLockingUser, setIsLockingUser] = useState(false);
   const lockAttemptRef = useRef<{ userId: string; action: "lock" | "unlock"; key: string } | null>(null);
-  const pageSize = 8;
+  const pageSize = 10;
 
   // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Bookings)
   useEffect(() => {

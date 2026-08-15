@@ -125,7 +125,7 @@ export default function ManagerSettings() {
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [isSavingPeriod, setIsSavingPeriod] = useState(false);
   useToastFeedback({ error: fareError });
-  const pageSize = 8;
+  const pageSize = 10;
   const startRequest = useLatestRequest();
   const loadFareData = useCallback(async () => {
     const isLatest = startRequest();

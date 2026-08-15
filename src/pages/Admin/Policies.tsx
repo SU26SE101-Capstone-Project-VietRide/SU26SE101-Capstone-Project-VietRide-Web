@@ -91,7 +91,7 @@ export default function AdminPolicies() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const pageSize = 8;
+  const pageSize = 10;
   const [formData, setFormData] = useState({
     title: "",
     description: "",

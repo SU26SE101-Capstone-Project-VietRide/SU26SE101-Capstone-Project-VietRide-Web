@@ -3,7 +3,7 @@ import type { OperatorParcelListItem } from "../../../api/vietride";
 
 export const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/20";
-export const pageSize = 20;
+export const pageSize = 10;
 
 export type Translate = (key: string, options?: Record<string, unknown>) => string;
 

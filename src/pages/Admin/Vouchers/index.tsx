@@ -68,7 +68,7 @@ export default function Vouchers() {
   const [summary, setSummary] = useState<VoucherSummary | null>(null);
   // Tạo/sửa/xoá voucher làm số liệu thẻ lệch — bump để đếm lại
   const [reloadCountsKey, setReloadCountsKey] = useState(0);
-  const pageSize = 8;
+  const pageSize = 10;
 
   // Search/filter/paging đều server-side. BE `search` khớp code hoặc name;
   // `service` khớp phần tử trong applicableServices.

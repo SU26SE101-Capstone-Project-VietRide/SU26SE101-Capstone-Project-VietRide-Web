@@ -81,8 +81,8 @@ export default function RagAudit() {
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [feedbackPage, setFeedbackPage] = useState(1);
   const [totalFeedback, setTotalFeedback] = useState(0);
-  const pageSize = 8;
-  const feedbackPageSize = 8;
+  const pageSize = 10;
+  const feedbackPageSize = 10;
   // Hai bảng chạy song song trong `loadData` nên phải đếm request riêng, dùng
   // chung một bộ đếm thì bảng này sẽ vô hiệu hoá response của bảng kia.
   const startDocumentsRequest = useLatestRequest();

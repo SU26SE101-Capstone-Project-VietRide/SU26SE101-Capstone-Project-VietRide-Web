@@ -107,7 +107,7 @@ export default function ManagerReports() {
     useState<OperatorReportExportType | null>(null);
   const [exportError, setExportError] = useState("");
   const [exportMessage, setExportMessage] = useState("");
-  const pageSize = 8;
+  const pageSize = 10;
   const months = useMemo(() => monthOptions(), []);
   const startRequest = useLatestRequest();
 

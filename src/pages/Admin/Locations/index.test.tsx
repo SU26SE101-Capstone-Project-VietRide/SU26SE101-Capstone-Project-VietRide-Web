@@ -79,7 +79,7 @@ describe("Admin Locations", () => {
     vi.mocked(getAdminLocations).mockResolvedValue({
       items: [location],
       page: 1,
-      pageSize: 12,
+      pageSize: 10,
       totalItems: 1,
       totalPages: 1,
       hasNextPage: false,
@@ -185,7 +185,7 @@ describe("Admin Locations", () => {
     const listCalls = calls.filter((params) => params.pageSize !== 1);
     expect(listCalls).toHaveLength(1);
     expect(listCalls[0]).toEqual(
-      expect.objectContaining({ page: 1, pageSize: 12 }),
+      expect.objectContaining({ page: 1, pageSize: 10 }),
     );
     expect(calls.filter((params) => params.pageSize === 1)).toEqual([
       { page: 1, pageSize: 1, isActive: true },
@@ -266,7 +266,7 @@ describe("Admin Locations", () => {
     vi.mocked(getAdminLocations).mockImplementation(async (params = {}) => ({
       items: pageOf(((params.page ?? 1) - 1) * 12),
       page: params.page ?? 1,
-      pageSize: 12,
+      pageSize: 10,
       totalItems: 24,
       totalPages: 2,
       hasNextPage: (params.page ?? 1) < 2,

@@ -36,7 +36,7 @@ describe("RAG audit feedback pagination", () => {
     vi.mocked(getRagDocuments).mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 8,
+      pageSize: 10,
       totalItems: 0,
       totalPages: 0,
       hasNextPage: false,
@@ -54,8 +54,9 @@ describe("RAG audit feedback pagination", () => {
             ]
           : [firstFeedback],
       page: params.page ?? 1,
-      pageSize: params.pageSize ?? 8,
-      totalItems: 9,
+      pageSize: params.pageSize ?? 10,
+      // 11 bản ghi / 10 mỗi trang = 2 trang
+      totalItems: 11,
       totalPages: 2,
       hasNextPage: params.page !== 2,
       hasPreviousPage: params.page === 2,
@@ -71,7 +72,7 @@ describe("RAG audit feedback pagination", () => {
 
     await waitFor(() =>
       expect(getRagFeedback).toHaveBeenLastCalledWith(
-        expect.objectContaining({ page: 2, pageSize: 8 }),
+        expect.objectContaining({ page: 2, pageSize: 10 }),
       ),
     );
     expect(await screen.findByText("Second page feedback")).toBeInTheDocument();

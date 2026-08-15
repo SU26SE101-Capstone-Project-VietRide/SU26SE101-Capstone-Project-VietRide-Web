@@ -93,7 +93,7 @@ export default function AdminStations() {
   const [reloadKey, setReloadKey] = useState(0);
   const [mergeConfirmationOpen, setMergeConfirmationOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const pageSize = 8;
+  const pageSize = 10;
 
   useEffect(() => {
     selectedStationIdRef.current = selectedStationId;

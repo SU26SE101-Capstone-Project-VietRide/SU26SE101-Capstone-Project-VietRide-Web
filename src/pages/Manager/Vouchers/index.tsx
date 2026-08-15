@@ -34,7 +34,7 @@ import {
 } from "./voucherHelpers";
 import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 
-const VOUCHER_PAGE_SIZE = 8;
+const VOUCHER_PAGE_SIZE = 10;
 
 const emptyForm: VoucherForm = {
   code: "",

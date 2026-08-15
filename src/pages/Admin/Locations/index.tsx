@@ -145,7 +145,7 @@ export default function AdminLocations() {
     tone: "success" | "error";
     text: string;
   } | null>(null);
-  const pageSize = 12;
+  const pageSize = 10;
 
   // Toàn bộ search/filter chạy server-side. Trước đây BE bỏ qua `type` và
   // `parentCode` nên màn phải tải trọn danh mục ~3.4k bản ghi bằng 34 request

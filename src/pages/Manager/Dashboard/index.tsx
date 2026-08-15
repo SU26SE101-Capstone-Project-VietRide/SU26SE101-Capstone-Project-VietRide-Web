@@ -104,7 +104,7 @@ export default function ManagerDashboard() {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [shipmentTotal, setShipmentTotal] = useState(0);
   const [shipmentPage, setShipmentPage] = useState(1);
-  const pageSize = 8;
+  const pageSize = 10;
   // Hai loader chạy độc lập nhau nên mỗi cái một bộ đếm riêng
   const startDashboardRequest = useLatestRequest();
   const startShipmentsRequest = useLatestRequest();

@@ -32,7 +32,7 @@ export default function OperatorInvoiceSection() {
   useToastFeedback({ error });
   const [detail, setDetail] = useState<OperatorInvoiceDetail | null>(null);
   const [detailLoadingId, setDetailLoadingId] = useState("");
-  const pageSize = 8;
+  const pageSize = 10;
 
   // Deep-link `?invoiceId=`: mở đúng hoá đơn đó một lần rồi dọn param.
   // `openInvoiceDetail` là function khai trong thân component nên identity đổi

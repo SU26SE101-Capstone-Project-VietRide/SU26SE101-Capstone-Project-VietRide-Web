@@ -133,7 +133,7 @@ describe("Manager Incidents", () => {
       expect(getOperatorIncidents).toHaveBeenLastCalledWith(
         expect.objectContaining({
           page: 1,
-          pageSize: 20,
+          pageSize: 10,
           category: "VEHICLE_BREAKDOWN",
         }),
       ),
@@ -147,7 +147,7 @@ describe("Manager Incidents", () => {
       expect(getOperatorIncidents).toHaveBeenCalledWith(
         expect.objectContaining({
           page: 1,
-          pageSize: 20,
+          pageSize: 10,
           tripId: "trip-1",
         }),
       ),
