@@ -35,6 +35,10 @@ export type GoogleMapMarker = {
 
 export type GoogleMapPolyline = {
   color: string;
+  // Vẽ đứt nét thay vì liền — dùng cho đường THAM CHIẾU (vd tuyến chính vẽ nền
+  // khi đang soạn tuyến thay thế): cùng màu nhận diện nhưng nhìn phát biết ngay
+  // đây không phải đường đang sửa.
+  dashed?: boolean;
   id: string;
   // Click chọn polyline (vd chọn phương án đường mờ) — có onClick thì clickable.
   // position là tọa độ click trên đường (dùng cắm điểm nắn lộ trình)
@@ -98,6 +102,9 @@ type GoogleMapCanvasProps = {
   emptyState?: ReactNode;
   fitPoints?: GoogleMapCoordinate[];
   focusCenter?: GoogleMapCoordinate | null;
+  // Mức zoom khoá vào lúc bắt đầu bám focusCenter. Chỉ áp một lần cho mỗi lượt
+  // bám (xem effect bên dưới) để người dùng vẫn tự zoom được trong lúc theo dõi.
+  focusZoom?: number;
   /** Optional product palette. Kept stable after map creation to avoid repaint churn. */
   mapStyles?: readonly GoogleMapStyleElement[];
   markers?: GoogleMapMarker[];
@@ -160,6 +167,10 @@ function clearPolylines(polylines: GooglePolylineInstance[]) {
   polylines.forEach((polyline) => polyline.setMap(null));
 }
 
+// Một gạch của đường đứt nét: đoạn thẳng dọc quanh gốc, scale theo strokeWeight
+// nên gạch dài/dày cân đối với đường liền cùng weight.
+const dashedStrokePath = "M 0,-0.5 0,0.5";
+
 // Một marker Symbol đang sống trên bản đồ (pool reconcile theo id): overlay +
 // listener bind một lần + data mới nhất để dispatcher gọi đúng callback hiện tại
 type PooledPointMarker = {
@@ -213,6 +224,7 @@ export default function GoogleMapCanvas({
   emptyState,
   fitPoints = [],
   focusCenter,
+  focusZoom = 14,
   mapStyles,
   markers = [],
   onMapClick,
@@ -234,6 +246,8 @@ export default function GoogleMapCanvas({
   const initialCenterRef = useRef(center);
   const initialZoomRef = useRef(zoom);
   const initialMapStylesRef = useRef(mapStyles);
+  // Mức zoom đã áp cho lượt bám focusCenter hiện tại — null = chưa khoá lượt nào
+  const appliedFocusZoomRef = useRef<number | null>(null);
   const [readyMap, setReadyMap] = useState<ReadyMap | null>(null);
   const [error, setError] = useState("");
   // Callback onMapReady giữ trong ref — identity đổi mỗi render của caller
@@ -370,14 +384,23 @@ export default function GoogleMapCanvas({
     readyMap.instance.setZoom(zoom);
   }, [center, readyMap, suspendViewportSync, zoom]);
 
+  // Bám theo focusCenter: PAN mỗi lần toạ độ đổi, nhưng chỉ SET ZOOM ở lần khoá
+  // đầu tiên (hoặc khi caller đổi mức zoom yêu cầu). Trước đây setZoom chạy mỗi
+  // lần focusCenter đổi nên xe đang chạy là cứ mỗi điểm GPS lại kéo người dùng
+  // về đúng zoom 14 — phóng to xem xe đang ở làn nào là bị giật ra ngay.
   useEffect(() => {
     if (!readyMap || !focusCenter) {
+      // Rời chế độ bám (bỏ chọn xe) → lần bám sau khoá lại zoom từ đầu
+      appliedFocusZoomRef.current = null;
       return;
     }
 
     readyMap.instance.panTo(focusCenter);
-    readyMap.instance.setZoom(14);
-  }, [focusCenter, readyMap]);
+    if (appliedFocusZoomRef.current !== focusZoom) {
+      appliedFocusZoomRef.current = focusZoom;
+      readyMap.instance.setZoom(focusZoom);
+    }
+  }, [focusCenter, focusZoom, readyMap]);
 
   useEffect(() => {
     if (!readyMap || suspendViewportSync || fitPoints.length < 2) {
@@ -494,13 +517,31 @@ export default function GoogleMapCanvas({
     const overlays = polylines
       .filter((polyline) => polyline.path.length > 1)
       .map((polyline) => {
+        // Đứt nét = thân đường trong suốt + Symbol gạch lặp lại (cách chính
+        // thức của Maps JS API; không có option strokeDashArray)
+        const weight = polyline.weight ?? 5;
         const overlay = new readyMap.library.Polyline({
           clickable: Boolean(polyline.onClick || polyline.onMouseDown),
+          icons: polyline.dashed
+            ? [
+                {
+                  icon: {
+                    path: dashedStrokePath,
+                    scale: weight,
+                    strokeColor: polyline.color,
+                    strokeOpacity: polyline.opacity ?? 1,
+                    strokeWeight: weight,
+                  },
+                  offset: "0",
+                  repeat: `${weight * 4}px`,
+                },
+              ]
+            : undefined,
           map: readyMap.instance,
           path: polyline.path,
           strokeColor: polyline.color,
-          strokeOpacity: polyline.opacity ?? 1,
-          strokeWeight: polyline.weight ?? 5,
+          strokeOpacity: polyline.dashed ? 0 : (polyline.opacity ?? 1),
+          strokeWeight: weight,
           zIndex: polyline.zIndex,
         });
 

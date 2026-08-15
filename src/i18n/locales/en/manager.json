@@ -128,7 +128,6 @@
     "totalSchedules": "Total schedules",
     "openSchedules": "Open schedules",
     "draftSchedules": "Draft / paused schedules",
-
     "createScheduleTitle": "Create trip schedule",
     "editScheduleTitle": "Edit schedule",
     "editScheduleDemoNotice": "Editing a trip schedule currently only saves to this browser session — real schedule-update storage is still being built, so changes are lost on reload.",
@@ -398,8 +397,8 @@
     "routeStationIdsInvalid": "Origin and destination must be valid station IDs. Select stations from the station list.",
     "originDestinationDifferent": "Origin and destination must be different.",
     "routeCreated": "Route has been created.",
-        "routeGeometryWaypointMismatch": "Cannot save: a station or stop is more than 500 m from the selected route. Choose another route or adjust the point.",
-"routeSaved": "Route saved. Distance and duration now reflect the values calculated by the system.",
+    "routeGeometryWaypointMismatch": "Cannot save: a station or stop is more than 500 m from the selected route. Choose another route or adjust the point.",
+    "routeSaved": "Route saved. Distance and duration now reflect the values calculated by the system.",
     "routeStopDraftAdded": "Stop added (not saved yet). Press \"Save route\" to persist the change.",
     "duplicateStopInRoute": "This stop is already part of the route.",
     "stopNeedsPickupOrDropoff": "Each stop must allow pickup or dropoff.",
@@ -528,7 +527,7 @@
     "alternativeManagement": "Alternative route management",
     "alternativeManagementHint": "Create up to 2 alternative routes for the selected route, used when the main itinerary is disrupted.",
     "alternativeSelectRoute": "Please select a route in Route management to configure alternative routes.",
-    "alternativeCapacity": "{{count}} alternative routes created",
+    "alternativeCapacity": "{{count}} alternative routes in use",
     "alternativeNumber": "Alternative route {{number}}",
     "alternativeActive": "Active",
     "alternativeInactive": "Inactive",
@@ -546,7 +545,6 @@
     "alternativeMetricsReadout": "Distance {{km}} km · Duration {{minutes}} min (auto-calculated from the route selected on the map)",
     "alternativeGeometryRequired": "Please pick a route option on the map for the alternative route before saving.",
     "alternativeGeometrySaveFailed": "Alternative route info was saved, but saving its path failed — please save again.",
-    "deleteAlternative": "Delete alternative route",
     "newAlternative": "New alternative route",
     "alternativeLimitReached": "Each route can have at most 2 alternative routes.",
     "alternativeNameRequired": "Alternative route name is required.",
@@ -554,10 +552,9 @@
     "alternativeDestinationInvalid": "The alternative destination must differ from the route's origin.",
     "alternativeCreated": "Alternative route created.",
     "alternativeUpdated": "Alternative route updated.",
-    "alternativeDeleted": "Alternative route deleted.",
-    "removeAlternativeRouteTitle": "Delete alternative route",
-    "removeAlternativeRouteSubtitle": "This action cannot be undone",
-    "removeAlternativeRouteConfirm": "Are you sure you want to delete the alternative route \"{{name}}\"?",
+    "removeAlternativeRouteTitle": "Deactivate alternative route",
+    "removeAlternativeRouteSubtitle": "The alternative route is kept and can be restored later",
+    "removeAlternativeRouteConfirm": "Deactivate the alternative route \"{{name}}\"? It will no longer be used for scheduling but stays in the list — press \"Restore alternative route\" to use it again.",
     "tabs": {
       "info": "Information",
       "stops": "Stops",
@@ -603,7 +600,17 @@
     "stopWardAutoFilled": "Filled in from the address. Review it if it looks wrong.",
     "stopWardNeedsManualPick": "The ward could not be derived from the address — please pick it manually.",
     "stopWardRequired": "Please select a ward for this stop.",
-    "wardLoadFailed": "Could not load the ward list."
+    "wardLoadFailed": "Could not load the ward list.",
+    "alternativeDeactivatedCount": "{{count}} deactivated alternative routes (kept and restorable)",
+    "alternativeDeactivatedHint": "This alternative route is deactivated. Its destination, stops and path are all kept — press \"Restore alternative route\" to use it again.",
+    "deactivateAlternative": "Deactivate alternative route",
+    "deactivateAlternativeConfirmAction": "Deactivate",
+    "restoreAlternative": "Restore alternative route",
+    "alternativeDeactivated": "Alternative route deactivated. Its data is kept and can be restored at any time.",
+    "alternativeRestored": "Alternative route restored.",
+    "legendMainRoute": "Saved main route",
+    "legendAlternativeRoute": "Alternative route being edited",
+    "legendAlternativeOptions": "Other road options"
   },
   "stations": {
     "title": "Operator stations",
@@ -647,7 +654,8 @@
     "searchPlaceholder": "Search by route name or station",
     "empty": "No matching routes found.",
     "loadFailed": "Could not load routes."
-  },  "vehicles": {
+  },
+  "vehicles": {
     "section": "Capacity and seat map",
     "attentionHint": "Maintenance: {{maintenance}} - Inactive: {{inactive}}",
     "needsAttention": "Needs attention",
@@ -1497,9 +1505,12 @@
     "etaFallbackQuality": "Basic estimate",
     "disruptedStatus": "Disrupted",
     "legendRouteLine": "Planned route",
-    "legendTraveledLine": "Travelled so far",
-    "legendRemainingLine": "Remaining ahead",
-    "legendTrailLine": "Driven trail"
+    "legendTraveledLine": "Route — already passed",
+    "legendRemainingLine": "Route — remaining",
+    "followingVehicle": "Following vehicle",
+    "viewWholeRoute": "View whole route",
+    "routeStopCount": "Trip stops",
+    "routeStopCountEmptyHint": "This trip has no intermediate stops, so the map only shows the origin and destination. Stops are snapshotted when the trip is created — adding stops to the route later does not apply to trips already generated."
   },
   "operations": {
     "title": "Operations Center",
@@ -1603,7 +1614,8 @@
     "assignSuccess": "Vehicle assigned successfully!",
     "confirmCancelRequest": "Are you sure you want to cancel this request?",
     "shuttleTracking": "Shuttle tracking",
-    "shuttleTrackingHint": "Scheduled and in-progress shuttle trips for this operator. Position and ETA load only when you press refresh.",
+    "shuttleTrackingHint": "Scheduled and in-progress shuttle trips for this operator. Position and ETA update as drivers send signal.",
+    "shuttleTrackingOfflineHint": "Realtime disconnected, reconnecting automatically. Until then, position and ETA only change when you press refresh.",
     "shuttleTrackingEmpty": "No shuttle trips assigned yet to track.",
     "shuttleTripCode": "Shuttle trip code",
     "latestLocation": "Latest location",
@@ -1671,7 +1683,14 @@
     "unknownVehicle": "Vehicle unknown",
     "unassignedDriver": "No driver assigned",
     "stopCount": "Stops",
-    "trackingOnDemandHint": "Press refresh to fetch the position and estimated arrival.",
+    "trackingWaitingSignalHint": "This vehicle has not sent a GPS signal yet. Position and estimated arrival appear as soon as the driver starts moving.",
+    "showOnMap": "Show vehicle on map",
+    "liveBadge": "Live",
+    "realtime": {
+      "connecting": "Connecting realtime",
+      "connected": "Realtime is live",
+      "error": "Realtime disconnected"
+    },
     "mainRoute": "Main trip route",
     "cancelRequest": "Cancel request",
     "cancelShuttleTrip": "Cancel shuttle trip",
@@ -2576,5 +2595,3 @@
     "hasMoreShort": "The list was shortened; there may be more conflicts."
   }
 }
-
-

@@ -25,7 +25,12 @@ import type {
   GoogleMapInstance,
   GoogleMapsEventListener,
 } from "../../../lib/googleMaps";
-import type { RoadRouteOption } from "./geometry";
+import {
+  routeEndpointPinPath,
+  stopNumberPath,
+} from "../../../components/mapMarkerPaths";
+import { findRouteLabelAnchor, type RoadRouteOption } from "./geometry";
+import { dimRouteColor, mainRouteColor } from "./routeColors";
 import { estimateCoachDurationMinutes, type RouteCoordinate } from "./polyline";
 import StopDetailCard from "./StopDetailCard";
 import type { RouteMapPoint, StopSuggestion } from "./types";
@@ -41,20 +46,13 @@ const durationBubblePath =
   "M -24 -12 H 24 A 12 12 0 0 1 24 12 H -24 A 12 12 0 0 1 -24 -12 Z";
 // Symbol path: chấm tròn cho điểm nắn lộ trình kéo được
 const viaPointPath = "M 0 -9 a 9 9 0 1 1 0 18 a 9 9 0 1 1 0 -18 Z";
-// Symbol path: đĩa tròn to hơn cho marker điểm dừng đánh số 1..N
-const stopNumberPath = "M 0 -11 a 11 11 0 1 1 0 22 a 11 11 0 1 1 0 -22 Z";
-// Pin bến đi/bến đến có mũi neo tại (0,0): kích thước cố định theo pixel nên
-// luôn chỉ đúng tọa độ, không phình to theo zoom như Circle tính bằng mét.
-const routeEndpointPinPath =
-  "M 0 0 C -2 -3 -14 -14 -14 -25 C -14 -33 -8 -39 0 -39 C 8 -39 14 -33 14 -25 C 14 -14 2 -3 0 0 Z";
 
 // Vị trí bubble thời lượng dọc theo đường theo index phương án (40%/55%/70%
 // chiều dài) — tránh 2 bubble đè nhau khi các phương án bám sát nhau
 const bubblePositionFractions = [0.4, 0.55, 0.7];
 
-// Các phương án chưa chọn dùng màu riêng và sáng hơn để không bị chìm vào
-// nền bản đồ hoặc bị nhầm với tuyến đang chọn.
-const routeOptionColors = ["#2563eb", "#c026d3", "#ea580c"];
+// Các phương án chưa chọn dùng CÙNG tông màu với tuyến đang soạn, chỉ nhạt hơn
+// (không còn mỗi phương án một màu tím/cam riêng) — xem routeColors.ts
 
 // Mảng rỗng ổn định identity — trả về từ memo khi không có nhãn/marker để mảng
 // pointMarkers gộp không đổi identity vô cớ (đổi identity giữa lúc kéo là
@@ -124,10 +122,22 @@ type RouteDesignMapProps = {
   // teal (#0f766e, tuyến chính). Tab Tuyến thay thế (map-first, phụ lục spec
   // 2026-08-07) truyền cam (#f59e0b) để phân biệt với tuyến chính vẽ mờ bên dưới.
   activeColor?: string;
-  // Polyline THAM CHIẾU vẽ mờ, không tương tác (không onClick/onMouseDown) —
-  // dùng cho tab Tuyến thay thế: vẽ tuyến CHÍNH làm nền để so với tuyến thay thế
-  // đang soạn (activeColor). undefined/rỗng → không vẽ gì thêm.
+  // Polyline THAM CHIẾU, không tương tác (không onClick/onMouseDown) — dùng cho
+  // tab Tuyến thay thế: vẽ tuyến CHÍNH đã lưu để so với tuyến thay thế đang soạn
+  // (activeColor). undefined/rỗng → không vẽ gì thêm.
   referencePath?: RouteCoordinate[];
+  // Màu đường tham chiếu — mặc định teal tuyến chính (#0f766e) để user nhận ra
+  // ngay "đây là tuyến chính", vẽ ĐỨT NÉT nên không lẫn với đường đang soạn.
+  referenceColor?: string;
+  // Marker điểm dừng của đường tham chiếu (tuyến chính) — chấm nhỏ đánh số,
+  // không bấm được, chỉ để thấy tuyến chính đã set up những đâu.
+  referenceStops?: Array<{
+    stopId: string;
+    orderIndex: number;
+    name: string;
+    latitude: number;
+    longitude: number;
+  }>;
   // Ẩn 2 checkbox đón/trả trong popup thêm gợi ý — tuyến thay thế không có khái
   // niệm đón/trả riêng theo điểm (AlternativeRouteRequest.stops không có 2 cờ
   // này). Mặc định true (tab Điểm dừng tuyến chính vẫn hiện như cũ).
@@ -163,8 +173,10 @@ export default function RouteDesignMap({
   onAddSuggestion,
   isAddingSuggestion = false,
   externalActiveSuggestion = null,
-  activeColor = "#0f766e",
+  activeColor = mainRouteColor,
   referencePath,
+  referenceColor = mainRouteColor,
+  referenceStops,
   showPickupDropoffOptions = true,
 }: RouteDesignMapProps) {
   const { t } = useTranslation("manager");
@@ -447,21 +459,25 @@ export default function RouteDesignMap({
     () => toMapPath(referencePath ?? []),
     [referencePath],
   );
+  // Tuyến chính vẽ ĐỨT NÉT bằng chính màu tuyến chính: xám nhạt như bản cũ vừa
+  // chìm vào nền bản đồ vừa không cho biết đó là tuyến gì, user không phân biệt
+  // được tuyến thay thế đang soạn đã lệch khỏi tuyến chính ở đâu.
   const referencePolylines: GoogleMapPolyline[] = useMemo(
     () =>
       referenceLinePositions.length > 1
         ? [
             {
-              color: "#94a3b8",
+              color: referenceColor,
+              dashed: true,
               id: "reference-route-path",
-              opacity: 0.55,
+              opacity: 0.9,
               path: referenceLinePositions,
-              weight: 3,
+              weight: 5,
               zIndex: 0,
             },
           ]
         : [],
-    [referenceLinePositions],
+    [referenceColor, referenceLinePositions],
   );
   const hasSavedOrDraftPath = pathPoints.length > 1;
   // Có phương án auto-fetch → vẽ tất cả kèm bubble thời lượng để user bấm
@@ -482,6 +498,8 @@ export default function RouteDesignMap({
     canDragViaPoint &&
     canMoveViaPoint &&
     Boolean(onBeginViaDrag);
+  // Màu dùng chung cho MỌI phương án chưa chọn (đường + bubble thời lượng)
+  const dimmedColor = useMemo(() => dimRouteColor(activeColor), [activeColor]);
 
   const mapPolylines: GoogleMapPolyline[] = useMemo(() => {
     // Click lên đường đang chọn → cắm điểm nắn tại vị trí click (fallback khi
@@ -537,10 +555,8 @@ export default function RouteDesignMap({
         .sort((first, second) => first.zIndex - second.zIndex)
         .map(
           (line): GoogleMapPolyline => ({
-            // Tuyến đang chọn giữ màu chính; mỗi phương án chưa chọn có màu riêng.
-            color: line.selected
-              ? activeColor
-              : routeOptionColors[line.index % routeOptionColors.length],
+            // Tuyến đang chọn giữ màu chính; phương án chưa chọn cùng tông nhưng nhạt.
+            color: line.selected ? activeColor : dimmedColor,
             id: line.isSavedPath
               ? "route-geometry"
               : `route-option-${line.index}`,
@@ -552,7 +568,9 @@ export default function RouteDesignMap({
                   : undefined,
             onMouseDown:
               line.selected && hasSavedOrDraftPath ? grabLine : undefined,
-            opacity: line.selected ? 1 : 0.78,
+            // Màu đã pha nhạt sẵn nên giữ opacity cao — mờ thêm nữa là chìm vào
+            // nền bản đồ, đúng thứ user phàn nàn ở bản màu tím/cam trước
+            opacity: line.selected ? 1 : 0.9,
             // Đang kéo nắn đường này → bám thẳng qua điểm dưới tay chuột thay
             // vì đợi request tính đường bộ thật (xem dragPreviewLinePositions)
             path:
@@ -606,6 +624,7 @@ export default function RouteDesignMap({
     canAddViaPoint,
     canGrabLine,
     canSelectOption,
+    dimmedColor,
     dragPreviewLinePositions,
     hasSavedOrDraftPath,
     linePositions,
@@ -622,25 +641,40 @@ export default function RouteDesignMap({
       return noPointMarkers;
     }
 
+    // Đường đang chọn để đo chỗ tách nhánh: phương án đang chọn, hoặc đường đã
+    // lưu/đang áp khi selectedOptionIndex = -1
+    const referencePoints =
+      routeOptions[selectedOptionIndex]?.points ?? displayedPath;
+    // Neo đã cấp cho các phương án trước — tránh 2 bubble chồng chỗ
+    const takenAnchors: RouteCoordinate[] = [];
+
     return routeOptions
       .map((option, index): GoogleMapPointMarker | null => {
       const selected = index === selectedOptionIndex;
       // Chỉ đặt nhãn trên tuyến chưa chọn, tránh che dọc theo tuyến chính.
-      if (selected) {
+      if (selected || option.points.length === 0) {
         return null;
       }
-      const optionColor = routeOptionColors[index % routeOptionColors.length];
-      // Bubble đặt lệch nhau theo index (40%/55%/70% chiều dài đường) — các
-      // phương án chạy gần nhau sẽ không chồng bubble lên cùng một chỗ
+      // Bubble phải nằm trên ĐOẠN TÁCH của chính phương án này, không phải trên
+      // đoạn nó trùng tuyến đang chọn (nhìn ra sẽ tưởng nhãn của tuyến chính).
+      // Hai đường gần như trùng khít → không có đoạn riêng, lùi về vị trí theo
+      // tỉ lệ chiều dài (40%/55%/70%, lệch nhau theo index cho khỏi chồng).
+      const divergentAnchor = findRouteLabelAnchor(
+        option.points,
+        referencePoints,
+        takenAnchors,
+      );
       const fraction =
         bubblePositionFractions[index % bubblePositionFractions.length];
       const midPoint =
+        divergentAnchor ??
         option.points[
           Math.min(
             option.points.length - 1,
             Math.floor(option.points.length * fraction),
           )
         ];
+      takenAnchors.push(midPoint);
       const hours = Math.floor(option.estimatedDurationMinutes / 60);
       const minutes = option.estimatedDurationMinutes % 60;
       const duration =
@@ -655,14 +689,14 @@ export default function RouteDesignMap({
           fillOpacity: 1,
           path: durationBubblePath,
           scale: 1,
-          strokeColor: optionColor,
-          strokeWeight: selected ? 2.5 : 2,
+          strokeColor: dimmedColor,
+          strokeWeight: 2,
         },
         id: `route-option-label-${index}`,
         label: {
-          color: optionColor,
+          color: dimmedColor,
           fontSize: "11px",
-          fontWeight: selected ? "700" : "600",
+          fontWeight: "600",
           text: duration,
         },
         onClick: canSelectOption
@@ -682,8 +716,9 @@ export default function RouteDesignMap({
     })
       .filter((marker): marker is GoogleMapPointMarker => marker !== null);
   }, [
-    activeColor,
     canSelectOption,
+    dimmedColor,
+    displayedPath,
     routeOptions,
     selectedOptionIndex,
     showOptionOverlay,
@@ -847,6 +882,34 @@ export default function RouteDesignMap({
     });
   }, [activeColor, canSelectStop, selectedStopId, stopMarkers]);
 
+  // Điểm dừng của ĐƯỜNG THAM CHIẾU (tuyến chính) — chấm nhỏ viền đứt-nhạt cùng
+  // màu tham chiếu, KHÔNG bấm được: chỉ để thấy tuyến chính đã set up qua những
+  // điểm nào, so với marker số của tuyến thay thế đang soạn (activeColor).
+  const referenceStopMarkers: GoogleMapPointMarker[] = useMemo(() => {
+    if (!referenceStops || referenceStops.length === 0) {
+      return noPointMarkers;
+    }
+
+    return referenceStops.map((stop): GoogleMapPointMarker => ({
+      icon: {
+        fillColor: "#ffffff",
+        fillOpacity: 1,
+        path: viaPointPath,
+        scale: 0.8,
+        strokeColor: referenceColor,
+        strokeOpacity: 0.9,
+        strokeWeight: 2,
+      },
+      id: `reference-stop-${stop.stopId}`,
+      position: {
+        lat: stop.latitude,
+        lng: stop.longitude,
+      },
+      title: `#${stop.orderIndex} · ${stop.name}`,
+      zIndex: 3,
+    }));
+  }, [referenceColor, referenceStops]);
+
   // Chấm gợi ý điểm dừng (kho nhà xe / Google Places) — memo RIÊNG như các loại
   // marker khác: click chấm mở popup card (state activeSuggestion cục bộ)
   const suggestionMarkers: GoogleMapPointMarker[] = useMemo(() => {
@@ -891,17 +954,20 @@ export default function RouteDesignMap({
       viaPointMarkers === noPointMarkers &&
       routeEndpointMarkers === noPointMarkers &&
       routeStopMarkers === noPointMarkers &&
+      referenceStopMarkers === noPointMarkers &&
       suggestionMarkers === noPointMarkers
         ? noPointMarkers
         : [
             ...durationLabels,
             ...viaPointMarkers,
             ...routeEndpointMarkers,
+            ...referenceStopMarkers,
             ...routeStopMarkers,
             ...suggestionMarkers,
           ],
     [
       durationLabels,
+      referenceStopMarkers,
       routeEndpointMarkers,
       routeStopMarkers,
       suggestionMarkers,

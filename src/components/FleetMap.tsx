@@ -2,36 +2,33 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import GoogleMapCanvas, {
   type GoogleMapPointMarker,
-} from "../../../components/GoogleMapCanvas";
-import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
-import type { TripRouteMarker } from "./gpsHelpers";
+} from "./GoogleMapCanvas";
+import type { GoogleMapCoordinate } from "../lib/googleMaps";
+import {
+  routeEndpointPinPath,
+  stopNumberPath,
+  vehicleArrowPath,
+  vehicleDiscPath,
+} from "./mapMarkerPaths";
+import {
+  destinationStopColor,
+  intermediateStopColor,
+  originStopColor,
+  routeEndpointPinScale,
+  routeRemainingColor,
+  routeStopBadgeScale,
+  routeTraveledColor,
+  vehicleIdleColor,
+  vehicleMovingColor,
+} from "./mapRouteStyle";
+import type { FleetVehicleMapPoint, TripRouteMarker } from "./fleetMapPoint";
 
-export type FleetVehicleMapPoint = {
-  id: string;
-  plate: string;
-  driver: string;
-  route: string;
-  speedKmh: number | null;
-  /**
-   * "disrupted" = chuyến đang ở trạng thái sự cố (DISRUPTED) — ưu tiên cao nhất,
-   * đè lên trạng thái suy ra từ tốc độ. "lost" = mất tín hiệu GPS (không còn
-   * trong fleet-latest, TTL 300s).
-   */
-  status: "disrupted" | "moving" | "idle" | "offline" | "lost";
-  /** null khi mất tín hiệu và không còn toạ độ cuối — xe vẫn hiện trong list, không có marker */
-  position: GoogleMapCoordinate | null;
-  /**
-   * Hướng mũi xe (độ, thuận chiều kim đồng hồ từ bắc). null = chưa biết hướng
-   * (xe đứng yên hoặc thiết bị không gửi) — vẽ mũi xe hướng bắc và bỏ mũi tên
-   * chỉ hướng, không bịa ra một hướng sai.
-   */
-  headingDeg?: number | null;
-};
+export type { FleetVehicleMapPoint };
 
 const statusFill: Record<FleetVehicleMapPoint["status"], string> = {
   disrupted: "#dc2626",
-  moving: "#16a34a",
-  idle: "#f59e0b",
+  moving: vehicleMovingColor,
+  idle: vehicleIdleColor,
   offline: "#9ca3af",
   lost: "#d1d5db",
 };
@@ -46,21 +43,9 @@ const statusArrowColor: Record<FleetVehicleMapPoint["status"], string> = {
   lost: "#334155",
 };
 
-// Marker xe = đĩa tròn màu trạng thái + mũi tên trắng chỉ hướng chạy bên trong.
-// Một Symbol của Google chỉ nhận ĐÚNG MỘT màu fill nên phải xếp chồng hai marker
-// cùng toạ độ; chỉ mũi tên xoay, đĩa tròn đứng yên.
-//
-// Vòng tròn phải vẽ bằng hai nửa cung: cung SVG có điểm đầu trùng điểm cuối là
-// suy biến, trình duyệt bỏ qua không vẽ gì.
-const vehicleDiscPath =
-  "M 0 -11 A 11 11 0 1 0 0 11 A 11 11 0 1 0 0 -11 Z";
-
-// Mũi tên điều hướng: đỉnh ở mũi, khuyết một góc ở đuôi để đọc rõ chiều ngay cả
-// khi marker chỉ còn hơn chục pixel. Ở rotation = 0 mũi tên chỉ lên hướng bắc.
-const vehicleArrowPath = "M 0 -6.5 L 5 5.5 L 0 2.5 L -5 5.5 Z";
-
-// Chấm tròn cho bến/điểm dừng của tuyến
-const stopIconPath = "M 0 -5 A 5 5 0 1 0 0 5 A 5 5 0 1 0 0 -5 Z";
+// Bến đi/bến đến/điểm dừng/marker xe dùng CHUNG hình và bảng màu với màn Tuyến
+// & điểm dừng và trang chia sẻ hành trình (components/mapMarkerPaths +
+// mapRouteStyle) — cùng một tuyến nhìn ở ba nơi phải ra một kiểu.
 
 // Marker giữ kích thước pixel cố định ở mọi mức zoom nên phải tự co: zoom rộng
 // (nhìn cả tuyến liên tỉnh) thì thu nhỏ để đội xe không dính thành mảng màu che
@@ -71,14 +56,13 @@ function zoomScale(zoom: number, min: number, max: number) {
   return min + (max - min) * ratio;
 }
 
-const originStopColor = "#0f766e";
-const destinationStopColor = "#b45309";
-const intermediateStopColor = "#ffffff";
 
 type FleetMapProps = {
   vehicles: FleetVehicleMapPoint[];
   selectedId: string | null;
   focusCenter: GoogleMapCoordinate | null;
+  /** Mức zoom khoá khi bắt đầu bám xe — chỉ áp một lần mỗi lượt bám. */
+  focusZoom?: number;
   /** Khung nhìn phải bao trọn các điểm này (nguyên tuyến + vị trí xe đang chọn). */
   fitPoints?: GoogleMapCoordinate[];
   /** Bến đi / điểm dừng / bến đến của chuyến đang chọn — vẽ dọc theo lộ trình. */
@@ -87,7 +71,6 @@ type FleetMapProps = {
   routeTraveledPath?: GoogleMapCoordinate[] | null;
   /** Đoạn tuyến còn lại phía trước — tô nhạt hơn để phân biệt với đoạn đã đi. */
   routeRemainingPath?: GoogleMapCoordinate[] | null;
-  trailPath?: GoogleMapCoordinate[] | null;
   onMarkerSelect: (id: string) => void;
 };
 
@@ -108,11 +91,11 @@ export default function FleetMap({
   vehicles,
   selectedId,
   focusCenter,
+  focusZoom,
   fitPoints,
   routeStops,
   routeTraveledPath,
   routeRemainingPath,
-  trailPath,
   onMarkerSelect,
 }: FleetMapProps) {
   const { t } = useTranslation("manager");
@@ -120,36 +103,50 @@ export default function FleetMap({
   const handleZoomChanged = useCallback((next: number) => setZoom(next), []);
 
   const pointMarkers = useMemo<GoogleMapPointMarker[]>(() => {
-    const stopScale = zoomScale(zoom, 0.65, 1.5);
-
     // Bến/điểm dừng vẽ TRƯỚC để xe luôn nằm đè lên (zIndex thấp hơn)
-    const stopMarkers = (routeStops ?? []).map((stop) => ({
-      icon: {
-        fillColor: stopColor(stop.kind),
-        // Điểm đã qua mờ đi để thấy ngay xe đi tới đâu, nhưng vẫn đặc hơn hẳn
-        // polyline tuyến (0.55) nên không chìm vào đường.
-        fillOpacity: stop.passed ? 0.8 : 1,
-        path: stopIconPath,
-        scale: (stop.kind === "stop" ? 0.9 : 1.2) * stopScale,
-        strokeColor: stop.kind === "stop" ? originStopColor : "#ffffff",
-        strokeOpacity: stop.passed ? 0.65 : 1,
-        strokeWeight: 2,
-      },
-      id: `route-${stop.id}`,
-      infoTitle: stop.name,
-      infoDescription: [
-        stop.kind === "origin"
-          ? t("gps.originStation")
-          : stop.kind === "destination"
-            ? t("gps.destinationStation")
-            : t("gps.stopPoint"),
-        ...(stop.passed ? [t("gps.stopPassed")] : []),
-      ],
-      position: stop.position,
-      title: stop.name,
-      // Điểm đã qua lùi xuống dưới điểm chưa qua khi hai marker chồng nhau
-      zIndex: stop.passed ? 2 : 3,
-    }));
+    const stopMarkers = (routeStops ?? []).map((stop): GoogleMapPointMarker => {
+      const isEndpoint = stop.kind !== "stop";
+
+      return {
+        icon: {
+          fillColor: stopColor(stop.kind),
+          // Điểm đã qua mờ đi để thấy ngay xe đi tới đâu, nhưng vẫn đặc hơn hẳn
+          // polyline tuyến nên không chìm vào đường.
+          fillOpacity: stop.passed ? 0.8 : 1,
+          path: isEndpoint ? routeEndpointPinPath : stopNumberPath,
+          scale: isEndpoint ? routeEndpointPinScale : routeStopBadgeScale,
+          strokeColor: isEndpoint ? "#ffffff" : originStopColor,
+          strokeOpacity: stop.passed ? 0.65 : 1,
+          strokeWeight: 2,
+        },
+        id: `route-${stop.id}`,
+        infoTitle: stop.name,
+        infoDescription: [
+          stop.kind === "origin"
+            ? t("gps.originStation")
+            : stop.kind === "destination"
+              ? t("gps.destinationStation")
+              : t("gps.stopPoint"),
+          ...(stop.passed ? [t("gps.stopPassed")] : []),
+        ],
+        // Số thứ tự điểm dừng ngay trong đĩa — đọc được thứ tự chạy mà không
+        // phải bấm từng marker (giống marker 1..N của màn Tuyến & điểm dừng)
+        ...(stop.orderIndex
+          ? {
+              label: {
+                color: originStopColor,
+                fontSize: "11px",
+                fontWeight: "700",
+                text: String(stop.orderIndex),
+              },
+            }
+          : {}),
+        position: stop.position,
+        title: stop.name,
+        // Điểm đã qua lùi xuống dưới điểm chưa qua khi hai marker chồng nhau
+        zIndex: stop.passed ? 2 : 3,
+      };
+    });
 
     // Xe mất tín hiệu không có toạ độ thì không có marker — vẫn nằm trong danh sách xe
     const vehicleMarkers = vehicles.flatMap((vehicle) => {
@@ -227,36 +224,32 @@ export default function FleetMap({
       opacity: number;
       weight: number;
     }> = [];
-    // Vẽ đoạn CHƯA đi trước để đoạn đã đi và vệt GPS nằm đè lên trên.
+    // Bản đồ CHỈ vẽ tuyến nhà xe đã set up, không vẽ đường xe thực đi: điểm GPS
+    // bắn thưa/nhảy cóc nên nối chúng lại là bịa ra một lộ trình không có thật.
+    // Vị trí xe thể hiện bằng marker, tiến độ thể hiện bằng đoạn đã đi/chưa đi
+    // của chính tuyến đó (chiếu vị trí xe lên tuyến, xem splitRouteAtPosition).
+    //
+    // Vẽ đoạn CHƯA đi trước để đoạn đã đi nằm đè lên trên.
     if (routeRemainingPath && routeRemainingPath.length > 1) {
       lines.push({
         id: "selected-trip-route-remaining",
         path: routeRemainingPath,
-        color: "#94a3b8",
-        opacity: 0.55,
-        weight: 4,
+        color: routeRemainingColor,
+        opacity: 0.95,
+        weight: 5,
       });
     }
     if (routeTraveledPath && routeTraveledPath.length > 1) {
       lines.push({
         id: "selected-trip-route-traveled",
         path: routeTraveledPath,
-        color: "#0f766e",
-        opacity: 0.95,
-        weight: 6,
-      });
-    }
-    if (trailPath && trailPath.length > 1) {
-      lines.push({
-        id: "selected-trip-trail",
-        path: trailPath,
-        color: "#2563eb",
-        opacity: 0.95,
+        color: routeTraveledColor,
+        opacity: 1,
         weight: 6,
       });
     }
     return lines;
-  }, [routeRemainingPath, routeTraveledPath, trailPath]);
+  }, [routeRemainingPath, routeTraveledPath]);
 
   return (
     <GoogleMapCanvas
@@ -266,6 +259,7 @@ export default function FleetMap({
       emptyState={t("gps.noVehiclesMatchFilter")}
       fitPoints={fitPoints}
       focusCenter={focusCenter}
+      focusZoom={focusZoom}
       onZoomChanged={handleZoomChanged}
       pointMarkers={pointMarkers}
       polylines={polylines}

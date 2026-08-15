@@ -6,6 +6,7 @@ import {
   dedupeRouteOptions,
   excludeMatchingRouteOptions,
   findMatchingRouteOption,
+  findRouteLabelAnchor,
   isTruckDetour,
   requestRoadGeometry,
   type RoadRouteOption,
@@ -338,5 +339,49 @@ describe("excludeMatchingRouteOptions", () => {
     expect(
       excludeMatchingRouteOptions([options[0]], viaNorth),
     ).toEqual([]);
+  });
+});
+
+describe("findRouteLabelAnchor", () => {
+  // Tuyến chính chạy dọc kinh tuyến 106.7; phương án tách sang phía đông giữa
+  // chặng rồi nhập lại — nhãn phải neo đúng chỗ tách, không phải chỗ trùng
+  const mainPath = Array.from({ length: 21 }, (_unused, index) => ({
+    latitude: 10 + index * 0.05,
+    longitude: 106.7,
+  }));
+  const detourPath = mainPath.map((point, index) =>
+    index >= 8 && index <= 12
+      ? { latitude: point.latitude, longitude: 107.0 }
+      : point,
+  );
+
+  it("anchors on the diverging part of the option", () => {
+    const anchor = findRouteLabelAnchor(detourPath, mainPath);
+
+    expect(anchor?.longitude).toBe(107.0);
+  });
+
+  it("returns null when the option overlaps the reference path", () => {
+    expect(findRouteLabelAnchor(mainPath, mainPath)).toBeNull();
+  });
+
+  it("returns null without usable input", () => {
+    expect(findRouteLabelAnchor([], mainPath)).toBeNull();
+    expect(findRouteLabelAnchor(detourPath, [])).toBeNull();
+  });
+
+  it("avoids anchors already taken by another option", () => {
+    const taken = [{ latitude: 10.5, longitude: 107.0 }];
+    const wideDetour = mainPath.map((point, index) =>
+      index >= 8 && index <= 12
+        ? { latitude: point.latitude, longitude: 107.0 }
+        : index >= 16 && index <= 18
+          ? { latitude: point.latitude, longitude: 106.95 }
+          : point,
+    );
+    const anchor = findRouteLabelAnchor(wideDetour, mainPath, taken);
+
+    // Chỗ tách rộng nhất (107.0) nằm sát bubble đã đặt → lùi sang chỗ tách kia
+    expect(anchor?.longitude).toBe(106.95);
   });
 });

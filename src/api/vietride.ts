@@ -3556,6 +3556,9 @@ export type TripRouteGeometry = {
   encodedPolyline?: string;
   geoJson?: unknown;
   points?: TripRouteGeometryPoint[];
+  // Nguồn hình học ở shape phẳng: "STOPS_ONLY" nghĩa là `points` CHỈ là toạ độ
+  // điểm dừng, không phải polyline bám đường — client không được vẽ nó thành tuyến.
+  geometrySource?: "ROUTE_POLYLINE" | "STOPS_ONLY";
 };
 
 export type CargoCapacity = {
@@ -5626,10 +5629,31 @@ export function updateAlternativeRouteGeometry(
   );
 }
 
+/**
+ * XOÁ MỀM: BE chạy DeactivateAlternativeRouteCommand — bản ghi vẫn còn, chỉ
+ * `isActive=false`, và luôn trả về trong GET .../alternative-routes (BE sort
+ * active trước). Đừng gỡ item khỏi danh sách trên UI: khôi phục bằng
+ * `setAlternativeRouteActive(id, true)`.
+ */
 export function deleteAlternativeRoute(alternativeRouteId: string) {
-  return apiRequest<{ message?: string }>(
+  return apiRequest<{ isActive: boolean }>(
     `/v1/operator/alternative-routes/${alternativeRouteId}`,
     { method: "DELETE" },
+  );
+}
+
+/**
+ * Bật/tắt tuyến thay thế qua PATCH partial. BE (UpdateAlternativeRouteRequest)
+ * chỉ đọc field CÓ MẶT trong body — gửi mỗi `isActive` là giữ nguyên tên/bến
+ * đến/km/phút/điểm dừng/polyline đã lưu. Đây là đường khôi phục sau khi DELETE.
+ */
+export function setAlternativeRouteActive(
+  alternativeRouteId: string,
+  isActive: boolean,
+) {
+  return apiRequest<AlternativeRoute>(
+    `/v1/operator/alternative-routes/${alternativeRouteId}`,
+    { method: "PATCH", body: { isActive } },
   );
 }
 

@@ -18,6 +18,7 @@ import {
   createAlternativeRoute,
   createOperatorStop,
   deleteAlternativeRoute,
+  setAlternativeRouteActive,
   updateAlternativeRoute,
   updateAlternativeRouteGeometry,
   type AlternativeRoute,
@@ -86,6 +87,13 @@ const emptyAlternativeFormState: AlternativeRouteFormState = {
 };
 
 const emptyAlternativeMetrics = { totalDistanceKm: 0, estimatedDurationMinutes: 0 };
+
+// Trần 2 tuyến thay thế/tuyến chính là luật app-layer (ERD master mục 15). Đếm
+// theo bản ĐANG ÁP DỤNG: bản đã ngưng vẫn nằm trong danh sách (xoá mềm) nhưng
+// không được chiếm chỗ, nếu không thì ngưng xong là kẹt vĩnh viễn không tạo
+// được bản thay thế mới. BE đã bỏ cap active-count từ v1.55.0 nên đây thuần
+// là guard của UI.
+const maxActiveAlternatives = 2;
 
 // Re-index toàn bộ stop nháp theo khoá km-từ-bến-đi (giống reindexRouteDrafts
 // của tuyến chính, xem useRouteStopEditor.ts) — trả 1..N liên tục.
@@ -233,6 +241,19 @@ export function useAlternativeRouteWorkspace({
       destinationStationId: effectiveDestinationStationId,
     }),
     [altFormState, effectiveDestinationStationId],
+  );
+
+  // Bản đang mở trong form (nếu là bản đã lưu) + số bản còn áp dụng — panel cần
+  // cả hai để biết hiện nút "Ngưng áp dụng" hay "Khôi phục", và còn chỗ trống không.
+  const selectedAlternative = useMemo(
+    () =>
+      alternativeRoutes.find((item) => item.id === selectedAlternativeRouteId) ??
+      null,
+    [alternativeRoutes, selectedAlternativeRouteId],
+  );
+  const activeAlternativeCount = useMemo(
+    () => alternativeRoutes.filter((item) => item.isActive).length,
+    [alternativeRoutes],
   );
 
   const originStation = useMemo(
@@ -628,7 +649,7 @@ export function useAlternativeRouteWorkspace({
     const targetAlternativeId =
       selectedAlternativeRouteId || pendingAlternativeIdRef.current;
 
-    if (!targetAlternativeId && alternativeRoutes.length >= 2) {
+    if (!targetAlternativeId && activeAlternativeCount >= maxActiveAlternatives) {
       toastError(t("routes.alternativeLimitReached"));
       return;
     }
@@ -740,6 +761,11 @@ export function useAlternativeRouteWorkspace({
     }
   }
 
+  // DELETE của BE là XOÁ MỀM (DeactivateAlternativeRouteCommand): bản ghi vẫn
+  // còn nguyên tên/bến/km/phút/stop/polyline, chỉ hạ isActive=false và GET danh
+  // sách vẫn trả về. Vì vậy UI KHÔNG gỡ item khỏi danh sách (làm vậy là nói dối
+  // user: F5 phát là nó hiện lại) — chỉ đánh dấu ngưng áp dụng, giữ nguyên
+  // đang chọn để bấm "Khôi phục" ngay tại chỗ.
   async function handleDeleteAlternativeRoute(alternative: AlternativeRoute) {
     // Chụp tuyến chính đang chọn lúc bấm xoá — cùng lý do race với handleSaveAlternative
     const requestRouteId = selectedRouteId;
@@ -751,12 +777,12 @@ export function useAlternativeRouteWorkspace({
         return;
       }
 
-      const remaining = alternativeRoutes.filter(
-        (item) => item.id !== alternative.id,
+      const deactivated: AlternativeRoute = { ...alternative, isActive: false };
+      setAlternativeRoutes((current) =>
+        current.map((item) => (item.id === deactivated.id ? deactivated : item)),
       );
-      setAlternativeRoutes(remaining);
-      loadAlternativeIntoWorkspace(remaining[0] ?? null);
-      toastSuccess(t("routes.alternativeDeleted"));
+      loadAlternativeIntoWorkspace(deactivated);
+      toastSuccess(t("routes.alternativeDeactivated"));
     } catch (err) {
       if (selectedRouteIdRef.current !== requestRouteId) {
         return;
@@ -768,9 +794,42 @@ export function useAlternativeRouteWorkspace({
     }
   }
 
+  // Khôi phục: PATCH partial chỉ có `isActive` — BE giữ nguyên mọi field khác
+  // (xem UpdateAlternativeRouteRequest, field vắng mặt = không đụng tới), nên
+  // KHÔNG gửi kèm form đang soạn để tránh vô tình ghi đè bản đã lưu.
+  async function handleRestoreAlternativeRoute(alternative: AlternativeRoute) {
+    const requestRouteId = selectedRouteId;
+
+    setIsSavingAlternative(true);
+    try {
+      const restored = await setAlternativeRouteActive(alternative.id, true);
+
+      if (selectedRouteIdRef.current !== requestRouteId) {
+        return;
+      }
+
+      setAlternativeRoutes((current) =>
+        current.map((item) => (item.id === restored.id ? restored : item)),
+      );
+      loadAlternativeIntoWorkspace(restored);
+      toastSuccess(t("routes.alternativeRestored"));
+    } catch (err) {
+      if (selectedRouteIdRef.current !== requestRouteId) {
+        return;
+      }
+
+      toastError(err instanceof Error ? err.message : t("routes.actionFailed"));
+    } finally {
+      setIsSavingAlternative(false);
+    }
+  }
+
   return {
     alternativeRoutes,
     selectedAlternativeRouteId,
+    selectedAlternative,
+    activeAlternativeCount,
+    maxActiveAlternatives,
     altForm,
     altMetrics,
     altStopDrafts,
@@ -798,6 +857,7 @@ export function useAlternativeRouteWorkspace({
     confirmRemoveAltStop,
     handleSaveAlternative,
     handleDeleteAlternativeRoute,
+    handleRestoreAlternativeRoute,
   };
 }
 

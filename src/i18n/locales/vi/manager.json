@@ -128,7 +128,6 @@
     "totalSchedules": "Tổng lịch chạy",
     "openSchedules": "Lịch đang mở",
     "draftSchedules": "Lịch nháp / tạm dừng",
-
     "createScheduleTitle": "Tạo lịch chuyến",
     "editScheduleTitle": "Sửa lịch chạy",
     "editScheduleDemoNotice": "Sửa lịch chuyến hiện chỉ lưu tạm trên trình duyệt này — hệ thống lưu cập nhật lịch thật đang được xây dựng, thay đổi sẽ mất khi tải lại trang.",
@@ -398,8 +397,8 @@
     "routeStationIdsInvalid": "Bến đi và bến đến phải là mã station hợp lệ. Vui lòng chọn từ danh sách bến.",
     "originDestinationDifferent": "Bến đi và bến đến phải khác nhau.",
     "routeCreated": "Đã tạo tuyến.",
-        "routeGeometryWaypointMismatch": "Không thể lưu: bến hoặc điểm dừng cách tuyến đã chọn quá 500 m. Hãy chọn lại đường đi hoặc điều chỉnh điểm.",
-"routeSaved": "Đã lưu tuyến. Số km và thời lượng hiển thị theo tính toán của hệ thống.",
+    "routeGeometryWaypointMismatch": "Không thể lưu: bến hoặc điểm dừng cách tuyến đã chọn quá 500 m. Hãy chọn lại đường đi hoặc điều chỉnh điểm.",
+    "routeSaved": "Đã lưu tuyến. Số km và thời lượng hiển thị theo tính toán của hệ thống.",
     "routeStopDraftAdded": "Đã thêm điểm dừng (chưa lưu). Bấm \"Lưu tuyến\" để lưu thay đổi.",
     "duplicateStopInRoute": "Điểm dừng này đã có trong tuyến.",
     "stopNeedsPickupOrDropoff": "Mỗi điểm dừng phải cho phép đón hoặc trả khách.",
@@ -528,7 +527,7 @@
     "alternativeManagement": "Quản lý tuyến thay thế",
     "alternativeManagementHint": "Tạo tối đa 2 tuyến thay thế cho tuyến đang chọn, dùng khi lộ trình chính gặp sự cố.",
     "alternativeSelectRoute": "Vui lòng chọn tuyến ở phần Quản lý tuyến để cấu hình tuyến thay thế.",
-    "alternativeCapacity": "Đã tạo {{count}} tuyến thay thế",
+    "alternativeCapacity": "Đang áp dụng {{count}} tuyến thay thế",
     "alternativeNumber": "Tuyến thay thế {{number}}",
     "alternativeActive": "Đang áp dụng",
     "alternativeInactive": "Ngưng áp dụng",
@@ -546,7 +545,6 @@
     "alternativeMetricsReadout": "Quãng đường {{km}} km · Thời gian {{minutes}} phút (tự tính từ đường đang chọn trên bản đồ)",
     "alternativeGeometryRequired": "Vui lòng chọn một phương án đường trên bản đồ cho tuyến thay thế trước khi lưu.",
     "alternativeGeometrySaveFailed": "Đã lưu thông tin tuyến thay thế nhưng lưu đường đi thất bại, vui lòng bấm Lưu lại.",
-    "deleteAlternative": "Xóa tuyến thay thế",
     "newAlternative": "Tuyến thay thế mới",
     "alternativeLimitReached": "Mỗi tuyến chỉ có tối đa 2 tuyến thay thế.",
     "alternativeNameRequired": "Tên tuyến thay thế là bắt buộc.",
@@ -554,10 +552,9 @@
     "alternativeDestinationInvalid": "Bến đến thay thế phải khác bến đi của tuyến chính.",
     "alternativeCreated": "Đã tạo tuyến thay thế.",
     "alternativeUpdated": "Đã cập nhật tuyến thay thế.",
-    "alternativeDeleted": "Đã xóa tuyến thay thế.",
-    "removeAlternativeRouteTitle": "Xóa tuyến thay thế",
-    "removeAlternativeRouteSubtitle": "Hành động này không thể hoàn tác",
-    "removeAlternativeRouteConfirm": "Bạn có chắc muốn xóa tuyến thay thế \"{{name}}\"?",
+    "removeAlternativeRouteTitle": "Ngưng áp dụng tuyến thay thế",
+    "removeAlternativeRouteSubtitle": "Tuyến thay thế được giữ lại và có thể khôi phục sau",
+    "removeAlternativeRouteConfirm": "Ngưng áp dụng tuyến thay thế \"{{name}}\"? Tuyến sẽ không dùng để tạo lịch chạy nữa nhưng vẫn nằm trong danh sách, bấm \"Khôi phục tuyến thay thế\" là dùng lại được.",
     "tabs": {
       "info": "Thông tin",
       "stops": "Điểm dừng",
@@ -603,7 +600,17 @@
     "stopWardAutoFilled": "Đã điền sẵn theo địa chỉ. Kiểm tra lại nếu thấy chưa đúng.",
     "stopWardNeedsManualPick": "Không xác định được phường/xã từ địa chỉ — vui lòng chọn thủ công.",
     "stopWardRequired": "Vui lòng chọn phường/xã cho điểm dừng.",
-    "wardLoadFailed": "Không tải được danh sách phường/xã."
+    "wardLoadFailed": "Không tải được danh sách phường/xã.",
+    "alternativeDeactivatedCount": "{{count}} tuyến thay thế đã ngưng (vẫn giữ lại, khôi phục được)",
+    "alternativeDeactivatedHint": "Tuyến thay thế này đang ngưng áp dụng. Dữ liệu (bến đến, điểm dừng, đường đi) vẫn được giữ nguyên — bấm \"Khôi phục tuyến thay thế\" để dùng lại.",
+    "deactivateAlternative": "Ngưng áp dụng tuyến thay thế",
+    "deactivateAlternativeConfirmAction": "Ngưng áp dụng",
+    "restoreAlternative": "Khôi phục tuyến thay thế",
+    "alternativeDeactivated": "Đã ngưng áp dụng tuyến thay thế. Dữ liệu vẫn được giữ lại, khôi phục được bất cứ lúc nào.",
+    "alternativeRestored": "Đã khôi phục tuyến thay thế.",
+    "legendMainRoute": "Tuyến chính đã lưu",
+    "legendAlternativeRoute": "Tuyến thay thế đang soạn",
+    "legendAlternativeOptions": "Phương án đường khác"
   },
   "stations": {
     "title": "Quản lý bến nhà xe",
@@ -647,7 +654,8 @@
     "searchPlaceholder": "Tìm theo tên tuyến hoặc bến",
     "empty": "Chưa có tuyến nào phù hợp.",
     "loadFailed": "Không thể tải danh sách tuyến."
-  },  "vehicles": {
+  },
+  "vehicles": {
     "section": "Sức chứa và sơ đồ ghế",
     "attentionHint": "Bảo trì: {{maintenance}} - Ngừng hoạt động: {{inactive}}",
     "needsAttention": "Cần xử lý",
@@ -1499,9 +1507,12 @@
     "etaFallbackQuality": "Ước tính cơ bản",
     "disruptedStatus": "Đang gặp sự cố",
     "legendRouteLine": "Lộ trình tuyến",
-    "legendTraveledLine": "Đoạn đã đi qua",
-    "legendRemainingLine": "Đoạn chưa đi",
-    "legendTrailLine": "Hành trình đã đi"
+    "legendTraveledLine": "Tuyến — đoạn xe đã qua",
+    "legendRemainingLine": "Tuyến — đoạn còn lại",
+    "followingVehicle": "Đang bám xe",
+    "viewWholeRoute": "Xem cả tuyến",
+    "routeStopCount": "Điểm dừng của chuyến",
+    "routeStopCountEmptyHint": "Chuyến này không có điểm dừng giữa nên bản đồ chỉ hiện bến đi và bến đến. Điểm dừng được chụp lại lúc tạo chuyến — thêm điểm dừng vào tuyến sau đó không áp ngược vào chuyến đã tạo."
   },
   "operations": {
     "title": "Trung tâm vận hành",
@@ -1605,7 +1616,8 @@
     "assignSuccess": "Đã gán xe thành công!",
     "confirmCancelRequest": "Bạn chắc chắn muốn hủy yêu cầu này?",
     "shuttleTracking": "Theo dõi xe trung chuyển",
-    "shuttleTrackingHint": "Các chuyến trung chuyển đang lên lịch hoặc đang chạy của nhà xe. Vị trí và ETA chỉ tải khi bạn bấm làm mới.",
+    "shuttleTrackingHint": "Các chuyến trung chuyển đang lên lịch hoặc đang chạy của nhà xe. Vị trí và ETA tự cập nhật khi tài xế gửi tín hiệu.",
+    "shuttleTrackingOfflineHint": "Mất kết nối realtime, đang tự động kết nối lại. Trong lúc chờ, vị trí và ETA chỉ đổi khi bạn bấm làm mới.",
     "shuttleTrackingEmpty": "Chưa có chuyến xe trung chuyển nào được gán để theo dõi.",
     "shuttleTripCode": "Mã chuyến trung chuyển",
     "latestLocation": "Vị trí mới nhất",
@@ -1638,7 +1650,7 @@
     "pendingPassengerBookingSummary": "{{passengers}} hành khách từ {{bookings}} lượt đặt vé",
     "suggestedOrder": "Thứ tự đón/trả được đề xuất",
     "routeOrderHint": "Danh sách đã được sắp xếp theo lộ trình vận hành đề xuất.",
-    "stopCount": "{{count}} điểm",
+    "stopCount": "Số điểm dừng",
     "stopOrdinal": "Điểm {{index}}",
     "station": "Bến phục vụ",
     "roadDistance": "Khoảng cách đường bộ",
@@ -1673,8 +1685,14 @@
     "shuttleTripsLoadFailed": "Không tải được danh sách chuyến trung chuyển.",
     "unknownVehicle": "Chưa rõ xe",
     "unassignedDriver": "Chưa phân công tài xế",
-    "stopCount": "Số điểm dừng",
-    "trackingOnDemandHint": "Bấm nút làm mới để lấy vị trí và giờ đến dự kiến.",
+    "trackingWaitingSignalHint": "Xe chưa gửi tín hiệu GPS. Vị trí và giờ đến dự kiến sẽ hiện ngay khi tài xế bắt đầu chạy.",
+    "showOnMap": "Xem xe trên bản đồ",
+    "liveBadge": "Trực tiếp",
+    "realtime": {
+      "connecting": "Đang kết nối realtime",
+      "connected": "Realtime đang hoạt động",
+      "error": "Mất kết nối realtime"
+    },
     "mainRoute": "Tuyến chuyến chính",
     "cancelRequest": "Huỷ yêu cầu",
     "cancelShuttleTrip": "Huỷ chuyến trung chuyển",
@@ -2580,5 +2598,3 @@
     "hasMoreShort": "Danh sách đã rút gọn; có thể còn lịch trùng khác."
   }
 }
-
-

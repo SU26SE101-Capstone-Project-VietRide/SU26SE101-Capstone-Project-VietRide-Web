@@ -399,3 +399,40 @@ tbody td button[title]:not(.info-hint-button) svg {
     transform: translateY(0);
   }
 }
+
+/* Trợ lý nghiệp vụ: bong bóng chat trồi lên, panel bung ra từ nút — chuyển
+   động ngắn để màn chat không còn cảm giác "nhảy phựt" từng khối. */
+@media (prefers-reduced-motion: no-preference) {
+  .chat-message-in {
+    animation: chat-message-in 220ms ease-out both;
+  }
+
+  .assistant-panel-in {
+    animation: assistant-panel-in 180ms ease-out both;
+    transform-origin: bottom right;
+  }
+}
+
+@keyframes chat-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes assistant-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

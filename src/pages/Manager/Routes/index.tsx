@@ -1117,6 +1117,7 @@ export default function RoutesPage() {
                           stops={stops}
                   workspace={alternatives}
                   referencePath={geometry.routePathPoints}
+                  referenceStops={stopEditor.currentRouteStops}
                 />
               )}
             </div>

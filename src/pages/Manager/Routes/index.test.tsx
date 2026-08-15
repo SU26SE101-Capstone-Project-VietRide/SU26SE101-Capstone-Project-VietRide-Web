@@ -15,6 +15,8 @@ import {
 
   createOperatorStation,
   createOperatorStop,
+  deleteAlternativeRoute,
+  setAlternativeRouteActive,
   getAlternativeRoutes,
   getOperatorRoute,
   getOperatorRoutes,
@@ -135,6 +137,7 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
     polylines?: Array<{
       id: string;
       color: string;
+      dashed?: boolean;
       opacity?: number;
       onClick?: (position?: { lat: number; lng: number }) => void;
     }>;
@@ -151,6 +154,7 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
           type="button"
           data-testid={`map-polyline-${polyline.id}`}
           data-color={polyline.color}
+          data-dashed={polyline.dashed ? "true" : "false"}
           data-opacity={polyline.opacity ?? 1}
           // Giả lập click trên đường tại một tọa độ cố định (như event.latLng thật)
           onClick={() => polyline.onClick?.({ lat: 11.05, lng: 107.4 })}
@@ -203,6 +207,7 @@ vi.mock("../../../api/vietride", () => ({
   createOperatorStation: vi.fn(),
   createOperatorStop: vi.fn(),
   deleteAlternativeRoute: vi.fn(),
+  setAlternativeRouteActive: vi.fn(),
   getAlternativeRoutes: vi.fn(),
   getOperatorRoute: vi.fn(),
   getOperatorRoutes: vi.fn(),
@@ -2850,7 +2855,113 @@ describe("Manager route setup workflow", () => {
       ).toBeInTheDocument();
     });
 
-    it("disables creating a new alternative once the limit of two is reached", async () => {
+    // Soạn tuyến thay thế mà không thấy tuyến chính thì không biết mình đang
+    // lệch đi đâu — tuyến chính vẽ đứt nét teal + chấm điểm dừng, kèm chú giải.
+    it("shows the saved main route (dashed teal) and its stops as a reference", async () => {
+      // Tuyến chính của fixture mặc định chưa có đường/điểm dừng — nạp bản chi
+      // tiết có polyline + 1 stop để có cái mà vẽ tham chiếu
+      const mainRouteDetail: OperatorRouteDetail = {
+        ...routeA,
+        pathPolyline: encodeGooglePolyline([
+          { latitude: 10.77, longitude: 106.69 },
+          { latitude: 11.94, longitude: 108.44 },
+        ]),
+        stops: [
+          {
+            routeId: routeA.id,
+            stopId: "main-stop-1",
+            orderIndex: 1,
+            estimatedDurationFromOriginMinutes: 30,
+            distanceFromOriginKm: 10,
+            allowPickup: true,
+            allowDropoff: true,
+            name: "Điểm dừng tuyến chính",
+            address: null,
+            latitude: 10.8,
+            longitude: 106.7,
+            isActive: true,
+          },
+        ],
+      };
+      vi.mocked(getOperatorRoute).mockResolvedValue(mainRouteDetail);
+      await openAlternativesTab();
+
+      const reference = await screen.findByTestId(
+        "map-polyline-reference-route-path",
+      );
+      expect(reference).toHaveAttribute("data-color", "#0f766e");
+      expect(reference).toHaveAttribute("data-dashed", "true");
+      // Điểm dừng tuyến chính hiện dạng chấm tham chiếu, tách khỏi marker số
+      // của tuyến thay thế đang soạn
+      expect(
+        screen.getByTestId("map-pointmarker-reference-stop-main-stop-1"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("alternative-map-legend")).toBeInTheDocument();
+      expect(screen.getByText("routes.legendMainRoute")).toBeInTheDocument();
+      expect(
+        screen.getByText("routes.legendAlternativeRoute"),
+      ).toBeInTheDocument();
+    });
+
+    // Xoá tuyến thay thế ở BE là XOÁ MỀM: UI phải giữ item lại (đánh dấu ngưng)
+    // và cho khôi phục ngay, thay vì gỡ khỏi danh sách như xoá cứng.
+    it("keeps a deactivated alternative on screen and restores it in place", async () => {
+      vi.mocked(deleteAlternativeRoute).mockResolvedValue({ isActive: false });
+      vi.mocked(setAlternativeRouteActive).mockResolvedValue(altOne);
+      await openAlternativesTab();
+
+      fireEvent.click(screen.getByTestId("deactivate-alternative-button"));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "routes.deactivateAlternativeConfirmAction",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(deleteAlternativeRoute).toHaveBeenCalledWith("alt-1"),
+      );
+      // Vẫn còn trong danh sách + form, kèm banner giải thích và nút khôi phục
+      expect(await screen.findByDisplayValue("Alt One")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("alternative-route-row-alt-1"),
+      ).toBeInTheDocument();
+      expect(
+        await screen.findByTestId("alternative-deactivated-banner"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("restore-alternative-button"));
+
+      await waitFor(() =>
+        expect(setAlternativeRouteActive).toHaveBeenCalledWith("alt-1", true),
+      );
+      expect(
+        await screen.findByTestId("deactivate-alternative-button"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("alternative-deactivated-banner"),
+      ).not.toBeInTheDocument();
+    });
+
+    // Trần 2 tính theo bản ĐANG ÁP DỤNG: bản đã ngưng (xoá mềm ở BE) vẫn nằm
+    // trong danh sách nhưng không được chiếm chỗ, nếu không thì ngưng xong là
+    // kẹt vĩnh viễn không tạo được bản thay thế mới.
+    it("counts only active alternatives against the limit of two", async () => {
+      // Fixture: alt-1 đang áp dụng, alt-2 đã ngưng → mới 1/2, vẫn tạo được
+      await openAlternativesTab();
+
+      expect(
+        screen.getByRole("button", { name: /routes.newAlternative/ }),
+      ).toBeEnabled();
+    });
+
+    it("disables creating a new alternative once two are active", async () => {
+      vi.mocked(getAlternativeRoutes).mockResolvedValue({
+        ...emptyPage,
+        items: [altOne, { ...altTwo, isActive: true }],
+        totalItems: 2,
+        totalPages: 1,
+      });
+
       await openAlternativesTab();
 
       expect(

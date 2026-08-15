@@ -111,6 +111,21 @@ describe("routeGeometryPath", () => {
     ]);
   });
 
+  // Fallback STOPS_ONLY: `points` chỉ là toạ độ điểm dừng (thiếu cả hai bến) —
+  // vẽ nó ra là đúng tuyến giả chim bay mà contract cấm
+  it("không vẽ points của fallback STOPS_ONLY thành tuyến", () => {
+    expect(
+      routeGeometryPath({
+        tripId: "trip-1",
+        geometrySource: "STOPS_ONLY",
+        points: [
+          { latitude: 10.9, longitude: 106.9 },
+          { latitude: 11.5, longitude: 107.4 },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
   it("không nối marker thành tuyến giả khi geometry rỗng", () => {
     expect(
       routeGeometryPath({
@@ -179,6 +194,14 @@ describe("routeStopMarkers", () => {
       "stop",
       "stop",
       "destination",
+    ]);
+    // Điểm dừng giữa tuyến đánh số 1..N theo thứ tự chạy để hiện trong marker;
+    // bến đi/bến đến không đánh số
+    expect(markers.map((marker) => marker.orderIndex)).toEqual([
+      undefined,
+      1,
+      2,
+      undefined,
     ]);
     expect(markers[0].position).toEqual({ lat: 10.77, lng: 106.7 });
   });

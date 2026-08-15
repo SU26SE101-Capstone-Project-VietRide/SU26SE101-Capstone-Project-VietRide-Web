@@ -1,0 +1,56 @@
+{
+  "documentTitle": "VietRide · Delivery confirmation",
+  "heading": "Confirm you received the parcel",
+  "intro": "Tap confirm once you have received the parcel from the operator. You only need to do this once, no account required.",
+  "actions": {
+    "confirm": "Confirm parcel received",
+    "confirming": "Confirming…",
+    "reject": "Refuse the parcel",
+    "rejecting": "Sending…",
+    "undo": "Undo refusal",
+    "undoing": "Undoing…",
+    "cancel": "Cancel"
+  },
+  "confirmed": {
+    "title": "Delivery confirmed successfully",
+    "description": "Thank you. The operator has received your confirmation and the parcel is now closed.",
+    "at": "Confirmed at: {{time}}"
+  },
+  "rejected": {
+    "title": "Refusal recorded",
+    "description": "The operator will contact you to handle this parcel.",
+    "at": "Refused at: {{time}}",
+    "undoWindow": "You have {{time}} left to undo if this was a mistake.",
+    "undoExpired": "The undo window has closed. Please contact the operator if you need help.",
+    "undone": "Refusal undone. You can confirm the delivery again."
+  },
+  "reject": {
+    "label": "Please tell us why you are refusing",
+    "placeholder": "For example: parcel is dented, seal is broken, wrong item…",
+    "counter": "{{current}}/{{max}} characters",
+    "required": "Please enter a reason for refusing.",
+    "submit": "Submit refusal"
+  },
+  "errors": {
+    "title": "Action could not be completed",
+    "missingToken": "This link is not valid. Please open the exact link from the operator's email.",
+    "tokenInvalid": "This link is not valid. Please open the exact link from the operator's email.",
+    "tokenExpired": "This link has expired. Please contact the operator to resend the confirmation email.",
+    "tokenRevoked": "This link is no longer active — you may have already confirmed, or the operator sent a newer email. If your confirmation already succeeded, nothing else is needed.",
+    "notPendingConfirm": "This parcel is no longer awaiting confirmation. Please contact the operator if you have not received it.",
+    "undoWindowExpired": "The undo window has already closed. Please contact the operator for help.",
+    "validation": "The submitted data is not valid. Please check the refusal reason (500 characters max).",
+    "rateLimited": "Too many attempts on this link. Please wait a few minutes and try again.",
+    "requestPending": "Your previous request is still being processed. Please wait a few seconds and try again.",
+    "idempotency": "A technical error occurred while sending the request. Please reopen the link from the email and try again.",
+    "raceLost": "The parcel status just changed. Please try again.",
+    "upstream": "The system is busy. Please try again in a few minutes.",
+    "network": "Could not reach the server. Check your connection and try again.",
+    "generic": "Something went wrong. Please try again or contact the operator."
+  },
+  "privacy": {
+    "title": "A private link for your parcel",
+    "note": "This link only lets you confirm your own parcel and needs no login. VietRide does not store the link on your device."
+  },
+  "support": "Need help? Contact the operator that sent you this email to get a new link."
+}

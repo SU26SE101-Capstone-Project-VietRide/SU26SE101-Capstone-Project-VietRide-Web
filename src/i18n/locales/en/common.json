@@ -299,5 +299,36 @@
     "continueEditing": "Continue editing",
     "retry": "Retry"
   },
-  "reset": "Reset"
+  "reset": "Reset",
+  "assistant": {
+    "title": "Operations assistant",
+    "subtitle": "Answers grounded in VietRide policies and documents",
+    "pageTitle": "VietRide Knowledge Assistant",
+    "pageSubtitle": "Answers come from the knowledge base, scoped to the role and operator you are signed in as.",
+    "operatorScopeLabel": "Limit to an operator code (optional)",
+    "operatorScopePlaceholder": "Operator code",
+    "emptyTitle": "Start with an operations question",
+    "emptyDescription": "The assistant answers from internal documents, and only within what you are allowed to see.",
+    "starterLabel": "Suggested questions",
+    "starterVoucher": "What is the operator voucher handling process?",
+    "starterDisruption": "How do we handle a disrupted trip?",
+    "starterSettlement": "How does wallet reconciliation and settlement work?",
+    "placeholder": "Ask an operations question…",
+    "composerHint": "Enter to send · Shift + Enter for a new line",
+    "thinking": "Searching the documents…",
+    "you": "You",
+    "sources": "{{value}} sources cited",
+    "helpful": "Helpful",
+    "notHelpful": "Not helpful",
+    "copy": "Copy answer",
+    "copied": "Copied",
+    "copyFailed": "The browser blocked copying.",
+    "newConversation": "New conversation",
+    "open": "Open operations assistant",
+    "close": "Close operations assistant",
+    "dragHint": "Drag to move the assistant",
+    "streamStopped": "The assistant stopped before finishing the answer.",
+    "connectionFailed": "Could not reach the AI assistant.",
+    "feedbackFailed": "Could not send your rating."
+  }
 }

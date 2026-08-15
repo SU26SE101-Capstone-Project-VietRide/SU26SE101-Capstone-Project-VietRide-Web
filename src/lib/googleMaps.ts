@@ -87,8 +87,17 @@ export type GoogleCircleInstance = {
   setMap: (map: GoogleMapInstance | null) => void;
 };
 
+// Icon lặp dọc polyline — dùng vẽ đường ĐỨT NÉT: strokeOpacity của thân đường
+// đặt 0, mỗi "gạch" là một Symbol path lặp lại theo `repeat`.
+type GooglePolylineIcon = {
+  icon: GoogleMarkerIcon;
+  offset?: string;
+  repeat?: string;
+};
+
 type GooglePolylineOptions = {
   clickable?: boolean;
+  icons?: GooglePolylineIcon[];
   map: GoogleMapInstance;
   path: GoogleMapCoordinate[];
   strokeColor?: string;

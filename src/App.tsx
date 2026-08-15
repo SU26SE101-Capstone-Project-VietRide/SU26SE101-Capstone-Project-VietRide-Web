@@ -52,6 +52,10 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const SetInitialPassword = lazy(() => import("./pages/SetInitialPassword"));
 /** Public guest live map — capability link only (no auth layout). */
 const TripSharingPage = lazy(() => import("./pages/TripSharing/index"));
+/** Public parcel delivery confirmation — token link from recipient email. */
+const ParcelDeliveryConfirmPage = lazy(
+  () => import("./pages/ParcelDeliveryConfirm/index"),
+);
 const ManagerDashboard = lazy(() => import("./pages/Manager/Dashboard"));
 const AdminDashboard = lazy(() => import("./pages/Admin/Dashboard"));
 const PrivateRoute = lazy(() => import("./components/PrivateRoute"));
@@ -86,6 +90,18 @@ export default function App() {
             />
             {/* Passenger trip-share invite (BE shareUrl path). Token only in #hash. */}
             <Route path="/trip-sharing" element={<TripSharingPage />} />
+
+            {/*
+              Người nhận hàng mở link từ email nhà xe gửi (BE `deliveryUrl` =
+              /parcels/delivery/confirm?token=...). Route PUBLIC bắt buộc:
+              người nhận là khách vãng lai, không có tài khoản VietRide —
+              endpoint `/v1/parcels/delivery/confirm|reject|undo-reject` là
+              [AllowAnonymous], chính token trong link xác thực request.
+            */}
+            <Route
+              path="/parcels/delivery/confirm"
+              element={<ParcelDeliveryConfirmPage />}
+            />
 
             {/*
               VNPay redirects the operator's browser to this result page.

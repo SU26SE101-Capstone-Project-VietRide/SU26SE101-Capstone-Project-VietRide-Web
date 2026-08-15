@@ -1,5 +1,6 @@
 import type {
   AdminUserRole,
+  OperatorShuttleTripListItem,
   OperatorUser,
   OperatorVehicle,
   ShuttleBookingGroup,
@@ -8,6 +9,10 @@ import type {
   ShuttleTrackingEta,
   ShuttleTrackingLatest,
 } from "../../../api/vietride";
+import {
+  getFleetStatus,
+  type FleetVehicleMapPoint,
+} from "../../../components/fleetMapPoint";
 
 export type ShuttleVehicle = {
   id: string;
@@ -23,7 +28,8 @@ export type ShuttleDriver = {
 };
 
 /**
- * Vị trí / ETA của một chuyến trung chuyển, tải theo yêu cầu (không tự poll).
+ * Vị trí / ETA của một chuyến trung chuyển. Nạp một lần khi join room realtime
+ * (hoặc khi bấm làm mới), sau đó tự cập nhật theo event socket.
  * Tách khỏi bản ghi chuyến vì danh sách chuyến đến từ server còn phần tracking
  * này là trạng thái cục bộ của từng thẻ.
  */
@@ -32,9 +38,56 @@ export type ShuttleTripTracking = {
   error?: string;
   latest?: ShuttleTrackingLatest | null;
   eta?: ShuttleTrackingEta | null;
+  /** Số liệu đang hiện đến từ event socket chứ không phải lượt gọi REST */
+  isLive?: boolean;
 };
 
+/**
+ * Trạng thái kết nối realtime của mục theo dõi. Khai tại đây thay vì dùng chung
+ * `RealtimeStatus` của màn Operations để hai màn không phụ thuộc lẫn nhau.
+ * Không có trạng thái "idle": mục theo dõi luôn mở socket khi màn được mở.
+ */
+export type ShuttleRealtimeStatus = "connecting" | "connected" | "error";
+
 export const SHUTTLE_TRIP_ACTIVE_STATUSES = "SCHEDULED,IN_PROGRESS";
+
+function isNewer(candidate: string, current: string) {
+  const candidateTime = new Date(candidate).getTime();
+  const currentTime = new Date(current).getTime();
+  // Mốc thời gian hỏng thì coi như không mới hơn, tránh đá văng số liệu đang có.
+  if (Number.isNaN(candidateTime)) return false;
+  if (Number.isNaN(currentTime)) return true;
+  return candidateTime > currentTime;
+}
+
+/**
+ * Chọn điểm GPS được hiển thị giữa bản đang có và bản vừa nhận.
+ *
+ * Hai nguồn chạy song song và không đảm bảo thứ tự: event socket có thể tới
+ * trước khi lượt REST nạp lần đầu kịp trả về, còn socket khi reconnect có thể
+ * đẩy lại điểm cũ. Luôn giữ bản có `recordedAt` mới hơn.
+ *
+ * Trả về đúng tham chiếu cũ khi bản mới không thắng — caller dựa vào đó để bỏ
+ * qua lượt cập nhật state thừa.
+ */
+export function pickNewerLatest(
+  current: ShuttleTrackingLatest | null | undefined,
+  incoming: ShuttleTrackingLatest | null | undefined,
+) {
+  if (!incoming) return current ?? null;
+  if (!current) return incoming;
+  return isNewer(incoming.recordedAt, current.recordedAt) ? incoming : current;
+}
+
+/** Như `pickNewerLatest` nhưng cho ETA, mốc so sánh là `updatedAt`. */
+export function pickNewerEta(
+  current: ShuttleTrackingEta | null | undefined,
+  incoming: ShuttleTrackingEta | null | undefined,
+) {
+  if (!incoming) return current ?? null;
+  if (!current) return incoming;
+  return isNewer(incoming.updatedAt, current.updatedAt) ? incoming : current;
+}
 
 // Nhãn người đọc được cho một chuyến trung chuyển. BE chưa cấp mã chuyến dạng
 // chữ nên biển số xe là định danh tự nhiên nhất với điều độ viên.
@@ -68,6 +121,49 @@ export function bookingPassengerLabel(
   if (names.length === 0) return fallback;
   if (names.length <= 2) return names.join(", ");
   return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
+}
+
+/**
+ * BE giữ điểm GPS shuttle mới nhất trong Redis 300s (`SHUTTLE_LATEST_TTL_SECONDS`).
+ * Quá ngưỡng đó thì điểm đang hiện chỉ là bản socket đẩy về trước đây, không còn
+ * phản ánh vị trí thật — đánh dấu "lost" thay vì để marker đứng yên như xe đang
+ * đỗ.
+ */
+export const SHUTTLE_SIGNAL_TTL_MS = 300_000;
+
+/**
+ * Dựng marker bản đồ cho một chuyến trung chuyển. Trả null khi chưa có toạ độ —
+ * chuyến đó vẫn hiện ở lưới thẻ, chỉ không có marker.
+ *
+ * Chưa vẽ được điểm đón hay bến vì BE chưa mở `stops` của shuttle cho vai trò
+ * OPERATOR (chỉ `passenger-context` có, và chặn cứng role PASSENGER), nên bản đồ
+ * hiện chỉ có chấm xe.
+ */
+export function toShuttleMapPoint(
+  trip: OperatorShuttleTripListItem,
+  tracking: ShuttleTripTracking | undefined,
+  labels: { unknownVehicle: string; unassignedDriver: string; route: string },
+  now = Date.now(),
+): FleetVehicleMapPoint | null {
+  const latest = tracking?.latest;
+  if (!latest) return null;
+
+  const recordedAt = new Date(latest.recordedAt).getTime();
+  const isStale =
+    Number.isFinite(recordedAt) && now - recordedAt > SHUTTLE_SIGNAL_TTL_MS;
+
+  return {
+    id: trip.shuttleTripId,
+    plate: trip.vehicle.licensePlate.trim() || labels.unknownVehicle,
+    driver: trip.driver.displayName?.trim() || labels.unassignedDriver,
+    route: labels.route,
+    speedKmh: latest.speedKmh ?? null,
+    status: isStale ? "lost" : getFleetStatus(latest),
+    position: { lat: latest.latitude, lng: latest.longitude },
+    // Shuttle gửi `heading`, chuyến thường gửi `headingDeg` — hai tên khác nhau
+    // cho cùng một thứ, xem API-ETA-Tracking.md mục `shuttle:gps:update`.
+    headingDeg: latest.heading ?? null,
+  };
 }
 
 export function formatTime(value?: string) {

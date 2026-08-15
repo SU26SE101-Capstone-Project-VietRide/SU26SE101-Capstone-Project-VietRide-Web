@@ -134,6 +134,8 @@ import {
   updateAdminStation,
   updateAdminSubscriptionPlan,
   updateAdminVoucher,
+  deleteAlternativeRoute,
+  setAlternativeRouteActive,
   updateAlternativeRouteGeometry,
   updateOperatorVoucher,
   updateOperatorDriverSchedule,
@@ -746,6 +748,36 @@ describe("vietride API", () => {
       6,
       "https://api.vietride.online/internal/v1/trips/trip-1/cargo/remeasure",
       expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  // Tuyến thay thế xoá MỀM: DELETE chỉ hạ isActive, khôi phục bằng PATCH partial
+  // chỉ có mỗi `isActive` (BE giữ nguyên tên/bến/km/phút/stop/polyline đã lưu).
+  it("deactivates and restores an alternative route without touching its other fields", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ data: { isActive: true } }), {
+          status: 200,
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await deleteAlternativeRoute("alt-1");
+    await setAlternativeRouteActive("alt-1", true);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/alternative-routes/alt-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/alternative-routes/alt-1",
+      expect.objectContaining({
+        body: JSON.stringify({ isActive: true }),
+        method: "PATCH",
+      }),
     );
   });
 

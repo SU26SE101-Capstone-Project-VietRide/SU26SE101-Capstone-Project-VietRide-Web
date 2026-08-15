@@ -1,6 +1,6 @@
 import { FiFilter, FiSearch } from "react-icons/fi";
 import { useTranslation } from "react-i18next";
-import type { FleetVehicleMapPoint } from "./FleetMap";
+import type { FleetVehicleMapPoint } from "../../../components/fleetMapPoint";
 import CustomSelect from "../../../components/CustomSelect";
 
 export type FleetStatusFilter = "all" | FleetVehicleMapPoint["status"];

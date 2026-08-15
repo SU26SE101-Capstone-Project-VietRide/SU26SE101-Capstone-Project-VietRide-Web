@@ -4,12 +4,19 @@ import type {
   TripRouteGeometry,
   TripRouteGeometryPoint,
 } from "../../../api/vietride";
-import type { FleetVehicleMapPoint } from "./FleetMap";
+import {
+  getFleetStatus,
+  type FleetStatus,
+  type FleetVehicleMapPoint,
+  type TripRouteMarker,
+  type TripRouteMarkerKind,
+} from "../../../components/fleetMapPoint";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 import { decodeGooglePolyline } from "../../../lib/googlePolyline";
 import { isRecord } from "../../../utils/typeGuards";
 
-export { decodeGooglePolyline };
+export { decodeGooglePolyline, getFleetStatus };
+export type { FleetStatus, TripRouteMarker, TripRouteMarkerKind };
 
 export type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
 
@@ -29,19 +36,8 @@ export type RouteGeometryStatus =
   | "empty"
   | "error";
 
-export type FleetStatus = FleetVehicleMapPoint["status"];
-
 /** Trạng thái chuyến (BE) báo hiệu sự cố đang diễn ra */
 export const DISRUPTED_TRIP_STATUS = "DISRUPTED";
-
-// Nhận cả TrackingLatestLocation (speedKmh?: number) lẫn FleetLatestItem —
-// chỉ cần trường speedKmh để phân loại.
-export function getFleetStatus(location: {
-  speedKmh?: number | null;
-}): FleetStatus {
-  if (location.speedKmh == null) return "offline";
-  return location.speedKmh > 2 ? "moving" : "idle";
-}
 
 // Chuyến sự cố phải đè lên trạng thái suy ra từ tốc độ: một chuyến DISRUPTED
 // vẫn đang lăn bánh trước đây hiện y hệt xe bình thường (chấm xanh "Đang chạy"),
@@ -154,6 +150,12 @@ export function routeGeometryPath(
 ): GoogleMapCoordinate[] {
   if (!geometry) return [];
 
+  // Fallback STOPS_ONLY của BE: `points` lúc đó chỉ là toạ độ các điểm dừng
+  // (không có cả bến đi/bến đến), nối lại là đúng tuyến giả chim bay mà contract
+  // cấm client tự vẽ. Trả rỗng để màn dựng lại đường bộ qua Google Routes
+  // (useTripRoadRoute) và panel nói rõ đó là đường ước lượng.
+  if (geometry.geometrySource === "STOPS_ONLY") return [];
+
   if (geometry.geometry?.points?.length) {
     return orderedPoints(geometry.geometry.points);
   }
@@ -175,17 +177,6 @@ export function routeGeometryPath(
 
   return geometry.encodedPolyline ? decodeGooglePolyline(geometry.encodedPolyline) : [];
 }
-
-export type TripRouteMarkerKind = "origin" | "stop" | "destination";
-
-export type TripRouteMarker = {
-  id: string;
-  kind: TripRouteMarkerKind;
-  name: string;
-  /** true = xe đã chạy qua điểm này. Marker mờ đi nhưng vẫn nổi hơn polyline. */
-  passed?: boolean;
-  position: GoogleMapCoordinate;
-};
 
 /**
  * Chuỗi điểm của tuyến theo đúng thứ tự chạy: bến đi → các điểm dừng (theo
@@ -210,11 +201,13 @@ export function routeStopMarkers(
 
   [...(geometry.intermediateStops ?? [])]
     .sort((left, right) => left.sequence - right.sequence)
-    .forEach((stop) => {
+    .forEach((stop, index) => {
       markers.push({
         id: `stop-${stop.stopId}`,
         kind: "stop",
         name: stop.name,
+        // Đánh số lại 1..N theo thứ tự chạy — `sequence` của BE có thể thưa
+        orderIndex: index + 1,
         position: { lat: stop.latitude, lng: stop.longitude },
       });
     });
@@ -286,6 +279,49 @@ function projectOnSegment(
 }
 
 /**
+ * Chiếu một điểm lên lộ trình: đoạn chứa hình chiếu, toạ độ hình chiếu, khoảng
+ * lệch khỏi tuyến và quãng đường dọc tuyến tính từ đầu tuyến. null khi lộ trình
+ * chưa đủ 2 điểm.
+ */
+function projectOntoRoute(
+  routePath: GoogleMapCoordinate[],
+  point: GoogleMapCoordinate,
+): {
+  index: number;
+  point: GoogleMapCoordinate;
+  offRouteMeters: number;
+  alongMeters: number;
+} | null {
+  if (routePath.length < 2) return null;
+
+  let cumulative = 0;
+  let best: {
+    index: number;
+    point: GoogleMapCoordinate;
+    offRouteMeters: number;
+    alongMeters: number;
+  } | null = null;
+
+  for (let index = 0; index < routePath.length - 1; index += 1) {
+    const start = routePath[index];
+    const end = routePath[index + 1];
+    const projection = projectOnSegment(point, start, end);
+    if (!best || projection.distanceMeters < best.offRouteMeters) {
+      best = {
+        index,
+        point: projection.point,
+        offRouteMeters: projection.distanceMeters,
+        alongMeters:
+          cumulative + projection.ratio * planarDistanceMeters(start, end),
+      };
+    }
+    cumulative += planarDistanceMeters(start, end);
+  }
+
+  return best;
+}
+
+/**
  * Cắt lộ trình tại vị trí hiện tại của xe để bản đồ tô được "đã đi" khác
  * "chưa đi". Trước đây bản đồ chỉ vẽ nguyên tuyến một màu nên đoạn đã qua và
  * đoạn còn lại nhìn y hệt nhau.
@@ -298,25 +334,8 @@ export function splitRouteAtPosition(
     return { traveled: [], remaining: routePath };
   }
 
-  let best: { index: number; distanceMeters: number; point: GoogleMapCoordinate } | null =
-    null;
-
-  for (let index = 0; index < routePath.length - 1; index += 1) {
-    const projection = projectOnSegment(
-      position,
-      routePath[index],
-      routePath[index + 1],
-    );
-    if (!best || projection.distanceMeters < best.distanceMeters) {
-      best = {
-        index,
-        distanceMeters: projection.distanceMeters,
-        point: projection.point,
-      };
-    }
-  }
-
-  if (!best || best.distanceMeters > OFF_ROUTE_THRESHOLD_METERS) {
+  const best = projectOntoRoute(routePath, position);
+  if (!best || best.offRouteMeters > OFF_ROUTE_THRESHOLD_METERS) {
     return { traveled: [], remaining: routePath };
   }
 
@@ -401,24 +420,7 @@ function alongRouteMeters(
   routePath: GoogleMapCoordinate[],
   point: GoogleMapCoordinate,
 ): { alongMeters: number; offRouteMeters: number } | null {
-  if (routePath.length < 2) return null;
-
-  let cumulative = 0;
-  let bestOffRoute = Number.POSITIVE_INFINITY;
-  let bestAlong = 0;
-
-  for (let index = 0; index < routePath.length - 1; index += 1) {
-    const start = routePath[index];
-    const end = routePath[index + 1];
-    const projection = projectOnSegment(point, start, end);
-    if (projection.distanceMeters < bestOffRoute) {
-      bestOffRoute = projection.distanceMeters;
-      bestAlong = cumulative + projection.ratio * planarDistanceMeters(start, end);
-    }
-    cumulative += planarDistanceMeters(start, end);
-  }
-
-  return { alongMeters: bestAlong, offRouteMeters: bestOffRoute };
+  return projectOntoRoute(routePath, point);
 }
 
 // Xe đang đỗ ngay tại bến vẫn tính là đã tới nơi — GPS lệch vài chục mét không

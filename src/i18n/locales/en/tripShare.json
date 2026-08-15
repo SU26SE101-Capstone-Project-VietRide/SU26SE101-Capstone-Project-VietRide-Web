@@ -42,7 +42,15 @@
     "ariaLabel": "VietRide live vehicle map",
     "sectionLabel": "Live vehicle position",
     "vehicle": "Vehicle position",
-    "unavailable": "The map could not load. Journey details will continue updating."
+    "unavailable": "The map could not load. Journey details will continue updating.",
+    "legend": "Map legend",
+    "legendOrigin": "Departure station",
+    "legendDestination": "Arrival station",
+    "legendStop": "Stop",
+    "legendTraveled": "Travelled so far",
+    "legendRemaining": "Remaining",
+    "legendVehicle": "Vehicle en route",
+    "legendNote": "Drawn along the operator's registered route"
   },
   "actions": {
     "retry": "Try again"

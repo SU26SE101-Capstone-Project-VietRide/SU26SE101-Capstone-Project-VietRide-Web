@@ -10,12 +10,23 @@ import { useTranslation } from "react-i18next";
 import { FiSave } from "react-icons/fi";
 import type { OperatorStop } from "../../../api/vietride";
 import RouteDesignMap, { type RouteStopMarker } from "./RouteDesignMap";
+import {
+  alternativeRouteColor,
+  dimRouteColor,
+  mainRouteColor,
+} from "./routeColors";
 import RouteFloatingPanel from "./RouteFloatingPanel";
 import GeometryToolbar from "./GeometryToolbar";
 import AlternativeRoutesSection from "./AlternativeRoutesSection";
 import type { RouteCoordinate } from "./polyline";
-import type { StationOption, StopSuggestion } from "./types";
+import type { RouteStopDraft, StationOption, StopSuggestion } from "./types";
 import type { UseAlternativeRouteWorkspaceResult } from "./useAlternativeRouteWorkspace";
+
+// Hai màu nhận diện của tab này (routeColors.ts): tuyến chính teal (đứt nét,
+// chỉ xem) — tuyến thay thế đang soạn cam. Phương án đường chưa chọn = cùng
+// tông cam nhưng nhạt, dùng ĐÚNG hàm RouteDesignMap dùng nên chú giải luôn
+// khớp màu thật trên map.
+const dimmedAlternativeColor = dimRouteColor(alternativeRouteColor);
 
 type AlternativeRouteWorkspaceProps = {
   canManageRoutes: boolean;
@@ -23,8 +34,12 @@ type AlternativeRouteWorkspaceProps = {
   stations: StationOption[];
   stops: OperatorStop[];
   workspace: UseAlternativeRouteWorkspaceResult;
-  // Polyline tuyến CHÍNH đang lưu/soạn — vẽ mờ làm nền tham chiếu (mục 1 phụ lục)
+  // Polyline tuyến CHÍNH đang lưu/soạn — vẽ đứt nét làm nền tham chiếu (mục 1
+  // phụ lục) để thấy tuyến thay thế lệch khỏi tuyến chính ở đoạn nào
   referencePath: RouteCoordinate[];
+  // Điểm dừng tuyến CHÍNH — chấm nhỏ teal trên map, cho biết tuyến chính đã set
+  // up qua những đâu (chỉ xem, không bấm được)
+  referenceStops: RouteStopDraft[];
   // Điểm mới từ Google phải xác nhận phường/xã trước khi tạo Stop — modal do
   // trang Routes sở hữu vì cả tuyến chính lẫn tuyến thay thế đều dùng chung.
   onRequestWardConfirm: (
@@ -40,10 +55,25 @@ export default function AlternativeRouteWorkspace({
   stops,
   workspace,
   referencePath,
+  referenceStops,
   onRequestWardConfirm,
 }: AlternativeRouteWorkspaceProps) {
   const { t } = useTranslation("manager");
   const { altGeometry } = workspace;
+
+  // Điểm dừng tuyến chính rút gọn về đúng field map cần — memo để RouteDesignMap
+  // không reconcile lại marker mỗi render của trang cha
+  const mainRouteStopMarkers = useMemo(
+    () =>
+      referenceStops.map((stop) => ({
+        stopId: stop.stopId,
+        orderIndex: stop.orderIndex,
+        name: stop.stopName,
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+      })),
+    [referenceStops],
+  );
 
   // Marker đánh số 1..N cho stop nháp của tuyến thay thế — cùng cấu trúc
   // RouteStopMarker của tuyến chính (đủ để RouteDesignMap dựng card chi tiết).
@@ -102,6 +132,41 @@ export default function AlternativeRouteWorkspace({
           ) : undefined
         }
       />
+
+      {/* Chú giải: không có nó thì đường teal đứt nét trên map chỉ là "một đường
+          nữa", user không biết đó là tuyến chính đã lưu để mà so */}
+      <aside
+        aria-label={t("routes.mapLegend")}
+        data-testid="alternative-map-legend"
+        className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm"
+      >
+        <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+          <span
+            aria-hidden="true"
+            className="h-1 w-6 rounded-full"
+            style={{
+              backgroundImage: `repeating-linear-gradient(to right, ${mainRouteColor} 0 4px, transparent 4px 8px)`,
+            }}
+          />
+          {t("routes.legendMainRoute")}
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+          <span
+            aria-hidden="true"
+            className="h-1 w-6 rounded-full"
+            style={{ backgroundColor: alternativeRouteColor }}
+          />
+          {t("routes.legendAlternativeRoute")}
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+          <span
+            aria-hidden="true"
+            className="h-1 w-6 rounded-full"
+            style={{ backgroundColor: dimmedAlternativeColor }}
+          />
+          {t("routes.legendAlternativeOptions")}
+        </span>
+      </aside>
 
       <div className="lg:relative">
         <RouteFloatingPanel>
@@ -163,8 +228,10 @@ export default function AlternativeRouteWorkspace({
             }}
             isAddingSuggestion={workspace.isAddingAltSuggestion}
             externalActiveSuggestion={workspace.pickedAltSuggestion}
-            activeColor="#f59e0b"
+            activeColor={alternativeRouteColor}
             referencePath={referencePath}
+            referenceColor={mainRouteColor}
+            referenceStops={mainRouteStopMarkers}
             showPickupDropoffOptions={false}
           />
         </div>

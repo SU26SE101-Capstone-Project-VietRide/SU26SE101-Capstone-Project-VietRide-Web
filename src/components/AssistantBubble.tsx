@@ -4,7 +4,8 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { FiMessageCircle, FiX } from "react-icons/fi";
+import { useTranslation } from "react-i18next";
+import { FiCpu, FiMessageCircle, FiX } from "react-icons/fi";
 import { useLocation } from "react-router-dom";
 import { getAuthUser } from "../auth";
 import RagAssistant from "../pages/RagAssistant";
@@ -87,6 +88,7 @@ function getSavedPosition(): BubblePosition {
 }
 
 export default function AssistantBubble() {
+  const { t } = useTranslation("common");
   const location = useLocation();
   const user = getAuthUser();
   const [open, setOpen] = useState(false);
@@ -246,28 +248,31 @@ export default function AssistantBubble() {
       {open && (
         <div
           role="dialog"
-          aria-label="Trợ lý nghiệp vụ"
-          className="fixed w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-gray-900/15"
+          aria-label={t("assistant.title")}
+          className="assistant-panel-in fixed w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-gray-900/20"
           style={getPanelPosition()}
         >
           <div className="flex h-full min-h-0 flex-col">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-gray-900">
-                  Trợ lý nghiệp vụ
+            <div className="flex shrink-0 items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-vr-50 to-white px-4 py-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-100 text-vr-800">
+                <FiCpu size={17} aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-slate-900">
+                  {t("assistant.title")}
                 </p>
-                <p className="truncate text-xs text-gray-500">
-                  Hỏi đáp theo chính sách VietRide
+                <p className="truncate text-xs text-slate-500">
+                  {t("assistant.subtitle")}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="shrink-0 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-                aria-label="Đóng trợ lý nghiệp vụ"
-                title="Đóng"
+                className="shrink-0 rounded-full p-2 text-gray-400 transition hover:bg-white hover:text-gray-700"
+                aria-label={t("assistant.close")}
+                title={t("close")}
               >
-                <FiX size={19} />
+                <FiX size={18} />
               </button>
             </div>
             <div className="min-h-0 flex-1">
@@ -280,10 +285,10 @@ export default function AssistantBubble() {
         type="button"
         onPointerDown={handlePointerDown}
         onClick={handleClick}
-        className={`flex h-14 w-14 touch-none items-center justify-center rounded-full bg-vr-500 text-white shadow-lg shadow-vr-900/20 transition hover:scale-105 hover:bg-vr-600 ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
-        aria-label={open ? "Đóng trợ lý nghiệp vụ" : "Mở trợ lý nghiệp vụ"}
+        className={`flex h-14 w-14 touch-none items-center justify-center rounded-full bg-vr-500 text-white shadow-lg shadow-vr-900/25 ring-4 ring-white/70 transition duration-200 hover:-translate-y-0.5 hover:bg-vr-600 hover:shadow-xl active:translate-y-0 active:scale-95 ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+        aria-label={open ? t("assistant.close") : t("assistant.open")}
         aria-expanded={open}
-        title="Kéo để di chuyển trợ lý"
+        title={t("assistant.dragHint")}
       >
         {open ? <FiX size={22} /> : <FiMessageCircle size={23} />}
       </button>

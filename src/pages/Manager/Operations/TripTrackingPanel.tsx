@@ -26,6 +26,8 @@ type TripTrackingPanelProps = {
   apiError: string;
   latest: TrackingLatestResponse | null;
   trailCount: number;
+  /** Số điểm dừng giữa tuyến của CHUYẾN (snapshot TripStop), không phải của tuyến */
+  routeStopCount: number;
   eta: TrackingEtaResponse | null;
   etaTargets: TrackingEtaTarget[];
   trip: PublicTrip | null;
@@ -46,6 +48,7 @@ export default function TripTrackingPanel({
   apiError,
   latest,
   trailCount,
+  routeStopCount,
   eta,
   etaTargets,
   trip,
@@ -196,6 +199,22 @@ export default function TripTrackingPanel({
           <p className="mt-1 text-base font-semibold text-gray-900">
             {trailCount}
           </p>
+        </div>
+        {/* Điểm dừng lấy từ snapshot lúc TẠO CHUYẾN: thêm điểm dừng vào tuyến
+            sau đó không ghi ngược vào chuyến đã sinh, nên chuyến cũ hiện 0 và
+            bản đồ không có chấm số nào. Nói thẳng ra để khỏi tưởng lỗi hiển thị. */}
+        <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+          <p className="text-sm font-medium text-gray-500">
+            {t("gps.routeStopCount")}
+          </p>
+          <p className="mt-1 text-base font-semibold text-gray-900">
+            {routeStopCount}
+          </p>
+          {routeStopCount === 0 && (
+            <p className="mt-1 text-xs leading-5 text-gray-500">
+              {t("gps.routeStopCountEmptyHint")}
+            </p>
+          )}
         </div>
         <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
           <p className="text-sm font-medium text-gray-500">{t("gps.eta")}</p>

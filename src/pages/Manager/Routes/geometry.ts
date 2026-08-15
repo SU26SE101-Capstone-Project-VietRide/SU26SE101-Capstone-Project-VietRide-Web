@@ -228,6 +228,85 @@ export function excludeMatchingRouteOptions(
   );
 }
 
+// ── Neo nhãn thời lượng của phương án chưa chọn ───────────────────────────
+// Các phương án Google trả về thường TRÙNG tuyến đang chọn gần hết chiều dài,
+// chỉ tách ra một đoạn. Đặt bubble theo tỉ lệ chiều dài (40%/55%/70%) thì rơi
+// đúng đoạn trùng → nhìn như đang gắn nhãn cho tuyến chính. Thay vào đó lấy
+// điểm TÁCH XA tuyến đang chọn nhất của chính phương án đó làm neo.
+
+// Số điểm lấy mẫu khi quét phương án (polyline HIGH_QUALITY vài nghìn điểm)
+const labelAnchorSampleCount = 80;
+// Số điểm lấy mẫu của đường tham chiếu khi đo khoảng cách
+const labelAnchorReferenceSampleCount = 400;
+// Bỏ 12% đầu/cuối: hai đầu luôn trùng bến đi/bến đến của mọi phương án
+const labelAnchorEdgeSkipRatio = 0.12;
+// Dưới ngưỡng này coi như phương án không tách khỏi tuyến đang chọn → không có
+// chỗ nào "của riêng nó" để gắn nhãn, nơi gọi tự lùi về vị trí theo tỉ lệ
+const labelAnchorMinDivergenceKm = 0.25;
+// Hai bubble gần nhau dưới ngưỡng này coi như chồng chỗ — thử điểm tách khác
+const labelAnchorSeparationKm = 12;
+
+// Lấy mẫu đều tối đa maxCount điểm (giữ nguyên điểm đầu/cuối)
+function samplePath(points: RouteCoordinate[], maxCount: number) {
+  if (points.length <= maxCount || maxCount < 2) {
+    return points;
+  }
+
+  const step = (points.length - 1) / (maxCount - 1);
+
+  return Array.from(
+    { length: maxCount },
+    (_unused, index) => points[Math.round(index * step)],
+  );
+}
+
+// Điểm trên `optionPoints` tách xa `referencePoints` nhất — null khi hai đường
+// gần như trùng nhau hoặc thiếu dữ liệu. `takenAnchors` là các neo đã cấp cho
+// phương án trước: ưu tiên điểm tách đủ xa chúng để 2 bubble không đè nhau.
+export function findRouteLabelAnchor(
+  optionPoints: RouteCoordinate[],
+  referencePoints: RouteCoordinate[],
+  takenAnchors: RouteCoordinate[] = [],
+): RouteCoordinate | null {
+  if (optionPoints.length === 0 || referencePoints.length < 2) {
+    return null;
+  }
+
+  const reference = samplePath(
+    referencePoints,
+    labelAnchorReferenceSampleCount,
+  );
+  const skip = Math.floor(optionPoints.length * labelAnchorEdgeSkipRatio);
+  const inner = optionPoints.slice(skip, optionPoints.length - skip);
+  const candidates = samplePath(
+    inner.length > 0 ? inner : optionPoints,
+    labelAnchorSampleCount,
+  )
+    .map((point) => ({
+      point,
+      distanceKm: projectPointOntoPolyline(reference, point).distanceToPathKm,
+    }))
+    .filter(({ distanceKm }) => Number.isFinite(distanceKm))
+    .sort((first, second) => second.distanceKm - first.distanceKm);
+
+  if (
+    candidates.length === 0 ||
+    candidates[0].distanceKm < labelAnchorMinDivergenceKm
+  ) {
+    return null;
+  }
+
+  // Điểm tách xa nhất mà không đụng bubble đã đặt; không có thì đành lấy xa nhất
+  const free = candidates.find(({ point }) =>
+    takenAnchors.every(
+      (anchor) =>
+        distanceKmBetween(anchor, point) >= labelAnchorSeparationKm,
+    ),
+  );
+
+  return (free ?? candidates[0]).point;
+}
+
 // Gọi Google Routes computeRoutes với computeAlternativeRoutes → trả MẢNG phương án
 // (tối đa 3, phần tử đầu là đề xuất chính của Google). Luôn có ít nhất 1 phần tử,
 // ngược lại throw errorMessage. Có opts.intermediates thì Google chỉ trả 1 phương án.

@@ -299,5 +299,36 @@
     "continueEditing": "Tiếp tục chỉnh sửa",
     "retry": "Thử lại"
   },
-  "reset": "Đặt lại"
+  "reset": "Đặt lại",
+  "assistant": {
+    "title": "Trợ lý nghiệp vụ",
+    "subtitle": "Hỏi đáp theo tài liệu và chính sách VietRide",
+    "pageTitle": "Trợ lý tri thức VietRide",
+    "pageSubtitle": "Hỏi đáp dựa trên knowledge base, giới hạn trong phạm vi vai trò và nhà xe bạn đang đăng nhập.",
+    "operatorScopeLabel": "Giới hạn theo mã nhà xe (không bắt buộc)",
+    "operatorScopePlaceholder": "Mã nhà xe",
+    "emptyTitle": "Bắt đầu với một câu hỏi nghiệp vụ",
+    "emptyDescription": "Trợ lý trả lời dựa trên tài liệu nội bộ và chỉ trong phạm vi bạn được phép xem.",
+    "starterLabel": "Câu hỏi gợi ý",
+    "starterVoucher": "Quy trình xử lý voucher của nhà xe là gì?",
+    "starterDisruption": "Làm thế nào để xử lý chuyến bị gián đoạn?",
+    "starterSettlement": "Cách đối soát ví và settlement?",
+    "placeholder": "Nhập câu hỏi nghiệp vụ…",
+    "composerHint": "Enter để gửi · Shift + Enter để xuống dòng",
+    "thinking": "Đang tra cứu tài liệu…",
+    "you": "Bạn",
+    "sources": "{{value}} nguồn tham chiếu",
+    "helpful": "Hữu ích",
+    "notHelpful": "Chưa hữu ích",
+    "copy": "Sao chép câu trả lời",
+    "copied": "Đã sao chép",
+    "copyFailed": "Trình duyệt không cho phép sao chép.",
+    "newConversation": "Hội thoại mới",
+    "open": "Mở trợ lý nghiệp vụ",
+    "close": "Đóng trợ lý nghiệp vụ",
+    "dragHint": "Kéo để di chuyển trợ lý",
+    "streamStopped": "Trợ lý đã dừng trước khi hoàn tất câu trả lời.",
+    "connectionFailed": "Không thể kết nối với trợ lý AI.",
+    "feedbackFailed": "Không gửi được đánh giá."
+  }
 }
