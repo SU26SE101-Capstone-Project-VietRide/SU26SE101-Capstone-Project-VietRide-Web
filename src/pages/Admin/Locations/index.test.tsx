@@ -178,12 +178,18 @@ describe("Admin Locations", () => {
 
     await screen.findByRole("button", { name: location.name }, { timeout: 5_000 });
 
-    // Mở màn chỉ được gọi đúng một request — trước đây là 34 request để tải hết
-    // ~3.4k bản ghi rồi lọc ở client.
-    expect(vi.mocked(getAdminLocations).mock.calls).toHaveLength(1);
-    expect(getAdminLocations).toHaveBeenLastCalledWith(
+    // Mở màn chỉ được gọi đúng một request danh sách — trước đây là 34 request
+    // để tải hết ~3.4k bản ghi rồi lọc ở client. Request còn lại là truy vấn đếm
+    // `pageSize: 1` cho thẻ "Đang hoạt động", không kéo thêm bản ghi nào.
+    const calls = vi.mocked(getAdminLocations).mock.calls.map(([params]) => params ?? {});
+    const listCalls = calls.filter((params) => params.pageSize !== 1);
+    expect(listCalls).toHaveLength(1);
+    expect(listCalls[0]).toEqual(
       expect.objectContaining({ page: 1, pageSize: 12 }),
     );
+    expect(calls.filter((params) => params.pageSize === 1)).toEqual([
+      { page: 1, pageSize: 1, isActive: true },
+    ]);
 
     await user.type(
       screen.getByPlaceholderText("locations.search"),

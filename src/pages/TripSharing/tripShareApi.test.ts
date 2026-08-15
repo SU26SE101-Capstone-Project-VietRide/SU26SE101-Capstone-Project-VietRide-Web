@@ -70,3 +70,46 @@ describe("parseSharedTripContext — điểm dừng", () => {
     expect(context.route.stops).toEqual([]);
   });
 });
+
+describe("parseSharedTripContext — toạ độ hai bến", () => {
+  it("đọc origin/destination BE mới bổ sung", () => {
+    const context = parseSharedTripContext({
+      ...baseData,
+      route: {
+        ...baseData.route,
+        origin: { latitude: 13.09, longitude: 109.3 },
+        destination: { latitude: 10.88, longitude: 106.79 },
+      },
+    });
+
+    expect(context.route.origin).toEqual({ latitude: 13.09, longitude: 109.3 });
+    expect(context.route.destination).toEqual({
+      latitude: 10.88,
+      longitude: 106.79,
+    });
+  });
+
+  it("thiếu bến hoặc bến null thì trả null chứ không dựng toạ độ rỗng", () => {
+    const context = parseSharedTripContext({
+      ...baseData,
+      route: { ...baseData.route, origin: null },
+    });
+
+    expect(context.route.origin).toBeNull();
+    expect(context.route.destination).toBeNull();
+  });
+
+  it("bỏ toạ độ ngoài dải hợp lệ thay vì chấm marker sai chỗ", () => {
+    const context = parseSharedTripContext({
+      ...baseData,
+      route: {
+        ...baseData.route,
+        origin: { latitude: 91, longitude: 109.3 },
+        destination: { latitude: 10.88, longitude: "106.79" },
+      },
+    });
+
+    expect(context.route.origin).toBeNull();
+    expect(context.route.destination).toBeNull();
+  });
+});

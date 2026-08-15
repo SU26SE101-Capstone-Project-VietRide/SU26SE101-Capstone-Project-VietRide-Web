@@ -1,4 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -82,6 +83,10 @@ export default function RagAudit() {
   const [totalFeedback, setTotalFeedback] = useState(0);
   const pageSize = 8;
   const feedbackPageSize = 8;
+  // Hai bảng chạy song song trong `loadData` nên phải đếm request riêng, dùng
+  // chung một bộ đếm thì bảng này sẽ vô hiệu hoá response của bảng kia.
+  const startDocumentsRequest = useLatestRequest();
+  const startFeedbackRequest = useLatestRequest();
 
   // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
   const tRef = useRef(t);
@@ -90,6 +95,7 @@ export default function RagAudit() {
   });
 
   const loadDocuments = useCallback(async () => {
+    const isLatest = startDocumentsRequest();
     setError("");
 
     try {
@@ -116,9 +122,11 @@ export default function RagAudit() {
           : {}),
       });
 
+      if (!isLatest()) return;
       setDocuments(documentResult.items);
       setTotalDocuments(documentResult.totalItems);
     } catch (err) {
+      if (!isLatest()) return;
       setError(
         err instanceof Error ? err.message : tRef.current("ragAudit.loadFailed"),
       );
@@ -130,11 +138,13 @@ export default function RagAudit() {
     ingestStatusFilter,
     page,
     search,
+    startDocumentsRequest,
     statusFilter,
   ]);
 
   // Feedback có pagination riêng, độc lập với page/search của bảng documents.
   const loadFeedback = useCallback(async () => {
+    const isLatest = startFeedbackRequest();
     setIsFeedbackLoading(true);
     try {
       const feedbackResult = await getRagFeedback({
@@ -144,16 +154,18 @@ export default function RagAudit() {
         sortDir: "desc",
       });
 
+      if (!isLatest()) return;
       setFeedback(feedbackResult.items);
       setTotalFeedback(feedbackResult.totalItems);
     } catch (err) {
+      if (!isLatest()) return;
       setError(
         err instanceof Error ? err.message : tRef.current("ragAudit.loadFailed"),
       );
     } finally {
-      setIsFeedbackLoading(false);
+      if (isLatest()) setIsFeedbackLoading(false);
     }
-  }, [feedbackPage]);
+  }, [feedbackPage, startFeedbackRequest]);
 
   // Nút refresh tải lại cả hai
   const loadData = useCallback(

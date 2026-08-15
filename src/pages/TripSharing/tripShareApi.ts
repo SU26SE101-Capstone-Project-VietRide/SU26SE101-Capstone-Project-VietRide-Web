@@ -17,15 +17,25 @@ export type SharedTripVehicleLocation = {
 /**
  * Điểm dừng giữa tuyến. CHỈ tên + toạ độ + thứ tự chạy — public DTO không được
  * mang stopId/stationId (contract §GET /v1/tracking/shared-trip/context).
- *
- * BE hiện CHƯA trả `route.stops`; parser này đã sẵn sàng để bản đồ vẽ ngay khi
- * Tracking bổ sung field, và trả mảng rỗng khi không có.
  */
 export type SharedTripStop = {
   name: string;
   latitude: number;
   longitude: number;
   sequence: number;
+};
+
+/**
+ * Toạ độ hai bến đầu cuối. Tách khỏi `geometry` vì tuyến chưa lưu polyline vẫn
+ * phải chấm được bến lên bản đồ — trước đây bản đồ suy hai bến từ hai đầu
+ * geometry nên `geometry: null` là mất sạch marker.
+ *
+ * `null` khi BE không có toạ độ cho bến đó; khi ấy không vẽ marker chứ không
+ * lùi về một toạ độ đoán.
+ */
+export type SharedTripEndpoint = {
+  latitude: number;
+  longitude: number;
 };
 
 export type SharedTripContext = {
@@ -38,6 +48,8 @@ export type SharedTripContext = {
   route: {
     originName: string;
     destinationName: string;
+    origin: SharedTripEndpoint | null;
+    destination: SharedTripEndpoint | null;
     stops: SharedTripStop[];
     geometry: {
       type: "LineString";
@@ -112,6 +124,16 @@ function parseGeometry(
   return coordinates.length >= 2 ? { type: "LineString", coordinates } : null;
 }
 
+function parseEndpoint(value: unknown): SharedTripEndpoint | null {
+  if (!isRecord(value)) return null;
+  const latitude = asNumber(value.latitude);
+  const longitude = asNumber(value.longitude);
+  if (latitude === null || longitude === null || !isCoordinate(latitude, longitude)) {
+    return null;
+  }
+  return { latitude, longitude };
+}
+
 function parseStops(value: unknown): SharedTripStop[] {
   if (!Array.isArray(value)) return [];
 
@@ -160,6 +182,8 @@ export function parseSharedTripContext(data: unknown): SharedTripContext {
     route: {
       originName: asString(routeRecord.originName) ?? "—",
       destinationName: asString(routeRecord.destinationName) ?? "—",
+      origin: parseEndpoint(routeRecord.origin),
+      destination: parseEndpoint(routeRecord.destination),
       stops: parseStops(routeRecord.stops),
       geometry: parseGeometry(routeRecord.geometry),
     },

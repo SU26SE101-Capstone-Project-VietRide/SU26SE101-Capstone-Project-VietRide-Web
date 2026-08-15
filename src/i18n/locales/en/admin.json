@@ -77,6 +77,8 @@
     "allStatus": "All statuses",
     "filterActivation": "Filter by activation",
     "allActivation": "All activation states",
+    "advancedFilters": "Advanced filters",
+    "clearFilters": "Clear filters",
     "dateFieldLabel": "Filter by date field",
     "dateFieldCreatedAt": "Registered date",
     "dateFieldApprovedAt": "Approved date",
@@ -87,6 +89,7 @@
     "operatorName": "Operator name",
     "operatorId": "Operator ID",
     "loading": "Loading operators...",
+    "empty": "No operators match the current filters.",
     "profile": "Operator profile",
     "businessRegistrationNumber": "Business Registration No.",
     "taxCode": "Tax Code",
@@ -412,6 +415,12 @@
       "COMMUNE": "Commune",
       "SPECIAL_ZONE": "Special zone"
     },
+    "totalStat": "Total areas",
+    "activeStat": "Active",
+    "levelStat": "Administrative levels on this page",
+    "filterType": "Filter by administrative level",
+    "filterParent": "Filter by parent",
+    "allParents": "All parents",
     "whatIsThis": "What is this?"
   },
   "stations": {

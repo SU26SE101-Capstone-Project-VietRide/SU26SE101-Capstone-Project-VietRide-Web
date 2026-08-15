@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "seed:operator-users": "node scripts/seed-operator-users.mjs",
     "seed:trip-route": "node scripts/seed-trip-route-path.mjs",
+    "seed:shuttle": "node scripts/seed-shuttle-dispatch.mjs",
     "simulate:trip-gps": "node scripts/simulate-trip-gps.mjs",
     "prepare": "husky"
   },

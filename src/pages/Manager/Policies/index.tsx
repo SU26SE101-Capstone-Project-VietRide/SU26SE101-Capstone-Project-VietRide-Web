@@ -1,4 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -55,15 +56,19 @@ export default function ManagerPolicies() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const pageSize = 8;
+  const startRequest = useLatestRequest();
 
   const loadPolicies = useCallback(async () => {
+    const isLatest = startRequest();
     setLoading(true);
     setError("");
     try {
       const result = await getOperatorPolicies({ page, pageSize });
+      if (!isLatest()) return;
       setPolicies(result.items);
       setTotalItems(result.totalItems);
     } catch (reason) {
+      if (!isLatest()) return;
       setPolicies([]);
       setTotalItems(0);
       setError(
@@ -72,9 +77,9 @@ export default function ManagerPolicies() {
           : tRef.current("policies.loadFailed"),
       );
     } finally {
-      setLoading(false);
+      if (isLatest()) setLoading(false);
     }
-  }, [page]);
+  }, [page, startRequest]);
 
   useEffect(() => {
     let cancelled = false;

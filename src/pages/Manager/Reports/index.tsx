@@ -1,4 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -108,21 +109,26 @@ export default function ManagerReports() {
   const [exportMessage, setExportMessage] = useState("");
   const pageSize = 8;
   const months = useMemo(() => monthOptions(), []);
+  const startRequest = useLatestRequest();
 
   const loadAnalytics = useCallback(async () => {
+    const isLatest = startRequest();
     setIsLoading(true);
     setLoadError("");
     try {
-      setAnalytics(await getOperatorRevenueAnalytics({ month }));
+      const result = await getOperatorRevenueAnalytics({ month });
+      if (!isLatest()) return;
+      setAnalytics(result);
     } catch (error) {
+      if (!isLatest()) return;
       setAnalytics(null);
       setLoadError(
         error instanceof Error ? error.message : tRef.current("reports.loadFailed"),
       );
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [month]);
+  }, [month, startRequest]);
 
   useEffect(() => {
     let cancelled = false;

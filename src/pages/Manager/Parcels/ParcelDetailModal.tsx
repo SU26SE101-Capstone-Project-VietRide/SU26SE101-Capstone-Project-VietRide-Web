@@ -15,7 +15,7 @@ import Modal from "../../../components/Modal";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import { formatDateTime } from "../../../utils/date";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
-import { money } from "./parcelQueueHelpers";
+import { money, parcelStatusTone } from "./parcelQueueHelpers";
 import {
   ActionBox,
   ActionButton,
@@ -161,38 +161,55 @@ export default function ParcelDetailModal({
               {selected.photoUrl && <DetailSection title={t("parcels.queue.photoSection")} columns="two"><img src={selected.photoUrl} alt={t("parcels.queue.photoAlt")} loading="lazy" className="max-h-64 rounded-lg border border-gray-200 object-contain" /></DetailSection>}
               {selected.pendingActionReason && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><span className="font-semibold">{t("parcels.queue.pendingReasonLabel")}:</span> {selected.pendingActionReason}</p>}
               {statusHistory.length > 0 && (
-                <section>
-                  <h3 className="mb-2 text-sm font-bold text-gray-900">
+                <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <h3 className="text-base font-semibold text-gray-900">
                     {t("parcels.queue.statusHistorySection")}
                   </h3>
-                  {/* Giữ nguyên thứ tự BE trả (occurredAt tăng dần) */}
-                  <ol className="space-y-2">
+                  {/* Cùng kiểu timeline với lịch sử trạng thái vé (màn Đặt vé):
+                      một đường dọc, mỗi mốc là một chấm + thẻ có chip trạng thái.
+                      Giữ nguyên thứ tự BE trả (occurredAt tăng dần). */}
+                  <ol className="relative mt-4 space-y-4 pl-5 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-gray-200">
                     {statusHistory.map((entry, index) => (
                       <li
                         key={`${entry.status}-${entry.occurredAt}-${index}`}
-                        className="rounded-lg border border-gray-200 bg-gray-50/60 px-4 py-2.5 text-sm"
+                        className="relative flex gap-3"
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-semibold text-gray-900">
-                            {tc(`enumLabels.${entry.status}`, {
-                              defaultValue: entry.status.replaceAll("_", " "),
+                        <span className="absolute -left-5 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-vr-500 shadow-sm" />
+                        <div className="min-w-0 flex-1 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span
+                              className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${parcelStatusTone(entry.status)}`}
+                            >
+                              {tc(`enumLabels.${entry.status}`, {
+                                defaultValue: entry.status.replaceAll("_", " "),
+                              })}
+                            </span>
+                            <time className="text-xs text-gray-500">
+                              {formatDateTime(entry.occurredAt)}
+                            </time>
+                          </div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            {t("parcels.queue.statusHistoryActor", {
+                              actorType: t(
+                                `parcels.queue.historyActors.${entry.actorType}`,
+                                {
+                                  defaultValue: entry.actorType.replaceAll("_", " "),
+                                },
+                              ),
+                              source: t(
+                                `parcels.queue.historySources.${entry.source}`,
+                                {
+                                  defaultValue: entry.source.replaceAll("_", " "),
+                                },
+                              ),
                             })}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {formatDateTime(entry.occurredAt)}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-600">
-                          {t("parcels.queue.statusHistoryActor", {
-                            actorType: entry.actorType,
-                            source: entry.source,
-                          })}
-                        </p>
-                        {entry.reason && (
-                          <p className="mt-1 text-xs text-gray-700">
-                            {entry.reason}
                           </p>
-                        )}
+                          {entry.reason && (
+                            <p className="mt-1 text-sm text-gray-600">
+                              {entry.reason}
+                            </p>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ol>

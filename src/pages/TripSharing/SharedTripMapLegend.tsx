@@ -13,8 +13,14 @@ import {
 } from "../../components/mapRouteStyle";
 
 type SharedTripMapLegendProps = {
-  /** Có vẽ tuyến (và do đó có pin bến đi/bến đến) không */
+  /** Có vẽ đường tuyến (polyline) không */
   showRoute: boolean;
+  /**
+   * Có pin bến đi/bến đến không. Tách khỏi `showRoute` vì tuyến chưa lưu
+   * polyline vẫn chấm được hai bến — gộp chung thì bản đồ có pin mà chú giải
+   * lại không giải thích pin đó là gì.
+   */
+  showEndpoints: boolean;
   /** Có điểm dừng giữa tuyến (đĩa đánh số) không */
   showStops: boolean;
   /** Có đoạn tuyến xe đã đi qua không */
@@ -38,6 +44,7 @@ function LineLegendItem({ color, label }: { color: string; label: string }) {
 
 export default function SharedTripMapLegend({
   showRoute,
+  showEndpoints,
   showStops,
   showTraveled,
   showVehicle,
@@ -50,7 +57,7 @@ export default function SharedTripMapLegend({
       data-testid="shared-trip-map-legend"
       className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm"
     >
-      {showRoute && (
+      {showEndpoints && (
         <>
           <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
             <FiMapPin aria-hidden="true" color={originStopColor} size={15} />

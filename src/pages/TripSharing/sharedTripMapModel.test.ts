@@ -35,6 +35,8 @@ function makeContext(
     route: {
       originName: "Bến xe Phú Yên",
       destinationName: "Bến xe Miền Đông Mới",
+      origin: { latitude: 10.0, longitude: 106.0 },
+      destination: { latitude: 10.0, longitude: 106.3 },
       stops: [],
       geometry: { type: "LineString", coordinates },
       ...overrides,
@@ -52,7 +54,7 @@ const movingVehicle: SharedTripVehicleLocation = {
 };
 
 describe("buildSharedTripMapModel", () => {
-  it("vẽ bến đi/bến đến ở hai đầu tuyến bằng màu chung của app", () => {
+  it("vẽ bến đi/bến đến theo toạ độ BE trả, không suy từ hai đầu tuyến", () => {
     const model = buildSharedTripMapModel(makeContext(), null, labels);
 
     const origin = model.markers.find((marker) => marker.id === "route-origin");
@@ -168,5 +170,88 @@ describe("buildSharedTripMapModel", () => {
     expect(model.markers).toHaveLength(0);
     expect(model.polylines).toHaveLength(0);
     expect(model.hasRoute).toBe(false);
+    expect(model.hasEndpoints).toBe(false);
+  });
+
+  // Bốn luật dưới đây do BE chốt khi bổ sung route.origin/destination/stops
+  // (2026-08-15) — giữ test để đổi code không lặng lẽ phá contract.
+  describe("tuyến chưa lưu polyline (geometry = null)", () => {
+    const withoutGeometry = () =>
+      makeContext({
+        geometry: null,
+        stops: [
+          { name: "Trạm Nha Trang", latitude: 10.0, longitude: 106.1, sequence: 1 },
+        ],
+      });
+
+    it("vẫn chấm đủ bến và điểm dừng", () => {
+      const model = buildSharedTripMapModel(withoutGeometry(), null, labels);
+
+      expect(model.markers.map((marker) => marker.id)).toEqual([
+        "route-origin",
+        "route-stop-0",
+        "route-destination",
+      ]);
+      expect(model.hasEndpoints).toBe(true);
+      expect(model.hasStops).toBe(true);
+    });
+
+    it("KHÔNG tự nối các marker thành đường thẳng giả", () => {
+      const model = buildSharedTripMapModel(withoutGeometry(), null, labels);
+
+      expect(model.polylines).toHaveLength(0);
+      expect(model.routePath).toHaveLength(0);
+      expect(model.hasRoute).toBe(false);
+    });
+
+    it("vẫn đưa mọi marker vào khung nhìn để chúng không nằm ngoài màn hình", () => {
+      const model = buildSharedTripMapModel(withoutGeometry(), null, labels);
+
+      expect(model.focusPoints).toEqual([
+        { lat: 10.0, lng: 106.0 },
+        { lat: 10.0, lng: 106.1 },
+        { lat: 10.0, lng: 106.3 },
+      ]);
+    });
+  });
+
+  it("bỏ marker của bến mà BE trả null, không đoán toạ độ thay", () => {
+    const model = buildSharedTripMapModel(
+      makeContext({ origin: null }),
+      null,
+      labels,
+    );
+
+    expect(model.markers.find((marker) => marker.id === "route-origin")).toBeUndefined();
+    expect(
+      model.markers.find((marker) => marker.id === "route-destination")?.position,
+    ).toEqual({ lat: 10.0, lng: 106.3 });
+    // Còn một bến thì chú giải vẫn phải giải thích pin đang hiện.
+    expect(model.hasEndpoints).toBe(true);
+  });
+
+  it("xếp marker theo chiều chạy: bến đi → điểm dừng → bến đến", () => {
+    const model = buildSharedTripMapModel(
+      // BE trả lệch thứ tự để chắc chắn marker bám `sequence` chứ không bám
+      // thứ tự phần tử trong mảng.
+      makeContext({
+        stops: [
+          { name: "Trạm B", latitude: 10.0, longitude: 106.2, sequence: 2 },
+          { name: "Trạm A", latitude: 10.0, longitude: 106.1, sequence: 1 },
+        ],
+      }),
+      null,
+      labels,
+    );
+
+    expect(model.markers.map((marker) => marker.title)).toEqual([
+      "Bến xe Phú Yên",
+      "Trạm A",
+      "Trạm B",
+      "Bến xe Miền Đông Mới",
+    ]);
+    // Số trên đĩa phải là 1 cho Trạm A, 2 cho Trạm B.
+    expect(model.markers[1]?.label?.text).toBe("1");
+    expect(model.markers[2]?.label?.text).toBe("2");
   });
 });

@@ -112,11 +112,24 @@ export function money(value?: number | null) {
 
 export function statusTone(item: OperatorParcelListItem) {
   if (needsAction(item)) return "bg-amber-50 text-amber-700 ring-amber-200";
-  if (["DELIVERY_CONFIRMED", "RETURNED"].includes(item.status))
+  return parcelStatusTone(item.status);
+}
+
+/**
+ * Màu chip theo RIÊNG mã trạng thái — dùng cho lịch sử trạng thái, nơi mỗi dòng
+ * là một trạng thái cũ chứ không phải kiện hàng đang cần thao tác.
+ */
+export function parcelStatusTone(status: string) {
+  if (["DELIVERY_CONFIRMED", "RETURNED"].includes(status))
     return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-  if (["CANCELLED", "REJECTED"].includes(item.status))
+  if (["CANCELLED", "REJECTED", "DELIVERY_REJECTED"].includes(status))
     return "bg-red-50 text-red-700 ring-red-200";
-  if (item.status === "EXPIRED")
-    return "bg-gray-100 text-gray-600 ring-gray-200";
+  if (status === "EXPIRED") return "bg-gray-100 text-gray-600 ring-gray-200";
+  if (
+    status === "PENDING_OPERATOR_ACTION" ||
+    status.startsWith("AWAITING_") ||
+    status.endsWith("_PENDING_CONFIRM")
+  )
+    return "bg-amber-50 text-amber-700 ring-amber-200";
   return "bg-blue-50 text-blue-700 ring-blue-200";
 }

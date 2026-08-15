@@ -178,6 +178,64 @@ describe("Admin Operators", () => {
     expect(params).not.toHaveProperty("pageSize");
   });
 
+  // Khoảng ngày nằm trong panel nâng cao (giống ScheduleTable bên Manager) nên
+  // hàng lọc chính chỉ còn search + 2 trạng thái.
+  it("khoảng ngày nằm trong panel lọc nâng cao", async () => {
+    const user = userEvent.setup();
+    render(<Operators />);
+    await screen.findByText(pendingOperator.name, {}, { timeout: 5_000 });
+
+    expect(
+      screen.queryByLabelText("operators.dateFromLabel"),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /operators\.advancedFilters/ }),
+    );
+
+    expect(screen.getByLabelText("operators.dateFromLabel")).toBeInTheDocument();
+    expect(screen.getByLabelText("operators.dateToLabel")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("operators.dateFieldLabel"),
+    ).toBeInTheDocument();
+  });
+
+  // Không có nút xoá lọc thì admin phải tự tay dọn từng ô mới quay lại được
+  // danh sách đầy đủ — nhất là khi lọc rỗng và bảng không còn dòng nào.
+  it("nút xoá bộ lọc dọn hết filter và tải lại danh sách đầy đủ", async () => {
+    const user = userEvent.setup();
+    render(<Operators />);
+    await screen.findByText(pendingOperator.name, {}, { timeout: 5_000 });
+
+    expect(
+      screen.queryByRole("button", { name: /operators\.clearFilters/ }),
+    ).not.toBeInTheDocument();
+
+    const searchInput = screen.getByPlaceholderText(
+      "operators.searchPlaceholder",
+    );
+    await user.type(searchInput, "dalat");
+    await waitFor(() =>
+      expect(getAdminOperators).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: "dalat" }),
+      ),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /operators\.clearFilters/ }),
+    );
+
+    expect(searchInput).toHaveValue("");
+    await waitFor(() => {
+      const lastCall = vi.mocked(getAdminOperators).mock.calls.at(-1)?.[0] ?? {};
+      expect(lastCall.search).toBeUndefined();
+      expect(lastCall.page).toBe(1);
+    });
+    expect(
+      screen.queryByRole("button", { name: /operators\.clearFilters/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps rows the BE matched on non-name fields", async () => {
     // BE tìm trên name/contactEmail/contactPhone/businessRegistrationNumber/
     // taxCode. Trước đây màn lọc lại ở client theo mỗi `name` nên dòng khớp

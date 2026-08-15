@@ -40,8 +40,14 @@ export type SharedTripMapModel = {
   vehiclePosition: GoogleMapCoordinate | null;
   markers: GoogleMapPointMarker[];
   polylines: GoogleMapPolyline[];
+  /**
+   * Mọi điểm khung nhìn phải bao trọn: cả tuyến, cả marker, cả xe. Tuyến chưa
+   * có polyline thì đây là thứ duy nhất giữ được bến/điểm dừng trong màn hình.
+   */
+  focusPoints: GoogleMapCoordinate[];
   /** Cờ bật/tắt từng mục của chú giải — không vẽ gì thì không chú giải thứ đó. */
   hasRoute: boolean;
+  hasEndpoints: boolean;
   hasStops: boolean;
   hasTraveledSegment: boolean;
   hasVehicle: boolean;
@@ -67,12 +73,21 @@ export function buildSharedTripMapModel(
     ? { lat: location.latitude, lng: location.longitude }
     : null;
 
-  const stops = context?.route.stops ?? [];
+  // `parseStops` đã sắp theo `sequence`, nhưng sắp lại ở đây để số trên đĩa luôn
+  // bám thứ tự chạy kể cả khi context tới từ nguồn khác (vd cập nhật realtime).
+  const stops = [...(context?.route.stops ?? [])].sort(
+    (left, right) => left.sequence - right.sequence,
+  );
   const markers: GoogleMapPointMarker[] = [];
 
-  // Bến đi/bến đến lấy từ hai đầu geometry: đó là hai đầu thật của tuyến đã set
-  // up, không phải điểm GPS đầu tiên nhận được.
-  if (routePath.length > 0) {
+  // Toạ độ hai bến lấy thẳng từ `route.origin` / `route.destination`, KHÔNG suy
+  // từ hai đầu geometry nữa: tuyến chưa lưu polyline vẫn phải chấm được bến.
+  // BE có thể trả null cho từng bến — thiếu bến nào thì bỏ marker bến đó chứ
+  // không lùi về một toạ độ đoán.
+  const origin = context?.route.origin ?? null;
+  const destination = context?.route.destination ?? null;
+
+  if (origin) {
     markers.push({
       icon: {
         fillColor: originStopColor,
@@ -85,30 +100,14 @@ export function buildSharedTripMapModel(
       id: "route-origin",
       infoDescription: [labels.origin],
       infoTitle: context?.route.originName,
-      position: routePath[0],
+      position: { lat: origin.latitude, lng: origin.longitude },
       title: context?.route.originName,
       zIndex: 3,
     });
-    markers.push({
-      icon: {
-        fillColor: destinationStopColor,
-        fillOpacity: 1,
-        path: routeEndpointPinPath,
-        scale: routeEndpointPinScale,
-        strokeColor: "#ffffff",
-        strokeWeight: 2,
-      },
-      id: "route-destination",
-      infoDescription: [labels.destination],
-      infoTitle: context?.route.destinationName,
-      position: routePath[routePath.length - 1],
-      title: context?.route.destinationName,
-      zIndex: 3,
-    });
   }
-
   // Điểm dừng giữa tuyến: đĩa trắng viền teal, đánh số 1..N theo thứ tự chạy —
-  // giống hệt marker điểm dừng của màn Tuyến & điểm dừng.
+  // giống hệt marker điểm dừng của màn Tuyến & điểm dừng. `stops` đã được
+  // `parseStops` sắp theo `sequence` nên số trên đĩa bám đúng thứ tự BE trả.
   stops.forEach((stop, index) => {
     markers.push({
       icon: {
@@ -133,6 +132,27 @@ export function buildSharedTripMapModel(
       zIndex: 2,
     });
   });
+
+  // Bến đến đứng cuối để thứ tự marker đúng chiều chạy origin → stops →
+  // destination, khớp thứ tự BE mô tả.
+  if (destination) {
+    markers.push({
+      icon: {
+        fillColor: destinationStopColor,
+        fillOpacity: 1,
+        path: routeEndpointPinPath,
+        scale: routeEndpointPinScale,
+        strokeColor: "#ffffff",
+        strokeWeight: 2,
+      },
+      id: "route-destination",
+      infoDescription: [labels.destination],
+      infoTitle: context?.route.destinationName,
+      position: { lat: destination.latitude, lng: destination.longitude },
+      title: context?.route.destinationName,
+      zIndex: 3,
+    });
+  }
 
   // Xe: đĩa màu trạng thái + mũi tên chỉ hướng chạy đè lên, xếp chồng hai marker
   // cùng toạ độ vì một Symbol chỉ nhận một màu fill.
@@ -195,12 +215,22 @@ export function buildSharedTripMapModel(
     });
   }
 
+  // Gom mọi thứ đang vẽ: tuyến (nếu có) + toạ độ từng marker. Chỉ lấy routePath
+  // như trước thì tuyến chưa có polyline sẽ khiến bản đồ rơi về tâm mặc định và
+  // bến/điểm dừng nằm ngoài khung nhìn.
+  const focusPoints: GoogleMapCoordinate[] = [
+    ...routePath,
+    ...markers.map((marker) => marker.position),
+  ];
+
   return {
     routePath,
     vehiclePosition,
     markers,
     polylines,
+    focusPoints,
     hasRoute: routePath.length > 1,
+    hasEndpoints: origin !== null || destination !== null,
     hasStops: stops.length > 0,
     hasTraveledSegment: traveled.length > 1,
     hasVehicle: vehiclePosition !== null,

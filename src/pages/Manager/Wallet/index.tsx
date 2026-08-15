@@ -1,4 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiRefreshCw } from "react-icons/fi";
@@ -58,6 +59,7 @@ export default function ManagerWallet() {
   const [dateTo, setDateTo] = useState("");
   const [transactionType, setTransactionType] = useState<WalletTransactionType | "">("");
   const [settlementStatus, setSettlementStatus] = useState<TripSettlementStatus | "">("");
+  const startRequest = useLatestRequest();
 
   // Chỉ gọi API khi search rỗng hoặc đã trim >= 2 ký tự (§10) — 1 ký tự thì
   // giữ nguyên kết quả cũ, không bắn request.
@@ -73,6 +75,7 @@ export default function ManagerWallet() {
   }, [searchTerm]);
 
   const loadData = useCallback(async () => {
+    const isLatest = startRequest();
     setLoading(true);
     setError("");
 
@@ -99,6 +102,7 @@ export default function ManagerWallet() {
             type: transactionType || undefined,
           } satisfies WalletTransactionParams),
         ]);
+        if (!isLatest()) return;
         setWallet(walletResult);
         setTransactions(result.items);
         setTotalItems(result.totalItems);
@@ -111,6 +115,7 @@ export default function ManagerWallet() {
             status: settlementStatus || undefined,
           } satisfies OperatorTripSettlementParams),
         ]);
+        if (!isLatest()) return;
         setWallet(walletResult);
         setSettlements(result.items);
         setTotalItems(result.totalItems);
@@ -122,16 +127,18 @@ export default function ManagerWallet() {
             dateField: dateField as OperatorLedgerParams["dateField"],
           } satisfies OperatorLedgerParams),
         ]);
+        if (!isLatest()) return;
         setWallet(walletResult);
         setLedger(result.items);
         setTotalItems(result.totalItems);
       }
     } catch (err) {
+      if (!isLatest()) return;
       setError(err instanceof Error ? err.message : t("wallet.loadFailed"));
     } finally {
-      setLoading(false);
+      if (isLatest()) setLoading(false);
     }
-  }, [dateField, dateFrom, dateTo, debouncedSearch, page, settlementStatus, t, tab, transactionType]);
+  }, [dateField, dateFrom, dateTo, debouncedSearch, page, settlementStatus, startRequest, t, tab, transactionType]);
 
   useEffect(() => {
     let cancelled = false;

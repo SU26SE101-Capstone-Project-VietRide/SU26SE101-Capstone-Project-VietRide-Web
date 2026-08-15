@@ -1,4 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import {
   useCallback,
   useEffect,
@@ -142,6 +143,9 @@ export default function WalletSettlement() {
   });
   // Đếm số request đang chạy để `loading` chỉ tắt khi tất cả xong
   const pendingLoadsRef = useRef(0);
+  // Hai bảng chạy song song trong `loadData` nên mỗi bảng cần bộ đếm riêng.
+  const startSettlementsRequest = useLatestRequest();
+  const startTransactionsRequest = useLatestRequest();
 
   const runLoad = useCallback(async (task: () => Promise<unknown>) => {
     pendingLoadsRef.current += 1;
@@ -173,6 +177,7 @@ export default function WalletSettlement() {
   // phân trang server nhưng lại lọc `records` của đúng trang đang xem, nên gõ
   // mã nằm ở trang 3 trong khi đang ở trang 1 là ra bảng rỗng.
   const loadSettlements = useCallback(async () => {
+    const isLatest = startSettlementsRequest();
     const settlementResult = await getAdminTripSettlements({
       page,
       pageSize,
@@ -181,11 +186,13 @@ export default function WalletSettlement() {
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...settlementFilters(settlementView),
     });
+    if (!isLatest()) return;
     setRecords(settlementResult.items);
     setTotalItems(settlementResult.totalItems);
-  }, [debouncedSearch, page, settlementView]);
+  }, [debouncedSearch, page, settlementView, startSettlementsRequest]);
 
   const loadTransactions = useCallback(async () => {
+    const isLatest = startTransactionsRequest();
     const transactionResult = await getAdminPlatformWalletTransactions({
       page: transactionPage,
       pageSize,
@@ -194,9 +201,10 @@ export default function WalletSettlement() {
       type: transactionType || undefined,
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
     });
+    if (!isLatest()) return;
     setTransactions(transactionResult.items);
     setTransactionTotalItems(transactionResult.totalItems);
-  }, [debouncedSearch, transactionPage, transactionType]);
+  }, [debouncedSearch, startTransactionsRequest, transactionPage, transactionType]);
 
   // Refresh toàn bộ: dùng cho nút refresh và sau khi settle thủ công
   const loadData = useCallback(
