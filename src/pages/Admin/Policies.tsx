@@ -139,7 +139,16 @@ export default function AdminPolicies() {
 
   // Ô tìm kiếm và ô nhóm đều đi thẳng lên BE nên phải debounce; đổi điều kiện
   // thì về trang 1 vì tổng số bản ghi đã khác.
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
       setCategoryFilter(categoryDraft.trim());

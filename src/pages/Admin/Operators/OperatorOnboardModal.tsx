@@ -10,6 +10,8 @@ type OperatorOnboardModalProps = {
   form: CreateAdminOperatorRequest;
   onChange: (key: keyof CreateAdminOperatorRequest, value: string) => void;
   onSubmit: () => void | Promise<void>;
+  /** Đang gửi request tạo — khoá nút để hai lần bấm không tạo hai nhà xe */
+  busy?: boolean;
 };
 
 export default function OperatorOnboardModal({
@@ -18,6 +20,7 @@ export default function OperatorOnboardModal({
   form,
   onChange,
   onSubmit,
+  busy = false,
 }: OperatorOnboardModalProps) {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
@@ -47,7 +50,8 @@ export default function OperatorOnboardModal({
           <button
             type="button"
             onClick={onSubmit}
-            className="cursor-pointer rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30"
+            disabled={busy}
+            className="cursor-pointer rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("operators.createOperator")}
           </button>

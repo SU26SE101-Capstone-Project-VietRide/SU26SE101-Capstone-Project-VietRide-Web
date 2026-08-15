@@ -123,7 +123,17 @@ export default function ParcelQueue() {
   ]);
 
   // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1. Giá trị debounce lúc mount vốn
+  // đã bằng ô nhập nên bỏ lượt này không làm lệch state.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
       setPage(1);

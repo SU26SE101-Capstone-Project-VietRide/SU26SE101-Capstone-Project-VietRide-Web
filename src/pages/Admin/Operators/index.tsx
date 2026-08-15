@@ -93,6 +93,10 @@ export default function Operators() {
   const [suspendReason, setSuspendReason] = useState("");
   const [page, setPage] = useState(1);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  // Khoá chung cho 4 thao tác đổi trạng thái (duyệt/từ chối/tạm ngưng/mở lại):
+  // tại một thời điểm chỉ có đúng một modal mở nên không cần tách từng cờ.
+  const [isActing, setIsActing] = useState(false);
   const pageSize = 8;
   const startRequest = useLatestRequest();
 
@@ -213,7 +217,8 @@ export default function Operators() {
   const restrictedCount = (summary?.suspended ?? 0) + (summary?.rejected ?? 0);
 
   const handleApprove = async () => {
-    if (!selectedOperator) return;
+    if (!selectedOperator || isActing) return;
+    setIsActing(true);
     try {
       await approveAdminOperator(selectedOperator.operatorId);
       setOperators((current) =>
@@ -231,15 +236,18 @@ export default function Operators() {
       setSelectedOperator(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.approveFailed"));
+    } finally {
+      setIsActing(false);
     }
   };
 
   const handleReject = async () => {
-    if (!selectedOperator) return;
+    if (!selectedOperator || isActing) return;
     if (!rejectReason.trim()) {
       setError(t("operators.rejectEmptyReason"));
       return;
     }
+    setIsActing(true);
     try {
       await rejectAdminOperator(selectedOperator.operatorId, rejectReason.trim());
       await loadOperators();
@@ -250,6 +258,8 @@ export default function Operators() {
       setSelectedOperator(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.rejectFailed"));
+    } finally {
+      setIsActing(false);
     }
   };
 
@@ -261,7 +271,7 @@ export default function Operators() {
   };
 
   const handleSuspend = async () => {
-    if (!selectedOperator) {
+    if (!selectedOperator || isActing) {
       return;
     }
 
@@ -270,6 +280,7 @@ export default function Operators() {
       return;
     }
 
+    setIsActing(true);
     try {
       await suspendAdminOperator(selectedOperator.operatorId, suspendReason.trim());
       await loadOperators();
@@ -283,10 +294,14 @@ export default function Operators() {
       setError(
         err instanceof Error ? err.message : t("operators.suspendFailed"),
       );
+    } finally {
+      setIsActing(false);
     }
   };
 
   const handleReactivate = async (operator: AdminOperator) => {
+    if (isActing) return;
+    setIsActing(true);
     try {
       await reactivateAdminOperator(operator.operatorId);
       await loadOperators();
@@ -295,10 +310,16 @@ export default function Operators() {
       setPendingReactivate(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.reactivateFailed"));
+    } finally {
+      setIsActing(false);
     }
   };
 
   const handleCreateOperator = async () => {
+    // Không có khoá này thì bấm hai lần là tạo hai nhà xe: mỗi lần bấm sinh một
+    // Idempotency-Key mới nên BE coi là hai yêu cầu khác nhau.
+    if (isCreating) return;
+    setIsCreating(true);
     try {
       await createAdminOperator(operatorForm);
       await loadOperators();
@@ -307,6 +328,8 @@ export default function Operators() {
       setOpenOnboard(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.createFailed"));
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -697,6 +720,7 @@ export default function Operators() {
         onClose={() => setOpenApprove(false)}
         operator={selectedOperator}
         onConfirm={handleApprove}
+        busy={isActing}
       />
 
       <OperatorRejectModal
@@ -706,6 +730,7 @@ export default function Operators() {
         reason={rejectReason}
         onReasonChange={setRejectReason}
         onConfirm={handleReject}
+        busy={isActing}
       />
 
       <OperatorSuspendModal
@@ -715,6 +740,7 @@ export default function Operators() {
         reason={suspendReason}
         onReasonChange={setSuspendReason}
         onConfirm={handleSuspend}
+        busy={isActing}
       />
 
       <OperatorOnboardModal
@@ -723,6 +749,7 @@ export default function Operators() {
         form={operatorForm}
         onChange={updateOperatorForm}
         onSubmit={handleCreateOperator}
+        busy={isCreating}
       />
       <ConfirmModal
         open={Boolean(pendingReactivate)}
@@ -733,6 +760,7 @@ export default function Operators() {
         confirmLabel={tc("confirm")}
         cancelLabel={tc("cancel")}
         tone="success"
+        busy={isActing}
       />
     </div>
   );

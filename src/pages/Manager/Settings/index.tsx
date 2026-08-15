@@ -122,6 +122,8 @@ export default function ManagerSettings() {
   const [periodPage, setPeriodPage] = useState(1);
   const [fareLoading, setFareLoading] = useState(true);
   const [fareError, setFareError] = useState("");
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [isSavingPeriod, setIsSavingPeriod] = useState(false);
   useToastFeedback({ error: fareError });
   const pageSize = 8;
   const startRequest = useLatestRequest();
@@ -181,6 +183,8 @@ export default function ManagerSettings() {
   };
 
   const handleSave = async () => {
+    if (isSavingConfig) return;
+    setIsSavingConfig(true);
     setFareError("");
     try {
       await updateOperatorFareSurchargeSettings({
@@ -190,6 +194,8 @@ export default function ManagerSettings() {
       toast.success(t("settings.saveSuccess"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("settings.saveFailed"));
+    } finally {
+      setIsSavingConfig(false);
     }
   };
   const handleReset = () => {
@@ -239,6 +245,9 @@ export default function ManagerSettings() {
       return;
     }
 
+    // Bấm hai lần lúc tạo là ra hai đợt phụ thu trùng nhau
+    if (isSavingPeriod) return;
+    setIsSavingPeriod(true);
     try {
       if (editingPeriod) {
         await updateOperatorFareSurchargePeriod(editingPeriod.id, {
@@ -263,6 +272,8 @@ export default function ManagerSettings() {
       await loadFareData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("settings.saveFailed"));
+    } finally {
+      setIsSavingPeriod(false);
     }
   };
   function handleDeletePeriod(period: HolidayPricingPeriod) {
@@ -471,7 +482,8 @@ export default function ManagerSettings() {
           <button
             type="button"
             onClick={handleSave}
-            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-medium text-white hover:bg-vr-600"
+            disabled={isSavingConfig}
+            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-medium text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("settings.saveConfig")}
           </button>
@@ -571,7 +583,8 @@ export default function ManagerSettings() {
             <button
               type="button"
               onClick={handleSavePeriod}
-              className="flex-1 rounded-lg bg-vr-500 py-2 text-sm font-medium text-white hover:bg-vr-600"
+              disabled={isSavingPeriod}
+              className="flex-1 rounded-lg bg-vr-500 py-2 text-sm font-medium text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {editingPeriod ? tc("update") : t("settings.add")}
             </button>

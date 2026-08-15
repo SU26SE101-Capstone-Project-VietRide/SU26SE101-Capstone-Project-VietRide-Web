@@ -253,7 +253,16 @@ export default function WalletSettlement() {
 
   // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì cả hai tab về
   // trang 1 vì tổng số bản ghi đã khác.
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
       setPage(1);

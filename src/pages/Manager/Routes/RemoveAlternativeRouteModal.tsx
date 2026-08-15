@@ -10,12 +10,15 @@ type RemoveAlternativeRouteModalProps = {
   item: AlternativeRoute | null;
   onClose: () => void;
   onConfirm: (item: AlternativeRoute) => void;
+  /** Đang gửi request ngưng áp dụng — khoá nút để không gửi hai lệnh */
+  busy?: boolean;
 };
 
 export default function RemoveAlternativeRouteModal({
   item,
   onClose,
   onConfirm,
+  busy = false,
 }: RemoveAlternativeRouteModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -43,7 +46,8 @@ export default function RemoveAlternativeRouteModal({
                 onConfirm(item);
               }
             }}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            disabled={busy}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("routes.deactivateAlternativeConfirmAction")}
           </button>

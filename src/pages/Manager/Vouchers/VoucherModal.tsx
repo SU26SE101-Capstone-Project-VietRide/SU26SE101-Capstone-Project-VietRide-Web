@@ -24,6 +24,8 @@ type VoucherModalProps = {
   onChange: (key: keyof VoucherForm, value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
+  /** Đang gửi request lưu — khoá nút để không tạo hai voucher */
+  busy?: boolean;
 };
 
 export default function VoucherModal({
@@ -35,6 +37,7 @@ export default function VoucherModal({
   onChange,
   onClose,
   onSubmit,
+  busy = false,
 }: VoucherModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -74,7 +77,8 @@ export default function VoucherModal({
           <button
             type="button"
             onClick={onSubmit}
-            className="rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700"
+            disabled={busy}
+            className="rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isEditing ? t("vouchers.update") : t("vouchers.create")}
           </button>

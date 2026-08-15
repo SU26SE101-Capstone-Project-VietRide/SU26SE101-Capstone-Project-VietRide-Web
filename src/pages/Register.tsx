@@ -614,10 +614,21 @@ export default function Register() {
                       {t("back")}
                     </button>
 
+                    {/* `key` khác nhau để React DỰNG THẺ MỚI thay vì tái dùng
+                        đúng thẻ <button> đó và chỉ đổi `type`. Không có key,
+                        bấm "Tiếp tục" ở bước 2 sẽ vừa sang bước 3 vừa submit
+                        form: React đổi type thành "submit" ngay trong lúc xử lý
+                        click, còn trình duyệt chạy hành vi kích hoạt SAU khi
+                        dispatch xong nên đọc phải type mới → gọi luôn API đăng
+                        ký. `preventDefault` là lớp chặn thứ hai cho chắc. */}
                     {currentStep < registerSteps.length - 1 ? (
                       <button
+                        key="register-next-step"
                         type="button"
-                        onClick={handleNextStep}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          handleNextStep();
+                        }}
                         disabled={loading}
                         className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
                       >
@@ -626,6 +637,7 @@ export default function Register() {
                       </button>
                     ) : (
                       <button
+                        key="register-submit"
                         type="submit"
                         disabled={loading}
                         className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"

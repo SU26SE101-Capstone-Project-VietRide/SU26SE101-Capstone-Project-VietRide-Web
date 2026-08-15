@@ -87,6 +87,7 @@ export default function ManagerVouchers() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Toàn bộ search/filter/sort/paging chạy server-side. BE đã bổ sung `type` và
   // `validAt`, nên màn không còn phải tải hết voucher rồi lọc ở client.
@@ -144,7 +145,17 @@ export default function ManagerVouchers() {
   }, [loadData]);
 
   // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1. Giá trị debounce lúc mount vốn
+  // đã bằng ô nhập nên bỏ lượt này không làm lệch state.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedSearch(voucherSearch.trim());
       setPage(1);
@@ -196,6 +207,9 @@ export default function ManagerVouchers() {
   }
 
   async function handleSubmit() {
+    // Bấm hai lần khi đang tạo là ra hai voucher trùng mã.
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setError("");
     setMessage("");
 
@@ -226,6 +240,8 @@ export default function ManagerVouchers() {
       setIsModalOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("vouchers.saveFailed"));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -409,6 +425,7 @@ export default function ManagerVouchers() {
         onChange={updateForm}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmit}
+        busy={isSubmitting}
       />
 
       <Modal

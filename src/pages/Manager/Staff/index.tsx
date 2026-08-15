@@ -164,6 +164,7 @@ export default function StaffPage() {
     pendingInitialPassword: number;
   } | null>(null);
   const [statsVersion, setStatsVersion] = useState(0);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const startRequest = useLatestRequest();
   const [totalItems, setTotalItems] = useState(0);
   const [lockTarget, setLockTarget] = useState<OperatorUser | null>(null);
@@ -277,6 +278,10 @@ export default function StaffPage() {
   }
 
   async function handleCreateUser() {
+    // Bấm hai lần là tạo hai tài khoản và gửi hai email đặt mật khẩu: mỗi lần
+    // bấm sinh một Idempotency-Key mới nên BE không gộp lại được.
+    if (isCreatingUser) return;
+    setIsCreatingUser(true);
     setError("");
     setMessage("");
     try {
@@ -293,6 +298,8 @@ export default function StaffPage() {
       setError(
         err instanceof Error ? err.message : t("staff.createUserFailed"),
       );
+    } finally {
+      setIsCreatingUser(false);
     }
   }
 
@@ -497,7 +504,8 @@ export default function StaffPage() {
             <button
               type="button"
               onClick={handleCreateUser}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
+              disabled={isCreatingUser}
+              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {t("staff.createProfile")}
             </button>

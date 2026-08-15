@@ -1,5 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { FiCreditCard, FiDownload, FiEye } from "react-icons/fi";
@@ -34,13 +34,28 @@ export default function OperatorInvoiceSection() {
   const [detailLoadingId, setDetailLoadingId] = useState("");
   const pageSize = 8;
 
+  // Deep-link `?invoiceId=`: mở đúng hoá đơn đó một lần rồi dọn param.
+  // `openInvoiceDetail` là function khai trong thân component nên identity đổi
+  // mỗi render — giữ qua ref thay vì đưa vào deps, nếu không effect chạy lại
+  // liên tục và mở lại modal. `setSearchParams` dùng dạng updater để không phải
+  // phụ thuộc `searchParams`.
+  const openInvoiceDetailRef = useRef<(invoiceId: string) => Promise<void>>(null);
+  useEffect(() => {
+    openInvoiceDetailRef.current = openInvoiceDetail;
+  });
+
   useEffect(() => {
     if (!linkedInvoiceId) return;
-    void openInvoiceDetail(linkedInvoiceId);
-    const next = new URLSearchParams(searchParams);
-    next.delete("invoiceId");
-    setSearchParams(next, { replace: true });
-  }, [linkedInvoiceId]);
+    void openInvoiceDetailRef.current?.(linkedInvoiceId);
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete("invoiceId");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [linkedInvoiceId, setSearchParams]);
 
   useEffect(() => {
     let ignore = false;
@@ -83,7 +98,17 @@ export default function OperatorInvoiceSection() {
   }, [debouncedSearch, page, t]);
 
   // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1. Giá trị debounce lúc mount vốn
+  // đã bằng ô nhập nên bỏ lượt này không làm lệch state.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
       setPage(1);

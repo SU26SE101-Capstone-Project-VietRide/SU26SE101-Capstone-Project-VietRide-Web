@@ -1,6 +1,6 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useLatestRequest } from "../../../hooks/useLatestRequest";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { FiRefreshCw } from "react-icons/fi";
 import {
@@ -63,7 +63,17 @@ export default function ManagerWallet() {
 
   // Chỉ gọi API khi search rỗng hoặc đã trim >= 2 ký tự (§10) — 1 ký tự thì
   // giữ nguyên kết quả cũ, không bắn request.
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1. Giá trị debounce lúc mount vốn
+  // đã bằng ô nhập nên bỏ lượt này không làm lệch state.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       const trimmed = searchTerm.trim();
       if (trimmed.length === 1) return;

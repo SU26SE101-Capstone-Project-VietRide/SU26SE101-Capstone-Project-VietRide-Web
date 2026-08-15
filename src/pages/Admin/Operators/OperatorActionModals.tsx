@@ -12,6 +12,8 @@ type OperatorApproveModalProps = {
   onClose: () => void;
   operator: AdminOperator | null;
   onConfirm: () => void | Promise<void>;
+  /** Đang gửi request — khoá nút để hai lần bấm không gửi hai lệnh */
+  busy?: boolean;
 };
 
 export function OperatorApproveModal({
@@ -19,6 +21,7 @@ export function OperatorApproveModal({
   onClose,
   operator,
   onConfirm,
+  busy = false,
 }: OperatorApproveModalProps) {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
@@ -38,8 +41,10 @@ export function OperatorApproveModal({
             {tc("cancel")}
           </button>
           <button
+            type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
+            disabled={busy}
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("operators.approve")}
           </button>
@@ -66,6 +71,8 @@ type OperatorRejectModalProps = {
   reason: string;
   onReasonChange: (value: string) => void;
   onConfirm: () => void | Promise<void>;
+  /** Đang gửi request — khoá nút để hai lần bấm không gửi hai lệnh */
+  busy?: boolean;
 };
 
 export function OperatorRejectModal({
@@ -75,6 +82,7 @@ export function OperatorRejectModal({
   reason,
   onReasonChange,
   onConfirm,
+  busy = false,
 }: OperatorRejectModalProps) {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
@@ -94,8 +102,10 @@ export function OperatorRejectModal({
             {tc("cancel")}
           </button>
           <button
+            type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+            disabled={busy}
+            className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("operators.rejectConfirm")}
           </button>
@@ -136,6 +146,8 @@ type OperatorSuspendModalProps = {
   reason: string;
   onReasonChange: (value: string) => void;
   onConfirm: () => void | Promise<void>;
+  /** Đang gửi request — khoá nút để hai lần bấm không gửi hai lệnh */
+  busy?: boolean;
 };
 
 export function OperatorSuspendModal({
@@ -145,6 +157,7 @@ export function OperatorSuspendModal({
   reason,
   onReasonChange,
   onConfirm,
+  busy = false,
 }: OperatorSuspendModalProps) {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
@@ -164,8 +177,10 @@ export function OperatorSuspendModal({
             {tc("cancel")}
           </button>
           <button
+            type="button"
             onClick={() => void onConfirm()}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+            disabled={busy}
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("operators.suspendConfirm")}
           </button>
