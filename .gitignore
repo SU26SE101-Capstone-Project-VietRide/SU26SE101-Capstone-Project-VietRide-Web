@@ -39,3 +39,8 @@ dist-ssr
 /.claude/
 /docs/
 /src/docs/
+
+# Thư mục làm việc khi build tài liệu báo cáo (.docx bung ra: xml, rels, media, zip
+# repack). Giống .env — giữ ở máy để còn dựng lại report, không đẩy lên remote.
+# Trước đây bị commit (403 file, ~18MB) nên repo phình to; untrack 2026-08-16.
+/.docx_work/
