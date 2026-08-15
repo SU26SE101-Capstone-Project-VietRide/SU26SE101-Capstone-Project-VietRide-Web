@@ -184,7 +184,18 @@ export default function AdminLocations() {
 
   // Search giờ đi thẳng lên BE nên phải debounce, nếu không mỗi phím là một
   // request. Đổi từ khoá thì về trang 1 vì tổng số bản ghi đã khác.
+  //
+  // Bỏ qua lượt chạy đầu: effect cũng chạy lúc mount, và 350ms sau đó nó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì. Ai bấm sang trang trong khoảng 350ms
+  // đầu sẽ bị đá ngược về trang 1 — `debouncedSearch` lúc mount vốn đã bằng
+  // `search` nên bỏ lượt này không làm lệch state.
+  const hasSearchChanged = useRef(false);
   useEffect(() => {
+    if (!hasSearchChanged.current) {
+      hasSearchChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
       setPage(1);

@@ -4,7 +4,7 @@
 // tay). Km/phút KHÔNG còn ô nhập — hiện dạng chỉ đọc, tự tính từ polyline đang
 // soạn trên bản đồ (xem useAlternativeRouteWorkspace).
 import { useTranslation } from "react-i18next";
-import { FiGitBranch, FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiGitBranch, FiPlus, FiRotateCcw, FiSlash, FiTrash2 } from "react-icons/fi";
 import {
   inputClass,
   labelClass,
@@ -40,16 +40,26 @@ export default function AlternativeRoutesSection({
   const {
     alternativeRoutes,
     selectedAlternativeRouteId,
+    selectedAlternative,
+    activeAlternativeCount,
+    maxActiveAlternatives,
     altForm,
     altMetrics,
     altStopDrafts,
+    isSavingAlternative,
     startNewAlternative,
     handleSelectAlternativeRoute,
+    handleRestoreAlternativeRoute,
     updateAltField,
     toggleAlternativeActive,
     removeAltStop,
     setPendingDeleteAlternative,
   } = workspace;
+  // Bản đã lưu đang mở mà ĐÃ NGƯNG áp dụng → đổi nút "Ngưng áp dụng" thành
+  // "Khôi phục" (xoá mềm ở BE, xem handleDeleteAlternativeRoute)
+  const isSelectedDeactivated = Boolean(
+    selectedAlternative && !selectedAlternative.isActive,
+  );
 
   if (!hasSelectedRoute) {
     return (
@@ -70,12 +80,21 @@ export default function AlternativeRoutesSection({
       <div className="rounded-lg border border-vr-100 bg-vr-50/60 px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold text-gray-900">
-            {t("routes.alternativeCapacity", { count: alternativeRoutes.length })}
+            {t("routes.alternativeCapacity", { count: activeAlternativeCount })}
           </p>
+          {/* Đếm theo bản ĐANG ÁP DỤNG — bản đã ngưng vẫn nằm trong danh sách
+              (xoá mềm) nhưng không chiếm chỗ, xem maxActiveAlternatives */}
           <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-vr-700">
-            {alternativeRoutes.length}/2
+            {activeAlternativeCount}/{maxActiveAlternatives}
           </span>
         </div>
+        {alternativeRoutes.length > activeAlternativeCount && (
+          <p className="mt-1 text-xs text-gray-500">
+            {t("routes.alternativeDeactivatedCount", {
+              count: alternativeRoutes.length - activeAlternativeCount,
+            })}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-2">
@@ -83,11 +102,15 @@ export default function AlternativeRoutesSection({
           <button
             key={alternative.id}
             type="button"
+            data-testid={`alternative-route-row-${alternative.id}`}
             onClick={() => handleSelectAlternativeRoute(alternative.id)}
             className={
-              selectedAlternativeRouteId === alternative.id
+              (selectedAlternativeRouteId === alternative.id
                 ? "rounded-lg border border-vr-300 bg-vr-50 p-3 text-left ring-1 ring-vr-200"
-                : "rounded-lg border border-gray-200 bg-white p-3 text-left hover:border-vr-200 hover:bg-gray-50"
+                : "rounded-lg border border-gray-200 bg-white p-3 text-left hover:border-vr-200 hover:bg-gray-50") +
+              // Bản đã ngưng vẫn hiện (xoá mềm) nhưng làm nhạt để không nhầm là
+              // đang chạy — bấm vào vẫn xem/khôi phục được
+              (alternative.isActive ? "" : " opacity-70")
             }
           >
             <div className="flex items-center justify-between gap-2">
@@ -120,6 +143,16 @@ export default function AlternativeRoutesSection({
 
       {canManageRoutes && (
         <>
+          {/* Bản đang mở đã ngưng: nói rõ dữ liệu còn nguyên, khôi phục được —
+              tránh user tưởng đã mất rồi đi tạo lại từ đầu */}
+          {isSelectedDeactivated && (
+            <p
+              data-testid="alternative-deactivated-banner"
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800"
+            >
+              {t("routes.alternativeDeactivatedHint")}
+            </p>
+          )}
           <div className="space-y-3 rounded-lg border border-gray-200 p-3">
             <Input
               label={t("routes.alternativeName")}
@@ -214,32 +247,40 @@ export default function AlternativeRoutesSection({
             <button
               type="button"
               onClick={startNewAlternative}
-              // Đủ 2/2 → luôn khoá nút tạo mới, kể cả đang xem/sửa một tuyến thay
-              // thế có sẵn (bấm nút này là chuyển sang soạn bản NHÁP thứ 3, vượt
-              // giới hạn) — giữ nguyên luật cũ (0/2 giới hạn).
-              disabled={alternativeRoutes.length >= 2}
+              // Đủ 2/2 ĐANG ÁP DỤNG → khoá nút tạo mới, kể cả đang xem/sửa một
+              // tuyến thay thế có sẵn (bấm nút này là chuyển sang soạn bản NHÁP
+              // thứ 3, vượt giới hạn). Bản đã ngưng không tính vào trần.
+              disabled={activeAlternativeCount >= maxActiveAlternatives}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               <FiPlus size={16} />
               {t("routes.newAlternative")}
             </button>
-            {selectedAlternativeRouteId && (
-              <button
-                type="button"
-                onClick={() => {
-                  const alternative = alternativeRoutes.find(
-                    (item) => item.id === selectedAlternativeRouteId,
-                  );
-                  if (alternative) {
-                    setPendingDeleteAlternative(alternative);
+            {selectedAlternative &&
+              (isSelectedDeactivated ? (
+                <button
+                  type="button"
+                  data-testid="restore-alternative-button"
+                  disabled={isSavingAlternative}
+                  onClick={() =>
+                    void handleRestoreAlternativeRoute(selectedAlternative)
                   }
-                }}
-                className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-              >
-                <FiTrash2 size={16} />
-                {t("routes.deleteAlternative")}
-              </button>
-            )}
+                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  <FiRotateCcw size={16} />
+                  {t("routes.restoreAlternative")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="deactivate-alternative-button"
+                  onClick={() => setPendingDeleteAlternative(selectedAlternative)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                >
+                  <FiSlash size={16} />
+                  {t("routes.deactivateAlternative")}
+                </button>
+              ))}
           </div>
         </>
       )}

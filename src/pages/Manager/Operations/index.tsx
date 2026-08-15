@@ -1,6 +1,8 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import {
   FiAlertTriangle,
+  FiCrosshair,
+  FiMaximize2,
   FiNavigation,
   FiPauseCircle,
   FiRefreshCw,
@@ -33,7 +35,9 @@ import {
 } from "../../../api/vietride";
 import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
-import FleetMap, { type FleetVehicleMapPoint } from "./FleetMap";
+import FleetMap, {
+  type FleetVehicleMapPoint,
+} from "../../../components/FleetMap";
 import FleetFilterBar, { type FleetStatusFilter } from "./FleetFilterBar";
 import OperationsStatusBar from "./OperationsStatusBar";
 import FleetMapLegend from "./FleetMapLegend";
@@ -68,6 +72,14 @@ import {
   useOperationsSocket,
 } from "./useOperationsSocket";
 import { useTripRoadRoute } from "./useTripRoadRoute";
+
+// Mức zoom khi bám xe: đủ gần để đọc tên đường xe đang chạy (mức đường phố),
+// thay vì fitBounds cả tuyến liên tỉnh — xem isFollowingVehicle.
+const FOLLOW_VEHICLE_ZOOM = 14;
+
+// Mảng rỗng ổn định identity — fitPoints đổi identity vô cớ là một lần fitBounds
+// thừa, kéo camera ra khỏi chỗ người dùng đang xem
+const emptyFitPoints: GoogleMapCoordinate[] = [];
 
 // Nhãn hiển thị chuyến trong header panel theo dõi
 function tripLabel(trip: OperatorTripListItem): string {
@@ -193,10 +205,6 @@ export default function OperationsPage() {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const trailPath = useMemo(
-    () => [...trail].reverse().map((point) => ({ lat: point.latitude, lng: point.longitude })),
-    [trail],
-  );
 
   const filtered = useMemo(() => {
     return fleetVehicles.filter((v) => {
@@ -469,9 +477,9 @@ export default function OperationsPage() {
     [effectiveRoutePath, routeStops, selectedVehiclePosition],
   );
 
-  // Chọn chuyến thì khung nhìn phải bao trọn NGUYÊN tuyến + vị trí xe, thay vì
-  // dán vào xe ở zoom 14 (mỗi điểm GPS lại panTo nên không bao giờ thấy được xe
-  // đang ở đoạn nào của tuyến). Thiếu tuyến thì vẫn rơi về focusCenter như cũ.
+  // Khung nhìn bao trọn NGUYÊN tuyến + vị trí xe — chỉ dùng ở chế độ "xem cả
+  // tuyến". Tuyến liên tỉnh dài mấy trăm km nên fitBounds kéo zoom về mức nhìn
+  // cả nước: thấy được toàn cảnh nhưng không đọc nổi xe đang đi đường nào.
   const selectedFitPoints = useMemo(() => {
     if (!selectedTripId) return [];
 
@@ -479,6 +487,23 @@ export default function OperationsPage() {
     if (selectedVehiclePosition) points.push(selectedVehiclePosition);
     return points.length > 1 ? points : [];
   }, [effectiveRoutePath, selectedTripId, selectedVehiclePosition]);
+
+  // Mặc định BÁM XE ở mức zoom đường phố: theo dõi chuyến là để thấy xe đang
+  // chạy trên tuyến đường nào, nên camera dính vào xe và chỉ pan theo từng điểm
+  // GPS. Người dùng vẫn tự zoom được (zoom chỉ khoá ở lần bám đầu, xem
+  // GoogleMapCanvas focusZoom) và bấm nút để xem lại toàn tuyến khi cần.
+  const [followSelectedVehicle, setFollowSelectedVehicle] = useState(true);
+  const isFollowingVehicle = Boolean(
+    selectedTripId && followSelectedVehicle && selectedVehiclePosition,
+  );
+  // Bám xe và fitBounds là hai cơ chế cùng lái camera — bật cái này phải tắt
+  // cái kia, không thì mỗi điểm GPS mới là một lần giật qua lại.
+  const mapFocusCenter = isFollowingVehicle
+    ? selectedVehiclePosition
+    : selectedFitPoints.length > 1
+      ? null
+      : focusCenter;
+  const mapFitPoints = isFollowingVehicle ? emptyFitPoints : selectedFitPoints;
 
   const routeGeometryStatus = useMemo<RouteGeometryStatus>(() => {
     const tripId = selectedTripId?.trim() ?? "";
@@ -780,61 +805,90 @@ export default function OperationsPage() {
 
 
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
-        {/* Trái: bản đồ đội xe chiếm phần lớn màn hình */}
-        <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-inner xl:min-h-[min(72vh,640px)]">
-          {/* Badge đề xuất lộ trình chờ duyệt — góc trên bản đồ, chỉ OPERATOR_ADMIN */}
-          {canMutate && (
-            <button
-              type="button"
-              onClick={() => setProposalsPanelOpen(!showProposalsPanel)}
-              className={`absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
-                pendingProposalCount > 0
-                  ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                  : "border-gray-200 bg-white/95 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {t("operations.proposalsBadge", { count: pendingProposalCount })}
-            </button>
-          )}
-          {!mapReady ? (
-            <div className="flex h-full min-h-[420px] items-center justify-center text-sm text-gray-500">
-              {t("gps.loadingMap")}
-            </div>
-          ) : isFleetLoading ? (
-            <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 text-sm text-gray-500">
-              <span className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-vr-500" aria-hidden="true" />
-              <span>{t("gps.loadingFleet")}</span>
-            </div>
-          ) : tripOptions.length === 0 ? (
-            <div className="flex h-full min-h-[420px] items-center justify-center px-6 text-center text-sm text-gray-500">
-              {apiError || t("gps.noTrips")}
-            </div>
-          ) : fleetVehicles.length === 0 ? (
-            <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-gray-500">
-              <FiTruck size={28} className="text-gray-400" aria-hidden="true" />
-              <span className="font-semibold text-gray-700">{t("gps.noLiveSignal")}</span>
-              <span>{t("gps.noLiveSignalHint")}</span>
-            </div>
-          ) : (
-            <FleetMap
-              vehicles={filtered}
-              selectedId={selectedTripId}
-              // Đã có khung nhìn theo tuyến thì bỏ qua focusCenter — hai cơ chế
-              // cùng lái camera sẽ giật qua lại mỗi lần có điểm GPS mới
-              focusCenter={selectedFitPoints.length > 1 ? null : focusCenter}
-              fitPoints={selectedFitPoints}
-              routeStops={routeStopsWithProgress}
-              routeTraveledPath={routeProgress.traveled}
-              routeRemainingPath={routeProgress.remaining}
-              trailPath={trailPath}
-              onMarkerSelect={selectVehicle}
-            />
-          )}
+        {/* Trái: chú giải (thanh ngang như màn Tuyến & điểm dừng) + bản đồ đội xe */}
+        <div className="flex min-h-0 flex-col">
           <FleetMapLegend
             showTraveledLine={routeProgress.traveled.length > 1}
             showRemainingLine={routeProgress.remaining.length > 1}
-            showTrailLine={trailPath.length > 1}
+            showRouteStations={routeStopsWithProgress.some(
+              (stop) => stop.kind !== "stop",
+            )}
+            showRouteStops={routeStopsWithProgress.some(
+              (stop) => stop.kind === "stop",
+            )}
           />
+          <div className="relative min-h-[420px] flex-1 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-inner xl:min-h-[min(72vh,640px)]">
+            {/* Chuyển giữa bám xe (mặc định, zoom đường phố) và xem cả tuyến —
+                chỉ có nghĩa khi đang theo dõi một chuyến */}
+            {selectedTripId && selectedFitPoints.length > 1 && (
+              <button
+                type="button"
+                data-testid="follow-vehicle-toggle"
+                aria-pressed={followSelectedVehicle}
+                onClick={() => setFollowSelectedVehicle((current) => !current)}
+                className={`absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
+                  followSelectedVehicle
+                    ? "border-vr-200 bg-vr-50 text-vr-700 hover:bg-vr-100"
+                    : "border-gray-200 bg-white/95 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {followSelectedVehicle ? (
+                  <FiCrosshair size={14} aria-hidden="true" />
+                ) : (
+                  <FiMaximize2 size={14} aria-hidden="true" />
+                )}
+                {followSelectedVehicle
+                  ? t("gps.followingVehicle")
+                  : t("gps.viewWholeRoute")}
+              </button>
+            )}
+            {/* Badge đề xuất lộ trình chờ duyệt — góc trên bản đồ, chỉ OPERATOR_ADMIN */}
+            {canMutate && (
+              <button
+                type="button"
+                onClick={() => setProposalsPanelOpen(!showProposalsPanel)}
+                className={`absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
+                  pendingProposalCount > 0
+                    ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                    : "border-gray-200 bg-white/95 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {t("operations.proposalsBadge", { count: pendingProposalCount })}
+              </button>
+            )}
+            {!mapReady ? (
+              <div className="flex h-full min-h-[420px] items-center justify-center text-sm text-gray-500">
+                {t("gps.loadingMap")}
+              </div>
+            ) : isFleetLoading ? (
+              <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 text-sm text-gray-500">
+                <span className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-vr-500" aria-hidden="true" />
+                <span>{t("gps.loadingFleet")}</span>
+              </div>
+            ) : tripOptions.length === 0 ? (
+              <div className="flex h-full min-h-[420px] items-center justify-center px-6 text-center text-sm text-gray-500">
+                {apiError || t("gps.noTrips")}
+              </div>
+            ) : fleetVehicles.length === 0 ? (
+              <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-gray-500">
+                <FiTruck size={28} className="text-gray-400" aria-hidden="true" />
+                <span className="font-semibold text-gray-700">{t("gps.noLiveSignal")}</span>
+                <span>{t("gps.noLiveSignalHint")}</span>
+              </div>
+            ) : (
+              <FleetMap
+                vehicles={filtered}
+                selectedId={selectedTripId}
+                focusCenter={mapFocusCenter}
+                focusZoom={FOLLOW_VEHICLE_ZOOM}
+                fitPoints={mapFitPoints}
+                routeStops={routeStopsWithProgress}
+                routeTraveledPath={routeProgress.traveled}
+                routeRemainingPath={routeProgress.remaining}
+                onMarkerSelect={selectVehicle}
+              />
+            )}
+          </div>
         </div>
 
         {/* Phải: panel ngữ cảnh — đề xuất lộ trình khi mở, chi tiết chuyến khi chọn, KPI + danh sách xe mặc định */}
@@ -867,6 +921,10 @@ export default function OperationsPage() {
               apiError={apiError}
               latest={latest}
               trailCount={trail.length}
+              routeStopCount={
+                routeStopsWithProgress.filter((stop) => stop.kind === "stop")
+                  .length
+              }
               eta={eta}
               etaTargets={etaTargets}
               trip={tripDetails}

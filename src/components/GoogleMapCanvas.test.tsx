@@ -467,4 +467,222 @@ describe("GoogleMapCanvas", () => {
 
     expect(() => view.unmount()).not.toThrow();
   });
+
+  // Maps JS API không có option strokeDashArray: đường đứt nét = thân đường
+  // trong suốt + Symbol gạch lặp lại (icons). Đường tham chiếu (tuyến chính vẽ
+  // nền ở tab Tuyến thay thế) dựa hoàn toàn vào nhánh này.
+  it("draws a dashed polyline as repeated stroke symbols on a transparent line", async () => {
+    const polylineOptions: Array<Record<string, unknown>> = [];
+
+    class Map {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      fitBounds() {}
+
+      panTo() {}
+
+      setCenter() {}
+
+      setZoom() {}
+    }
+
+    class Circle {
+      addListener() {
+        return undefined;
+      }
+
+      setMap() {}
+    }
+
+    class InfoWindow {
+      close() {}
+
+      open() {}
+
+      setContent() {}
+
+      setPosition() {}
+    }
+
+    class LatLngBounds {
+      extend() {}
+
+      isEmpty() {
+        return true;
+      }
+    }
+
+    class Polyline {
+      constructor(options: Record<string, unknown>) {
+        polylineOptions.push(options);
+      }
+
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      setMap() {}
+    }
+
+    loadGoogleMapsLibraryMock.mockResolvedValue({
+      Circle,
+      InfoWindow,
+      LatLngBounds,
+      Map,
+      Polyline,
+    } as unknown as GoogleMapsLibrary);
+
+    const path = [
+      { lat: 10.8, lng: 106.7 },
+      { lat: 11.9, lng: 108.4 },
+    ];
+    render(
+      <GoogleMapCanvas
+        ariaLabel="Route map"
+        center={{ lat: 10.8, lng: 106.7 }}
+        polylines={[
+          { color: "#0f766e", dashed: true, id: "reference", path, weight: 5 },
+          { color: "#f59e0b", id: "active", path, weight: 6 },
+        ]}
+        zoom={8}
+      />,
+    );
+
+    await waitFor(() => expect(polylineOptions).toHaveLength(2));
+
+    const [dashed, solid] = polylineOptions;
+    // Thân đường trong suốt, màu nằm ở Symbol gạch
+    expect(dashed.strokeOpacity).toBe(0);
+    expect(dashed.icons).toMatchObject([
+      { icon: { strokeColor: "#0f766e", scale: 5 }, repeat: "20px" },
+    ]);
+    // Đường thường không đụng tới: vẫn liền nét, không có icons
+    expect(solid.strokeOpacity).toBe(1);
+    expect(solid.icons).toBeUndefined();
+  });
+
+  // Bám xe: mỗi điểm GPS mới phải PAN theo, nhưng KHÔNG kéo zoom về mức mặc
+  // định — nếu không, điều độ viên phóng to xem xe đang ở làn nào là bị giật ra
+  // ngay ở ping kế tiếp.
+  it("locks the focus zoom once and only pans on later focus updates", async () => {
+    const panTo = vi.fn();
+    const setZoom = vi.fn();
+
+    class Map {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      fitBounds() {}
+
+      panTo(...args: unknown[]) {
+        panTo(...args);
+      }
+
+      setCenter() {}
+
+      setZoom(...args: unknown[]) {
+        setZoom(...args);
+      }
+    }
+
+    class Circle {
+      addListener() {
+        return undefined;
+      }
+
+      setMap() {}
+    }
+
+    class InfoWindow {
+      close() {}
+
+      open() {}
+
+      setContent() {}
+
+      setPosition() {}
+    }
+
+    class LatLngBounds {
+      extend() {}
+
+      isEmpty() {
+        return true;
+      }
+    }
+
+    class Polyline {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      setMap() {}
+    }
+
+    loadGoogleMapsLibraryMock.mockResolvedValue({
+      Circle,
+      InfoWindow,
+      LatLngBounds,
+      Map,
+      Polyline,
+    } as unknown as GoogleMapsLibrary);
+
+    // center/zoom là hằng ổn định như caller thật (FleetMap) — object mới mỗi
+    // lần render sẽ kích effect đồng bộ center/zoom, không phải nhánh đang test
+    const mapCenter = { lat: 10.8, lng: 106.7 };
+
+    const view = render(
+      <GoogleMapCanvas
+        ariaLabel="Fleet map"
+        center={mapCenter}
+        focusCenter={{ lat: 10.8, lng: 106.7 }}
+        focusZoom={14}
+        zoom={11}
+      />,
+    );
+
+    await waitFor(() => expect(panTo).toHaveBeenCalledTimes(1));
+    expect(setZoom).toHaveBeenCalledWith(14);
+    setZoom.mockClear();
+
+    // Điểm GPS mới: pan theo xe, giữ nguyên mức zoom người dùng đang xem
+    view.rerender(
+      <GoogleMapCanvas
+        ariaLabel="Fleet map"
+        center={mapCenter}
+        focusCenter={{ lat: 10.81, lng: 106.72 }}
+        focusZoom={14}
+        zoom={11}
+      />,
+    );
+
+    await waitFor(() => expect(panTo).toHaveBeenCalledTimes(2));
+    expect(panTo).toHaveBeenLastCalledWith({ lat: 10.81, lng: 106.72 });
+    expect(setZoom).not.toHaveBeenCalled();
+
+    // Bỏ bám rồi bám lại (chọn chuyến khác) → khoá lại mức zoom từ đầu
+    view.rerender(
+      <GoogleMapCanvas
+        ariaLabel="Fleet map"
+        center={mapCenter}
+        focusCenter={null}
+        focusZoom={14}
+        zoom={11}
+      />,
+    );
+    view.rerender(
+      <GoogleMapCanvas
+        ariaLabel="Fleet map"
+        center={mapCenter}
+        focusCenter={{ lat: 10.9, lng: 106.9 }}
+        focusZoom={14}
+        zoom={11}
+      />,
+    );
+
+    await waitFor(() => expect(setZoom).toHaveBeenCalledWith(14));
+  });
 });

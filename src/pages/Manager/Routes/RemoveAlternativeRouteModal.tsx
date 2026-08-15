@@ -1,6 +1,8 @@
-// Modal xác nhận xoá một tuyến thay thế — cùng pattern RemoveRouteStopModal
+// Modal xác nhận NGƯNG ÁP DỤNG một tuyến thay thế — BE xoá mềm (deactivate),
+// bản ghi giữ nguyên và khôi phục được, nên nội dung không nói "không thể hoàn
+// tác" như modal xoá cứng.
 import { useTranslation } from "react-i18next";
-import { FiTrash2 } from "react-icons/fi";
+import { FiSlash } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import type { AlternativeRoute } from "../../../api/vietride";
 
@@ -24,7 +26,7 @@ export default function RemoveAlternativeRouteModal({
       onClose={onClose}
       title={t("routes.removeAlternativeRouteTitle")}
       subtitle={t("routes.removeAlternativeRouteSubtitle")}
-      icon={<FiTrash2 />}
+      icon={<FiSlash />}
       footer={
         <>
           <button
@@ -43,7 +45,7 @@ export default function RemoveAlternativeRouteModal({
             }}
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
           >
-            {tc("delete")}
+            {t("routes.deactivateAlternativeConfirmAction")}
           </button>
         </>
       }

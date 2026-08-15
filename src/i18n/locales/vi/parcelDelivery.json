@@ -1,0 +1,56 @@
+{
+  "documentTitle": "VietRide · Xác nhận nhận hàng",
+  "heading": "Xác nhận đã nhận hàng",
+  "intro": "Bấm xác nhận khi bạn đã nhận được kiện hàng từ nhà xe. Bạn chỉ cần làm một lần, không cần đăng nhập.",
+  "actions": {
+    "confirm": "Xác nhận đã nhận hàng",
+    "confirming": "Đang xác nhận…",
+    "reject": "Từ chối nhận hàng",
+    "rejecting": "Đang gửi…",
+    "undo": "Hoàn tác từ chối",
+    "undoing": "Đang hoàn tác…",
+    "cancel": "Huỷ"
+  },
+  "confirmed": {
+    "title": "Xác nhận nhận hàng thành công",
+    "description": "Cảm ơn bạn. Nhà xe đã nhận được xác nhận và kiện hàng được đóng đơn.",
+    "at": "Thời điểm xác nhận: {{time}}"
+  },
+  "rejected": {
+    "title": "Đã ghi nhận từ chối nhận hàng",
+    "description": "Nhà xe sẽ liên hệ lại với bạn để xử lý kiện hàng này.",
+    "at": "Thời điểm từ chối: {{time}}",
+    "undoWindow": "Bạn còn {{time}} để hoàn tác nếu bấm nhầm.",
+    "undoExpired": "Đã hết thời gian hoàn tác. Vui lòng liên hệ nhà xe nếu cần hỗ trợ.",
+    "undone": "Đã hoàn tác từ chối. Bạn có thể xác nhận nhận hàng lại."
+  },
+  "reject": {
+    "label": "Vui lòng cho biết lý do từ chối",
+    "placeholder": "Ví dụ: kiện hàng bị móp, rách niêm phong, sai hàng…",
+    "counter": "{{current}}/{{max}} ký tự",
+    "required": "Vui lòng nhập lý do từ chối.",
+    "submit": "Gửi từ chối"
+  },
+  "errors": {
+    "title": "Không thực hiện được",
+    "missingToken": "Liên kết không hợp lệ. Vui lòng mở lại đúng liên kết trong email nhà xe gửi cho bạn.",
+    "tokenInvalid": "Liên kết không hợp lệ. Vui lòng mở lại đúng liên kết trong email nhà xe gửi cho bạn.",
+    "tokenExpired": "Liên kết đã hết hạn. Vui lòng liên hệ nhà xe để được gửi lại email xác nhận.",
+    "tokenRevoked": "Liên kết này không còn hiệu lực — có thể bạn đã xác nhận trước đó hoặc nhà xe đã gửi email mới. Nếu bạn vừa xác nhận thành công thì không cần làm gì thêm.",
+    "notPendingConfirm": "Kiện hàng không còn ở trạng thái chờ xác nhận. Vui lòng liên hệ nhà xe nếu bạn chưa nhận được hàng.",
+    "undoWindowExpired": "Đã quá thời gian hoàn tác từ chối. Vui lòng liên hệ nhà xe để được hỗ trợ.",
+    "validation": "Thông tin gửi lên chưa hợp lệ. Vui lòng kiểm tra lại lý do từ chối (tối đa 500 ký tự).",
+    "rateLimited": "Bạn đã thử quá nhiều lần trên liên kết này. Vui lòng chờ ít phút rồi thử lại.",
+    "requestPending": "Yêu cầu trước đó đang được xử lý. Vui lòng chờ vài giây rồi thử lại.",
+    "idempotency": "Có lỗi kỹ thuật khi gửi yêu cầu. Vui lòng tải lại trang từ liên kết trong email rồi thử lại.",
+    "raceLost": "Trạng thái kiện hàng vừa thay đổi. Vui lòng thử lại.",
+    "upstream": "Hệ thống đang bận. Vui lòng thử lại sau ít phút.",
+    "network": "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.",
+    "generic": "Đã xảy ra lỗi. Vui lòng thử lại hoặc liên hệ nhà xe."
+  },
+  "privacy": {
+    "title": "Liên kết riêng cho kiện hàng của bạn",
+    "note": "Liên kết này chỉ dùng để xác nhận kiện hàng của bạn, không cần đăng nhập. VietRide không lưu liên kết trên thiết bị của bạn."
+  },
+  "support": "Cần hỗ trợ? Liên hệ nhà xe đã gửi email này để được cấp liên kết mới."
+}

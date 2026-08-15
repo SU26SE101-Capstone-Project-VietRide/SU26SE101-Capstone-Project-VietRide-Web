@@ -103,7 +103,7 @@ describe("operator subscription navigation", () => {
       screen.queryByRole("link", { name: "manager.policies" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Mở trợ lý nghiệp vụ" }),
+      screen.queryByRole("button", { name: "assistant.open" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "manager.packages" }),
@@ -131,7 +131,7 @@ describe("operator subscription navigation", () => {
       screen.getByRole("link", { name: "manager.policies" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Mở trợ lý nghiệp vụ" }),
+      screen.getByRole("button", { name: "assistant.open" }),
     ).toBeInTheDocument();
   });
 });

@@ -28,6 +28,14 @@ dist-ssr
 .env.*
 !.env.example
 
-# Claude Code: CLAUDE.md + .claude/skills/ + .claude/settings.json commit chung cả team,
-# riêng settings.local.json là allowlist permission của từng máy.
-.claude/settings.local.json
+# Tài liệu nội bộ + cấu hình trợ lý AI: giữ ở máy, không đẩy lên remote.
+# (Trước đây CLAUDE.md và .claude/ được commit chung cho cả team — đổi chủ trương
+# 2026-08-15, xem README nếu cần khôi phục.)
+/AGENTS.md
+/CLAUDE.md
+/CODE_CONVENTIONS.md
+/DEPLOY.md
+/.agents/
+/.claude/
+/docs/
+/src/docs/

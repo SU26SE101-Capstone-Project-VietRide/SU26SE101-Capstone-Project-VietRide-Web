@@ -7,9 +7,12 @@ import {
   cancelOperatorShuttleTrip,
   getOperatorShuttleRequests,
   getOperatorShuttleTrips,
+  getShuttleTripEta,
+  getShuttleTripLatest,
   type OperatorShuttleTripListItem,
   type ShuttleRequestGroup,
 } from "../../../api/vietride";
+import { joinShuttleTracking } from "../../../lib/trackingSocket";
 import DispatchPanel from "./index";
 
 vi.mock("react-i18next", () => ({
@@ -40,6 +43,48 @@ vi.mock("../../../auth", () => ({
     email: "ops@operator.vn",
     role: "OPERATOR_ADMIN",
   }),
+  refreshAuthSession: vi.fn().mockResolvedValue(null),
+}));
+
+type FleetMapProps = {
+  vehicles: Array<{
+    id: string;
+    status: string;
+    position: { lat: number; lng: number } | null;
+    headingDeg?: number | null;
+  }>;
+  selectedId: string | null;
+};
+
+const fleetMapProps = vi.hoisted(() => [] as FleetMapProps[]);
+
+// Google Maps không chạy trong jsdom — mock bản đồ để test kiểm phần thuộc về
+// màn này: điểm nào được đẩy lên bản đồ và xe nào đang được bám.
+vi.mock("../../../components/FleetMap", () => ({
+  default: (props: FleetMapProps) => {
+    fleetMapProps.push(props);
+    return <div data-testid="shuttle-map" />;
+  },
+}));
+
+type TrackingSocketHandler = (event: unknown) => void;
+
+const trackingSocketHandlers = vi.hoisted(
+  () => new Map<string, TrackingSocketHandler>(),
+);
+
+// Socket realtime không chạy trong jsdom — mock để effect join không mở kết nối
+// thật. `connected: true` cho phép hook phát lệnh join như khi đã kết nối.
+vi.mock("../../../lib/trackingSocket", () => ({
+  createTrackingSocket: vi.fn(() => ({
+    connected: true,
+    on: vi.fn((eventName: string, handler: TrackingSocketHandler) => {
+      trackingSocketHandlers.set(eventName, handler);
+    }),
+    off: vi.fn(),
+    disconnect: vi.fn(),
+  })),
+  joinShuttleTracking: vi.fn(() => Promise.resolve({ success: true })),
 }));
 
 const group: ShuttleRequestGroup = {
@@ -100,6 +145,16 @@ function renderPage() {
 describe("Manager Dispatch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    trackingSocketHandlers.clear();
+    fleetMapProps.length = 0;
+    vi.mocked(joinShuttleTracking).mockResolvedValue({
+      success: true,
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      room: `shuttle:${shuttleTrip.shuttleTripId}`,
+      scope: "OPERATOR",
+    });
+    vi.mocked(getShuttleTripLatest).mockResolvedValue(null);
+    vi.mocked(getShuttleTripEta).mockResolvedValue(null);
     vi.mocked(getOperatorShuttleRequests).mockResolvedValue({
       items: [group],
       page: 1,
@@ -232,5 +287,165 @@ describe("Manager Dispatch", () => {
     expect(
       screen.queryByRole("button", { name: "dispatch.cancelShuttleTrip" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("join room realtime của chuyến đang hoạt động rồi nạp vị trí/ETA một lần", async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect(joinShuttleTracking).toHaveBeenCalledWith(
+        expect.anything(),
+        shuttleTrip.shuttleTripId,
+      ),
+    );
+    // Room chỉ phát khi tài xế gửi GPS tiếp theo nên phải nạp REST một lần.
+    await waitFor(() =>
+      expect(getShuttleTripLatest).toHaveBeenCalledWith(
+        shuttleTrip.shuttleTripId,
+      ),
+    );
+    expect(getShuttleTripEta).toHaveBeenCalledWith(shuttleTrip.shuttleTripId);
+  });
+
+  it("cập nhật vị trí từ event socket mà không cần bấm làm mới", async () => {
+    renderPage();
+
+    // Phải chờ danh sách chuyến tải xong: hook chỉ nhận event của chuyến đã
+    // nằm trong danh sách theo dõi.
+    await waitFor(() => expect(joinShuttleTracking).toHaveBeenCalled());
+    expect(screen.getByText("dispatch.trackingWaitingSignalHint")).toBeInTheDocument();
+
+    trackingSocketHandlers.get("shuttle:gps:update")?.({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      latitude: 10.7626,
+      longitude: 106.6601,
+      recordedAt: "2026-08-12T21:35:00+07:00",
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText("10.7626, 106.6601")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("dispatch.liveBadge")).toBeInTheDocument();
+    expect(getShuttleTripLatest).toHaveBeenCalledTimes(1);
+  });
+
+  it("bỏ qua event của chuyến không nằm trong danh sách đang theo dõi", async () => {
+    renderPage();
+
+    // Phải chờ danh sách chuyến tải xong: hook chỉ nhận event của chuyến đã
+    // nằm trong danh sách theo dõi.
+    await waitFor(() => expect(joinShuttleTracking).toHaveBeenCalled());
+    // BE không có message rời room: chuyến đã kết thúc vẫn phát về trên kết nối
+    // hiện tại nên handler phải tự lọc.
+    trackingSocketHandlers.get("shuttle:gps:update")?.({
+      shuttleTripId: "36000000-0000-4000-8000-000000000999",
+      latitude: 21.0278,
+      longitude: 105.8342,
+      recordedAt: "2026-08-12T21:36:00+07:00",
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("dispatch.trackingWaitingSignalHint"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("21.0278, 105.8342")).not.toBeInTheDocument();
+  });
+
+  it("giữ điểm GPS mới hơn khi event tới lệch thứ tự", async () => {
+    renderPage();
+
+    // Phải chờ danh sách chuyến tải xong: hook chỉ nhận event của chuyến đã
+    // nằm trong danh sách theo dõi.
+    await waitFor(() => expect(joinShuttleTracking).toHaveBeenCalled());
+    const emitGps = trackingSocketHandlers.get("shuttle:gps:update");
+
+    emitGps?.({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      latitude: 10.7626,
+      longitude: 106.6601,
+      recordedAt: "2026-08-12T21:35:00+07:00",
+    });
+    await waitFor(() =>
+      expect(screen.getByText("10.7626, 106.6601")).toBeInTheDocument(),
+    );
+
+    emitGps?.({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      latitude: 10.75,
+      longitude: 106.65,
+      recordedAt: "2026-08-12T21:30:00+07:00",
+    });
+
+    expect(screen.getByText("10.7626, 106.6601")).toBeInTheDocument();
+    expect(screen.queryByText("10.75, 106.65")).not.toBeInTheDocument();
+  });
+
+  it("chưa có toạ độ thì không dựng bản đồ", async () => {
+    renderPage();
+
+    await waitFor(() => expect(joinShuttleTracking).toHaveBeenCalled());
+    expect(screen.queryByTestId("shuttle-map")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "dispatch.showOnMap" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("đưa xe lên bản đồ khi có điểm GPS rồi bám xe khi bấm xem", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => expect(joinShuttleTracking).toHaveBeenCalled());
+    trackingSocketHandlers.get("shuttle:gps:update")?.({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      latitude: 10.7626,
+      longitude: 106.6601,
+      speedKmh: 24,
+      heading: 120,
+      recordedAt: new Date().toISOString(),
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("shuttle-map")).toBeInTheDocument(),
+    );
+    const rendered = fleetMapProps[fleetMapProps.length - 1];
+    expect(rendered.vehicles).toHaveLength(1);
+    expect(rendered.vehicles[0]).toMatchObject({
+      id: shuttleTrip.shuttleTripId,
+      status: "moving",
+      position: { lat: 10.7626, lng: 106.6601 },
+      // Shuttle gửi `heading`, không phải `headingDeg` như chuyến thường.
+      headingDeg: 120,
+    });
+    expect(rendered.selectedId).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "dispatch.showOnMap" }));
+
+    await waitFor(() =>
+      expect(fleetMapProps[fleetMapProps.length - 1].selectedId).toBe(
+        shuttleTrip.shuttleTripId,
+      ),
+    );
+  });
+
+  it("báo mất realtime khi socket ngắt kết nối", async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect(trackingSocketHandlers.has("disconnect")).toBe(true),
+    );
+    trackingSocketHandlers.get("connect")?.(undefined);
+    await waitFor(() =>
+      expect(screen.getByText("dispatch.realtime.connected")).toBeInTheDocument(),
+    );
+
+    trackingSocketHandlers.get("disconnect")?.(undefined);
+
+    await waitFor(() =>
+      expect(screen.getByText("dispatch.realtime.error")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText("dispatch.shuttleTrackingOfflineHint"),
+    ).toBeInTheDocument();
   });
 });

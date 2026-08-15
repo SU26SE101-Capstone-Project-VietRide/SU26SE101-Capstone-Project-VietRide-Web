@@ -14,6 +14,20 @@ export type SharedTripVehicleLocation = {
   recordedAt: string;
 };
 
+/**
+ * Điểm dừng giữa tuyến. CHỈ tên + toạ độ + thứ tự chạy — public DTO không được
+ * mang stopId/stationId (contract §GET /v1/tracking/shared-trip/context).
+ *
+ * BE hiện CHƯA trả `route.stops`; parser này đã sẵn sàng để bản đồ vẽ ngay khi
+ * Tracking bổ sung field, và trả mảng rỗng khi không có.
+ */
+export type SharedTripStop = {
+  name: string;
+  latitude: number;
+  longitude: number;
+  sequence: number;
+};
+
 export type SharedTripContext = {
   status: string;
   expiresAt: string;
@@ -24,6 +38,7 @@ export type SharedTripContext = {
   route: {
     originName: string;
     destinationName: string;
+    stops: SharedTripStop[];
     geometry: {
       type: "LineString";
       coordinates: [number, number][];
@@ -38,6 +53,7 @@ export type SharedTripContext = {
 };
 
 const MAX_ROUTE_COORDINATES = 20_000;
+const MAX_ROUTE_STOPS = 200;
 const MAX_PUBLIC_LABEL_LENGTH = 180;
 
 function asNumber(value: unknown): number | null {
@@ -96,6 +112,29 @@ function parseGeometry(
   return coordinates.length >= 2 ? { type: "LineString", coordinates } : null;
 }
 
+function parseStops(value: unknown): SharedTripStop[] {
+  if (!Array.isArray(value)) return [];
+
+  const stops: SharedTripStop[] = [];
+  for (const entry of value.slice(0, MAX_ROUTE_STOPS)) {
+    if (!isRecord(entry)) continue;
+    const name = asString(entry.name);
+    const latitude = asNumber(entry.latitude);
+    const longitude = asNumber(entry.longitude);
+    if (!name || latitude === null || longitude === null) continue;
+    if (!isCoordinate(latitude, longitude)) continue;
+    stops.push({
+      name,
+      latitude,
+      longitude,
+      // Thiếu `sequence` thì giữ nguyên thứ tự BE trả về.
+      sequence: asNumber(entry.sequence) ?? stops.length + 1,
+    });
+  }
+
+  return stops.sort((left, right) => left.sequence - right.sequence);
+}
+
 export function parseSharedTripContext(data: unknown): SharedTripContext {
   if (!isRecord(data)) {
     throw new ApiRequestError("Shared trip context is invalid.", 500, "INVALID_API_RESPONSE");
@@ -121,6 +160,7 @@ export function parseSharedTripContext(data: unknown): SharedTripContext {
     route: {
       originName: asString(routeRecord.originName) ?? "—",
       destinationName: asString(routeRecord.destinationName) ?? "—",
+      stops: parseStops(routeRecord.stops),
       geometry: parseGeometry(routeRecord.geometry),
     },
     eta: etaRecord

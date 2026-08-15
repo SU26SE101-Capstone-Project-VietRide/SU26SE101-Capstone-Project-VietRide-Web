@@ -20,6 +20,11 @@ type ShuttleTrackingCardProps = {
   trip: OperatorShuttleTripListItem;
   tracking: ShuttleTripTracking | undefined;
   canCancelShuttle: boolean;
+  /** Xe đang được bám trên bản đồ */
+  isSelected: boolean;
+  /** Đã có toạ độ nên mới có marker để bám — chưa có thì ẩn nút xem bản đồ */
+  hasPosition: boolean;
+  onSelect: (shuttleTripId: string) => void;
   onRefresh: (shuttleTripId: string) => void;
   onCancel: (trip: OperatorShuttleTripListItem) => void;
   directionLabel: (direction: ShuttleDirection) => string;
@@ -43,6 +48,9 @@ export default function ShuttleTrackingCard({
   trip,
   tracking,
   canCancelShuttle,
+  isSelected,
+  hasPosition,
+  onSelect,
   onRefresh,
   onCancel,
   directionLabel,
@@ -54,7 +62,13 @@ export default function ShuttleTrackingCard({
     canCancelShuttle && CANCELLABLE_STATUSES.includes(trip.status);
 
   return (
-    <article className="flex flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+    <article
+      className={`flex flex-col rounded-xl border bg-white p-4 shadow-sm transition ${
+        isSelected
+          ? "border-vr-500 ring-2 ring-vr-100"
+          : "border-gray-200"
+      }`}
+    >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -75,6 +89,22 @@ export default function ShuttleTrackingCard({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {hasPosition && (
+            <button
+              type="button"
+              onClick={() => onSelect(trip.shuttleTripId)}
+              aria-pressed={isSelected}
+              className={`inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border transition ${
+                isSelected
+                  ? "border-vr-500 bg-vr-500 text-white"
+                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+              }`}
+              title={t("dispatch.showOnMap")}
+              aria-label={t("dispatch.showOnMap")}
+            >
+              <FiMapPin size={15} />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onRefresh(trip.shuttleTripId)}
@@ -141,17 +171,26 @@ export default function ShuttleTrackingCard({
         </p>
       )}
 
-      {/* Vị trí và ETA chỉ tải khi bấm làm mới — nói rõ điều đó thay vì hiện
-          một ô trống không giải thích. */}
+      {/* Thẻ trống nghĩa là xe chưa gửi GPS lần nào, không phải màn quên tải —
+          nói rõ điều đó thay vì hiện một ô trống không giải thích. */}
       {!tracking?.latest && !tracking?.eta && !tracking?.error ? (
         <p className="mt-3 rounded-lg border border-dashed border-gray-200 px-3 py-3 text-center text-xs text-gray-500">
-          {t("dispatch.trackingOnDemandHint")}
+          {t("dispatch.trackingWaitingSignalHint")}
         </p>
       ) : (
         <div className="mt-3 space-y-2 text-xs">
           <div className="rounded-lg border border-gray-100 px-3 py-2">
-            <p className="font-medium text-gray-500">
+            <p className="flex items-center gap-1.5 font-medium text-gray-500">
               {t("dispatch.latestLocation")}
+              {tracking?.isLive && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+                  title={t("dispatch.realtime.connected")}
+                >
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                  {t("dispatch.liveBadge")}
+                </span>
+              )}
             </p>
             <p className="mt-0.5 font-semibold text-gray-900">
               {tracking?.latest

@@ -14,6 +14,8 @@ import viManager from "./locales/vi/manager.json";
 import enManager from "./locales/en/manager.json";
 import viTripShare from "./locales/vi/tripShare.json";
 import enTripShare from "./locales/en/tripShare.json";
+import viParcelDelivery from "./locales/vi/parcelDelivery.json";
+import enParcelDelivery from "./locales/en/parcelDelivery.json";
 
 export const SUPPORTED_LANGUAGES = ["vi", "en"] as const;
 export type AppLanguage = (typeof SUPPORTED_LANGUAGES)[number];
@@ -32,6 +34,7 @@ void i18n
         admin: viAdmin,
         manager: viManager,
         tripShare: viTripShare,
+        parcelDelivery: viParcelDelivery,
       },
       en: {
         common: enCommon,
@@ -40,11 +43,20 @@ void i18n
         admin: enAdmin,
         manager: enManager,
         tripShare: enTripShare,
+        parcelDelivery: enParcelDelivery,
       },
     },
     fallbackLng: "vi",
     defaultNS: "common",
-    ns: ["common", "nav", "login", "admin", "manager", "tripShare"],
+    ns: [
+      "common",
+      "nav",
+      "login",
+      "admin",
+      "manager",
+      "tripShare",
+      "parcelDelivery",
+    ],
     interpolation: { escapeValue: false },
     detection: {
       order: ["localStorage", "navigator"],

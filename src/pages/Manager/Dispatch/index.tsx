@@ -7,7 +7,14 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { FiClock, FiRefreshCw, FiTruck, FiUsers } from "react-icons/fi";
+import {
+  FiClock,
+  FiRefreshCw,
+  FiTruck,
+  FiUsers,
+  FiWifi,
+  FiWifiOff,
+} from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
 import { createIdempotencyKey } from "../../../api/idempotency";
 import {
@@ -31,6 +38,13 @@ import {
   type ShuttleRequestGroup,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
+import type {
+  ShuttleEtaUpdateEvent,
+  ShuttleGpsUpdateEvent,
+} from "../../../lib/trackingSocket";
+import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
+import FleetMap from "../../../components/FleetMap";
+import type { FleetVehicleMapPoint } from "../../../components/fleetMapPoint";
 import { formatDateTime } from "../../../utils/date";
 import {
   conflictReasonKey,
@@ -55,18 +69,28 @@ import {
   getOrderedSelectedBookingIds,
   getSelectedPassengerCount,
   isInboundDirection,
+  pickNewerEta,
+  pickNewerLatest,
   SHUTTLE_TRIP_ACTIVE_STATUSES,
   shuttleRouteLabel,
   toDriverOption,
+  toShuttleMapPoint,
   toVehicleOption,
   type ShuttleDriver,
+  type ShuttleRealtimeStatus,
   type ShuttleTripTracking,
   type ShuttleVehicle,
 } from "./dispatchHelpers";
+import { useShuttleTrackingSocket } from "./useShuttleTrackingSocket";
 
 const REQUEST_PAGE_SIZE = 8;
 const RESOURCE_PAGE_SIZE = 50;
 const SHUTTLE_TRIP_PAGE_SIZE = 12;
+// Mức zoom khi bám một xe, giống màn Operations.
+const FOLLOW_VEHICLE_ZOOM = 15;
+// Mảng rỗng ổn định identity — fitPoints đổi identity vô cớ là một lần fitBounds
+// thừa, kéo khung nhìn về giữa lúc điều độ viên đang kéo bản đồ.
+const EMPTY_FIT_POINTS: GoogleMapCoordinate[] = [];
 
 // Mục tiêu của hộp thoại huỷ: một yêu cầu chờ điều phối (theo
 // mainTripId + bookingId + direction) hoặc một chuyến trung chuyển đã tạo.
@@ -183,10 +207,16 @@ export default function DispatchPanel() {
   const [isLoadingShuttleTrips, setIsLoadingShuttleTrips] = useState(true);
   const [shuttleTripsError, setShuttleTripsError] = useState("");
   const [shuttleTripsVersion, setShuttleTripsVersion] = useState(0);
-  // Vị trí/ETA theo yêu cầu của từng chuyến, khoá theo shuttleTripId
+  // Vị trí/ETA của từng chuyến, khoá theo shuttleTripId
   const [trackingByTripId, setTrackingByTripId] = useState<
     Record<string, ShuttleTripTracking>
   >({});
+  const [realtimeStatus, setRealtimeStatus] =
+    useState<ShuttleRealtimeStatus>("connecting");
+  // Xe đang bám trên bản đồ. null = xem toàn đội.
+  const [selectedShuttleTripId, setSelectedShuttleTripId] = useState<
+    string | null
+  >(null);
 
   const directionLabel = useCallback(
     (direction: ShuttleDirection) =>
@@ -361,10 +391,25 @@ export default function DispatchPanel() {
           getShuttleTripLatest(shuttleTripId),
           getShuttleTripEta(shuttleTripId),
         ]);
-        setTrackingByTripId((current) => ({
-          ...current,
-          [shuttleTripId]: { latest, eta, isRefreshing: false },
-        }));
+        setTrackingByTripId((current) => {
+          const existing = current[shuttleTripId];
+          // Lượt REST này có thể về sau một event socket mới hơn (nạp lần đầu
+          // khi join, hoặc người dùng bấm làm mới đúng lúc xe đang gửi GPS) —
+          // không được để nó kéo thẻ lùi về số liệu cũ.
+          const nextLatest = pickNewerLatest(existing?.latest, latest);
+          const nextEta = pickNewerEta(existing?.eta, eta);
+
+          return {
+            ...current,
+            [shuttleTripId]: {
+              latest: nextLatest,
+              eta: nextEta,
+              isRefreshing: false,
+              isLive:
+                Boolean(existing?.isLive) && nextLatest === existing?.latest,
+            },
+          };
+        });
       } catch (error) {
         setTrackingByTripId((current) => ({
           ...current,
@@ -384,6 +429,98 @@ export default function DispatchPanel() {
     },
     [t],
   );
+
+  const activeShuttleTripIds = useMemo(
+    () => shuttleTrips.map((trip) => trip.shuttleTripId),
+    [shuttleTrips],
+  );
+
+  // Chỉ chuyến đã có toạ độ mới lên bản đồ; các chuyến còn lại vẫn nằm ở lưới
+  // thẻ bên dưới với hint "chưa gửi tín hiệu".
+  const shuttleMapPoints = useMemo(
+    () =>
+      shuttleTrips
+        .map((trip) =>
+          toShuttleMapPoint(trip, trackingByTripId[trip.shuttleTripId], {
+            unknownVehicle: t("dispatch.unknownVehicle"),
+            unassignedDriver: t("dispatch.unassignedDriver"),
+            route: directionLabel(trip.direction),
+          }),
+        )
+        .filter((point): point is FleetVehicleMapPoint => point !== null),
+    [directionLabel, shuttleTrips, t, trackingByTripId],
+  );
+
+  const selectedShuttlePosition = useMemo(
+    () =>
+      shuttleMapPoints.find((point) => point.id === selectedShuttleTripId)
+        ?.position ?? null,
+    [selectedShuttleTripId, shuttleMapPoints],
+  );
+
+  // Chưa chọn xe nào thì để bản đồ tự khung nhìn bao trọn cả đội; chọn rồi thì
+  // bám theo xe đó và bỏ fit để khung nhìn không giật về mỗi lượt GPS.
+  const shuttleFitPoints = useMemo(
+    () =>
+      selectedShuttlePosition
+        ? EMPTY_FIT_POINTS
+        : shuttleMapPoints
+            .map((point) => point.position)
+            .filter((position): position is GoogleMapCoordinate =>
+              Boolean(position),
+            ),
+    [selectedShuttlePosition, shuttleMapPoints],
+  );
+
+  const applyShuttleGps = useCallback((event: ShuttleGpsUpdateEvent) => {
+    setTrackingByTripId((current) => {
+      const existing = current[event.shuttleTripId];
+      const latest = pickNewerLatest(existing?.latest, event);
+      // Event cũ hơn điểm đang hiện (reconnect đẩy lại): bỏ qua hẳn lượt cập
+      // nhật thay vì render lại với đúng dữ liệu cũ.
+      if (latest === existing?.latest) return current;
+
+      return {
+        ...current,
+        [event.shuttleTripId]: {
+          ...existing,
+          isRefreshing: existing?.isRefreshing ?? false,
+          latest,
+          isLive: true,
+          error: undefined,
+        },
+      };
+    });
+  }, []);
+
+  const applyShuttleEta = useCallback((event: ShuttleEtaUpdateEvent) => {
+    setTrackingByTripId((current) => {
+      const existing = current[event.shuttleTripId];
+      const eta = pickNewerEta(existing?.eta, event);
+      if (eta === existing?.eta) return current;
+
+      return {
+        ...current,
+        [event.shuttleTripId]: {
+          ...existing,
+          isRefreshing: existing?.isRefreshing ?? false,
+          eta,
+          isLive: true,
+          error: undefined,
+        },
+      };
+    });
+  }, []);
+
+  useShuttleTrackingSocket({
+    shuttleTripIds: activeShuttleTripIds,
+    onGps: applyShuttleGps,
+    onEta: applyShuttleEta,
+    // Room chỉ phát khi tài xế gửi GPS tiếp theo nên nạp một lần từ REST để thẻ
+    // có số liệu ngay; các lượt sau do socket đẩy về.
+    onJoined: (shuttleTripId) => void refreshShuttleTracking(shuttleTripId),
+    onStatus: setRealtimeStatus,
+  });
 
   useEffect(() => {
     let ignore = false;
@@ -1006,11 +1143,33 @@ export default function DispatchPanel() {
       <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {t("dispatch.shuttleTracking")}
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t("dispatch.shuttleTracking")}
+              </h2>
+              {/* Mất realtime nghĩa là số liệu đứng im tới khi bấm làm mới —
+                  điều độ viên phải thấy được điều đó ngay cạnh tiêu đề. */}
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  realtimeStatus === "connected"
+                    ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
+                    : realtimeStatus === "connecting"
+                      ? "bg-gray-100 text-gray-600 ring-1 ring-gray-200"
+                      : "bg-amber-50 text-amber-800 ring-1 ring-amber-100"
+                }`}
+              >
+                {realtimeStatus === "error" ? (
+                  <FiWifiOff size={12} aria-hidden="true" />
+                ) : (
+                  <FiWifi size={12} aria-hidden="true" />
+                )}
+                {t(`dispatch.realtime.${realtimeStatus}`)}
+              </span>
+            </div>
             <p className="mt-1 text-sm text-gray-500">
-              {t("dispatch.shuttleTrackingHint")}
+              {realtimeStatus === "error"
+                ? t("dispatch.shuttleTrackingOfflineHint")
+                : t("dispatch.shuttleTrackingHint")}
             </p>
           </div>
           <button
@@ -1034,6 +1193,25 @@ export default function DispatchPanel() {
           </p>
         )}
 
+        {/* Bản đồ chỉ dựng khi đã có ít nhất một toạ độ: một khung bản đồ trống
+            không nói được gì mà vẫn tốn một lượt tải Google Maps. */}
+        {shuttleMapPoints.length > 0 && (
+          <div className="mt-4 h-72 overflow-hidden rounded-xl border border-gray-200 sm:h-96">
+            <FleetMap
+              vehicles={shuttleMapPoints}
+              selectedId={selectedShuttleTripId}
+              focusCenter={selectedShuttlePosition}
+              focusZoom={FOLLOW_VEHICLE_ZOOM}
+              fitPoints={shuttleFitPoints}
+              onMarkerSelect={(shuttleTripId) =>
+                setSelectedShuttleTripId((current) =>
+                  current === shuttleTripId ? null : shuttleTripId,
+                )
+              }
+            />
+          </div>
+        )}
+
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {shuttleTrips.map((trip) => (
             <ShuttleTrackingCard
@@ -1041,6 +1219,15 @@ export default function DispatchPanel() {
               trip={trip}
               tracking={trackingByTripId[trip.shuttleTripId]}
               canCancelShuttle={canCancelShuttle}
+              isSelected={selectedShuttleTripId === trip.shuttleTripId}
+              hasPosition={Boolean(
+                trackingByTripId[trip.shuttleTripId]?.latest,
+              )}
+              onSelect={(shuttleTripId) =>
+                setSelectedShuttleTripId((current) =>
+                  current === shuttleTripId ? null : shuttleTripId,
+                )
+              }
               onRefresh={(shuttleTripId) =>
                 void refreshShuttleTracking(shuttleTripId)
               }

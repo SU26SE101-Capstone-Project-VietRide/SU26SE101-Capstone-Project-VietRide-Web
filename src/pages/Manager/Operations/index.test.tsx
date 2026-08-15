@@ -1,6 +1,10 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import {
+  routeEndpointPinPath,
+  stopNumberPath,
+} from "../../../components/mapMarkerPaths";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorFleetLatest,
@@ -25,8 +29,26 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+// Ghi lại props camera để khẳng định màn lái đúng cơ chế (bám xe vs fit cả tuyến)
+const { canvasProps } = vi.hoisted(() => ({
+  canvasProps: [] as Array<{
+    fitPoints?: Array<{ lat: number; lng: number }>;
+    focusCenter?: { lat: number; lng: number } | null;
+    focusZoom?: number;
+    polylines?: Array<{ id: string; color: string; opacity?: number }>;
+    pointMarkers?: Array<{
+      id: string;
+      icon?: { scale?: number; fillColor?: string; path?: string };
+      label?: { text: string };
+    }>;
+  }>,
+}));
+
 vi.mock("../../../components/GoogleMapCanvas", () => ({
-  default: () => <div data-testid="fleet-map" />,
+  default: (props: (typeof canvasProps)[number]) => {
+    canvasProps.push(props);
+    return <div data-testid="fleet-map" />;
+  },
 }));
 
 type TrackingSocketHandler = (event: unknown) => void;
@@ -113,6 +135,7 @@ describe("Manager Operations Center", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     trackingSocketHandlers.clear();
+    canvasProps.length = 0;
 
     // Màn gọi mỗi endpoint hai lượt (IN_PROGRESS + DISRUPTED); mock phải phân
     // biệt theo status, nếu trả cùng một danh sách cho cả hai thì mọi xe bị nhân đôi.
@@ -479,6 +502,192 @@ describe("Manager Operations Center", () => {
     await user.click(screen.getByText("operations.deselectTrip"));
     expect(await screen.findByText("gps.vehicleList")).toBeInTheDocument();
     expect(screen.queryByText("gps.realTrackingTitle")).not.toBeInTheDocument();
+  });
+
+  // Bản đồ CHỈ vẽ tuyến nhà xe đã set up + marker vị trí xe. GPS demo/teleport
+  // nối lại thành "đường xe đã đi" là bịa ra lộ trình không có thật.
+  it("chỉ vẽ tuyến đã set up, không vẽ đường xe thực đi từ điểm GPS", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getTrackingTripRouteGeometry).mockResolvedValue({
+      tripId: "trip-1",
+      geometry: {
+        source: "ROUTE_POLYLINE",
+        points: [
+          { latitude: 10.77, longitude: 106.7 },
+          { latitude: 11.94, longitude: 108.44 },
+        ],
+      },
+      originStation: null,
+      intermediateStops: [],
+      destinationStation: null,
+    });
+    // Vệt GPS nhảy cóc TP.HCM → Tuy Hoà: có dữ liệu nhưng không được lên bản đồ
+    vi.mocked(getTrackingTripTrail).mockResolvedValue({
+      items: [
+        {
+          tripId: "trip-1",
+          latitude: 13.09,
+          longitude: 109.3,
+          speedKmh: 60,
+          recordedAt: "2026-08-05T09:30:00Z",
+        },
+        {
+          tripId: "trip-1",
+          latitude: 10.77,
+          longitude: 106.7,
+          speedKmh: 40,
+          recordedAt: "2026-08-05T08:30:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 2,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    renderPage();
+
+    await user.click(await screen.findByText("51A-123.45"));
+    await screen.findByText("gps.realTrackingTitle");
+
+    await waitFor(() => {
+      const ids = (canvasProps.at(-1)?.polylines ?? []).map((line) => line.id);
+      expect(ids.some((id) => id.startsWith("selected-trip-route"))).toBe(true);
+      expect(ids).not.toContain("selected-trip-trail");
+    });
+    // Chú giải cũng không còn dòng "hành trình đã đi"
+    expect(screen.queryByText("gps.legendTrailLine")).not.toBeInTheDocument();
+
+    // Tuyến phải vẽ bằng tông teal của app, KHÔNG phải xám nhạt — xám 55% chìm
+    // nghỉm vào chính các con đường của bản đồ nền
+    const routeLine = (canvasProps.at(-1)?.polylines ?? []).find((line) =>
+      line.id.startsWith("selected-trip-route"),
+    );
+    expect(routeLine?.color).not.toBe("#94a3b8");
+    expect(routeLine?.opacity ?? 1).toBeGreaterThan(0.9);
+  });
+
+  // Bến/điểm dừng phải vẽ ĐÚNG kiểu màn Tuyến & điểm dừng: pin cho hai bến, đĩa
+  // đánh số cho điểm dừng giữa tuyến (trước đây là chấm tròn ~3px, mất hút)
+  it("vẽ pin bến đi/bến đến và đĩa số điểm dừng như màn Tuyến & điểm dừng", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getTrackingTripRouteGeometry).mockResolvedValue({
+      tripId: "trip-1",
+      geometry: {
+        source: "ROUTE_POLYLINE",
+        points: [
+          { latitude: 10.77, longitude: 106.7 },
+          { latitude: 11.94, longitude: 108.44 },
+        ],
+      },
+      originStation: {
+        stationId: "station-1",
+        name: "Bến xe Cần Thơ",
+        latitude: 10.03,
+        longitude: 105.78,
+      },
+      intermediateStops: [
+        {
+          stopId: "stop-1",
+          name: "Trạm Trung Lương",
+          sequence: 1,
+          latitude: 10.4,
+          longitude: 106.3,
+        },
+      ],
+      destinationStation: {
+        stationId: "station-2",
+        name: "Bến xe Miền Tây",
+        latitude: 10.74,
+        longitude: 106.62,
+      },
+    });
+    renderPage();
+
+    await user.click(await screen.findByText("51A-123.45"));
+
+    await waitFor(() => {
+      const markers = canvasProps.at(-1)?.pointMarkers ?? [];
+      const origin = markers.find((marker) =>
+        marker.id.startsWith("route-origin-"),
+      );
+      const destination = markers.find((marker) =>
+        marker.id.startsWith("route-destination-"),
+      );
+      const stop = markers.find((marker) => marker.id.startsWith("route-stop-"));
+
+      // Cùng Symbol path với màn Tuyến & điểm dừng
+      expect(origin?.icon?.path).toBe(routeEndpointPinPath);
+      expect(origin?.icon?.fillColor).toBe("#0f766e");
+      expect(destination?.icon?.path).toBe(routeEndpointPinPath);
+      expect(destination?.icon?.fillColor).toBe("#dc2626");
+      // Điểm dừng giữa tuyến là đĩa mang số thứ tự ngay bên trong
+      expect(stop?.icon?.path).toBe(stopNumberPath);
+      expect(stop?.label?.text).toBe("1");
+    });
+
+    // Chú giải nói rõ mấy chấm đó là gì
+    expect(screen.getByText("gps.originStation")).toBeInTheDocument();
+    expect(screen.getByText("gps.stopPoint")).toBeInTheDocument();
+  });
+
+  // Theo dõi chuyến là để thấy xe đang chạy đường nào: camera phải BÁM XE ở mức
+  // zoom đường phố, không fitBounds cả tuyến liên tỉnh (zoom ra mức nhìn cả nước).
+  it("bám xe ở zoom đường phố khi chọn chuyến, không fit cả tuyến", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getTrackingTripRouteGeometry).mockResolvedValue({
+      tripId: "trip-1",
+      geometry: {
+        source: "ROUTE_POLYLINE",
+        points: [
+          { latitude: 10.77, longitude: 106.7 },
+          { latitude: 11.94, longitude: 108.44 },
+        ],
+      },
+      originStation: null,
+      intermediateStops: [],
+      destinationStation: null,
+    });
+    renderPage();
+
+    await user.click(await screen.findByText("51A-123.45"));
+    await screen.findByText("gps.realTrackingTitle");
+
+    await waitFor(() => {
+      const props = canvasProps.at(-1);
+      expect(props?.focusCenter).toEqual({ lat: 10.77, lng: 106.7 });
+      expect(props?.focusZoom).toBe(14);
+      // fitBounds tắt hẳn — hai cơ chế cùng lái camera sẽ giật qua lại
+      expect(props?.fitPoints ?? []).toHaveLength(0);
+    });
+  });
+
+  it("bấm nút chuyển sang xem cả tuyến thì fit lại toàn tuyến", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getTrackingTripRouteGeometry).mockResolvedValue({
+      tripId: "trip-1",
+      geometry: {
+        source: "ROUTE_POLYLINE",
+        points: [
+          { latitude: 10.77, longitude: 106.7 },
+          { latitude: 11.94, longitude: 108.44 },
+        ],
+      },
+      originStation: null,
+      intermediateStops: [],
+      destinationStation: null,
+    });
+    renderPage();
+
+    await user.click(await screen.findByText("51A-123.45"));
+    await user.click(await screen.findByTestId("follow-vehicle-toggle"));
+
+    await waitFor(() => {
+      const props = canvasProps.at(-1);
+      expect(props?.focusCenter).toBeNull();
+      expect((props?.fitPoints ?? []).length).toBeGreaterThan(1);
+    });
   });
 
   it("hiện badge đề xuất lộ trình với số lượng PENDING cho OPERATOR_ADMIN", async () => {

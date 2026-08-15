@@ -1,7 +1,7 @@
 import { FiMapPin } from "react-icons/fi";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { FleetVehicleMapPoint } from "./FleetMap";
+import type { FleetVehicleMapPoint } from "../../../components/fleetMapPoint";
 import { statusDotClass, statusLabel, statusRowBadge } from "./gpsHelpers";
 
 type FleetVehicleListProps = {

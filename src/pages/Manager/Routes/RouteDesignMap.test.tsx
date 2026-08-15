@@ -187,10 +187,11 @@ describe("RouteDesignMap", () => {
         marker.id.startsWith("route-option-label-"),
       );
     expect(selected?.opacity).toBe(1);
-    // Mỗi tuyến chưa chọn có màu riêng và rõ hơn; lớp hit vẫn vô hình.
-    expect(dimmed).toMatchObject({ color: "#c026d3", opacity: 0.78 });
+    // Mọi tuyến chưa chọn dùng CHUNG một màu cùng tông tuyến chính nhưng nhạt
+    // hơn (#0f766e pha trắng); lớp hit vẫn vô hình.
+    expect(dimmed).toMatchObject({ color: "#6aaaa5", opacity: 0.9 });
     expect(dimmedHit).toMatchObject({
-      color: "#c026d3",
+      color: "#6aaaa5",
       opacity: 0,
       weight: 18,
     });
@@ -198,7 +199,7 @@ describe("RouteDesignMap", () => {
     expect(typeof dimmed?.onClick).toBe("function");
     expect(typeof dimmedHit?.onClick).toBe("function");
     expect(new Set(polylines.map((polyline) => polyline.color))).toEqual(
-      new Set(["#0f766e", "#c026d3", "#ea580c"]),
+      new Set(["#0f766e", "#6aaaa5"]),
     );
     expect(optionLabels?.map((label) => label.id)).toEqual([
       "route-option-label-1",
@@ -210,6 +211,32 @@ describe("RouteDesignMap", () => {
         polylines.find((polyline) => polyline.id === `route-option-${index}`)
           ?.color,
       );
+    });
+  });
+
+  // Bubble thời lượng phải nằm trên ĐOẠN TÁCH của chính phương án đó — các
+  // phương án Google trùng tuyến đang chọn gần hết chiều dài, đặt theo tỉ lệ
+  // chiều dài là bubble rơi vào đoạn trùng, nhìn ra tưởng nhãn của tuyến chính
+  it("anchors each duration bubble on the part where its own option diverges", () => {
+    canvasProps.length = 0;
+    render(<RouteDesignMap {...buildProps()} />);
+
+    const labels = (canvasProps.at(-1)?.pointMarkers ?? []).filter((marker) =>
+      marker.id.startsWith("route-option-label-"),
+    );
+    const positionOf = (index: number) =>
+      labels.find((label) => label.id === `route-option-label-${index}`)
+        ?.position;
+
+    // Đúng điểm giữa riêng của từng phương án, không phải điểm nào của tuyến
+    // đang chọn (routeOptions[0])
+    expect(positionOf(1)).toEqual({ lat: 10.95, lng: 107.9 });
+    expect(positionOf(2)).toEqual({ lat: 11.5, lng: 107.2 });
+    routeOptions[0].points.forEach((point) => {
+      expect(labels.map((label) => label.position)).not.toContainEqual({
+        lat: point.latitude,
+        lng: point.longitude,
+      });
     });
   });
 
