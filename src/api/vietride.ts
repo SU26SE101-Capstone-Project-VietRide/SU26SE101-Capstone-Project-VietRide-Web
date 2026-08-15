@@ -2205,10 +2205,22 @@ export type OperatorTripStatus =
 
 export type FleetLatestParams = {
   status?: OperatorTripStatus;
+  /**
+   * Opt-in xe trung chuyển. `"shuttle"` là giá trị DUY NHẤT được hỗ trợ; giá
+   * trị khác BE trả `400 VALIDATION_FAILED`. Shuttle chỉ được ghép vào khi
+   * `status` bỏ trống hoặc bằng `IN_PROGRESS`.
+   */
+  include?: "shuttle";
 };
 
 // speedKmh/headingDeg bị omit khỏi payload khi nguồn GPS không có.
-export type FleetLatestItem = {
+export type TripFleetLatestItem = {
+  /**
+   * Optional vì `kind` là field additive BE mới thêm: môi trường chưa deploy
+   * commit Gap B vẫn trả item main Trip không có field này. Đừng bắt buộc, nếu
+   * không FE lên trước BE là vỡ.
+   */
+  kind?: "TRIP";
   tripId: string;
   latitude: number;
   longitude: number;
@@ -2218,10 +2230,37 @@ export type FleetLatestItem = {
   status: OperatorTripStatus;
 };
 
+/**
+ * GPS gốc của shuttle dùng field `heading`; fleet response đã chuẩn hoá thành
+ * `headingDeg` nên hai nhánh dùng chung tên field.
+ */
+export type ShuttleFleetLatestItem = {
+  kind: "SHUTTLE";
+  shuttleTripId: string;
+  mainTripId: string;
+  latitude: number;
+  longitude: number;
+  speedKmh?: number;
+  headingDeg?: number;
+  recordedAt: string;
+  status: "IN_PROGRESS";
+};
+
+/**
+ * Discriminated union theo `kind` — KHÔNG đọc `tripId` trên item SHUTTLE và
+ * ngược lại. Khoá marker phải prefix (`trip:` / `shuttle:`) vì hai loại id là
+ * hai không gian UUID khác nhau, dùng chung khoá trần sẽ đụng nhau.
+ */
+export type FleetLatestItem = TripFleetLatestItem | ShuttleFleetLatestItem;
+
 export type FleetLatestResponse = {
   items: FleetLatestItem[];
   generatedAt: string;
 };
+
+// Hai type guard `isTripFleetItem` / `isShuttleFleetItem` nằm ở
+// `components/fleetMapPoint.ts`: chúng là hàm thuần, để ở đây thì mọi page test
+// (vốn `vi.mock` cả module API này) đều phải stub lại chúng.
 
 // BE trả kèm hồ sơ hành khách của từng lượt đặt (ShuttlePassengerProfile).
 // Chỉ displayName/phone có thể null khi Identity không tìm được hồ sơ —
@@ -2470,6 +2509,56 @@ export type ShuttleTrackingEta = {
   estimatedArrivalTime: string;
   distanceMeters: number;
   updatedAt: string;
+};
+
+/**
+ * BE khoá 5 giá trị nhưng để mở kiểu string phòng khi thêm trạng thái mới —
+ * xem FE-REQUEST-shuttle-operator-tracking-RESPONSE.md §1.
+ */
+export type ShuttleStopStatus =
+  | "PENDING"
+  | "PICKED_UP"
+  | "DELIVERED"
+  | "NO_SHOW"
+  | "CANCELLED"
+  | (string & {});
+
+export type OperatorShuttleTrackingStop = {
+  /** Thứ tự nghiệp vụ, KHÔNG phải index mảng — đối chiếu ETA bằng field này */
+  pickupOrder: number;
+  bookingId: string | null;
+  latitude: number;
+  longitude: number;
+  status: ShuttleStopStatus;
+  /** true = bến xe, không phải điểm đón nhà khách */
+  isStation: boolean;
+  serviceAddress?: string;
+  serviceOrder?: number;
+  roadDistanceMeters?: number;
+};
+
+export type OperatorShuttleStation = {
+  stationId: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  pickupOrder: number;
+};
+
+/**
+ * Context đầy đủ điểm đón + bến của một chuyến trung chuyển, dành riêng cho
+ * nhà xe (`OPERATOR_ADMIN` / `OPERATOR_STAFF` cùng `operatorId`). BE cố tình
+ * KHÔNG trả tên/SĐT hành khách — màn tracking không cần và không được lộ.
+ *
+ * `station` có thể null: phải chịu được, đừng để vỡ bản đồ.
+ */
+export type OperatorShuttleContext = {
+  shuttleTripId: string;
+  mainTripId: string;
+  direction: ShuttleDirection;
+  status: OperatorShuttleTripStatus | (string & {});
+  stops: OperatorShuttleTrackingStop[];
+  station: OperatorShuttleStation | null;
 };
 
 export type AdminVoucher = {
@@ -6237,6 +6326,20 @@ export function getShuttleTripLatest(shuttleTripId: string) {
 export function getShuttleTripEta(shuttleTripId: string) {
   return apiRequest<ShuttleTrackingEta | null>(
     `/v1/tracking/shuttle-trips/${shuttleTripId}/eta`,
+  );
+}
+
+/**
+ * Toàn bộ điểm đón + bến của một chuyến trung chuyển, cho nhà xe sở hữu chuyến.
+ * Đây là source of truth để vẽ marker; đừng ghép lại từ danh sách yêu cầu
+ * pending. Hành khách dùng endpoint riêng `.../passenger-context`.
+ *
+ * Lỗi thường gặp: `403 TRACKING_ACCESS_DENIED` (khác nhà xe hoặc sai role),
+ * `404 SHUTTLE_TRIP_NOT_FOUND`, `503 TRACKING_CONTEXT_UNAVAILABLE`.
+ */
+export function getOperatorShuttleContext(shuttleTripId: string) {
+  return apiRequest<OperatorShuttleContext>(
+    `/v1/tracking/shuttle-trips/${shuttleTripId}/operator-context`,
   );
 }
 

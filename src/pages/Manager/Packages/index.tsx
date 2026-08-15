@@ -528,8 +528,13 @@ export default function ManagerPackages() {
                       : t("packages.retryPayment")}
                   </button>
                 ) : (
+                  // Hai tình huống khác hẳn nhau, trước đây gộp vào một câu
+                  // "Chưa thể tạo lại hoặc yêu cầu đã hết hạn" nên người dùng
+                  // không biết phải chờ hay phải mua lại.
                   <span className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                    {t("packages.retryPaymentUnavailable")}
+                    {remainingPaymentSeconds > 0
+                      ? t("packages.retryPaymentPending")
+                      : t("packages.retryPaymentExpired")}
                   </span>
                 )}
               </div>

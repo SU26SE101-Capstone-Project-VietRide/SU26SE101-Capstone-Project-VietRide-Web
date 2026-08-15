@@ -189,7 +189,8 @@ export default function Packages() {
 
     try {
       await updateAdminSubscriptionPlan(plan.planId, planToRequest(plan, !plan.isActive));
-      setMessage(t("packages.toggleSuccess", { id: plan.planId }));
+      // Hiện TÊN gói, không phải planId — người dùng không đọc được UUID
+      setMessage(t("packages.toggleSuccess", { name: plan.name }));
       await loadPlans();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("packages.saveFailed"));

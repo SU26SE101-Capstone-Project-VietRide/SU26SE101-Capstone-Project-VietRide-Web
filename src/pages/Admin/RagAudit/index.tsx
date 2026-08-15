@@ -457,7 +457,9 @@ export default function RagAudit() {
                   <span
                     className={"shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold " + feedbackTone(item.rating)}
                   >
-                    {item.rating > 0 ? "+1" : "-1"}
+                    {item.rating > 0
+                      ? t("ragAudit.feedbackPositive")
+                      : t("ragAudit.feedbackNegative")}
                   </span>
                 </div>
                 <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">

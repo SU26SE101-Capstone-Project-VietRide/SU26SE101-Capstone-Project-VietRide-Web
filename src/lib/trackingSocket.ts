@@ -1,7 +1,7 @@
 import { io, type Socket } from "socket.io-client";
 import { getAuthSession } from "../auth";
 import type {
-  FleetLatestItem,
+  TripFleetLatestItem,
   ShuttleTrackingEta,
   ShuttleTrackingLatest,
   TrackingEtaBatchUpdate,
@@ -43,9 +43,11 @@ export type JoinOperatorFleetAck =
   | { success: true; room: string; scope: string }
   | { success: false; error: string; message?: string };
 
-// Payload event "fleet:gps:update" trùng shape item của fleet-latest REST
-// (mục 11.3): tripId, latitude, longitude, speedKmh?, headingDeg?, recordedAt, status.
-export type FleetGpsUpdateEvent = FleetLatestItem;
+// Payload event "fleet:gps:update" trùng shape item MAIN TRIP của fleet-latest
+// REST (mục 11.3): tripId, latitude, longitude, speedKmh?, headingDeg?,
+// recordedAt, status. Xe trung chuyển đi qua event riêng `shuttle:gps:update`
+// nên event này không bao giờ mang item `kind: "SHUTTLE"`.
+export type FleetGpsUpdateEvent = TripFleetLatestItem;
 
 // Tracking service không đi qua Gateway route table cho Socket.IO; kết nối
 // thẳng cùng origin với REST (Nginx proxy trực tiếp tới tracking:3001).

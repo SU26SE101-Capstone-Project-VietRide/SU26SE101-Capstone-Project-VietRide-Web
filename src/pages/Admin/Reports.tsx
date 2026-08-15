@@ -386,22 +386,22 @@ export default function AdminReports() {
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-700">
                     <th className="px-5 py-3">{t("reports.operator")}</th>
-                    <th className="px-5 py-3 text-right">
+                    <th className="px-5 py-3 text-center">
                       {t("reports.completedBookings")}
                     </th>
-                    <th className="px-5 py-3 text-right">
+                    <th className="px-5 py-3 text-center">
                       {t("reports.completedTrips")}
                     </th>
-                    <th className="px-5 py-3 text-right">
+                    <th className="px-5 py-3 text-center">
                       {t("reports.deliveredParcels")}
                     </th>
-                    <th className="px-5 py-3 text-right">
+                    <th className="px-5 py-3 text-center">
                       {t("reports.bookingRevenue")}
                     </th>
-                    <th className="px-5 py-3 text-right">
+                    <th className="px-5 py-3 text-center">
                       {t("reports.parcelRevenue")}
                     </th>
-                    <th className="px-5 py-3 text-right">
+                    <th className="px-5 py-3 text-center">
                       {t("reports.netRevenue")}
                     </th>
                   </tr>
@@ -417,22 +417,22 @@ export default function AdminReports() {
                           {row.operatorName || t("reports.unknownOperator")}
                         </p>
                       </td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                      <td className="px-5 py-4 text-center text-sm text-gray-700">
                         {numberFormatter.format(row.completedBookingCount)}
                       </td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                      <td className="px-5 py-4 text-center text-sm text-gray-700">
                         {numberFormatter.format(row.completedTripCount)}
                       </td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                      <td className="px-5 py-4 text-center text-sm text-gray-700">
                         {numberFormatter.format(row.deliveredParcelCount)}
                       </td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                      <td className="px-5 py-4 text-center text-sm text-gray-700">
                         {formatCurrency(row.netTicketRevenueVnd)}
                       </td>
-                      <td className="px-5 py-4 text-right text-sm text-gray-700">
+                      <td className="px-5 py-4 text-center text-sm text-gray-700">
                         {formatCurrency(row.netParcelRevenueVnd)}
                       </td>
-                      <td className="px-5 py-4 text-right text-sm font-semibold text-gray-900">
+                      <td className="px-5 py-4 text-center text-sm font-semibold text-gray-900">
                         {formatCurrency(row.netTransportRevenueVnd)}
                       </td>
                     </tr>

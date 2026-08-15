@@ -14,6 +14,12 @@ import {
 
 type VoucherTableProps = {
   toolbar: ReactNode;
+  /**
+   * Nội dung khi bảng rỗng — render BÊN TRONG bảng chứ không thay thế cả bảng,
+   * nếu không thanh tìm kiếm biến mất đúng lúc người dùng cần sửa từ khoá.
+   */
+  emptyState: ReactNode;
+  isLoading?: boolean;
   vouchers: AdminVoucher[];
   page: number;
   pageSize: number;
@@ -28,6 +34,8 @@ type VoucherTableProps = {
 
 export default function VoucherTable({
   toolbar,
+  emptyState,
+  isLoading = false,
   vouchers,
   page,
   pageSize,
@@ -82,6 +90,19 @@ export default function VoucherTable({
           </tr>
         </thead>
         <tbody>
+          {vouchers.length === 0 && (
+            <tr>
+              <td colSpan={7} className="px-6 py-12 text-center">
+                {isLoading ? (
+                  <span className="text-sm text-gray-500">
+                    {t("vouchers.loading")}
+                  </span>
+                ) : (
+                  emptyState
+                )}
+              </td>
+            </tr>
+          )}
           {vouchers.map((voucher) => {
             const quantity = quantityOf(voucher);
             const usedCount = usedCountOf(voucher);

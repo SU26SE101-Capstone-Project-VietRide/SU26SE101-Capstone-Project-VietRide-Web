@@ -100,6 +100,8 @@ export function monthLabel(monthKey: string) {
   return Number.isFinite(month) && month > 0 ? `T${month}` : monthKey;
 }
 
+// Giữ nguyên số tiền đầy đủ, KHÔNG rút gọn hay làm tròn. Nhãn trục dài thì nới
+// `width` của YAxis bên RevenueChart, đừng đụng vào con số.
 export function formatCompactMoney(value: number) {
   return formatCurrency(value);
 }

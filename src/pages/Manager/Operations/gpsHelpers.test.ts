@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { OperatorShuttleTripListItem } from "../../../api/vietride";
 import {
+  applyShuttleGpsUpdate,
   bearingBetween,
+  buildShuttleFleetVehicles,
+  isShuttleFleetId,
+  parseShuttleFleetId,
   markPassedStops,
   resolveVehicleHeading,
   routeGeometryPath,
@@ -324,5 +329,84 @@ describe("markPassedStops", () => {
     expect(markPassedStops(stops, [], { lat: 10.77, lng: 106.715 })).toEqual(
       stops,
     );
+  });
+});
+
+// Xe trung chuyển gộp vào bản đồ Vận hành qua `fleet-latest?include=shuttle`.
+// Id marker phải có tiền tố vì shuttleTripId và tripId là hai không gian UUID
+// khác nhau — dùng chung khoá trần thì hai loại xe đè lên nhau.
+describe("shuttle fleet vehicles", () => {
+  const shuttleTrip: OperatorShuttleTripListItem = {
+    shuttleTripId: "36000000-0000-4000-8000-000000000001",
+    mainTripId: "36000000-0000-4000-8000-000000000101",
+    direction: "INBOUND_TO_STATION",
+    status: "IN_PROGRESS",
+    scheduledDepartureTime: "2026-08-15T21:30:00+07:00",
+    scheduledEndTime: "2026-08-15T22:20:00+07:00",
+    actualDepartureTime: null,
+    completedAt: null,
+    vehicle: { id: "vehicle-9", licensePlate: "51B-999.99" },
+    driver: { id: "driver-9", displayName: "Lê Văn C", phone: "0900000009" },
+    passengerCount: 3,
+    stopCount: 2,
+  };
+
+  const labels = {
+    unassignedDriver: "Chưa phân công",
+    unknownVehicle: "Chưa gán xe",
+    routeLabel: () => "Đón khách về bến",
+  };
+
+  it("gắn tiền tố shuttle: vào id để không đụng khoá với chuyến chính", () => {
+    const [vehicle] = buildShuttleFleetVehicles(
+      [shuttleTrip],
+      [
+        {
+          kind: "SHUTTLE",
+          shuttleTripId: shuttleTrip.shuttleTripId,
+          mainTripId: shuttleTrip.mainTripId,
+          latitude: 10.76,
+          longitude: 106.66,
+          speedKmh: 24,
+          headingDeg: 120,
+          recordedAt: "2026-08-15T14:59:59.000Z",
+          status: "IN_PROGRESS",
+        },
+      ],
+      labels,
+    );
+
+    expect(vehicle.id).toBe(`shuttle:${shuttleTrip.shuttleTripId}`);
+    expect(isShuttleFleetId(vehicle.id)).toBe(true);
+    expect(parseShuttleFleetId(vehicle.id)).toBe(shuttleTrip.shuttleTripId);
+    expect(vehicle.plate).toBe("51B-999.99");
+    expect(vehicle.status).toBe("moving");
+    expect(vehicle.position).toEqual({ lat: 10.76, lng: 106.66 });
+  });
+
+  it("chuyến không có GPS (hết TTL 300s) vẫn ở lại danh sách với trạng thái lost", () => {
+    const [vehicle] = buildShuttleFleetVehicles([shuttleTrip], [], labels);
+
+    expect(vehicle.status).toBe("lost");
+    expect(vehicle.position).toBeNull();
+  });
+
+  it("id của chuyến chính không bị nhận nhầm là xe trung chuyển", () => {
+    expect(isShuttleFleetId("36000000-0000-4000-8000-000000000401")).toBe(false);
+    expect(parseShuttleFleetId("36000000-0000-4000-8000-000000000401")).toBeNull();
+    expect(parseShuttleFleetId(null)).toBeNull();
+  });
+
+  it("chỉ cập nhật đúng xe theo id có tiền tố", () => {
+    const vehicles = buildShuttleFleetVehicles([shuttleTrip], [], labels);
+    const updated = applyShuttleGpsUpdate(
+      vehicles,
+      `shuttle:${shuttleTrip.shuttleTripId}`,
+      { latitude: 10.8, longitude: 106.7, speedKmh: 0 },
+    );
+
+    expect(updated[0].position).toEqual({ lat: 10.8, lng: 106.7 });
+    // speed 0 => đứng yên, không phải "mất tín hiệu"
+    expect(updated[0].status).toBe("idle");
   });
 });

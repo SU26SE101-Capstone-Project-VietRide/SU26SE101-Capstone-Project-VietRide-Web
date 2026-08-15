@@ -93,6 +93,34 @@ describe("Admin Vouchers table", () => {
     expect(voucherName.closest("td")).toHaveClass("whitespace-nowrap");
   });
 
+  // Trước đây nhánh rỗng thay thế cả bảng, mà thanh tìm kiếm nằm trong bảng —
+  // tìm không ra kết quả là ô tìm kiếm biến mất, người dùng hết đường sửa từ
+  // khoá (phải tải lại trang). Ô tìm kiếm cũng chớp tắt mỗi lượt tải lại.
+  it("giữ thanh tìm kiếm khi danh sách rỗng và khi đang tải", async () => {
+    vi.mocked(getAdminVouchers).mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      totalItems: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    render(<Vouchers />);
+
+    // Ngay lúc đang tải, ô tìm kiếm đã phải có mặt
+    expect(
+      screen.getByPlaceholderText("vouchers.searchPlaceholder"),
+    ).toBeInTheDocument();
+
+    // Và vẫn còn đó sau khi BE trả về danh sách rỗng, cạnh thông báo rỗng
+    expect(await screen.findByText("vouchers.emptyHint")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("vouchers.searchPlaceholder"),
+    ).toBeInTheDocument();
+  });
+
   it("shows one VND discount field for fixed vouchers and mirrors both BE fields", async () => {
     const user = userEvent.setup();
     vi.mocked(createAdminVoucher).mockResolvedValue({

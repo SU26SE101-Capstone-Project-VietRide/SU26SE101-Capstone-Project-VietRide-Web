@@ -59,6 +59,7 @@ import {
   getOperatorRouteStopMetrics,
   getOperatorDriverSchedules,
   getOperatorFleetLatest,
+  getOperatorShuttleContext,
   getOperatorIncident,
   getOperatorIncidents,
   getOperatorShuttleRequests,
@@ -3189,6 +3190,97 @@ describe("UI gaps API contracts", () => {
       "https://api.vietride.online/v1/tracking/operator/fleet-latest",
       expect.objectContaining({ method: "GET" }),
     );
+  });
+
+  // Shuttle chỉ vào fleet khi opt-in `include=shuttle`; không truyền thì
+  // response giữ nguyên như cũ (chỉ main Trip).
+  it("opts shuttle vehicles into the operator fleet response", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: { items: [], generatedAt: "2026-08-15T15:00:00.000Z" },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorFleetLatest({ include: "shuttle" });
+    await getOperatorFleetLatest({ include: "shuttle", status: "IN_PROGRESS" });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/tracking/operator/fleet-latest?include=shuttle",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/tracking/operator/fleet-latest?include=shuttle&status=IN_PROGRESS",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("loads the operator shuttle tracking context", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-1",
+          email: "ops@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            shuttleTripId: "36000000-0000-4000-8000-000000000001",
+            mainTripId: "36000000-0000-4000-8000-000000000101",
+            direction: "INBOUND_TO_STATION",
+            status: "IN_PROGRESS",
+            stops: [],
+            station: null,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const context = await getOperatorShuttleContext(
+      "36000000-0000-4000-8000-000000000001",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/tracking/shuttle-trips/36000000-0000-4000-8000-000000000001/operator-context",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    // `station: null` là hợp lệ, không được coi là lỗi
+    expect(context.station).toBeNull();
   });
 
   it("lists operator incidents with enum filters and a date range", async () => {

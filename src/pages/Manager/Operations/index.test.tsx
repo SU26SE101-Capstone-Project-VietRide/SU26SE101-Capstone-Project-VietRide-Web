@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorFleetLatest,
+  getOperatorShuttleTrips,
   getOperatorRouteChangeProposals,
   getOperatorTrips,
   getOperatorUsers,
@@ -18,6 +19,7 @@ import {
   getTrackingTripLatest,
   getTrackingTripRouteGeometry,
   getTrackingTripTrail,
+  type OperatorShuttleTripListItem,
   type OperatorTripListItem,
 } from "../../../api/vietride";
 import OperationsPage from "./index";
@@ -75,6 +77,7 @@ vi.mock("../../../lib/trackingSocket", () => ({
 vi.mock("../../../api/vietride", () => ({
   approveOperatorRouteChangeProposal: vi.fn(),
   getOperatorFleetLatest: vi.fn(),
+  getOperatorShuttleTrips: vi.fn(),
   getOperatorRouteChangeProposal: vi.fn(),
   getOperatorRouteChangeProposals: vi.fn(),
   getOperatorTrips: vi.fn(),
@@ -109,6 +112,21 @@ const tripItem: OperatorTripListItem = {
   departureAt: "2026-08-05T08:00:00Z",
   arrivalEstimate: null,
   canSubstituteVehicle: false,
+};
+
+const shuttleTripItem: OperatorShuttleTripListItem = {
+  shuttleTripId: "36000000-0000-4000-8000-000000000001",
+  mainTripId: "36000000-0000-4000-8000-000000000101",
+  direction: "INBOUND_TO_STATION",
+  status: "IN_PROGRESS",
+  scheduledDepartureTime: "2026-08-05T07:30:00Z",
+  scheduledEndTime: "2026-08-05T08:20:00Z",
+  actualDepartureTime: null,
+  completedAt: null,
+  vehicle: { id: "vehicle-9", licensePlate: "51B-999.99" },
+  driver: { id: "driver-9", displayName: "Tài xế C", phone: null },
+  passengerCount: 3,
+  stopCount: 2,
 };
 
 function pagedTrips(items: OperatorTripListItem[]) {
@@ -161,6 +179,16 @@ describe("Manager Operations Center", () => {
         generatedAt: "2026-08-05T08:30:02Z",
       }),
     );
+    // Mặc định không có xe trung chuyển nào đang chạy — case riêng tự override
+    vi.mocked(getOperatorShuttleTrips).mockResolvedValue({
+      items: [],
+      totalItems: 0,
+      page: 1,
+      pageSize: 100,
+      totalPages: 0,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    });
     vi.mocked(getTrackingTripEta).mockResolvedValue({ eta: null });
     vi.mocked(getTrackingTripEtas).mockResolvedValue({ etas: [] });
     vi.mocked(getPublicTrip).mockRejectedValue(new Error("not available"));
@@ -242,8 +270,10 @@ describe("Manager Operations Center", () => {
         page: 1,
         pageSize: 100,
       });
+      // Opt-in xe trung chuyển: không truyền `include` thì BE chỉ trả chuyến chính
       expect(getOperatorFleetLatest).toHaveBeenCalledWith({
         status: "IN_PROGRESS",
+        include: "shuttle",
       });
     });
   });
@@ -735,5 +765,75 @@ describe("Manager Operations Center", () => {
     await user.click(screen.getByRole("button", { name: "close" }));
     expect(await screen.findByText("gps.vehicleList")).toBeInTheDocument();
     expect(screen.queryByText("routeEta.title")).not.toBeInTheDocument();
+  });
+
+  // Xe trung chuyển gộp chung bản đồ Vận hành nhưng phải lọc riêng được: nhét
+  // chung dropdown trạng thái thì chọn "Trung chuyển" là mất bộ lọc trạng thái.
+  it("chip loc rieng cho xe trung chuyen", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorShuttleTrips).mockResolvedValue({
+      items: [shuttleTripItem],
+      totalItems: 1,
+      page: 1,
+      pageSize: 100,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    });
+    vi.mocked(getOperatorFleetLatest).mockImplementation((params) =>
+      Promise.resolve({
+        items:
+          params?.status === "DISRUPTED"
+            ? []
+            : [
+                {
+                  kind: "TRIP" as const,
+                  tripId: "trip-1",
+                  latitude: 10.77,
+                  longitude: 106.7,
+                  speedKmh: 42,
+                  headingDeg: 128,
+                  recordedAt: "2026-08-05T08:30:00Z",
+                  status: "IN_PROGRESS" as const,
+                },
+                {
+                  kind: "SHUTTLE" as const,
+                  shuttleTripId: shuttleTripItem.shuttleTripId,
+                  mainTripId: shuttleTripItem.mainTripId,
+                  latitude: 10.76,
+                  longitude: 106.66,
+                  speedKmh: 24,
+                  headingDeg: 120,
+                  recordedAt: "2026-08-05T08:30:01Z",
+                  status: "IN_PROGRESS" as const,
+                },
+              ],
+        generatedAt: "2026-08-05T08:30:02Z",
+      }),
+    );
+
+    renderPage();
+
+    // Cả hai loại xe cùng nằm trên danh sách khi chưa lọc
+    expect(await screen.findByText("51A-123.45")).toBeInTheDocument();
+    expect(screen.getByText("51B-999.99")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /gps\.filterKind\.shuttle/ }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("51A-123.45")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("51B-999.99")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "gps.filterKind.trip" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("51B-999.99")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("51A-123.45")).toBeInTheDocument();
   });
 });
