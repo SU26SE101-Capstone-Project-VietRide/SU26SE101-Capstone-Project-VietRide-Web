@@ -1,5 +1,6 @@
 import type {
   AdminUserRole,
+  OperatorShuttleContext,
   OperatorShuttleTripListItem,
   OperatorUser,
   OperatorVehicle,
@@ -12,6 +13,7 @@ import type {
 import {
   getFleetStatus,
   type FleetVehicleMapPoint,
+  type TripRouteMarker,
 } from "../../../components/fleetMapPoint";
 
 export type ShuttleVehicle = {
@@ -40,7 +42,72 @@ export type ShuttleTripTracking = {
   eta?: ShuttleTrackingEta | null;
   /** Số liệu đang hiện đến từ event socket chứ không phải lượt gọi REST */
   isLive?: boolean;
+  /**
+   * Điểm đón + bến lấy từ `operator-context`. Nạp cùng lượt `latest`/`eta`;
+   * `undefined` = chưa nạp, `null` = nạp lỗi (không được coi là không có điểm).
+   */
+  context?: OperatorShuttleContext | null;
 };
+
+/**
+ * Tìm điểm đón ứng với `nextPickupOrder` của ETA.
+ *
+ * Đối chiếu bằng `pickupOrder` chứ KHÔNG bằng index mảng: `pickupOrder` là thứ
+ * tự nghiệp vụ, có thể không trùng vị trí trong mảng (điểm bị huỷ vẫn giữ số).
+ */
+export function findStopByPickupOrder(
+  context: OperatorShuttleContext | null | undefined,
+  pickupOrder: number | null | undefined,
+) {
+  if (!context || pickupOrder == null) return null;
+  return (
+    context.stops.find((stop) => stop.pickupOrder === pickupOrder) ?? null
+  );
+}
+
+/**
+ * Nhãn "điểm đón kế tiếp": ưu tiên địa chỉ phục vụ, thiếu thì lùi về số thứ tự.
+ * BE khai `serviceAddress` là optional nên luôn phải có nhánh dự phòng.
+ */
+export function nextPickupLabel(
+  context: OperatorShuttleContext | null | undefined,
+  eta: ShuttleTrackingEta | null | undefined,
+  fallback: (order: number) => string,
+) {
+  if (!eta) return null;
+  const stop = findStopByPickupOrder(context, eta.nextPickupOrder);
+  return stop?.serviceAddress?.trim() || fallback(eta.nextPickupOrder);
+}
+
+/**
+ * Đổi stop của `operator-context` thành marker cho `FleetMap`.
+ *
+ * `isStation` quyết định đầu tuyến: chuyến vào bến thì bến là điểm CUỐI, chuyến
+ * rời bến thì bến là điểm ĐẦU — vẽ ngược lại là đọc sai chiều chạy.
+ */
+export function toShuttleRouteMarkers(
+  context: OperatorShuttleContext | null | undefined,
+  stationFallbackName: string,
+): TripRouteMarker[] {
+  if (!context) return [];
+
+  const stationKind =
+    context.direction === "OUTBOUND_FROM_STATION" ? "origin" : "destination";
+
+  return context.stops.map((stop) => ({
+    id: `shuttle-stop:${stop.pickupOrder}`,
+    kind: stop.isStation ? stationKind : "stop",
+    name:
+      stop.serviceAddress?.trim() ||
+      (stop.isStation
+        ? context.station?.name?.trim() || stationFallbackName
+        : String(stop.pickupOrder)),
+    orderIndex: stop.isStation ? undefined : stop.pickupOrder,
+    // PENDING = xe chưa tới; mọi trạng thái khác coi như đã xử lý xong điểm đó.
+    passed: stop.status !== "PENDING",
+    position: { lat: stop.latitude, lng: stop.longitude },
+  }));
+}
 
 /**
  * Trạng thái kết nối realtime của mục theo dõi. Khai tại đây thay vì dùng chung

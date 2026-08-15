@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelOperatorShuttleRequest,
   cancelOperatorShuttleTrip,
+  getOperatorShuttleContext,
   getOperatorShuttleRequests,
   getOperatorShuttleTrips,
   getShuttleTripEta,
@@ -35,6 +36,7 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorVehicles: vi.fn(),
   getShuttleTripEta: vi.fn(),
   getShuttleTripLatest: vi.fn(),
+  getOperatorShuttleContext: vi.fn(),
 }));
 
 vi.mock("../../../auth", () => ({
@@ -155,6 +157,16 @@ describe("Manager Dispatch", () => {
     });
     vi.mocked(getShuttleTripLatest).mockResolvedValue(null);
     vi.mocked(getShuttleTripEta).mockResolvedValue(null);
+    // Nạp cùng lượt với latest/eta; mặc định trả context rỗng để các case cũ
+    // không phải khai lại.
+    vi.mocked(getOperatorShuttleContext).mockResolvedValue({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      mainTripId: shuttleTrip.mainTripId,
+      direction: "INBOUND_TO_STATION",
+      status: "IN_PROGRESS",
+      stops: [],
+      station: null,
+    });
     vi.mocked(getOperatorShuttleRequests).mockResolvedValue({
       items: [group],
       page: 1,

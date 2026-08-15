@@ -27,6 +27,7 @@ import {
   getOperatorUsers,
   getOperatorVehicles,
   getShuttleTripEta,
+  getOperatorShuttleContext,
   getShuttleTripLatest,
   type OperatorShuttleTripListItem,
   type OperatorUser,
@@ -75,6 +76,7 @@ import {
   shuttleRouteLabel,
   toDriverOption,
   toShuttleMapPoint,
+  toShuttleRouteMarkers,
   toVehicleOption,
   type ShuttleDriver,
   type ShuttleRealtimeStatus,
@@ -397,9 +399,14 @@ export default function DispatchPanel() {
       }));
 
       try {
-        const [latest, eta] = await Promise.all([
+        // `operator-context` nạp song song với latest/eta: nó là source of
+        // truth cho điểm đón, đừng ghép lại từ danh sách yêu cầu pending.
+        // Lỗi riêng của context không được kéo đổ cả lượt tracking, nên bắt
+        // riêng và hạ về null.
+        const [latest, eta, context] = await Promise.all([
           getShuttleTripLatest(shuttleTripId),
           getShuttleTripEta(shuttleTripId),
+          getOperatorShuttleContext(shuttleTripId).catch(() => null),
         ]);
         setTrackingByTripId((current) => {
           const existing = current[shuttleTripId];
@@ -414,6 +421,9 @@ export default function DispatchPanel() {
             [shuttleTripId]: {
               latest: nextLatest,
               eta: nextEta,
+              // Giữ context cũ khi lượt này nạp lỗi — mất điểm đón trên bản đồ
+              // còn tệ hơn là hiển thị bộ điểm của lượt trước.
+              context: context ?? existing?.context ?? null,
               isRefreshing: false,
               isLive:
                 Boolean(existing?.isLive) && nextLatest === existing?.latest,
@@ -426,13 +436,21 @@ export default function DispatchPanel() {
           [shuttleTripId]: {
             ...current[shuttleTripId],
             isRefreshing: false,
+            // `FORBIDDEN` = principal không phải operator hoặc thiếu operatorId;
+            // với người dùng thì cùng nghĩa "không có quyền" như
+            // TRACKING_ACCESS_DENIED nên dùng chung một câu.
             error:
               error instanceof ApiRequestError &&
-              error.code === "TRACKING_ACCESS_DENIED"
+              (error.code === "TRACKING_ACCESS_DENIED" ||
+                error.code === "FORBIDDEN")
                 ? t("dispatch.operatorTrackingDenied")
-                : error instanceof Error
-                  ? error.message
-                  : t("dispatch.trackingFailed"),
+                : error instanceof ApiRequestError &&
+                    (error.code === "TRACKING_FLEET_UNAVAILABLE" ||
+                      error.code === "TRACKING_CONTEXT_UNAVAILABLE")
+                  ? t("dispatch.trackingTemporarilyUnavailable")
+                  : error instanceof Error
+                    ? error.message
+                    : t("dispatch.trackingFailed"),
           },
         }));
       }
@@ -480,6 +498,18 @@ export default function DispatchPanel() {
               Boolean(position),
             ),
     [selectedShuttlePosition, shuttleMapPoints],
+  );
+
+  // Điểm đón + bến của chuyến đang chọn, vẽ dọc lộ trình như màn Vận hành.
+  const selectedShuttleStops = useMemo(
+    () =>
+      toShuttleRouteMarkers(
+        selectedShuttleTripId
+          ? trackingByTripId[selectedShuttleTripId]?.context
+          : null,
+        t("dispatch.shuttleStationFallback"),
+      ),
+    [selectedShuttleTripId, t, trackingByTripId],
   );
 
   const applyShuttleGps = useCallback((event: ShuttleGpsUpdateEvent) => {
@@ -1213,6 +1243,7 @@ export default function DispatchPanel() {
               focusCenter={selectedShuttlePosition}
               focusZoom={FOLLOW_VEHICLE_ZOOM}
               fitPoints={shuttleFitPoints}
+              routeStops={selectedShuttleStops}
               onMarkerSelect={(shuttleTripId) =>
                 setSelectedShuttleTripId((current) =>
                   current === shuttleTripId ? null : shuttleTripId,

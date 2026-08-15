@@ -351,25 +351,26 @@ export default function Vouchers() {
           />
         </div>
 
-        {isLoading ? (
-          <div className="rounded-lg border border-gray-200 bg-white px-6 py-8 text-sm text-gray-500">
-            {t("vouchers.loading")}
-          </div>
-        ) : vouchers.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 py-12 text-center">
-            <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600">
-              {t("vouchers.emptyType", {
-                type: t("vouchers.emptyTypeBooking"),
-              })}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {t("vouchers.emptyHint")}
-            </p>
-          </div>
-        ) : (
-          <VoucherTable
+        {/* Bảng luôn được render kể cả khi rỗng: trước đây nhánh rỗng thay thế
+            cả <VoucherTable>, mà thanh tìm kiếm lại nằm trong đó — tìm không ra
+            kết quả là ô tìm kiếm biến mất, không còn chỗ nào sửa từ khoá. Ô tìm
+            kiếm cũng chớp tắt mỗi lần tải lại vì `isLoading` dùng chung nhánh. */}
+        <VoucherTable
             toolbar={voucherToolbar}
+            isLoading={isLoading}
+            emptyState={
+              <>
+                <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
+                <p className="text-gray-600">
+                  {t("vouchers.emptyType", {
+                    type: t("vouchers.emptyTypeBooking"),
+                  })}
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {t("vouchers.emptyHint")}
+                </p>
+              </>
+            }
             vouchers={vouchers}
             page={voucherPage}
             pageSize={pageSize}
@@ -381,7 +382,6 @@ export default function Vouchers() {
             onEdit={openEditModal}
             onDelete={setDeletingVoucher}
           />
-        )}
       </div>
 
       <Modal

@@ -14,7 +14,11 @@ import type {
   ShuttleDirection,
 } from "../../../api/vietride";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
-import { formatTime, type ShuttleTripTracking } from "./dispatchHelpers";
+import {
+  formatTime,
+  nextPickupLabel,
+  type ShuttleTripTracking,
+} from "./dispatchHelpers";
 
 type ShuttleTrackingCardProps = {
   trip: OperatorShuttleTripListItem;
@@ -219,10 +223,13 @@ export default function ShuttleTrackingCard({
                 : t("dispatch.noEtaYet")}
             </p>
             {tracking?.eta && (
+              // Địa chỉ điểm đón lấy từ operator-context, đối chiếu bằng
+              // `pickupOrder`. Chưa nạp được context thì lùi về số thứ tự chứ
+              // không bỏ trống.
               <p className="mt-0.5 text-gray-500">
-                {t("dispatch.pickupOrderValue", {
-                  order: tracking.eta.nextPickupOrder,
-                })}
+                {nextPickupLabel(tracking.context, tracking.eta, (order) =>
+                  t("dispatch.pickupOrderValue", { order }),
+                )}
               </p>
             )}
           </div>

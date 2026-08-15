@@ -23,13 +23,14 @@
   "enable": "Kích hoạt",
   "disable": "Vô hiệu hóa",
   "search": "Tìm kiếm",
-  "searchOptions": "Tìm {{label}}...",
+  "searchOptions": "Tìm {{label}}",
   "noMatchingOptions": "Không tìm thấy lựa chọn phù hợp.",
   "filter": "Lọc",
   "columns": "Cột hiển thị",
   "exportCsv": "Xuất tệp CSV",
   "exportReport": "Xuất báo cáo",
   "refresh": "Làm mới",
+  "loading": "Đang tải...",
   "previous": "Trước",
   "next": "Sau",
   "viewAll": "Xem tất cả",
@@ -75,7 +76,7 @@
   "pageLoading": "Đang tải trang...",
   "topbar": {
     "defaultUserName": "Quản lý nhà xe",
-    "searchPlaceholder": "Tìm chuyến, lượt đặt vé, đơn hàng...",
+    "searchPlaceholder": "Tìm chuyến, lượt đặt vé, đơn hàng",
     "unreadNotifications": "{{count}} thông báo chưa đọc",
     "loadingNotifications": "Đang tải thông báo...",
     "noNotifications": "Chưa có thông báo nào.",
@@ -221,6 +222,7 @@
     }
   },
   "roles": {
+    "PASSENGER": "Khách hàng",
     "SYSTEM_ADMIN": "Quản trị viên hệ thống",
     "OPERATOR_ADMIN": "Quản trị viên nhà xe",
     "OPERATOR_STAFF": "Nhân viên nhà xe",

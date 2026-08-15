@@ -1,4 +1,32 @@
 import type { GoogleMapCoordinate } from "../lib/googleMaps";
+import type {
+  FleetLatestItem,
+  ShuttleFleetLatestItem,
+  TripFleetLatestItem,
+} from "../api/vietride";
+
+/**
+ * Tách main Trip khỏi fleet response (`fleet-latest` giờ là union theo `kind`).
+ *
+ * Kiểm `!== "SHUTTLE"` chứ KHÔNG phải `=== "TRIP"`: BE thêm `kind` theo kiểu
+ * additive nên môi trường chưa deploy commit Gap B vẫn trả item main Trip không
+ * có field này. So bằng "TRIP" là lọc sạch danh sách, bản đồ đội xe trống trơn
+ * ngay khi FE lên trước BE.
+ *
+ * Để ở file helper thuần (không phải `api/vietride.ts`) vì page test mock cả
+ * module API — hàm thuần nằm trong đó thì test nào cũng phải stub lại.
+ */
+export function isTripFleetItem(
+  item: FleetLatestItem,
+): item is TripFleetLatestItem {
+  return item.kind !== "SHUTTLE";
+}
+
+export function isShuttleFleetItem(
+  item: FleetLatestItem,
+): item is ShuttleFleetLatestItem {
+  return item.kind === "SHUTTLE";
+}
 
 /**
  * Vốn khai trong `pages/Manager/Operations/FleetMap.tsx` khi bản đồ chỉ phục vụ

@@ -14,6 +14,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   getOperatorFleetLatest,
   getOperatorRouteChangeProposals,
+  getOperatorShuttleTrips,
   getOperatorTrips,
   getOperatorUsers,
   getOperatorVehicles,
@@ -23,6 +24,7 @@ import {
   getTrackingTripLatest,
   getTrackingTripRouteGeometry,
   getTrackingTripTrail,
+  type OperatorShuttleTripListItem,
   type OperatorTripListItem,
   type OperatorUser,
   type OperatorVehicle,
@@ -38,12 +40,20 @@ import { getAuthUser } from "../../../auth";
 import FleetMap, {
   type FleetVehicleMapPoint,
 } from "../../../components/FleetMap";
-import FleetFilterBar, { type FleetStatusFilter } from "./FleetFilterBar";
+import {
+  isShuttleFleetItem,
+  isTripFleetItem,
+} from "../../../components/fleetMapPoint";
+import FleetFilterBar, {
+  type FleetKindFilter,
+  type FleetStatusFilter,
+} from "./FleetFilterBar";
 import OperationsStatusBar from "./OperationsStatusBar";
 import FleetMapLegend from "./FleetMapLegend";
 import FleetMetricCard from "./FleetMetricCard";
 import FleetVehicleList from "./FleetVehicleList";
 import ProposalsPanel from "./ProposalsPanel";
+import ShuttleVehiclePanel from "./ShuttleVehiclePanel";
 import TripActionsPanel from "./TripActionsPanel";
 import TripTrackingPanel from "./TripTrackingPanel";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
@@ -56,7 +66,12 @@ import type {
 } from "../../../lib/trackingSocket";
 import {
   applyFleetGpsUpdate,
+  applyShuttleGpsUpdate,
   buildFleetVehicles,
+  buildShuttleFleetVehicles,
+  isShuttleFleetId,
+  parseShuttleFleetId,
+  toShuttleFleetId,
   getFleetStatus,
   markPassedStops,
   mergeTripsById,
@@ -100,8 +115,16 @@ export default function OperationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<FleetStatusFilter>("all");
+  const [filterKind, setFilterKind] = useState<FleetKindFilter>("all");
   // Một state duy nhất cho cả marker/list và panel theo dõi (khoá chung tripId)
-  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  // Id của MỤC ĐANG CHỌN trên bản đồ/danh sách: chuyến chính là UUID trần,
+  // xe trung chuyển có tiền tố "shuttle:". Mọi luồng dữ liệu của chuyến chính
+  // vẫn đọc `selectedTripId` bên dưới nên chọn xe trung chuyển sẽ tự thành
+  // null ở đó — không có request nào bắn đi với id sai loại.
+  const [selectedFleetId, setSelectedFleetId] = useState<string | null>(null);
+  const [shuttleTrips, setShuttleTrips] = useState<OperatorShuttleTripListItem[]>(
+    [],
+  );
   const [focusCenter, setFocusCenter] = useState<GoogleMapCoordinate | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
@@ -215,9 +238,20 @@ export default function OperationsPage() {
         v.driver.toLowerCase().includes(q) ||
         v.route.toLowerCase().includes(q);
       const matchF = filterStatus === "all" || v.status === filterStatus;
-      return matchQ && matchF;
+      // Loại xe là chiều lọc riêng: lọc được "trung chuyển đang mất tín hiệu"
+      const matchKind =
+        filterKind === "all" ||
+        (filterKind === "shuttle") === isShuttleFleetId(v.id);
+      return matchQ && matchF && matchKind;
     });
-  }, [fleetVehicles, searchTerm, filterStatus]);
+  }, [fleetVehicles, filterKind, filterStatus, searchTerm]);
+
+  // Đếm trên TOÀN đội xe, không phải danh sách đã lọc — chip phải báo đúng số
+  // xe trung chuyển hiện có kể cả khi đang lọc sang loại khác.
+  const shuttleVehicleCount = useMemo(
+    () => fleetVehicles.filter((vehicle) => isShuttleFleetId(vehicle.id)).length,
+    [fleetVehicles],
+  );
 
   const metrics = useMemo(() => {
     const total = fleetVehicles.length;
@@ -236,6 +270,11 @@ export default function OperationsPage() {
     return { total, moving, idle, offline, disrupted, lostSignal };
   }, [fleetVehicles]);
 
+  const selectedTripId = isShuttleFleetId(selectedFleetId)
+    ? null
+    : selectedFleetId;
+  const selectedShuttleTripId = parseShuttleFleetId(selectedFleetId);
+
   const selectedTrip = useMemo(
     () =>
       selectedTripId
@@ -248,7 +287,7 @@ export default function OperationsPage() {
   // tải và tự khoá theo tripId nên ở đây không cần dọn.
   const selectTrip = useCallback(
     (nextTripId: string | null) => {
-      setSelectedTripId(nextTripId);
+      setSelectedFleetId(nextTripId);
       setDelayInfo(null);
       setEta(null);
       setEtaTargets([]);
@@ -303,28 +342,64 @@ export default function OperationsPage() {
       // trước đây màn chỉ hỏi IN_PROGRESS nên một chuyến chuyển sang sự cố là
       // lặng lẽ biến mất khỏi bản đồ, đúng lúc điều độ viên cần thấy nó nhất.
       // Nhánh sự cố không được phép chặn nhánh chính: lỗi thì coi như rỗng.
-      const [tripItems, fleetResult, disruptedTrips, disruptedFleet] =
-        await Promise.all([
-          fetchAllPages(({ page, pageSize }) =>
-            getOperatorTrips({ status: "IN_PROGRESS", page, pageSize }),
-          ),
-          getOperatorFleetLatest({ status: "IN_PROGRESS" }),
-          fetchAllPages(({ page, pageSize }) =>
-            getOperatorTrips({ status: "DISRUPTED", page, pageSize }),
-          ).catch(() => [] as OperatorTripListItem[]),
-          getOperatorFleetLatest({ status: "DISRUPTED" }).catch(() => null),
-        ]);
+      // `include=shuttle` chỉ ghép được xe trung chuyển vào nhánh IN_PROGRESS —
+      // BE bỏ qua Shuttle khi status khác. Danh sách chuyến trung chuyển tải
+      // riêng để lấy biển số/tài xế/chiều chạy: fleet-latest chỉ có GPS + id.
+      // Nhánh trung chuyển lỗi thì coi như rỗng, không chặn đội xe chính.
+      const [
+        tripItems,
+        fleetResult,
+        disruptedTrips,
+        disruptedFleet,
+        shuttleTripItems,
+      ] = await Promise.all([
+        fetchAllPages(({ page, pageSize }) =>
+          getOperatorTrips({ status: "IN_PROGRESS", page, pageSize }),
+        ),
+        getOperatorFleetLatest({ status: "IN_PROGRESS", include: "shuttle" }),
+        fetchAllPages(({ page, pageSize }) =>
+          getOperatorTrips({ status: "DISRUPTED", page, pageSize }),
+        ).catch(() => [] as OperatorTripListItem[]),
+        getOperatorFleetLatest({ status: "DISRUPTED" }).catch(() => null),
+        fetchAllPages(({ page, pageSize }) =>
+          getOperatorShuttleTrips({ page, pageSize }),
+        ).catch(() => [] as OperatorShuttleTripListItem[]),
+      ]);
       // Sự cố xếp trước để nổi lên đầu danh sách xe
       const allTrips = mergeTripsById(disruptedTrips, tripItems);
+      // Màn này chỉ theo dõi chuyến chính; xe trung chuyển nằm ở màn Điều phối
+      // (và chỉ vào fleet khi opt-in `include=shuttle`).
       const nextVehicles = buildFleetVehicles(
         allTrips,
-        mergeTripsById(disruptedFleet?.items ?? [], fleetResult.items),
+        mergeTripsById(
+          (disruptedFleet?.items ?? []).filter(isTripFleetItem),
+          fleetResult.items.filter(isTripFleetItem),
+        ),
         tRef.current("gps.unassignedDriver"),
       );
+
+      // Chỉ giữ chuyến trung chuyển ĐANG CHẠY: SCHEDULED chưa lăn bánh, còn
+      // COMPLETED/CANCELLED thì BE cũng không đưa vào projection GPS.
+      const activeShuttleTrips = shuttleTripItems.filter(
+        (trip) => trip.status === "IN_PROGRESS",
+      );
+      const shuttleVehicles = buildShuttleFleetVehicles(
+        activeShuttleTrips,
+        fleetResult.items.filter(isShuttleFleetItem),
+        {
+          unassignedDriver: tRef.current("gps.unassignedDriver"),
+          unknownVehicle: tRef.current("gps.unknownVehicle"),
+          routeLabel: (direction) =>
+            tRef.current(`gps.shuttleDirection.${direction}`),
+        },
+      );
+      const allVehicles = [...nextVehicles, ...shuttleVehicles];
+
       setTripOptions(allTrips);
-      setFleetVehicles(nextVehicles);
+      setShuttleTrips(activeShuttleTrips);
+      setFleetVehicles(allVehicles);
       setFocusCenter(
-        nextVehicles.find((vehicle) => vehicle.position)?.position ?? null,
+        allVehicles.find((vehicle) => vehicle.position)?.position ?? null,
       );
       setLastRefresh(new Date());
       return allTrips;
@@ -365,12 +440,31 @@ export default function OperationsPage() {
   // đổi màu trên bản đồ thay vì đứng im ở trạng thái cũ.
   const pollFleetLatest = useCallback(() => {
     void Promise.all([
-      getOperatorFleetLatest({ status: "IN_PROGRESS" }),
+      getOperatorFleetLatest({ status: "IN_PROGRESS", include: "shuttle" }),
       getOperatorFleetLatest({ status: "DISRUPTED" }).catch(() => null),
     ])
       .then(([fleetResult, disruptedFleet]) => {
-        const items = [...fleetResult.items, ...(disruptedFleet?.items ?? [])];
-        setFleetVehicles((current) => items.reduce(applyFleetGpsUpdate, current));
+        const allItems = [
+          ...fleetResult.items,
+          ...(disruptedFleet?.items ?? []),
+        ];
+        const tripItems = allItems.filter(isTripFleetItem);
+        // Xe trung chuyển KHÔNG có event socket trên màn này (`fleet:gps:update`
+        // chỉ mang chuyến chính) nên lượt poll là đường cập nhật duy nhất của nó.
+        const shuttleItems = allItems.filter(isShuttleFleetItem);
+
+        setFleetVehicles((current) => {
+          const afterTrips = tripItems.reduce(applyFleetGpsUpdate, current);
+          return shuttleItems.reduce(
+            (vehicles, item) =>
+              applyShuttleGpsUpdate(
+                vehicles,
+                toShuttleFleetId(item.shuttleTripId),
+                item,
+              ),
+            afterTrips,
+          );
+        });
         setLastRefresh(new Date());
       })
       .catch(() => {
@@ -459,9 +553,9 @@ export default function OperationsPage() {
     if (latest?.latest) {
       return { lat: latest.latest.latitude, lng: latest.latest.longitude };
     }
-    const vehicle = fleetVehicles.find((item) => item.id === selectedTripId);
+    const vehicle = fleetVehicles.find((item) => item.id === selectedFleetId);
     return vehicle?.position ?? null;
-  }, [fleetVehicles, latest, selectedTripId]);
+  }, [fleetVehicles, latest, selectedFleetId]);
 
   // Cắt lộ trình tại vị trí xe để tô "đã đi" khác "chưa đi".
   const routeProgress = useMemo(
@@ -481,12 +575,12 @@ export default function OperationsPage() {
   // tuyến". Tuyến liên tỉnh dài mấy trăm km nên fitBounds kéo zoom về mức nhìn
   // cả nước: thấy được toàn cảnh nhưng không đọc nổi xe đang đi đường nào.
   const selectedFitPoints = useMemo(() => {
-    if (!selectedTripId) return [];
+    if (!selectedFleetId) return [];
 
     const points = [...effectiveRoutePath];
     if (selectedVehiclePosition) points.push(selectedVehiclePosition);
     return points.length > 1 ? points : [];
-  }, [effectiveRoutePath, selectedTripId, selectedVehiclePosition]);
+  }, [effectiveRoutePath, selectedFleetId, selectedVehiclePosition]);
 
   // Mặc định BÁM XE ở mức zoom đường phố: theo dõi chuyến là để thấy xe đang
   // chạy trên tuyến đường nào, nên camera dính vào xe và chỉ pan theo từng điểm
@@ -494,7 +588,7 @@ export default function OperationsPage() {
   // GoogleMapCanvas focusZoom) và bấm nút để xem lại toàn tuyến khi cần.
   const [followSelectedVehicle, setFollowSelectedVehicle] = useState(true);
   const isFollowingVehicle = Boolean(
-    selectedTripId && followSelectedVehicle && selectedVehiclePosition,
+    selectedFleetId && followSelectedVehicle && selectedVehiclePosition,
   );
   // Bám xe và fitBounds là hai cơ chế cùng lái camera — bật cái này phải tắt
   // cái kia, không thì mỗi điểm GPS mới là một lần giật qua lại.
@@ -801,6 +895,9 @@ export default function OperationsPage() {
         onSearchTermChange={setSearchTerm}
         filterStatus={filterStatus}
         onFilterStatusChange={setFilterStatus}
+        filterKind={filterKind}
+        onFilterKindChange={setFilterKind}
+        shuttleCount={shuttleVehicleCount}
       />
 
 
@@ -904,6 +1001,22 @@ export default function OperationsPage() {
                 // trên bản đồ thành cũ nếu không tải lại.
                 setRouteGeometryRefreshKey((current) => current + 1);
               }}
+            />
+          </div>
+        ) : selectedShuttleTripId ? (
+          <div className="flex min-h-0 flex-col gap-4 xl:max-h-[min(72vh,640px)] xl:overflow-y-auto">
+            <ShuttleVehiclePanel
+              trip={
+                shuttleTrips.find(
+                  (trip) => trip.shuttleTripId === selectedShuttleTripId,
+                ) ?? null
+              }
+              speedKmh={
+                fleetVehicles.find((vehicle) => vehicle.id === selectedFleetId)
+                  ?.speedKmh ?? null
+              }
+              onDeselect={() => selectTrip(null)}
+              onOpenDispatch={() => navigate("/manager/dispatch")}
             />
           </div>
         ) : selectedTripId ? (

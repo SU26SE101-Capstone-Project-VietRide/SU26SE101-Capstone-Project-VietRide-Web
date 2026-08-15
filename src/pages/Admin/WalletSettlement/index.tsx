@@ -38,6 +38,25 @@ import { formatCurrency } from "../../../utils/currency";
 
 const pageSize = 10;
 
+// `displayName` là tên tài khoản trong DB, KHÔNG phải chuỗi dịch — nên bình
+// thường không được đụng vào. Ngoại lệ duy nhất: tài khoản hệ thống được seed
+// sẵn với tên tiếng Anh cố định, không phải người thật, nên hiện alias đã dịch
+// cho khớp phần còn lại của UI. Đổi tên tài khoản đó trong DB thì bỏ map này.
+const SYSTEM_ACCOUNT_DISPLAY_NAMES = new Set([
+  "System Admin",
+  "System Administrator",
+]);
+
+function accountName(
+  displayName: string | null | undefined,
+  systemAdminLabel: string,
+) {
+  const name = displayName?.trim();
+  if (!name) return "-";
+
+  return SYSTEM_ACCOUNT_DISPLAY_NAMES.has(name) ? systemAdminLabel : name;
+}
+
 const statusClass: Record<TripSettlementStatus, string> = {
   PENDING_HOLD: "bg-amber-50 text-amber-700",
   ELIGIBLE: "bg-blue-50 text-blue-700",
@@ -464,21 +483,21 @@ export default function WalletSettlement() {
                       <td className="whitespace-nowrap px-4 py-3 text-center font-semibold">
                         {formatMoney(record.netAmount)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                      <td className="whitespace-nowrap px-4 py-3 text-center">
                         {formatDate(
                           record.settlementMethod === "ADMIN_MANUAL" && record.settledAt
                             ? record.settledAt
                             : record.eligibleAt,
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                      <td className="whitespace-nowrap px-4 py-3 text-center">
                         <span
                           className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[record.status]}`}
                         >
                           {t(`walletSettlement.status.${record.status}`)}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                      <td className="whitespace-nowrap px-4 py-3 text-center">
                         <p>
                           {record.settlementMethod
                             ? t(
@@ -489,11 +508,11 @@ export default function WalletSettlement() {
                         {record.settledBy ? (
                           <p className="mt-1 text-xs text-gray-500">
                             {t("walletSettlement.settledBy")}:{" "}
-                            {record.settledBy.displayName}
+                            {accountName(record.settledBy.displayName, t("walletSettlement.systemAdminActor"))}
                           </p>
                         ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                      <td className="whitespace-nowrap px-4 py-3 text-center">
                         {record.activeFailureCode ? (
                           <div className="flex items-center justify-center gap-2 text-amber-700">
                             <FiAlertTriangle className="shrink-0" />
@@ -507,7 +526,7 @@ export default function WalletSettlement() {
                           "-"
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                      <td className="whitespace-nowrap px-4 py-3 text-center">
                         <button
                           type="button"
                           disabled={
@@ -721,13 +740,13 @@ function WalletTransactionTable({
               const isCredit = item.type === "CREDIT";
   return (
                 <tr key={item.transactionId} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-4 py-3 text-left">{formatDate(item.createdAt)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">{formatDate(item.createdAt)}</td>
                   <td className="px-4 py-3 text-center"><span className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? <FiArrowDown /> : <FiArrowUp />}{t(isCredit ? "walletSettlement.moneyIn" : "walletSettlement.moneyOut")}</span></td>
-                  <td className={`whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? "+" : "-"}{formatMoney(item.amount)}</td>
+                  <td className={`whitespace-nowrap px-4 py-3 text-center font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? "+" : "-"}{formatMoney(item.amount)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center text-gray-600">{formatMoney(item.balanceBefore)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center font-semibold">{formatMoney(item.balanceAfter)}</td>
                   <td className="px-4 py-3 text-center text-gray-700">{t(`walletSettlement.references.${item.referenceType}`, { defaultValue: item.referenceType })}</td>
-                  <td className="px-4 py-3 text-center">{item.actorType === "SYSTEM" ? t("walletSettlement.systemActor") : (item.actor?.displayName ?? "-")}</td>
+                  <td className="px-4 py-3 text-center">{item.actorType === "SYSTEM" ? t("walletSettlement.systemActor") : accountName(item.actor?.displayName, t("walletSettlement.systemAdminActor"))}</td>
                 </tr>
               );
             })}

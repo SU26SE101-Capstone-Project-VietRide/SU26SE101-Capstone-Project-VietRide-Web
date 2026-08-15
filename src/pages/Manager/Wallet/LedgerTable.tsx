@@ -8,8 +8,19 @@ export function LedgerTable({ items, t, tc }: { items: OperatorLedgerEntry[]; t:
   return (
     <div className="overflow-x-auto">
       <table className="w-full table-fixed text-center text-sm">
+        {/* `table-fixed` mà không khai bề rộng thì 6 cột chia đều 16.7% — mã tham
+            chiếu (VR-PCL-20260815-44KV5S53) bị bẻ xuống hai dòng trong khi cột
+            trạng thái chỉ chứa dấu "-" lại thừa chỗ. */}
+        <colgroup>
+          <col className="w-[15%]" />
+          <col className="w-[25%]" />
+          <col className="w-[22%]" />
+          <col className="w-[14%]" />
+          <col className="w-[14%]" />
+          <col className="w-[10%]" />
+        </colgroup>
         <thead>
-          <tr className="bg-gray-50 text-center text-xs font-semibold uppercase text-gray-600">
+          <tr className="whitespace-nowrap bg-gray-50 text-center text-xs font-semibold uppercase text-gray-600">
             <th className="px-4 py-3">{t("wallet.datetime")}</th>
             <th className="px-4 py-3">{t("wallet.reference")}</th>
             <th className="px-4 py-3">{t("wallet.entryType")}</th>
@@ -42,7 +53,9 @@ function LedgerRow({ item, t, tc }: { item: OperatorLedgerEntry; t: Translate; t
         {formatWalletDate(occurredAt)}
         {isFallback && <p className="text-[11px] font-normal text-gray-400">{t("wallet.occurredAtFallback")}</p>}
       </td>
-      <td className="px-4 py-3 text-gray-600">{item.referenceCode ?? "-"}</td>
+      <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+        {item.referenceCode ?? "-"}
+      </td>
       <td className="px-4 py-3 font-semibold">
         {tc("enumLabels." + item.entryType, { defaultValue: item.entryType })}
         {item.affectsSettlement === false && (

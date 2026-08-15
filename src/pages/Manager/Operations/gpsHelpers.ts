@@ -1,6 +1,9 @@
 import type {
-  FleetLatestItem,
+  OperatorShuttleTripListItem,
   OperatorTripListItem,
+  ShuttleDirection,
+  ShuttleFleetLatestItem,
+  TripFleetLatestItem,
   TripRouteGeometry,
   TripRouteGeometryPoint,
 } from "../../../api/vietride";
@@ -73,7 +76,7 @@ export function mergeTripsById<T extends { tripId: string }>(
 // — vẫn giữ trong danh sách với status "lost", không có toạ độ nên không có marker.
 export function buildFleetVehicles(
   trips: OperatorTripListItem[],
-  items: FleetLatestItem[],
+  items: TripFleetLatestItem[],
   unassignedDriverLabel: string,
 ): FleetVehicleMapPoint[] {
   const byTripId = new Map(items.map((item) => [item.tripId, item]));
@@ -98,11 +101,115 @@ export function buildFleetVehicles(
   });
 }
 
+/**
+ * Xe trung chuyển và chuyến chính dùng hai không gian UUID khác nhau, nên id
+ * marker phải có tiền tố — dùng chung UUID trần là hai loại xe đè lên nhau khi
+ * trùng id (và không thể biết id đang chọn thuộc loại nào).
+ *
+ * Chuyến chính giữ nguyên UUID trần để không phá deep-link `?tripId=` sẵn có.
+ */
+export const SHUTTLE_FLEET_ID_PREFIX = "shuttle:";
+
+export function toShuttleFleetId(shuttleTripId: string) {
+  return `${SHUTTLE_FLEET_ID_PREFIX}${shuttleTripId}`;
+}
+
+export function isShuttleFleetId(id: string | null | undefined) {
+  return Boolean(id?.startsWith(SHUTTLE_FLEET_ID_PREFIX));
+}
+
+/** Trả về `shuttleTripId` gốc, hoặc null nếu id không phải của xe trung chuyển. */
+export function parseShuttleFleetId(id: string | null | undefined) {
+  return isShuttleFleetId(id)
+    ? (id as string).slice(SHUTTLE_FLEET_ID_PREFIX.length)
+    : null;
+}
+
+/**
+ * Dựng điểm bản đồ cho xe trung chuyển đang chạy, ghép danh sách chuyến (biển
+ * số, tài xế, chiều chạy) với GPS từ `fleet-latest?include=shuttle`.
+ *
+ * Chuyến không có trong `items` = chưa gửi GPS hoặc đã hết TTL 300s → vẫn nằm
+ * trong danh sách với trạng thái `lost`, giống hệt cách xử lý chuyến chính.
+ */
+export function buildShuttleFleetVehicles(
+  trips: OperatorShuttleTripListItem[],
+  items: ShuttleFleetLatestItem[],
+  labels: {
+    unassignedDriver: string;
+    routeLabel: (direction: ShuttleDirection) => string;
+    unknownVehicle: string;
+  },
+): FleetVehicleMapPoint[] {
+  const byShuttleTripId = new Map(
+    items.map((item) => [item.shuttleTripId, item]),
+  );
+
+  return trips.map((trip) => {
+    const location = byShuttleTripId.get(trip.shuttleTripId) ?? null;
+
+    return {
+      id: toShuttleFleetId(trip.shuttleTripId),
+      plate: trip.vehicle.licensePlate?.trim() || labels.unknownVehicle,
+      driver: trip.driver.displayName?.trim() || labels.unassignedDriver,
+      route: labels.routeLabel(trip.direction),
+      speedKmh: location?.speedKmh ?? null,
+      // Chuyến trung chuyển không có trạng thái DISRUPTED nên chỉ suy từ tốc độ.
+      status: location ? getFleetStatus(location) : "lost",
+      position: location
+        ? { lat: location.latitude, lng: location.longitude }
+        : null,
+      headingDeg: location?.headingDeg ?? null,
+    } satisfies FleetVehicleMapPoint;
+  });
+}
+
+/**
+ * Áp GPS mới cho một xe TRUNG CHUYỂN đang có trong danh sách.
+ *
+ * Tách khỏi `applyFleetGpsUpdate` vì hai loại xe khoá theo id khác nhau
+ * (`shuttle:<uuid>` vs `tripId` trần) và xe trung chuyển không có trạng thái
+ * DISRUPTED để suy — chỉ suy từ tốc độ.
+ */
+export function applyShuttleGpsUpdate(
+  current: FleetVehicleMapPoint[],
+  fleetId: string,
+  event: { latitude: number; longitude: number; speedKmh?: number; headingDeg?: number },
+): FleetVehicleMapPoint[] {
+  return current.map((vehicle) => {
+    if (vehicle.id !== fleetId) return vehicle;
+
+    const nextPosition = { lat: event.latitude, lng: event.longitude };
+    return {
+      ...vehicle,
+      position: nextPosition,
+      speedKmh: event.speedKmh ?? null,
+      status: getFleetStatus(event),
+      // Thiết bị không gửi hướng thì suy từ hai điểm GPS liên tiếp, y hệt
+      // chuyến chính (xem applyFleetGpsUpdate).
+      headingDeg:
+        resolveVehicleHeading(event.headingDeg, [
+          { latitude: event.latitude, longitude: event.longitude },
+          ...(vehicle.position
+            ? [
+                {
+                  latitude: vehicle.position.lat,
+                  longitude: vehicle.position.lng,
+                },
+              ]
+            : []),
+        ]) ??
+        vehicle.headingDeg ??
+        null,
+    } satisfies FleetVehicleMapPoint;
+  });
+}
+
 // Áp một điểm GPS mới (socket event hoặc item từ poll fallback) vào danh sách xe.
 // Chỉ cập nhật chuyến đã có trong list — event của chuyến lạ bỏ qua (chờ refresh).
 export function applyFleetGpsUpdate(
   current: FleetVehicleMapPoint[],
-  event: FleetLatestItem,
+  event: TripFleetLatestItem,
 ): FleetVehicleMapPoint[] {
   return current.map((vehicle) => {
     if (vehicle.id !== event.tripId) return vehicle;

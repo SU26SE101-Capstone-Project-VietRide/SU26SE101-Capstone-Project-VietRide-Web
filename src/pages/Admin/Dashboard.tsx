@@ -26,6 +26,7 @@ import {
   Legend,
 } from "recharts";
 import {
+  exportAdminOperators,
   getAdminBookingStatsAggregate,
   getAdminDashboardSummary,
   getAdminRevenueAnalytics,
@@ -34,7 +35,6 @@ import {
   type BookingStatsItem,
   type MetricValue,
 } from "../../api/vietride";
-import { downloadCsv } from "../../utils/csv";
 import { formatCurrency } from "../../utils/currency";
 import { StatCard } from "../../components/StatCard";
 
@@ -331,8 +331,29 @@ export default function AdminDashboard() {
     (sum, item) => sum + item.revenue,
     0,
   );
-  const handleExportReport = (report: { key: string; label: string }) => {
-    if (report.key === "revenue" && revenueAnalytics) {
+  // Chỉ giữ các mục BE thật sự xuất được. Trước đây còn "Người dùng" và "Lượt
+  // đặt vé", nhưng không có endpoint nào phía sau: bấm vào chỉ tải về một file
+  // CSV đúng một dòng ghi "dữ liệu minh họa".
+  const handleExportReport = async (report: { key: string; label: string }) => {
+    if (report.key === "operators") {
+      setLoadError("");
+      try {
+        const blob = await exportAdminOperators();
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `operators-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}.csv`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        setLoadError(
+          err instanceof Error ? err.message : t("dashboard.exportFailed"),
+        );
+      }
+      return;
+    }
+
+    if (revenueAnalytics) {
       downloadRevenueCsv(revenueAnalytics, {
         periodFrom: t("revenue.csvPeriodFrom"),
         periodTo: t("revenue.csvPeriodTo"),
@@ -345,21 +366,12 @@ export default function AdminDashboard() {
         subscriptionRevenue: t("revenue.csvSubscriptionRevenue"),
         paidToOperators: t("revenue.csvPaidToOperators"),
       });
-      return;
     }
-
-    downloadCsv(
-      "admin-dashboard-report.csv",
-      [t("dashboard.csvReportHeader"), t("dashboard.csvNoteHeader")],
-      [[report.label, t("dashboard.csvPlaceholderNote")]],
-    );
   };
 
   const exportReports = [
     { key: "revenue", label: t("dashboard.exportRevenue") },
-    { key: "users", label: t("dashboard.exportUsers") },
     { key: "operators", label: t("dashboard.exportOperators") },
-    { key: "bookings", label: t("dashboard.exportBookings") },
   ];
 
   const handleRefresh = () => {
@@ -414,25 +426,41 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
+              {/* Giữ đúng bố cục biểu đồ cùng loại bên Manager (RevenueChart):
+                  doanh thu luôn đo bằng trục TRÁI, lượt đặt vé trục PHẢI. Trước
+                  đây hai màn đảo ngược nhau nên xem qua lại rất dễ đọc nhầm cột. */}
               <BarChart
                 data={bookingStatsData}
-                margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                margin={{ top: 8, right: 12, left: 4, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" stroke="#9ca3af" />
-                <YAxis
-                  yAxisId="bookings"
-                  stroke="#8b5cf6"
-                  allowDecimals={false}
-                  tickFormatter={formatCompactNumber}
-                  width={45}
+                <CartesianGrid
+                  strokeDasharray="4 4"
+                  stroke="#e5e7eb"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="month"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
                 />
                 <YAxis
                   yAxisId="revenue"
-                  orientation="right"
-                  stroke="#3b82f6"
+                  width={120}
+                  axisLine={false}
+                  tickLine={false}
                   tickFormatter={(value) => formatCurrency(Number(value))}
-                  width={115}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
+                />
+                <YAxis
+                  yAxisId="bookings"
+                  orientation="right"
+                  width={44}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                  tickFormatter={formatCompactNumber}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
                 />
                 <Tooltip
                   formatter={(value, name) => [
@@ -441,25 +469,26 @@ export default function AdminDashboard() {
                       : formatCompactNumber(Number(value ?? 0)),
                     name,
                   ]}
+                  cursor={{ fill: "#f8fafc" }}
                   contentStyle={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
+                    borderRadius: 12,
+                    borderColor: "#e5e7eb",
+                    boxShadow: "0 10px 25px rgba(15, 23, 42, 0.08)",
                   }}
                 />
                 <Legend />
                 <Bar
                   yAxisId="revenue"
                   dataKey="revenue"
-                  fill="#3b82f6"
-                  radius={[6, 6, 0, 0]}
+                  fill="#0284c7"
+                  radius={[5, 5, 0, 0]}
                   name={t("dashboard.revenueLegend")}
                 />
                 <Bar
                   yAxisId="bookings"
                   dataKey="bookings"
-                  fill="#8b5cf6"
-                  radius={[6, 6, 0, 0]}
+                  fill="#14b8a6"
+                  radius={[5, 5, 0, 0]}
                   name={t("dashboard.bookingLegend")}
                 />
               </BarChart>
@@ -701,12 +730,12 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900">{tc("exportReport")}</h3>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           {exportReports.map((report) => (
             <button
               key={report.key}
               type="button"
-              onClick={() => handleExportReport(report)}
+              onClick={() => void handleExportReport(report)}
               disabled={report.key === "revenue" && !revenueAnalytics}
               className="py-2 px-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700 text-sm font-medium transition flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
             >

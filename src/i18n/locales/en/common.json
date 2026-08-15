@@ -23,13 +23,14 @@
   "enable": "Enable",
   "disable": "Disable",
   "search": "Search",
-  "searchOptions": "Search {{label}}...",
+  "searchOptions": "Search {{label}}",
   "noMatchingOptions": "No matching options found.",
   "filter": "Filter",
   "columns": "Columns",
   "exportCsv": "Export CSV",
   "exportReport": "Export report",
   "refresh": "Refresh",
+  "loading": "Loading...",
   "previous": "Previous",
   "next": "Next",
   "viewAll": "View all",
@@ -75,7 +76,7 @@
   "pageLoading": "Loading page...",
   "topbar": {
     "defaultUserName": "Operator manager",
-    "searchPlaceholder": "Search trips, bookings, parcels...",
+    "searchPlaceholder": "Search trips, bookings, parcels",
     "unreadNotifications": "{{count}} unread notifications",
     "loadingNotifications": "Loading notifications...",
     "noNotifications": "No notifications yet.",
@@ -221,6 +222,7 @@
     }
   },
   "roles": {
+    "PASSENGER": "Passenger",
     "SYSTEM_ADMIN": "System administrator",
     "OPERATOR_ADMIN": "Operator admin",
     "OPERATOR_STAFF": "Operator staff",

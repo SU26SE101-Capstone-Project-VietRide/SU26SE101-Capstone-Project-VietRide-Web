@@ -20,7 +20,9 @@ export default function RevenueChart({ data, isLoading }: RevenueChartProps) {
   <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
     <CartesianGrid strokeDasharray="4 4" stroke="#e5e7eb" vertical={false} />
     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#6b7280", fontSize: 12 }} />
-    <YAxis yAxisId="revenue" width={88} axisLine={false} tickLine={false} tickFormatter={formatCompactMoney} tick={{ fill: "#6b7280", fontSize: 12 }} />
+    {/* Nhãn dạng "14.000.000 đ" cần ~95px ở cỡ chữ 12; để 88px là bị bẻ xuống
+        hai dòng. Chừa dư cho mốc hàng tỷ ("1.250.000.000 đ"). */}
+    <YAxis yAxisId="revenue" width={120} axisLine={false} tickLine={false} tickFormatter={formatCompactMoney} tick={{ fill: "#6b7280", fontSize: 12 }} />
     <YAxis yAxisId="bookings" orientation="right" width={44} axisLine={false} tickLine={false} tickFormatter={formatCompactNumber} tick={{ fill: "#6b7280", fontSize: 12 }} />
     <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: 12, borderColor: "#e5e7eb", boxShadow: "0 10px 25px rgba(15, 23, 42, 0.08)" }} formatter={(value, name) => [name === t("dashboard.chartRevenue") ? formatCompactMoney(Number(value ?? 0)) : formatCompactNumber(Number(value ?? 0)), name]} />
     <Legend />
