@@ -1,4 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,6 +15,7 @@ import {
   FiCheckCircle,
   FiAlertCircle,
   FiRefreshCw,
+  FiSliders,
 } from "react-icons/fi";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
@@ -32,6 +34,7 @@ import {
   type CreateAdminOperatorRequest,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import { ConfirmModal } from "../../../components/ConfirmModal";
 import OperatorDetailModal from "./OperatorDetailModal";
 import OperatorOnboardModal from "./OperatorOnboardModal";
@@ -46,6 +49,15 @@ import {
   toKnownStatus,
   type OperatorStatus,
 } from "./operatorHelpers";
+
+// Mọi ô lọc dùng chung một class để cao bằng nhau (min-h-11 khớp CustomSelect /
+// CustomDateTimeInput) — trước đây ô search py-3 còn select py-2 nên so le.
+const filterControlClass =
+  "min-h-11 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
+const searchInputClass =
+  "min-h-11 w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-vr-500 focus:bg-white focus:ring-2 focus:ring-vr-100";
+const toolbarButtonClass =
+  "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white";
 
 export default function Operators() {
   const { t } = useTranslation("admin");
@@ -80,7 +92,13 @@ export default function Operators() {
   const [rejectReason, setRejectReason] = useState("");
   const [suspendReason, setSuspendReason] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 8;
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  // Khoá chung cho 4 thao tác đổi trạng thái (duyệt/từ chối/tạm ngưng/mở lại):
+  // tại một thời điểm chỉ có đúng một modal mở nên không cần tách từng cờ.
+  const [isActing, setIsActing] = useState(false);
+  const pageSize = 10;
+  const startRequest = useLatestRequest();
 
   // tRef để load callback không phụ thuộc `t` (tránh refetch khi đổi ngôn ngữ)
   const tRef = useRef(t);
@@ -103,8 +121,26 @@ export default function Operators() {
     [activationFilter, dateField, dateFrom, dateTo, filterStatus, searchTerm],
   );
 
+  // `dateField` không tính là filter: nó chỉ chọn mốc thời gian, tự nó không lọc gì.
+  const hasActiveFilters = Boolean(
+    searchTerm || filterStatus !== "ALL" || activationFilter || dateFrom || dateTo,
+  );
+  const advancedFilterCount =
+    Number(Boolean(dateFrom)) + Number(Boolean(dateTo));
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setFilterStatus("ALL");
+    setActivationFilter("");
+    setDateField("createdAt");
+    setDateFrom("");
+    setDateTo("");
+    setPage(1);
+  };
+
   // Một loader duy nhất dùng chung cho effect (debounce) và các mutation phía dưới
   const loadOperators = useCallback(async () => {
+    const isLatest = startRequest();
     setIsLoading(true);
     setError("");
 
@@ -115,18 +151,20 @@ export default function Operators() {
         ...listFilters,
       });
 
+      if (!isLatest()) return;
       setOperators(result.items);
       setTotalItems(result.totalItems);
     } catch (err) {
+      if (!isLatest()) return;
       setError(
         err instanceof Error
           ? err.message
           : tRef.current("operators.loadFailed"),
       );
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [listFilters, page]);
+  }, [listFilters, page, startRequest]);
 
   useEffect(() => {
     // Debounce theo pattern của Users.tsx để tránh gọi API mỗi lần gõ phím
@@ -179,7 +217,8 @@ export default function Operators() {
   const restrictedCount = (summary?.suspended ?? 0) + (summary?.rejected ?? 0);
 
   const handleApprove = async () => {
-    if (!selectedOperator) return;
+    if (!selectedOperator || isActing) return;
+    setIsActing(true);
     try {
       await approveAdminOperator(selectedOperator.operatorId);
       setOperators((current) =>
@@ -197,15 +236,18 @@ export default function Operators() {
       setSelectedOperator(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.approveFailed"));
+    } finally {
+      setIsActing(false);
     }
   };
 
   const handleReject = async () => {
-    if (!selectedOperator) return;
+    if (!selectedOperator || isActing) return;
     if (!rejectReason.trim()) {
       setError(t("operators.rejectEmptyReason"));
       return;
     }
+    setIsActing(true);
     try {
       await rejectAdminOperator(selectedOperator.operatorId, rejectReason.trim());
       await loadOperators();
@@ -216,6 +258,8 @@ export default function Operators() {
       setSelectedOperator(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.rejectFailed"));
+    } finally {
+      setIsActing(false);
     }
   };
 
@@ -227,7 +271,7 @@ export default function Operators() {
   };
 
   const handleSuspend = async () => {
-    if (!selectedOperator) {
+    if (!selectedOperator || isActing) {
       return;
     }
 
@@ -236,6 +280,7 @@ export default function Operators() {
       return;
     }
 
+    setIsActing(true);
     try {
       await suspendAdminOperator(selectedOperator.operatorId, suspendReason.trim());
       await loadOperators();
@@ -249,10 +294,14 @@ export default function Operators() {
       setError(
         err instanceof Error ? err.message : t("operators.suspendFailed"),
       );
+    } finally {
+      setIsActing(false);
     }
   };
 
   const handleReactivate = async (operator: AdminOperator) => {
+    if (isActing) return;
+    setIsActing(true);
     try {
       await reactivateAdminOperator(operator.operatorId);
       await loadOperators();
@@ -261,10 +310,16 @@ export default function Operators() {
       setPendingReactivate(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.reactivateFailed"));
+    } finally {
+      setIsActing(false);
     }
   };
 
   const handleCreateOperator = async () => {
+    // Không có khoá này thì bấm hai lần là tạo hai nhà xe: mỗi lần bấm sinh một
+    // Idempotency-Key mới nên BE coi là hai yêu cầu khác nhau.
+    if (isCreating) return;
+    setIsCreating(true);
     try {
       await createAdminOperator(operatorForm);
       await loadOperators();
@@ -273,6 +328,8 @@ export default function Operators() {
       setOpenOnboard(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("operators.createFailed"));
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -331,7 +388,7 @@ export default function Operators() {
         <StatCard
           icon={<FiUsers size={20} />}
           label={t("operators.total")}
-          value={operators.length}
+          value={summary?.total ?? operators.length}
           iconClassName="bg-vr-50 text-vr-700"
         />
         <StatCard
@@ -354,18 +411,21 @@ export default function Operators() {
         />
       </div>
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex-1 relative min-w-50">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        {/* Hàng lọc chính chỉ giữ search + 2 trạng thái. Mốc/khoảng ngày dồn vào
+            panel nâng cao như màn Chuyến bên Manager (ScheduleTable) — hàng lọc
+            trước đây nhồi 6 ô trên 2 lưới khác nhau nên mép các ô so le. */}
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_auto_auto]">
+          <div className="relative min-w-0 md:col-span-2 xl:col-span-1">
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              type="text"
+              type="search"
               placeholder={t("operators.searchPlaceholder")}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setPage(1);
               }}
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none text-sm bg-gray-50 focus:bg-white focus:border-vr-500"
+              className={searchInputClass}
             />
           </div>
 
@@ -375,7 +435,7 @@ export default function Operators() {
               setFilterStatus(e.target.value as typeof filterStatus);
               setPage(1);
             }}
-            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium focus:outline-none focus:border-vr-500"
+            className={filterControlClass}
           >
             <option value="ALL">{t("operators.allStatus")}</option>
             <option value="PENDING">{tc("pending")}</option>
@@ -392,60 +452,115 @@ export default function Operators() {
               setPage(1);
             }}
             aria-label={t("operators.filterActivation")}
-            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium focus:outline-none focus:border-vr-500"
+            className={filterControlClass}
           >
             <option value="">{t("operators.allActivation")}</option>
             <option value="ACTIVE">{tc("active")}</option>
             <option value="INACTIVE">{tc("inactive")}</option>
           </CustomSelect>
 
+          {/* Panel đang đóng vẫn phải cho biết có filter ngày đang chạy: viền
+              highlight + số lượng ngay trên nút. */}
+          <button
+            type="button"
+            onClick={() => setShowAdvancedFilters((current) => !current)}
+            aria-expanded={showAdvancedFilters}
+            className={`${toolbarButtonClass} ${
+              advancedFilterCount > 0
+                ? "border-vr-300 bg-vr-50 text-vr-800 hover:bg-vr-100"
+                : ""
+            }`}
+          >
+            <FiSliders aria-hidden="true" size={16} />
+            {t("operators.advancedFilters")}
+            {advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ""}
+          </button>
+
           <button
             type="button"
             onClick={() => void handleExportCsv()}
-            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50"
+            className={toolbarButtonClass}
           >
-            <FiDownload className="inline mr-2" size={16} />
+            <FiDownload size={16} />
             {tc("exportCsv")}
           </button>
         </div>
 
-        {/* Khoảng ngày: gửi YYYY-MM-DD, BE tự đổi sang UTC theo giờ Việt Nam */}
-        <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          <CustomSelect
-            value={dateField}
-            onChange={(e) => {
-              setDateField(e.target.value as typeof dateField);
-              setPage(1);
-            }}
-            aria-label={t("operators.dateFieldLabel")}
-            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm font-medium focus:outline-none focus:border-vr-500"
+        {showAdvancedFilters && (
+          <div className="mt-3 grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="min-w-0">
+              <span className="mb-1 block text-xs font-medium text-gray-500">
+                {t("operators.dateFieldLabel")}
+              </span>
+              <CustomSelect
+                value={dateField}
+                onChange={(e) => {
+                  setDateField(e.target.value as typeof dateField);
+                  setPage(1);
+                }}
+                aria-label={t("operators.dateFieldLabel")}
+                className={filterControlClass}
+              >
+                <option value="createdAt">
+                  {t("operators.dateFieldCreatedAt")}
+                </option>
+                <option value="approvedAt">
+                  {t("operators.dateFieldApprovedAt")}
+                </option>
+              </CustomSelect>
+            </div>
+
+            {/* Khoảng ngày: gửi YYYY-MM-DD, BE tự đổi sang UTC theo giờ Việt Nam.
+                Dùng CustomDateTimeInput như các màn khác — input date thuần hiện
+                placeholder mm/dd/yyyy theo locale máy, không khớp UI tiếng Việt. */}
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">
+                {t("operators.dateFromLabel")}
+              </span>
+              <CustomDateTimeInput
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                placeholder={t("operators.dateFromLabel")}
+                aria-label={t("operators.dateFromLabel")}
+                className={filterControlClass}
+              />
+            </label>
+
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">
+                {t("operators.dateToLabel")}
+              </span>
+              <CustomDateTimeInput
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                placeholder={t("operators.dateToLabel")}
+                aria-label={t("operators.dateToLabel")}
+                className={filterControlClass}
+              />
+            </label>
+          </div>
+        )}
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
           >
-            <option value="createdAt">{t("operators.dateFieldCreatedAt")}</option>
-            <option value="approvedAt">{t("operators.dateFieldApprovedAt")}</option>
-          </CustomSelect>
-          <input
-            type="date"
-            value={dateFrom}
-            max={dateTo || undefined}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPage(1);
-            }}
-            aria-label={t("operators.dateFromLabel")}
-            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:outline-none focus:border-vr-500"
-          />
-          <input
-            type="date"
-            value={dateTo}
-            min={dateFrom || undefined}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-              setPage(1);
-            }}
-            aria-label={t("operators.dateToLabel")}
-            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:outline-none focus:border-vr-500"
-          />
-        </div>
+            <FiX aria-hidden="true" size={15} />
+            {t("operators.clearFilters")}
+          </button>
+        )}
 
 
         <div className="mt-4 overflow-x-auto">
@@ -566,6 +681,16 @@ export default function Operators() {
                   </tr>
                 );
               })}
+              {!isLoading && operators.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-6 py-12 text-center text-sm text-gray-500"
+                  >
+                    {t("operators.empty")}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -595,6 +720,7 @@ export default function Operators() {
         onClose={() => setOpenApprove(false)}
         operator={selectedOperator}
         onConfirm={handleApprove}
+        busy={isActing}
       />
 
       <OperatorRejectModal
@@ -604,6 +730,7 @@ export default function Operators() {
         reason={rejectReason}
         onReasonChange={setRejectReason}
         onConfirm={handleReject}
+        busy={isActing}
       />
 
       <OperatorSuspendModal
@@ -613,6 +740,7 @@ export default function Operators() {
         reason={suspendReason}
         onReasonChange={setSuspendReason}
         onConfirm={handleSuspend}
+        busy={isActing}
       />
 
       <OperatorOnboardModal
@@ -621,6 +749,7 @@ export default function Operators() {
         form={operatorForm}
         onChange={updateOperatorForm}
         onSubmit={handleCreateOperator}
+        busy={isCreating}
       />
       <ConfirmModal
         open={Boolean(pendingReactivate)}
@@ -631,6 +760,7 @@ export default function Operators() {
         confirmLabel={tc("confirm")}
         cancelLabel={tc("cancel")}
         tone="success"
+        busy={isActing}
       />
     </div>
   );

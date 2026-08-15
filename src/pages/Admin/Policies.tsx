@@ -91,7 +91,7 @@ export default function AdminPolicies() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const pageSize = 8;
+  const pageSize = 10;
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -139,7 +139,16 @@ export default function AdminPolicies() {
 
   // Ô tìm kiếm và ô nhóm đều đi thẳng lên BE nên phải debounce; đổi điều kiện
   // thì về trang 1 vì tổng số bản ghi đã khác.
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
       setCategoryFilter(categoryDraft.trim());

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 type PaginationProps = {
@@ -52,6 +53,19 @@ export default function Pagination({
   const from = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const to = Math.min(currentPage * pageSize, totalItems);
   const visiblePages = getVisiblePages(currentPage, totalPages);
+
+  // `currentPage` chỉ kẹp lại để VẼ; `page` bên màn cha vẫn nằm ngoài khoảng và
+  // request vẫn xin đúng trang đó. Xoá/huỷ nốt bản ghi cuối của trang 3 là danh
+  // sách còn 2 trang, màn vẫn tải trang 3 → bảng trống trong khi thanh phân trang
+  // lại tô sáng trang 2. Kéo cha về trang cuối còn dữ liệu.
+  //
+  // Chỉ kẹp khi `totalItems > 0`: lúc rỗng (đang tải, hoặc filter không ra kết
+  // quả) `totalPages` bị quy về 1, kẹp ở đây sẽ đá người dùng về trang 1 oan.
+  useEffect(() => {
+    if (totalItems > 0 && page > totalPages) {
+      onPageChange(totalPages);
+    }
+  }, [onPageChange, page, totalItems, totalPages]);
 
   function goToPage(nextPage: number) {
     onPageChange(Math.min(Math.max(nextPage, 1), totalPages));

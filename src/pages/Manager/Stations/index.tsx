@@ -6,6 +6,7 @@ import { StatCard } from "../../../components/StatCard";
 import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 
 const PAGE_SIZE = 10;
 const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -32,8 +33,10 @@ export default function ManagerStationsPage() {
   const [hasPreviousPage, setHasPreviousPage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const startRequest = useLatestRequest();
 
   const load = useCallback(async () => {
+    const isLatest = startRequest();
     setIsLoading(true);
     setError("");
     try {
@@ -48,19 +51,21 @@ export default function ManagerStationsPage() {
         sortBy: "name",
         sortDir: "asc",
       });
+      if (!isLatest()) return;
       setItems(result.items);
       setTotalItems(result.totalItems);
       setTotalPages(result.totalPages);
       setHasNextPage(result.hasNextPage);
       setHasPreviousPage(result.hasPreviousPage);
     } catch (loadError) {
+      if (!isLatest()) return;
       setItems([]);
       setTotalItems(0);
       setError(loadError instanceof Error ? loadError.message : t("stations.loadFailed"));
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [activeFilter, page, search, shuttleFilter, t]);
+  }, [activeFilter, page, search, shuttleFilter, startRequest, t]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 0);

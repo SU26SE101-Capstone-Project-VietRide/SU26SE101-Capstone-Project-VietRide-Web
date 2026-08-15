@@ -141,7 +141,7 @@ export default function ParcelsList() {
   const [isRoutePickerLoading, setIsRoutePickerLoading] = useState(false);
   const routePickerRequestRef = useRef(0);
   useToastFeedback({ message: fareMessage, error: error || fareError });
-  const pageSize = 8;
+  const pageSize = 10;
 
   const selectedFareRoute = useMemo(
     () => routes.find((route) => route.id === fareRouteId) ?? null,

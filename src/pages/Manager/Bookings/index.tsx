@@ -30,7 +30,7 @@ import { formatDateTime } from "../../../utils/date";
 import { inputClass } from "../../../components/form/formClasses";
 import { StatCard } from "../../../components/StatCard";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const actionIconClass =
   "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -126,7 +126,17 @@ export default function BookingsList() {
   const [detailError, setDetailError] = useState("");
   useToastFeedback({ error: listError || detailError });
 
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1. Giá trị debounce lúc mount vốn
+  // đã bằng ô nhập nên bỏ lượt này không làm lệch state.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedSearch(searchTerm.trim());
       setPage(1);

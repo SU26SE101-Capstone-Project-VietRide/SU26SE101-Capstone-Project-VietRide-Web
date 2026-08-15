@@ -35,15 +35,20 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
     if (model.routePath.length > 0) {
       return model.routePath[Math.floor(model.routePath.length / 2)];
     }
-    return model.vehiclePosition ?? { lat: 10.8231, lng: 106.6297 };
-  }, [model.routePath, model.vehiclePosition]);
+    // Chưa có tuyến thì lấy marker đầu tiên (bến đi) làm tâm, chỉ rơi về toạ độ
+    // mặc định khi bản đồ thật sự chưa có gì để chỉ.
+    return (
+      model.vehiclePosition ??
+      model.focusPoints[0] ?? { lat: 10.8231, lng: 106.6297 }
+    );
+  }, [model.focusPoints, model.routePath, model.vehiclePosition]);
 
   const fitPoints = useMemo(() => {
     // Khung nhìn cỡ nguyên tuyến giữ nguyên qua từng tick GPS — bám theo xe sẽ
     // làm bản đồ giật/pan liên tục.
-    if (model.routePath.length > 0) return model.routePath;
+    if (model.focusPoints.length > 0) return model.focusPoints;
     return model.vehiclePosition ? [model.vehiclePosition] : [];
-  }, [model.routePath, model.vehiclePosition]);
+  }, [model.focusPoints, model.vehiclePosition]);
 
   return (
     <div className="relative h-full w-full">
@@ -65,6 +70,7 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
         <div className="pointer-events-auto overflow-x-auto">
           <SharedTripMapLegend
             showRoute={model.hasRoute}
+            showEndpoints={model.hasEndpoints}
             showStops={model.hasStops}
             showTraveled={model.hasTraveledSegment}
             showVehicle={model.hasVehicle}

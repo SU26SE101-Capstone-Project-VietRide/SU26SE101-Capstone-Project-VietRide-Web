@@ -83,7 +83,7 @@ import {
 } from "./dispatchHelpers";
 import { useShuttleTrackingSocket } from "./useShuttleTrackingSocket";
 
-const REQUEST_PAGE_SIZE = 8;
+const REQUEST_PAGE_SIZE = 10;
 const RESOURCE_PAGE_SIZE = 50;
 const SHUTTLE_TRIP_PAGE_SIZE = 12;
 // Mức zoom khi bám một xe, giống màn Operations.
@@ -286,7 +286,17 @@ export default function DispatchPanel() {
   }, [debouncedRequestSearch, page, refreshVersion, requestFrom, requestTo]);
 
   // Search đi thẳng lên BE nên phải debounce; đổi điều kiện thì về trang 1.
+  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
+  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
+  // debounce đầu tiên sẽ bị đá ngược về trang 1. Giá trị debounce lúc mount vốn
+  // đã bằng ô nhập nên bỏ lượt này không làm lệch state.
+  const hasFilterChanged = useRef(false);
   useEffect(() => {
+    if (!hasFilterChanged.current) {
+      hasFilterChanged.current = true;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       setDebouncedRequestSearch(requestSearch.trim());
       setPage(1);

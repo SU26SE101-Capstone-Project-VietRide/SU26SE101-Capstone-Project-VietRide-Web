@@ -1,26 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FiPercent,
-  FiBookOpen,
-  FiPackage,
-  FiPlus,
-  FiEdit2,
-  FiTrash2,
-  FiCheck,
-  FiX,
-} from "react-icons/fi";
-import CurrencyInput from "../../../components/CurrencyInput";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
+import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useToast } from "../../../components/toast/useToast";
 import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
-import {
-  operatorConfigs,
-  type HolidayPricingPeriod,
-  type OperatorConfig,
-} from "./operatorConfigDefaults";
+import type { HolidayPricingPeriod, OperatorConfig } from "./types";
 import { formatDateOnly } from "../../../utils/date";
 import {
   createOperatorFareSurchargePeriod,
@@ -29,17 +16,13 @@ import {
   getOperatorFareSurchargeSettings,
   updateOperatorFareSurchargePeriod,
   updateOperatorFareSurchargeSettings,
+  type FareSurchargeStatus,
 } from "../../../api/vietride";
 import { fetchAllPages } from "../../../api/pagination";
 import {
   inputClass,
   labelClass,
 } from "../../../components/form/formClasses";
-import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
-
-const CURRENT_OPERATOR_ID = "op1";
-
-type TabId = "pricing" | "booking" | "parcel";
 
 function Toggle({
   checked,
@@ -90,36 +73,41 @@ function Field({
   );
 }
 
-function formatVnd(n: number) {
-  return n.toLocaleString("vi-VN") + " đ";
-}
+/** BE: `status = UPCOMING | APPLYING | EXPIRED | DISABLED`. */
+const periodStatusTone: Record<FareSurchargeStatus, string> = {
+  APPLYING: "bg-green-100 text-green-800",
+  UPCOMING: "bg-blue-100 text-blue-800",
+  EXPIRED: "bg-gray-100 text-gray-600",
+  DISABLED: "bg-gray-100 text-gray-600",
+};
 
-const defaultConfig =
-  operatorConfigs.find((c) => c.operatorId === CURRENT_OPERATOR_ID) ??
-  operatorConfigs[0];
+/** Tên dịp: BE trim rồi giới hạn 1..120 ký tự. */
+const PERIOD_NAME_MAX_LENGTH = 120;
+
+/**
+ * Màn này CHỈ cấu hình phụ thu theo dịp — đó là thứ duy nhất BE cho nhà xe tự
+ * đặt (`/v1/operator/fare-surcharges`). Các mục "chính sách đặt vé" và "chính
+ * sách gửi hàng" từng hiển thị ở đây chạy bằng mock: BE không có endpoint, bấm
+ * lưu không đi đâu cả, và riêng phần hàng hoá còn mô tả sai cách tính giá (BE
+ * tính theo tuyến: max(minimumPriceVnd, chargeableWeightKg × pricePerKgVnd),
+ * cấu hình ở màn Hàng hoá). Đã gỡ để UI không hứa thứ hệ thống không làm.
+ */
+const emptyConfig: OperatorConfig = {
+  autoApplyHolidayPricing: false,
+  holidayPeriods: [],
+};
 
 export default function ManagerSettings() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const toast = useToast();
-  const { hasModule } = useOperatorSubscription();
-  const parcelEnabled = hasModule("enableParcel");
   const tRef = useRef(t);
   useEffect(() => {
     tRef.current = t;
   });
-  const [tab, setTab] = useState<TabId>("pricing");
-
-  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-    { id: "pricing", label: t("settings.tabPricing"), icon: <FiPercent /> },
-    { id: "booking", label: t("settings.tabBooking"), icon: <FiBookOpen /> },
-    ...(parcelEnabled
-      ? [{ id: "parcel" as const, label: t("settings.tabParcel"), icon: <FiPackage /> }]
-      : []),
-  ];
-  const [config, setConfig] = useState<OperatorConfig>({ ...defaultConfig });
+  const [config, setConfig] = useState<OperatorConfig>({ ...emptyConfig });
   const [savedSnapshot, setSavedSnapshot] = useState<OperatorConfig>({
-    ...defaultConfig,
+    ...emptyConfig,
   });
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
   const [deletePeriodTarget, setDeletePeriodTarget] = useState<HolidayPricingPeriod | null>(null);
@@ -134,9 +122,13 @@ export default function ManagerSettings() {
   const [periodPage, setPeriodPage] = useState(1);
   const [fareLoading, setFareLoading] = useState(true);
   const [fareError, setFareError] = useState("");
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [isSavingPeriod, setIsSavingPeriod] = useState(false);
   useToastFeedback({ error: fareError });
-  const pageSize = 8;
+  const pageSize = 10;
+  const startRequest = useLatestRequest();
   const loadFareData = useCallback(async () => {
+    const isLatest = startRequest();
     setFareLoading(true);
     setFareError("");
     try {
@@ -144,6 +136,7 @@ export default function ManagerSettings() {
         getOperatorFareSurchargeSettings(),
         fetchAllPages((params) => getOperatorFareSurchargePeriods(params)),
       ]);
+      if (!isLatest()) return;
       setConfig((prev) => ({
         ...prev,
         autoApplyHolidayPricing: setting.isEnabled,
@@ -154,16 +147,20 @@ export default function ManagerSettings() {
           endDate: period.endDate,
           surchargePercent: period.surchargePercent,
           active: period.isActive,
+          // BE tự tính theo ngày Asia/Ho_Chi_Minh — không suy lại ở FE để hai
+          // bên không lệch nhau lúc giao ngày.
+          status: period.status,
         })),
       }));
     } catch (err) {
+      if (!isLatest()) return;
       setFareError(
         err instanceof Error ? err.message : tRef.current("settings.loadFailed"),
       );
     } finally {
-      setFareLoading(false);
+      if (isLatest()) setFareLoading(false);
     }
-  }, []);
+  }, [startRequest]);
 
   useEffect(() => {
     queueMicrotask(() => void loadFareData());
@@ -186,6 +183,8 @@ export default function ManagerSettings() {
   };
 
   const handleSave = async () => {
+    if (isSavingConfig) return;
+    setIsSavingConfig(true);
     setFareError("");
     try {
       await updateOperatorFareSurchargeSettings({
@@ -195,6 +194,8 @@ export default function ManagerSettings() {
       toast.success(t("settings.saveSuccess"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("settings.saveFailed"));
+    } finally {
+      setIsSavingConfig(false);
     }
   };
   const handleReset = () => {
@@ -207,7 +208,7 @@ export default function ManagerSettings() {
       name: "",
       startDate: "",
       endDate: "",
-      surchargePercent: String(config.defaultHolidaySurchargePercent),
+      surchargePercent: "",
     });
     setPeriodModalOpen(true);
   };
@@ -225,22 +226,32 @@ export default function ManagerSettings() {
 
   const handleSavePeriod = async () => {
     setFareError("");
+    const name = periodForm.name.trim();
     const surchargePercent = Number(periodForm.surchargePercent);
+    // Cùng luật với BE (contract mục fare-surcharges): tên 1..120 sau khi trim,
+    // % là SỐ NGUYÊN 1..100, và startDate <= endDate. Chặn tại đây để người dùng
+    // thấy lỗi ngay thay vì ăn 422 VALIDATION_ERROR sau một vòng mạng.
     if (
-      !periodForm.name.trim() ||
+      !name ||
+      name.length > PERIOD_NAME_MAX_LENGTH ||
       !periodForm.startDate ||
       !periodForm.endDate ||
+      periodForm.startDate > periodForm.endDate ||
+      !Number.isInteger(surchargePercent) ||
       surchargePercent < 1 ||
       surchargePercent > 100
     ) {
-      toast.error(t("settings.saveFailed"));
+      toast.error(t("settings.periodInvalid"));
       return;
     }
 
+    // Bấm hai lần lúc tạo là ra hai đợt phụ thu trùng nhau
+    if (isSavingPeriod) return;
+    setIsSavingPeriod(true);
     try {
       if (editingPeriod) {
         await updateOperatorFareSurchargePeriod(editingPeriod.id, {
-          name: periodForm.name.trim(),
+          name,
           startDate: periodForm.startDate,
           endDate: periodForm.endDate,
           surchargePercent,
@@ -248,7 +259,7 @@ export default function ManagerSettings() {
         });
       } else {
         await createOperatorFareSurchargePeriod({
-          name: periodForm.name.trim(),
+          name,
           startDate: periodForm.startDate,
           endDate: periodForm.endDate,
           surchargePercent,
@@ -261,6 +272,8 @@ export default function ManagerSettings() {
       await loadFareData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("settings.saveFailed"));
+    } finally {
+      setIsSavingPeriod(false);
     }
   };
   function handleDeletePeriod(period: HolidayPricingPeriod) {
@@ -315,73 +328,32 @@ export default function ManagerSettings() {
       </div>
 
 
-      <div className="flex flex-wrap gap-1">
-        {tabs.map((tabItem) => (
-          <button
-            key={tabItem.id}
-            type="button"
-            onClick={() => setTab(tabItem.id)}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
-              tab === tabItem.id
-                ? "border-vr-300 bg-vr-50 font-medium text-vr-800"
-                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            {tabItem.icon}
-            {tabItem.label}
-          </button>
-        ))}
-      </div>
-
       <div className="rounded-lg border border-gray-200 bg-white p-6">
-        {tab === "pricing" && (
-          <div className="space-y-6">
+        <div className="space-y-6">
             <div>
               <h3 className="mb-4 text-base font-semibold text-gray-800">
                 {fareLoading ? tc("loading") : t("settings.holidaySurcharge")}
               </h3>
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                <Field
-                  label={t("settings.autoApply")}
-                  hint={t("settings.autoApplyHint")}
-                >
-                  <div className="pt-1">
-                    <Toggle
-                      checked={config.autoApplyHolidayPricing}
-                      onChange={() =>
-                        updateConfig(
-                          "autoApplyHolidayPricing",
-                          !config.autoApplyHolidayPricing,
-                        )
-                      }
-                    />
-                  </div>
-                </Field>
-                <Field
-                  label={t("settings.defaultSurcharge")}
-                  required
-                  hint={t("settings.defaultSurchargeHint")}
-                >
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      className={inputClass}
-                      value={config.defaultHolidaySurchargePercent}
-                      onChange={(e) =>
-                        updateConfig(
-                          "defaultHolidaySurchargePercent",
-                          Number(e.target.value),
-                        )
-                      }
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
-                      %
-                    </span>
-                  </div>
-                </Field>
-              </div>
+              {/* Chỉ có đúng một cờ bật/tắt: DTO của BE
+                  (GET/PUT /v1/operator/fare-surcharges/settings) là `{ isEnabled }`.
+                  Không có "% phụ thu mặc định" — mức phụ thu luôn thuộc về từng
+                  dịp, ngoài dịp thì giá giữ nguyên. */}
+              <Field
+                label={t("settings.autoApply")}
+                hint={t("settings.autoApplyHint")}
+              >
+                <div className="pt-1">
+                  <Toggle
+                    checked={config.autoApplyHolidayPricing}
+                    onChange={() =>
+                      updateConfig(
+                        "autoApplyHolidayPricing",
+                        !config.autoApplyHolidayPricing,
+                      )
+                    }
+                  />
+                </div>
+              </Field>
             </div>
 
             <div>
@@ -441,22 +413,19 @@ export default function ManagerSettings() {
                             </span>
                           </td>
                           <td className="px-4 py-3">
+                            {/* Dùng `status` của BE, không suy từ mỗi cờ bật/tắt:
+                                dịp đã bật nhưng chưa tới ngày là UPCOMING, hết
+                                ngày là EXPIRED — trước đây cả hai đều hiện
+                                "Đang áp dụng". */}
                             <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                                period.active
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${periodStatusTone[period.status]}`}
                             >
-                              {period.active ? (
-                                <>
-                                  <FiCheck /> {t("settings.applying")}
-                                </>
-                              ) : (
-                                <>
-                                  <FiX /> {t("settings.paused")}
-                                </>
-                              )}
+                              {period.status === "APPLYING" ? (
+                                <FiCheck />
+                              ) : period.status === "DISABLED" ? (
+                                <FiX />
+                              ) : null}
+                              {t(`settings.periodStatuses.${period.status}`)}
                             </span>
                           </td>
                           <td className="px-4 py-3">
@@ -500,178 +469,7 @@ export default function ManagerSettings() {
                 </div>
               )}
             </div>
-          </div>
-        )}
-
-        {tab === "booking" && (
-          <div>
-            <h3 className="mb-5 text-base font-semibold text-gray-800">
-              {t("settings.bookingPolicy")}
-            </h3>
-            <p className="mb-5 text-sm text-gray-500">
-              {t("settings.bookingScope")}
-            </p>
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <Field
-                label={t("settings.cancelHours")}
-                required
-                hint={t("settings.cancelHoursHint")}
-              >
-                <input
-                  type="number"
-                  min={0}
-                  className={inputClass}
-                  value={config.cancelHoursBefore}
-                  onChange={(e) =>
-                    updateConfig("cancelHoursBefore", Number(e.target.value))
-                  }
-                />
-              </Field>
-              <Field label={t("settings.refundPercent")} required>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  className={inputClass}
-                  value={config.refundPercent}
-                  onChange={(e) =>
-                    updateConfig("refundPercent", Number(e.target.value))
-                  }
-                />
-              </Field>
-              <Field
-                label={t("settings.holdMinutes")}
-                hint={t("settings.holdMinutesHint")}
-              >
-                <input
-                  type="number"
-                  min={1}
-                  className={inputClass}
-                  value={config.holdSeatMinutes}
-                  onChange={(e) =>
-                    updateConfig("holdSeatMinutes", Number(e.target.value))
-                  }
-                />
-              </Field>
-              <Field label={t("settings.minAdvanceHours")}>
-                <input
-                  type="number"
-                  min={0}
-                  className={inputClass}
-                  value={config.minAdvanceBookingHours}
-                  onChange={(e) =>
-                    updateConfig(
-                      "minAdvanceBookingHours",
-                      Number(e.target.value),
-                    )
-                  }
-                />
-              </Field>
-              <Field label={t("settings.maxTickets")}>
-                <input
-                  type="number"
-                  min={1}
-                  className={inputClass}
-                  value={config.maxTicketsPerBooking}
-                  onChange={(e) =>
-                    updateConfig("maxTicketsPerBooking", Number(e.target.value))
-                  }
-                />
-              </Field>
-              <Field label={t("settings.guestBooking")}>
-                <div className="pt-1">
-                  <Toggle
-                    checked={config.allowGuestBooking}
-                    onChange={() =>
-                      updateConfig(
-                        "allowGuestBooking",
-                        !config.allowGuestBooking,
-                      )
-                    }
-                  />
-                </div>
-              </Field>
-            </div>
-          </div>
-        )}
-
-        {parcelEnabled && tab === "parcel" && (
-          <div>
-            <h3 className="mb-5 text-base font-semibold text-gray-800">
-              {t("settings.parcelPolicy")}
-            </h3>
-            <p className="mb-5 text-sm text-gray-500">
-              {t("settings.parcelScope")}
-            </p>
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <Field label={t("settings.requireOtp")}>
-                <div className="pt-1">
-                  <Toggle
-                    checked={config.requireOtpOnDelivery}
-                    onChange={() =>
-                      updateConfig(
-                        "requireOtpOnDelivery",
-                        !config.requireOtpOnDelivery,
-                      )
-                    }
-                  />
-                </div>
-              </Field>
-              <Field label={t("settings.maxWeight")}>
-                <input
-                  type="number"
-                  min={1}
-                  className={inputClass}
-                  value={config.maxParcelWeightKg}
-                  onChange={(e) =>
-                    updateConfig("maxParcelWeightKg", Number(e.target.value))
-                  }
-                />
-              </Field>
-              <Field
-                label={t("settings.baseFee")}
-                hint={t("settings.baseFeeHint")}
-              >
-                <CurrencyInput
-                  className={inputClass}
-                  value={config.parcelBaseFeeVnd}
-                  onChange={(e) =>
-                    updateConfig("parcelBaseFeeVnd", Number(e.target.value))
-                  }
-                />
-              </Field>
-              <Field label={t("settings.insuranceThreshold")}>
-                <CurrencyInput
-                  className={inputClass}
-                  value={config.insuranceThresholdVnd}
-                  onChange={(e) =>
-                    updateConfig(
-                      "insuranceThresholdVnd",
-                      Number(e.target.value),
-                    )
-                  }
-                />
-              </Field>
-              <Field label={t("settings.autoCloseDays")}>
-                <input
-                  type="number"
-                  min={1}
-                  className={inputClass}
-                  value={config.autoCloseParcelDays}
-                  onChange={(e) =>
-                    updateConfig("autoCloseParcelDays", Number(e.target.value))
-                  }
-                />
-              </Field>
-            </div>
-            <div className="mt-5 rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
-              {t("settings.feeSummary", {
-                fee: formatVnd(config.parcelBaseFeeVnd),
-                threshold: formatVnd(config.insuranceThresholdVnd),
-              })}
-            </div>
-          </div>
-        )}
+        </div>
 
         <div className="mt-8 flex justify-end gap-3 border-t border-gray-100 pt-5">
           <button
@@ -684,7 +482,8 @@ export default function ManagerSettings() {
           <button
             type="button"
             onClick={handleSave}
-            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-medium text-white hover:bg-vr-600"
+            disabled={isSavingConfig}
+            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-medium text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("settings.saveConfig")}
           </button>
@@ -712,6 +511,7 @@ export default function ManagerSettings() {
             <input
               type="text"
               placeholder={t("settings.periodNamePlaceholder")}
+              maxLength={PERIOD_NAME_MAX_LENGTH}
               className={inputClass}
               value={periodForm.name}
               onChange={(e) =>
@@ -783,7 +583,8 @@ export default function ManagerSettings() {
             <button
               type="button"
               onClick={handleSavePeriod}
-              className="flex-1 rounded-lg bg-vr-500 py-2 text-sm font-medium text-white hover:bg-vr-600"
+              disabled={isSavingPeriod}
+              className="flex-1 rounded-lg bg-vr-500 py-2 text-sm font-medium text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {editingPeriod ? tc("update") : t("settings.add")}
             </button>

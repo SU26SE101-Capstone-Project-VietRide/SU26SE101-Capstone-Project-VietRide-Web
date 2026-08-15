@@ -1181,6 +1181,7 @@ export default function RoutesPage() {
         onConfirm={(item) =>
           void alternatives.handleDeleteAlternativeRoute(item)
         }
+        busy={alternatives.isDeletingAlternative}
       />
 
       <RemoveAlternativeStopModal

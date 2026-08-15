@@ -104,6 +104,52 @@ describe("Register", () => {
     expect(registerOperator).not.toHaveBeenCalled();
   });
 
+  // Bug thật quan sát trên Chrome: một cú bấm "Tiếp tục" ở bước 2 vừa sang bước
+  // 3 vừa gọi luôn API đăng ký. React tái dùng đúng thẻ <button> đó và chỉ đổi
+  // `type` từ "button" sang "submit"; trình duyệt chạy hành vi kích hoạt SAU khi
+  // dispatch xong nên đọc phải type mới rồi submit form.
+  //
+  // Test "advances from the address step..." ở trên KHÔNG bắt được — jsdom
+  // không tái hiện thứ tự đó. Nên chốt thẳng vào cách chặn: click bị
+  // preventDefault, và hai nút mang danh tính khác nhau (React dựng thẻ mới).
+  it("nút chuyển bước huỷ hành vi mặc định để không submit form", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <Routes>
+          <Route path="/register" element={<Register />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByPlaceholderText("VietRide Express"), "VietRide Express");
+    await user.type(screen.getByPlaceholderText("ops@operator.vn"), "ops@operator.vn");
+    await user.type(screen.getAllByPlaceholderText("0901234567")[0], "0901234567");
+    await user.type(screen.getByPlaceholderText("0312345678"), "0312345678");
+    await user.type(screen.getByPlaceholderText("0301234567"), "0301234567");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    await user.type(screen.getByPlaceholderText("123 Nguyen Van Linh"), "123 Nguyen Van Linh");
+    await user.type(screen.getByPlaceholderText("Ward 1"), "Ward 1");
+    await user.type(screen.getByPlaceholderText("Ho Chi Minh City"), "Ho Chi Minh City");
+
+    const nextButton = screen.getByRole("button", { name: /continue/i });
+    expect(nextButton).toHaveAttribute("type", "button");
+
+    const clickEvent = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    nextButton.dispatchEvent(clickEvent);
+
+    expect(clickEvent.defaultPrevented).toBe(true);
+
+    // Sang được bước 3 và không đụng tới API
+    expect(await screen.findByPlaceholderText("Nguyen Van A")).toBeInTheDocument();
+    expect(registerOperator).not.toHaveBeenCalled();
+  });
+
   it("keeps previous step values and submits the complete registration payload", async () => {
     const user = userEvent.setup();
 

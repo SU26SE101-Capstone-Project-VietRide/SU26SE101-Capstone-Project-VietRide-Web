@@ -78,8 +78,9 @@ describe("Operator staff users", () => {
     vi.mocked(getOperatorUsers).mockImplementation(async (params = {}) => ({
       items: params.page === 2 ? [secondPageUser] : [operatorUser],
       page: params.page ?? 1,
-      pageSize: params.pageSize ?? 8,
-      totalItems: 9,
+      pageSize: params.pageSize ?? 10,
+      // 11 bản ghi / 10 mỗi trang = 2 trang
+      totalItems: 11,
       totalPages: 2,
       hasNextPage: params.page !== 2,
       hasPreviousPage: params.page === 2,
@@ -93,7 +94,7 @@ describe("Operator staff users", () => {
       expect(getOperatorUsers).toHaveBeenLastCalledWith(
         expect.objectContaining({
           page: 2,
-          pageSize: 8,
+          pageSize: 10,
           role: undefined,
           status: undefined,
         }),

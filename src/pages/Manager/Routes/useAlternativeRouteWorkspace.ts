@@ -152,6 +152,7 @@ export function useAlternativeRouteWorkspace({
   const [altStopDrafts, setAltStopDrafts] = useState<AlternativeStopDraft[]>([]);
   const [isAltDirty, setIsAltDirty] = useState(false);
   const [isSavingAlternative, setIsSavingAlternative] = useState(false);
+  const [isDeletingAlternative, setIsDeletingAlternative] = useState(false);
   const [pendingDeleteAlternative, setPendingDeleteAlternative] =
     useState<AlternativeRoute | null>(null);
 
@@ -770,6 +771,10 @@ export function useAlternativeRouteWorkspace({
     // Chụp tuyến chính đang chọn lúc bấm xoá — cùng lý do race với handleSaveAlternative
     const requestRouteId = selectedRouteId;
 
+    // Modal đóng ở `finally`, tức là trong lúc request bay người dùng vẫn bấm
+    // được nút xoá lần nữa — khoá lại, giống isSavingAlternative.
+    if (isDeletingAlternative) return;
+    setIsDeletingAlternative(true);
     try {
       await deleteAlternativeRoute(alternative.id);
 
@@ -790,6 +795,7 @@ export function useAlternativeRouteWorkspace({
 
       toastError(err instanceof Error ? err.message : t("routes.actionFailed"));
     } finally {
+      setIsDeletingAlternative(false);
       setPendingDeleteAlternative(null);
     }
   }
@@ -841,6 +847,7 @@ export function useAlternativeRouteWorkspace({
     handlePickAltSearchResult,
     isAltDirty,
     isSavingAlternative,
+    isDeletingAlternative,
     isAddingAltSuggestion,
     pendingDeleteAlternative,
     setPendingDeleteAlternative,

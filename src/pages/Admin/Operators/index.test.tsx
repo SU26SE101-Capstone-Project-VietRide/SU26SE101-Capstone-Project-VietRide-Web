@@ -115,14 +115,15 @@ describe("Admin Operators", () => {
 
   it("phân trang server-side: mỗi trang là một request riêng", async () => {
     const user = userEvent.setup();
-    const operators = Array.from({ length: 9 }, (_, index) => ({
+    // 11 bản ghi / 10 mỗi trang = 2 trang (mọi bảng dùng chung pageSize 10)
+    const operators = Array.from({ length: 11 }, (_, index) => ({
       ...pendingOperator,
       operatorId: `operator-${index + 1}`,
       name: `Operator ${index + 1}`,
     }));
     vi.mocked(getAdminOperators).mockImplementation(async (params = {}) => {
       const page = params.page ?? 1;
-      const pageSize = 8;
+      const pageSize = params.pageSize ?? 10;
       const start = (page - 1) * pageSize;
 
       return {
@@ -153,7 +154,7 @@ describe("Admin Operators", () => {
         expect.objectContaining({ page: 2 }),
       ),
     );
-    expect(await screen.findByText("Operator 9")).toBeInTheDocument();
+    expect(await screen.findByText("Operator 11")).toBeInTheDocument();
   });
 
   // Export lấy CSV do BE dựng, dùng đúng bộ lọc của danh sách nhưng KHÔNG kèm
@@ -176,6 +177,64 @@ describe("Admin Operators", () => {
     const params = vi.mocked(exportAdminOperators).mock.calls.at(-1)?.[0] ?? {};
     expect(params).not.toHaveProperty("page");
     expect(params).not.toHaveProperty("pageSize");
+  });
+
+  // Khoảng ngày nằm trong panel nâng cao (giống ScheduleTable bên Manager) nên
+  // hàng lọc chính chỉ còn search + 2 trạng thái.
+  it("khoảng ngày nằm trong panel lọc nâng cao", async () => {
+    const user = userEvent.setup();
+    render(<Operators />);
+    await screen.findByText(pendingOperator.name, {}, { timeout: 5_000 });
+
+    expect(
+      screen.queryByLabelText("operators.dateFromLabel"),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /operators\.advancedFilters/ }),
+    );
+
+    expect(screen.getByLabelText("operators.dateFromLabel")).toBeInTheDocument();
+    expect(screen.getByLabelText("operators.dateToLabel")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("operators.dateFieldLabel"),
+    ).toBeInTheDocument();
+  });
+
+  // Không có nút xoá lọc thì admin phải tự tay dọn từng ô mới quay lại được
+  // danh sách đầy đủ — nhất là khi lọc rỗng và bảng không còn dòng nào.
+  it("nút xoá bộ lọc dọn hết filter và tải lại danh sách đầy đủ", async () => {
+    const user = userEvent.setup();
+    render(<Operators />);
+    await screen.findByText(pendingOperator.name, {}, { timeout: 5_000 });
+
+    expect(
+      screen.queryByRole("button", { name: /operators\.clearFilters/ }),
+    ).not.toBeInTheDocument();
+
+    const searchInput = screen.getByPlaceholderText(
+      "operators.searchPlaceholder",
+    );
+    await user.type(searchInput, "dalat");
+    await waitFor(() =>
+      expect(getAdminOperators).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: "dalat" }),
+      ),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: /operators\.clearFilters/ }),
+    );
+
+    expect(searchInput).toHaveValue("");
+    await waitFor(() => {
+      const lastCall = vi.mocked(getAdminOperators).mock.calls.at(-1)?.[0] ?? {};
+      expect(lastCall.search).toBeUndefined();
+      expect(lastCall.page).toBe(1);
+    });
+    expect(
+      screen.queryByRole("button", { name: /operators\.clearFilters/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps rows the BE matched on non-name fields", async () => {

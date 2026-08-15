@@ -72,9 +72,11 @@ const detail = {
     {
       status: "DELIVERED_PENDING_CONFIRM",
       occurredAt: "2026-08-12T14:00:00Z",
-      actorType: "CREW",
-      actorId: "assistant-1",
-      source: "ASSISTANT_APP",
+      // Trigger DB ghi lịch sử chỉ phát ra USER/RECIPIENT/UNKNOWN/SYSTEM và
+      // STATUS_TRIGGER/MIGRATION_BASELINE (db-schema/parcel/schema.sql)
+      actorType: "UNKNOWN",
+      actorId: null,
+      source: "STATUS_TRIGGER",
       reason: null,
     },
   ],
@@ -132,6 +134,13 @@ describe("ParcelQueue", () => {
     const entries = within(dialog).getAllByRole("listitem");
     expect(entries).toHaveLength(2);
     expect(entries[0]).toHaveTextContent("enumLabels.LOADED");
+    // Trạng thái hiện dưới dạng chip màu như timeline vé, không phải chữ trơn
+    expect(
+      within(entries[0]).getByText("enumLabels.LOADED").className,
+    ).toContain("rounded-full");
+    // Mã actor/source phải đi qua i18n, không in thẳng "UNKNOWN · STATUS_TRIGGER"
+    expect(entries[1]).not.toHaveTextContent("STATUS_TRIGGER");
+    expect(entries[1]).not.toHaveTextContent("UNKNOWN");
   });
 
   it("gửi lại email xác nhận khi bưu kiện chờ người nhận xác nhận", async () => {

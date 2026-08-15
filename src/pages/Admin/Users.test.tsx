@@ -209,10 +209,62 @@ describe("Admin Users", () => {
     },
   );
 
+  // Thẻ thống kê trước đây đếm mảng của trang đang xem nên trần cứng ở pageSize
+  // (10) và còn đổi theo filter — phải đọc số đếm toàn hệ thống.
+  it("thẻ thống kê đếm toàn hệ thống chứ không đếm trang đang xem", async () => {
+    const countByQuery: Record<string, number> = {
+      all: 42,
+      ACTIVE: 30,
+      OPERATOR_STAFF: 7,
+      PENDING_INITIAL_PASSWORD: 5,
+    };
+
+    vi.mocked(getAdminUsers).mockImplementation(async (params = {}) => {
+      const isCountQuery = params.pageSize === 1;
+      const key = params.status ?? params.role ?? "all";
+
+      return {
+        items: isCountQuery ? [] : [user],
+        page: 1,
+        pageSize: params.pageSize ?? 10,
+        totalItems: isCountQuery ? countByQuery[key] : 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    });
+
+    render(<Users />);
+    await screen.findByText(user.displayName);
+
+    for (const expected of Object.values(countByQuery)) {
+      expect(await screen.findByText(String(expected))).toBeInTheDocument();
+    }
+  });
+
   it("keeps pagination visible while only the user table is loading", async () => {
     const browserUser = userEvent.setup();
-    vi.mocked(getAdminUsers)
-      .mockResolvedValueOnce({
+    // Màn bắn thêm 4 request `pageSize: 1` để đếm thẻ thống kê, nên mock phải
+    // định tuyến theo tham số — xếp hàng bằng `...Once` là các lượt đếm nuốt mất
+    // response của bảng.
+    let listCalls = 0;
+    vi.mocked(getAdminUsers).mockImplementation(async (params = {}) => {
+      const emptyPage = {
+        items: [],
+        page: 1,
+        pageSize: 1,
+        totalItems: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+
+      if (params.pageSize === 1) return emptyPage;
+
+      listCalls += 1;
+      if (listCalls > 1) return new Promise<never>(() => undefined);
+
+      return {
         items: [user],
         page: 1,
         pageSize: 10,
@@ -220,8 +272,8 @@ describe("Admin Users", () => {
         totalPages: 2,
         hasNextPage: true,
         hasPreviousPage: false,
-      })
-      .mockImplementationOnce(() => new Promise<never>(() => undefined));
+      };
+    });
 
     render(<Users />);
     await screen.findByText(user.displayName);

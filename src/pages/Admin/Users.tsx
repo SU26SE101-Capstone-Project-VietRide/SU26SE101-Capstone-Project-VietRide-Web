@@ -81,6 +81,13 @@ export default function Users() {
   const [isLoading, setIsLoading] = useState(true);
   const [actionUserId, setActionUserId] = useState("");
   const [pendingLockUser, setPendingLockUser] = useState<AdminUser | null>(null);
+  const [stats, setStats] = useState<{
+    total: number;
+    active: number;
+    operatorStaff: number;
+    pendingInitialPassword: number;
+  } | null>(null);
+  const [statsVersion, setStatsVersion] = useState(0);
   const [message, setMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -137,6 +144,35 @@ export default function Users() {
     };
   }, [operatorId, page, role, searchTerm, status]);
 
+  // Thẻ thống kê đếm trên TOÀN hệ thống, không đổi theo filter của bảng — trước
+  // đây đếm `users.filter(...)` nên chỉ ra con số của trang đang xem. BE chưa có
+  // `/users/summary` như bên operators, nên lấy `totalItems` của 4 truy vấn
+  // pageSize=1 (cùng cách màn Chuyến bên Manager đang làm).
+  useEffect(() => {
+    let ignore = false;
+    void Promise.all([
+      getAdminUsers({ page: 1, pageSize: 1 }),
+      getAdminUsers({ page: 1, pageSize: 1, status: "ACTIVE" }),
+      getAdminUsers({ page: 1, pageSize: 1, role: "OPERATOR_STAFF" }),
+      getAdminUsers({ page: 1, pageSize: 1, status: "PENDING_INITIAL_PASSWORD" }),
+    ])
+      .then(([all, active, operatorStaff, pendingInitialPassword]) => {
+        if (ignore) return;
+        setStats({
+          total: all.totalItems,
+          active: active.totalItems,
+          operatorStaff: operatorStaff.totalItems,
+          pendingInitialPassword: pendingInitialPassword.totalItems,
+        });
+      })
+      .catch(() => {
+        // Thẻ thống kê lỗi không được chặn bảng chính
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [statsVersion]);
+
   // Danh sách nhà xe chỉ để dựng ô chọn. Tải một trang đủ lớn thay vì tải hết —
   // ô này là bộ lọc phụ, không đáng để bắn nhiều request lúc mở màn.
   useEffect(() => {
@@ -179,6 +215,8 @@ export default function Users() {
 
       setUsers((current) => current.map(updateUser));
       setSelected((current) => (current ? updateUser(current) : current));
+      // Khoá/mở khoá làm đổi số "Đang hoạt động" nên phải đếm lại
+      setStatsVersion((current) => current + 1);
       // Hai key này có placeholder {{name}} nên bắt buộc truyền biến, nếu không
       // toast hiện nguyên chuỗi "{{name}}".
       const name = user.displayName || user.email;
@@ -212,10 +250,11 @@ export default function Users() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t("users.total")} value={users.length} icon={<FiUsers size={20} />} iconClassName="bg-vr-50 text-vr-700" />
-        <StatCard label={tc("active")} value={users.filter((user) => isActiveStatus(user.status)).length} icon={<FiActivity size={20} />} iconClassName="bg-emerald-50 text-emerald-700" />
-        <StatCard label={t("users.operatorStaff")} value={users.filter((user) => user.role === "OPERATOR_STAFF").length} icon={<FiUsers size={20} />} iconClassName="bg-blue-50 text-blue-700" />
-        <StatCard label={tc("enumLabels.PENDING_INITIAL_PASSWORD")} value={users.filter((user) => user.status === "PENDING_INITIAL_PASSWORD").length} icon={<FiKey size={20} />} iconClassName="bg-amber-50 text-amber-700" />
+        {/* Cả 4 thẻ đọc từ `stats` (đếm toàn hệ thống), không đếm mảng `users` của trang đang xem */}
+        <StatCard label={t("users.total")} value={stats?.total ?? 0} icon={<FiUsers size={20} />} iconClassName="bg-vr-50 text-vr-700" />
+        <StatCard label={tc("active")} value={stats?.active ?? 0} icon={<FiActivity size={20} />} iconClassName="bg-emerald-50 text-emerald-700" />
+        <StatCard label={t("users.operatorStaff")} value={stats?.operatorStaff ?? 0} icon={<FiUsers size={20} />} iconClassName="bg-blue-50 text-blue-700" />
+        <StatCard label={tc("enumLabels.PENDING_INITIAL_PASSWORD")} value={stats?.pendingInitialPassword ?? 0} icon={<FiKey size={20} />} iconClassName="bg-amber-50 text-amber-700" />
       </div>
       <PersonnelTable
         toolbar={<div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_180px_170px_190px]">

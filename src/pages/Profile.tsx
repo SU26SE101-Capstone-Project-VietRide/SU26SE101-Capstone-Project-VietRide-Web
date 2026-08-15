@@ -245,6 +245,7 @@ export default function Profile() {
   const { t } = useTranslation("common");
   const loadOperatorFailedMessage = t("profilePage.loadFailed");
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [serverOperator, setServerOperator] = useState<OperatorProfile | null>(
     null,
   );
@@ -400,10 +401,11 @@ export default function Profile() {
   };
 
   const handleSave = async () => {
-    if (!isOperator || !serverOperator) {
+    if (!isOperator || !serverOperator || isSaving) {
       return;
     }
 
+    setIsSaving(true);
     setError("");
     try {
       const updated = await updateOperatorProfile({
@@ -432,6 +434,8 @@ export default function Profile() {
           ? saveError.message
           : t("profilePage.loadFailed"),
       );
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -820,7 +824,8 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => void handleSave()}
-                className="w-full rounded-xl bg-vr-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700 sm:w-auto"
+                disabled={isSaving}
+                className="w-full rounded-xl bg-vr-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {t("save")}
               </button>

@@ -122,6 +122,7 @@ export default function AdminLocations() {
   });
   const [items, setItems] = useState<AdminLocation[]>([]);
   const [totalItems, setTotalItems] = useState(0);
+  const [activeTotal, setActiveTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -144,7 +145,7 @@ export default function AdminLocations() {
     tone: "success" | "error";
     text: string;
   } | null>(null);
-  const pageSize = 12;
+  const pageSize = 10;
 
   // Toàn bộ search/filter chạy server-side. Trước đây BE bỏ qua `type` và
   // `parentCode` nên màn phải tải trọn danh mục ~3.4k bản ghi bằng 34 request
@@ -210,6 +211,23 @@ export default function AdminLocations() {
     const timer = window.setTimeout(() => void loadLocations(), 0);
     return () => window.clearTimeout(timer);
   }, [loadLocations, reloadKey]);
+
+  // Thẻ "Đang hoạt động" đếm trên toàn hệ thống, không đổi theo filter của bảng —
+  // trước đây đếm `items.filter(...)` nên trần cứng ở pageSize. BE chưa có
+  // `/locations/summary` nên đọc `totalItems` của một truy vấn pageSize=1.
+  useEffect(() => {
+    let ignore = false;
+    void getAdminLocations({ page: 1, pageSize: 1, isActive: true })
+      .then((result) => {
+        if (!ignore) setActiveTotal(result.totalItems);
+      })
+      .catch(() => {
+        // Thẻ thống kê lỗi không được chặn bảng chính
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [reloadKey]);
 
   useEffect(() => {
     let ignore = false;
@@ -325,9 +343,9 @@ export default function AdminLocations() {
 
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label={t("locations.totalStat", { defaultValue: "Tổng khu vực" })} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-700" isLoading={loading} />
-        <StatCard label={t("locations.activeStat", { defaultValue: "Đang hoạt động" })} value={items.filter((item) => item.isActive).length} icon={<FiPower size={20} />} iconClassName="bg-emerald-50 text-emerald-700" isLoading={loading} />
-        <StatCard label={t("locations.levelStat", { defaultValue: "Cấp hành chính trên trang" })} value={new Set(items.map((item) => item.type)).size} icon={<FiLayers size={20} />} iconClassName="bg-violet-50 text-violet-700" isLoading={loading} />
+        <StatCard label={t("locations.totalStat")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-700" isLoading={loading} />
+        <StatCard label={t("locations.activeStat")} value={activeTotal} icon={<FiPower size={20} />} iconClassName="bg-emerald-50 text-emerald-700" isLoading={loading} />
+        <StatCard label={t("locations.levelStat")} value={new Set(items.map((item) => item.type)).size} icon={<FiLayers size={20} />} iconClassName="bg-violet-50 text-violet-700" isLoading={loading} />
       </div>
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -358,12 +376,10 @@ export default function AdminLocations() {
             <option value="ACTIVE">{tc("active")}</option>
             <option value="INACTIVE">{tc("inactive")}</option>
           </CustomSelect>
-          <CustomSelect value={administrativeType} aria-label={t("locations.filterType", { defaultValue: "Lọc cấp hành chính" })} onChange={(event) => { setAdministrativeType(event.target.value as "" | LocationType); setPage(1); }} className={inputClass}><option value="">{tc("all")}</option>{[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map((type) => <option key={type} value={type}>{t(`locations.types.${type}`, { defaultValue: type })}</option>)}</CustomSelect>
+          <CustomSelect value={administrativeType} aria-label={t("locations.filterType")} onChange={(event) => { setAdministrativeType(event.target.value as "" | LocationType); setPage(1); }} className={inputClass}><option value="">{tc("all")}</option>{[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map((type) => <option key={type} value={type}>{t(`locations.types.${type}`, { defaultValue: type })}</option>)}</CustomSelect>
           <CustomSelect
             value={parentCode}
-            aria-label={t("locations.filterParent", {
-              defaultValue: "Lọc trực thuộc",
-            })}
+            aria-label={t("locations.filterParent")}
             searchable
             searchPlaceholder={tc("searchOptions", {
               label: t("locations.parent"),
@@ -376,9 +392,7 @@ export default function AdminLocations() {
             className={inputClass}
           >
             <option value="">
-              {t("locations.allParents", {
-                defaultValue: "Tất cả trực thuộc",
-              })}
+              {t("locations.allParents")}
             </option>
             {provinces.map((province) => (
               <option key={province.id} value={province.code}>

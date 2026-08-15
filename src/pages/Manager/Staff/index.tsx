@@ -1,4 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { createIdempotencyKey } from "../../../api/idempotency";
 import { getAuthUser } from "../../../auth";
 import { lockOperatorUser, unlockOperatorUser } from "../../../api/operatorUserActions";
@@ -156,11 +157,20 @@ export default function StaffPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const [stats, setStats] = useState<{
+    total: number;
+    active: number;
+    drivers: number;
+    pendingInitialPassword: number;
+  } | null>(null);
+  const [statsVersion, setStatsVersion] = useState(0);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const startRequest = useLatestRequest();
   const [totalItems, setTotalItems] = useState(0);
   const [lockTarget, setLockTarget] = useState<OperatorUser | null>(null);
   const [isLockingUser, setIsLockingUser] = useState(false);
   const lockAttemptRef = useRef<{ userId: string; action: "lock" | "unlock"; key: string } | null>(null);
-  const pageSize = 8;
+  const pageSize = 10;
 
   // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Bookings)
   useEffect(() => {
@@ -174,6 +184,7 @@ export default function StaffPage() {
   // Hàm tải danh sách nhân sự dùng chung cho effect và sau khi tạo tài khoản.
   // Pagination và filter chạy ở server để totalItems/rows luôn cùng một tập dữ liệu.
   const loadUsers = useCallback(async () => {
+    const isLatest = startRequest();
     setIsLoading(true);
     setError("");
 
@@ -189,16 +200,47 @@ export default function StaffPage() {
         sortDir,
       });
 
+      if (!isLatest()) return;
       setUsers(result.items);
       setTotalItems(result.totalItems);
     } catch (err) {
+      if (!isLatest()) return;
       setError(
         err instanceof Error ? err.message : tRef.current("staff.loadFailed"),
       );
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [debouncedSearch, page, roleFilter, sort, statusFilter]);
+  }, [debouncedSearch, page, roleFilter, sort, startRequest, statusFilter]);
+
+  // Thẻ thống kê đếm trên TOÀN bộ nhân sự của nhà xe, không đổi theo filter của
+  // bảng — trước đây đếm `users.filter(...)` nên chỉ ra con số của trang đang xem
+  // (và thẻ "Cần đặt mật khẩu" còn tính nhầm cả tài khoản bị khoá). BE chưa có
+  // `/users/summary`, nên lấy `totalItems` của 4 truy vấn pageSize=1.
+  useEffect(() => {
+    let ignore = false;
+    void Promise.all([
+      getOperatorUsers({ page: 1, pageSize: 1 }),
+      getOperatorUsers({ page: 1, pageSize: 1, status: "ACTIVE" }),
+      getOperatorUsers({ page: 1, pageSize: 1, role: "DRIVER" }),
+      getOperatorUsers({ page: 1, pageSize: 1, status: "PENDING_INITIAL_PASSWORD" }),
+    ])
+      .then(([all, active, drivers, pendingInitialPassword]) => {
+        if (ignore) return;
+        setStats({
+          total: all.totalItems,
+          active: active.totalItems,
+          drivers: drivers.totalItems,
+          pendingInitialPassword: pendingInitialPassword.totalItems,
+        });
+      })
+      .catch(() => {
+        // Thẻ thống kê lỗi không được chặn bảng chính
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [statsVersion]);
 
   useEffect(() => {
     async function run() {
@@ -236,6 +278,10 @@ export default function StaffPage() {
   }
 
   async function handleCreateUser() {
+    // Bấm hai lần là tạo hai tài khoản và gửi hai email đặt mật khẩu: mỗi lần
+    // bấm sinh một Idempotency-Key mới nên BE không gộp lại được.
+    if (isCreatingUser) return;
+    setIsCreatingUser(true);
     setError("");
     setMessage("");
     try {
@@ -244,6 +290,7 @@ export default function StaffPage() {
         phone: normalizeVietnamPhoneForApi(userForm.phone),
       });
       await loadUsers();
+      setStatsVersion((current) => current + 1);
       setUserForm(emptyUserForm);
       setOpenAdd(false);
       setMessage(t("staff.createInitialPasswordSuccess"));
@@ -251,6 +298,8 @@ export default function StaffPage() {
       setError(
         err instanceof Error ? err.message : t("staff.createUserFailed"),
       );
+    } finally {
+      setIsCreatingUser(false);
     }
   }
 
@@ -326,6 +375,7 @@ export default function StaffPage() {
       lockAttemptRef.current = null;
       setLockTarget(null);
       await loadUsers();
+      setStatsVersion((current) => current + 1);
       window.dispatchEvent(new CustomEvent("vietride:operator-user-status-changed", { detail: { userId, status: result.status } }));
       setMessage(
         result.status === "LOCKED"
@@ -382,25 +432,25 @@ export default function StaffPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label={t("staff.total")}
-          value={users.length}
+          value={stats?.total ?? 0}
           icon={<FiUsers size={20} />}
           iconClassName="bg-vr-50 text-vr-700"
         />
         <StatCard
           label={t("staff.onDuty")}
-          value={users.filter((user) => isActiveStatus(user.status)).length}
+          value={stats?.active ?? 0}
           icon={<FiActivity size={20} />}
           iconClassName="bg-emerald-50 text-emerald-700"
         />
         <StatCard
           label={t("staff.drivers")}
-          value={users.filter((user) => user.role === "DRIVER").length}
+          value={stats?.drivers ?? 0}
           icon={<FiTruck size={20} />}
           iconClassName="bg-blue-50 text-blue-700"
         />
         <StatCard
           label={t("staff.needsInitialPassword")}
-          value={users.filter((user) => !isActiveStatus(user.status)).length}
+          value={stats?.pendingInitialPassword ?? 0}
           icon={<FiKey size={20} />}
           iconClassName="bg-amber-50 text-amber-700"
         />
@@ -454,7 +504,8 @@ export default function StaffPage() {
             <button
               type="button"
               onClick={handleCreateUser}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900"
+              disabled={isCreatingUser}
+              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-vr-600 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {t("staff.createProfile")}
             </button>
@@ -665,10 +716,12 @@ function StaffDetailModal({
             <p className="text-sm font-semibold text-gray-900">
               {t("staff.rolePermissionTitle")}
             </p>
+            {/* Không lặp lại tên vai trò ở đây: ô "Vai trò" phía trên và chip
+                cạnh tên đã hiện rồi. Trước đây chỗ này in enum thô của BE
+                (ASSISTANT/DRIVER...) mà nhân sự nhà xe không đọc được. */}
             <p className="mt-1 text-sm text-gray-600">
               {roleDescription(user.role) || t("staff.noRoleDescription")}
             </p>
-            <p className="mt-2 font-mono text-xs text-gray-400">{user.role}</p>
           </div>
         </div>
       )}

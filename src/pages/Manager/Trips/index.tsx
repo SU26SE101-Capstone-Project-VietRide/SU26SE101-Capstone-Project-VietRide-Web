@@ -163,6 +163,7 @@ export default function TripsPage() {
   const [scheduleStats, setScheduleStats] = useState({ total: 0, open: 0, draft: 0 });
   const [scheduleStatsVersion, setScheduleStatsVersion] = useState(0);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("");
   const [routeFilter, setRouteFilter] = useState("");
@@ -171,7 +172,16 @@ export default function TripsPage() {
   const [departureFrom, setDepartureFrom] = useState("");
   const [departureTo, setDepartureTo] = useState("");
   const [formModalOpen, setFormModalOpen] = useState(false);
-  const pageSize = 8;
+  const pageSize = 10;
+
+  // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Staff/Bookings)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const drivers = useMemo(
     () => staff.filter((person) => person.role === "driver" && person.status === "active"),
@@ -338,7 +348,7 @@ export default function TripsPage() {
         const result = await getOperatorDriverSchedules({
           page,
           pageSize,
-          search,
+          search: debouncedSearch,
           isActive: statusFilter === "" ? undefined : statusFilter === "open",
           vehicleTypeId: vehicleTypeFilter || undefined,
           routeId: routeFilter || undefined,
@@ -376,7 +386,7 @@ export default function TripsPage() {
     return () => {
       ignore = true;
     };
-  }, [canManageSchedules, dayOfWeekFilter, departureFrom, departureTo, driverFilter, page, pageSize, routeFilter, search, statusFilter, vehicleTypeFilter, toast]);
+  }, [canManageSchedules, dayOfWeekFilter, debouncedSearch, departureFrom, departureTo, driverFilter, page, pageSize, routeFilter, statusFilter, vehicleTypeFilter, toast]);
 
   function updateForm<K extends keyof ScheduleForm>(
     key: K,

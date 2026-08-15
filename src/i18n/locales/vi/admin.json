@@ -77,6 +77,8 @@
     "allStatus": "Tất cả trạng thái",
     "filterActivation": "Lọc theo bật/tắt",
     "allActivation": "Tất cả trạng thái bật",
+    "advancedFilters": "Bộ lọc nâng cao",
+    "clearFilters": "Xóa bộ lọc",
     "dateFieldLabel": "Lọc theo mốc thời gian",
     "dateFieldCreatedAt": "Ngày đăng ký",
     "dateFieldApprovedAt": "Ngày duyệt",
@@ -87,6 +89,7 @@
     "operatorName": "Tên nhà xe",
     "operatorId": "Mã nhà xe",
     "loading": "Đang tải nhà xe...",
+    "empty": "Không tìm thấy nhà xe phù hợp bộ lọc.",
     "profile": "Hồ sơ nhà xe",
     "businessRegistrationNumber": "Số đăng ký kinh doanh",
     "taxCode": "Mã số thuế",
@@ -412,6 +415,12 @@
       "COMMUNE": "Xã",
       "SPECIAL_ZONE": "Đặc khu"
     },
+    "totalStat": "Tổng khu vực",
+    "activeStat": "Đang hoạt động",
+    "levelStat": "Cấp hành chính trên trang",
+    "filterType": "Lọc cấp hành chính",
+    "filterParent": "Lọc trực thuộc",
+    "allParents": "Tất cả trực thuộc",
     "whatIsThis": "Đây là gì?"
   },
   "stations": {

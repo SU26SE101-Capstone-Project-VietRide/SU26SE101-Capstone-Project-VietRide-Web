@@ -1,4 +1,5 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
+import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -103,7 +104,10 @@ export default function ManagerDashboard() {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [shipmentTotal, setShipmentTotal] = useState(0);
   const [shipmentPage, setShipmentPage] = useState(1);
-  const pageSize = 8;
+  const pageSize = 10;
+  // Hai loader chạy độc lập nhau nên mỗi cái một bộ đếm riêng
+  const startDashboardRequest = useLatestRequest();
+  const startShipmentsRequest = useLatestRequest();
 
   const appendError = useCallback((source: string, error: unknown) => {
     const message = `${source}: ${errorMessage(error, tRef.current("dashboard.loadFailed"))}`;
@@ -113,6 +117,8 @@ export default function ManagerDashboard() {
   }, []);
 
   const loadShipments = useCallback(async () => {
+    const isLatest = startShipmentsRequest();
+
     if (!parcelEnabled) {
       setShipments([]);
       setShipmentTotal(0);
@@ -124,16 +130,22 @@ export default function ManagerDashboard() {
         page: shipmentPage,
         pageSize,
       });
+      if (!isLatest()) return;
       setShipments(result.items.map(mapShipment));
       setShipmentTotal(result.totalItems);
     } catch (error) {
+      if (!isLatest()) return;
       setShipments([]);
       setShipmentTotal(0);
       appendError("Parcel", error);
     }
-  }, [appendError, parcelEnabled, shipmentPage]);
+  }, [appendError, parcelEnabled, shipmentPage, startShipmentsRequest]);
 
   const loadDashboard = useCallback(async () => {
+    // Loader chạy tuần tự và ghi state ngay sau từng nguồn (widget nào về trước
+    // hiện trước). Vì vậy chốt chặn đặt ngay sau mỗi `await`: đổi tháng doanh thu
+    // khi lượt cũ chưa xong thì lượt cũ dừng hẳn tại đó, không ghi đè lượt mới.
+    const isLatest = startDashboardRequest();
     setIsLoading(true);
     setLoadErrors([]);
 
@@ -145,6 +157,7 @@ export default function ManagerDashboard() {
         ...currentYearRange(),
         groupBy: "date",
       });
+      if (!isLatest()) return;
       bookingItems = bookingStats.items;
       const monthlyStats = aggregateBookingStats(bookingItems);
       const thisMonthStats = monthlyStats.get(selectedRevenueMonth);
@@ -169,6 +182,7 @@ export default function ManagerDashboard() {
         },
       }));
     } catch (error) {
+      if (!isLatest()) return;
       setRevenueData([]);
       setSummary((current) => ({
         ...current,
@@ -188,9 +202,11 @@ export default function ManagerDashboard() {
 
     try {
       const fleet = await getOperatorVehicles({ page: 1, pageSize: 5 });
+      if (!isLatest()) return;
       setVehicles(fleet.items);
       setSummary((current) => ({ ...current, fleet: fleet.totalItems }));
     } catch (error) {
+      if (!isLatest()) return;
       setVehicles([]);
       setSummary((current) => ({ ...current, fleet: null }));
       appendError(tRef.current("dashboard.errorSourceFleet"), error);
@@ -202,6 +218,7 @@ export default function ManagerDashboard() {
       try {
         const analytics =
           await getOperatorRevenueAnalytics({ month: selectedRevenueMonth });
+        if (!isLatest()) return;
         routePerformance = analytics.routePerformance ?? [];
         const selectedYear = selectedRevenueMonth.slice(0, 4);
         const yearToDate = analytics.monthly
@@ -242,6 +259,7 @@ export default function ManagerDashboard() {
           }
         }
       } catch (error) {
+        if (!isLatest()) return;
         appendError("Doanh thu", error);
       }
 
@@ -253,11 +271,13 @@ export default function ManagerDashboard() {
           sortBy: "departureAt",
           sortDir: "asc",
         });
+        if (!isLatest()) return;
         setSummary((current) => ({
           ...current,
           activeTrips: trips.totalItems,
         }));
       } catch (error) {
+        if (!isLatest()) return;
         setSummary((current) => ({ ...current, activeTrips: null }));
         appendError(tRef.current("dashboard.errorSourceActiveTrips"), error);
       }
@@ -269,6 +289,7 @@ export default function ManagerDashboard() {
             to,
             groupBy: "status",
           });
+          if (!isLatest()) return;
           setParcelStatusData(
             statusStats.items.map((item, index) => ({
               key: item.key ?? "UNKNOWN",
@@ -277,6 +298,7 @@ export default function ManagerDashboard() {
             })),
           );
         } catch (error) {
+          if (!isLatest()) return;
           setParcelStatusData([]);
           appendError(tRef.current("dashboard.errorSourceParcelStats"), error);
         }
@@ -288,6 +310,7 @@ export default function ManagerDashboard() {
             groupBy: "route",
             limit: 5,
           });
+          if (!isLatest()) return;
           const total = routeStats.totalParcels;
           setParcelRouteTotal(total);
           setParcelRouteData(
@@ -319,6 +342,7 @@ export default function ManagerDashboard() {
               }),
           );
         } catch (error) {
+          if (!isLatest()) return;
           appendError(
             tRef.current("dashboard.errorSourceParcelRouteStats"),
             error,
@@ -336,8 +360,14 @@ export default function ManagerDashboard() {
       setSummary((current) => ({ ...current, activeTrips: null }));
     }
 
-    setIsLoading(false);
-  }, [appendError, isOperatorAdmin, parcelEnabled, selectedRevenueMonth]);
+    if (isLatest()) setIsLoading(false);
+  }, [
+    appendError,
+    isOperatorAdmin,
+    parcelEnabled,
+    selectedRevenueMonth,
+    startDashboardRequest,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
