@@ -3,8 +3,10 @@
  *
  * Luật bảo mật (token này đủ quyền xác nhận/từ chối một kiện hàng):
  * - KHÔNG ghi token vào localStorage, cookie, log hay analytics.
+ * - Ưu tiên chức năng: tẩy URL chỉ sau khi đã cất token. Mất sessionStorage
+ *   (private mode) không được làm mất nút xác nhận trong lần mở trang đó.
  * - sessionStorage chỉ dùng trong cùng tab, sau khi đã tẩy URL, để F5 không
- *   mất quyền xác nhận. Đóng tab là hết.
+ *   mất quyền xác nhận. Đóng tab là hết. Memory module giữ token qua remount.
  * - Đọc xong thì xoá khỏi thanh địa chỉ để không đọng lại trong lịch sử trình
  *   duyệt, ảnh chụp màn hình hay Referer khi người dùng bấm link khác.
  * - BE parse token thành `Guid` (contract `POST /v1/parcels/delivery/confirm`),
@@ -19,6 +21,9 @@ export const PARCEL_DELIVERY_TOKEN_PATTERN =
 /** Tab-only stash so F5 still works after `?token=` / `#token=` is stripped. */
 export const PARCEL_DELIVERY_TOKEN_SESSION_KEY =
   "vietride.public.parcel-delivery-token";
+
+/** Survives React remount in the same JS realm even if sessionStorage is blocked. */
+let inMemoryToken: string | null = null;
 
 export function isParcelDeliveryToken(value: string): boolean {
   return PARCEL_DELIVERY_TOKEN_PATTERN.test(value.trim());
@@ -81,8 +86,10 @@ export function parseParcelDeliveryTokenFromHash(hash: string): string | null {
  * Xoá `token` khỏi query và hash sau khi đã đọc vào bộ nhớ, giữ path + query
  * khác + hash không phải token. Dùng `replaceState` để không thêm lịch sử.
  */
+type HistoryLike = Pick<History, "replaceState"> & { state?: History["state"] };
+
 export function stripParcelDeliveryTokenFromUrl(
-  historyLike: Pick<History, "replaceState"> = window.history,
+  historyLike: HistoryLike = window.history,
   locationLike: Pick<Location, "pathname" | "search" | "hash"> = window.location,
 ): void {
   const params = new URLSearchParams(locationLike.search);
@@ -99,7 +106,7 @@ export function stripParcelDeliveryTokenFromUrl(
   const query = params.toString();
   const hash = hashIsDeliveryToken ? "" : locationLike.hash;
   historyLike.replaceState(
-    null,
+    historyLike.state ?? null,
     "",
     `${locationLike.pathname}${query ? `?${query}` : ""}${hash}`,
   );
@@ -108,6 +115,10 @@ export function stripParcelDeliveryTokenFromUrl(
 export function readParcelDeliveryTokenFromSession(
   storage: Pick<Storage, "getItem" | "removeItem"> | null = getSessionStorage(),
 ): string | null {
+  if (inMemoryToken && isParcelDeliveryToken(inMemoryToken)) {
+    return inMemoryToken;
+  }
+  inMemoryToken = null;
   if (!storage) return null;
 
   let raw: string | null;
@@ -123,6 +134,7 @@ export function readParcelDeliveryTokenFromSession(
     clearParcelDeliveryTokenSession(storage);
     return null;
   }
+  inMemoryToken = token;
   return token;
 }
 
@@ -130,17 +142,20 @@ export function writeParcelDeliveryTokenToSession(
   token: string,
   storage: Pick<Storage, "setItem"> | null = getSessionStorage(),
 ): void {
-  if (!storage || !isParcelDeliveryToken(token)) return;
+  if (!isParcelDeliveryToken(token)) return;
+  inMemoryToken = token;
+  if (!storage) return;
   try {
     storage.setItem(PARCEL_DELIVERY_TOKEN_SESSION_KEY, token);
   } catch {
-    // Quota / privacy mode — page still works until the next refresh.
+    // Quota / privacy mode — live page still has inMemoryToken.
   }
 }
 
 export function clearParcelDeliveryTokenSession(
   storage: Pick<Storage, "removeItem"> | null = getSessionStorage(),
 ): void {
+  inMemoryToken = null;
   if (!storage) return;
   try {
     storage.removeItem(PARCEL_DELIVERY_TOKEN_SESSION_KEY);
@@ -150,11 +165,12 @@ export function clearParcelDeliveryTokenSession(
 }
 
 /**
- * Ưu tiên query (contract email `?token=`), rồi hash, rồi session cùng tab.
- * Query có `token` nhưng sai/mập mờ → không fallback (tránh che link giả).
+ * Ưu tiên query (contract email `?token=`), rồi hash, rồi memory/session.
+ * Query có `token` hợp lệ thì cất rồi mới tẩy URL — confirm phải còn token.
+ * Query có `token` nhưng sai/mập mờ → không fallback (tránh confirm nhầm đơn cũ).
  */
 export function captureParcelDeliveryTokenFromWindow(
-  historyLike: Pick<History, "replaceState"> = window.history,
+  historyLike: HistoryLike = window.history,
   locationLike: Pick<Location, "pathname" | "search" | "hash"> = window.location,
   storage: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null = getSessionStorage(),
 ): string | null {

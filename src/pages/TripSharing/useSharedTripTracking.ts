@@ -73,7 +73,8 @@ function isTerminalStatus(status: string): boolean {
 
 /**
  * Guest tracking session: REST context first, then Socket.IO /shared.
- * Token stays in hook closure only — never in React Query / storage.
+ * Token is passed in from the page (memory after the hash is stripped).
+ * Never put the raw token in React Query keys or logs.
  */
 export function useSharedTripTracking(shareToken: string | null) {
   const [state, setState] = useState<SharedTripViewState>(INITIAL);

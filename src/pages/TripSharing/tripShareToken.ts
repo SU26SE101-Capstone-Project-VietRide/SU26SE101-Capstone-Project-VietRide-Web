@@ -1,12 +1,15 @@
 /**
  * Capability token for public trip sharing.
  *
- * Security rules:
- * - Read token only from URL hash (`#token=…`). Never from query/search.
- * - After reading, strip the hash so the address bar / history / screenshots
- *   no longer show the capability. Refresh in the same tab restores from
- *   sessionStorage only (tab-scoped; never localStorage, cookies, or logs).
- * - Hash is not sent on subsequent document/navigation requests (unlike query).
+ * Function first, then conceal:
+ * - Map/socket auth uses the token from memory. Hiding the URL must never
+ *   drop a token we already accepted.
+ * - Read new tokens only from URL hash (`#token=…`). Never from query/search.
+ * - After a valid read: remember in-module + sessionStorage, then strip the
+ *   hash. Empty hash (F5 / Strict remount) restores memory, then session.
+ * - sessionStorage is best-effort. Private mode / quota must not break the
+ *   live page — memory still holds the token until the tab is gone.
+ * - Never localStorage, cookies, or logs.
  */
 
 /** Matches BE: v1.<grant UUID>.<base64url HMAC-SHA256> (~43 chars). */
@@ -15,6 +18,9 @@ export const TRIP_SHARE_TOKEN_PATTERN =
 
 /** Tab-only stash so F5 still works after the hash is stripped. */
 export const TRIP_SHARE_TOKEN_SESSION_KEY = "vietride.public.trip-share-token";
+
+/** Survives React remount in the same JS realm even if sessionStorage is blocked. */
+let inMemoryToken: string | null = null;
 
 export function isTripShareToken(value: string): boolean {
   return TRIP_SHARE_TOKEN_PATTERN.test(value.trim());
@@ -61,8 +67,10 @@ export function readTripShareTokenFromWindow(
  * Remove a valid `#token=…` capability from the address bar without adding a
  * history entry. Leaves unrelated hashes untouched.
  */
+type HistoryLike = Pick<History, "replaceState"> & { state?: History["state"] };
+
 export function stripTripShareTokenFromUrl(
-  historyLike: Pick<History, "replaceState"> = window.history,
+  historyLike: HistoryLike = window.history,
   locationLike: Pick<Location, "pathname" | "search" | "hash"> = window.location,
 ): void {
   if (!parseTripShareTokenFromHash(locationLike.hash)) {
@@ -70,7 +78,7 @@ export function stripTripShareTokenFromUrl(
   }
 
   historyLike.replaceState(
-    null,
+    historyLike.state ?? null,
     "",
     `${locationLike.pathname}${locationLike.search}`,
   );
@@ -79,6 +87,10 @@ export function stripTripShareTokenFromUrl(
 export function readTripShareTokenFromSession(
   storage: Pick<Storage, "getItem" | "removeItem"> | null = getSessionStorage(),
 ): string | null {
+  if (inMemoryToken && isTripShareToken(inMemoryToken)) {
+    return inMemoryToken;
+  }
+  inMemoryToken = null;
   if (!storage) return null;
 
   let raw: string | null;
@@ -94,6 +106,7 @@ export function readTripShareTokenFromSession(
     clearTripShareTokenSession(storage);
     return null;
   }
+  inMemoryToken = token;
   return token;
 }
 
@@ -101,17 +114,20 @@ export function writeTripShareTokenToSession(
   token: string,
   storage: Pick<Storage, "setItem"> | null = getSessionStorage(),
 ): void {
-  if (!storage || !isTripShareToken(token)) return;
+  if (!isTripShareToken(token)) return;
+  inMemoryToken = token;
+  if (!storage) return;
   try {
     storage.setItem(TRIP_SHARE_TOKEN_SESSION_KEY, token);
   } catch {
-    // Quota / privacy mode — page still works until the next refresh.
+    // Quota / privacy mode — live page still has inMemoryToken.
   }
 }
 
 export function clearTripShareTokenSession(
   storage: Pick<Storage, "removeItem"> | null = getSessionStorage(),
 ): void {
+  inMemoryToken = null;
   if (!storage) return;
   try {
     storage.removeItem(TRIP_SHARE_TOKEN_SESSION_KEY);
@@ -121,12 +137,12 @@ export function clearTripShareTokenSession(
 }
 
 /**
- * Take the capability off the URL (if present), stash it for same-tab refresh,
- * and return the token to keep in memory. URL hash wins over a leftover session
- * so opening a new share link in the same tab replaces the previous grant.
+ * Conceal the hash only after the token is stashed. A later empty hash
+ * (strip already ran, F5, Strict remount) must restore the same grant so
+ * the live map/socket keep working.
  */
 export function captureTripShareTokenFromWindow(
-  historyLike: Pick<History, "replaceState"> = window.history,
+  historyLike: HistoryLike = window.history,
   locationLike: Pick<Location, "pathname" | "search" | "hash"> = window.location,
   storage: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null = getSessionStorage(),
 ): string | null {

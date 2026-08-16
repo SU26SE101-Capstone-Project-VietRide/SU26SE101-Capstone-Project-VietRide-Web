@@ -8,6 +8,7 @@ import {
   rejectParcelDeliveryByToken,
   undoRejectParcelDeliveryByToken,
 } from "../../api/vietride";
+import { clearParcelDeliveryTokenSession } from "./deliveryToken";
 import ParcelDeliveryConfirmPage from "./index";
 
 vi.mock("react-i18next", () => ({
@@ -39,12 +40,12 @@ function openWith(search: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  sessionStorage.clear();
+  clearParcelDeliveryTokenSession();
   openWith(`?token=${TOKEN}`);
 });
 
 afterEach(() => {
-  sessionStorage.clear();
+  clearParcelDeliveryTokenSession();
   window.history.replaceState(null, "", "/");
 });
 

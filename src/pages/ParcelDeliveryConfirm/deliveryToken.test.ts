@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   captureParcelDeliveryTokenFromWindow,
+  clearParcelDeliveryTokenSession,
   isParcelDeliveryToken,
   parseParcelDeliveryToken,
   parseParcelDeliveryTokenFromHash,
@@ -105,7 +106,7 @@ describe("stripParcelDeliveryTokenFromUrl", () => {
 
 describe("captureParcelDeliveryTokenFromWindow", () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    clearParcelDeliveryTokenSession();
   });
 
   it("ưu tiên query, ghi session, rồi tẩy URL", () => {
@@ -156,6 +157,28 @@ describe("captureParcelDeliveryTokenFromWindow", () => {
         },
       ),
     ).toBeNull();
+  });
+
+  it("tẩy query xong, mất sessionStorage vẫn giữ token trong memory", () => {
+    expect(
+      captureParcelDeliveryTokenFromWindow(
+        { replaceState: vi.fn() },
+        {
+          pathname: "/parcels/delivery/confirm",
+          search: `?token=${VALID_TOKEN}`,
+          hash: "",
+        },
+      ),
+    ).toBe(VALID_TOKEN);
+
+    sessionStorage.removeItem(PARCEL_DELIVERY_TOKEN_SESSION_KEY);
+
+    expect(
+      captureParcelDeliveryTokenFromWindow(
+        { replaceState: vi.fn() },
+        { pathname: "/parcels/delivery/confirm", search: "", hash: "" },
+      ),
+    ).toBe(VALID_TOKEN);
   });
 
   it("F5 không còn token trên URL thì lấy lại từ session", () => {

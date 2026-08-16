@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   captureTripShareTokenFromWindow,
+  clearTripShareTokenSession,
   isTripShareToken,
   parseTripShareTokenFromHash,
   readTripShareTokenFromSession,
@@ -64,7 +65,7 @@ describe("stripTripShareTokenFromUrl", () => {
 
 describe("captureTripShareTokenFromWindow", () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    clearTripShareTokenSession();
   });
 
   it("đọc hash, ghi session, rồi tẩy URL", () => {
@@ -112,6 +113,27 @@ describe("captureTripShareTokenFromWindow", () => {
 
     expect(token).toBe(nextToken);
     expect(readTripShareTokenFromSession()).toBe(nextToken);
+  });
+
+  it("tẩy hash xong, mất sessionStorage vẫn giữ token trong memory", () => {
+    const token = captureTripShareTokenFromWindow(
+      { replaceState: vi.fn() },
+      {
+        pathname: "/trip-sharing",
+        search: "",
+        hash: `#token=${VALID_TOKEN}`,
+      },
+    );
+    expect(token).toBe(VALID_TOKEN);
+
+    sessionStorage.removeItem(TRIP_SHARE_TOKEN_SESSION_KEY);
+
+    expect(
+      captureTripShareTokenFromWindow(
+        { replaceState: vi.fn() },
+        { pathname: "/trip-sharing", search: "", hash: "" },
+      ),
+    ).toBe(VALID_TOKEN);
   });
 
   it("xoá session hỏng, không trả token giả", () => {
