@@ -13,6 +13,11 @@ COPY . .
 # VITE_API_BASE_URL mặc định rỗng: FE và API cùng origin (nginx BE route /v1/
 # sang gateway), client gọi bằng path tương đối và không dính CORS.
 ARG VITE_API_BASE_URL=""
+# Origin của console (vd https://vietride.online). Chỉ cần set khi trang return
+# của VNPay chạy ở origin KHÁC console — khi đó nút "quay lại" ở trang return
+# phải trỏ tuyệt đối về đây, xem comment trong PaymentReturn.tsx. Cùng origin thì
+# để rỗng, nút điều hướng nội bộ trong SPA.
+ARG VITE_APP_BASE_URL=""
 ARG VITE_GOOGLE_MAPS_API_KEY=""
 ARG VITE_GOOGLE_ROUTES_API_KEY=""
 # Cấu hình Firebase web là public (đã nằm trong .env.example, nhúng vào bundle
@@ -23,8 +28,9 @@ ARG VITE_FIREBASE_PROJECT_ID="vietride-204c0"
 ARG VITE_FIREBASE_STORAGE_BUCKET="vietride-204c0.firebasestorage.app"
 ARG VITE_FIREBASE_MESSAGING_SENDER_ID="654382432661"
 ARG VITE_FIREBASE_APP_ID="1:654382432661:web:2beea673c5806ce1fe369c"
-RUN printf 'VITE_API_BASE_URL=%s\nVITE_GOOGLE_MAPS_API_KEY=%s\nVITE_GOOGLE_ROUTES_API_KEY=%s\nVITE_FIREBASE_API_KEY=%s\nVITE_FIREBASE_AUTH_DOMAIN=%s\nVITE_FIREBASE_PROJECT_ID=%s\nVITE_FIREBASE_STORAGE_BUCKET=%s\nVITE_FIREBASE_MESSAGING_SENDER_ID=%s\nVITE_FIREBASE_APP_ID=%s\n' \
+RUN printf 'VITE_API_BASE_URL=%s\nVITE_APP_BASE_URL=%s\nVITE_GOOGLE_MAPS_API_KEY=%s\nVITE_GOOGLE_ROUTES_API_KEY=%s\nVITE_FIREBASE_API_KEY=%s\nVITE_FIREBASE_AUTH_DOMAIN=%s\nVITE_FIREBASE_PROJECT_ID=%s\nVITE_FIREBASE_STORAGE_BUCKET=%s\nVITE_FIREBASE_MESSAGING_SENDER_ID=%s\nVITE_FIREBASE_APP_ID=%s\n' \
       "$VITE_API_BASE_URL" \
+      "$VITE_APP_BASE_URL" \
       "$VITE_GOOGLE_MAPS_API_KEY" \
       "$VITE_GOOGLE_ROUTES_API_KEY" \
       "$VITE_FIREBASE_API_KEY" \

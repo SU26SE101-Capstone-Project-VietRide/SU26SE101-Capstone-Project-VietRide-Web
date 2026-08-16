@@ -4,7 +4,7 @@
 // — bỏ ở header để không có 2 nút lưu trùng nhau.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiMapPin } from "react-icons/fi";
+import StationManagementButton from "./StationManagementButton";
 import { routeTabs, type RouteTab } from "./routeFormUtils";
 
 type RouteDetailHeaderProps = {
@@ -59,14 +59,7 @@ export default function RouteDetailHeader({
           <h2 className="min-w-0 truncate text-lg font-bold text-gray-900">
             {routeName}
           </h2>
-          <button
-            type="button"
-            onClick={onOpenStationManagement}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <FiMapPin size={16} />
-            {t("routes.stationManagement")}
-          </button>
+          <StationManagementButton onClick={onOpenStationManagement} />
         </div>
 
         <nav

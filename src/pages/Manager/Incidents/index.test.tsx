@@ -295,6 +295,74 @@ describe("Manager Incidents", () => {
     expect(await screen.findByText("incidents.empty")).toBeInTheDocument();
   });
 
+  // Ô tìm kiếm cũng là bộ lọc — "Đặt lại" mà bỏ sót nó thì danh sách vẫn bị lọc
+  // theo từ khoá cũ trong khi mọi ô khác đã trống.
+  it("nút Đặt lại xoá cả từ khoá tìm kiếm", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+
+    const searchInput = screen.getByLabelText("incidents.searchLabel");
+    await user.type(searchInput, "động cơ");
+    await waitFor(() =>
+      expect(getOperatorIncidents).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: "động cơ" }),
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: "reset" }));
+
+    expect(searchInput).toHaveValue("");
+    await waitFor(() => {
+      const lastCall = vi.mocked(getOperatorIncidents).mock.calls.at(-1);
+      expect(lastCall?.[0]).not.toHaveProperty("search");
+    });
+  });
+
+  // Vào từ thông báo sự cố là URL có sẵn ?tripId= — phải thoát được bộ lọc đó
+  // mà không cần sửa URL bằng tay.
+  it("bỏ được bộ lọc theo chuyến của deep-link", async () => {
+    const user = userEvent.setup();
+    renderPage("/manager/incidents?tripId=trip-1");
+
+    await waitFor(() =>
+      expect(getOperatorIncidents).toHaveBeenLastCalledWith(
+        expect.objectContaining({ tripId: "trip-1" }),
+      ),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "incidents.clearTripFilter" }),
+    );
+
+    await waitFor(() => {
+      const lastCall = vi.mocked(getOperatorIncidents).mock.calls.at(-1);
+      expect(lastCall?.[0]).not.toHaveProperty("tripId");
+    });
+    expect(screen.queryByText("incidents.filteredByTrip")).not.toBeInTheDocument();
+  });
+
+  // Toạ độ điểm báo là nơi tài xế bấm gửi, không phải vị trí hiện tại của xe —
+  // bỏ khỏi modal để không ai đọc nhầm thành vị trí xe.
+  it("không hiện ô vị trí/bản đồ trong chi tiết sự cố", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("incidents.reporterInfo"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText("incidents.location"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByText("incidents.openInMaps"),
+    ).not.toBeInTheDocument();
+  });
+
   it("chịu được reporter thiếu displayName/role", async () => {
     vi.mocked(getOperatorIncidents).mockResolvedValue(
       pageOf([

@@ -31,8 +31,9 @@ import {
 } from "./geometry";
 import type { TranslateFn } from "./types";
 
-// Tối đa số điểm nắn lộ trình (kéo trên bản đồ) cho một tuyến
-const maxViaPoints = 3;
+// Không giới hạn số điểm nắn lộ trình phía FE. Trần thực tế là của Google Routes
+// API: `intermediates` gồm CẢ điểm dừng của tuyến lẫn điểm nắn `via:true`, vượt
+// hạn ngạch waypoint thì request trả lỗi và toolbar hiện "không tính được đường".
 
 // Kéo tới đâu tính tới đó: throttle + ngưỡng di chuyển tối thiểu giữa 2 lần gọi
 // Google trong lúc kéo — API tính tiền theo request, đừng hạ thấp tùy tiện.
@@ -593,24 +594,15 @@ export function useRouteGeometry({
 
   // Click lên đường đang chọn → cắm điểm nắn tại đó và tính lại (như kéo đường Google)
   function handleAddViaPoint(point: RouteCoordinate) {
-    if (viaPoints.length >= maxViaPoints) {
-      setError(t("routes.viaPointLimit", { max: maxViaPoints }));
-      return;
-    }
-
     runReroute([...viaPoints, point]);
   }
 
   // Túm thẳng thân đường (mousedown trên polyline đang chọn) → cắm điểm nắn NGAY
   // dưới chuột và vào gesture kéo tuỳ chỉnh: KHÔNG reroute ở bước này — preview
   // chạy qua handleDragViaPoint trong lúc mousemove, phát chốt qua
-  // handleMoveViaPoint lúc mouseup. Trả về index điểm nắn mới, -1 nếu chạm trần.
+  // handleMoveViaPoint lúc mouseup. Trả về index điểm nắn mới (>= 0). Giữ kiểu
+  // trả về number vì caller vẫn guard index âm — không còn nhánh nào trả -1.
   function handleBeginViaPointDrag(point: RouteCoordinate): number {
-    if (viaPoints.length >= maxViaPoints) {
-      setError(t("routes.viaPointLimit", { max: maxViaPoints }));
-      return -1;
-    }
-
     isDraggingViaRef.current = true;
     // Chưa từng preview trong gesture này — lần drag đầu tiên đủ xa là tính ngay
     dragPreviewRef.current = { lastRunAt: 0, lastPoint: point };

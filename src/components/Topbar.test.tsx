@@ -10,7 +10,14 @@ import {
 import { getNotificationActionPath } from "../utils/notificationActions";
 import Topbar from "./Topbar";
 
-const translate = (key: string) => key;
+// Bắt chước i18next: khoá đã khai trả nhãn, khoá chưa khai rơi về `defaultValue`.
+// Topbar dựa đúng vào hành vi đó để biết mã enum nào có bản dịch.
+const notificationCodeLabels: Record<string, string> = {
+  "notificationCodes.VEHICLE_BREAKDOWN": "hỏng xe",
+};
+
+const translate = (key: string, options?: { defaultValue?: string }) =>
+  notificationCodeLabels[key] ?? options?.defaultValue ?? key;
 
 function LocationProbe() {
   const location = useLocation();
@@ -320,6 +327,63 @@ describe("Topbar dropdowns", () => {
     expect(getNotifications).toHaveBeenCalledTimes(4);
   });
 
+  // BE dựng sẵn câu thông báo nhưng nhúng thẳng mã enum vào — FE phải thay bằng
+  // nhãn đã dịch, và giữ nguyên mã nào chưa khai bản dịch.
+  it("dịch mã enum nhúng trong nội dung thông báo", async () => {
+    const user = userEvent.setup();
+    const notifications: NotificationItem[] = [
+      {
+        id: "notification-incident",
+        userId: "admin-1",
+        type: "INCIDENT_REPORTED",
+        title: "Có sự cố trên chuyến xe",
+        body: "Chuyến xe vừa ghi nhận sự cố: VEHICLE_BREAKDOWN.",
+        data: null,
+        readAt: null,
+        createdAt: "2026-08-16T09:48:00.000Z",
+      },
+      {
+        id: "notification-unknown-code",
+        userId: "admin-1",
+        type: "TRIP_UPDATE",
+        title: "Trạng thái mới",
+        body: "Trạng thái: SOMETHING_NEW.",
+        data: null,
+        readAt: null,
+        createdAt: "2026-08-16T09:49:00.000Z",
+      },
+    ];
+
+    vi.mocked(getNotifications).mockResolvedValue({
+      items: notifications,
+      page: 1,
+      pageSize: 20,
+      totalItems: notifications.length,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/manager/dashboard"]}>
+        <Topbar onMenuToggle={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "notifications" }));
+
+    expect(
+      await screen.findByText("Chuyến xe vừa ghi nhận sự cố: hỏng xe."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/VEHICLE_BREAKDOWN/),
+    ).not.toBeInTheDocument();
+    // Mã chưa khai bản dịch phải hiện nguyên, không được nuốt mất
+    expect(
+      screen.getByText("Trạng thái: SOMETHING_NEW."),
+    ).toBeInTheDocument();
+  });
+
   it("maps notification actions to their web destinations", () => {
     const baseNotification = {
       id: "notification-action",
@@ -402,6 +466,56 @@ describe("Topbar dropdowns", () => {
         false,
       ),
     ).toBe("/manager/operations?tripId=trip-fcm");
+  });
+
+  // Trung tâm vận hành KHÔNG đóng được sự cố, chỉ màn Báo cáo sự cố mới có nút
+  // đó — nên thông báo sự cố phải mở thẳng màn sự cố dù BE gắn action mở chuyến.
+  it("đưa thông báo sự cố về màn Báo cáo sự cố thay vì Trung tâm vận hành", () => {
+    const baseNotification = {
+      id: "notification-incident",
+      userId: "admin-1",
+      title: "Có sự cố trên chuyến xe",
+      body: "Chuyến xe vừa ghi nhận sự cố: VEHICLE_BREAKDOWN.",
+      data: null,
+      readAt: null,
+      createdAt: "2026-08-16T09:48:00.000Z",
+    };
+
+    // BE khai action mở chuyến — FE đổi hướng theo notificationType
+    expect(
+      getNotificationActionPath(
+        {
+          ...baseNotification,
+          type: "INCIDENT_REPORTED",
+          action: { type: "OPEN_TRIP_TRACKING", params: { tripId: "trip-1" } },
+        },
+        false,
+      ),
+    ).toBe("/manager/incidents?tripId=trip-1");
+
+    // BE chỉ trả data thô (không có action) — nhánh suy luận cũng phải ra sự cố
+    expect(
+      getNotificationActionPath(
+        {
+          ...baseNotification,
+          type: "INCIDENT_REPORTED",
+          data: { tripId: "trip-legacy" },
+        },
+        false,
+      ),
+    ).toBe("/manager/incidents?tripId=trip-legacy");
+
+    // Thông báo theo dõi khác vẫn về Trung tâm vận hành như cũ
+    expect(
+      getNotificationActionPath(
+        {
+          ...baseNotification,
+          type: "OFF_ROUTE_ALERT",
+          data: { tripId: "trip-2" },
+        },
+        false,
+      ),
+    ).toBe("/manager/operations?tripId=trip-2");
   });
 
   it("navigates immediately when the running BE only returns legacy data", async () => {

@@ -46,6 +46,9 @@ export type NotificationAction =
   | { type: "OPEN_INVOICE"; params: { invoiceId: string } }
   | { type: "OPEN_OPERATOR_STATUS"; params: Record<string, never> }
   | { type: "OPEN_SHUTTLE_TRACKING"; params: { shuttleTripId: string } }
+  // Màn Báo cáo sự cố lọc theo `tripId` (không có route chi tiết theo
+  // incidentId), nên `tripId` mới là tham số bắt buộc ở đây.
+  | { type: "OPEN_INCIDENT"; params: { tripId: string } }
   | { type: "NONE"; params: Record<string, never> };
 
 export type NotificationItem = {
@@ -3012,6 +3015,12 @@ export type OperatorTripListParams = PageParams & {
 
 export type OperatorTripListItem = {
   tripId: string;
+  /**
+   * Mã chuyến người đọc được (`TRIP-20260729-001`). Optional vì các môi trường
+   * deploy trước khi BE bổ sung field này vẫn trả item không có `tripCode` —
+   * UI phải tự fallback về `tripId` rút gọn thay vì hiện "undefined".
+   */
+  tripCode?: string;
   status: string;
   route: {
     routeId: string;

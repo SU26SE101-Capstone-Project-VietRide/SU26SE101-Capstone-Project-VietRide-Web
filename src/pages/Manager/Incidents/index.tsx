@@ -11,6 +11,7 @@ import {
   FiMapPin,
   FiRefreshCw,
   FiUser,
+  FiX,
 } from "react-icons/fi";
 import {
   getOperatorIncident,
@@ -46,7 +47,7 @@ export default function ManagerIncidents() {
     tRef.current = t;
   });
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Deep-link từ Trung tâm vận hành: lọc sẵn theo chuyến
   const linkedTripId = searchParams.get("tripId") ?? "";
 
@@ -182,6 +183,19 @@ export default function ManagerIncidents() {
     setStatus("");
     setFrom("");
     setTo("");
+    // Ô tìm kiếm cũng là bộ lọc: bỏ sót nó thì bấm "Đặt lại" xong danh sách vẫn
+    // bị lọc theo từ khoá cũ mà không có gì trên màn giải thích tại sao.
+    setSearch("");
+    setDebouncedSearch("");
+    setPage(1);
+  }
+
+  // Bỏ deep-link `?tripId=` (vào từ thông báo sự cố hoặc Trung tâm vận hành).
+  // Không có nút này thì người dùng phải tự sửa URL mới xem được toàn bộ sự cố.
+  function clearTripFilter() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("tripId");
+    setSearchParams(next, { replace: true });
     setPage(1);
   }
 
@@ -214,12 +228,22 @@ export default function ManagerIncidents() {
       {linkedTripId && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-vr-200 bg-vr-50 px-4 py-3 text-sm text-vr-900">
           <span>{t("incidents.filteredByTrip")}</span>
-          <Link
-            to={`/manager/operations?tripId=${linkedTripId}`}
-            className="font-semibold text-vr-800 hover:underline"
-          >
-            {t("incidents.viewOnOperations")}
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={clearTripFilter}
+              className="inline-flex cursor-pointer items-center gap-1.5 font-semibold text-vr-800 hover:underline"
+            >
+              <FiX size={14} aria-hidden="true" />
+              {t("incidents.clearTripFilter")}
+            </button>
+            <Link
+              to={`/manager/operations?tripId=${linkedTripId}`}
+              className="font-semibold text-vr-800 hover:underline"
+            >
+              {t("incidents.viewOnOperations")}
+            </Link>
+          </div>
         </div>
       )}
 

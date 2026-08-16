@@ -140,6 +140,29 @@ describe("SubscriptionPaymentReturn", () => {
     expect(getOperatorSubscription).toHaveBeenCalledTimes(1);
   });
 
+  // VNPay có thể trả về một origin khác console (app.vietride.online vs
+  // vietride.online). Khai VITE_APP_BASE_URL thì nút quay lại phải là URL tuyệt
+  // đối sang console thật, không phải path tương đối của origin đang đứng.
+  it("trỏ nút quay lại sang origin console khi có VITE_APP_BASE_URL", async () => {
+    // Dấu "/" thừa ở cuối là lỗi cấu hình thường gặp — không được đẻ ra
+    // "https://vietride.online//manager/packages".
+    vi.stubEnv("VITE_APP_BASE_URL", "https://vietride.online/");
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=00&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "paymentReturn.backToPackages" }),
+    ).toHaveAttribute("href", "https://vietride.online/manager/packages");
+
+    vi.unstubAllEnvs();
+  });
+
   it("forwards the raw VNPay query to the backend status endpoint untouched", async () => {
     const rawQuery =
       "?vnp_Amount=1000000&vnp_ResponseCode=00&vnp_TxnRef=VR-1&vnp_SecureHash=abc%2Fdef%2B123";
@@ -246,8 +269,10 @@ describe("SubscriptionPaymentReturn", () => {
     expect(screen.getByText("packages-page")).toBeInTheDocument();
   });
 
-  // Kịch bản người dùng gặp thật: quay về từ VNPay mà phiên đã mất. Trang phải
-  // vẫn kết luận được bằng endpoint public, KHÔNG được đá về /login.
+  // Kịch bản người dùng gặp thật: quay về từ VNPay mà phiên đã mất (thường vì
+  // ReturnUrl khác origin với console nên localStorage rỗng). Trang phải vẫn kết
+  // luận được bằng endpoint public, và nút quay lại vẫn trỏ về màn Gói cước —
+  // KHÔNG đá sang /login, vì đăng nhập ở origin này cũng không đưa họ về đúng chỗ.
   it("still reports the result when the session is gone on return", async () => {
     localStorage.clear();
     vi.mocked(getVnPayReturnStatus).mockResolvedValue({
@@ -272,8 +297,8 @@ describe("SubscriptionPaymentReturn", () => {
     expect(getOperatorSubscription).not.toHaveBeenCalled();
     expect(screen.getByText("paymentReturn.signedOutNote")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "paymentReturn.signInToContinue" }),
-    ).toHaveAttribute("href", "/login");
+      screen.getByRole("link", { name: "paymentReturn.backToPackages" }),
+    ).toHaveAttribute("href", "/manager/packages");
   });
 
   it("falls back to the public status endpoint when the session expires mid-check", async () => {

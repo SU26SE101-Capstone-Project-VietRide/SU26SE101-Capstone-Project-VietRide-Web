@@ -319,8 +319,6 @@ export default function RoutesPage() {
   const stationManager = useStationManagement({
     stations,
     setStations,
-    updateRoute,
-    hasSelectedRoute: Boolean(selectedRouteId),
     // Lỗi validation của hành động (khi bấm thêm điểm dừng/tuyến thay thế/bến...)
     // trước đây hiện qua banner đầu màn — giờ báo qua toast (không có ô inline
     // riêng cho các lỗi này).
@@ -1149,7 +1147,6 @@ export default function RoutesPage() {
         open={isStationModalOpen}
         onClose={() => setIsStationModalOpen(false)}
         canManageRoutes={canManageRoutes}
-        hasSelectedRoute={Boolean(selectedRouteId)}
         locations={locations}
         manager={stationManager}
         onRunAction={runAction}

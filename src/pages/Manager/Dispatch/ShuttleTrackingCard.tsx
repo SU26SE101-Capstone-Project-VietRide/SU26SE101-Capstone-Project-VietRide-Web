@@ -16,6 +16,7 @@ import type {
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
   formatTime,
+  isTrackableShuttleStatus,
   nextPickupLabel,
   type ShuttleTripTracking,
 } from "./dispatchHelpers";
@@ -31,6 +32,7 @@ type ShuttleTrackingCardProps = {
   onSelect: (shuttleTripId: string) => void;
   onRefresh: (shuttleTripId: string) => void;
   onCancel: (trip: OperatorShuttleTripListItem) => void;
+  onOpenDetail: (trip: OperatorShuttleTripListItem) => void;
   directionLabel: (direction: ShuttleDirection) => string;
 };
 
@@ -57,6 +59,7 @@ export default function ShuttleTrackingCard({
   onSelect,
   onRefresh,
   onCancel,
+  onOpenDetail,
   directionLabel,
 }: ShuttleTrackingCardProps) {
   const { t } = useTranslation("manager");
@@ -64,6 +67,10 @@ export default function ShuttleTrackingCard({
   const driverName = trip.driver.displayName?.trim();
   const canCancel =
     canCancelShuttle && CANCELLABLE_STATUSES.includes(trip.status);
+  // Chuyến đã kết thúc không còn nguồn GPS: thẻ chuyển sang dạng tổng kết
+  // (giờ chạy thật + giờ hoàn tất) và bỏ nút làm mới vị trí — bấm cũng chỉ
+  // nhận về `latest = null`, hiện ra như thể màn hỏng.
+  const isTrackable = isTrackableShuttleStatus(trip.status);
 
   return (
     <article
@@ -109,19 +116,21 @@ export default function ShuttleTrackingCard({
               <FiMapPin size={15} />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => onRefresh(trip.shuttleTripId)}
-            disabled={isRefreshing}
-            className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-            title={t("dispatch.refreshTracking")}
-            aria-label={t("dispatch.refreshTracking")}
-          >
-            <FiRefreshCw
-              size={15}
-              className={isRefreshing ? "animate-spin" : ""}
-            />
-          </button>
+          {isTrackable && (
+            <button
+              type="button"
+              onClick={() => onRefresh(trip.shuttleTripId)}
+              disabled={isRefreshing}
+              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              title={t("dispatch.refreshTracking")}
+              aria-label={t("dispatch.refreshTracking")}
+            >
+              <FiRefreshCw
+                size={15}
+                className={isRefreshing ? "animate-spin" : ""}
+              />
+            </button>
+          )}
           {canCancel && (
             <button
               type="button"
@@ -175,9 +184,27 @@ export default function ShuttleTrackingCard({
         </p>
       )}
 
-      {/* Thẻ trống nghĩa là xe chưa gửi GPS lần nào, không phải màn quên tải —
-          nói rõ điều đó thay vì hiện một ô trống không giải thích. */}
-      {!tracking?.latest && !tracking?.eta && !tracking?.error ? (
+      {/* Chuyến đã xong/đã huỷ: thay khối theo dõi trực tiếp bằng mốc thời gian
+          thực tế. Không có nguồn GPS nào để chờ nên nói "chưa gửi tín hiệu" ở
+          đây là sai. */}
+      {!isTrackable ? (
+        <dl className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-gray-100 px-3 py-2.5 text-xs">
+          <div>
+            <dt className="text-gray-500">
+              {t("dispatch.actualDepartureTime")}
+            </dt>
+            <dd className="mt-0.5 font-semibold text-gray-800">
+              {formatTime(trip.actualDepartureTime ?? undefined)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-gray-500">{t("dispatch.completedAt")}</dt>
+            <dd className="mt-0.5 font-semibold text-gray-800">
+              {formatTime(trip.completedAt ?? undefined)}
+            </dd>
+          </div>
+        </dl>
+      ) : !tracking?.latest && !tracking?.eta && !tracking?.error ? (
         <p className="mt-3 rounded-lg border border-dashed border-gray-200 px-3 py-3 text-center text-xs text-gray-500">
           {t("dispatch.trackingWaitingSignalHint")}
         </p>
@@ -235,6 +262,18 @@ export default function ShuttleTrackingCard({
           </div>
         </div>
       )}
+
+      {/* Đẩy xuống đáy thẻ: các thẻ trong lưới cao thấp khác nhau (chuyến đang
+          chạy có thêm khối vị trí/ETA), mt-auto giữ hàng nút thẳng nhau. */}
+      <div className="mt-auto pt-3">
+        <button
+          type="button"
+          onClick={() => onOpenDetail(trip)}
+          className="w-full cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-vr-300 hover:text-vr-700"
+        >
+          {t("dispatch.viewTripDetail")}
+        </button>
+      </div>
     </article>
   );
 }

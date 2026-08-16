@@ -36,6 +36,33 @@ type PaymentReturnStatus =
   | "notFound"
   | "error";
 
+const PACKAGES_PATH = "/manager/packages";
+
+/**
+ * Origin của web quản trị, dùng cho nút "quay lại" ở cuối trang.
+ *
+ * VNPay trả người dùng về đúng ReturnUrl mà Backend khai, và ReturnUrl đó không
+ * nhất thiết cùng origin với chỗ người dùng đang đăng nhập (thực tế: return về
+ * `app.vietride.online` trong khi console chạy ở `vietride.online`). Phiên đăng
+ * nhập nằm trong localStorage nên nó gắn theo ORIGIN: người vẫn đang đăng nhập
+ * ở console vẫn bị trang này coi là đã đăng xuất, và nút quay lại trước đây đẩy
+ * họ sang `/login` của origin sai — đăng nhập lại ở đó cũng không về đúng chỗ.
+ *
+ * Set `VITE_APP_BASE_URL` (build-arg, xem Dockerfile) để nút trỏ thẳng về console
+ * thật. Bỏ trống — mặc định ở dev/localhost và khi return cùng origin — thì giữ
+ * điều hướng nội bộ trong SPA như cũ.
+ */
+function resolvePackagesHref() {
+  const baseUrl = String(import.meta.env.VITE_APP_BASE_URL ?? "").replace(
+    /\/+$/,
+    "",
+  );
+  return baseUrl ? `${baseUrl}${PACKAGES_PATH}` : PACKAGES_PATH;
+}
+
+const backButtonClass =
+  "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-vr-500 px-5 py-3.5 font-semibold text-white transition hover:bg-vr-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40";
+
 const MAX_VERIFICATION_ATTEMPTS = 30;
 const VERIFICATION_INTERVAL_MS = 2_000;
 const SUCCESS_REDIRECT_DELAY_SECONDS = 5;
@@ -370,6 +397,7 @@ export default function SubscriptionPaymentReturn() {
   // trong payment intent nên vẫn hiển thị được ngữ cảnh.
   const planName = subscription?.plan.name ?? paymentIntent?.targetPlanName ?? "";
   const canRetry = status === "processing" || status === "error";
+  const packagesHref = resolvePackagesHref();
 
   useToastFeedback({ error });
   return (
@@ -459,15 +487,21 @@ export default function SubscriptionPaymentReturn() {
               {t("paymentReturn.retry")}
             </button>
           ) : null}
-          <Link
-            to={signedOut ? "/login" : "/manager/packages"}
-            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-vr-500 px-5 py-3.5 font-semibold text-white transition hover:bg-vr-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40"
-          >
-            <FiArrowLeft className="h-5 w-5" aria-hidden="true" />
-            {signedOut
-              ? t("paymentReturn.signInToContinue")
-              : t("paymentReturn.backToPackages")}
-          </Link>
+          {/* Luôn quay về màn Gói cước, kể cả khi trang này không đọc được phiên
+              (xem resolvePackagesHref). Có origin cấu hình sẵn thì phải là thẻ
+              <a>: đó là điều hướng sang origin khác, Link của router không đi
+              ra ngoài SPA được. */}
+          {packagesHref === PACKAGES_PATH ? (
+            <Link to={PACKAGES_PATH} className={backButtonClass}>
+              <FiArrowLeft className="h-5 w-5" aria-hidden="true" />
+              {t("paymentReturn.backToPackages")}
+            </Link>
+          ) : (
+            <a href={packagesHref} className={backButtonClass}>
+              <FiArrowLeft className="h-5 w-5" aria-hidden="true" />
+              {t("paymentReturn.backToPackages")}
+            </a>
+          )}
         </div>
       </section>
     </main>

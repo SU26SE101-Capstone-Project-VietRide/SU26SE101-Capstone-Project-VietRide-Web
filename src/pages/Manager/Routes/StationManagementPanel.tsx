@@ -10,19 +10,18 @@ import PlacePicker, {
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import type { AdminLocation } from "../../../api/vietride";
 import type { UseStationManagementResult } from "./useStationManagement";
-import type { StationRouteRole } from "./types";
 import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 
+// Modal này chỉ làm một việc: tìm/tạo bến rồi gắn vào nhà xe. Trước đây còn một
+// dropdown "Dùng làm bến đi/đến" nhưng nó vô tác dụng ở mọi nhánh — đang mở tuyến
+// thì bến đi/đến bất biến (server chặn ROUTE_STATION_IMMUTABLE), còn chưa mở tuyến
+// thì giá trị rơi vào `routeForm` mà không màn nào đọc (CreateRouteModal giữ state
+// riêng). Chọn bến đi/đến làm ở đúng một chỗ: form tạo tuyến.
 type StationManagementPanelProps = {
   canManageRoutes: boolean;
   locations: AdminLocation[];
   manager: UseStationManagementResult;
   onRunAction: (action: () => Promise<void>) => void;
-  // Đang mở sẵn một tuyến đã tạo (selectedRouteId có giá trị) — bến đi/bến đến
-  // của tuyến đó KHÔNG đổi được nữa (server chặn ROUTE_STATION_IMMUTABLE), nên
-  // ẩn dropdown "Dùng làm bến đi/đến" để tránh vừa báo gắn bến thành công vừa
-  // báo lỗi khoá bến đi/đến cùng lúc (2 toast trái ngược cho cùng 1 lần bấm).
-  hasSelectedRoute: boolean;
 };
 
 function normalizeLocationName(value: string) {
@@ -57,7 +56,6 @@ export default function StationManagementPanel({
   locations,
   manager,
   onRunAction,
-  hasSelectedRoute,
 }: StationManagementPanelProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -79,13 +77,40 @@ export default function StationManagementPanel({
               onSelect={(place) => {
                 const provinceCode = findMatchingProvinceCode(place, locations);
                 onRunAction(async () => {
-                  await manager.applyStationPlace(place);
-                  await manager.selectProvince(provinceCode);
+                  const stationExists = await manager.applyStationPlace(place);
+                  // Bến đã có sẵn thì không phải khai địa giới nữa — bỏ luôn
+                  // bước đoán tỉnh/thành để khỏi gọi API thừa.
+                  if (!stationExists) {
+                    await manager.selectProvince(provinceCode);
+                  }
                 });
               }}
             />
-            {manager.stationPlaceDraft && !manager.selectedStationId && (
+
+            {/* Ba nhánh loại trừ nhau, và nhánh "đang tra" phải có mặt: chưa biết
+                bến đã tồn tại hay chưa mà vẽ sẵn form tạo thì lát nữa nó biến mất,
+                người dùng không hiểu vì sao lúc thấy lúc không. */}
+            {manager.stationPlaceDraft && manager.isResolvingStation && (
+              <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                {t("routes.stationLookupRunning")}
+              </p>
+            )}
+
+            {manager.stationPlaceDraft &&
+              !manager.isResolvingStation &&
+              manager.selectedStationId && (
+                <p className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm text-vr-900">
+                  {t("routes.stationAlreadyOnSystem")}
+                </p>
+              )}
+
+            {manager.stationPlaceDraft &&
+              !manager.isResolvingStation &&
+              !manager.selectedStationId && (
               <>
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  {t("routes.stationNotOnSystem")}
+                </p>
                 {/* Bến chỉ nhận Location cấp phường/xã. Danh sách phường/xã
                     phải hỏi riêng theo tỉnh (GET /v1/locations?parentCode=),
                     nên phải chọn hai cấp thay vì một dropdown tỉnh như trước. */}
@@ -176,13 +201,6 @@ export default function StationManagementPanel({
                 </label>}
               </>
             )}
-            {!hasSelectedRoute && (
-              <CustomSelect className={inputClass} value={manager.stationRouteRole} onChange={(event) => manager.setStationRouteRole(event.target.value as StationRouteRole)}>
-                <option value="">{t("routes.stationRouteRoleNone")}</option>
-                <option value="origin">{t("routes.useAsOrigin")}</option>
-                <option value="destination">{t("routes.useAsDestination")}</option>
-              </CustomSelect>
-            )}
             <button
               type="button"
               onClick={() => onRunAction(manager.handleCreateAndAttachStation)}
@@ -193,9 +211,13 @@ export default function StationManagementPanel({
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:opacity-50"
             >
               <FiMapPin size={16} />
+              {/* Nhãn chỉ nói việc chính của từng nhánh: bến đã có trong hệ thống
+                  thì "Gắn bến", chưa có thì "Tạo bến mới". Việc gắn vào nhà xe là
+                  hệ quả đương nhiên của cả hai và đã nói ở phụ đề modal — nhét
+                  "Tạo & gắn" vào nút làm người dùng tưởng còn bước gắn thứ hai. */}
               {manager.selectedStationId
                 ? t("routes.attachStation")
-                : t("routes.createAndAttachStation")}
+                : t("routes.createStation")}
             </button>
           </div>
         </div>

@@ -301,6 +301,168 @@ describe("Manager Dispatch", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Mặc định là XEM HẾT: không gửi `status` lên BE. Không được liệt kê cứng bốn
+  // trạng thái ở FE — BE thêm trạng thái mới là màn này lọc mất.
+  it("mặc định xin mọi trạng thái, không gửi `status`", async () => {
+    renderPage();
+
+    await waitFor(() => expect(getOperatorShuttleTrips).toHaveBeenCalled());
+    expect(
+      vi.mocked(getOperatorShuttleTrips).mock.calls[0][0],
+    ).not.toHaveProperty("status");
+  });
+
+  it("chọn Đang hoạt động thì gộp hai trạng thái chưa kết thúc", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(getOperatorShuttleTrips).toHaveBeenCalled());
+
+    await user.click(
+      screen.getByRole("button", { name: "dispatch.shuttleStatusFilter" }),
+    );
+    await user.click(
+      screen.getByRole("option", {
+        name: "dispatch.shuttleStatusFilters.ACTIVE",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(getOperatorShuttleTrips).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "SCHEDULED,IN_PROGRESS" }),
+      ),
+    );
+  });
+
+  it("đổi bộ lọc sang Đã hoàn thành thì tải lại đúng trạng thái đó", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(getOperatorShuttleTrips).toHaveBeenCalled());
+
+    await user.click(
+      screen.getByRole("button", { name: "dispatch.shuttleStatusFilter" }),
+    );
+    await user.click(
+      screen.getByRole("option", {
+        name: "dispatch.shuttleStatusFilters.COMPLETED",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(getOperatorShuttleTrips).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "COMPLETED" }),
+      ),
+    );
+  });
+
+  // Chuyến đã xong không còn nguồn GPS: không join room, và thẻ hiện mốc thời
+  // gian chứ không phải hint "đang chờ tín hiệu".
+  it("không đăng ký realtime cho chuyến đã hoàn thành", async () => {
+    vi.mocked(getOperatorShuttleTrips).mockResolvedValue({
+      items: [
+        {
+          ...shuttleTrip,
+          status: "COMPLETED",
+          actualDepartureTime: "2026-08-12T21:35:00+07:00",
+          completedAt: "2026-08-12T22:25:00+07:00",
+        },
+      ],
+      page: 1,
+      pageSize: 12,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(getOperatorShuttleTrips).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByText("dispatch.completedAt")).toBeInTheDocument(),
+    );
+    expect(joinShuttleTracking).not.toHaveBeenCalled();
+    expect(getShuttleTripLatest).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText("dispatch.trackingWaitingSignalHint"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "dispatch.refreshTracking" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Chuyến đã kết thúc không nằm trong luồng tracking nên chưa có context sẵn —
+  // modal phải tự nạp lộ trình điểm đón khi mở.
+  it("mở chi tiết chuyến thì nạp và hiện lộ trình điểm đón", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorShuttleTrips).mockResolvedValue({
+      items: [{ ...shuttleTrip, status: "COMPLETED" }],
+      page: 1,
+      pageSize: 12,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    vi.mocked(getOperatorShuttleContext).mockResolvedValue({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      mainTripId: shuttleTrip.mainTripId,
+      direction: "INBOUND_TO_STATION",
+      status: "COMPLETED",
+      stops: [
+        {
+          pickupOrder: 2,
+          bookingId: null,
+          latitude: 10.78,
+          longitude: 106.7,
+          status: "PENDING",
+          isStation: true,
+        },
+        {
+          pickupOrder: 1,
+          bookingId: "booking-1",
+          latitude: 10.77,
+          longitude: 106.7,
+          status: "PICKED_UP",
+          isStation: false,
+          serviceAddress: "123 Nguyễn Huệ, Quận 1",
+          roadDistanceMeters: 9500,
+        },
+      ],
+      station: {
+        stationId: "station-1",
+        name: "Bến xe Miền Đông",
+        latitude: 10.8,
+        longitude: 106.71,
+        pickupOrder: 2,
+      },
+    });
+
+    renderPage();
+    await waitFor(() => expect(getOperatorShuttleTrips).toHaveBeenCalled());
+
+    await user.click(
+      screen.getByRole("button", { name: "dispatch.viewTripDetail" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(getOperatorShuttleContext).toHaveBeenCalledWith(
+      shuttleTrip.shuttleTripId,
+    );
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("123 Nguyễn Huệ, Quận 1"),
+      ).toBeInTheDocument(),
+    );
+    // `pickupOrder` là thứ tự nghiệp vụ, không phải index mảng: BE trả điểm bến
+    // (order 2) TRƯỚC nên modal phải tự sắp lại.
+    const stopItems = within(dialog).getAllByRole("listitem");
+    expect(stopItems[0]).toHaveTextContent("123 Nguyễn Huệ, Quận 1");
+    expect(stopItems[1]).toHaveTextContent("Bến xe Miền Đông");
+    expect(
+      within(dialog).getByText("dispatch.stopStatus.PICKED_UP"),
+    ).toBeInTheDocument();
+  });
+
   it("join room realtime của chuyến đang hoạt động rồi nạp vị trí/ETA một lần", async () => {
     renderPage();
 

@@ -7,6 +7,7 @@
   "manager": {
     "dashboard": "Dashboard",
     "trips": "Schedules",
+    "tripList": "Trips",
     "routeEta": "Route change & ETA",
     "routes": "Routes & stops",
     "routeManagement": "Route management",

@@ -2,12 +2,7 @@
 // còn lại chỉ đọc vì BE trả 403 FORBIDDEN cho `PATCH .../resolve`.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FiAlertTriangle,
-  FiCheckCircle,
-  FiExternalLink,
-  FiMapPin,
-} from "react-icons/fi";
+import { FiAlertTriangle, FiCheckCircle, FiExternalLink } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import { ApiRequestError } from "../../../api/client";
 import {
@@ -20,7 +15,6 @@ import { formatDateTime } from "../../../utils/date";
 import {
   badgeClassFor,
   categoryBadgeClass,
-  incidentMapUrl,
   inputClass,
   reporterLabel,
   statusBadgeClass,
@@ -146,7 +140,6 @@ export default function IncidentDetailModal({
 }: IncidentDetailModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const mapUrl = incident ? incidentMapUrl(incident) : null;
   const photoUrls = incident?.photoUrls ?? [];
 
   return (
@@ -230,7 +223,10 @@ export default function IncidentDetailModal({
               />
             </DetailSection>
 
-            <DetailSection title={t("incidents.reporterInfo")} columns="three">
+            {/* Không hiển thị toạ độ/link bản đồ của điểm báo: nó là vị trí lúc
+                tài xế bấm gửi, không phải vị trí hiện tại của xe — muốn xem xe ở
+                đâu thì sang Trung tâm vận hành (link ở khối hành động bên dưới). */}
+            <DetailSection title={t("incidents.reporterInfo")} columns="two">
               <DetailItem
                 label={t("incidents.reporter")}
                 value={reporterLabel(incident, t("incidents.unknownReporter"))}
@@ -243,24 +239,6 @@ export default function IncidentDetailModal({
                         defaultValue: incident.reporter.role,
                       })
                     : "—"
-                }
-              />
-              <DetailItem
-                label={t("incidents.location")}
-                value={
-                  mapUrl ? (
-                    <a
-                      href={mapUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-semibold text-vr-700 hover:underline"
-                    >
-                      <FiMapPin size={13} />
-                      {t("incidents.openInMaps")}
-                    </a>
-                  ) : (
-                    "—"
-                  )
                 }
               />
             </DetailSection>
@@ -291,6 +269,9 @@ export default function IncidentDetailModal({
               </section>
             )}
 
+            {/* Khối hành động: lời nhắc "vận hành không tự đóng sự cố" phải đứng
+                NGAY TRÊN form, không phải một hộp màu riêng ở tận đáy — đọc xong
+                là thấy luôn chỗ bấm. Sự cố đã xử lý thì thay bằng phần tổng kết. */}
             {incident.status === "RESOLVED" ? (
               <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm">
                 <p className="font-semibold text-emerald-900">
@@ -304,29 +285,33 @@ export default function IncidentDetailModal({
                   </p>
                 )}
               </div>
-            ) : canResolve ? (
-              <IncidentResolveForm
-                key={incident.incidentId}
-                incident={incident}
-                onResolved={onResolved}
-                onAlreadyResolved={onAlreadyResolved}
-              />
             ) : (
-              <p className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                {t("incidents.resolveStaffHint")}
-              </p>
+              <div className="space-y-3">
+                <p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+                  {t("incidents.operationsHint")}
+                </p>
+                {canResolve ? (
+                  <IncidentResolveForm
+                    key={incident.incidentId}
+                    incident={incident}
+                    onResolved={onResolved}
+                    onAlreadyResolved={onAlreadyResolved}
+                  />
+                ) : (
+                  <p className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                    {t("incidents.resolveStaffHint")}
+                  </p>
+                )}
+              </div>
             )}
 
-            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-              <p>{t("incidents.operationsHint")}</p>
-              <Link
-                to={`/manager/operations?tripId=${incident.trip.tripId}`}
-                className="mt-2 inline-flex items-center gap-1.5 font-semibold text-vr-800 hover:underline"
-              >
-                <FiExternalLink size={14} />
-                {t("incidents.viewOnOperations")}
-              </Link>
-            </div>
+            <Link
+              to={`/manager/operations?tripId=${incident.trip.tripId}`}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-vr-800 hover:underline"
+            >
+              <FiExternalLink size={14} />
+              {t("incidents.viewOnOperations")}
+            </Link>
           </div>
         )
       )}

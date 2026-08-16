@@ -800,16 +800,16 @@ describe("Manager route setup workflow", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).queryByText("routes.stationExistingTitle")).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("textbox", { name: "routes.searchStations" })).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "routes.createAndAttachStation" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "routes.createStation" })).toBeDisabled();
   });
 
-  // Bug owner báo qua screenshot: chọn "Dùng làm bến đi" rồi bấm "Gắn bến" khi
-  // ĐANG mở sẵn một tuyến (route-1) hiện ra 2 toast trái ngược cùng lúc — báo
-  // gắn bến thành công (đúng) VÀ báo lỗi "bến đi/đến không đổi được sau khi
-  // tạo" (vì updateRoute chặn đổi originStationId của tuyến đã tạo). Fix: ẩn
-  // hẳn dropdown vai trò khi đã có tuyến chọn sẵn — gán vai trò chỉ còn ý nghĩa
-  // lúc CHƯA tạo tuyến (xem useStationManagement.ts, StationManagementPanel.tsx).
-  it("hides the origin/destination role picker when a route is already selected", async () => {
+  // Dropdown "Dùng làm bến đi/đến" đã bị gỡ HẲN khỏi modal quản lý bến.
+  // Lần fix trước chỉ ẩn nó khi đang mở sẵn một tuyến (bến đi/đến của tuyến đã
+  // tạo là bất biến — 2 toast trái ngược cho cùng một lần bấm), nhưng nhánh còn
+  // lại vẫn vô tác dụng: giá trị rơi vào `routeForm` mà không màn nào đọc, và
+  // CreateRouteModal giữ state riêng nên mở form tạo tuyến vẫn trống hai ô bến.
+  // Chọn bến đi/đến giờ chỉ làm ở form tạo tuyến.
+  it("không còn dropdown gán vai trò bến trong modal quản lý bến", async () => {
     vi.mocked(getOperatorRoutes).mockResolvedValue({ ...emptyPage, items: [routeA], totalItems: 1, totalPages: 1 });
     vi.mocked(getOperatorRoute).mockResolvedValue(routeA);
     vi.mocked(getOperatorStations).mockResolvedValue({ ...emptyPage, items: operatorStations, totalItems: operatorStations.length, totalPages: 1, pageSize: 100 });
@@ -906,7 +906,7 @@ describe("Manager route setup workflow", () => {
       screen.getByRole("checkbox", { name: /routes\.supportsShuttle/ }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "routes.createAndAttachStation" }),
+      screen.getByRole("button", { name: "routes.createStation" }),
     );
 
     await waitFor(() =>
@@ -922,6 +922,74 @@ describe("Manager route setup workflow", () => {
     const payload = vi.mocked(createOperatorStation).mock.calls[0][0];
     expect(payload).not.toHaveProperty("city");
     expect(payload).not.toHaveProperty("ward");
+  });
+
+  // Người dùng không phân biệt được vì sao lúc hiện ô Tỉnh/Phường lúc không.
+  // Hai nhánh giờ đều có câu giải thích, và nhánh "bến đã có" KHÔNG hiện ô địa
+  // giới (BE đã có sẵn location của bến đó).
+  it("nói rõ bến đã có trên hệ thống và bỏ hẳn bước chọn phường/xã", async () => {
+    vi.mocked(searchStations).mockResolvedValue([
+      {
+        id: "station-existing",
+        name: "Bến xe Miền Đông Mới",
+        city: "Thành phố Hồ Chí Minh",
+        ward: "Phường Long Bình",
+        latitude: 10.88,
+        longitude: 106.81,
+        supportsShuttle: false,
+      },
+    ]);
+
+    renderRoutesPage();
+    await waitForLoaded();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /routes.stationManagement/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "routes.stationName" }),
+    );
+
+    expect(
+      await screen.findByText("routes.stationAlreadyOnSystem"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "routes.stationProvince" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "routes.stationWard" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("routes.stationNotOnSystem"),
+    ).not.toBeInTheDocument();
+    // Bến có sẵn thì không phải đoán địa giới nữa: không lượt nào đi hỏi
+    // phường/xã (`parentCode`). Lượt `getPublicLocations()` trống là của trang
+    // nạp danh sách tỉnh cho dropdown, không liên quan luồng này.
+    expect(getPublicLocations).not.toHaveBeenCalledWith(
+      expect.objectContaining({ parentCode: expect.anything() }),
+    );
+  });
+
+  it("nói rõ bến chưa có trên hệ thống ở nhánh tạo mới", async () => {
+    renderRoutesPage();
+    await waitForLoaded();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /routes.stationManagement/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "routes.stationName" }),
+    );
+
+    expect(
+      await screen.findByText("routes.stationNotOnSystem"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "routes.stationProvince" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("routes.stationAlreadyOnSystem"),
+    ).not.toBeInTheDocument();
   });
 
   it("selects the route from the routeId deep link", async () => {
