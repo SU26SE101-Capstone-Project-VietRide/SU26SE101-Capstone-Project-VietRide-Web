@@ -658,8 +658,8 @@
     "actionDisabledTooltip": "Chưa kết nối hệ thống chi trả thật — chỉ là dữ liệu minh họa."
   },
   "walletSettlement": {
-    "title": "Ví & tất toán nhà xe",
-    "apiSubtitle": "Theo dõi dòng tiền ví nền tảng, tất toán từng chuyến và xử lý ngoại lệ tài chính.",
+    "title": "Ví & đối soát nhà xe",
+    "apiSubtitle": "Theo dõi dòng tiền ví nền tảng, đối soát từng chuyến và xử lý ngoại lệ tài chính.",
     "financeSections": "Các khu vực tài chính",
     "tabs": {
       "overview": "Tổng quan",
@@ -670,21 +670,21 @@
     "filters": {
       "ALL": "Tất cả",
       "NEEDS_ATTENTION": "Cần xử lý",
-      "PENDING_HOLD": "Đang giữ",
+      "PENDING_HOLD": "Đang tạm giữ",
       "ELIGIBLE": "Đủ điều kiện",
-      "SETTLED": "Đã tất toán",
+      "SETTLED": "Đã đối soát",
       "CANCELLED": "Đã hủy"
     },
     "needsAttention": "Giao dịch cần xử lý",
-    "flowTitle": "Luồng tất toán hiện tại",
-    "flowHint": "Doanh thu được giữ 7 ngày; các bản ghi đủ điều kiện sẽ tự động tất toán vào 09:00 thứ Hai.",
+    "flowTitle": "Luồng đối soát hiện tại",
+    "flowHint": "Doanh thu được giữ 7 ngày; các bản ghi đủ điều kiện sẽ tự động đối soát vào 09:00 thứ Hai.",
     "openNeedsAttention": "Mở danh sách cần xử lý",
     "method": "Hình thức",
     "issue": "Ghi chú",
     "operatorId": "Mã nhà xe",
     "methods": {
       "AUTO_WEEKLY": "Tự động hàng tuần",
-      "ADMIN_MANUAL": "Quản trị viên tất toán thủ công"
+      "ADMIN_MANUAL": "Quản trị viên đối soát thủ công"
     },
     "adjust": "Điều chỉnh ví",
     "adjustHint": "Mọi điều chỉnh đều được ghi vào sổ giao dịch và bắt buộc có ghi chú kiểm tra.",
@@ -744,7 +744,10 @@
     "notEligible": "Bản ghi này chưa đủ điều kiện đối soát thủ công.",
     "settledMessage": "Đã chi trả thủ công cho {{operator}}.",
     "operatorFallback": "nhà xe",
-    "rule": "Chỉ bản ghi đủ điều kiện mới được đối soát thủ công và không thể lặp lại sau khi đã tất toán.",
+    "rule": "Chỉ bản ghi đủ điều kiện mới được đối soát thủ công, và mỗi bản ghi chỉ đối soát được một lần.",
+    "failureCodes": {
+      "PLATFORM_WALLET_INSUFFICIENT_BALANCE": "Ví nền tảng không đủ số dư để chuyển tiền, hệ thống sẽ thử lại theo lịch"
+    },
     "status": {
       "PENDING_HOLD": "Đang tạm giữ",
       "PENDING": "Chờ xử lý",
@@ -753,7 +756,7 @@
       "CANCELLED": "Đã hủy",
       "FAILED": "Thất bại"
     },
-    "settledBy": "Người tất toán",
+    "settledBy": "Người đối soát",
     "actor": "Người thực hiện",
     "systemActor": "Hệ thống",
     "systemAdminActor": "Quản trị viên hệ thống",
@@ -821,7 +824,6 @@
     "uploadHint": "Hỗ trợ tệp TXT hoặc Markdown; dung lượng tối đa theo cấu hình hệ thống.",
     "uploadRequired": "Vui lòng chọn file và nhập tiêu đề.",
     "uploadSuccess": "Đã tải tài liệu lên knowledge base.",
-    "noComment": "Không có ghi chú",
     "categories": {
       "CUSTOMER_SUPPORT": "Hỗ trợ khách hàng",
       "OPERATOR_POLICY": "Chính sách nhà xe",

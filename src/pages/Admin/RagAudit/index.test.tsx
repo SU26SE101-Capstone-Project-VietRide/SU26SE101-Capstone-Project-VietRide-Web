@@ -2,8 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  approveRagDocument,
   getRagDocuments,
   getRagFeedback,
+  type RagDocument,
   type RagFeedback,
 } from "../../../api/vietride";
 import RagAudit from "./index";
@@ -22,13 +24,43 @@ vi.mock("./RagDocumentUploadModal", () => ({
   RagDocumentUploadModal: () => null,
 }));
 
+// BE trả nội dung phản hồi trong `message.content` — bảng message_feedback
+// không có cột comment nào, xem apps/rag/prisma/schema.prisma.
 const firstFeedback = {
   id: "feedback-1",
   messageId: "message-1",
   rating: 1,
-  comment: "First page feedback",
+  message: { id: "message-1", content: "First page feedback" },
   createdAt: "2026-08-01T00:00:00Z",
 } satisfies RagFeedback;
+
+const pendingDocument = {
+  id: "doc-pending",
+  title: "Quy trình huỷ vé",
+  accessLevel: "ADMIN",
+  category: "PLATFORM_ADMIN",
+  documentType: "SOP",
+  status: "PENDING_REVIEW",
+} satisfies RagDocument;
+
+const approvedDocument = {
+  ...pendingDocument,
+  id: "doc-approved",
+  title: "Điều khoản sử dụng",
+  status: "APPROVED",
+} satisfies RagDocument;
+
+function documentPage(items: RagDocument[]) {
+  return {
+    items,
+    page: 1,
+    pageSize: 10,
+    totalItems: items.length,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  };
+}
 
 describe("RAG audit feedback pagination", () => {
   beforeEach(() => {
@@ -49,7 +81,7 @@ describe("RAG audit feedback pagination", () => {
               {
                 ...firstFeedback,
                 id: "feedback-9",
-                comment: "Second page feedback",
+                message: { id: "message-9", content: "Second page feedback" },
               },
             ]
           : [firstFeedback],
@@ -106,5 +138,61 @@ describe("RAG audit feedback pagination", () => {
         expect.objectContaining({ status: "APPROVED", accessLevel: "PUBLIC" }),
       ),
     );
+  });
+});
+
+describe("duyệt tài liệu RAG", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getRagFeedback).mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      totalItems: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+  });
+
+  it("chỉ hiện nút duyệt cho tài liệu đang chờ duyệt", async () => {
+    vi.mocked(getRagDocuments).mockResolvedValue(
+      documentPage([pendingDocument, approvedDocument]),
+    );
+
+    render(<RagAudit />);
+
+    expect(
+      await screen.findByRole("button", { name: "approve" }),
+    ).toBeInTheDocument();
+    // Tài liệu đã xử lý không được có nút thứ hai
+    expect(screen.getAllByRole("button", { name: "approve" })).toHaveLength(1);
+    expect(
+      screen.getByText("ragAudit.alreadyProcessed"),
+    ).toBeInTheDocument();
+  });
+
+  it("gọi approveRagDocument và cập nhật trạng thái tại chỗ", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getRagDocuments).mockResolvedValue(
+      documentPage([pendingDocument]),
+    );
+    vi.mocked(approveRagDocument).mockResolvedValue({
+      ...pendingDocument,
+      status: "APPROVED",
+    });
+
+    render(<RagAudit />);
+
+    await user.click(await screen.findByRole("button", { name: "approve" }));
+
+    await waitFor(() =>
+      expect(approveRagDocument).toHaveBeenCalledWith("doc-pending"),
+    );
+    // Hàng chuyển sang APPROVED mà không phải tải lại cả bảng
+    expect(
+      await screen.findByText("ragAudit.status.APPROVED"),
+    ).toBeInTheDocument();
+    expect(getRagDocuments).toHaveBeenCalledTimes(1);
   });
 });

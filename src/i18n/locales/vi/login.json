@@ -113,6 +113,7 @@
     "invalidEmail": "Email không hợp lệ",
     "passwordMin": "Mật khẩu phải có ít nhất 6 ký tự",
     "failed": "Đăng nhập thất bại, vui lòng thử lại",
+    "roleRetired": "Tài khoản nhân viên nhà xe không còn dùng được trên trang quản lý. Vui lòng liên hệ quản trị viên nhà xe để được cấp lại quyền phù hợp.",
     "registerFailed": "Đăng ký thất bại, vui lòng thử lại",
     "verifyEmailFailed": "Xác minh email thất bại, vui lòng thử lại",
     "resendVerificationFailed": "Không thể gửi lại mã xác minh"

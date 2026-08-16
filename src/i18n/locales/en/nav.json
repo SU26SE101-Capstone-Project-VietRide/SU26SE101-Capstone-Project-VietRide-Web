@@ -3,13 +3,6 @@
     "menu": "MENU",
     "support": "SUPPORT"
   },
-  "roles": {
-    "manager": "Operator management",
-    "admin": "System administration",
-    "SYSTEM_ADMIN": "System admin",
-    "OPERATOR_ADMIN": "Operator admin",
-    "OPERATOR_STAFF": "Operator staff"
-  },
   "closeMenu": "Close menu",
   "manager": {
     "dashboard": "Dashboard",

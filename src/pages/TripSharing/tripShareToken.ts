@@ -52,9 +52,3 @@ export function readTripShareTokenFromWindow(
   return parseTripShareTokenFromHash(locationLike.hash);
 }
 
-/** Redact token for any accidental log / analytics payload. */
-export function redactShareToken(value: string): string {
-  if (!value) return "";
-  if (!isTripShareToken(value)) return "[invalid-token]";
-  return "v1.[grant].[redacted]";
-}

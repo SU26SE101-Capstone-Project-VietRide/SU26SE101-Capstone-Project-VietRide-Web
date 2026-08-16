@@ -300,32 +300,6 @@ export type CreateOperatorUserRequest = {
   role: AdminUserRole;
 };
 
-export type InternalOperator = {
-  operatorId: string;
-  name: string;
-  registrationStatus: string;
-  isActive: boolean;
-  contactEmail: string;
-  contactPhone: string;
-  businessRegistrationNumber: string;
-  taxCode: string;
-};
-
-export type OperatorSubscription = {
-  operatorId: string;
-  subscriptionId: string;
-  status: string;
-  startedAt: string;
-  expiresAt: string;
-  plan: {
-    planId: string;
-    name: string;
-    limits: Record<string, number>;
-    modules: Record<string, boolean>;
-  };
-  usage: Record<string, number>;
-};
-
 export type SubscriptionBillingPeriod = "MONTHLY" | "YEARLY";
 
 export type SubscriptionPlan = {
@@ -460,10 +434,10 @@ export type OperatorWalletLastSettlement = {
 
 export type OperatorWallet = {
   operatorId: string;
-  // Tiền ĐÃ được credit vào ví sau khi tất toán — không đồng nghĩa rút được
+  // Tiền ĐÃ được credit vào ví sau khi đối soát — không đồng nghĩa rút được
   // ra ngân hàng (xem withdrawalSupported). Không cộng các field bên dưới
   // vào balance để ra "tổng tài sản" — mỗi field mô tả một giai đoạn khác
-  // nhau trong vòng đời tất toán.
+  // nhau trong vòng đời đối soát.
   balance: number;
   currency?: string;
   // Quyền lợi đã ghi nhận ở ledger nhưng chuyến CHƯA có settlement marker
@@ -472,14 +446,14 @@ export type OperatorWallet = {
   // Tiền của settlement đang trong 7 ngày giữ để đối soát (hold window)
   pendingHoldAmount: number;
   pendingHoldCount?: number;
-  // Đã qua hold, đủ điều kiện tất toán — CHƯA chắc đã chuyển tiền ngay
+  // Đã qua hold, đủ điều kiện đối soát — CHƯA chắc đã chuyển tiền ngay
   eligibleAmount: number;
   eligibleCount?: number;
   nextEligibleAt?: string | null;
-  // Lần xử lý tất toán tự động dự kiến tiếp theo — luôn là LỊCH DỰ KIẾN,
+  // Lần xử lý đối soát tự động dự kiến tiếp theo — luôn là LỊCH DỰ KIẾN,
   // không phải cam kết tiền chắc chắn chuyển đúng giờ đó.
   nextScheduledSettlementAttemptAt?: string | null;
-  // Metric lịch sử (tổng đã tất toán từ trước tới nay) — không phải số dư
+  // Metric lịch sử (tổng đã đối soát từ trước tới nay) — không phải số dư
   // còn lại, không được dùng để suy ra balance.
   lifetimeSettledAmount?: number;
   lastSettlement?: OperatorWalletLastSettlement | null;
@@ -518,7 +492,7 @@ export type WalletTransaction = {
     email: string;
     role: string;
   } | null;
-  // Có khi movement đến từ settlement — cho phép đối chiếu sang tab tất toán
+  // Có khi movement đến từ settlement — cho phép đối chiếu sang tab đối soát
   relatedSettlement?: WalletRelatedSettlement | null;
   adjustmentReason?: string | null;
   dataCompleteness?: FinancialDataCompleteness;
@@ -774,11 +748,6 @@ export type AdminSubscriptionPlanRequest = {
 
 export type AdminSubscriptionPlanParams = {
   includeInactive?: boolean;
-};
-
-export type IncrementUsageRequest = {
-  resource: string;
-  delta: number;
 };
 
 export type Station = {
@@ -1214,19 +1183,6 @@ export type OperatorRouteStopMetric = {
   orderIndex: number;
   distanceFromOriginKm: number | null;
   estimatedDurationFromOriginMinutes: number | null;
-};
-
-export type RouteStop = {
-  id: string;
-  routeId: string;
-  stopId: string;
-  orderIndex: number;
-  estimatedDurationFromOriginMinutes: number;
-  distanceFromOriginKm: number;
-  allowPickup: boolean;
-  allowDropoff: boolean;
-  createdAt?: string;
-  updatedAt?: string;
 };
 
 export type RouteStopRequest = {
@@ -1973,9 +1929,10 @@ export type RagChatEvent =
   | RagChatDoneEvent
   | RagChatErrorEvent;
 
+// BE chỉ nhận `rating` (CreateFeedbackSchema là z.object({ rating })) và zod
+// strip key lạ trong im lặng — đừng thêm field mới ở đây trước khi BE mở.
 export type RagFeedbackRequest = {
   rating: -1 | 1;
-  comment?: string | null;
 };
 
 export type RagFeedbackMessage = {
@@ -2001,7 +1958,6 @@ export type RagFeedback = {
   messageId: string;
   conversationId?: string;
   rating: number;
-  comment?: string | null;
   userId?: string;
   role?: RagRole;
   createdAt: string;
@@ -2822,29 +2778,6 @@ export type BoardingResult = {
   boardedAt?: string;
 };
 
-export type BookingTrackingAuthorization = {
-  tripId: string;
-  bookings: Array<{
-    bookingId: string;
-    passengerRecordId?: string;
-    passengerName?: string;
-    phone?: string;
-    seatNumber?: string;
-    canTrack?: boolean;
-    status?: string;
-  }>;
-};
-
-export type PickupBooking = {
-  bookingId: string;
-  passengerRecordId?: string;
-  passengerName?: string;
-  phone?: string;
-  seatNumber?: string;
-  pickupStopId: string;
-  status?: string;
-};
-
 export type BookingStatsParams = {
   from?: string;
   to?: string;
@@ -3527,85 +3460,6 @@ export type PublicTrip = {
   }>;
 };
 
-export type SeatLockRequest = {
-  seatNumbers: string[];
-  holdOwnerId: string;
-  ttlSeconds: number;
-};
-
-export type SeatLockResult = {
-  seatLockToken: string;
-  lockedSeats: string[];
-  expiresAt: string;
-};
-
-export type RoundTripSeatLockRequest = {
-  outbound: {
-    tripId: string;
-    seatNumbers: string[];
-  };
-  return: {
-    tripId: string;
-    seatNumbers: string[];
-  };
-  holdOwnerId: string;
-  ttlSeconds: number;
-};
-
-export type RoundTripSeatLockResult = {
-  outbound: {
-    tripId: string;
-    seatLockToken: string;
-    lockedSeats: string[];
-    expiresAt: string;
-  };
-  return: {
-    tripId: string;
-    seatLockToken: string;
-    lockedSeats: string[];
-    expiresAt: string;
-  };
-};
-
-export type ReleaseSeatsRequest = {
-  seatLockToken: string;
-  seatNumbers: string[];
-};
-
-export type BookSeatsRequest = {
-  seatLockToken: string;
-  bookingId: string;
-  passengers: Array<{
-    passengerId: string;
-    seatNumber: string;
-  }>;
-};
-
-export type TripTrackingAuthorization = {
-  tripId: string;
-  operatorId?: string;
-  userId?: string;
-  role?: AdminUserRole;
-  status?: string;
-  isAuthorized?: boolean;
-  allowedScopes?: string[];
-  expiresAt?: string;
-};
-
-export type TripRouteStop = {
-  tripId?: string;
-  stopId: string;
-  orderIndex: number;
-  name?: string;
-  allowPickup?: boolean;
-  allowDropoff?: boolean;
-  estimatedArrivalTime?: string;
-  actualArrivalTime?: string | null;
-  distanceFromOriginKm?: number;
-  fareFromThisStop?: number;
-  status?: string;
-};
-
 export type TripRouteGeometryPoint = {
   latitude: number;
   longitude: number;
@@ -3668,49 +3522,6 @@ export type CargoCapacity = {
   loadedCargoVolumeM3?: number;
   availableCargoWeightKg?: number;
   availableCargoVolumeM3?: number;
-};
-
-export type CargoReserveRequest = {
-  parcelId?: string;
-  bookingId?: string;
-  weightKg: number;
-  volumeM3?: number;
-  holdOwnerId?: string;
-  ttlSeconds?: number;
-};
-
-export type CargoReserveResult = {
-  tripId: string;
-  cargoLockToken?: string;
-  reservedWeightKg?: number;
-  reservedVolumeM3?: number;
-  expiresAt?: string;
-};
-
-export type CargoLoadRequest = {
-  parcelId?: string;
-  bookingId?: string;
-  cargoLockToken?: string;
-  weightKg?: number;
-  volumeM3?: number;
-  loadedByUserId?: string;
-  note?: string;
-};
-
-export type CargoReleaseRequest = {
-  parcelId?: string;
-  bookingId?: string;
-  cargoLockToken?: string;
-  weightKg?: number;
-  volumeM3?: number;
-  reason?: string;
-};
-
-export type CargoActionResult = {
-  tripId: string;
-  status?: string;
-  releasedAt?: string;
-  loadedAt?: string;
 };
 
 export type OperatorDriverSchedule = {
@@ -3795,13 +3606,6 @@ export type OperatorDriverScheduleParams = {
   sortDir?: "asc" | "desc";
 };
 
-export type DriverScheduleItem = OperatorDriverSchedule & {
-  routeName?: string;
-  vehiclePlate?: string;
-  driverName?: string;
-  assistantName?: string;
-};
-
 // GET /v1/driver/me/schedule — query không filter status nên trips có thể ở mọi
 // trạng thái kể cả CANCELLED/DISRUPTED (mục 10.1).
 export type DriverMeScheduleParams = {
@@ -3881,32 +3685,6 @@ export type TripOperationResult = {
   vehicleId?: string;
   actualArrivalTime?: string;
   message?: string;
-};
-
-export type ParcelAvailabilityParams = {
-  tripId?: string;
-  routeId?: string;
-  fromStopId?: string;
-  toStopId?: string;
-  departureDate?: string;
-  weightKg?: number;
-  volumeM3?: number;
-};
-
-export type ParcelAvailability = {
-  tripId: string;
-  routeId?: string;
-  isAvailable: boolean;
-  remainingWeightKg?: number;
-  remainingVolumeM3?: number;
-  reason?: string;
-};
-
-export type CargoRemeasureRequest = {
-  parcelId: string;
-  weightKg: number;
-  volumeM3: number;
-  note?: string;
 };
 
 export type VerifyEmailRequest = {
@@ -4330,26 +4108,6 @@ export function resendInitialPassword(userId: string) {
   );
 }
 
-export function getInternalOperator(operatorId: string) {
-  return apiRequest<InternalOperator>(`/internal/v1/operators/${operatorId}`);
-}
-
-export function getInternalOperatorSubscription(operatorId: string) {
-  return apiRequest<OperatorSubscription>(
-    `/internal/v1/operators/${operatorId}/subscription`,
-  );
-}
-
-export function incrementInternalOperatorUsage(
-  operatorId: string,
-  request: IncrementUsageRequest,
-) {
-  return apiRequest<OperatorSubscription>(
-    `/internal/v1/operators/${operatorId}/usage/increment`,
-    { method: "POST", body: request },
-  );
-}
-
 export function getOperatorSubscription() {
   return apiRequest<OperatorSubscriptionDetail>("/v1/operator/subscription", {
     cache: "no-store",
@@ -4547,10 +4305,6 @@ export function updateAdminSubscriptionPlan(
       headers: { "Idempotency-Key": idempotencyKey },
     },
   );
-}
-
-export function getInternalUser(userId: string) {
-  return apiRequest<AdminUser>(`/internal/v1/users/${userId}`);
 }
 
 export function searchStations(params: StationSearchParams) {
@@ -4800,20 +4554,6 @@ export function getOperatorRoute(id: string) {
   return apiRequest<OperatorRoute>(`/v1/operator/routes/${id}`);
 }
 
-export function createOperatorRoute(request: OperatorRouteRequest) {
-  return apiRequest<OperatorRoute>("/v1/operator/routes", {
-    method: "POST",
-    body: request,
-  });
-}
-
-export function updateOperatorRoute(id: string, request: OperatorRouteRequest) {
-  return apiRequest<OperatorRoute>(`/v1/operator/routes/${id}`, {
-    method: "PATCH",
-    body: request,
-  });
-}
-
 export function updateOperatorRouteGeometry(
   routeId: string,
   request: RouteGeometryRequest,
@@ -4844,20 +4584,6 @@ export function updateOperatorRouteFull(
 export function getOperatorRouteStopMetrics(routeId: string) {
   return apiRequest<OperatorRouteStopMetric[]>(
     `/v1/operator/routes/${routeId}/stop-metrics`,
-  );
-}
-
-export function addRouteStop(routeId: string, request: RouteStopRequest) {
-  return apiRequest<RouteStop>(`/v1/operator/routes/${routeId}/stops`, {
-    method: "POST",
-    body: request,
-  });
-}
-
-export function removeRouteStop(routeId: string, stopId: string) {
-  return apiRequest<{ message?: string }>(
-    `/v1/operator/routes/${routeId}/stops/${stopId}`,
-    { method: "DELETE" },
   );
 }
 
@@ -5934,14 +5660,6 @@ export function pingTripService() {
   });
 }
 
-export function getInternalStation(id: string) {
-  return apiRequest<Station>(`/internal/v1/stations/${id}`);
-}
-
-export function getInternalStop(id: string) {
-  return apiRequest<OperatorStop>(`/internal/v1/stops/${id}`);
-}
-
 export function chatWithRag(request: RagChatRequest) {
   return apiRequest<string>("/v1/rag/chat", {
     method: "POST",
@@ -6340,143 +6058,6 @@ export function getShuttleTripEta(shuttleTripId: string) {
 export function getOperatorShuttleContext(shuttleTripId: string) {
   return apiRequest<OperatorShuttleContext>(
     `/v1/tracking/shuttle-trips/${shuttleTripId}/operator-context`,
-  );
-}
-
-export function getInternalTrip(tripId: string) {
-  return apiRequest<PublicTrip>(`/internal/v1/trips/${tripId}`);
-}
-
-export function getInternalTripParcelAvailability(
-  params: ParcelAvailabilityParams = {},
-) {
-  return apiRequest<ParcelAvailability[]>(
-    `/internal/v1/trips/parcel-availability${buildQuery(params)}`,
-  );
-}
-
-export function getInternalTripTrackingAuthorization(tripId: string) {
-  return apiRequest<TripTrackingAuthorization>(
-    `/internal/v1/trips/${tripId}/tracking-authorization`,
-  );
-}
-
-export function getInternalTripRouteStops(tripId: string) {
-  return apiRequest<TripRouteStop[]>(
-    `/internal/v1/trips/${tripId}/route-stops`,
-  );
-}
-
-export function getInternalTripRouteGeometry(tripId: string) {
-  return apiRequest<TripRouteGeometry>(
-    `/internal/v1/trips/${tripId}/route-geometry`,
-  );
-}
-
-export function getInternalTripTrackingAuthorizationBookings(tripId: string) {
-  return apiRequest<BookingTrackingAuthorization>(
-    `/internal/v1/trips/${tripId}/tracking-authorization/bookings`,
-  );
-}
-
-export function getInternalTripStopPickupBookings(
-  tripId: string,
-  stopId: string,
-) {
-  return apiRequest<PickupBooking[]>(
-    `/internal/v1/trips/${tripId}/stops/${stopId}/pickup-bookings`,
-  );
-}
-
-export function lockInternalTripSeats(
-  tripId: string,
-  request: SeatLockRequest,
-) {
-  return apiRequest<SeatLockResult>(`/internal/v1/trips/${tripId}/lock-seats`, {
-    method: "POST",
-    body: request,
-  });
-}
-
-export function releaseInternalTripSeats(
-  tripId: string,
-  request: ReleaseSeatsRequest,
-) {
-  return apiRequest<null>(`/internal/v1/trips/${tripId}/release-seats`, {
-    method: "POST",
-    body: request,
-  });
-}
-
-export function bookInternalTripSeats(
-  tripId: string,
-  request: BookSeatsRequest,
-) {
-  return apiRequest<null>(`/internal/v1/trips/${tripId}/book-seats`, {
-    method: "POST",
-    body: request,
-  });
-}
-
-export function reserveInternalTripCargo(
-  tripId: string,
-  request: CargoReserveRequest,
-) {
-  return apiRequest<CargoReserveResult>(
-    `/internal/v1/trips/${tripId}/cargo/reserve`,
-    { method: "POST", body: request },
-  );
-}
-
-export function getInternalTripCargoCapacity(tripId: string) {
-  return apiRequest<CargoCapacity>(
-    `/internal/v1/trips/${tripId}/cargo/capacity`,
-  );
-}
-
-export function remeasureInternalTripCargo(
-  tripId: string,
-  request: CargoRemeasureRequest,
-) {
-  return apiRequest<CargoReserveResult>(
-    `/internal/v1/trips/${tripId}/cargo/remeasure`,
-    { method: "POST", body: request },
-  );
-}
-
-export function loadInternalTripCargo(
-  tripId: string,
-  request: CargoLoadRequest,
-) {
-  return apiRequest<CargoActionResult>(
-    `/internal/v1/trips/${tripId}/cargo/load`,
-    { method: "POST", body: request },
-  );
-}
-
-export function releaseInternalTripCargo(
-  tripId: string,
-  request: CargoReleaseRequest,
-) {
-  return apiRequest<CargoActionResult>(
-    `/internal/v1/trips/${tripId}/cargo/release`,
-    { method: "POST", body: request },
-  );
-}
-
-export function lockInternalRoundTripSeats(
-  request: RoundTripSeatLockRequest,
-  idempotencyKey?: string,
-) {
-  return apiRequest<RoundTripSeatLockResult>(
-    "/internal/v1/trips/round-trip/lock-seats",
-    {
-      method: "POST",
-      body: request,
-      headers: idempotencyKey
-        ? { "Idempotency-Key": idempotencyKey }
-        : undefined,
-    },
   );
 }
 

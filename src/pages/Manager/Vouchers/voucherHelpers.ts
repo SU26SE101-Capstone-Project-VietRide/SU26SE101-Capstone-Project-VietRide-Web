@@ -40,10 +40,6 @@ export function toRouteIds(value: string) {
     .filter(Boolean);
 }
 
-export function routeIdsToValue(routeIds: string[]) {
-  return routeIds.join(", ");
-}
-
 export function formatDate(value: string) {
   return formatDateTime(value);
 }
@@ -62,10 +58,6 @@ export function getVoucherId(voucher: OperatorVoucher) {
 
 export function voucherServicesOf(voucher: OperatorVoucher) {
   return voucher.applicableServices ?? ["BOOKING"];
-}
-
-export function isBookingVoucher(voucher: OperatorVoucher) {
-  return voucherServicesOf(voucher).includes("BOOKING");
 }
 
 export function isParcelVoucher(voucher: OperatorVoucher) {

@@ -140,10 +140,11 @@ export function toVehicleOption(vehicle: OperatorVehicle): VehicleOption {
     id: vehicle.vehicleId || vehicle.id || "",
     plate: vehicle.licensePlate,
     vehicleTypeId: vehicle.vehicleTypeId,
-    vehicleType:
-      vehicle.vehicleTypeCode ||
-      vehicle.vehicleTypeName ||
-      vehicle.vehicleTypeId,
+    // `GET /v1/operator/vehicles` (VehicleDto) KHÔNG trả vehicleTypeCode/Name ở
+    // cấp trên cùng — chỉ có vehicleTypeId. Caller phải tự tra danh mục loại xe
+    // (`getVehicleTypes`) rồi ghi đè hai field dưới, xem Trips/index.tsx.
+    vehicleType: vehicle.vehicleTypeCode ?? vehicle.vehicleTypeId,
+    vehicleTypeName: vehicle.vehicleTypeName,
     seats: vehicle.totalSeats,
     status:
       vehicle.status === "ACTIVE"

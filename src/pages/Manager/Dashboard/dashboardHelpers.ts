@@ -186,14 +186,6 @@ export function mapDashboardChart(
     .sort((first, second) => first.monthKey.localeCompare(second.monthKey));
 }
 
-export function percentageChange(current: number | null, previous: number | null) {
-  if (current === null || previous === null || previous === 0) {
-    return undefined;
-  }
-
-  return ((current - previous) / previous) * 100;
-}
-
 export function compactRouteName(name: string) {
   return name.length > 24 ? `${name.slice(0, 22)}…` : name;
 }

@@ -61,8 +61,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const isAdmin = location.pathname.startsWith("/admin");
   const profilePath = isAdmin ? "/admin/profile" : "/manager/profile";
   const authUser = getAuthUser();
-  const canSendOperatorNotification =
-    authUser?.role === "OPERATOR_ADMIN" || authUser?.role === "OPERATOR_STAFF";
+  const canSendOperatorNotification = authUser?.role === "OPERATOR_ADMIN";
   const settingsPath =
     authUser?.role === "OPERATOR_ADMIN" ? "/manager/settings" : null;
 

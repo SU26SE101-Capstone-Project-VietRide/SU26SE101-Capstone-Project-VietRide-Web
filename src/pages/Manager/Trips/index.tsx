@@ -21,7 +21,6 @@ import {
 import ChangeCrewModal, { type ChangeCrewForm } from "./ChangeCrewModal";
 import ScheduleFormModal from "./ScheduleFormModal";
 import ScheduleTable from "./ScheduleTable";
-import { SectionHeader } from "./formControls";
 import {
   emptyForm,
   getArrivalEstimateValue,
@@ -230,6 +229,11 @@ export default function TripsPage() {
               vehicle.vehicleTypeCode ||
               vehicleTypeById.get(vehicle.vehicleTypeId) ||
               option.vehicleType,
+            // Tên hiển thị lấy từ danh mục loại xe khi bản ghi xe không kèm
+            // sẵn `vehicleTypeName` — bảng lịch chạy không được hiện mã thô.
+            vehicleTypeName:
+              vehicle.vehicleTypeName ||
+              vehicleTypeById.get(vehicle.vehicleTypeId),
           };
         });
         // Hai lời gọi riêng cho DRIVER và ASSISTANT có thể trả trùng một người
@@ -978,22 +982,6 @@ export default function TripsPage() {
           isLoading={isLoadingSchedules}
         />
       </div>
-
-      {!canManageSchedules && (
-        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <SectionHeader
-            icon={<FiCalendar />}
-            title={t("trips.staffMonitorTitle")}
-            subtitle={t("trips.staffMonitorSubtitle")}
-          />
-          <div className="rounded-lg border border-vr-100 bg-vr-50 px-4 py-3 text-sm text-vr-800">
-            {t("trips.staffReadOnlyHint")}
-          </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {t("trips.staffScheduleListUnavailable")}
-          </div>
-        </section>
-      )}
 
       {canManageSchedules && (
         <ScheduleFormModal

@@ -131,80 +131,6 @@ const operatorAdminMenuConfig: MenuSection[] = [
   },
 ];
 
-const operatorStaffMenuConfig: MenuSection[] = [
-  {
-    titleKey: "sections.menu",
-    items: [
-      {
-        labelKey: "manager.dashboard",
-        path: "/manager/dashboard",
-        icon: <FiLayout />,
-      },
-      { labelKey: "manager.trips", path: "/manager/trips", icon: <FiTruck /> },
-      {
-        labelKey: "manager.routes",
-        path: "/manager/routes",
-        icon: <FiNavigation />,
-      },
-      {
-        labelKey: "manager.routeManagement",
-        path: "/manager/route-management",
-        icon: <FiMap />,
-      },
-      {
-        labelKey: "manager.stations",
-        path: "/manager/stations",
-        icon: <FiMapPin />,
-      },
-      {
-        labelKey: "manager.vehicles",
-        path: "/manager/vehicles",
-        icon: <FiTruck />,
-      },
-      {
-        labelKey: "manager.bookings",
-        path: "/manager/bookings",
-        icon: <FiBookOpen />,
-      },
-      {
-        labelKey: "manager.parcels",
-        path: "/manager/parcels",
-        icon: <FiPackage />,
-      },
-      {
-        labelKey: "manager.operations",
-        path: "/manager/operations",
-        icon: <FiMap />,
-      },
-      {
-        labelKey: "manager.dispatch",
-        path: "/manager/dispatch",
-        icon: <FiNavigation />,
-      },
-      {
-        labelKey: "manager.incidents",
-        path: "/manager/incidents",
-        icon: <FiAlertTriangle />,
-      },
-      {
-        labelKey: "manager.vouchers",
-        path: "/manager/vouchers",
-        icon: <FiPackage />,
-      },
-    ],
-  },
-  {
-    titleKey: "sections.support",
-    items: [
-      {
-        labelKey: "manager.wallet",
-        path: "/manager/wallet",
-        icon: <FiDollarSign />,
-      },
-],
-  },
-];
-
 const adminMenuConfig: MenuSection[] = [
   {
     titleKey: "sections.menu",
@@ -293,7 +219,6 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   const menuConfigByRole: Record<AuthRole, MenuSection[]> = {
     SYSTEM_ADMIN: adminMenuConfig,
     OPERATOR_ADMIN: operatorAdminMenuConfig,
-    OPERATOR_STAFF: operatorStaffMenuConfig,
   };
   const menus = menuConfigByRole[role]
     .map((section) => ({
@@ -339,7 +264,10 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
                   {t("common:brand")}
                 </h1>
                 <p className="mt-0.5 truncate text-xs text-gray-400">
-                  {t(`roles.${role}`)}
+                  {/* common:roles là nguồn duy nhất cho tên vai trò — nav có
+                      bản sao riêng nên cùng một người đọc được hai tên khác
+                      nhau giữa sidebar và các màn khác. */}
+                  {t(`common:roles.${role}`)}
                 </p>
               </div>
             </div>

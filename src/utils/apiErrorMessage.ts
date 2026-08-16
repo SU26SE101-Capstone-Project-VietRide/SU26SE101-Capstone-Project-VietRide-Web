@@ -153,7 +153,7 @@ const vietnameseMessages: Record<string, string> = {
   VNPAY_WEB_DISABLED:
     "Kênh thanh toán VNPay trên web đang tạm khoá, vui lòng thử lại sau.",
   TRIP_SETTLEMENT_NOT_ELIGIBLE:
-    "Chuyến chưa hết thời gian giữ đối soát nên chưa thể tất toán.",
+    "Chuyến chưa hết thời gian tạm giữ nên chưa thể đối soát.",
   PLATFORM_WALLET_INSUFFICIENT_BALANCE: "Số dư ví hệ thống không đủ để thực hiện giao dịch.",
   WALLET_CONCURRENT_UPDATE:
     "Ví vừa được cập nhật bởi giao dịch khác, vui lòng thử lại.",

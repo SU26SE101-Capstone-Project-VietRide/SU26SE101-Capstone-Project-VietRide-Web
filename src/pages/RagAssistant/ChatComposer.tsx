@@ -58,8 +58,8 @@ export default function ChatComposer({
           type="submit"
           disabled={!canSend}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-500 text-white shadow-sm transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
-          aria-label={t("send", { defaultValue: "Gửi" })}
-          title={t("send", { defaultValue: "Gửi" })}
+          aria-label={t("send")}
+          title={t("send")}
         >
           {streaming ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />

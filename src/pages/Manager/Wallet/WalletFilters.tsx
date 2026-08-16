@@ -11,7 +11,7 @@ export type DateFieldOption = { value: string; label: string };
 // Bộ lọc dùng chung cho cả 3 tab: search (debounce ở component cha), khoảng
 // ngày + dropdown chọn field ngày đang lọc (nhãn phải khớp field đang chọn —
 // xem FE-REQUEST-operator-wallet-transparency-RESPONSE.md §10), và một slot
-// filter riêng theo tab (loại giao dịch / trạng thái tất toán).
+// filter riêng theo tab (loại giao dịch / trạng thái đối soát).
 export function WalletFilters({
   searchTerm,
   onSearchChange,

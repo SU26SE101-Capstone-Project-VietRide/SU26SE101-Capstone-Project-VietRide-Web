@@ -3,15 +3,6 @@
 import type { ReactNode } from "react";
 import { inputClass } from "./parcelQueueHelpers";
 
-export function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-gray-800">{value}</p>
-    </div>
-  );
-}
-
 export function ActionBox({
   title,
   children,

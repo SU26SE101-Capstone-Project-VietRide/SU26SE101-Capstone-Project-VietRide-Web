@@ -1154,25 +1154,6 @@ describe("TripsPage", () => {
     expect(screen.getByText("Hồ Chí Minh - Đà Lạt")).toBeInTheDocument();
   });
 
-  it("does not call the schedules API for OPERATOR_STAFF (BE returns 403 for this role — see API-driver shedule.md §3.2)", async () => {
-    // mockReturnValue (không phải Once) — component gọi getAuthUser() lại ở
-    // mỗi lần re-render (mount + sau khi resources/schedules effect resolve),
-    // Once chỉ patch đúng 1 lần rồi rơi về mock mặc định ADMIN giữa chừng.
-    authMock.getAuthUser.mockReturnValue({
-      id: "staff-1",
-      role: "OPERATOR_STAFF",
-    });
-
-    renderPage();
-
-    // Chờ resource load xong (route/vehicle/staff vẫn gọi bình thường cho STAFF)
-    await screen.findByText("trips.staffScheduleListUnavailable");
-
-    expect(getOperatorDriverSchedules).not.toHaveBeenCalled();
-    expect(screen.queryByText("Hồ Chí Minh - Đà Lạt")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "trips.createScheduleTitle" })).not.toBeInTheDocument();
-  });
-
   // routeId + driverUserId BE nhận sẵn từ đầu, màn chỉ thiếu ô chọn.
   it("gửi routeId và driverUserId khi lọc theo tuyến / tài xế", async () => {
     const user = userEvent.setup();

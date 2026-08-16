@@ -3,13 +3,6 @@
     "menu": "TRÌNH ĐƠN",
     "support": "HỖ TRỢ"
   },
-  "roles": {
-    "manager": "Quản lý nhà xe",
-    "admin": "Quản trị hệ thống",
-    "SYSTEM_ADMIN": "Quản trị hệ thống",
-    "OPERATOR_ADMIN": "Quản trị viên nhà xe",
-    "OPERATOR_STAFF": "Nhân sự vận hành"
-  },
   "closeMenu": "Đóng menu",
   "manager": {
     "dashboard": "Tổng quan",

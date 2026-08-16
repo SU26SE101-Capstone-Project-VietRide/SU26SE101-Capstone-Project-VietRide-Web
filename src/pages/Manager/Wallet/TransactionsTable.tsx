@@ -1,7 +1,7 @@
 import { FiArrowDown, FiArrowUp } from "react-icons/fi";
 import type { WalletTransaction } from "../../../api/vietride";
 import { formatCurrency } from "../../../utils/currency";
-import { formatWalletDate } from "./walletFormat";
+import { actorDisplayName, formatWalletDate } from "./walletFormat";
 import { DataCompletenessBadge } from "./WalletBadges";
 import { EmptyRow, type Translate } from "./walletTableShared";
 
@@ -65,7 +65,11 @@ function TransactionRow({
         {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
         {copy}
         {item.adjustmentReason && (
-          <p className="mt-0.5 text-xs font-normal text-gray-400">{item.adjustmentReason}</p>
+          <p className="mt-0.5 text-xs font-normal text-gray-400">
+            {t(`wallet.adjustmentReasons.${item.adjustmentReason}`, {
+              defaultValue: item.adjustmentReason,
+            })}
+          </p>
         )}
         <DataCompletenessBadge completeness={item.dataCompleteness} missingFields={item.missingFields} t={t} />
       </td>
@@ -75,12 +79,8 @@ function TransactionRow({
       </td>
       <td className="w-[14%] whitespace-nowrap px-3 py-3 font-semibold">{formatCurrency(item.balanceAfter)}</td>
       <td className="w-[12%] whitespace-nowrap px-3 py-3 text-gray-600">
-        {item.actor?.role === "SYSTEM_ADMIN" ||
-        item.actor?.displayName === "System Admin"
-          ? tc("roles.SYSTEM_ADMIN", { defaultValue: item.actor.displayName })
-          : item.actorType === "USER" && item.actor
-            ? item.actor.displayName
-            : tc("enumLabels.SYSTEM", { defaultValue: "-" })}
+        {actorDisplayName(item.actor, tc) ||
+          tc("enumLabels.SYSTEM", { defaultValue: "-" })}
       </td>
       <td className="w-[28%] px-4 py-3 text-gray-600">
         {item.relatedSettlement

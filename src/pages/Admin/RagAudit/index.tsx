@@ -3,12 +3,14 @@ import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FiCheckCircle,
   FiFileText,
   FiRefreshCw,
   FiSearch,
   FiUploadCloud,
 } from "react-icons/fi";
 import {
+  approveRagDocument,
   getRagDocuments,
   getRagFeedback,
   type RagDocument,
@@ -56,6 +58,10 @@ const DOCUMENT_TYPES = ["FAQ", "POLICY", "SOP", "GUIDE", "TERMS"] as const;
 const filterClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
 
+// BE chỉ mở PUT /approve cho tài liệu đang PENDING_REVIEW; trạng thái khác trả
+// 409 DOCUMENT_NOT_PENDING. Chặn ngay ở nút để không bắt admin ăn lỗi mới biết.
+const APPROVABLE_STATUS = "PENDING_REVIEW";
+
 function feedbackTone(rating: number) {
   return rating > 0
     ? "bg-emerald-50 text-emerald-700"
@@ -76,6 +82,7 @@ export default function RagAudit() {
   const [documentTypeFilter, setDocumentTypeFilter] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [approvingId, setApprovingId] = useState("");
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalDocuments, setTotalDocuments] = useState(0);
@@ -189,6 +196,38 @@ export default function RagAudit() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadFeedback]);
+
+  // Cập nhật tại chỗ thay vì reload cả bảng: giữ nguyên trang/bộ lọc admin đang
+  // xem. Ingest chạy nền nên `ingestStatus` mới vẫn phải bấm Làm mới để thấy.
+  const handleApprove = useCallback(
+    async (document: RagDocument) => {
+      if (document.status !== APPROVABLE_STATUS) {
+        setError(t("ragAudit.approvalBlocked"));
+        return;
+      }
+
+      setApprovingId(document.id);
+      setMessage("");
+      setError("");
+
+      try {
+        const approved = await approveRagDocument(document.id);
+        setDocuments((current) =>
+          current.map((row) =>
+            row.id === document.id ? { ...row, ...approved } : row,
+          ),
+        );
+        setMessage(t("ragAudit.statusUpdated", { title: document.title }));
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : t("ragAudit.actionFailed"),
+        );
+      } finally {
+        setApprovingId("");
+      }
+    },
+    [t],
+  );
 
   useToastFeedback({ message, error });
   return (
@@ -341,15 +380,16 @@ export default function RagAudit() {
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[1180px] whitespace-nowrap text-sm">
+            <table className="w-full min-w-[1320px] whitespace-nowrap text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                  <th className="w-[28%] px-4 py-3">{tc("title")}</th>
-                  <th className="w-[13%] px-4 py-3 text-center">{t("ragAudit.permission")}</th>
-                  <th className="w-[13%] px-4 py-3 text-center">{t("ragAudit.category")}</th>
-                  <th className="w-[12%] px-4 py-3 text-center">{t("ragAudit.documentType")}</th>
-                  <th className="w-[14%] px-4 py-3 text-center">{t("ragAudit.ingestStatus")}</th>
-                  <th className="w-[12%] px-4 py-3 text-center">{tc("status")}</th>
+                  <th className="w-[24%] px-4 py-3">{tc("title")}</th>
+                  <th className="w-[12%] px-4 py-3 text-center">{t("ragAudit.permission")}</th>
+                  <th className="w-[12%] px-4 py-3 text-center">{t("ragAudit.category")}</th>
+                  <th className="w-[11%] px-4 py-3 text-center">{t("ragAudit.documentType")}</th>
+                  <th className="w-[13%] px-4 py-3 text-center">{t("ragAudit.ingestStatus")}</th>
+                  <th className="w-[11%] px-4 py-3 text-center">{tc("status")}</th>
+                  <th className="w-[11%] px-4 py-3 text-center">{tc("actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -405,6 +445,25 @@ export default function RagAudit() {
                           defaultValue: document.status.replaceAll("_", " "),
                         })}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {document.status === APPROVABLE_STATUS ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleApprove(document)}
+                          disabled={approvingId === document.id}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <FiCheckCircle aria-hidden="true" size={14} />
+                          {tc("approve")}
+                        </button>
+                      ) : (
+                        // Trạng thái khác PENDING_REVIEW không còn thao tác nào
+                        // — nói rõ là "đã xử lý" thay vì để ô trống khó hiểu.
+                        <span className="text-xs text-gray-400">
+                          {t("ragAudit.alreadyProcessed")}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -466,7 +525,7 @@ export default function RagAudit() {
                   {t("ragAudit.assistantResponse")}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-gray-800">
-                  {item.message?.content || item.comment || t("ragAudit.noResponse")}
+                  {item.message?.content || t("ragAudit.noResponse")}
                 </p>
               </article>
             ))}

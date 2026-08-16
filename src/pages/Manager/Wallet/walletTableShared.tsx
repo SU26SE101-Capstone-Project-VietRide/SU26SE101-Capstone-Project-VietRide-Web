@@ -1,5 +1,6 @@
 export type Translate = (key: string, options?: Record<string, unknown>) => string;
 
+
 export function EmptyRow({ columns, t }: { columns: number; t: Translate }) {
   return (
     <tr>

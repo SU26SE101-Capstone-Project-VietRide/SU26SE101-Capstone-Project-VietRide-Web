@@ -113,6 +113,7 @@
     "invalidEmail": "Invalid email address",
     "passwordMin": "Password must be at least 6 characters",
     "failed": "Sign in failed, please try again",
+    "roleRetired": "Operator staff accounts can no longer sign in to the management console. Please contact your operator admin for suitable access.",
     "registerFailed": "Registration failed, please try again",
     "verifyEmailFailed": "Email verification failed, please try again",
     "resendVerificationFailed": "Could not resend the verification code"

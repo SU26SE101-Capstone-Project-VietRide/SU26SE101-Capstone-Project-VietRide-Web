@@ -245,6 +245,55 @@ describe("ManagerWallet", () => {
     expect(screen.getByText("wallet.tripFallback")).toBeInTheDocument();
   });
 
+  // Mã enum của BE từng lọt thẳng ra màn hình ("Lý do hủy:
+  // NON_POSITIVE_NET_ENTITLEMENT") — hai test dưới khoá lại đường dịch.
+  it("dịch lý do huỷ đối soát thay vì in mã enum của BE", async () => {
+    vi.mocked(getOperatorTripSettlements).mockResolvedValue(
+      pagedResult([
+        {
+          ...onHoldSettlement,
+          settlementId: "settlement-cancelled",
+          status: "CANCELLED",
+          processingState: "CANCELLED",
+          cancelReason: "NON_POSITIVE_NET_ENTITLEMENT",
+        },
+      ]),
+    );
+
+    renderWallet();
+    fireEvent.click(screen.getByRole("button", { name: "wallet.tabs.settlements" }));
+
+    // Chi tiết chỉ hiện khi bung hàng — bấm vào dòng chuyến trước
+    const row = await screen.findByText("wallet.tripFallback");
+    fireEvent.click(row);
+
+    expect(
+      await screen.findByText(
+        /wallet\.cancelReasons\.NON_POSITIVE_NET_ENTITLEMENT/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/: NON_POSITIVE_NET_ENTITLEMENT$/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("dịch lý do điều chỉnh ví thay vì in mã enum của BE", async () => {
+    vi.mocked(getOperatorWalletTransactions).mockResolvedValue(
+      pagedResult([
+        { ...creditTransaction, adjustmentReason: "MANUAL_WALLET_ADJUSTMENT" },
+      ]),
+    );
+
+    renderWallet();
+
+    expect(
+      await screen.findByText("wallet.adjustmentReasons.MANUAL_WALLET_ADJUSTMENT"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("MANUAL_WALLET_ADJUSTMENT"),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the ledger tab with referenceCode instead of parsing note", async () => {
     renderWallet();
 

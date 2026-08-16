@@ -283,7 +283,7 @@ export default function ManagerWallet() {
           ) : tab === "transactions" ? (
             <TransactionsTable items={transactions} t={t} tc={tc} />
           ) : tab === "settlements" ? (
-            <SettlementsTable items={settlements} t={t} />
+            <SettlementsTable items={settlements} t={t} tc={tc} />
           ) : (
             <LedgerTable items={ledger} t={t} tc={tc} />
           )}

@@ -517,7 +517,10 @@ export default function WalletSettlement() {
                           <div className="flex items-center justify-center gap-2 text-amber-700">
                             <FiAlertTriangle className="shrink-0" />
                             <span>
-                              {record.activeFailureCode}
+                              {t(
+                                `walletSettlement.failureCodes.${record.activeFailureCode}`,
+                                { defaultValue: record.activeFailureCode },
+                              )}
                               {(record.failureCount ?? 0) > 0 &&
                                 ` (${record.failureCount})`}
                             </span>

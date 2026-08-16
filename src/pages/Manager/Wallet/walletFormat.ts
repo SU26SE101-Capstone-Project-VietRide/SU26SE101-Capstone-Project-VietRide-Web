@@ -41,3 +41,29 @@ export function settlementStatusClass(status: TripSettlementStatus) {
       return "bg-gray-100 text-gray-700";
   }
 }
+
+type FinancialActor = {
+  displayName?: string | null;
+  role?: string | null;
+} | null | undefined;
+
+/**
+ * Tên người thao tác trên các bảng ví. Tài khoản quản trị hệ thống có
+ * `displayName` là "System Admin" trong DB — đọc thô ra thì lệch hẳn với phần
+ * còn lại của giao diện, nên đổi sang nhãn vai trò đã dịch. Người thật thì giữ
+ * nguyên tên của họ.
+ *
+ * `tc` là `t` của namespace `common` (nơi có `roles.*`).
+ */
+export function actorDisplayName(
+  actor: FinancialActor,
+  tc: (key: string, options?: Record<string, unknown>) => string,
+): string | null {
+  if (!actor) return null;
+  const isSystemAdmin =
+    actor.role === "SYSTEM_ADMIN" || actor.displayName === "System Admin";
+  if (isSystemAdmin) {
+    return tc("roles.SYSTEM_ADMIN", { defaultValue: actor.displayName ?? "" });
+  }
+  return actor.displayName || null;
+}

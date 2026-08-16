@@ -31,16 +31,6 @@ export interface Vehicle {
   layoutJSON?: string; // JSON string for storage
 }
 
-// Vehicle Model Specs
-export interface VehicleModelSpec {
-  id: string;
-  name: string;
-  width: number;
-  length: number;
-  defaultRows: number;
-  defaultCols: number;
-}
-
 // Layout JSON structure for storage
 export interface VehicleLayout {
   vehicleType: VehicleType;

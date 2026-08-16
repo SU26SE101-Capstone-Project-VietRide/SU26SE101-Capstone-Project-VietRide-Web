@@ -745,6 +745,9 @@
     "settledMessage": "Manual payment completed for {{operator}}.",
     "operatorFallback": "the operator",
     "rule": "Manual settlement is allowed only for eligible records and cannot be repeated once settled.",
+    "failureCodes": {
+      "PLATFORM_WALLET_INSUFFICIENT_BALANCE": "The platform wallet has insufficient balance to transfer; the system will retry on schedule"
+    },
     "status": {
       "PENDING_HOLD": "Pending hold",
       "PENDING": "Pending",
@@ -821,7 +824,6 @@
     "uploadHint": "Supports TXT or Markdown files; the maximum size follows the system configuration.",
     "uploadRequired": "Please choose a file and enter a title.",
     "uploadSuccess": "Document uploaded to the knowledge base.",
-    "noComment": "No comment",
     "categories": {
       "CUSTOMER_SUPPORT": "Customer support",
       "OPERATOR_POLICY": "Operator policy",

@@ -46,8 +46,6 @@ import {
   getBookingHealth,
   getDriverMeSchedule,
   getFirebaseCustomToken,
-  getInternalTripCargoCapacity,
-  getInternalTripParcelAvailability,
   getOperatorRoute,
   getOperatorRoutes,
   getOperatorVoucherSummary,
@@ -104,7 +102,6 @@ import {
   getTrackingTripTrail,
   getTripHealth,
   getVehicleTypes,
-  lockInternalRoundTripSeats,
   lockAdminUser,
   markNotificationRead,
   sendOperatorNotification,
@@ -114,7 +111,6 @@ import {
   adjustAdminPlatformWallet,
   overrideOperatorParcelCapacity,
   rejectOperatorVoucherConsent,
-  remeasureInternalTripCargo,
   registerOperator,
   reloadRagRuntimeConfigs,
   resendVerificationEmail,
@@ -687,7 +683,7 @@ describe("vietride API", () => {
           id: "operator-1",
           email: "ops@operator.vn",
           displayName: "Ops",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -706,14 +702,6 @@ describe("vietride API", () => {
     await updateAlternativeRouteGeometry("alt-1", {
       pathPolyline: "def",
     });
-    await getInternalTripParcelAvailability({ routeId: "route-1" });
-    await getInternalTripCargoCapacity("trip-1");
-    await remeasureInternalTripCargo("trip-1", {
-      parcelId: "parcel-1",
-      weightKg: 12,
-      volumeM3: 0.5,
-    });
-
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "https://api.vietride.online/v1/driver/me/schedule?from=2026-08-11&to=2026-08-25",
@@ -734,21 +722,6 @@ describe("vietride API", () => {
         body: JSON.stringify({ pathPolyline: "def" }),
         method: "PUT",
       }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
-      "https://api.vietride.online/internal/v1/trips/parcel-availability?routeId=route-1",
-      expect.objectContaining({ method: "GET" }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      5,
-      "https://api.vietride.online/internal/v1/trips/trip-1/cargo/capacity",
-      expect.objectContaining({ method: "GET" }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      6,
-      "https://api.vietride.online/internal/v1/trips/trip-1/cargo/remeasure",
-      expect.objectContaining({ method: "POST" }),
     );
   });
 
@@ -1027,57 +1000,6 @@ describe("vietride API", () => {
     );
   });
 
-  it("locks round-trip seats with an idempotency key", async () => {
-    const fetchMock = vi.fn(async () => {
-      return new Response(
-        JSON.stringify({
-          data: {
-            outbound: {
-              tripId: "trip-out",
-              seatLockToken: "out-token",
-              lockedSeats: ["A1"],
-              expiresAt: "2026-06-23T10:00:00Z",
-            },
-            return: {
-              tripId: "trip-back",
-              seatLockToken: "back-token",
-              lockedSeats: ["A1"],
-              expiresAt: "2026-06-23T10:00:00Z",
-            },
-          },
-        }),
-        { status: 200 },
-      );
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await lockInternalRoundTripSeats(
-      {
-        outbound: {
-          tripId: "trip-out",
-          seatNumbers: ["A1"],
-        },
-        return: {
-          tripId: "trip-back",
-          seatNumbers: ["A1"],
-        },
-        holdOwnerId: "user-1",
-        ttlSeconds: 300,
-      },
-      "idem-1",
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.vietride.online/internal/v1/trips/round-trip/lock-seats",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          "Idempotency-Key": "idem-1",
-        }),
-      }),
-    );
-  });
-
   it("loads public promotions without an auth token", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
@@ -1123,7 +1045,7 @@ describe("vietride API", () => {
           id: "user-1",
           email: "staff@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -1284,7 +1206,7 @@ describe("vietride API", () => {
           id: "user-1",
           email: "staff@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -1491,7 +1413,7 @@ describe("vietride API", () => {
           id: "user-1",
           email: "customer@vietride.vn",
           displayName: "Customer",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -1741,7 +1663,7 @@ describe("vietride API", () => {
           id: "user-1",
           email: "assistant@operator.vn",
           displayName: "Trip Assistant",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -2132,7 +2054,7 @@ describe("vietride API", () => {
           id: "user-1",
           email: "staff@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -2686,7 +2608,7 @@ describe("vietride API", () => {
           id: "operator-user-1",
           email: "staff@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
           operatorId: "operator-1",
         },
       }),
@@ -2941,7 +2863,7 @@ describe("operator notification announcements", () => {
           id: "user-1",
           email: "staff@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -3566,7 +3488,7 @@ describe("UI gaps API contracts", () => {
           id: "operator-1",
           email: "ops@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -3596,7 +3518,7 @@ describe("UI gaps API contracts", () => {
           id: "operator-1",
           email: "ops@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -3639,7 +3561,7 @@ describe("UI gaps API contracts", () => {
           id: "operator-1",
           email: "ops@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
@@ -4000,7 +3922,7 @@ describe("UI gaps API contracts", () => {
           id: "operator-1",
           email: "ops@operator.vn",
           displayName: "Operator Staff",
-          role: "OPERATOR_STAFF",
+          role: "OPERATOR_ADMIN",
         },
       }),
     );
