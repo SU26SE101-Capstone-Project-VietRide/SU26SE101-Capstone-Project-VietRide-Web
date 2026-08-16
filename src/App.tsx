@@ -11,6 +11,7 @@ const ManagerLayout = lazy(() => import("./layouts/ManagerLayout"));
 const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
 const Profile = lazy(() => import("./pages/Profile"));
 const TripsList = lazy(() => import("./pages/Manager/Trips/index"));
+const OperatorTripList = lazy(() => import("./pages/Manager/TripList/index"));
 const BookingsList = lazy(() => import("./pages/Manager/Bookings/index"));
 const ParcelsList = lazy(() => import("./pages/Manager/Parcels/index"));
 const StaffList = lazy(() => import("./pages/Manager/Staff/index"));
@@ -129,6 +130,7 @@ export default function App() {
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<ManagerDashboard />} />
                 <Route path="trips" element={<TripsList />} />
+                <Route path="trip-list" element={<OperatorTripList />} />
                 <Route path="routes" element={<RoutesList />} />
                 <Route path="stations" element={<ManagerStations />} />
                 <Route path="route-management" element={<ManagerRouteManagement />} />

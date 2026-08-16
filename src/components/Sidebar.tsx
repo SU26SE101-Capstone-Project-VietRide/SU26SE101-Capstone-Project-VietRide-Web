@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   FiLayout,
+  FiList,
   FiTruck,
   FiBookOpen,
   FiPackage,
@@ -48,6 +49,13 @@ const operatorAdminMenuConfig: MenuSection[] = [
         icon: <FiLayout />,
       },
       { labelKey: "manager.trips", path: "/manager/trips", icon: <FiTruck /> },
+      // "Lịch chạy" (ở trên) quản lý LỊCH định kỳ; mục này chỉ tra cứu các chuyến
+      // đã sinh ra từ lịch đó — hai màn khác nhau, đừng gộp.
+      {
+        labelKey: "manager.tripList",
+        path: "/manager/trip-list",
+        icon: <FiList />,
+      },
       {
         labelKey: "manager.routes",
         path: "/manager/routes",

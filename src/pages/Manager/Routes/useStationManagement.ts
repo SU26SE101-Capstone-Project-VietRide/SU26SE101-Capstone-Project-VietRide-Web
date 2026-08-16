@@ -10,46 +10,28 @@ import {
 } from "../../../api/vietride";
 import type { PlaceSelection } from "../../../components/PlacePicker";
 import { mergeStations } from "./routeFormUtils";
-import type {
-  FeedbackScope,
-  StationOption,
-  StationRouteRole,
-  TranslateFn,
-} from "./types";
+import type { FeedbackScope, StationOption, TranslateFn } from "./types";
 
+// Hook chỉ lo tìm/tạo/gắn bến vào NHÀ XE. Việc chọn bến nào làm bến đi/bến đến
+// thuộc về form tuyến (CreateRouteModal), không phải ở đây: bến đi/đến của tuyến
+// đã tạo là bất biến (server chặn ROUTE_STATION_IMMUTABLE), còn tuyến chưa tạo
+// thì form tạo tuyến tự giữ lựa chọn của nó.
 type UseStationManagementParams = {
   stations: StationOption[];
   setStations: Dispatch<SetStateAction<StationOption[]>>;
-  updateRoute: (
-    key: "originStationId" | "destinationStationId",
-    value: string,
-  ) => void;
-  // Đang mở sẵn một tuyến đã tạo — bến đi/bến đến của tuyến đó bất biến sau khi
-  // tạo (server chặn ROUTE_STATION_IMMUTABLE qua updateRoute). Gán vai trò
-  // bến đi/đến chỉ có ý nghĩa khi CHƯA có tuyến nào chọn (đang chờ tạo tuyến
-  // mới) — assignStationToRoute tự bỏ qua khi cờ này bật, tránh vừa báo gắn
-  // bến thành công vừa báo lỗi khoá bến đi/đến cho cùng một lần bấm.
-  hasSelectedRoute: boolean;
   setError: (message: string) => void;
   showMessage: (scope: FeedbackScope, message: string) => void;
   t: TranslateFn;
 };
 
-function normalizeLocationLabel(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/^(tinh|thanh pho|tp\.?|phuong|xa|thi tran|dac khu)\s+/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function matchesLocationName(left: string, right: string) {
-  const normalizedLeft = normalizeLocationLabel(left);
-  const normalizedRight = normalizeLocationLabel(right);
-  return Boolean(normalizedLeft && normalizedRight && (normalizedLeft === normalizedRight || normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft)));
-}
+// Vi\u1ec7c \u0111o\u00e1n t\u1ec9nh/th\u00e0nh t\u1eeb \u0111\u1ecba ch\u1ec9 Google n\u1eb1m \u1edf StationManagementPanel
+// (`findMatchingProvinceCode`) \u2014 hook kh\u00f4ng t\u1ef1 \u0111o\u00e1n n\u1eefa. Tr\u01b0\u1edbc \u0111\u00e2y c\u1ea3 hai n\u01a1i
+// c\u00f9ng \u0111o\u00e1n, v\u00e0 l\u01b0\u1ee3t \u0111o\u00e1n c\u1ee7a panel ch\u1ea1y sau n\u00ean lu\u00f4n ghi \u0111\u00e8 l\u01b0\u1ee3t c\u1ee7a hook: hook
+// t\u1ed1n th\u00eam 2 request `GET /v1/locations` m\u00e0 k\u1ebft qu\u1ea3 b\u1ecb v\u1ee9t.
 
 export function useStationManagement({
   stations,
   setStations,
-  updateRoute,
-  hasSelectedRoute,
   setError,
   showMessage,
   t,
@@ -64,9 +46,10 @@ export function useStationManagement({
   const [isLoadingWards, setIsLoadingWards] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [stationSupportsShuttle, setStationSupportsShuttle] = useState(false);
-  const [stationRouteRole, setStationRouteRole] =
-    useState<StationRouteRole>("");
   const [selectedStationId, setSelectedStationId] = useState("");
+  // Đang tra xem địa điểm vừa chọn đã có bến trên hệ thống chưa — chưa biết kết
+  // quả thì panel không được vẽ nhánh nào cả, tránh nhấp nháy.
+  const [isResolvingStation, setIsResolvingStation] = useState(false);
 
   const selectedStationPlace = useMemo<PlaceSelection | null>(() => {
     const station = stations.find((item) => item.id === selectedStationId);
@@ -101,6 +84,17 @@ export function useStationManagement({
     setStationSupportsShuttle(station.supportsShuttle ?? false);
   }
 
+  /**
+   * Chọn một địa điểm Google → tra xem bến đó ĐÃ CÓ trên hệ thống chưa.
+   *
+   * Trả về `true` khi khớp một bến có sẵn (nhà xe chỉ cần gắn), `false` khi là
+   * bến mới (phải chọn phường/xã rồi tạo). Panel dựa vào giá trị này để quyết
+   * định có chạy tiếp bước đoán tỉnh/thành hay không.
+   *
+   * Tra bến TRƯỚC rồi mới tới địa giới: trước đây làm ngược lại nên khối
+   * "Tỉnh/Phường" kịp hiện ra và điền sẵn, xong lượt search về mới ẩn đi — người
+   * dùng thấy form nhấp nháy mà không hiểu vì sao.
+   */
   async function applyStationPlace(place: PlaceSelection) {
     setStationPlaceDraft(place);
     setSelectedStationId("");
@@ -109,60 +103,27 @@ export function useStationManagement({
     setSelectedProvinceCode("");
     setSelectedLocationId("");
     setWards([]);
+    setIsResolvingStation(true);
 
-    // Tự ánh xạ tỉnh/thành và phường/xã từ địa chỉ Google vào hierarchy của BE.
-    if (place.city || place.ward) {
-      const provinces = await getPublicLocations();
-      const province = provinces.find((item) => matchesLocationName(item.name, place.city));
-      if (province) {
-        setSelectedProvinceCode(province.code);
-        setIsLoadingWards(true);
-        try {
-          const result = await getPublicLocations({ parentCode: province.code });
-          const activeWards = result.filter((location) => location.isActive);
-          setWards(activeWards);
-          const addressCandidates = [place.ward, ...place.address.split(",")].map((value) => value.trim()).filter(Boolean);
-          const matchedWard = activeWards.find((ward) => addressCandidates.some((candidate) => matchesLocationName(ward.name, candidate)));
-          setSelectedLocationId(matchedWard?.id ?? "");
-        } finally {
-          setIsLoadingWards(false);
-        }
+    try {
+      // Search theo contract mới: city = tỉnh/TP (Google admin_area_1 = place.province)
+      const result = await searchStations({
+        q: place.name,
+        city: place.city,
+        ward: place.ward,
+      });
+
+      // Kết quả tìm kiếm không phải hành động tạo/gắn bến — không cần toast.
+      if (!result.length) {
+        return false;
       }
-    }
 
-    // Search theo contract mới: city = tỉnh/TP (Google admin_area_1 = place.province)
-    const result = await searchStations({
-      q: place.name,
-      city: place.city,
-      ward: place.ward,
-    });
-
-    // Kết quả tìm kiếm không phải hành động tạo/gắn bến — không cần toast,
-    // chưa tìm thấy nghĩa là quản trị viên sẽ tạo bến mới ngay bên dưới; kết
-    // quả tìm thấy đã tự hiển thị qua danh sách/lựa chọn bến.
-    if (!result.length) {
-      return;
-    }
-
-    setStations((current) => mergeStations(current, result));
-    setSelectedStationId(result[0]?.id ?? "");
-    setStationSupportsShuttle(result[0]?.supportsShuttle ?? false);
-  }
-
-  function assignStationToRoute(stationId: string) {
-    // Tuyến đang mở không đổi được bến đi/đến — bỏ qua thay vì gọi updateRoute
-    // (sẽ luôn bị chặn + báo lỗi, xem comment ở UseStationManagementParams)
-    if (hasSelectedRoute) {
-      return;
-    }
-
-    if (stationRouteRole === "origin") {
-      updateRoute("originStationId", stationId);
-      return;
-    }
-
-    if (stationRouteRole === "destination") {
-      updateRoute("destinationStationId", stationId);
+      setStations((current) => mergeStations(current, result));
+      setSelectedStationId(result[0]?.id ?? "");
+      setStationSupportsShuttle(result[0]?.supportsShuttle ?? false);
+      return true;
+    } finally {
+      setIsResolvingStation(false);
     }
   }
 
@@ -186,7 +147,6 @@ export function useStationManagement({
           : station,
       ),
     );
-    assignStationToRoute(selectedStationId);
     showMessage("station", t("routes.stationAttached"));
   }
 
@@ -241,7 +201,6 @@ export function useStationManagement({
         setSelectedStationId(nearby[0].id);
         setStationSupportsShuttle(nearby[0].supportsShuttle ?? false);
         await attachOperatorStation(nearby[0].id);
-        assignStationToRoute(nearby[0].id);
         showMessage("station", t("routes.stationAttached"));
       } else {
         setError(t("routes.stationDuplicateNearby"));
@@ -282,7 +241,6 @@ export function useStationManagement({
     setSelectedProvinceCode("");
     setWards([]);
     setStationSupportsShuttle(false);
-    assignStationToRoute(createdStationId);
     showMessage("station", t("routes.stationCreatedAndAttached"));
   }
 
@@ -296,9 +254,8 @@ export function useStationManagement({
     setSelectedLocationId,
     stationSupportsShuttle,
     setStationSupportsShuttle,
-    stationRouteRole,
-    setStationRouteRole,
     selectedStationId,
+    isResolvingStation,
     selectedStationPlace,
     handleSelectStation,
     handleSelectStationResult,

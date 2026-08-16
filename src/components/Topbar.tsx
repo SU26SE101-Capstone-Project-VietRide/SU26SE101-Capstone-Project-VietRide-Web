@@ -24,6 +24,7 @@ import {
   type NotificationItem,
 } from "../api/vietride";
 import { getNotificationActionPath } from "../utils/notificationActions";
+import { localizeNotificationText } from "../utils/notificationText";
 
 type TopbarProps = {
   onMenuToggle: () => void;
@@ -64,6 +65,14 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const canSendOperatorNotification = authUser?.role === "OPERATOR_ADMIN";
   const settingsPath =
     authUser?.role === "OPERATOR_ADMIN" ? "/manager/settings" : null;
+
+  // Nhãn của một mã enum, `null` khi chưa khai bản dịch — helper dựa vào đó để
+  // giữ nguyên mã lạ thay vì in ra chuỗi rỗng.
+  const translateNotificationCode = useCallback(
+    (code: string) =>
+      t(`notificationCodes.${code}`, { defaultValue: "" }) || null,
+    [t],
+  );
 
   const loadNotificationsRef = useRef<
     (options?: NotificationRefreshOptions) => Promise<void>
@@ -337,10 +346,16 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
                         />
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold text-gray-900">
-                            {notification.title}
+                            {localizeNotificationText(
+                              notification.title,
+                              translateNotificationCode,
+                            )}
                           </span>
                           <span className="mt-0.5 block text-sm text-gray-600">
-                            {notification.body}
+                            {localizeNotificationText(
+                              notification.body,
+                              translateNotificationCode,
+                            )}
                           </span>
                           <span className="mt-1 block text-xs text-gray-400">
                             {formatNotificationDate(

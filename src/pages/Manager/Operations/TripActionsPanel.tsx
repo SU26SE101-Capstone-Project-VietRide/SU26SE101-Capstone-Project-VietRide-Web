@@ -30,6 +30,14 @@ import Checkbox from "../../../components/form/Checkbox";
 const inputClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
 
+/**
+ * Trạng thái chuyến mà BE còn cho phép thay xe / ghi nhận gián đoạn / đổi lộ
+ * trình. Ngoài tập này mọi mutation đều bị chặn bằng `409 TRIP_NOT_EDITABLE`
+ * ("Only scheduled, boarding, or in-progress trips can change alternative
+ * route") — chặn sẵn ở FE để người dùng không bấm rồi mới biết.
+ */
+const EDITABLE_TRIP_STATUSES = new Set(["SCHEDULED", "BOARDING", "IN_PROGRESS"]);
+
 function vehicleId(vehicle: OperatorVehicle) {
   return vehicle.id ?? vehicle.vehicleId ?? "";
 }
@@ -96,6 +104,11 @@ export default function TripActionsPanel({
   const [routeChangeError, setRouteChangeError] = useState("");
   const [pendingAction, setPendingAction] = useState<"substitute" | "disrupt" | "route" | null>(null);
   useToastFeedback({ message: message || routeChangeMessage, error: error || routeChangeError });
+
+  // Chưa biết trạng thái (panel mở từ deep-link mà fleet chưa có chuyến đó) thì
+  // KHÔNG tự chặn — thà để BE từ chối còn hơn khoá nhầm chuyến vẫn sửa được.
+  const isTripEditable =
+    !trip?.status || EDITABLE_TRIP_STATUSES.has(trip.status);
 
   const drivers = useMemo(
     () =>
@@ -334,6 +347,18 @@ export default function TripActionsPanel({
         )}
       </div>
 
+      {/* Chuyến đã kết thúc/huỷ: mọi mutation đều bị BE chặn, nên ẩn hẳn ba khối
+          bên dưới và nói rõ lý do một lần ở đây. "Tải sức chứa" là GET nên giữ. */}
+      {!isTripEditable && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {t("tripOperations.notEditable", {
+            status: tc(`enumLabels.${trip?.status}`, {
+              defaultValue: trip?.status ?? "",
+            }),
+          })}
+        </p>
+      )}
+
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <button
           type="button"
@@ -371,7 +396,7 @@ export default function TripActionsPanel({
         </div>
       )}
 
-      {canMutate && (
+      {canMutate && isTripEditable && (
         <details className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-slate-50/40">
           <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3.5 text-sm font-semibold text-gray-900 marker:hidden select-none">
             <span>{t("tripOperations.substitute")}</span>
@@ -507,7 +532,7 @@ export default function TripActionsPanel({
         </details>
       )}
 
-      {canMutate && (
+      {canMutate && isTripEditable && (
         <div className="mt-4 rounded-xl border border-vr-100 bg-vr-50/30 p-4">
           <button
             type="button"

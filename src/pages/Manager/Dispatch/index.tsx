@@ -29,6 +29,7 @@ import {
   getShuttleTripEta,
   getOperatorShuttleContext,
   getShuttleTripLatest,
+  type OperatorShuttleContext,
   type OperatorShuttleTripListItem,
   type OperatorUser,
   type OperatorVehicle,
@@ -59,6 +60,7 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
+import CustomSelect from "../../../components/CustomSelect";
 import AssignVehicleModal, {
   type AssignVehicleForm,
 } from "./AssignVehicleModal";
@@ -66,6 +68,7 @@ import CancelShuttleModal from "./CancelShuttleModal";
 import RequestDetailModal from "./RequestDetailModal";
 import RequestTable from "./RequestTable";
 import ShuttleTrackingCard from "./ShuttleTrackingCard";
+import ShuttleTripDetailModal from "./ShuttleTripDetailModal";
 import {
   buildInitialSchedule,
   getBookingDistance,
@@ -73,15 +76,18 @@ import {
   getOrderedSelectedBookingIds,
   getSelectedPassengerCount,
   isInboundDirection,
+  isTrackableShuttleStatus,
   pickNewerEta,
   pickNewerLatest,
-  SHUTTLE_TRIP_ACTIVE_STATUSES,
+  SHUTTLE_TRIP_ALL_STATUSES,
+  SHUTTLE_TRIP_STATUS_FILTERS,
   shuttleRouteLabel,
   toDriverOption,
   toShuttleMapPoint,
   toVehicleOption,
   type ShuttleDriver,
   type ShuttleRealtimeStatus,
+  type ShuttleTripStatusFilter,
   type ShuttleTripTracking,
   type ShuttleVehicle,
 } from "./dispatchHelpers";
@@ -211,6 +217,11 @@ export default function DispatchPanel() {
   const [isLoadingShuttleTrips, setIsLoadingShuttleTrips] = useState(true);
   const [shuttleTripsError, setShuttleTripsError] = useState("");
   const [shuttleTripsVersion, setShuttleTripsVersion] = useState(0);
+  // Mặc định xem TẤT CẢ trạng thái (không gửi `status` lên BE) rồi mới lọc lại
+  // nếu cần. Chuyến đã kết thúc vẫn hiện nhưng không được đăng ký realtime — xem
+  // trackableShuttleTripIds.
+  const [shuttleStatusFilter, setShuttleStatusFilter] =
+    useState<ShuttleTripStatusFilter>(SHUTTLE_TRIP_ALL_STATUSES);
   // Vị trí/ETA của từng chuyến, khoá theo shuttleTripId
   const [trackingByTripId, setTrackingByTripId] = useState<
     Record<string, ShuttleTripTracking>
@@ -221,6 +232,15 @@ export default function DispatchPanel() {
   const [selectedShuttleTripId, setSelectedShuttleTripId] = useState<
     string | null
   >(null);
+  // Chuyến đang mở modal chi tiết + lộ trình điểm đón của nó
+  const [detailTrip, setDetailTrip] =
+    useState<OperatorShuttleTripListItem | null>(null);
+  const [detailContext, setDetailContext] =
+    useState<OperatorShuttleContext | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  // Mở nhanh hai thẻ liên tiếp: lượt nạp về sau không được ghi đè chuyến đang mở
+  const detailRequestRef = useRef("");
 
   const directionLabel = useCallback(
     (direction: ShuttleDirection) =>
@@ -389,6 +409,47 @@ export default function DispatchPanel() {
     [canDispatchShuttle, resourcesLoaded, t],
   );
 
+  const openTripDetail = useCallback(
+    async (trip: OperatorShuttleTripListItem) => {
+      detailRequestRef.current = trip.shuttleTripId;
+      setDetailTrip(trip);
+      setDetailError("");
+
+      // Chuyến đang theo dõi đã nạp sẵn context cùng lượt latest/eta — dùng lại
+      // thay vì bắn thêm một request cho đúng dữ liệu vừa có.
+      const cached = trackingByTripId[trip.shuttleTripId]?.context ?? null;
+      setDetailContext(cached);
+      if (cached) return;
+
+      setIsLoadingDetail(true);
+      try {
+        const context = await getOperatorShuttleContext(trip.shuttleTripId);
+        if (detailRequestRef.current !== trip.shuttleTripId) return;
+        setDetailContext(context);
+      } catch (error) {
+        if (detailRequestRef.current !== trip.shuttleTripId) return;
+        setDetailError(
+          error instanceof Error
+            ? error.message
+            : tRef.current("dispatch.trackingFailed"),
+        );
+      } finally {
+        if (detailRequestRef.current === trip.shuttleTripId) {
+          setIsLoadingDetail(false);
+        }
+      }
+    },
+    [trackingByTripId],
+  );
+
+  function closeTripDetail() {
+    detailRequestRef.current = "";
+    setDetailTrip(null);
+    setDetailContext(null);
+    setDetailError("");
+    setIsLoadingDetail(false);
+  }
+
   const refreshShuttleTracking = useCallback(
     async (shuttleTripId: string) => {
       setTrackingByTripId((current) => ({
@@ -460,8 +521,14 @@ export default function DispatchPanel() {
     [t],
   );
 
-  const activeShuttleTripIds = useMemo(
-    () => shuttleTrips.map((trip) => trip.shuttleTripId),
+  // Chỉ chuyến chưa kết thúc mới mở socket: chuyến COMPLETED/CANCELLED không còn
+  // tài xế gửi GPS, join room cho chúng chỉ tốn kết nối và làm trạng thái
+  // realtime nhấp nháy vô cớ.
+  const trackableShuttleTripIds = useMemo(
+    () =>
+      shuttleTrips
+        .filter((trip) => isTrackableShuttleStatus(trip.status))
+        .map((trip) => trip.shuttleTripId),
     [shuttleTrips],
   );
 
@@ -555,7 +622,7 @@ export default function DispatchPanel() {
   }, []);
 
   useShuttleTrackingSocket({
-    shuttleTripIds: activeShuttleTripIds,
+    shuttleTripIds: trackableShuttleTripIds,
     onGps: applyShuttleGps,
     onEta: applyShuttleEta,
     // Room chỉ phát khi tài xế gửi GPS tiếp theo nên nạp một lần từ REST để thẻ
@@ -572,10 +639,11 @@ export default function DispatchPanel() {
       setShuttleTripsError("");
 
       try {
+        // Filter rỗng = xem tất cả → không gửi `status` lên BE.
         const result = await getOperatorShuttleTrips({
           page: 1,
           pageSize: SHUTTLE_TRIP_PAGE_SIZE,
-          status: SHUTTLE_TRIP_ACTIVE_STATUSES,
+          ...(shuttleStatusFilter ? { status: shuttleStatusFilter } : {}),
         });
         if (!ignore) setShuttleTrips(result.items);
       } catch (error) {
@@ -595,7 +663,7 @@ export default function DispatchPanel() {
     return () => {
       ignore = true;
     };
-  }, [shuttleTripsVersion]);
+  }, [shuttleStatusFilter, shuttleTripsVersion]);
 
   // Deep-link ?shuttleTripId= — tải sẵn vị trí cho đúng chuyến đó nếu nó nằm
   // trong danh sách đang hiển thị.
@@ -1214,19 +1282,39 @@ export default function DispatchPanel() {
                 : t("dispatch.shuttleTrackingHint")}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShuttleTripsVersion((current) => current + 1)}
-            disabled={isLoadingShuttleTrips}
-            className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <FiRefreshCw
-              size={15}
-              className={isLoadingShuttleTrips ? "animate-spin" : ""}
-              aria-hidden="true"
-            />
-            {tc("refresh")}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-52">
+              <CustomSelect
+                aria-label={t("dispatch.shuttleStatusFilter")}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+                value={shuttleStatusFilter}
+                onChange={(event) =>
+                  setShuttleStatusFilter(
+                    event.target.value as ShuttleTripStatusFilter,
+                  )
+                }
+              >
+                {SHUTTLE_TRIP_STATUS_FILTERS.map((filter) => (
+                  <option key={filter.id} value={filter.value}>
+                    {t(`dispatch.shuttleStatusFilters.${filter.id}`)}
+                  </option>
+                ))}
+              </CustomSelect>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShuttleTripsVersion((current) => current + 1)}
+              disabled={isLoadingShuttleTrips}
+              className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <FiRefreshCw
+                size={15}
+                className={isLoadingShuttleTrips ? "animate-spin" : ""}
+                aria-hidden="true"
+              />
+              {tc("refresh")}
+            </button>
+          </div>
         </div>
 
         {shuttleTripsError && (
@@ -1275,6 +1363,7 @@ export default function DispatchPanel() {
                 void refreshShuttleTracking(shuttleTripId)
               }
               onCancel={openCancelTrip}
+              onOpenDetail={(selected) => void openTripDetail(selected)}
               directionLabel={directionLabel}
             />
           ))}
@@ -1290,7 +1379,11 @@ export default function DispatchPanel() {
                     aria-hidden="true"
                   />
                   <p className="mt-2 text-sm font-medium text-gray-700">
-                    {t("dispatch.shuttleTrackingEmpty")}
+                    {/* Rỗng vì lọc khác hẳn rỗng vì nhà xe chưa có chuyến nào —
+                        nói nhầm là điều độ viên tưởng mất dữ liệu. */}
+                    {shuttleStatusFilter === SHUTTLE_TRIP_ALL_STATUSES
+                      ? t("dispatch.shuttleTrackingEmpty")
+                      : t("dispatch.shuttleTrackingFilteredEmpty")}
                   </p>
                 </>
               )}
@@ -1346,6 +1439,16 @@ export default function DispatchPanel() {
 
           openCancelRequest(selectedGroup, booking, passengerLabel);
         }}
+        directionLabel={directionLabel}
+      />
+
+      <ShuttleTripDetailModal
+        open={detailTrip !== null}
+        onClose={closeTripDetail}
+        trip={detailTrip}
+        context={detailContext}
+        isLoading={isLoadingDetail}
+        error={detailError}
         directionLabel={directionLabel}
       />
 

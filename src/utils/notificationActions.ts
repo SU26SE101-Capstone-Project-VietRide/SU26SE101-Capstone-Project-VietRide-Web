@@ -8,11 +8,21 @@ type UnknownRecord = Record<string, unknown>;
 const TRACKING_NOTIFICATION_TYPES = new Set([
   "APPROACHING_STOP",
   "CARGO_NEAR_FULL_ALERT",
-  "INCIDENT_REPORTED",
   "OFF_ROUTE_ALERT",
   "TRIP_BOARDING_REMINDER",
   "TRIP_DELAYED",
   "TRIP_TRACKING",
+]);
+
+/**
+ * Thông báo sự cố phải mở màn Báo cáo sự cố (lọc sẵn theo chuyến), KHÔNG phải
+ * Trung tâm vận hành: thay xe/gián đoạn ở Vận hành không đóng được sự cố — chỉ
+ * màn sự cố mới có nút đó (xem `incidents.operationsHint`). Từ màn sự cố vẫn có
+ * link sang Vận hành nếu điều độ viên cần xử lý chuyến.
+ */
+const INCIDENT_NOTIFICATION_TYPES = new Set([
+  "INCIDENT_REPORTED",
+  "INCIDENT_RESOLVED",
 ]);
 
 export function getNotificationActionPath(
@@ -49,12 +59,52 @@ export function getNotificationActionPath(
       return withQuery("/manager/dispatch", {
         shuttleTripId: action.params.shuttleTripId,
       });
+    case "OPEN_INCIDENT":
+      return withQuery("/manager/incidents", {
+        tripId: action.params.tripId,
+      });
     case "NONE":
       return null;
   }
 }
 
 export function resolveNotificationAction(
+  notification: NotificationItem,
+): NotificationAction {
+  return redirectIncidentToIncidentsPage(
+    notification,
+    resolveDeclaredAction(notification),
+  );
+}
+
+/**
+ * Thông báo sự cố hiện được BE gắn action mở chuyến (OPEN_TRIP_*), nhưng ở Trung
+ * tâm vận hành KHÔNG đóng được sự cố — người dùng bấm vào rồi mắc kẹt ở đó. Đổi
+ * hướng riêng hai action theo chuyến sang màn Báo cáo sự cố; mọi action khác giữ
+ * NGUYÊN như BE khai, kể cả khi sau này BE thêm deep-link sự cố riêng.
+ */
+function redirectIncidentToIncidentsPage(
+  notification: NotificationItem,
+  action: NotificationAction,
+): NotificationAction {
+  if (action.type !== "OPEN_TRIP_TRACKING" && action.type !== "OPEN_TRIP_DETAIL") {
+    return action;
+  }
+
+  const data = parseUnknownRecord(notification.data);
+  const notificationType = (
+    notification.notificationType ??
+    readString(data, "notificationType") ??
+    notification.type
+  ).toUpperCase();
+
+  return INCIDENT_NOTIFICATION_TYPES.has(notificationType) ||
+    notificationType.includes("INCIDENT")
+    ? { type: "OPEN_INCIDENT", params: { tripId: action.params.tripId } }
+    : action;
+}
+
+function resolveDeclaredAction(
   notification: NotificationItem,
 ): NotificationAction {
   const directAction = parseNotificationAction(notification.action);
@@ -118,6 +168,10 @@ export function parseNotificationAction(
       const invoiceId = readString(params, "invoiceId");
       return invoiceId ? { type, params: { invoiceId } } : null;
     }
+    case "OPEN_INCIDENT": {
+      const tripId = readString(params, "tripId");
+      return tripId ? { type, params: { tripId } } : null;
+    }
     case "OPEN_WALLET":
     case "OPEN_SUBSCRIPTION":
     case "OPEN_OPERATOR_STATUS":
@@ -176,6 +230,13 @@ function inferLegacyAction(
 
   const tripId = readString(data, "tripId");
   if (tripId) {
+    if (
+      INCIDENT_NOTIFICATION_TYPES.has(normalizedType) ||
+      normalizedType.includes("INCIDENT")
+    ) {
+      return { type: "OPEN_INCIDENT", params: { tripId } };
+    }
+
     return {
       type:
         TRACKING_NOTIFICATION_TYPES.has(normalizedType) ||

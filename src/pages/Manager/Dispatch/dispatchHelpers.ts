@@ -2,6 +2,7 @@ import type {
   AdminUserRole,
   OperatorShuttleContext,
   OperatorShuttleTripListItem,
+  OperatorShuttleTripStatus,
   OperatorUser,
   OperatorVehicle,
   ShuttleBookingGroup,
@@ -86,6 +87,42 @@ export function nextPickupLabel(
 export type ShuttleRealtimeStatus = "connecting" | "connected" | "error";
 
 export const SHUTTLE_TRIP_ACTIVE_STATUSES = "SCHEDULED,IN_PROGRESS";
+
+/**
+ * Không lọc gì cả — chuỗi rỗng nghĩa là KHÔNG gửi `status` lên BE. Đây là mặc
+ * định của mục theo dõi: xem hết rồi mới thu hẹp. Đừng đổi thành danh sách bốn
+ * trạng thái viết cứng, BE thêm trạng thái mới là màn này lọc mất.
+ */
+export const SHUTTLE_TRIP_ALL_STATUSES = "";
+
+/**
+ * Các lựa chọn của dropdown lọc trạng thái ở mục theo dõi. `status` của
+ * `GET /v1/operator/shuttle-trips` nhận nhiều giá trị ngăn cách bởi dấu phẩy
+ * (BE tự split), nên một option có thể gói nhiều trạng thái.
+ */
+export const SHUTTLE_TRIP_STATUS_FILTERS = [
+  // `id` là khoá i18n + khoá React, KHÔNG dùng `value` làm khoá vì option
+  // "đang hoạt động" chứa dấu phẩy còn "tất cả" là chuỗi rỗng.
+  { id: "ALL", value: SHUTTLE_TRIP_ALL_STATUSES },
+  { id: "ACTIVE", value: SHUTTLE_TRIP_ACTIVE_STATUSES },
+  { id: "SCHEDULED", value: "SCHEDULED" },
+  { id: "IN_PROGRESS", value: "IN_PROGRESS" },
+  { id: "COMPLETED", value: "COMPLETED" },
+  { id: "CANCELLED", value: "CANCELLED" },
+] as const;
+
+export type ShuttleTripStatusFilter =
+  (typeof SHUTTLE_TRIP_STATUS_FILTERS)[number]["value"];
+
+/**
+ * Chuyến đã kết thúc thì tài xế không còn gửi GPS: không mở socket, không tải
+ * vị trí/ETA, và thẻ hiển thị mốc thời gian thay cho khối theo dõi trực tiếp.
+ * Dùng chung ở cả trang (lọc id đăng ký realtime) lẫn thẻ (đổi cách render) để
+ * hai nơi không lệch nhau.
+ */
+export function isTrackableShuttleStatus(status: OperatorShuttleTripStatus) {
+  return status === "SCHEDULED" || status === "IN_PROGRESS";
+}
 
 function isNewer(candidate: string, current: string) {
   const candidateTime = new Date(candidate).getTime();

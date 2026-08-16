@@ -111,12 +111,15 @@ function alternativesResult(items: AlternativeRoute[]) {
   };
 }
 
-function renderPanel(onTripReplaced = vi.fn()) {
+function renderPanel(
+  onTripReplaced = vi.fn(),
+  trip: OperatorTripListItem | null = tripProp,
+) {
   render(
     <MemoryRouter>
       <TripActionsPanel
         tripId="trip-1"
-        trip={tripProp}
+        trip={trip}
         vehicles={vehiclesProp}
         staff={staffProp}
         canMutate
@@ -268,5 +271,50 @@ describe("TripActionsPanel", () => {
       screen.getByRole("link", { name: "tripOperations.declareAlternatives" }),
     ).toHaveAttribute("href", "/manager/routes?routeId=route-1&tab=alternatives");
     expect(changeOperatorTripRoute).not.toHaveBeenCalled();
+  });
+
+  // BE chặn mọi mutation trên chuyến đã kết thúc bằng 409 TRIP_NOT_EDITABLE.
+  // Trước đây FE vẫn hiện đủ form nên người dùng bấm xong mới thấy lỗi.
+  it.each(["COMPLETED", "CANCELLED", "DISRUPTED"])(
+    "ẩn thao tác sửa chuyến khi trạng thái là %s",
+    (status) => {
+      renderPanel(vi.fn(), { ...tripProp, status });
+
+      expect(screen.getByText("tripOperations.notEditable")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "tripOperations.changeRoute" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "tripOperations.disrupt" }),
+      ).not.toBeInTheDocument();
+      // Sức chứa là GET, vẫn tra cứu được trên chuyến đã xong
+      expect(
+        screen.getByRole("button", { name: "tripOperations.loadCapacity" }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("giữ nguyên thao tác khi chuyến còn sửa được", () => {
+    renderPanel();
+
+    expect(
+      screen.queryByText("tripOperations.notEditable"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "tripOperations.changeRoute" }),
+    ).toBeInTheDocument();
+  });
+
+  // Deep-link mở panel trước khi fleet có chuyến đó: chưa biết trạng thái thì
+  // không được tự khoá, thà để BE từ chối còn hơn chặn nhầm.
+  it("không tự khoá khi chưa biết trạng thái chuyến", () => {
+    renderPanel(vi.fn(), null);
+
+    expect(
+      screen.queryByText("tripOperations.notEditable"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "tripOperations.changeRoute" }),
+    ).toBeInTheDocument();
   });
 });

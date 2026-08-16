@@ -97,8 +97,8 @@ type RouteDesignMapProps = {
   viaPoints?: RouteCoordinate[];
   onAddViaPoint?: (point: RouteCoordinate) => void;
   // Bắt đầu gesture túm thân đường: cắm điểm nắn tại point (không reroute),
-  // trả về index điểm mới (-1 = chạm trần) — kéo stream qua onDragViaPoint,
-  // chốt qua onMoveViaPoint lúc thả
+  // trả về index điểm mới (index âm = không cắm được, bỏ gesture) — kéo stream
+  // qua onDragViaPoint, chốt qua onMoveViaPoint lúc thả
   onBeginViaDrag?: (point: RouteCoordinate) => number;
   onMoveViaPoint?: (index: number, point: RouteCoordinate) => void;
   // Bắn liên tục trong lúc kéo điểm nắn (event drag) — "kéo tới đâu tính tới đó"

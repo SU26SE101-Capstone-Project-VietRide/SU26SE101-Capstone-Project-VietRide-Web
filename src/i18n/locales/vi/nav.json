@@ -7,6 +7,7 @@
   "manager": {
     "dashboard": "Tổng quan",
     "trips": "Lịch chạy",
+    "tripList": "Chuyến xe",
     "routeEta": "Điều chỉnh lộ trình & giờ đến dự kiến",
     "routes": "Tuyến & điểm dừng",
     "routeManagement": "Quản lý tuyến",

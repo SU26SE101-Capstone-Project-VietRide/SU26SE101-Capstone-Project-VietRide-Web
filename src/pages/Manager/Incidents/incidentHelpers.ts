@@ -29,14 +29,6 @@ export function badgeClassFor(
   return map[value] ?? fallback;
 }
 
-/**
- * Toạ độ báo cáo — BE cho phép null cả hai. Chỉ dựng link bản đồ khi có đủ cặp.
- */
-export function incidentMapUrl(incident: OperatorIncident): string | null {
-  if (incident.latitude == null || incident.longitude == null) return null;
-  return `https://www.google.com/maps?q=${incident.latitude},${incident.longitude}`;
-}
-
 /** Nhãn người báo — `displayName`/`role` có thể null khi Identity lookup thiếu hồ sơ */
 export function reporterLabel(
   incident: OperatorIncident,

@@ -2947,6 +2947,14 @@ describe("UI gaps API contracts", () => {
       sortBy: "departureTime",
       sortDir: "desc",
     });
+    // Màn "Danh sách chuyến xe" lọc thêm theo từ khoá + khoảng ngày khởi hành
+    await getOperatorTrips({
+      search: "51B-12345",
+      from: "2026-08-01",
+      to: "2026-08-31",
+      page: 1,
+      pageSize: 10,
+    });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -2966,6 +2974,11 @@ describe("UI gaps API contracts", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       4,
       "https://api.vietride.online/v1/operator/trips?status=IN_PROGRESS&page=2&pageSize=20&sortBy=departureTime&sortDir=desc",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "https://api.vietride.online/v1/operator/trips?search=51B-12345&from=2026-08-01&to=2026-08-31&page=1&pageSize=10",
       expect.objectContaining({ method: "GET" }),
     );
   });

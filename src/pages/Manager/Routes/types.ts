@@ -21,8 +21,6 @@ export type StationOption = Station & {
   stationId?: string;
 };
 
-export type StationRouteRole = "" | "origin" | "destination";
-
 export type FeedbackScope = "station" | "route" | "routeStop";
 
 export type RouteMapPoint = {
