@@ -522,6 +522,7 @@
     "draftRoute": "Tuyến đang thiết kế",
     "mapNoPoints": "Chọn bến có tọa độ hoặc thêm điểm dừng để xem tuyến trên bản đồ.",
     "routeOptionLabel": "Phương án {{index}} · {{duration}} · {{km}} km",
+    "routeSelectedOptionLabel": "Tuyến đang chọn · {{duration}}",
     "routeOptionDurationHours": "{{hours}}g{{minutes}}p",
     "routeOptionDurationMinutes": "{{minutes}}p",
     "viaPointHint": "Kéo điểm trắng để nắn lộ trình, bấm vào điểm để xoá.",

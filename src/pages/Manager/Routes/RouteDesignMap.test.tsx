@@ -201,17 +201,76 @@ describe("RouteDesignMap", () => {
     expect(new Set(polylines.map((polyline) => polyline.color))).toEqual(
       new Set(["#0f766e", "#6aaaa5"]),
     );
+    // Tuyến ĐANG CHỌN cũng phải có bubble giờ (trước đây bị bỏ qua nên chỉ đọc
+    // được giờ của những phương án không dùng), nhưng tô đặc màu tuyến đang
+    // chọn + chữ trắng để không lẫn với bubble trắng của phương án khác.
     expect(optionLabels?.map((label) => label.id)).toEqual([
+      "route-option-label-selected",
       "route-option-label-1",
       "route-option-label-2",
     ]);
-    optionLabels?.forEach((label) => {
-      const index = Number(label.id?.split("-").at(-1));
-      expect(label.icon?.strokeColor).toBe(
-        polylines.find((polyline) => polyline.id === `route-option-${index}`)
-          ?.color,
-      );
+    const selectedLabel = optionLabels?.find(
+      (label) => label.id === "route-option-label-selected",
+    );
+    expect(selectedLabel).toMatchObject({
+      icon: { fillColor: "#0f766e" },
+      label: { color: "#ffffff", text: "routes.routeOptionDurationHours" },
     });
+    expect(
+      (selectedLabel?.zIndex ?? 0) >
+        (optionLabels?.find((label) => label.id === "route-option-label-1")
+          ?.zIndex ?? 0),
+    ).toBe(true);
+    optionLabels
+      ?.filter((label) => label.id !== "route-option-label-selected")
+      .forEach((label) => {
+        const index = Number(label.id?.split("-").at(-1));
+        expect(label.icon?.strokeColor).toBe(
+          polylines.find((polyline) => polyline.id === `route-option-${index}`)
+            ?.color,
+        );
+      });
+  });
+
+  // selectedOptionIndex = -1: đường ĐÃ LƯU đang chọn không trùng phương án nào
+  // nên map không có RoadRouteOption để lấy số phút — số phút do caller truyền.
+  it("labels the saved line with the duration passed in when no option is selected", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        selectedOptionIndex={-1}
+        selectedPathDurationMinutes={95}
+      />,
+    );
+
+    const labels = (canvasProps.at(-1)?.pointMarkers ?? []).filter((marker) =>
+      marker.id.startsWith("route-option-label-"),
+    );
+    expect(labels.map((label) => label.id)).toEqual([
+      "route-option-label-selected",
+      "route-option-label-0",
+      "route-option-label-1",
+      "route-option-label-2",
+    ]);
+  });
+
+  it("bỏ bubble tuyến đang chọn khi chưa có số phút", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        selectedOptionIndex={-1}
+        selectedPathDurationMinutes={0}
+      />,
+    );
+
+    const labels = (canvasProps.at(-1)?.pointMarkers ?? []).filter((marker) =>
+      marker.id.startsWith("route-option-label-"),
+    );
+    expect(
+      labels.some((label) => label.id === "route-option-label-selected"),
+    ).toBe(false);
   });
 
   // Bubble thời lượng phải nằm trên ĐOẠN TÁCH của chính phương án đó — các
@@ -224,20 +283,26 @@ describe("RouteDesignMap", () => {
     const labels = (canvasProps.at(-1)?.pointMarkers ?? []).filter((marker) =>
       marker.id.startsWith("route-option-label-"),
     );
-    const positionOf = (index: number) =>
-      labels.find((label) => label.id === `route-option-label-${index}`)
-        ?.position;
+    const positionOf = (id: string) =>
+      labels.find((label) => label.id === id)?.position;
 
     // Đúng điểm giữa riêng của từng phương án, không phải điểm nào của tuyến
     // đang chọn (routeOptions[0])
-    expect(positionOf(1)).toEqual({ lat: 10.95, lng: 107.9 });
-    expect(positionOf(2)).toEqual({ lat: 11.5, lng: 107.2 });
-    routeOptions[0].points.forEach((point) => {
-      expect(labels.map((label) => label.position)).not.toContainEqual({
-        lat: point.latitude,
-        lng: point.longitude,
-      });
+    expect(positionOf("route-option-label-1")).toEqual({ lat: 10.95, lng: 107.9 });
+    expect(positionOf("route-option-label-2")).toEqual({ lat: 11.5, lng: 107.2 });
+    // Bubble của tuyến đang chọn thì ngược lại: nằm trên chính nó.
+    expect(positionOf("route-option-label-selected")).toEqual({
+      lat: 11.2,
+      lng: 107.5,
     });
+    labels
+      .filter((label) => label.id !== "route-option-label-selected")
+      .forEach((label) => {
+        expect(routeOptions[0].points).not.toContainEqual({
+          latitude: label.position.lat,
+          longitude: label.position.lng,
+        });
+      });
   });
 
   // Túm thẳng thân đường (một nhịp kiểu Google): chỉ đường ĐANG CHỌN đã áp mới

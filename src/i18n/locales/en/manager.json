@@ -522,6 +522,7 @@
     "draftRoute": "Draft route",
     "mapNoPoints": "Select stations with coordinates or add stops to preview the route on the map.",
     "routeOptionLabel": "Option {{index}} · {{duration}} · {{km}} km",
+    "routeSelectedOptionLabel": "Selected route · {{duration}}",
     "routeOptionDurationHours": "{{hours}}h {{minutes}}m",
     "routeOptionDurationMinutes": "{{minutes}}m",
     "viaPointHint": "Drag the white dot to reshape the route, click it to remove.",

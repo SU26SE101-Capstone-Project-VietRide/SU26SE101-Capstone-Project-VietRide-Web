@@ -9,6 +9,7 @@ import {
   FiThumbsUp,
 } from "react-icons/fi";
 
+import MarkdownAnswer from "../../components/MarkdownAnswer";
 import TypingDots from "./TypingDots";
 import type { ChatMessage } from "./types";
 
@@ -85,7 +86,11 @@ export default function ChatMessageRow({
           }`}
         >
           {message.content ? (
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            isUser ? (
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            ) : (
+              <MarkdownAnswer content={message.content} />
+            )
           ) : pending ? (
             <span className="flex items-center gap-2 text-gray-500">
               <TypingDots />

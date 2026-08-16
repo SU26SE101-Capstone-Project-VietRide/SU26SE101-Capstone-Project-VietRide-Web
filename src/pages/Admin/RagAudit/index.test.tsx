@@ -110,6 +110,39 @@ describe("RAG audit feedback pagination", () => {
     expect(await screen.findByText("Second page feedback")).toBeInTheDocument();
   });
 
+  // Trợ lý trả lời bằng Markdown; màn rà soát từng in thô nên admin thấy nguyên
+  // "**" và "* " lẫn trong nội dung cần đọc.
+  it("dựng Markdown của câu trả lời thay vì in thô", async () => {
+    vi.mocked(getRagFeedback).mockResolvedValue({
+      items: [
+        {
+          ...firstFeedback,
+          message: {
+            id: "message-1",
+            content: "**1. Điều kiện huỷ vé**\n* Vé chưa thanh toán.",
+          },
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    render(<RagAudit />);
+
+    expect(
+      await screen.findByText("1. Điều kiện huỷ vé"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1. Điều kiện huỷ vé").tagName).toBe("STRONG");
+    expect(screen.getByRole("listitem").textContent).toBe(
+      "Vé chưa thanh toán.",
+    );
+    expect(document.body.textContent).not.toContain("**");
+  });
+
   // Sáu bộ lọc này BE hỗ trợ sẵn từ đầu nhưng màn chưa dựng UI — bảng hiện cột
   // trạng thái và cấp truy cập mà không lọc được theo chúng.
   it("gửi các bộ lọc tài liệu lên BE", async () => {

@@ -18,6 +18,7 @@ import {
   type RagFeedback,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import MarkdownAnswer from "../../../components/MarkdownAnswer";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 import { RagDocumentUploadModal } from "./RagDocumentUploadModal";
@@ -524,9 +525,19 @@ export default function RagAudit() {
                 <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   {t("ragAudit.assistantResponse")}
                 </p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-gray-800">
-                  {item.message?.content || t("ragAudit.noResponse")}
-                </p>
+                {/* Trợ lý trả lời bằng Markdown (prompt của BE bắt vậy). In thô
+                    ở đây thì admin phải đọc nguyên `**`, `* ` giữa nội dung cần
+                    rà soát — dùng đúng renderer của màn chat để hai bên nhìn
+                    giống nhau. */}
+                {item.message?.content ? (
+                  <div className="mt-1 text-sm leading-6 text-gray-800">
+                    <MarkdownAnswer content={item.message.content} />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm leading-6 text-gray-800">
+                    {t("ragAudit.noResponse")}
+                  </p>
+                )}
               </article>
             ))}
           </div>

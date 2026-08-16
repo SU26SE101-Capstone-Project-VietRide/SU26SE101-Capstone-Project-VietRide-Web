@@ -29,6 +29,21 @@ export function formatDateTime(value?: string | null) {
   return `${formatDateOnly(value)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/**
+ * `yyyy-MM-dd HH:mm` — đúng thứ tự mà `CustomDateTimeInput` hiện giá trị
+ * datetime-local. Chỉ dùng cho giá trị đứng NGAY CẠNH một ô nhập ngày giờ trong
+ * cùng form: hai ô để hai thứ tự khác nhau (`2026-08-17 01:30` cạnh
+ * `17-08-2026 04:00`) khiến người dùng phải đọc lại mới biết cái nào là ngày.
+ * Bảng và danh sách vẫn dùng `formatDateTime` (dd-MM-yyyy, quy ước hiển thị của
+ * cả console).
+ */
+export function formatDateTimeYmd(value?: string | null) {
+  const date = parseDate(value);
+  if (!date) return value || "-";
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function formatDateInputValue(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }

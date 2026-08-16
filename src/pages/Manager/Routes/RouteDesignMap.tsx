@@ -50,6 +50,9 @@ const viaPointPath = "M 0 -9 a 9 9 0 1 1 0 18 a 9 9 0 1 1 0 -18 Z";
 // Vị trí bubble thời lượng dọc theo đường theo index phương án (40%/55%/70%
 // chiều dài) — tránh 2 bubble đè nhau khi các phương án bám sát nhau
 const bubblePositionFractions = [0.4, 0.55, 0.7];
+// Đường ĐÃ LƯU đang chọn (selectedOptionIndex = -1) không có ô tỉ lệ riêng theo
+// index — đặt bubble giờ của nó lệch hẳn khỏi dải trên cho khỏi đè phương án nào
+const savedPathBubbleFraction = 0.25;
 
 // Các phương án chưa chọn dùng CÙNG tông màu với tuyến đang soạn, chỉ nhạt hơn
 // (không còn mỗi phương án một màu tím/cam riêng) — xem routeColors.ts
@@ -93,6 +96,11 @@ type RouteDesignMapProps = {
   routeOptions?: RoadRouteOption[];
   selectedOptionIndex?: number;
   onSelectOption?: (index: number) => void;
+  // Thời lượng (phút) của đường ĐÃ LƯU/đang áp — chỉ cần khi
+  // selectedOptionIndex = -1 (đường đã lưu không trùng phương án nào), lúc đó
+  // map không có RoadRouteOption nào để lấy số phút mà vẫn phải hiện bubble
+  // giờ của tuyến đang chọn. Bằng 0/không truyền thì bỏ qua bubble đó.
+  selectedPathDurationMinutes?: number;
   // Điểm nắn lộ trình đang có + các thao tác cắm/kéo/xoá (undefined = chỉ xem)
   viaPoints?: RouteCoordinate[];
   onAddViaPoint?: (point: RouteCoordinate) => void;
@@ -161,6 +169,7 @@ export default function RouteDesignMap({
   routeOptions = [],
   selectedOptionIndex = 0,
   onSelectOption,
+  selectedPathDurationMinutes = 0,
   viaPoints = [],
   onAddViaPoint,
   onBeginViaDrag,
@@ -641,17 +650,84 @@ export default function RouteDesignMap({
       return noPointMarkers;
     }
 
+    const formatDuration = (totalMinutes: number) => {
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+
+      return hours > 0
+        ? t("routes.routeOptionDurationHours", { hours, minutes })
+        : t("routes.routeOptionDurationMinutes", { minutes });
+    };
+
     // Đường đang chọn để đo chỗ tách nhánh: phương án đang chọn, hoặc đường đã
     // lưu/đang áp khi selectedOptionIndex = -1
-    const referencePoints =
-      routeOptions[selectedOptionIndex]?.points ?? displayedPath;
-    // Neo đã cấp cho các phương án trước — tránh 2 bubble chồng chỗ
+    const selectedOption = routeOptions[selectedOptionIndex];
+    const referencePoints = selectedOption?.points ?? displayedPath;
+    // Neo đã cấp cho các bubble trước — tránh 2 bubble chồng chỗ
     const takenAnchors: RouteCoordinate[] = [];
 
-    return routeOptions
+    // Bubble của TUYẾN ĐANG CHỌN dựng trước và chiếm neo trước: các phương án
+    // còn lại đo chỗ tách qua `takenAnchors` nên tự né nó. Trước đây tuyến đang
+    // chọn cố tình không có nhãn (sợ che đường), nhưng thành ra chỉ đọc được
+    // giờ của những phương án KHÔNG dùng — đúng số liệu người dùng cần thì phải
+    // mở panel mới thấy. Giờ vẫn tách khỏi các bubble kia bằng màu: tô đặc màu
+    // tuyến đang chọn + chữ trắng, thay vì bubble trắng viền nhạt.
+    const selectedPoints = selectedOption?.points ?? displayedPath;
+    const selectedMinutes =
+      selectedOption?.estimatedDurationMinutes ?? selectedPathDurationMinutes;
+    const selectedLabels: GoogleMapPointMarker[] = [];
+
+    if (selectedPoints.length > 0 && selectedMinutes > 0) {
+      // Đang chọn một phương án → dùng đúng ô tỉ lệ của phương án đó (mỗi index
+      // một tỉ lệ nên không đụng bubble nào). Đường ĐÃ LƯU (index -1) không có ô
+      // riêng: lấy savedPathBubbleFraction nằm ngoài dải 40/55/70% để không rơi
+      // trúng chỗ dự phòng của phương án nào.
+      const fraction =
+        selectedOptionIndex >= 0
+          ? bubblePositionFractions[
+              selectedOptionIndex % bubblePositionFractions.length
+            ]
+          : savedPathBubbleFraction;
+      const anchor =
+        selectedPoints[
+          Math.min(
+            selectedPoints.length - 1,
+            Math.floor(selectedPoints.length * fraction),
+          )
+        ];
+      takenAnchors.push(anchor);
+      const duration = formatDuration(selectedMinutes);
+
+      selectedLabels.push({
+        icon: {
+          fillColor: activeColor,
+          fillOpacity: 1,
+          path: durationBubblePath,
+          scale: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 2,
+        },
+        id: "route-option-label-selected",
+        label: {
+          color: "#ffffff",
+          fontSize: "11px",
+          fontWeight: "700",
+          text: duration,
+        },
+        position: {
+          lat: anchor.latitude,
+          lng: anchor.longitude,
+        },
+        title: t("routes.routeSelectedOptionLabel", { duration }),
+        zIndex: 6,
+      });
+    }
+
+    return selectedLabels.concat(
+      routeOptions
       .map((option, index): GoogleMapPointMarker | null => {
       const selected = index === selectedOptionIndex;
-      // Chỉ đặt nhãn trên tuyến chưa chọn, tránh che dọc theo tuyến chính.
+      // Phương án đang chọn đã có bubble tô đặc ở trên, không vẽ chồng lần nữa.
       if (selected || option.points.length === 0) {
         return null;
       }
@@ -675,12 +751,7 @@ export default function RouteDesignMap({
           )
         ];
       takenAnchors.push(midPoint);
-      const hours = Math.floor(option.estimatedDurationMinutes / 60);
-      const minutes = option.estimatedDurationMinutes % 60;
-      const duration =
-        hours > 0
-          ? t("routes.routeOptionDurationHours", { hours, minutes })
-          : t("routes.routeOptionDurationMinutes", { minutes });
+      const duration = formatDuration(option.estimatedDurationMinutes);
 
       return {
         cursor: "pointer",
@@ -714,13 +785,16 @@ export default function RouteDesignMap({
         zIndex: 4,
       };
     })
-      .filter((marker): marker is GoogleMapPointMarker => marker !== null);
+        .filter((marker): marker is GoogleMapPointMarker => marker !== null),
+    );
   }, [
+    activeColor,
     canSelectOption,
     dimmedColor,
     displayedPath,
     routeOptions,
     selectedOptionIndex,
+    selectedPathDurationMinutes,
     showOptionOverlay,
     t,
   ]);
