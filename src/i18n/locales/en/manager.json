@@ -1060,6 +1060,19 @@
     "ticketStatus": "Ticket status",
     "boardingStatus": "Boarding status",
     "noSeats": "The API returned no ticket or seat details.",
+    "seatMapTitle": "Trip seat map",
+    "seatMapHint": "Sale status of each seat on this trip, different from the vehicle seat template under Vehicles.",
+    "seatMapRefresh": "Reload seat map",
+    "seatMapLoading": "Loading seat map...",
+    "seatMapEmpty": "This trip has no seat data yet.",
+    "seatMapLoadFailed": "Unable to load the trip seat map.",
+    "seatMapDeck": "Deck {{deck}}",
+    "seatStatus": {
+      "AVAILABLE": "Available",
+      "HELD": "On hold",
+      "BOOKED": "Booked",
+      "UNAVAILABLE": "Not for sale"
+    },
     "statusTimeline": "Status timeline",
     "reasonCode": "Reason code",
     "cancelReasons": {

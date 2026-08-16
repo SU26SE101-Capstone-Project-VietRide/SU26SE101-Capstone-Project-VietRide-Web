@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import {
   FiArrowLeft,
   FiArrowRight,
+  FiEye,
+  FiEyeOff,
   FiLock,
   FiMail,
   FiMapPin,
@@ -703,6 +705,12 @@ function Field({
   type = "text",
   readOnly = false,
 }: FieldProps) {
+  const { t } = useTranslation("login");
+  // Ô mật khẩu cho bật/tắt xem giá trị vừa gõ — người đăng ký đang ĐẶT mật khẩu
+  // mới nên cần nhìn lại được. Cùng cách làm với màn đăng nhập.
+  const [revealed, setRevealed] = useState(false);
+  const isPassword = type === "password";
+
   return (
     <div>
       <label className="mb-2 block text-sm font-semibold text-slate-800">
@@ -713,13 +721,25 @@ function Field({
           {icon}
         </span>
         <input
-          type={type}
+          type={isPassword && revealed ? "text" : type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           readOnly={readOnly}
-          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+          className={`w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 ${
+            isPassword ? "pr-11" : "pr-4"
+          } text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25`}
         />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setRevealed((current) => !current)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+            aria-label={revealed ? t("hidePassword") : t("showPassword")}
+          >
+            {revealed ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+          </button>
+        )}
       </div>
     </div>
   );
