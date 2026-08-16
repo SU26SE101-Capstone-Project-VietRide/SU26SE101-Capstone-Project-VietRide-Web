@@ -173,7 +173,10 @@ describe("Profile", () => {
 
     await waitFor(() => {
       expect(updateOperatorProfile).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "Tên đã lưu" }),
+        expect.objectContaining({
+          name: "Tên đã lưu",
+          cancellationPolicy: null,
+        }),
       );
     });
     expect(await screen.findByText("Tên đã lưu")).toBeInTheDocument();
@@ -194,5 +197,115 @@ describe("Profile", () => {
 
     expect(await screen.findByText("Nguyễn Văn Quản Trị")).toBeInTheDocument();
     expect(screen.getByText("profilePage.systemRole")).toBeInTheDocument();
+  });
+
+  it("shows the empty refund policy copy when the operator has no cancellation tiers", async () => {
+    vi.mocked(getOperatorProfile).mockResolvedValue(baseOperator);
+    renderProfile();
+
+    expect(await screen.findByText("profilePage.cancellationPolicy")).toBeInTheDocument();
+    expect(
+      screen.getByText("profilePage.cancellationPolicyEmpty"),
+    ).toBeInTheDocument();
+  });
+
+  it("saves a new cancellation tier on PATCH /v1/operator/profile", async () => {
+    vi.mocked(getOperatorProfile).mockResolvedValue(baseOperator);
+    vi.mocked(updateOperatorProfile).mockResolvedValue({
+      ...baseOperator,
+      cancellationPolicy: [{ hoursBeforeDeparture: 24, feePercent: 10 }],
+    });
+    renderProfile();
+    await screen.findByText("Nhà xe Phương Trang");
+
+    fireEvent.click(screen.getByRole("button", { name: "edit" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "profilePage.cancellationAddTier" }),
+    );
+    fireEvent.change(screen.getByLabelText("profilePage.cancellationHours 1"), {
+      target: { value: "24" },
+    });
+    fireEvent.change(screen.getByLabelText("profilePage.cancellationFee 1"), {
+      target: { value: "10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "save" }));
+
+    await waitFor(() => {
+      expect(updateOperatorProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cancellationPolicy: [{ hoursBeforeDeparture: 24, feePercent: 10 }],
+        }),
+      );
+    });
+  });
+
+  it("shows remaining-time windows instead of raw API rows", async () => {
+    vi.mocked(getOperatorProfile).mockResolvedValue({
+      ...baseOperator,
+      cancellationPolicy: [
+        { hoursBeforeDeparture: 24, feePercent: 10 },
+        { hoursBeforeDeparture: 2, feePercent: 50 },
+      ],
+    });
+    renderProfile();
+
+    expect(await screen.findByText("profilePage.cancellationWindowWithin")).toBeInTheDocument();
+    expect(screen.getByText("profilePage.cancellationWindowBetween")).toBeInTheDocument();
+    expect(screen.getByText("profilePage.cancellationWindowAfter")).toBeInTheDocument();
+  });
+
+  it("fills the common 3-tier sample and saves it", async () => {
+    vi.mocked(getOperatorProfile).mockResolvedValue(baseOperator);
+    vi.mocked(updateOperatorProfile).mockResolvedValue({
+      ...baseOperator,
+      cancellationPolicy: [
+        { hoursBeforeDeparture: 1, feePercent: 100 },
+        { hoursBeforeDeparture: 2, feePercent: 50 },
+        { hoursBeforeDeparture: 24, feePercent: 10 },
+      ],
+    });
+    renderProfile();
+    await screen.findByText("Nhà xe Phương Trang");
+
+    fireEvent.click(screen.getByRole("button", { name: "edit" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "profilePage.cancellationUseTemplate" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "save" }));
+
+    await waitFor(() => {
+      expect(updateOperatorProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cancellationPolicy: [
+            { hoursBeforeDeparture: 1, feePercent: 100 },
+            { hoursBeforeDeparture: 2, feePercent: 50 },
+            { hoursBeforeDeparture: 24, feePercent: 10 },
+          ],
+        }),
+      );
+    });
+  });
+
+  it("does not call the profile API when a cancellation fee is out of range", async () => {
+    vi.mocked(getOperatorProfile).mockResolvedValue(baseOperator);
+    renderProfile();
+    await screen.findByText("Nhà xe Phương Trang");
+
+    fireEvent.click(screen.getByRole("button", { name: "edit" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "profilePage.cancellationAddTier" }),
+    );
+    fireEvent.change(screen.getByLabelText("profilePage.cancellationHours 1"), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText("profilePage.cancellationFee 1"), {
+      target: { value: "150" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "save" }));
+
+    expect(updateOperatorProfile).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText("profilePage.cancellationErrors.out-of-range"),
+    ).toBeInTheDocument();
   });
 });
