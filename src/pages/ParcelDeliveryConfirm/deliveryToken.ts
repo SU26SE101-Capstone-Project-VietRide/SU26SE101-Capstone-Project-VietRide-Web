@@ -2,7 +2,9 @@
  * Capability token của link xác nhận giao hàng gửi qua email người nhận.
  *
  * Luật bảo mật (token này đủ quyền xác nhận/từ chối một kiện hàng):
- * - KHÔNG ghi token vào localStorage, sessionStorage, cookie, log hay analytics.
+ * - KHÔNG ghi token vào localStorage, cookie, log hay analytics.
+ * - sessionStorage chỉ dùng trong cùng tab, sau khi đã tẩy URL, để F5 không
+ *   mất quyền xác nhận. Đóng tab là hết.
  * - Đọc xong thì xoá khỏi thanh địa chỉ để không đọng lại trong lịch sử trình
  *   duyệt, ảnh chụp màn hình hay Referer khi người dùng bấm link khác.
  * - BE parse token thành `Guid` (contract `POST /v1/parcels/delivery/confirm`),
@@ -13,6 +15,10 @@
 /** UUID chuẩn 8-4-4-4-12 — BE phát hành UUID v4 và tự chuẩn hoá hoa/thường. */
 export const PARCEL_DELIVERY_TOKEN_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Tab-only stash so F5 still works after `?token=` / `#token=` is stripped. */
+export const PARCEL_DELIVERY_TOKEN_SESSION_KEY =
+  "vietride.public.parcel-delivery-token";
 
 export function isParcelDeliveryToken(value: string): boolean {
   return PARCEL_DELIVERY_TOKEN_PATTERN.test(value.trim());
@@ -41,7 +47,7 @@ export function parseParcelDeliveryToken(search: string): string | null {
   return isParcelDeliveryToken(token) ? token : null;
 }
 
-/** Đọc token từ URL hiện tại của trình duyệt. */
+/** Đọc token từ query hiện tại. Hash / session đi qua `captureParcelDeliveryTokenFromWindow`. */
 export function readParcelDeliveryTokenFromWindow(
   locationLike: Pick<Location, "search"> = window.location,
 ): string | null {
@@ -49,25 +55,138 @@ export function readParcelDeliveryTokenFromWindow(
 }
 
 /**
- * Xoá `token` khỏi URL sau khi đã đọc vào bộ nhớ, giữ nguyên path và các query
- * còn lại. Dùng `replaceState` để không thêm entry vào lịch sử.
+ * Parse `#token=<uuid>` — cùng luật với query: đúng một field `token`, đúng UUID.
+ * Dùng khi link sạch hơn (không qua email rewrite) đặt token trong fragment.
+ */
+export function parseParcelDeliveryTokenFromHash(hash: string): string | null {
+  if (!hash || hash.startsWith("?")) {
+    return null;
+  }
+
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!raw || raw.startsWith("?")) {
+    return null;
+  }
+
+  const entries = [...new URLSearchParams(raw).entries()];
+  if (entries.length !== 1 || entries[0]?.[0] !== "token") {
+    return null;
+  }
+
+  const token = entries[0][1].trim();
+  return isParcelDeliveryToken(token) ? token : null;
+}
+
+/**
+ * Xoá `token` khỏi query và hash sau khi đã đọc vào bộ nhớ, giữ path + query
+ * khác + hash không phải token. Dùng `replaceState` để không thêm lịch sử.
  */
 export function stripParcelDeliveryTokenFromUrl(
   historyLike: Pick<History, "replaceState"> = window.history,
   locationLike: Pick<Location, "pathname" | "search" | "hash"> = window.location,
 ): void {
   const params = new URLSearchParams(locationLike.search);
-  if (!params.has("token")) {
+  const hadQueryToken = params.has("token");
+  if (hadQueryToken) {
+    params.delete("token");
+  }
+
+  const hashIsDeliveryToken = parseParcelDeliveryTokenFromHash(locationLike.hash) != null;
+  if (!hadQueryToken && !hashIsDeliveryToken) {
     return;
   }
 
-  params.delete("token");
   const query = params.toString();
+  const hash = hashIsDeliveryToken ? "" : locationLike.hash;
   historyLike.replaceState(
     null,
     "",
-    `${locationLike.pathname}${query ? `?${query}` : ""}${locationLike.hash}`,
+    `${locationLike.pathname}${query ? `?${query}` : ""}${hash}`,
   );
+}
+
+export function readParcelDeliveryTokenFromSession(
+  storage: Pick<Storage, "getItem" | "removeItem"> | null = getSessionStorage(),
+): string | null {
+  if (!storage) return null;
+
+  let raw: string | null;
+  try {
+    raw = storage.getItem(PARCEL_DELIVERY_TOKEN_SESSION_KEY);
+  } catch {
+    return null;
+  }
+
+  if (raw == null) return null;
+  const token = raw.trim();
+  if (!isParcelDeliveryToken(token)) {
+    clearParcelDeliveryTokenSession(storage);
+    return null;
+  }
+  return token;
+}
+
+export function writeParcelDeliveryTokenToSession(
+  token: string,
+  storage: Pick<Storage, "setItem"> | null = getSessionStorage(),
+): void {
+  if (!storage || !isParcelDeliveryToken(token)) return;
+  try {
+    storage.setItem(PARCEL_DELIVERY_TOKEN_SESSION_KEY, token);
+  } catch {
+    // Quota / privacy mode — page still works until the next refresh.
+  }
+}
+
+export function clearParcelDeliveryTokenSession(
+  storage: Pick<Storage, "removeItem"> | null = getSessionStorage(),
+): void {
+  if (!storage) return;
+  try {
+    storage.removeItem(PARCEL_DELIVERY_TOKEN_SESSION_KEY);
+  } catch {
+    // Ignore blocked storage.
+  }
+}
+
+/**
+ * Ưu tiên query (contract email `?token=`), rồi hash, rồi session cùng tab.
+ * Query có `token` nhưng sai/mập mờ → không fallback (tránh che link giả).
+ */
+export function captureParcelDeliveryTokenFromWindow(
+  historyLike: Pick<History, "replaceState"> = window.history,
+  locationLike: Pick<Location, "pathname" | "search" | "hash"> = window.location,
+  storage: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null = getSessionStorage(),
+): string | null {
+  const search = locationLike.search;
+  const queryHasToken = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search,
+  ).has("token");
+
+  if (queryHasToken) {
+    const fromQuery = parseParcelDeliveryToken(search);
+    if (!fromQuery) return null;
+    writeParcelDeliveryTokenToSession(fromQuery, storage);
+    stripParcelDeliveryTokenFromUrl(historyLike, locationLike);
+    return fromQuery;
+  }
+
+  const fromHash = parseParcelDeliveryTokenFromHash(locationLike.hash);
+  if (fromHash) {
+    writeParcelDeliveryTokenToSession(fromHash, storage);
+    stripParcelDeliveryTokenFromUrl(historyLike, locationLike);
+    return fromHash;
+  }
+
+  return readParcelDeliveryTokenFromSession(storage);
+}
+
+function getSessionStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
 }
 
 /** Che token cho mọi payload log/analytics lỡ đi qua đây. */

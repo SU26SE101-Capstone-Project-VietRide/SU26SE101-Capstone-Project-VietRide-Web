@@ -21,10 +21,7 @@ import {
 import LanguageSwitcher from "../../components/LanguageSwitcher";
 import RejectDeliveryForm from "./RejectDeliveryForm";
 import { classifyDeliveryError } from "./deliveryError";
-import {
-  readParcelDeliveryTokenFromWindow,
-  stripParcelDeliveryTokenFromUrl,
-} from "./deliveryToken";
+import { captureParcelDeliveryTokenFromWindow } from "./deliveryToken";
 
 type Phase = "idle" | "confirmed" | "rejected" | "blocked";
 type PendingAction = "confirm" | "reject" | "undo";
@@ -61,7 +58,8 @@ function formatCountdown(remainingMs: number): string {
 
 /**
  * Trang công khai `/parcels/delivery/confirm?token=<uuid>` — người nhận mở từ
- * email của nhà xe, KHÔNG cần đăng nhập.
+ * email của nhà xe, KHÔNG cần đăng nhập. Token bị tẩy khỏi URL ngay khi vào
+ * trang và chỉ giữ trong tab (sessionStorage) để F5 không mất quyền xác nhận.
  *
  * Idempotency: mỗi thao tác giữ một key cố định suốt vòng đời trang, mọi lần
  * "Thử lại" đều gửi lại đúng key đó nên BE replay kết quả cũ thay vì tạo thao
@@ -72,7 +70,7 @@ export default function ParcelDeliveryConfirmPage() {
   const { t, i18n } = useTranslation("parcelDelivery");
   const { t: tc } = useTranslation("common");
   const [token] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : readParcelDeliveryTokenFromWindow(),
+    typeof window === "undefined" ? null : captureParcelDeliveryTokenFromWindow(),
   );
   const [phase, setPhase] = useState<Phase>("idle");
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -110,14 +108,6 @@ export default function ParcelDeliveryConfirmPage() {
       robotsMeta.remove();
     };
   }, [t]);
-
-  // Đã giữ token trong bộ nhớ thì bỏ khỏi URL — không để đọng trong lịch sử
-  // trình duyệt hay ảnh chụp màn hình của người nhận.
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      stripParcelDeliveryTokenFromUrl();
-    }
-  }, []);
 
   const parsedUndoDeadline = result?.canUndoUntil
     ? new Date(result.canUndoUntil).getTime()

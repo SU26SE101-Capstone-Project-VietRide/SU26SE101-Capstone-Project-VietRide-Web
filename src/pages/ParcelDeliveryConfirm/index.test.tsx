@@ -39,10 +39,12 @@ function openWith(search: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   openWith(`?token=${TOKEN}`);
 });
 
 afterEach(() => {
+  sessionStorage.clear();
   window.history.replaceState(null, "", "/");
 });
 
@@ -60,6 +62,17 @@ describe("ParcelDeliveryConfirmPage", () => {
     render(<ParcelDeliveryConfirmPage />);
 
     expect(window.location.search).toBe("");
+    expect(screen.getByRole("button", { name: "actions.confirm" })).toBeTruthy();
+  });
+
+  it("F5 sau khi đã tẩy URL vẫn giữ được token trong cùng tab", () => {
+    const first = render(<ParcelDeliveryConfirmPage />);
+    expect(window.location.search).toBe("");
+    first.unmount();
+
+    openWith("");
+    render(<ParcelDeliveryConfirmPage />);
+
     expect(screen.getByRole("button", { name: "actions.confirm" })).toBeTruthy();
   });
 

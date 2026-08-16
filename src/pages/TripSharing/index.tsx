@@ -19,7 +19,7 @@ import {
   originStopColor,
 } from "../../components/mapRouteStyle";
 import SharedTripMap from "./SharedTripMap";
-import { readTripShareTokenFromWindow } from "./tripShareToken";
+import { captureTripShareTokenFromWindow } from "./tripShareToken";
 import {
   useSharedTripTracking,
   type SharedConnectionState,
@@ -108,12 +108,12 @@ function TrackingSkeleton() {
   );
 }
 
-/** Public guest page: /trip-sharing#token=v1.<grant>.<sig>. */
+/** Public guest page: /trip-sharing#token=v1.<grant>.<sig> — hash stripped after capture. */
 export default function TripSharingPage() {
   const { t, i18n } = useTranslation("tripShare");
   const { t: tc } = useTranslation("common");
   const [token, setToken] = useState<string | null>(() =>
-    typeof window !== "undefined" ? readTripShareTokenFromWindow() : null,
+    typeof window !== "undefined" ? captureTripShareTokenFromWindow() : null,
   );
 
   useEffect(() => {
@@ -144,7 +144,10 @@ export default function TripSharingPage() {
   }, [t]);
 
   useEffect(() => {
-    const sync = () => setToken(readTripShareTokenFromWindow());
+    const sync = () => {
+      const next = captureTripShareTokenFromWindow();
+      if (next) setToken(next);
+    };
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);

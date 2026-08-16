@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  captureParcelDeliveryTokenFromWindow,
   isParcelDeliveryToken,
   parseParcelDeliveryToken,
+  parseParcelDeliveryTokenFromHash,
+  PARCEL_DELIVERY_TOKEN_SESSION_KEY,
   redactParcelDeliveryToken,
   stripParcelDeliveryTokenFromUrl,
+  writeParcelDeliveryTokenToSession,
 } from "./deliveryToken";
 
 const VALID_TOKEN = "6f2a1b3c-4d5e-4f60-8a91-2b3c4d5e6f70";
@@ -39,8 +43,20 @@ describe("isParcelDeliveryToken", () => {
   });
 });
 
+describe("parseParcelDeliveryTokenFromHash", () => {
+  it("đọc #token=uuid và từ chối hash mập mờ", () => {
+    expect(parseParcelDeliveryTokenFromHash(`#token=${VALID_TOKEN}`)).toBe(
+      VALID_TOKEN,
+    );
+    expect(
+      parseParcelDeliveryTokenFromHash(`#token=${VALID_TOKEN}&utm=1`),
+    ).toBeNull();
+    expect(parseParcelDeliveryTokenFromHash("#top")).toBeNull();
+  });
+});
+
 describe("stripParcelDeliveryTokenFromUrl", () => {
-  it("xoá token khỏi URL nhưng giữ path, query khác và hash", () => {
+  it("xoá token khỏi URL nhưng giữ path, query khác và hash thường", () => {
     const replaceState = vi.fn();
     stripParcelDeliveryTokenFromUrl(
       { replaceState },
@@ -58,6 +74,24 @@ describe("stripParcelDeliveryTokenFromUrl", () => {
     );
   });
 
+  it("xoá #token khỏi hash capability", () => {
+    const replaceState = vi.fn();
+    stripParcelDeliveryTokenFromUrl(
+      { replaceState },
+      {
+        pathname: "/parcels/delivery/confirm",
+        search: "",
+        hash: `#token=${VALID_TOKEN}`,
+      },
+    );
+
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      "",
+      "/parcels/delivery/confirm",
+    );
+  });
+
   it("không đụng URL khi không có token", () => {
     const replaceState = vi.fn();
     stripParcelDeliveryTokenFromUrl(
@@ -65,6 +99,75 @@ describe("stripParcelDeliveryTokenFromUrl", () => {
       { pathname: "/parcels/delivery/confirm", search: "", hash: "" },
     );
 
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+});
+
+describe("captureParcelDeliveryTokenFromWindow", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  it("ưu tiên query, ghi session, rồi tẩy URL", () => {
+    const replaceState = vi.fn();
+    const token = captureParcelDeliveryTokenFromWindow(
+      { replaceState },
+      {
+        pathname: "/parcels/delivery/confirm",
+        search: `?token=${VALID_TOKEN}&lang=vi`,
+        hash: "",
+      },
+    );
+
+    expect(token).toBe(VALID_TOKEN);
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      "",
+      "/parcels/delivery/confirm?lang=vi",
+    );
+    expect(sessionStorage.getItem(PARCEL_DELIVERY_TOKEN_SESSION_KEY)).toBe(
+      VALID_TOKEN,
+    );
+  });
+
+  it("nhận #token khi không có query", () => {
+    const token = captureParcelDeliveryTokenFromWindow(
+      { replaceState: vi.fn() },
+      {
+        pathname: "/parcels/delivery/confirm",
+        search: "",
+        hash: `#token=${VALID_TOKEN}`,
+      },
+    );
+
+    expect(token).toBe(VALID_TOKEN);
+  });
+
+  it("query token sai không fallback sang session/hash", () => {
+    writeParcelDeliveryTokenToSession(VALID_TOKEN);
+
+    expect(
+      captureParcelDeliveryTokenFromWindow(
+        { replaceState: vi.fn() },
+        {
+          pathname: "/parcels/delivery/confirm",
+          search: "?token=not-a-uuid",
+          hash: `#token=${VALID_TOKEN}`,
+        },
+      ),
+    ).toBeNull();
+  });
+
+  it("F5 không còn token trên URL thì lấy lại từ session", () => {
+    writeParcelDeliveryTokenToSession(VALID_TOKEN);
+
+    const replaceState = vi.fn();
+    expect(
+      captureParcelDeliveryTokenFromWindow(
+        { replaceState },
+        { pathname: "/parcels/delivery/confirm", search: "", hash: "" },
+      ),
+    ).toBe(VALID_TOKEN);
     expect(replaceState).not.toHaveBeenCalled();
   });
 });
