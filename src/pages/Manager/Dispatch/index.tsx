@@ -45,7 +45,10 @@ import type {
 } from "../../../lib/trackingSocket";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 import FleetMap from "../../../components/FleetMap";
-import type { FleetVehicleMapPoint } from "../../../components/fleetMapPoint";
+import {
+  toShuttleRouteMarkers,
+  type FleetVehicleMapPoint,
+} from "../../../components/fleetMapPoint";
 import { formatDateTime } from "../../../utils/date";
 import {
   conflictReasonKey,
@@ -76,7 +79,6 @@ import {
   shuttleRouteLabel,
   toDriverOption,
   toShuttleMapPoint,
-  toShuttleRouteMarkers,
   toVehicleOption,
   type ShuttleDriver,
   type ShuttleRealtimeStatus,

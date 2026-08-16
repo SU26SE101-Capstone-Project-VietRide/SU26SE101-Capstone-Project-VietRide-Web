@@ -14,6 +14,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   getOperatorFleetLatest,
   getOperatorRouteChangeProposals,
+  getOperatorShuttleContext,
   getOperatorShuttleTrips,
   getOperatorTrips,
   getOperatorUsers,
@@ -24,6 +25,7 @@ import {
   getTrackingTripLatest,
   getTrackingTripRouteGeometry,
   getTrackingTripTrail,
+  type OperatorShuttleContext,
   type OperatorShuttleTripListItem,
   type OperatorTripListItem,
   type OperatorUser,
@@ -42,6 +44,7 @@ import FleetMap, {
 } from "../../../components/FleetMap";
 import {
   isShuttleFleetItem,
+  toShuttleRouteMarkers,
   isTripFleetItem,
 } from "../../../components/fleetMapPoint";
 import FleetFilterBar, {
@@ -141,6 +144,12 @@ export default function OperationsPage() {
   } | null>(null);
   // Bump để tải lại lộ trình sau khi duyệt đề xuất đổi tuyến của tài xế
   const [routeGeometryRefreshKey, setRouteGeometryRefreshKey] = useState(0);
+  // `context: null` = nạp lỗi, vẫn khoá theo shuttleTripId để lượt về chậm của
+  // xe chọn trước không vẽ đè lên xe đang mở.
+  const [shuttleContextResult, setShuttleContextResult] = useState<{
+    shuttleTripId: string;
+    context: OperatorShuttleContext | null;
+  } | null>(null);
   const [connectionStatus, setConnectionStatus] =
     useState<RealtimeStatus>("connecting");
   const [isFleetLoading, setIsFleetLoading] = useState(false);
@@ -513,6 +522,42 @@ export default function OperationsPage() {
     };
   }, [routeGeometryRefreshKey, selectedTripId]);
 
+  // Điểm đón + bến của xe trung chuyển đang chọn. Shuttle không có polyline nên
+  // đây là thứ DUY NHẤT vẽ được ngoài chấm xe — thiếu nó bản đồ chỉ còn một chấm
+  // trơ trọi, không biết xe đang ở đâu so với các điểm còn phải đón.
+  useEffect(() => {
+    const shuttleTripId = selectedShuttleTripId?.trim() ?? "";
+    if (!shuttleTripId) return;
+
+    let ignore = false;
+    void getOperatorShuttleContext(shuttleTripId)
+      .then((context) => {
+        if (ignore) return;
+        setShuttleContextResult({ shuttleTripId, context });
+      })
+      .catch(() => {
+        if (ignore) return;
+        // Lỗi context không được làm mất marker xe đang chạy — chỉ là không có
+        // điểm đón để vẽ thêm.
+        setShuttleContextResult({ shuttleTripId, context: null });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedShuttleTripId]);
+
+  const shuttleRouteStops = useMemo(() => {
+    const shuttleTripId = selectedShuttleTripId?.trim() ?? "";
+    if (!shuttleTripId || shuttleContextResult?.shuttleTripId !== shuttleTripId) {
+      return [];
+    }
+    return toShuttleRouteMarkers(
+      shuttleContextResult.context,
+      t("dispatch.shuttleStationFallback"),
+    );
+  }, [selectedShuttleTripId, shuttleContextResult, t]);
+
   // Kết quả chỉ dùng được khi khớp đúng chuyến + lượt tải hiện tại
   const routeGeometry = useMemo(() => {
     const tripId = selectedTripId?.trim() ?? "";
@@ -570,6 +615,14 @@ export default function OperationsPage() {
       markPassedStops(routeStops, effectiveRoutePath, selectedVehiclePosition),
     [effectiveRoutePath, routeStops, selectedVehiclePosition],
   );
+
+  // Hai loại không bao giờ cùng lúc: chọn shuttle thì `selectedTripId` là null
+  // nên `routeStopsWithProgress` rỗng, và ngược lại. Trạng thái "đã qua" của
+  // shuttle do BE quyết (`stop.status`), không suy từ vị trí xe như chuyến chính
+  // — vì không có polyline để chiếu lên.
+  const mapRouteStops = selectedShuttleTripId
+    ? shuttleRouteStops
+    : routeStopsWithProgress;
 
   // Khung nhìn bao trọn NGUYÊN tuyến + vị trí xe — chỉ dùng ở chế độ "xem cả
   // tuyến". Tuyến liên tỉnh dài mấy trăm km nên fitBounds kéo zoom về mức nhìn
@@ -907,10 +960,10 @@ export default function OperationsPage() {
           <FleetMapLegend
             showTraveledLine={routeProgress.traveled.length > 1}
             showRemainingLine={routeProgress.remaining.length > 1}
-            showRouteStations={routeStopsWithProgress.some(
+            showRouteStations={mapRouteStops.some(
               (stop) => stop.kind !== "stop",
             )}
-            showRouteStops={routeStopsWithProgress.some(
+            showRouteStops={mapRouteStops.some(
               (stop) => stop.kind === "stop",
             )}
           />
@@ -979,7 +1032,7 @@ export default function OperationsPage() {
                 focusCenter={mapFocusCenter}
                 focusZoom={FOLLOW_VEHICLE_ZOOM}
                 fitPoints={mapFitPoints}
-                routeStops={routeStopsWithProgress}
+                routeStops={mapRouteStops}
                 routeTraveledPath={routeProgress.traveled}
                 routeRemainingPath={routeProgress.remaining}
                 onMarkerSelect={selectVehicle}

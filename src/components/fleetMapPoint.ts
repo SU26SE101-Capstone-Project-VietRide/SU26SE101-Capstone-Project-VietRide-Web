@@ -1,6 +1,7 @@
 import type { GoogleMapCoordinate } from "../lib/googleMaps";
 import type {
   FleetLatestItem,
+  OperatorShuttleContext,
   ShuttleFleetLatestItem,
   TripFleetLatestItem,
 } from "../api/vietride";
@@ -79,3 +80,27 @@ export type TripRouteMarker = {
   passed?: boolean;
   position: GoogleMapCoordinate;
 };
+
+export function toShuttleRouteMarkers(
+  context: OperatorShuttleContext | null | undefined,
+  stationFallbackName: string,
+): TripRouteMarker[] {
+  if (!context) return [];
+
+  const stationKind =
+    context.direction === "OUTBOUND_FROM_STATION" ? "origin" : "destination";
+
+  return context.stops.map((stop) => ({
+    id: `shuttle-stop:${stop.pickupOrder}`,
+    kind: stop.isStation ? stationKind : "stop",
+    name:
+      stop.serviceAddress?.trim() ||
+      (stop.isStation
+        ? context.station?.name?.trim() || stationFallbackName
+        : String(stop.pickupOrder)),
+    orderIndex: stop.isStation ? undefined : stop.pickupOrder,
+    // PENDING = xe chưa tới; mọi trạng thái khác coi như đã xử lý xong điểm đó.
+    passed: stop.status !== "PENDING",
+    position: { lat: stop.latitude, lng: stop.longitude },
+  }));
+}

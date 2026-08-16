@@ -223,9 +223,12 @@ const vietnameseMessages: Record<string, string> = {
   ROUTE_CHANGE_PROPOSAL_NOT_PENDING: "Đề xuất đổi tuyến không còn ở trạng thái chờ duyệt.",
   ROUTE_CHANGE_PROPOSAL_STALE: "Đề xuất đổi tuyến đã cũ, vui lòng tải lại.",
   ROUTE_DUPLICATED: "Tuyến đường đã tồn tại.",
-  ROUTE_GEOMETRY_INVALID: "Dữ liệu hình học tuyến đường không hợp lệ.",
-  ROUTE_GEOMETRY_STOP_MISMATCH: "Hình học tuyến đường không khớp với các điểm dừng.",
-  ROUTE_GEOMETRY_TOO_LARGE: "Dữ liệu hình học tuyến đường vượt quá giới hạn.",
+  ROUTE_GEOMETRY_INVALID:
+    "Đường đi của tuyến không hợp lệ (phải có từ 2 đến 10.000 điểm). Hãy vẽ lại đường đi rồi lưu lại.",
+  ROUTE_GEOMETRY_STOP_MISMATCH:
+    "Có điểm dừng nằm cách đường đi quá 500 m. Hãy kéo điểm dừng lại gần tuyến hoặc vẽ lại đường đi qua điểm đó.",
+  ROUTE_GEOMETRY_TOO_LARGE:
+    "Đường đi của tuyến vượt quá 100 KB. Hãy vẽ lại với ít điểm trung gian hơn.",
   ROUTE_NOT_FOUND: "Không tìm thấy tuyến đường.",
   ROUTE_RETURN_NOT_CONFIGURED: "Tuyến này chưa được cấu hình chiều về.",
   ROUTE_STATION_IMMUTABLE: "Bến đi/bến đến không thể đổi sau khi tạo tuyến.",

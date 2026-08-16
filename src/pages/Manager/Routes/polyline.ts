@@ -43,11 +43,44 @@ function encodeValue(value: number) {
   return encoded + String.fromCharCode(shifted + 63);
 }
 
+/**
+ * BE từ chối polyline giải mã ra quá 10.000 điểm
+ * (`RouteGeometryValidator.MaximumPointCount` → `ROUTE_GEOMETRY_INVALID`).
+ * Google Routes được gọi với `polylineQuality: "HIGH_QUALITY"` nên tuyến liên
+ * tỉnh vài trăm km vượt ngưỡng này rất dễ — khi đó nhà xe không tài nào lưu
+ * được tuyến. Giữ nguyên chất lượng cao để vẽ bản đồ, chỉ rút gọn lúc gửi đi.
+ */
+export const MAX_POLYLINE_POINTS = 9_000;
+
+/**
+ * Lấy mẫu đều, luôn giữ điểm đầu và điểm cuối. Với tuyến 500 km, 9.000 điểm
+ * tương đương một điểm mỗi ~55 m — sai lệch hình dạng nhỏ hơn nhiều so với
+ * ngưỡng 500 m mà BE dùng để đối chiếu điểm dừng với đường đi
+ * (`MaximumWaypointDistanceMeters`).
+ */
+export function limitPolylinePoints(
+  points: RouteCoordinate[],
+  maxPoints = MAX_POLYLINE_POINTS,
+): RouteCoordinate[] {
+  if (points.length <= maxPoints || maxPoints < 2) {
+    return points;
+  }
+
+  const lastIndex = points.length - 1;
+  const step = lastIndex / (maxPoints - 1);
+  const sampled: RouteCoordinate[] = [];
+  for (let i = 0; i < maxPoints - 1; i += 1) {
+    sampled.push(points[Math.round(i * step)]);
+  }
+  sampled.push(points[lastIndex]);
+  return sampled;
+}
+
 export function encodeGooglePolyline(points: RouteCoordinate[]) {
   let previousLatitude = 0;
   let previousLongitude = 0;
 
-  return points
+  return limitPolylinePoints(points)
     .map((point) => {
       const latitude = Math.round(point.latitude * 1e5);
       const longitude = Math.round(point.longitude * 1e5);

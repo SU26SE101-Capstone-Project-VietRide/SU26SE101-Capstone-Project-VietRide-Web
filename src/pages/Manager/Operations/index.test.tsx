@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorFleetLatest,
   getOperatorShuttleTrips,
+  getOperatorShuttleContext,
   getOperatorRouteChangeProposals,
   getOperatorTrips,
   getOperatorUsers,
@@ -40,8 +41,14 @@ const { canvasProps } = vi.hoisted(() => ({
     polylines?: Array<{ id: string; color: string; opacity?: number }>;
     pointMarkers?: Array<{
       id: string;
-      icon?: { scale?: number; fillColor?: string; path?: string };
+      icon?: {
+        scale?: number;
+        fillColor?: string;
+        path?: string;
+        fillOpacity?: number;
+      };
       label?: { text: string };
+      zIndex?: number;
     }>;
   }>,
 }));
@@ -78,6 +85,7 @@ vi.mock("../../../api/vietride", () => ({
   approveOperatorRouteChangeProposal: vi.fn(),
   getOperatorFleetLatest: vi.fn(),
   getOperatorShuttleTrips: vi.fn(),
+  getOperatorShuttleContext: vi.fn(),
   getOperatorRouteChangeProposal: vi.fn(),
   getOperatorRouteChangeProposals: vi.fn(),
   getOperatorTrips: vi.fn(),
@@ -835,5 +843,148 @@ describe("Manager Operations Center", () => {
       expect(screen.queryByText("51B-999.99")).not.toBeInTheDocument(),
     );
     expect(screen.getByText("51A-123.45")).toBeInTheDocument();
+  });
+  // Shuttle không có polyline nên điểm đón là thứ DUY NHẤT vẽ được ngoài chấm
+  // xe. Trước đây màn này không nạp context, bản đồ chỉ còn một chấm trơ trọi.
+  it("nap diem don cua xe trung chuyen khi chon tren ban do", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorShuttleTrips).mockResolvedValue({
+      items: [shuttleTripItem],
+      totalItems: 1,
+      page: 1,
+      pageSize: 100,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    });
+    vi.mocked(getOperatorShuttleContext).mockResolvedValue({
+      shuttleTripId: shuttleTripItem.shuttleTripId,
+      mainTripId: shuttleTripItem.mainTripId,
+      direction: "INBOUND_TO_STATION",
+      status: "IN_PROGRESS",
+      station: {
+        stationId: "station-1",
+        name: "Bến xe Miền Đông",
+        latitude: 10.81,
+        longitude: 106.63,
+        pickupOrder: 3,
+      },
+      stops: [
+        {
+          pickupOrder: 1,
+          bookingId: "booking-1",
+          latitude: 10.76,
+          longitude: 106.66,
+          status: "PICKED_UP",
+          isStation: false,
+          serviceAddress: "123 Nguyễn Huệ",
+        },
+        {
+          pickupOrder: 3,
+          bookingId: null,
+          latitude: 10.81,
+          longitude: 106.63,
+          status: "PENDING",
+          isStation: true,
+        },
+      ],
+    });
+    vi.mocked(getOperatorFleetLatest).mockImplementation((params) =>
+      Promise.resolve({
+        items:
+          params?.status === "DISRUPTED"
+            ? []
+            : [
+                {
+                  kind: "SHUTTLE" as const,
+                  shuttleTripId: shuttleTripItem.shuttleTripId,
+                  mainTripId: shuttleTripItem.mainTripId,
+                  latitude: 10.76,
+                  longitude: 106.66,
+                  speedKmh: 24,
+                  headingDeg: 120,
+                  recordedAt: "2026-08-05T08:30:01Z",
+                  status: "IN_PROGRESS" as const,
+                },
+              ],
+        generatedAt: "2026-08-05T08:30:02Z",
+      }),
+    );
+
+    renderPage();
+
+    await user.click(await screen.findByText("51B-999.99"));
+
+    await waitFor(() =>
+      expect(getOperatorShuttleContext).toHaveBeenCalledWith(
+        shuttleTripItem.shuttleTripId,
+      ),
+    );
+    // Không gọi nhầm endpoint lộ trình của chuyến chính bằng id shuttle
+    expect(getTrackingTripRouteGeometry).not.toHaveBeenCalledWith(
+      expect.stringContaining("shuttle:"),
+    );
+
+    // Marker thực sự tới được bản đồ, không dừng lại ở state
+    await waitFor(() => {
+      const drawn = (canvasProps.at(-1)?.pointMarkers ?? []).filter((marker) =>
+        marker.id.startsWith("route-shuttle-stop:"),
+      );
+      expect(drawn).toHaveLength(2);
+    });
+
+    const markers = canvasProps.at(-1)?.pointMarkers ?? [];
+    const pickup = markers.find((m) => m.id === "route-shuttle-stop:1");
+    const station = markers.find((m) => m.id === "route-shuttle-stop:3");
+
+    // Điểm đón #1 đã PICKED_UP => mờ đi và lùi xuống dưới
+    expect(pickup?.label?.text).toBe("1");
+    expect(pickup?.icon?.fillOpacity).toBe(0.8);
+    expect(pickup?.zIndex).toBe(2);
+    // Bến là điểm cuối (INBOUND) nên không có số thứ tự, còn PENDING nên đậm
+    expect(station?.label).toBeUndefined();
+    expect(station?.icon?.fillOpacity).toBe(1);
+    expect(station?.zIndex).toBe(3);
+  });
+
+  it("context loi thi van giu marker xe, khong lam vo man hinh", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorShuttleTrips).mockResolvedValue({
+      items: [shuttleTripItem],
+      totalItems: 1,
+      page: 1,
+      pageSize: 100,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    });
+    vi.mocked(getOperatorShuttleContext).mockRejectedValue(new Error("boom"));
+    vi.mocked(getOperatorFleetLatest).mockImplementation((params) =>
+      Promise.resolve({
+        items:
+          params?.status === "DISRUPTED"
+            ? []
+            : [
+                {
+                  kind: "SHUTTLE" as const,
+                  shuttleTripId: shuttleTripItem.shuttleTripId,
+                  mainTripId: shuttleTripItem.mainTripId,
+                  latitude: 10.76,
+                  longitude: 106.66,
+                  speedKmh: 24,
+                  headingDeg: 120,
+                  recordedAt: "2026-08-05T08:30:01Z",
+                  status: "IN_PROGRESS" as const,
+                },
+              ],
+        generatedAt: "2026-08-05T08:30:02Z",
+      }),
+    );
+
+    renderPage();
+    await user.click(await screen.findByText("51B-999.99"));
+
+    await waitFor(() => expect(getOperatorShuttleContext).toHaveBeenCalled());
+    expect(screen.getByText("51B-999.99")).toBeInTheDocument();
   });
 });

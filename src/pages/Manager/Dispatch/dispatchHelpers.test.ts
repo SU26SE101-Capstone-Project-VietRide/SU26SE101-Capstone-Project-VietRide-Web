@@ -10,8 +10,8 @@ import {
   pickNewerEta,
   pickNewerLatest,
   toShuttleMapPoint,
-  toShuttleRouteMarkers,
 } from "./dispatchHelpers";
+import { toShuttleRouteMarkers } from "../../../components/fleetMapPoint";
 
 const labels = {
   unknownVehicle: "Chưa gán xe",

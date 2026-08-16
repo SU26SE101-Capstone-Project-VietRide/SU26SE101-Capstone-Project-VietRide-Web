@@ -13,7 +13,6 @@ import type {
 import {
   getFleetStatus,
   type FleetVehicleMapPoint,
-  type TripRouteMarker,
 } from "../../../components/fleetMapPoint";
 
 export type ShuttleVehicle = {
@@ -77,36 +76,6 @@ export function nextPickupLabel(
   if (!eta) return null;
   const stop = findStopByPickupOrder(context, eta.nextPickupOrder);
   return stop?.serviceAddress?.trim() || fallback(eta.nextPickupOrder);
-}
-
-/**
- * Đổi stop của `operator-context` thành marker cho `FleetMap`.
- *
- * `isStation` quyết định đầu tuyến: chuyến vào bến thì bến là điểm CUỐI, chuyến
- * rời bến thì bến là điểm ĐẦU — vẽ ngược lại là đọc sai chiều chạy.
- */
-export function toShuttleRouteMarkers(
-  context: OperatorShuttleContext | null | undefined,
-  stationFallbackName: string,
-): TripRouteMarker[] {
-  if (!context) return [];
-
-  const stationKind =
-    context.direction === "OUTBOUND_FROM_STATION" ? "origin" : "destination";
-
-  return context.stops.map((stop) => ({
-    id: `shuttle-stop:${stop.pickupOrder}`,
-    kind: stop.isStation ? stationKind : "stop",
-    name:
-      stop.serviceAddress?.trim() ||
-      (stop.isStation
-        ? context.station?.name?.trim() || stationFallbackName
-        : String(stop.pickupOrder)),
-    orderIndex: stop.isStation ? undefined : stop.pickupOrder,
-    // PENDING = xe chưa tới; mọi trạng thái khác coi như đã xử lý xong điểm đó.
-    passed: stop.status !== "PENDING",
-    position: { lat: stop.latitude, lng: stop.longitude },
-  }));
 }
 
 /**
@@ -190,12 +159,12 @@ export function bookingPassengerLabel(
 export const SHUTTLE_SIGNAL_TTL_MS = 300_000;
 
 /**
- * Dựng marker bản đồ cho một chuyến trung chuyển. Trả null khi chưa có toạ độ —
+ * Dựng marker XE cho một chuyến trung chuyển. Trả null khi chưa có toạ độ —
  * chuyến đó vẫn hiện ở lưới thẻ, chỉ không có marker.
  *
- * Chưa vẽ được điểm đón hay bến vì BE chưa mở `stops` của shuttle cho vai trò
- * OPERATOR (chỉ `passenger-context` có, và chặn cứng role PASSENGER), nên bản đồ
- * hiện chỉ có chấm xe.
+ * Điểm đón và bến là marker riêng, dựng bằng `toShuttleRouteMarkers` từ
+ * `operator-context`. Không có polyline nào cho shuttle: lộ trình dựng động lúc
+ * điều phối nên hệ thống không lưu hình dạng đường đi.
  */
 export function toShuttleMapPoint(
   trip: OperatorShuttleTripListItem,
