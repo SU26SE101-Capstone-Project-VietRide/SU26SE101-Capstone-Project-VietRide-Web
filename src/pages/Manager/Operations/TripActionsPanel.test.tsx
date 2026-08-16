@@ -114,6 +114,7 @@ function alternativesResult(items: AlternativeRoute[]) {
 function renderPanel(
   onTripReplaced = vi.fn(),
   trip: OperatorTripListItem | null = tripProp,
+  canMutate = true,
 ) {
   render(
     <MemoryRouter>
@@ -122,7 +123,7 @@ function renderPanel(
         trip={trip}
         vehicles={vehiclesProp}
         staff={staffProp}
-        canMutate
+        canMutate={canMutate}
         onTripReplaced={onTripReplaced}
       />
     </MemoryRouter>,

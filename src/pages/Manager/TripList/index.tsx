@@ -10,16 +10,22 @@ import {
   FiActivity,
   FiAlertTriangle,
   FiCalendar,
+  FiLogIn,
   FiRefreshCw,
   FiSearch,
   FiTruck,
 } from "react-icons/fi";
 import {
   getOperatorTrips,
+  openOperatorTripBoarding,
   type OperatorTripListItem,
   type OperatorTripStatus,
   type PagedResult,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
+import { createIdempotencyKey } from "../../../api/idempotency";
+import { getAuthUser } from "../../../auth";
+import { ConfirmModal } from "../../../components/ConfirmModal";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
@@ -84,6 +90,23 @@ function statusClass(status: string) {
   }
 }
 
+/**
+ * Giữ hay bỏ `Idempotency-Key` sau một lần mở boarding hỏng (handoff Manual
+ * boarding §8).
+ *
+ * BE cache nguyên status + body của mọi response dưới 500 trong 24 giờ. Nên:
+ * - chưa biết BE đã xử lý hay chưa (mất mạng, 5xx, request cùng key còn chạy)
+ *   thì phải retry ĐÚNG key cũ, sinh key mới có thể mở boarding hai lần;
+ * - đã có kết luận nghiệp vụ (TOO_EARLY, INVALID_TRANSITION, 403, 404) thì phải
+ *   bỏ key: dùng lại chỉ replay đúng lỗi đã cache, người dùng bấm lại bao nhiêu
+ *   lần cũng thấy y nguyên lỗi cũ dù chuyến đã vào cửa sổ boarding.
+ */
+function shouldKeepIdempotencyKey(error: unknown): boolean {
+  if (!(error instanceof ApiRequestError)) return true;
+  if (error.status >= 500) return true;
+  return error.code === "IDEMPOTENCY_REQUEST_PENDING";
+}
+
 // KHÔNG dựng "mã chuyến" từ `tripId` ở FE nữa. `GET /v1/operator/trips` hiện
 // không trả `tripCode`, nên cột đó chỉ hiện 8 ký tự đầu của UUID viết hoa —
 // trông như mã nghiệp vụ nhưng không tra cứu được ở đâu. Khi nào BE trả
@@ -118,7 +141,23 @@ export default function TripListPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState("");
-  useToastFeedback({ error: listError });
+  // Mở boarding thủ công (handoff Manual boarding §10): chỉ OPERATOR_ADMIN, và
+  // chỉ ở màn này — Trung tâm vận hành chỉ tải chuyến IN_PROGRESS/DISRUPTED nên
+  // chuyến SCHEDULED không bao giờ xuất hiện ở đó.
+  const [canOpenBoarding] = useState(
+    () => getAuthUser()?.role === "OPERATOR_ADMIN",
+  );
+  const [boardingTripId, setBoardingTripId] = useState("");
+  const [busyBoardingTripId, setBusyBoardingTripId] = useState("");
+  const [boardingMessage, setBoardingMessage] = useState("");
+  const [boardingError, setBoardingError] = useState("");
+  // Một key cho mỗi chuyến, sinh ở lần bấm đầu và giữ nguyên qua các lần retry
+  // của đúng chuyến đó (§8).
+  const boardingKeys = useRef(new Map<string, string>());
+  useToastFeedback({
+    message: boardingMessage,
+    error: listError || boardingError,
+  });
 
   // Bỏ qua lượt chạy đầu: effect cũng chạy lúc mount và gọi `setPage(1)` dù người
   // dùng chưa gõ gì, đá người đang xem trang 2 về trang 1 (xem màn Bookings).
@@ -214,6 +253,43 @@ export default function TripListPage() {
     () => tripsPage.totalItems.toLocaleString("vi-VN"),
     [tripsPage.totalItems],
   );
+
+  async function openBoarding(tripId: string) {
+    const existingKey = boardingKeys.current.get(tripId);
+    const idempotencyKey = existingKey ?? createIdempotencyKey();
+    boardingKeys.current.set(tripId, idempotencyKey);
+
+    setBusyBoardingTripId(tripId);
+    setBoardingTripId("");
+    setBoardingMessage("");
+    setBoardingError("");
+
+    try {
+      await openOperatorTripBoarding(tripId, idempotencyKey);
+      boardingKeys.current.delete(tripId);
+      setBoardingMessage(t("tripList.boardingSuccess"));
+      // Trạng thái mới lấy lại từ BE thay vì tự ép local: AutoBoardingJob hoặc
+      // một tác nhân khác có thể đã đổi trạng thái trong lúc này (§11).
+      setReloadVersion((value) => value + 1);
+    } catch (error) {
+      if (!shouldKeepIdempotencyKey(error)) {
+        boardingKeys.current.delete(tripId);
+      }
+      setBoardingError(
+        error instanceof Error ? error.message : t("tripList.boardingFailed"),
+      );
+      // §11: chuyến bị huỷ/đã chạy giữa chừng thì hàng đang hiển thị đã cũ —
+      // tải lại thay vì ép trạng thái ở FE.
+      if (
+        error instanceof ApiRequestError &&
+        error.code === "TRIP_INVALID_TRANSITION"
+      ) {
+        setReloadVersion((value) => value + 1);
+      }
+    } finally {
+      setBusyBoardingTripId("");
+    }
+  }
 
   function resetFilters() {
     setSearchTerm("");
@@ -387,6 +463,9 @@ export default function TripListPage() {
                   {t("tripList.arrivalEstimate")}
                 </th>
                 <th className="w-[10%] px-3 py-3 sm:px-5">{tc("status")}</th>
+                {canOpenBoarding && (
+                  <th className="w-[14%] px-3 py-3 sm:px-5">{tc("actions")}</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -437,12 +516,33 @@ export default function TripListPage() {
                       })}
                     </span>
                   </td>
+                  {/* §10: nhà xe chỉ mở boarding cho chuyến còn SCHEDULED. Đã
+                      BOARDING thì gọi lại chỉ là no-op nên không cho bấm nữa;
+                      trạng thái khác không có thao tác nào ở màn này. Bước start
+                      chuyến là của tài xế trên app tài xế, không dựng ở đây. */}
+                  {canOpenBoarding && (
+                    <td className="px-3 py-4 text-center sm:px-5">
+                      {trip.status === "SCHEDULED" ? (
+                        <button
+                          type="button"
+                          onClick={() => setBoardingTripId(trip.tripId)}
+                          disabled={busyBoardingTripId === trip.tripId}
+                          className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-vr-200 bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-700 transition hover:bg-vr-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <FiLogIn aria-hidden="true" size={14} />
+                          {t("tripList.boarding")}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
               {isLoading && tripsPage.items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={canOpenBoarding ? 7 : 6}
                     className="px-5 py-10 text-center text-sm text-gray-500"
                   >
                     <span className="inline-flex items-center gap-2">
@@ -455,7 +555,7 @@ export default function TripListPage() {
               {!isLoading && tripsPage.items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={canOpenBoarding ? 7 : 6}
                     className="px-5 py-10 text-center text-sm text-gray-500"
                   >
                     {hasActiveFilter
@@ -478,6 +578,18 @@ export default function TripListPage() {
           onPageChange={setPage}
         />
       </div>
+
+      <ConfirmModal
+        open={Boolean(boardingTripId)}
+        onClose={() => setBoardingTripId("")}
+        onConfirm={() => void openBoarding(boardingTripId)}
+        title={tc("confirm")}
+        message={t("tripList.boardingConfirm")}
+        confirmLabel={tc("confirm")}
+        cancelLabel={tc("cancel")}
+        tone="warning"
+        busy={Boolean(busyBoardingTripId)}
+      />
     </div>
   );
 }

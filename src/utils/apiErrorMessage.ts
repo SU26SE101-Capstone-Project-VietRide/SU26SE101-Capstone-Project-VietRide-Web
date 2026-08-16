@@ -311,6 +311,8 @@ const vietnameseMessages: Record<string, string> = {
   TRACKING_TRIP_NOT_ACTIVE: "Chuyến đi hiện không hoạt động để theo dõi.",
   TRACKING_TRIP_UNAVAILABLE: "Không lấy được thông tin chuyến để theo dõi.",
   TRIP_ALREADY_TERMINAL: "Chuyến đi đã kết thúc.",
+  TRIP_BOARDING_TOO_EARLY:
+    "Chưa tới giờ được mở đón khách cho chuyến này.",
   TRIP_CARGO_CAPACITY_EXCEEDED: "Hàng hóa vượt quá sức chứa của chuyến.",
   TRIP_CARGO_TRANSFER_CONFLICT: "Việc chuyển hàng hóa giữa các chuyến bị xung đột.",
   TRIP_DESTINATION_ALREADY_ARRIVED: "Chuyến đã đến điểm cuối.",

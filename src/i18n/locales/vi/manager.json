@@ -89,7 +89,11 @@
       "COMPLETED": "Đã hoàn tất",
       "CANCELLED": "Đã hủy",
       "DISRUPTED": "Gặp sự cố"
-    }
+    },
+    "boarding": "Mở cho khách lên xe",
+    "boardingConfirm": "Mở cho khách lên xe cho chuyến này? Chuyến sẽ chuyển sang trạng thái Đang lên xe. Tài xế được phân công mới là người bắt đầu chuyến trên ứng dụng tài xế.",
+    "boardingSuccess": "Đã mở cho khách lên xe.",
+    "boardingFailed": "Không mở được bước lên xe cho chuyến này."
   },
   "trips": {
     "title": "Quản lý chuyến xe",
