@@ -8,8 +8,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 import { requestRoadPath } from "../../../lib/googleRoutes";
 
-export type RoadRouteStatus = "idle" | "loading" | "ready" | "unavailable";
-
 // Cache theo phiên (không persist): xem qua lại các chuyến cùng tuyến không gọi
 // lại Google — Routes API tính tiền theo request. null = lượt tính đã hỏng, cache
 // luôn để không retry vô hạn.

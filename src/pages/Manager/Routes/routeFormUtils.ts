@@ -1,7 +1,5 @@
 // Hằng form rỗng + helper thuần chuyển đổi dữ liệu của màn Routes
 import type {
-  AlternativeRoute,
-  AlternativeRouteRequest,
   OperatorRoute,
   OperatorRouteDetail,
   OperatorRouteFullStopRequest,
@@ -44,16 +42,6 @@ export const emptyRouteForm: OperatorRouteRequest = {
   isActive: true,
 };
 
-export const emptyAlternativeRouteForm: AlternativeRouteRequest = {
-  name: "",
-  description: "",
-  destinationStationId: "",
-  totalDistanceKm: 0,
-  estimatedDurationMinutes: 0,
-  isActive: true,
-  stops: [],
-};
-
 export function isGuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     value,
@@ -70,26 +58,6 @@ export function routeToForm(route: OperatorRoute): OperatorRouteRequest {
     totalDistanceKm: route.totalDistanceKm,
     estimatedDurationMinutes: route.estimatedDurationMinutes,
     isActive: route.isActive,
-  };
-}
-
-export function alternativeRouteToForm(
-  route: AlternativeRoute,
-): AlternativeRouteRequest {
-  return {
-    name: route.name,
-    description: route.description ?? "",
-    destinationStationId: route.destinationStationId,
-    totalDistanceKm: route.totalDistanceKm,
-    estimatedDurationMinutes: route.estimatedDurationMinutes,
-    isActive: route.isActive,
-    stops: route.stops.map((stop) => ({
-      stopId: stop.stopId,
-      orderIndex: stop.orderIndex,
-      estimatedDurationFromOriginMinutes:
-        stop.estimatedDurationFromOriginMinutes,
-      distanceFromOriginKm: stop.distanceFromOriginKm,
-    })),
   };
 }
 

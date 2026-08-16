@@ -5,7 +5,7 @@ import { formatCurrency } from "../../../utils/currency";
 import { formatWalletDate } from "./walletFormat";
 import type { Translate } from "./walletTableShared";
 
-// 4 card mô tả 4 GIAI ĐOẠN khác nhau trong vòng đời tất toán — không cộng
+// 4 card mô tả 4 GIAI ĐOẠN khác nhau trong vòng đời đối soát — không cộng
 // gộp lại thành "tổng tài sản" (xem FE-REQUEST-operator-wallet-transparency
 // -RESPONSE.md §5, §13). Không đặt tiêu đề chung phía trên nhóm card này.
 export function WalletOverviewCards({

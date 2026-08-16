@@ -132,10 +132,7 @@
     "editScheduleTitle": "Sửa lịch chạy",
     "editScheduleDemoNotice": "Sửa lịch chuyến hiện chỉ lưu tạm trên trình duyệt này — hệ thống lưu cập nhật lịch thật đang được xây dựng, thay đổi sẽ mất khi tải lại trang.",
     "createScheduleSubtitle": "Kiểm tra tuyến, xe, nhân sự và giờ khởi hành; giờ đến sẽ tự tính theo thời lượng tuyến.",
-    "staffMonitorTitle": "Theo dõi lịch chạy",
-    "staffMonitorSubtitle": "Nhân viên nhà xe không có quyền tạo, sửa hoặc kích hoạt lịch chuyến.",
     "staffReadOnlyHint": "Nhân viên nhà xe không được tạo, sửa hoặc kích hoạt lịch chuyến. Chỉ quản trị viên nhà xe có quyền này vì thao tác ảnh hưởng đến xe, tài xế, phụ xe và lịch chạy.",
-    "staffScheduleListUnavailable": "Hệ thống hiện giới hạn xem danh sách lịch chạy chỉ cho quản trị viên nhà xe. Vui lòng liên hệ quản trị viên nhà xe nếu cần xem lịch.",
     "assistant": "Phụ xe",
     "noAssistant": "Không có phụ xe",
     "assistantOptionalForShuttle": "Xe trung chuyển 16 chỗ có thể chạy không cần phụ xe.",
@@ -923,7 +920,6 @@
     "groupOps": "Quản trị & vận hành",
     "operatorStaff": "Nhân viên vận hành",
     "assistant": "Phụ xe",
-    "roleDescOperatorStaff": "Hỗ trợ vận hành, kiểm tra đặt vé và xử lý khách tại quầy.",
     "roleDescDriver": "Xem chuyến được phân công và cập nhật vận hành chuyến.",
     "roleDescAssistant": "Xác nhận hành khách lên xe và hỗ trợ hàng hóa.",
     "staffInfoSection": "Thông tin nhân sự",
@@ -1276,6 +1272,10 @@
     "validity": "Hiệu lực",
     "noRouteFares": "Chưa có bảng cước hàng theo tuyến.",
     "confirmRefund": "Xác nhận hoàn tiền",
+    "statusHistoryReasons": {
+      "TRIP_CARGO_CAPACITY_EXCEEDED": "Khoang hàng của chuyến đã hết chỗ",
+      "TRIP_CANCELLED": "Chuyến bị hủy"
+    },
     "pendingActions": {
       "REFUND_CONFIRMATION": "Chờ xác nhận hoàn tiền",
       "CAPACITY_EXCEEDED": "Vượt sức chứa",
@@ -1507,7 +1507,7 @@
     "shuttleDirection": { "INBOUND_TO_STATION": "Đón khách về bến", "OUTBOUND_FROM_STATION": "Trả khách từ bến" },
     "shuttlePassengers": "Số khách",
     "shuttleStops": "Số điểm đón",
-    "shuttlePanelHint": "Màn này chỉ theo dõi vị trí. Điểm đón, ETA từng điểm và thao tác huỷ chuyến nằm ở màn Điều phối xe trung chuyển.",
+    "shuttlePanelHint": "Màn này chỉ theo dõi vị trí. Điểm đón, ETA từng điểm và thao tác hủy chuyến nằm ở màn Điều phối xe trung chuyển.",
     "openDispatch": "Mở màn Điều phối",
     "noSpeedData": "Không có dữ liệu tốc độ",
     "fleetMapAria": "Bản đồ theo dõi đội xe",
@@ -1723,23 +1723,23 @@
       "error": "Mất kết nối realtime"
     },
     "mainRoute": "Tuyến chuyến chính",
-    "cancelRequest": "Huỷ yêu cầu",
-    "cancelShuttleTrip": "Huỷ chuyến trung chuyển",
-    "cancelRequestConfirm": "Huỷ yêu cầu trung chuyển của {{label}}? Hành khách sẽ không được đón/trả tận nơi cho chuyến này.",
-    "cancelTripConfirm": "Huỷ chuyến trung chuyển {{label}}? Xe và tài xế sẽ được giải phóng cho lịch khác.",
-    "cancelReason": "Lý do huỷ",
+    "cancelRequest": "Hủy yêu cầu",
+    "cancelShuttleTrip": "Hủy chuyến trung chuyển",
+    "cancelRequestConfirm": "Hủy yêu cầu trung chuyển của {{label}}? Hành khách sẽ không được đón/trả tận nơi cho chuyến này.",
+    "cancelTripConfirm": "Hủy chuyến trung chuyển {{label}}? Xe và tài xế sẽ được giải phóng cho lịch khác.",
+    "cancelReason": "Lý do hủy",
     "cancelReasonPlaceholder": "VD: Không còn đủ xe để tổ chức trung chuyển",
-    "cancelReasonHint": "Lý do được lưu cùng thao tác huỷ và gửi thông báo cho hành khách liên quan.",
-    "cancelReasonRequired": "Vui lòng nhập lý do huỷ.",
-    "confirmCancel": "Xác nhận huỷ",
-    "cancelling": "Đang huỷ...",
-    "cancelRequestSuccess": "Đã huỷ yêu cầu trung chuyển của {{label}}.",
-    "cancelTripSuccess": "Đã huỷ chuyến trung chuyển {{label}}.",
+    "cancelReasonHint": "Lý do được lưu cùng thao tác hủy và gửi thông báo cho hành khách liên quan.",
+    "cancelReasonRequired": "Vui lòng nhập lý do hủy.",
+    "confirmCancel": "Xác nhận hủy",
+    "cancelling": "Đang hủy...",
+    "cancelRequestSuccess": "Đã hủy yêu cầu trung chuyển của {{label}}.",
+    "cancelTripSuccess": "Đã hủy chuyến trung chuyển {{label}}.",
     "shuttleStatus": {
       "SCHEDULED": "Đã lên lịch",
       "IN_PROGRESS": "Đang chạy",
       "COMPLETED": "Đã hoàn tất",
-      "CANCELLED": "Đã huỷ"
+      "CANCELLED": "Đã hủy"
     }
   },
   "shuttleTracking": {
@@ -2170,8 +2170,8 @@
     "eligibleAt": "Đủ điều kiện lúc",
     "statusLabel": "Trạng thái",
     "entryType": "Loại giao dịch",
-    "settlementMethod": "Phương thức tất toán",
-    "settledAt": "Tất toán lúc",
+    "settlementMethod": "Phương thức đối soát",
+    "settledAt": "Đối soát lúc",
     "actor": "Người thực hiện",
     "note": "Ghi chú",
     "noNote": "Không có ghi chú",
@@ -2210,7 +2210,7 @@
     "paymentTime": "Thời gian thanh toán",
     "receivedAmount": "Tiền nhận được",
     "form": "Hình thức",
-    "settledBy": "Người tất toán",
+    "settledBy": "Người đối soát",
     "status": {
       "PENDING_HOLD": "Đang tạm giữ",
       "ELIGIBLE": "Đủ điều kiện",
@@ -2219,7 +2219,7 @@
     },
     "methods": {
       "AUTO_WEEKLY": "Tự động hàng tuần",
-      "ADMIN_MANUAL": "Quản trị viên tất toán thủ công"
+      "ADMIN_MANUAL": "Quản trị viên đối soát thủ công"
     },
     "cashFlow": "Dòng tiền",
     "operator": "Nhà xe",
@@ -2255,15 +2255,15 @@
     "topupNote": "Sau khi xác nhận, bạn sẽ được chuyển hướng tới VNPay để thanh toán. Giao dịch sẽ được xử lý trong vòng 1–2 phút.",
     "topupAlert": "Nạp tiền: {{amount}}đ - Sẽ chuyển hướng tới VNPay",
     "monthLabel": "Tháng {{n}}",
-    "balanceHelper": "Đã vào ví sau tất toán",
+    "balanceHelper": "Đã vào ví sau đối soát",
     "awaitingTripCompletion": "Chờ chuyến kết thúc",
     "countHelper": "{{count}} chuyến",
     "nextScheduledAttempt": "Lần xử lý dự kiến tiếp theo",
-    "lifetimeSettled": "Tổng đã tất toán",
-    "lastSettlement": "Lần tất toán gần nhất",
+    "lifetimeSettled": "Tổng đã đối soát",
+    "lastSettlement": "Lần đối soát gần nhất",
     "withdrawalUnsupported": "Chưa hỗ trợ rút tiền ngân hàng",
-    "relatedSettlement": "Liên kết tất toán",
-    "relatedSettlementValue": "Từ tất toán ({{method}})",
+    "relatedSettlement": "Liên kết đối soát",
+    "relatedSettlementValue": "Từ đối soát ({{method}})",
     "partialBadge": "Thiếu một phần thông tin lịch sử",
     "partialTooltip": "Khoản tiền vẫn được tính bình thường; một số thông tin đối soát của dữ liệu cũ không có",
     "tripFallback": "Chuyến #{{id}}",
@@ -2271,8 +2271,17 @@
     "lastAttemptAt": "Lần thử gần nhất",
     "nextRetryAt": "Lần thử lại dự kiến",
     "cancelReason": "Lý do hủy",
+    "adjustmentReasons": {
+      "VIETRIDE_FUNDED_VOUCHER_REVERSAL": "Hoàn lại phần giảm giá do VietRide tài trợ",
+      "GENERIC_BOOKING_REFUND_ENTITLEMENT": "Điều chỉnh do khách hủy vé và được hoàn tiền",
+      "MANUAL_WALLET_ADJUSTMENT": "Quản trị viên điều chỉnh số dư thủ công",
+      "LEGACY_UNCLASSIFIED": "Bản ghi cũ chưa phân loại"
+    },
+    "cancelReasons": {
+      "NON_POSITIVE_NET_ENTITLEMENT": "Sau khi trừ hoàn tiền và phần nhà xe tài trợ, chuyến không còn khoản nào phải trả nên hệ thống không tạo lệnh chuyển tiền."
+    },
     "occurredAtFallback": "Thời điểm ước tính từ ngày tạo bản ghi",
-    "notAffectingSettlement": "Không ảnh hưởng số tiền tất toán",
+    "notAffectingSettlement": "Không ảnh hưởng số tiền đối soát",
     "operatorFundedVoucherAmount": "Voucher nhà xe tài trợ",
     "dateFieldLabel": "Lọc theo",
     "dateFrom": "Từ ngày",
@@ -2281,19 +2290,19 @@
       "createdAt": "Ngày tạo",
       "tripTerminalAt": "Ngày chuyến kết thúc",
       "eligibleAt": "Ngày đủ điều kiện",
-      "settledAt": "Ngày đã tất toán",
+      "settledAt": "Ngày đã đối soát",
       "occurredAt": "Ngày phát sinh nghiệp vụ"
     },
     "delayReason": {
       "SYSTEM_PROCESSING_DELAY": "Hệ thống đang xử lý, khoản tiền sẽ được thử lại theo lịch",
-      "default": "Hệ thống đang xử lý lại khoản tất toán này"
+      "default": "Hệ thống đang xử lý lại khoản đối soát này"
     },
     "processingState": {
-      "ON_HOLD": "Đang đối soát",
-      "READY_FOR_SETTLEMENT": "Đủ điều kiện tất toán",
+      "ON_HOLD": "Đang tạm giữ",
+      "READY_FOR_SETTLEMENT": "Đủ điều kiện đối soát",
       "RETRY_SCHEDULED": "Hệ thống đang xử lý lại",
-      "COMPLETED": "Đã tất toán",
-      "CANCELLED": "Đã hủy tất toán"
+      "COMPLETED": "Đã đối soát",
+      "CANCELLED": "Đã hủy đối soát"
     },
     "breakdown": {
       "grossSalesAmount": "Tổng giá trị bán",
@@ -2304,8 +2313,8 @@
       "recognizedAdjustmentAmount": "Điều chỉnh ghi nhận"
     },
     "transactionCopy": {
-      "TRIP_SETTLEMENT_CREDIT": "Nhận tiền tất toán chuyến",
-      "SETTLEMENT_TO_OPERATOR_CREDIT": "Nhận tiền tất toán chuyến",
+      "TRIP_SETTLEMENT_CREDIT": "Nhận tiền đối soát chuyến",
+      "SETTLEMENT_TO_OPERATOR_CREDIT": "Nhận tiền đối soát chuyến",
       "ADJUSTMENT_CREDIT": "Điều chỉnh tăng số dư",
       "ADJUSTMENT_DEBIT": "Điều chỉnh giảm số dư",
       "SUBSCRIPTION_PAYMENT_DEBIT": "Thanh toán gói dịch vụ"

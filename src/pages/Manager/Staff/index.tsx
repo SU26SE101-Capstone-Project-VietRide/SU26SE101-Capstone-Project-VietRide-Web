@@ -98,11 +98,8 @@ const roleOptions: Array<{
   labelKey: string;
   descriptionKey: string;
 }> = [
-  {
-    value: "OPERATOR_STAFF",
-    labelKey: "staff.operatorStaff",
-    descriptionKey: "staff.roleDescOperatorStaff",
-  },
+  // OPERATOR_STAFF đã bị gỡ khỏi web console — không tạo thêm tài khoản mới.
+  // Nhân sự cũ mang role này vẫn hiển thị trong danh sách bên dưới.
   {
     value: "DRIVER",
     labelKey: "staff.driver",

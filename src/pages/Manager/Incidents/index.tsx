@@ -1,6 +1,7 @@
 // Danh sách sự cố do tài xế/phụ xe báo về, phạm vi nhà xe lấy từ JWT.
 //
-// `OPERATOR_ADMIN` đóng được sự cố qua modal chi tiết; `OPERATOR_STAFF` chỉ đọc.
+// `OPERATOR_ADMIN` đóng được sự cố qua modal chi tiết. Console không còn phục
+// vụ `OPERATOR_STAFF` nên đây là vai trò duy nhất mở được màn này.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";

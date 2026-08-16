@@ -44,3 +44,4 @@ dist-ssr
 # repack). Giống .env — giữ ở máy để còn dựng lại report, không đẩy lên remote.
 # Trước đây bị commit (403 file, ~18MB) nên repo phình to; untrack 2026-08-16.
 /.docx_work/
+.env.example

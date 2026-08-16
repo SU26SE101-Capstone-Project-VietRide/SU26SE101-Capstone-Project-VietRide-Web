@@ -132,10 +132,7 @@
     "editScheduleTitle": "Edit schedule",
     "editScheduleDemoNotice": "Editing a trip schedule currently only saves to this browser session — real schedule-update storage is still being built, so changes are lost on reload.",
     "createScheduleSubtitle": "Validate route, vehicle, crew and departure time; arrival is calculated from the route duration.",
-    "staffMonitorTitle": "Monitor schedules",
-    "staffMonitorSubtitle": "Operator staff cannot create, edit or open trip schedules.",
     "staffReadOnlyHint": "Operator Staff cannot create, edit or open trip schedules. This action belongs to Operator Admin because it affects vehicles, drivers, assistants and operating schedules.",
-    "staffScheduleListUnavailable": "The system currently restricts viewing the schedule list to Operator Admin only. Please contact your Operator Admin if you need to see the schedule.",
     "assistant": "Assistant",
     "noAssistant": "No assistant",
     "assistantOptionalForShuttle": "A 16-seat shuttle may run without an assistant.",
@@ -923,7 +920,6 @@
     "groupOps": "Admin & operations",
     "operatorStaff": "Operations staff",
     "assistant": "Bus assistant",
-    "roleDescOperatorStaff": "Supports operations, checks bookings and handles customers at the counter.",
     "roleDescDriver": "Views assigned trips and updates trip operations.",
     "roleDescAssistant": "Confirms passenger boarding and assists with cargo.",
     "staffInfoSection": "Staff information",
@@ -1276,6 +1272,10 @@
     "validity": "Validity",
     "noRouteFares": "No parcel route fares found.",
     "confirmRefund": "Confirm refund",
+    "statusHistoryReasons": {
+      "TRIP_CARGO_CAPACITY_EXCEEDED": "The trip cargo hold is full",
+      "TRIP_CANCELLED": "The trip was cancelled"
+    },
     "pendingActions": {
       "REFUND_CONFIRMATION": "Pending refund confirmation",
       "CAPACITY_EXCEEDED": "Capacity exceeded",
@@ -2271,6 +2271,15 @@
     "lastAttemptAt": "Last attempt",
     "nextRetryAt": "Next retry (scheduled)",
     "cancelReason": "Cancel reason",
+    "adjustmentReasons": {
+      "VIETRIDE_FUNDED_VOUCHER_REVERSAL": "Reversal of a VietRide-funded discount",
+      "GENERIC_BOOKING_REFUND_ENTITLEMENT": "Adjustment from a cancelled and refunded booking",
+      "MANUAL_WALLET_ADJUSTMENT": "Manual balance adjustment by an administrator",
+      "LEGACY_UNCLASSIFIED": "Legacy record, not classified"
+    },
+    "cancelReasons": {
+      "NON_POSITIVE_NET_ENTITLEMENT": "After refunds and operator-funded discounts, this trip has no remaining payable amount, so no transfer was created."
+    },
     "occurredAtFallback": "Estimated from the record's creation time",
     "notAffectingSettlement": "Does not affect the settled amount",
     "operatorFundedVoucherAmount": "Operator-funded voucher",

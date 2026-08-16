@@ -4,7 +4,6 @@ import type {
   OperatorVehicleUpdateRequest,
   SeatLayoutJson,
   VehicleDeck,
-  VehicleSeat,
   VehicleSeatType,
   VehicleStatus,
   VehicleType,
@@ -222,47 +221,6 @@ export function updateVehicleFormValue(
       Math.min(deckCount * rowsPerDeck * columnsPerRow, MAX_VEHICLE_SEATS),
     ),
   };
-}
-
-function groupSeatsByDeck(seats: VehicleSeat[]): VehicleDeck[] {
-  const grouped = seats.reduce<Record<number, VehicleSeat[]>>((acc, seat) => {
-    const deck = seat.deck ?? 1;
-    acc[deck] = [...(acc[deck] ?? []), seat];
-    return acc;
-  }, {});
-
-  return Object.entries(grouped)
-    .map(([deck, deckSeats]) => ({
-      deck: Number(deck),
-      seats: deckSeats,
-    }))
-    .sort((left, right) => left.deck - right.deck);
-}
-
-export function parseSeatLayoutDecks(
-  layout: OperatorVehicle["seatLayoutJson"],
-) {
-  if (!layout) {
-    return [];
-  }
-
-  if (typeof layout !== "string") {
-    return groupSeatsByDeck(layout.seats);
-  }
-
-  try {
-    const parsed = JSON.parse(layout) as Partial<SeatLayoutJson> & {
-      decks?: VehicleDeck[] | number;
-    };
-
-    if (Array.isArray(parsed.seats)) {
-      return groupSeatsByDeck(parsed.seats);
-    }
-
-    return Array.isArray(parsed.decks) ? parsed.decks : [];
-  } catch {
-    return [];
-  }
 }
 
 export function toVehicleCreateRequest(

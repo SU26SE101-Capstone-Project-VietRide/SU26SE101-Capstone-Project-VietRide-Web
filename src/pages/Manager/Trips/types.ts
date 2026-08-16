@@ -17,7 +17,14 @@ export type RouteOption = {
 export type VehicleOption = {
   id: string;
   plate: string;
+  /**
+   * MÃ loại xe (`SLEEPER_BUS`, `SHUTTLE_16_SEAT`...) — dùng để so khớp, xem
+   * `isShuttle16SeatVehicle`. KHÔNG đem hiển thị: người dùng đọc mã BE không
+   * hiểu. Hiển thị dùng `vehicleTypeName`.
+   */
   vehicleType: string;
+  /** Tên loại xe do BE trả (`displayName`), đã theo ngôn ngữ nhà xe nhập. */
+  vehicleTypeName?: string;
   vehicleTypeId?: string;
   seats: number;
   status: ResourceStatus;

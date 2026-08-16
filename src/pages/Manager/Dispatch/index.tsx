@@ -138,9 +138,9 @@ export default function DispatchPanel() {
   const { t: tc } = useTranslation("common");
   const authUser = getAuthUser();
   const canDispatchShuttle = authUser?.role === "OPERATOR_ADMIN";
-  // Hai endpoint huỷ mở cho cả OPERATOR_STAFF, khác với tạo chuyến (chỉ ADMIN).
-  const canCancelShuttle =
-    authUser?.role === "OPERATOR_ADMIN" || authUser?.role === "OPERATOR_STAFF";
+  // BE mở hai endpoint huỷ cho cả OPERATOR_STAFF, nhưng console chỉ còn phục vụ
+  // OPERATOR_ADMIN nên hai quyền này trùng nhau.
+  const canCancelShuttle = canDispatchShuttle;
   const tRef = useRef(t);
 
   const [searchParams] = useSearchParams();

@@ -230,7 +230,8 @@ export default function ScheduleFormModal({
             >
               {vehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.plate} · {vehicle.vehicleType} · {vehicle.seats}{" "}
+                  {vehicle.plate} · {vehicle.vehicleTypeName || vehicle.vehicleType} ·{" "}
+                  {vehicle.seats}{" "}
                   {t("trips.seats")} ·{" "}
                   {t(`trips.resourceStatus.${vehicle.status}`)}
                 </option>

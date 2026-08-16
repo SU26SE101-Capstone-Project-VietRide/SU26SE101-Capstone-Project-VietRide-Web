@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight } from "react-icons/fi";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useToastFeedback } from "../hooks/useToastFeedback";
-import { getAuthUser, getHomePathForRole, login } from "../auth";
+import {
+  getAuthUser,
+  getHomePathForRole,
+  login,
+  RETIRED_ROLE_ERROR,
+} from "../auth";
 import Checkbox from "../components/form/Checkbox";
 
 export default function Login() {
@@ -17,7 +22,26 @@ export default function Login() {
   const [capsLock, setCapsLock] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  useToastFeedback({ error });
+  // Đổi mật khẩu xong BE thu hồi hết refresh token nên Profile buộc phải đá về
+  // đây. Không đọc `state.message` thì người dùng bị văng ra mà không hiểu vì
+  // sao — tưởng hệ thống lỗi.
+  const location = useLocation();
+  // useState giữ giá trị của lần render đầu: replaceState bên dưới xoá
+  // location.state, đọc trực tiếp sẽ mất thông báo ngay ở render kế tiếp.
+  const [notice] = useState(() =>
+    typeof location.state === "object" &&
+    location.state !== null &&
+    "message" in location.state &&
+    typeof location.state.message === "string"
+      ? location.state.message
+      : "",
+  );
+  useEffect(() => {
+    if (!notice) return;
+    // Xoá state khỏi history: F5 hoặc back không được hiện lại thông báo cũ.
+    window.history.replaceState({}, "");
+  }, [notice]);
+  useToastFeedback({ message: notice, error });
 
   useEffect(() => {
     const redirectIfAuthenticated = () => {
@@ -69,7 +93,11 @@ export default function Login() {
         localStorage.setItem("rememberEmail", email);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("errors.failed"));
+      if (err instanceof Error && err.message === RETIRED_ROLE_ERROR) {
+        setError(t("errors.roleRetired"));
+      } else {
+        setError(err instanceof Error ? err.message : t("errors.failed"));
+      }
     } finally {
       setLoading(false);
     }

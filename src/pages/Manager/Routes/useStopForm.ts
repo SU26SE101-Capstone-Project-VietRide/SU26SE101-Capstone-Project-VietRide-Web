@@ -63,4 +63,3 @@ export function useStopForm({
   };
 }
 
-export type UseStopFormResult = ReturnType<typeof useStopForm>;

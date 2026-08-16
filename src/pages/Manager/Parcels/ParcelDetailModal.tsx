@@ -205,8 +205,14 @@ export default function ParcelDetailModal({
                             })}
                           </p>
                           {entry.reason && (
+                            // `reason` là hỗn hợp: mã enum khi chuyển sang
+                            // PENDING_OPERATOR_ACTION, còn lại là ghi chú nhân
+                            // viên tự nhập — defaultValue cho chữ tự nhập đi qua
+                            // nguyên vẹn.
                             <p className="mt-1 text-sm text-gray-600">
-                              {entry.reason}
+                              {t(`parcels.statusHistoryReasons.${entry.reason}`, {
+                                defaultValue: entry.reason,
+                              })}
                             </p>
                           )}
                         </div>

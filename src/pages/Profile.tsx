@@ -93,13 +93,12 @@ function toProfileState(operator: OperatorProfile): ProfileState {
 }
 
 function isOperatorRole(role: string | undefined) {
-  return role === "OPERATOR_ADMIN" || role === "OPERATOR_STAFF";
+  return role === "OPERATOR_ADMIN";
 }
 
 function roleBadgeLabel(role: AuthRole | undefined, t: (key: string) => string) {
   if (role === "SYSTEM_ADMIN") return t("profilePage.systemRole");
   if (role === "OPERATOR_ADMIN") return t("profilePage.operatorAdminRole");
-  if (role === "OPERATOR_STAFF") return t("profilePage.operatorStaffRole");
   return "";
 }
 

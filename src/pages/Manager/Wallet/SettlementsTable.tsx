@@ -2,11 +2,11 @@ import { useState } from "react";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import type { TripSettlement } from "../../../api/vietride";
 import { formatCurrency } from "../../../utils/currency";
-import { formatWalletDate, settlementStatusClass } from "./walletFormat";
+import { actorDisplayName, formatWalletDate, settlementStatusClass } from "./walletFormat";
 import { DataCompletenessBadge, ProcessingStateBadge } from "./WalletBadges";
 import { EmptyRow, type Translate } from "./walletTableShared";
 
-export function SettlementsTable({ items, t }: { items: TripSettlement[]; t: Translate }) {
+export function SettlementsTable({ items, t, tc }: { items: TripSettlement[]; t: Translate; tc: Translate }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
@@ -30,6 +30,7 @@ export function SettlementsTable({ items, t }: { items: TripSettlement[]; t: Tra
                 key={item.settlementId}
                 item={item}
                 t={t}
+                tc={tc}
                 expanded={expandedId === item.settlementId}
                 onToggle={() =>
                   setExpandedId((current) => (current === item.settlementId ? null : item.settlementId))
@@ -46,11 +47,13 @@ export function SettlementsTable({ items, t }: { items: TripSettlement[]; t: Tra
 function SettlementRowGroup({
   item,
   t,
+  tc,
   expanded,
   onToggle,
 }: {
   item: TripSettlement;
   t: Translate;
+  tc: Translate;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -77,23 +80,23 @@ function SettlementRowGroup({
         </td>
         <td className="px-4 py-3 text-gray-400">{expanded ? <FiChevronUp /> : <FiChevronDown />}</td>
       </tr>
-      {expanded && <SettlementDetailRow item={item} t={t} />}
+      {expanded && <SettlementDetailRow item={item} t={t} tc={tc} />}
     </>
   );
 }
 
-function SettlementDetailRow({ item, t }: { item: TripSettlement; t: Translate }) {
+function SettlementDetailRow({ item, t, tc }: { item: TripSettlement; t: Translate; tc: Translate }) {
   return (
     <tr className="border-t border-gray-100 bg-gray-50/60">
       <td colSpan={5} className="px-4 py-4 text-left">
-        <SettlementStateDetail item={item} t={t} />
+        <SettlementStateDetail item={item} t={t} tc={tc} />
         <SettlementBreakdown item={item} t={t} />
       </td>
     </tr>
   );
 }
 
-function SettlementStateDetail({ item, t }: { item: TripSettlement; t: Translate }) {
+function SettlementStateDetail({ item, t, tc }: { item: TripSettlement; t: Translate; tc: Translate }) {
   const state = item.processingState;
 
   return (
@@ -112,10 +115,14 @@ function SettlementStateDetail({ item, t }: { item: TripSettlement; t: Translate
       {state === "COMPLETED" && (
         <>
           {item.settledAt && <span>{t("wallet.settledAt")}: {formatWalletDate(item.settledAt)}</span>}
-          {item.settledBy?.displayName && <span>{t("wallet.settledBy")}: {item.settledBy.displayName}</span>}
+          {actorDisplayName(item.settledBy, tc) && (
+            <span>{t("wallet.settledBy")}: {actorDisplayName(item.settledBy, tc)}</span>
+          )}
         </>
       )}
-      {state === "CANCELLED" && item.cancelReason && <span>{t("wallet.cancelReason")}: {item.cancelReason}</span>}
+      {/* BE hiện chỉ phát NON_POSITIVE_NET_ENTITLEMENT, nhưng vẫn để defaultValue
+          là mã thô để mã mới không biến mất khỏi màn hình. */}
+      {state === "CANCELLED" && item.cancelReason && <span>{t("wallet.cancelReason")}: {t(`wallet.cancelReasons.${item.cancelReason}`, { defaultValue: item.cancelReason })}</span>}
       <DataCompletenessBadge completeness={item.trip === null ? "PARTIAL" : undefined} t={t} />
     </div>
   );

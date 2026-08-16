@@ -156,15 +156,6 @@ export function pickNewerEta(
   return isNewer(incoming.updatedAt, current.updatedAt) ? incoming : current;
 }
 
-// Nhãn người đọc được cho một chuyến trung chuyển. BE chưa cấp mã chuyến dạng
-// chữ nên biển số xe là định danh tự nhiên nhất với điều độ viên.
-export function shuttleTripLabel(
-  trip: { vehicle: { licensePlate: string } },
-  fallback: string,
-) {
-  return trip.vehicle.licensePlate.trim() || fallback;
-}
-
 // Nhãn chính của một nhóm điều phối là tên tuyến chuyến chính. `mainTripId`
 // chỉ dùng làm khoá kỹ thuật khi gửi request — điều độ viên không đọc UUID —
 // nên tuyến thiếu tên thì lùi về tên bến, không bao giờ lộ UUID.

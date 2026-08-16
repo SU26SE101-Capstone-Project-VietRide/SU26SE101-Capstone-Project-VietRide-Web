@@ -3,7 +3,6 @@ import { Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import { getAuthUser } from "../auth";
 import AssistantBubble from "../components/AssistantBubble";
 import { OperatorSubscriptionProvider } from "../contexts/OperatorSubscriptionProvider";
 import { useOperatorSubscription } from "../contexts/operatorSubscriptionContext";
@@ -12,9 +11,9 @@ function ManagerLayoutContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { t } = useTranslation(["nav", "common"]);
   const { isLoading } = useOperatorSubscription();
-  const authUser = getAuthUser();
-  const role =
-    authUser?.role === "OPERATOR_ADMIN" ? "OPERATOR_ADMIN" : "OPERATOR_STAFF";
+  // Chỉ OPERATOR_ADMIN vào được nhánh /manager (PrivateRoute chặn từ App.tsx),
+  // nên không còn nhánh vai trò nào để rẽ.
+  const role = "OPERATOR_ADMIN" as const;
 
   return (
     <div className="flex h-screen bg-white">
@@ -55,9 +54,9 @@ function ManagerLayoutContent() {
 }
 
 export default function ManagerLayout() {
-  const authUser = getAuthUser();
-  const role =
-    authUser?.role === "OPERATOR_ADMIN" ? "OPERATOR_ADMIN" : "OPERATOR_STAFF";
+  // Chỉ OPERATOR_ADMIN vào được nhánh /manager (PrivateRoute chặn từ App.tsx),
+  // nên không còn nhánh vai trò nào để rẽ.
+  const role = "OPERATOR_ADMIN" as const;
 
   return (
     <OperatorSubscriptionProvider role={role}>
