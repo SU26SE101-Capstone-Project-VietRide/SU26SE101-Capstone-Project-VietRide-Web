@@ -213,8 +213,11 @@ describe("Manager Dispatch", () => {
     const user = userEvent.setup();
     renderPage();
 
+    // API mới ĐƯỢC GỌI chưa có nghĩa là hàng đã render — chờ đúng nút cần bấm,
+    // không thì lúc máy chậm (chạy cả suite) danh sách còn đang loading và test
+    // đỏ ngẫu nhiên.
     await waitFor(() => expect(getOperatorShuttleRequests).toHaveBeenCalled());
-    await user.click(screen.getByRole("button", { name: /details/i }));
+    await user.click(await screen.findByRole("button", { name: /details/i }));
 
     const dialog = screen.getByRole("dialog");
     await user.click(
@@ -441,7 +444,7 @@ describe("Manager Dispatch", () => {
     await waitFor(() => expect(getOperatorShuttleTrips).toHaveBeenCalled());
 
     await user.click(
-      screen.getByRole("button", { name: "dispatch.viewTripDetail" }),
+      await screen.findByRole("button", { name: "dispatch.viewTripDetail" }),
     );
 
     const dialog = await screen.findByRole("dialog");
@@ -487,7 +490,9 @@ describe("Manager Dispatch", () => {
     // Phải chờ danh sách chuyến tải xong: hook chỉ nhận event của chuyến đã
     // nằm trong danh sách theo dõi.
     await waitFor(() => expect(joinShuttleTracking).toHaveBeenCalled());
-    expect(screen.getByText("dispatch.trackingWaitingSignalHint")).toBeInTheDocument();
+    expect(
+      await screen.findByText("dispatch.trackingWaitingSignalHint"),
+    ).toBeInTheDocument();
 
     trackingSocketHandlers.get("shuttle:gps:update")?.({
       shuttleTripId: shuttleTrip.shuttleTripId,

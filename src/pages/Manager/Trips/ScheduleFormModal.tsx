@@ -10,7 +10,7 @@ import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CurrencyInput from "../../../components/CurrencyInput";
 import Modal from "../../../components/Modal";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
-import { formatDateTime } from "../../../utils/date";
+import { formatDateTimeYmd } from "../../../utils/date";
 import { formatCurrency } from "../../../utils/currency";
 import { FieldLabel, FormSection, Input, Select } from "./formControls";
 import ScheduleSummary from "./ScheduleSummary";
@@ -307,8 +307,11 @@ export default function ScheduleFormModal({
             <div>
               <FieldLabel label={t("trips.arrivalEstimate")} />
               <p className="flex min-h-11 items-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
+                {/* Cùng thứ tự yyyy-MM-dd HH:mm với ô "Ngày & giờ khởi hành"
+                    ngay trên — hai giá trị này luôn được đọc cạnh nhau để đối
+                    chiếu chênh lệch thời gian. */}
                 {form.arrivalEstimate
-                  ? formatDateTime(form.arrivalEstimate)
+                  ? formatDateTimeYmd(form.arrivalEstimate)
                   : t("trips.arrivalEstimatePending")}
               </p>
               <p className="mt-1 text-xs text-gray-500">

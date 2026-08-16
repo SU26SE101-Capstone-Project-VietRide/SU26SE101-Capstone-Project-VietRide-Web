@@ -1011,9 +1011,10 @@ describe("TripsPage", () => {
         .parentElement as HTMLElement;
       expect(arrivalField.querySelector("button")).toBeNull();
       expect(arrivalField.querySelector("input")).toBeNull();
-      // Giờ đến suy ra từ 08:00 + 420 phút thời lượng tuyến
+      // Giờ đến suy ra từ 08:00 + 420 phút thời lượng tuyến, viết cùng thứ tự
+      // yyyy-MM-dd HH:mm với ô "Ngày & giờ khởi hành" ngay bên cạnh
       expect(
-        within(arrivalField).getByText("01-09-2026 15:00"),
+        within(arrivalField).getByText("2026-09-01 15:00"),
       ).toBeInTheDocument();
       expect(
         within(dialog).getByText("trips.arrivalEstimateHint"),

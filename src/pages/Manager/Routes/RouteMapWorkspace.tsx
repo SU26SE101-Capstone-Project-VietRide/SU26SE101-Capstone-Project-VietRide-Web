@@ -219,6 +219,7 @@ export default function RouteMapWorkspace({
             }
             routeOptions={geometry.routeOptions}
             selectedOptionIndex={geometry.selectedOptionIndex}
+            selectedPathDurationMinutes={routeForm.estimatedDurationMinutes}
             onSelectOption={
               canManageRoutes ? geometry.handleSelectRouteOption : undefined
             }

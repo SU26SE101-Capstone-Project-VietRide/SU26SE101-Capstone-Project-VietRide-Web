@@ -194,6 +194,9 @@ export default function AlternativeRouteWorkspace({
             }
             routeOptions={altGeometry.routeOptions}
             selectedOptionIndex={altGeometry.selectedOptionIndex}
+            selectedPathDurationMinutes={
+              workspace.altMetrics.estimatedDurationMinutes
+            }
             onSelectOption={
               canManageRoutes ? altGeometry.handleSelectRouteOption : undefined
             }

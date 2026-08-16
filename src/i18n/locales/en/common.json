@@ -31,6 +31,8 @@
   "exportReport": "Export report",
   "refresh": "Refresh",
   "send": "Send",
+  "upload": "Upload",
+  "processing": "Processing...",
   "loading": "Loading...",
   "previous": "Previous",
   "next": "Next",
