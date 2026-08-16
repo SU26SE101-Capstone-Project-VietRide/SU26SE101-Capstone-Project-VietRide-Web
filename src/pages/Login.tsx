@@ -11,6 +11,30 @@ import {
   RETIRED_ROLE_ERROR,
 } from "../auth";
 import Checkbox from "../components/form/Checkbox";
+import { isRecord } from "../utils/typeGuards";
+
+/**
+ * `PrivateRoute` và `EntryRedirect` đá về đây kèm `state.from` = trang người
+ * dùng đang muốn vào. Không đọc nó thì người vừa thanh toán VNPay xong, bấm
+ * "quay lại quản lý gói" mà phiên đã hết, đăng nhập lại sẽ rơi về dashboard chứ
+ * không về `/manager/packages` — mất luôn mạch việc đang làm.
+ *
+ * Chỉ nhận path nội bộ: `state` nằm trong history nên sửa được từ ngoài, URL
+ * tuyệt đối hay `//host` lọt qua đây là thành open redirect. `/login` cũng loại
+ * để không tự quay vòng.
+ */
+function resolveRedirectTarget(state: unknown): string {
+  if (!isRecord(state) || !isRecord(state.from)) return "";
+
+  const { pathname, search, hash } = state.from;
+  if (typeof pathname !== "string") return "";
+  if (!pathname.startsWith("/") || pathname.startsWith("//")) return "";
+  if (pathname === "/login") return "";
+
+  return `${pathname}${typeof search === "string" ? search : ""}${
+    typeof hash === "string" ? hash : ""
+  }`;
+}
 
 export default function Login() {
   const navigate = useNavigate();
@@ -36,6 +60,9 @@ export default function Login() {
       ? location.state.message
       : "",
   );
+  // Cùng lý do với `notice`: phải chốt ở lần render đầu, replaceState bên dưới
+  // xoá location.state.
+  const [redirectTo] = useState(() => resolveRedirectTarget(location.state));
   useEffect(() => {
     if (!notice) return;
     // Xoá state khỏi history: F5 hoặc back không được hiện lại thông báo cũ.
@@ -47,7 +74,7 @@ export default function Login() {
     const redirectIfAuthenticated = () => {
       const user = getAuthUser();
       if (user) {
-        navigate(getHomePathForRole(user.role), { replace: true });
+        navigate(redirectTo || getHomePathForRole(user.role), { replace: true });
       }
     };
 
@@ -56,7 +83,7 @@ export default function Login() {
 
     return () =>
       window.removeEventListener("storage", redirectIfAuthenticated);
-  }, [navigate]);
+  }, [navigate, redirectTo]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     setCapsLock(e.getModifierState("CapsLock"));
@@ -87,7 +114,11 @@ export default function Login() {
       }
 
       const session = await login({ email, password });
-      navigate(getHomePathForRole(session.user.role), { replace: true });
+      // Sai vai trò cho `redirectTo` thì PrivateRoute tự đẩy về home của role,
+      // nên ở đây không cần kiểm tra quyền lần nữa.
+      navigate(redirectTo || getHomePathForRole(session.user.role), {
+        replace: true,
+      });
 
       if (rememberMe) {
         localStorage.setItem("rememberEmail", email);
