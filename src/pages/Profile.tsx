@@ -27,6 +27,14 @@ import {
 import { inputClass, labelClass } from "../components/form/formClasses";
 import { ConfirmModal } from "../components/ConfirmModal";
 import InlineAlert from "../components/InlineAlert";
+import { ProfileCancellationPolicy } from "./ProfileCancellationPolicy";
+import {
+  createCancellationPolicyDraft,
+  draftsFromCancellationPolicy,
+  draftsFromCancellationTemplate,
+  parseCancellationPolicyDrafts,
+  type CancellationPolicyDraft,
+} from "../utils/operatorCancellationPolicy";
 
 const readOnlyInputClass = `${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`;
 
@@ -49,6 +57,7 @@ type ProfileState = {
   luggageKgPerSeat: number | null;
   noShowFeePercent: number | null;
   paymentTimeoutMinutes: number | null;
+  cancellationRules: CancellationPolicyDraft[];
 };
 
 const emptyProfile: ProfileState = {
@@ -68,6 +77,7 @@ const emptyProfile: ProfileState = {
   luggageKgPerSeat: null,
   noShowFeePercent: null,
   paymentTimeoutMinutes: null,
+  cancellationRules: [],
 };
 
 function toProfileState(operator: OperatorProfile): ProfileState {
@@ -89,6 +99,7 @@ function toProfileState(operator: OperatorProfile): ProfileState {
     noShowFeePercent: operator.parcelNoShowPolicy?.noShowFeePercent ?? null,
     paymentTimeoutMinutes:
       operator.parcelNoShowPolicy?.additionalPaymentTimeoutMinutes ?? null,
+    cancellationRules: draftsFromCancellationPolicy(operator.cancellationPolicy),
   };
 }
 
@@ -249,6 +260,7 @@ export default function Profile() {
     null,
   );
   const [error, setError] = useState("");
+  const [cancellationError, setCancellationError] = useState("");
   // Khởi tạo true ngay nếu là operator (đợt fetch đầu tiên) — tránh nhấp nháy
   // "chưa tải" trước khi effect kịp chạy. true chỉ set lại (khi bấm "Thử lại")
   // trong lúc render qua so sánh retryToken bên dưới, không set trong effect
@@ -366,6 +378,10 @@ export default function Profile() {
       const [uploadedUrl] = await uploadFirebaseImages("OPERATOR_LOGO", [file]);
       if (!uploadedUrl) throw new Error(t("profilePage.logoUrlMissing"));
 
+      const parsedCancellation = parseCancellationPolicyDrafts(
+        formData.cancellationRules,
+      );
+
       const updated = await updateOperatorProfile({
         name: serverOperator.name,
         contactPhone: serverOperator.contactPhone,
@@ -375,7 +391,9 @@ export default function Profile() {
         addressProvince: serverOperator.address.province,
         representativeName: formData.representativeName,
         representativePhone: formData.representativePhone,
-        cancellationPolicy: serverOperator.cancellationPolicy ?? null,
+        cancellationPolicy: parsedCancellation.ok
+          ? parsedCancellation.value
+          : serverOperator.cancellationPolicy ?? null,
         parcelNoShowPolicy: serverOperator.parcelNoShowPolicy ?? null,
         luggagePolicy: serverOperator.luggagePolicy ?? null,
       });
@@ -393,6 +411,7 @@ export default function Profile() {
 
   const handleEdit = () => {
     setIsEditing(true);
+    setCancellationError("");
     setFormData(profile);
     window.requestAnimationFrame(() => {
       nameInputRef.current?.focus();
@@ -404,8 +423,19 @@ export default function Profile() {
       return;
     }
 
+    const parsedCancellation = parseCancellationPolicyDrafts(
+      formData.cancellationRules,
+    );
+    if (!parsedCancellation.ok) {
+      setCancellationError(
+        t(`profilePage.cancellationErrors.${parsedCancellation.error}`),
+      );
+      return;
+    }
+
     setIsSaving(true);
     setError("");
+    setCancellationError("");
     try {
       const updated = await updateOperatorProfile({
         name: formData.name.trim(),
@@ -416,7 +446,7 @@ export default function Profile() {
         addressProvince: formData.city,
         representativeName: formData.representativeName,
         representativePhone: formData.representativePhone,
-        cancellationPolicy: serverOperator.cancellationPolicy ?? null,
+        cancellationPolicy: parsedCancellation.value,
         parcelNoShowPolicy: serverOperator.parcelNoShowPolicy ?? null,
         luggagePolicy: serverOperator.luggagePolicy ?? null,
       });
@@ -451,6 +481,7 @@ export default function Profile() {
 
   const handleConfirmDiscard = () => {
     setFormData(profile);
+    setCancellationError("");
     setIsEditing(false);
     setShowDiscardConfirm(false);
   };
@@ -498,6 +529,42 @@ export default function Profile() {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  const updateCancellationRule = (
+    id: string,
+    field: "hoursBeforeDeparture" | "feePercent",
+    value: string,
+  ) => {
+    setCancellationError("");
+    setFormData((prev) => ({
+      ...prev,
+      cancellationRules: prev.cancellationRules.map((rule) =>
+        rule.id === id ? { ...rule, [field]: value } : rule,
+      ),
+    }));
+  };
+
+  const addCancellationRule = () => {
+    setFormData((prev) => ({
+      ...prev,
+      cancellationRules: [...prev.cancellationRules, createCancellationPolicyDraft()],
+    }));
+  };
+
+  const removeCancellationRule = (id: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      cancellationRules: prev.cancellationRules.filter((rule) => rule.id !== id),
+    }));
+  };
+
+  const applyCancellationTemplate = () => {
+    setCancellationError("");
+    setFormData((prev) => ({
+      ...prev,
+      cancellationRules: draftsFromCancellationTemplate(),
     }));
   };
 
@@ -792,6 +859,15 @@ export default function Profile() {
                   <h3 className="mb-4 text-base font-bold text-gray-900">
                     {t("profilePage.policies")}
                   </h3>
+                  <ProfileCancellationPolicy
+                    drafts={isEditing ? formData.cancellationRules : profile.cancellationRules}
+                    isEditing={isEditing}
+                    error={cancellationError}
+                    onAdd={addCancellationRule}
+                    onApplyTemplate={applyCancellationTemplate}
+                    onChange={updateCancellationRule}
+                    onRemove={removeCancellationRule}
+                  />
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <PolicyStat
                       label={t("profilePage.luggagePolicy")}
