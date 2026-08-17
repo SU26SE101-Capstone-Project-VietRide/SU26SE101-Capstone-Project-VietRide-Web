@@ -71,6 +71,40 @@ const emptyPage: PagedResult<OperatorTripListItem> = {
   hasPreviousPage: false,
 };
 
+/**
+ * Class (width + padding ngang) của từng cột, tách theo hai layout.
+ *
+ * Bảng dùng `table-fixed` nên tổng width phải xấp xỉ 100% ở CẢ hai trường hợp;
+ * để lệch là trình duyệt co giãn theo tỉ lệ và cột hẹp nhất lãnh đủ. Số ở đây
+ * lấy từ bề rộng ĐO ĐƯỢC của nội dung (font Aptos của app): nút mở boarding
+ * 159px, badge trạng thái 77px, chuỗi ngày giờ 109px, tên tài xế 116px — cộng
+ * padding ô rồi mới quy ra %. Cột ngày giờ và trạng thái dùng padding hẹp hơn
+ * vì nội dung cố định bề ngang, phần dôi ra dồn cho cột Thao tác.
+ *
+ * `min-w` phải NHỎ HƠN bề ngang vùng nội dung (~1220px ở 1536px màn hình), nếu
+ * không bảng tự rộng hơn khung và sinh thanh cuộn ngang dù các cột vẫn vừa.
+ */
+const columnClasses = {
+  withActions: {
+    route: "w-[20%] px-3 sm:px-4",
+    vehicle: "w-[11%] px-3 sm:px-4",
+    driver: "w-[13%] px-3 sm:px-4",
+    departure: "w-[13%] px-3 sm:px-4",
+    arrival: "w-[13%] px-3 sm:px-4",
+    status: "w-[9%] px-2 sm:px-3",
+    actions: "w-[21%] px-3 sm:px-4",
+  },
+  readOnly: {
+    route: "w-[28%] px-3 sm:px-5",
+    vehicle: "w-[14%] px-3 sm:px-5",
+    driver: "w-[20%] px-3 sm:px-5",
+    departure: "w-[14%] px-3 sm:px-5",
+    arrival: "w-[14%] px-3 sm:px-5",
+    status: "w-[10%] px-3 sm:px-5",
+    actions: "",
+  },
+} as const;
+
 function statusClass(status: string) {
   switch (status) {
     case "IN_PROGRESS":
@@ -244,6 +278,10 @@ export default function TripListPage() {
       isCurrent = false;
     };
   }, [reloadVersion]);
+
+  const cols = canOpenBoarding
+    ? columnClasses.withActions
+    : columnClasses.readOnly;
 
   const hasActiveFilter = Boolean(
     debouncedSearch || statusFilter || fromDate || toDate,
@@ -440,31 +478,31 @@ export default function TripListPage() {
 
         <div className="overflow-x-auto">
           <table
-            className="w-full min-w-[1080px] table-fixed whitespace-nowrap"
+            className={`w-full ${canOpenBoarding ? "min-w-[1200px]" : "min-w-[1080px]"} table-fixed whitespace-nowrap`}
             aria-busy={isLoading}
           >
             {/* Chỉ cột Tuyến căn trái (chuỗi dài, hai dòng, đọc theo mép trái);
                 các cột còn lại căn giữa cả tiêu đề lẫn dữ liệu. */}
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="w-[28%] px-3 py-3 text-left sm:px-5">
+                <th className={`${cols.route} py-3 text-left`}>
                   {t("tripList.route")}
                 </th>
-                <th className="w-[14%] px-3 py-3 sm:px-5">
+                <th className={`${cols.vehicle} py-3`}>
                   {t("tripList.vehicle")}
                 </th>
-                <th className="w-[20%] px-3 py-3 sm:px-5">
+                <th className={`${cols.driver} py-3`}>
                   {t("tripList.driver")}
                 </th>
-                <th className="w-[14%] px-3 py-3 sm:px-5">
+                <th className={`${cols.departure} py-3`}>
                   {t("tripList.departure")}
                 </th>
-                <th className="w-[14%] px-3 py-3 sm:px-5">
+                <th className={`${cols.arrival} py-3`}>
                   {t("tripList.arrivalEstimate")}
                 </th>
-                <th className="w-[10%] px-3 py-3 sm:px-5">{tc("status")}</th>
+                <th className={`${cols.status} py-3`}>{tc("status")}</th>
                 {canOpenBoarding && (
-                  <th className="w-[14%] px-3 py-3 sm:px-5">{tc("actions")}</th>
+                  <th className={`${cols.actions} py-3`}>{tc("actions")}</th>
                 )}
               </tr>
             </thead>
@@ -474,7 +512,7 @@ export default function TripListPage() {
                   key={trip.tripId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
-                  <td className="px-3 py-4 text-left text-sm font-medium text-gray-800 sm:px-5">
+                  <td className={`${cols.route} py-4 text-left text-sm font-medium text-gray-800`}>
                     <span className="block truncate" title={routeLabel(trip)}>
                       {routeLabel(trip)}
                     </span>
@@ -482,10 +520,10 @@ export default function TripListPage() {
                       {trip.route.originName} → {trip.route.destinationName}
                     </span>
                   </td>
-                  <td className="px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                  <td className={`${cols.vehicle} py-4 text-center text-sm text-gray-700`}>
                     {trip.vehicle.licensePlate || "-"}
                   </td>
-                  <td className="px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                  <td className={`${cols.driver} py-4 text-center text-sm text-gray-700`}>
                     {trip.driver ? (
                       <>
                         <span className="block truncate">
@@ -501,13 +539,13 @@ export default function TripListPage() {
                       t("tripList.noDriver")
                     )}
                   </td>
-                  <td className="px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                  <td className={`${cols.departure} py-4 text-center text-sm text-gray-700`}>
                     {formatDateTime(trip.departureAt)}
                   </td>
-                  <td className="px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                  <td className={`${cols.arrival} py-4 text-center text-sm text-gray-700`}>
                     {formatDateTime(trip.arrivalEstimate)}
                   </td>
-                  <td className="px-3 py-4 text-center sm:px-5">
+                  <td className={`${cols.status} py-4 text-center`}>
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(trip.status)}`}
                     >
@@ -521,7 +559,7 @@ export default function TripListPage() {
                       trạng thái khác không có thao tác nào ở màn này. Bước start
                       chuyến là của tài xế trên app tài xế, không dựng ở đây. */}
                   {canOpenBoarding && (
-                    <td className="px-3 py-4 text-center sm:px-5">
+                    <td className={`${cols.actions} py-4 text-center`}>
                       {trip.status === "SCHEDULED" ? (
                         <button
                           type="button"
