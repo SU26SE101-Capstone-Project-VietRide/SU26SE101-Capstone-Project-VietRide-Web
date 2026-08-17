@@ -104,6 +104,7 @@ import {
   getVehicleTypes,
   lockAdminUser,
   markNotificationRead,
+  openOperatorTripBoarding,
   sendOperatorNotification,
   mergeAdminStations,
   downloadOperatorInvoice,
@@ -2732,6 +2733,54 @@ describe("vietride API", () => {
         }),
       }),
     );
+  });
+
+  // Handoff Manual boarding §3: request phải BODYLESS. Gửi kèm `{}` — hoặc chỉ
+  // cần có Content-Type — là BE trả `422 VALIDATION_ERROR`.
+  it("mở boarding bằng request bodyless kèm idempotency key riêng", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-admin-1",
+          email: "admin@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+          operatorId: "operator-1",
+        },
+      }),
+    );
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ data: { tripId: "trip-1", status: "BOARDING" } }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await openOperatorTripBoarding("trip-1", "boarding-key");
+
+    expect(result).toEqual({ tripId: "trip-1", status: "BOARDING" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/trips/trip-1/boarding",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "boarding-key",
+          Authorization: "Bearer operator-admin-token",
+        }),
+      }),
+    );
+
+    const [, requestInit] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(requestInit.body).toBeUndefined();
+    expect(requestInit.headers).not.toHaveProperty("Content-Type");
   });
 });
 

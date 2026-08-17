@@ -89,7 +89,11 @@
       "COMPLETED": "Completed",
       "CANCELLED": "Cancelled",
       "DISRUPTED": "Disrupted"
-    }
+    },
+    "boarding": "Open boarding",
+    "boardingConfirm": "Open boarding for this trip? It will move to Boarding. Only the assigned driver can start the trip from the driver app.",
+    "boardingSuccess": "Boarding is now open.",
+    "boardingFailed": "Unable to open boarding for this trip."
   },
   "trips": {
     "title": "Trip management",

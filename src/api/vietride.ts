@@ -6106,6 +6106,44 @@ export function disruptOperatorTripNoSubstitution(
   );
 }
 
+/**
+ * Kết quả mở boarding thủ công. Trip đã ở `BOARDING` sẵn thì BE vẫn trả `200`
+ * cùng payload này (no-op, không phát event/audit lần hai) — FE coi mọi `200`
+ * là thành công, bất kể transition do API này hay `AutoBoardingJob` làm trước.
+ */
+export type TripBoardingResult = {
+  tripId: string;
+  status: "BOARDING" | string;
+};
+
+/**
+ * Nhà xe mở boarding thủ công trước giờ khởi hành (handoff Manual boarding §4.2).
+ *
+ * Request BODYLESS: gửi kèm `{}` là BE trả `422 VALIDATION_ERROR`, nên tuyệt đối
+ * không truyền `body` — `apiRequest` chỉ gắn `Content-Type: application/json`
+ * khi có body nên bỏ trống là đủ.
+ *
+ * Nhận `idempotencyKey` từ caller để giữ nguyên key khi retry sau timeout/5xx
+ * (§8). Key này KHÔNG được dùng lại cho `/start`: BE trả `422
+ * IDEMPOTENCY_KEY_MISMATCH`.
+ *
+ * Lỗi thường gặp: `409 TRIP_BOARDING_TOO_EARLY` (còn ngoài cửa sổ T-180 phút),
+ * `409 TRIP_INVALID_TRANSITION` (chuyến đã rời `SCHEDULED/BOARDING`),
+ * `404 TRIP_NOT_FOUND` (chuyến của nhà xe khác cũng bị mask thành 404).
+ */
+export function openOperatorTripBoarding(
+  tripId: string,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<TripBoardingResult>(
+    `/v1/operator/trips/${tripId}/boarding`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
 export function getNotifications(params: NotificationParams = {}) {
   return apiRequest<PagedResult<NotificationItem>>(
     `/v1/notifications${buildQuery(params)}`,

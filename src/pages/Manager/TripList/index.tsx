@@ -10,16 +10,22 @@ import {
   FiActivity,
   FiAlertTriangle,
   FiCalendar,
+  FiLogIn,
   FiRefreshCw,
   FiSearch,
   FiTruck,
 } from "react-icons/fi";
 import {
   getOperatorTrips,
+  openOperatorTripBoarding,
   type OperatorTripListItem,
   type OperatorTripStatus,
   type PagedResult,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
+import { createIdempotencyKey } from "../../../api/idempotency";
+import { getAuthUser } from "../../../auth";
+import { ConfirmModal } from "../../../components/ConfirmModal";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
@@ -65,6 +71,40 @@ const emptyPage: PagedResult<OperatorTripListItem> = {
   hasPreviousPage: false,
 };
 
+/**
+ * Class (width + padding ngang) của từng cột, tách theo hai layout.
+ *
+ * Bảng dùng `table-fixed` nên tổng width phải xấp xỉ 100% ở CẢ hai trường hợp;
+ * để lệch là trình duyệt co giãn theo tỉ lệ và cột hẹp nhất lãnh đủ. Số ở đây
+ * lấy từ bề rộng ĐO ĐƯỢC của nội dung (font Aptos của app): nút mở boarding
+ * 159px, badge trạng thái 77px, chuỗi ngày giờ 109px, tên tài xế 116px — cộng
+ * padding ô rồi mới quy ra %. Cột ngày giờ và trạng thái dùng padding hẹp hơn
+ * vì nội dung cố định bề ngang, phần dôi ra dồn cho cột Thao tác.
+ *
+ * `min-w` phải NHỎ HƠN bề ngang vùng nội dung (~1220px ở 1536px màn hình), nếu
+ * không bảng tự rộng hơn khung và sinh thanh cuộn ngang dù các cột vẫn vừa.
+ */
+const columnClasses = {
+  withActions: {
+    route: "w-[20%] px-3 sm:px-4",
+    vehicle: "w-[11%] px-3 sm:px-4",
+    driver: "w-[13%] px-3 sm:px-4",
+    departure: "w-[13%] px-3 sm:px-4",
+    arrival: "w-[13%] px-3 sm:px-4",
+    status: "w-[9%] px-2 sm:px-3",
+    actions: "w-[21%] px-3 sm:px-4",
+  },
+  readOnly: {
+    route: "w-[28%] px-3 sm:px-5",
+    vehicle: "w-[14%] px-3 sm:px-5",
+    driver: "w-[20%] px-3 sm:px-5",
+    departure: "w-[14%] px-3 sm:px-5",
+    arrival: "w-[14%] px-3 sm:px-5",
+    status: "w-[10%] px-3 sm:px-5",
+    actions: "",
+  },
+} as const;
+
 function statusClass(status: string) {
   switch (status) {
     case "IN_PROGRESS":
@@ -82,6 +122,23 @@ function statusClass(status: string) {
     default:
       return "bg-gray-100 text-gray-700";
   }
+}
+
+/**
+ * Giữ hay bỏ `Idempotency-Key` sau một lần mở boarding hỏng (handoff Manual
+ * boarding §8).
+ *
+ * BE cache nguyên status + body của mọi response dưới 500 trong 24 giờ. Nên:
+ * - chưa biết BE đã xử lý hay chưa (mất mạng, 5xx, request cùng key còn chạy)
+ *   thì phải retry ĐÚNG key cũ, sinh key mới có thể mở boarding hai lần;
+ * - đã có kết luận nghiệp vụ (TOO_EARLY, INVALID_TRANSITION, 403, 404) thì phải
+ *   bỏ key: dùng lại chỉ replay đúng lỗi đã cache, người dùng bấm lại bao nhiêu
+ *   lần cũng thấy y nguyên lỗi cũ dù chuyến đã vào cửa sổ boarding.
+ */
+function shouldKeepIdempotencyKey(error: unknown): boolean {
+  if (!(error instanceof ApiRequestError)) return true;
+  if (error.status >= 500) return true;
+  return error.code === "IDEMPOTENCY_REQUEST_PENDING";
 }
 
 // KHÔNG dựng "mã chuyến" từ `tripId` ở FE nữa. `GET /v1/operator/trips` hiện
@@ -118,7 +175,23 @@ export default function TripListPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState("");
-  useToastFeedback({ error: listError });
+  // Mở boarding thủ công (handoff Manual boarding §10): chỉ OPERATOR_ADMIN, và
+  // chỉ ở màn này — Trung tâm vận hành chỉ tải chuyến IN_PROGRESS/DISRUPTED nên
+  // chuyến SCHEDULED không bao giờ xuất hiện ở đó.
+  const [canOpenBoarding] = useState(
+    () => getAuthUser()?.role === "OPERATOR_ADMIN",
+  );
+  const [boardingTripId, setBoardingTripId] = useState("");
+  const [busyBoardingTripId, setBusyBoardingTripId] = useState("");
+  const [boardingMessage, setBoardingMessage] = useState("");
+  const [boardingError, setBoardingError] = useState("");
+  // Một key cho mỗi chuyến, sinh ở lần bấm đầu và giữ nguyên qua các lần retry
+  // của đúng chuyến đó (§8).
+  const boardingKeys = useRef(new Map<string, string>());
+  useToastFeedback({
+    message: boardingMessage,
+    error: listError || boardingError,
+  });
 
   // Bỏ qua lượt chạy đầu: effect cũng chạy lúc mount và gọi `setPage(1)` dù người
   // dùng chưa gõ gì, đá người đang xem trang 2 về trang 1 (xem màn Bookings).
@@ -206,6 +279,10 @@ export default function TripListPage() {
     };
   }, [reloadVersion]);
 
+  const cols = canOpenBoarding
+    ? columnClasses.withActions
+    : columnClasses.readOnly;
+
   const hasActiveFilter = Boolean(
     debouncedSearch || statusFilter || fromDate || toDate,
   );
@@ -214,6 +291,43 @@ export default function TripListPage() {
     () => tripsPage.totalItems.toLocaleString("vi-VN"),
     [tripsPage.totalItems],
   );
+
+  async function openBoarding(tripId: string) {
+    const existingKey = boardingKeys.current.get(tripId);
+    const idempotencyKey = existingKey ?? createIdempotencyKey();
+    boardingKeys.current.set(tripId, idempotencyKey);
+
+    setBusyBoardingTripId(tripId);
+    setBoardingTripId("");
+    setBoardingMessage("");
+    setBoardingError("");
+
+    try {
+      await openOperatorTripBoarding(tripId, idempotencyKey);
+      boardingKeys.current.delete(tripId);
+      setBoardingMessage(t("tripList.boardingSuccess"));
+      // Trạng thái mới lấy lại từ BE thay vì tự ép local: AutoBoardingJob hoặc
+      // một tác nhân khác có thể đã đổi trạng thái trong lúc này (§11).
+      setReloadVersion((value) => value + 1);
+    } catch (error) {
+      if (!shouldKeepIdempotencyKey(error)) {
+        boardingKeys.current.delete(tripId);
+      }
+      setBoardingError(
+        error instanceof Error ? error.message : t("tripList.boardingFailed"),
+      );
+      // §11: chuyến bị huỷ/đã chạy giữa chừng thì hàng đang hiển thị đã cũ —
+      // tải lại thay vì ép trạng thái ở FE.
+      if (
+        error instanceof ApiRequestError &&
+        error.code === "TRIP_INVALID_TRANSITION"
+      ) {
+        setReloadVersion((value) => value + 1);
+      }
+    } finally {
+      setBusyBoardingTripId("");
+    }
+  }
 
   function resetFilters() {
     setSearchTerm("");
@@ -364,29 +478,32 @@ export default function TripListPage() {
 
         <div className="overflow-x-auto">
           <table
-            className="w-full min-w-[1080px] table-fixed whitespace-nowrap"
+            className={`w-full ${canOpenBoarding ? "min-w-[1200px]" : "min-w-[1080px]"} table-fixed whitespace-nowrap`}
             aria-busy={isLoading}
           >
             {/* Chỉ cột Tuyến căn trái (chuỗi dài, hai dòng, đọc theo mép trái);
                 các cột còn lại căn giữa cả tiêu đề lẫn dữ liệu. */}
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="w-[28%] px-3 py-3 text-left sm:px-5">
+                <th className={`${cols.route} py-3 text-left`}>
                   {t("tripList.route")}
                 </th>
-                <th className="w-[14%] px-3 py-3 sm:px-5">
+                <th className={`${cols.vehicle} py-3`}>
                   {t("tripList.vehicle")}
                 </th>
-                <th className="w-[20%] px-3 py-3 sm:px-5">
+                <th className={`${cols.driver} py-3`}>
                   {t("tripList.driver")}
                 </th>
-                <th className="w-[14%] px-3 py-3 sm:px-5">
+                <th className={`${cols.departure} py-3`}>
                   {t("tripList.departure")}
                 </th>
-                <th className="w-[14%] px-3 py-3 sm:px-5">
+                <th className={`${cols.arrival} py-3`}>
                   {t("tripList.arrivalEstimate")}
                 </th>
-                <th className="w-[10%] px-3 py-3 sm:px-5">{tc("status")}</th>
+                <th className={`${cols.status} py-3`}>{tc("status")}</th>
+                {canOpenBoarding && (
+                  <th className={`${cols.actions} py-3`}>{tc("actions")}</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -395,7 +512,7 @@ export default function TripListPage() {
                   key={trip.tripId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
-                  <td className="px-3 py-4 text-left text-sm font-medium text-gray-800 sm:px-5">
+                  <td className={`${cols.route} py-4 text-left text-sm font-medium text-gray-800`}>
                     <span className="block truncate" title={routeLabel(trip)}>
                       {routeLabel(trip)}
                     </span>
@@ -403,10 +520,10 @@ export default function TripListPage() {
                       {trip.route.originName} → {trip.route.destinationName}
                     </span>
                   </td>
-                  <td className="px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                  <td className={`${cols.vehicle} py-4 text-center text-sm text-gray-700`}>
                     {trip.vehicle.licensePlate || "-"}
                   </td>
-                  <td className="px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                  <td className={`${cols.driver} py-4 text-center text-sm text-gray-700`}>
                     {trip.driver ? (
                       <>
                         <span className="block truncate">
@@ -422,13 +539,13 @@ export default function TripListPage() {
                       t("tripList.noDriver")
                     )}
                   </td>
-                  <td className="px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                  <td className={`${cols.departure} py-4 text-center text-sm text-gray-700`}>
                     {formatDateTime(trip.departureAt)}
                   </td>
-                  <td className="px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
+                  <td className={`${cols.arrival} py-4 text-center text-sm text-gray-700`}>
                     {formatDateTime(trip.arrivalEstimate)}
                   </td>
-                  <td className="px-3 py-4 text-center sm:px-5">
+                  <td className={`${cols.status} py-4 text-center`}>
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(trip.status)}`}
                     >
@@ -437,12 +554,33 @@ export default function TripListPage() {
                       })}
                     </span>
                   </td>
+                  {/* §10: nhà xe chỉ mở boarding cho chuyến còn SCHEDULED. Đã
+                      BOARDING thì gọi lại chỉ là no-op nên không cho bấm nữa;
+                      trạng thái khác không có thao tác nào ở màn này. Bước start
+                      chuyến là của tài xế trên app tài xế, không dựng ở đây. */}
+                  {canOpenBoarding && (
+                    <td className={`${cols.actions} py-4 text-center`}>
+                      {trip.status === "SCHEDULED" ? (
+                        <button
+                          type="button"
+                          onClick={() => setBoardingTripId(trip.tripId)}
+                          disabled={busyBoardingTripId === trip.tripId}
+                          className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-vr-200 bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-700 transition hover:bg-vr-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <FiLogIn aria-hidden="true" size={14} />
+                          {t("tripList.boarding")}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
               {isLoading && tripsPage.items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={canOpenBoarding ? 7 : 6}
                     className="px-5 py-10 text-center text-sm text-gray-500"
                   >
                     <span className="inline-flex items-center gap-2">
@@ -455,7 +593,7 @@ export default function TripListPage() {
               {!isLoading && tripsPage.items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={canOpenBoarding ? 7 : 6}
                     className="px-5 py-10 text-center text-sm text-gray-500"
                   >
                     {hasActiveFilter
@@ -478,6 +616,18 @@ export default function TripListPage() {
           onPageChange={setPage}
         />
       </div>
+
+      <ConfirmModal
+        open={Boolean(boardingTripId)}
+        onClose={() => setBoardingTripId("")}
+        onConfirm={() => void openBoarding(boardingTripId)}
+        title={tc("confirm")}
+        message={t("tripList.boardingConfirm")}
+        confirmLabel={tc("confirm")}
+        cancelLabel={tc("cancel")}
+        tone="warning"
+        busy={Boolean(busyBoardingTripId)}
+      />
     </div>
   );
 }
