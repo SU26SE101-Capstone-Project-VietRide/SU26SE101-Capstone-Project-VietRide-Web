@@ -9,11 +9,10 @@ import {
   getOperatorTripCargoCapacity,
   substituteOperatorTripVehicle,
   type AlternativeRoute,
-  type OperatorTripListItem,
   type OperatorUser,
   type OperatorVehicle,
 } from "../../../api/vietride";
-import TripActionsPanel from "./TripActionsPanel";
+import TripActionsPanel, { type TripActionsContext } from "./TripActionsPanel";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 
 vi.mock("../../../hooks/useToastFeedback", () => ({
@@ -32,25 +31,12 @@ vi.mock("../../../api/vietride", () => ({
   substituteOperatorTripVehicle: vi.fn(),
 }));
 
-// Chuyến giờ do map/list của Trung tâm vận hành chọn và truyền xuống qua props
-const tripProp: OperatorTripListItem = {
-  tripId: "trip-1",
+// Panel nhận đúng mảnh dữ liệu nó dùng, không nhận nguyên item danh sách chuyến
+// — nhờ vậy modal Báo cáo sự cố ghép được từ nhiều nguồn và dùng lại cùng panel.
+const tripProp: TripActionsContext = {
   status: "SCHEDULED",
-  route: {
-    routeId: "route-1",
-    name: "Hồ Chí Minh - Đà Lạt",
-    originName: "Hồ Chí Minh",
-    destinationName: "Đà Lạt",
-  },
-  vehicle: {
-    vehicleId: "vehicle-1",
-    licensePlate: "51B-123.45",
-    status: "ACTIVE",
-  },
-  driver: null,
-  assistant: null,
-  departureAt: "2026-08-01T08:00:00+07:00",
-  arrivalEstimate: "2026-08-01T15:00:00+07:00",
+  routeId: "route-1",
+  vehicleId: "vehicle-1",
   canSubstituteVehicle: true,
 };
 
@@ -113,7 +99,7 @@ function alternativesResult(items: AlternativeRoute[]) {
 
 function renderPanel(
   onTripReplaced = vi.fn(),
-  trip: OperatorTripListItem | null = tripProp,
+  trip: TripActionsContext | null = tripProp,
   canMutate = true,
 ) {
   render(

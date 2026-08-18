@@ -2660,6 +2660,8 @@
     "resolveAlreadyResolved": "Sự cố đã được người khác đánh dấu đã xử lý; nội dung vừa được tải lại.",
     "resolveStaffHint": "Chỉ quản trị nhà xe mới đánh dấu được sự cố là đã xử lý.",
     "operationsHint": "Thay xe, ghi nhận gián đoạn hay đổi lộ trình chỉ cập nhật chuyến — sự cố vẫn ở trạng thái Chưa xử lý cho tới khi bạn đánh dấu ở ngay bên dưới.",
+    "tripActionsSubtitle": "Xử lý ngay chuyến đang gặp sự cố. Cần nhìn xe đang ở đâu trên bản đồ thì mở Trung tâm vận hành ở cuối khối này.",
+    "tripActionsFleetFailed": "Không tải được danh sách xe và nhân sự nên chưa chọn được xe thay thế. Đóng rồi mở lại sự cố để thử lại, hoặc thay xe bên Trung tâm vận hành.",
     "viewOnOperations": "Xử lý chuyến tại Trung tâm vận hành",
     "categories": {
       "TRAFFIC_JAM": "Tắc đường",

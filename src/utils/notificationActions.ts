@@ -60,8 +60,11 @@ export function getNotificationActionPath(
         shuttleTripId: action.params.shuttleTripId,
       });
     case "OPEN_INCIDENT":
+      // Có `incidentId` thì mở thẳng modal chi tiết; thiếu thì vẫn lọc theo
+      // chuyến như trước.
       return withQuery("/manager/incidents", {
         tripId: action.params.tripId,
+        incidentId: action.params.incidentId,
       });
     case "NONE":
       return null;
@@ -98,10 +101,21 @@ function redirectIncidentToIncidentsPage(
     notification.type
   ).toUpperCase();
 
-  return INCIDENT_NOTIFICATION_TYPES.has(notificationType) ||
-    notificationType.includes("INCIDENT")
-    ? { type: "OPEN_INCIDENT", params: { tripId: action.params.tripId } }
-    : action;
+  if (
+    !INCIDENT_NOTIFICATION_TYPES.has(notificationType) &&
+    !notificationType.includes("INCIDENT")
+  ) {
+    return action;
+  }
+
+  const incidentId = readString(data, "incidentId");
+  return {
+    type: "OPEN_INCIDENT",
+    params: {
+      tripId: action.params.tripId,
+      ...(incidentId ? { incidentId } : {}),
+    },
+  };
 }
 
 function resolveDeclaredAction(
@@ -170,7 +184,12 @@ export function parseNotificationAction(
     }
     case "OPEN_INCIDENT": {
       const tripId = readString(params, "tripId");
-      return tripId ? { type, params: { tripId } } : null;
+      if (!tripId) return null;
+      const incidentId = readString(params, "incidentId");
+      return {
+        type,
+        params: { tripId, ...(incidentId ? { incidentId } : {}) },
+      };
     }
     case "OPEN_WALLET":
     case "OPEN_SUBSCRIPTION":
@@ -234,7 +253,11 @@ function inferLegacyAction(
       INCIDENT_NOTIFICATION_TYPES.has(normalizedType) ||
       normalizedType.includes("INCIDENT")
     ) {
-      return { type: "OPEN_INCIDENT", params: { tripId } };
+      const incidentId = readString(data, "incidentId");
+      return {
+        type: "OPEN_INCIDENT",
+        params: { tripId, ...(incidentId ? { incidentId } : {}) },
+      };
     }
 
     return {
@@ -274,6 +297,14 @@ function readString(
     : null;
 }
 
-function withQuery(path: string, params: Record<string, string>) {
-  return `${path}?${new URLSearchParams(params).toString()}`;
+function withQuery(
+  path: string,
+  params: Record<string, string | null | undefined>,
+) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    // Bỏ hẳn khoá thiếu giá trị, đừng để nó thành `?incidentId=undefined`
+    if (value) query.set(key, value);
+  }
+  return `${path}?${query.toString()}`;
 }

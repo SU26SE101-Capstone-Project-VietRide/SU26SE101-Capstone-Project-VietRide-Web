@@ -46,9 +46,10 @@ export type NotificationAction =
   | { type: "OPEN_INVOICE"; params: { invoiceId: string } }
   | { type: "OPEN_OPERATOR_STATUS"; params: Record<string, never> }
   | { type: "OPEN_SHUTTLE_TRACKING"; params: { shuttleTripId: string } }
-  // Màn Báo cáo sự cố lọc theo `tripId` (không có route chi tiết theo
-  // incidentId), nên `tripId` mới là tham số bắt buộc ở đây.
-  | { type: "OPEN_INCIDENT"; params: { tripId: string } }
+  // Màn Báo cáo sự cố không có route riêng cho từng sự cố mà mở modal theo
+  // `?incidentId=`, và luôn cần `tripId` để lọc sẵn danh sách phía sau modal —
+  // nên `tripId` bắt buộc, `incidentId` chỉ là bonus khi payload có mang theo.
+  | { type: "OPEN_INCIDENT"; params: { tripId: string; incidentId?: string } }
   | { type: "NONE"; params: Record<string, never> };
 
 export type NotificationItem = {

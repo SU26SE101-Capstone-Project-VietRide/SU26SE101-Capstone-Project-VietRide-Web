@@ -8,9 +8,12 @@ import { ApiRequestError } from "../../../api/client";
 import {
   resolveOperatorIncident,
   type OperatorIncident,
+  type OperatorUser,
+  type OperatorVehicle,
 } from "../../../api/vietride";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
+import IncidentTripActions from "./IncidentTripActions";
 import { formatDateTime } from "../../../utils/date";
 import {
   badgeClassFor,
@@ -25,8 +28,10 @@ const RESOLUTION_NOTE_MAX_LENGTH = 1000;
 
 type ResolveFormProps = {
   incident: OperatorIncident;
+  /** Câu tổng kết của hành động vừa làm ở khối trên — điền sẵn cho đỡ gõ lại */
+  suggestedNote: string;
   onResolved: (incident: OperatorIncident) => void;
-  onAlreadyResolved: (incidentId: string) => void;
+  onAlreadyResolved: () => void;
 };
 
 /**
@@ -35,13 +40,23 @@ type ResolveFormProps = {
  */
 function IncidentResolveForm({
   incident,
+  suggestedNote,
   onResolved,
   onAlreadyResolved,
 }: ResolveFormProps) {
   const { t } = useTranslation("manager");
-  const [resolutionNote, setResolutionNote] = useState("");
+  const [resolutionNote, setResolutionNote] = useState(suggestedNote);
+  const [appliedSuggestion, setAppliedSuggestion] = useState(suggestedNote);
   const [isResolving, setIsResolving] = useState(false);
   const [resolveError, setResolveError] = useState("");
+
+  // Vừa thay xe/đổi lộ trình xong thì điền sẵn câu tổng kết. Chỉnh ngay trong
+  // lúc render thay vì effect để ô không nháy qua một lượt trống. KHÔNG đè lên
+  // ghi chú người dùng đang gõ dở — chỉ điền khi ô còn trắng.
+  if (appliedSuggestion !== suggestedNote) {
+    setAppliedSuggestion(suggestedNote);
+    if (suggestedNote && !resolutionNote.trim()) setResolutionNote(suggestedNote);
+  }
 
   async function handleResolve() {
     if (isResolving) return;
@@ -72,7 +87,7 @@ function IncidentResolveForm({
         // Bản ghi vừa được admin khác đóng: cha tải lại chi tiết nên form này
         // sẽ biến mất, thông báo hiển thị qua toast của màn.
         setResolveError(t("incidents.resolveAlreadyResolved"));
-        onAlreadyResolved(incident.incidentId);
+        onAlreadyResolved();
         return;
       }
       setResolveError(
@@ -127,7 +142,14 @@ type IncidentDetailModalProps = {
   /** Bản ghi BE trả sau khi đóng — dùng thay cho việc tự gán RESOLVED ở client */
   onResolved: (incident: OperatorIncident) => void;
   /** 409 INCIDENT_ALREADY_RESOLVED: admin khác vừa xử lý, phải tải lại */
-  onAlreadyResolved: (incidentId: string) => void;
+  onAlreadyResolved: () => void;
+  // Xe + nhân sự cho form thay xe; màn cha nạp lazy khi admin mở sự cố còn OPEN
+  vehicles: OperatorVehicle[];
+  staff: OperatorUser[];
+  fleetFailed: boolean;
+  /** Câu tổng kết của hành động xử lý chuyến vừa thực hiện (nếu có) */
+  suggestedNote: string;
+  onTripActionCompleted: (message: string) => void;
 };
 
 export default function IncidentDetailModal({
@@ -137,6 +159,11 @@ export default function IncidentDetailModal({
   canResolve,
   onResolved,
   onAlreadyResolved,
+  vehicles,
+  staff,
+  fleetFailed,
+  suggestedNote,
+  onTripActionCompleted,
 }: IncidentDetailModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -291,12 +318,22 @@ export default function IncidentDetailModal({
                   {t("incidents.operationsHint")}
                 </p>
                 {canResolve ? (
-                  <IncidentResolveForm
-                    key={incident.incidentId}
-                    incident={incident}
-                    onResolved={onResolved}
-                    onAlreadyResolved={onAlreadyResolved}
-                  />
+                  <>
+                    <IncidentTripActions
+                      incident={incident}
+                      vehicles={vehicles}
+                      staff={staff}
+                      fleetFailed={fleetFailed}
+                      onActionCompleted={onTripActionCompleted}
+                    />
+                    <IncidentResolveForm
+                      key={incident.incidentId}
+                      incident={incident}
+                      suggestedNote={suggestedNote}
+                      onResolved={onResolved}
+                      onAlreadyResolved={onAlreadyResolved}
+                    />
+                  </>
                 ) : (
                   <p className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
                     {t("incidents.resolveStaffHint")}
