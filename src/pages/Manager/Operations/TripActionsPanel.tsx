@@ -16,7 +16,6 @@ import {
   substituteOperatorTripVehicle,
   type AlternativeRoute,
   type CargoCapacity,
-  type OperatorTripListItem,
   type OperatorUser,
   type OperatorVehicle,
 } from "../../../api/vietride";
@@ -52,11 +51,29 @@ function getDefaultRecoveryDeparture() {
   return toDatetimeLocalValue(recoveryDeparture);
 }
 
+/**
+ * Đúng những mảnh dữ liệu chuyến mà panel dùng. Khai riêng thay vì nhận nguyên
+ * `OperatorTripListItem` để màn Báo cáo sự cố dùng lại được: ở đó chỉ ghép được
+ * từng phần (bản ghi sự cố có `status` + `routeId`, `GET /v1/trips/{id}` có
+ * `vehicleId`) và không có cách nào lấy `canSubstituteVehicle` cho một chuyến
+ * lẻ vì `GET /v1/operator/trips` không lọc theo tripId.
+ */
+export type TripActionsContext = {
+  status?: string | null;
+  routeId?: string | null;
+  /** Xe đang chạy chuyến — để loại khỏi danh sách xe thay thế */
+  vehicleId?: string | null;
+  /** Bỏ trống = CHƯA BIẾT: không pre-disable, để BE từ chối nếu không đủ điều kiện */
+  canSubstituteVehicle?: boolean;
+};
+
 type TripActionsPanelProps = {
   /** Chuyến do map/list của Trung tâm vận hành chọn — panel không tự chọn chuyến */
   tripId: string;
-  /** Chi tiết chuyến đang chọn (nếu có) — dùng để lọc xe thay thế và cờ canSubstituteVehicle */
-  trip?: OperatorTripListItem | null;
+  /** Ngữ cảnh chuyến (nếu có) — dùng để lọc xe thay thế và cờ canSubstituteVehicle */
+  trip?: TripActionsContext | null;
+  /** Ghi đè câu mô tả dưới tiêu đề; mỗi màn nhúng panel nói một ngữ cảnh khác */
+  subtitle?: string;
   // Danh sách xe và nhân sự do trang cha tải sẵn, tránh gọi API trùng lặp
   vehicles: OperatorVehicle[];
   staff: OperatorUser[];
@@ -67,16 +84,24 @@ type TripActionsPanelProps = {
    * Đổi lộ trình cũng gọi callback này (cùng tripId) để trang cha tải lại
    * geometry của chuyến + danh sách fleet.
    */
-  onTripReplaced: (newTripId: string) => void;
+  onTripReplaced?: (newTripId: string) => void;
+  /**
+   * Bắn sau MỌI hành động thành công kèm câu đã dịch. Cần riêng vì ghi nhận gián
+   * đoạn không đổi tripId nên không đi qua `onTripReplaced`, mà màn Báo cáo sự
+   * cố thì cần cả ba để gợi ý sẵn ghi chú xử lý.
+   */
+  onActionCompleted?: (message: string) => void;
 };
 
 export default function TripActionsPanel({
   tripId,
   trip = null,
+  subtitle,
   vehicles,
   staff,
   canMutate,
   onTripReplaced,
+  onActionCompleted,
 }: TripActionsPanelProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -133,7 +158,7 @@ export default function TripActionsPanel({
       vehicles.filter(
         (vehicle) =>
           (vehicle.status === "ACTIVE" || vehicle.status === "AVAILABLE") &&
-          vehicleId(vehicle) !== trip?.vehicle.vehicleId,
+          vehicleId(vehicle) !== trip?.vehicleId,
       ),
     [trip, vehicles],
   );
@@ -203,11 +228,15 @@ export default function TripActionsPanel({
         },
       });
       const newTripId = result.newTripId ?? result.tripId;
-      setMessage(t("tripOperations.substituteSuccess", { tripId: newTripId }));
+      const successMessage = t("tripOperations.substituteSuccess", {
+        tripId: newTripId,
+      });
+      setMessage(successMessage);
       // Trang cha chuyển selection + URL sang chuyến mới
       if (newTripId) {
-        onTripReplaced(newTripId);
+        onTripReplaced?.(newTripId);
       }
+      onActionCompleted?.(successMessage);
     } catch (mutationError) {
       setError(
         mutationError instanceof Error
@@ -238,11 +267,11 @@ export default function TripActionsPanel({
       const result = await disruptOperatorTripNoSubstitution(tripId.trim(), {
         reason: reason.trim(),
       });
-      setMessage(
-        t("tripOperations.disruptSuccess", {
-          status: result.status ?? result.tripId,
-        }),
-      );
+      const successMessage = t("tripOperations.disruptSuccess", {
+        status: result.status ?? result.tripId,
+      });
+      setMessage(successMessage);
+      onActionCompleted?.(successMessage);
     } catch (mutationError) {
       setError(
         mutationError instanceof Error
@@ -256,7 +285,7 @@ export default function TripActionsPanel({
   }
 
   async function loadAlternatives() {
-    const routeId = trip?.route.routeId;
+    const routeId = trip?.routeId;
     if (!routeId) {
       setRouteChangeError(t("tripOperations.alternativesFailed"));
       return;
@@ -311,11 +340,13 @@ export default function TripActionsPanel({
       const result = await changeOperatorTripRoute(tripId.trim(), {
         alternativeRouteId: selectedAlternativeRouteId,
       });
-      setRouteChangeMessage(
-        t("tripOperations.changeRouteSuccess", { status: result.status }),
-      );
+      const successMessage = t("tripOperations.changeRouteSuccess", {
+        status: result.status,
+      });
+      setRouteChangeMessage(successMessage);
       // Cùng tripId — trang cha re-select để tải lại geometry lộ trình mới + fleet
-      onTripReplaced(result.tripId ?? tripId.trim());
+      onTripReplaced?.(result.tripId ?? tripId.trim());
+      onActionCompleted?.(successMessage);
     } catch (mutationError) {
       setRouteChangeError(
         mutationError instanceof Error
@@ -337,7 +368,7 @@ export default function TripActionsPanel({
             {t("tripOperations.title")}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            {t("operations.actionsSubtitle")}
+            {subtitle ?? t("operations.actionsSubtitle")}
           </p>
         </div>
         {!canMutate && (
@@ -558,9 +589,9 @@ export default function TripActionsPanel({
                 // Tuyến chưa có tuyến thay thế active — dẫn sang màn Routes để khai báo
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                   <p>{t("tripOperations.noAlternatives")}</p>
-                  {trip?.route.routeId && (
+                  {trip?.routeId && (
                     <Link
-                      to={`/manager/routes?routeId=${trip.route.routeId}&tab=alternatives`}
+                      to={`/manager/routes?routeId=${trip.routeId}&tab=alternatives`}
                       className="mt-1 inline-block font-semibold text-vr-800 hover:underline"
                     >
                       {t("tripOperations.declareAlternatives")}

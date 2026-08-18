@@ -505,6 +505,31 @@ describe("Topbar dropdowns", () => {
       ),
     ).toBe("/manager/incidents?tripId=trip-legacy");
 
+    // Payload sự cố của BE có mang `incidentId` — dùng nó để mở thẳng modal chi
+    // tiết, khỏi bắt người nhận tự mò trong danh sách đã lọc theo chuyến.
+    expect(
+      getNotificationActionPath(
+        {
+          ...baseNotification,
+          type: "INCIDENT_REPORTED",
+          data: { tripId: "trip-1", incidentId: "incident-9" },
+          action: { type: "OPEN_TRIP_TRACKING", params: { tripId: "trip-1" } },
+        },
+        false,
+      ),
+    ).toBe("/manager/incidents?tripId=trip-1&incidentId=incident-9");
+
+    expect(
+      getNotificationActionPath(
+        {
+          ...baseNotification,
+          type: "INCIDENT_REPORTED",
+          data: { tripId: "trip-legacy", incidentId: "incident-legacy" },
+        },
+        false,
+      ),
+    ).toBe("/manager/incidents?tripId=trip-legacy&incidentId=incident-legacy");
+
     // Thông báo theo dõi khác vẫn về Trung tâm vận hành như cũ
     expect(
       getNotificationActionPath(

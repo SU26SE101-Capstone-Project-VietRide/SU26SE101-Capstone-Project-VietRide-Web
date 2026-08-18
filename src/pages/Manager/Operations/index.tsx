@@ -57,7 +57,9 @@ import FleetMetricCard from "./FleetMetricCard";
 import FleetVehicleList from "./FleetVehicleList";
 import ProposalsPanel from "./ProposalsPanel";
 import ShuttleVehiclePanel from "./ShuttleVehiclePanel";
-import TripActionsPanel from "./TripActionsPanel";
+import TripActionsPanel, {
+  type TripActionsContext,
+} from "./TripActionsPanel";
 import TripTrackingPanel from "./TripTrackingPanel";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 import type {
@@ -290,6 +292,19 @@ export default function OperationsPage() {
         ? tripOptions.find((trip) => trip.tripId === selectedTripId) ?? null
         : null,
     [selectedTripId, tripOptions],
+  );
+
+  // Panel thao tác nhận đúng mảnh nó dùng (xem `TripActionsContext`) chứ không
+  // nhận nguyên item danh sách — nhờ vậy modal sự cố dùng lại được cùng panel.
+  const tripActionsContext = useMemo<TripActionsContext | null>(
+    () =>
+      selectedTrip && {
+        status: selectedTrip.status,
+        routeId: selectedTrip.route.routeId,
+        vehicleId: selectedTrip.vehicle.vehicleId,
+        canSubstituteVehicle: selectedTrip.canSubstituteVehicle,
+      },
+    [selectedTrip],
   );
 
   // Chọn / bỏ chọn chuyến: cập nhật state + URL. Lộ trình tuyến do effect riêng
@@ -1101,7 +1116,7 @@ export default function OperationsPage() {
               // key theo tripId: đổi chuyến thì remount, xoá sạch form/kết quả của chuyến trước
               key={selectedTripId}
               tripId={selectedTripId}
-              trip={selectedTrip}
+              trip={tripActionsContext}
               vehicles={operatorVehicles}
               staff={operatorStaff}
               canMutate={canMutate}

@@ -16,11 +16,16 @@ import {
 import {
   getOperatorIncident,
   getOperatorIncidents,
+  getOperatorUsers,
+  getOperatorVehicles,
   INCIDENT_CATEGORIES,
   type IncidentCategory,
   type IncidentStatus,
   type OperatorIncident,
+  type OperatorUser,
+  type OperatorVehicle,
 } from "../../../api/vietride";
+import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
 import CustomSelect from "../../../components/CustomSelect";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
@@ -39,6 +44,12 @@ import {
 
 const PAGE_SIZE = 10;
 
+/** `?page=` nguoi dung sua duoc — so rac thi ve trang 1 thay vi gui NaN len BE */
+function pageFromParam(value: string | null) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
 export default function ManagerIncidents() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -48,25 +59,77 @@ export default function ManagerIncidents() {
   });
 
   const [searchParams, setSearchParams] = useSearchParams();
-  // Deep-link từ Trung tâm vận hành: lọc sẵn theo chuyến
+
+  // URL là nguồn sự thật của cả bộ lọc lẫn sự cố đang mở. Trước đây chúng nằm
+  // trong useState nên rời màn để xử lý (bấm "Xem trên Trung tâm vận hành") rồi
+  // back về là mất sạch ngữ cảnh: lọc lại từ đầu, tụt về trang 1, modal đóng và
+  // phải tự mò lại đúng sự cố vừa xử lý.
   const linkedTripId = searchParams.get("tripId") ?? "";
+  const category = (searchParams.get("category") ?? "") as IncidentCategory | "";
+  const status = (searchParams.get("status") ?? "") as IncidentStatus | "";
+  const from = searchParams.get("from") ?? "";
+  const to = searchParams.get("to") ?? "";
+  const debouncedSearch = searchParams.get("search") ?? "";
+  const openIncidentId = searchParams.get("incidentId") ?? "";
+  const page = pageFromParam(searchParams.get("page"));
+
+  // `setSearchParams` của react-router đổi identity sau mỗi lần URL đổi. Đưa
+  // thẳng nó vào deps thì `updateParams` cũng đổi theo, kéo mọi effect nhận nó
+  // chạy lại sau từng thao tác lọc — kể cả effect tải chi tiết sự cố. Giữ qua
+  // ref để `updateParams` ổn định suốt vòng đời màn.
+  const setSearchParamsRef = useRef(setSearchParams);
+  useEffect(() => {
+    setSearchParamsRef.current = setSearchParams;
+  });
+
+  // Ghi vào URL. Mặc định `replace` để back không phải lùi qua từng lần gõ/lọc;
+  // `push` khi mở chi tiết để back đóng đúng modal.
+  const updateParams = useCallback(
+    (changes: Record<string, string | null>, push = false) => {
+      setSearchParamsRef.current(
+        (current) => {
+          const next = new URLSearchParams(current);
+          for (const [key, value] of Object.entries(changes)) {
+            if (value) next.set(key, value);
+            else next.delete(key);
+          }
+          return next;
+        },
+        { replace: !push },
+      );
+    },
+    [],
+  );
 
   const [items, setItems] = useState<OperatorIncident[]>([]);
   const [totalItems, setTotalItems] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [category, setCategory] = useState<IncidentCategory | "">("");
-  const [status, setStatus] = useState<IncidentStatus | "">("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // Ô nhập giữ state riêng để gõ cho mượt; giá trị chốt mới đẩy lên `?search=`
+  const [search, setSearch] = useState(debouncedSearch);
+  const [syncedSearch, setSyncedSearch] = useState(debouncedSearch);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
   const [selected, setSelected] = useState<OperatorIncident | null>(null);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [detailReloadKey, setDetailReloadKey] = useState(0);
   const [resolveMessage, setResolveMessage] = useState("");
+
+  // Xe + nhân sự cho form thay xe trong modal. Gắn với sự cố nào thì lưu kèm id
+  // đó để đổi sang sự cố khác là gợi ý ghi chú cũ tự hết hiệu lực.
+  const [operatorVehicles, setOperatorVehicles] = useState<OperatorVehicle[]>([]);
+  const [operatorStaff, setOperatorStaff] = useState<OperatorUser[]>([]);
+  const [fleetFailed, setFleetFailed] = useState(false);
+  const [tripActionNote, setTripActionNote] = useState<{
+    incidentId: string;
+    message: string;
+  } | null>(null);
+
+  // Đọc trong nhánh catch bất đồng bộ của effect chi tiết — không đưa `selected`
+  // vào deps ở đó vì mỗi lần tải xong lại kích hoạt một lượt tải nữa.
+  const selectedRef = useRef(selected);
+  useEffect(() => {
+    selectedRef.current = selected;
+  });
 
   // Chỉ OPERATOR_ADMIN được đóng sự cố; Staff gọi vào sẽ ăn 403 FORBIDDEN
   const canResolve = getAuthUser()?.role === "OPERATOR_ADMIN";
@@ -74,24 +137,28 @@ export default function ManagerIncidents() {
   useToastFeedback({ message: resolveMessage, error: loadError });
 
   // Search đi thẳng lên BE nên phải debounce; đổi từ khoá thì về trang 1.
-  // Bỏ qua lượt chạy đầu: effect này cũng chạy lúc mount và sau đó gọi
-  // `setPage(1)` dù người dùng chưa gõ gì — ai bấm sang trang trong khoảng
-  // debounce đầu tiên sẽ bị đá ngược về trang 1. Giá trị debounce lúc mount vốn
-  // đã bằng ô nhập nên bỏ lượt này không làm lệch state.
-  const hasFilterChanged = useRef(false);
+  // So sánh với giá trị đang nằm trên URL thay cho cờ "bỏ qua lượt đầu": lúc
+  // mount hai bên vốn đã bằng nhau nên effect tự đứng yên, và ai bấm sang trang
+  // trong khoảng debounce đầu tiên cũng không bị đá ngược về trang 1.
   useEffect(() => {
-    if (!hasFilterChanged.current) {
-      hasFilterChanged.current = true;
-      return;
-    }
+    const next = search.trim();
+    if (next === debouncedSearch) return;
 
     const timer = window.setTimeout(() => {
-      setDebouncedSearch(search.trim());
-      setPage(1);
+      updateParams({ search: next || null, page: null });
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [search]);
+  }, [debouncedSearch, search, updateParams]);
+
+  // Back/forward hoặc deep-link đổi `?search=` thì ô nhập phải chạy theo, nếu
+  // không effect trên sẽ ghi ngược từ khoá cũ và huỷ luôn thao tác back. Chỉnh
+  // ngay trong lúc render (React tính lại trước khi vẽ) thay vì trong effect để
+  // ô nhập không nháy qua một lượt hiển thị giá trị cũ.
+  if (syncedSearch !== debouncedSearch) {
+    setSyncedSearch(debouncedSearch);
+    if (search.trim() !== debouncedSearch) setSearch(debouncedSearch);
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -139,19 +206,96 @@ export default function ManagerIncidents() {
     };
   }, [category, debouncedSearch, from, linkedTripId, page, reloadKey, status, to]);
 
-  const openDetail = useCallback(async (incident: OperatorIncident) => {
-    // Hiện ngay bản ghi của danh sách rồi thay bằng bản chi tiết khi về
-    setSelected(incident);
-    setIsLoadingDetail(true);
-    try {
-      const detail = await getOperatorIncident(incident.incidentId);
-      setSelected(detail);
-    } catch {
-      // Danh sách và chi tiết cùng shape — lỗi tải chi tiết thì giữ bản đang có
-    } finally {
-      setIsLoadingDetail(false);
-    }
-  }, []);
+  // Chỉ hiện ngay bản ghi của danh sách rồi đẩy id lên URL; effect bên dưới lo
+  // phần tải chi tiết cho cả trường hợp vào thẳng bằng `?incidentId=`.
+  const openDetail = useCallback(
+    (incident: OperatorIncident) => {
+      setSelected(incident);
+      updateParams({ incidentId: incident.incidentId }, true);
+    },
+    [updateParams],
+  );
+
+  // `?incidentId=` là nguồn sự thật của modal: back từ Trung tâm vận hành, mở
+  // link từ thông báo và F5 đều bật lại đúng sự cố thay vì bắt tìm lại tay.
+  useEffect(() => {
+    if (!openIncidentId) return;
+
+    let ignore = false;
+    getOperatorIncident(openIncidentId)
+      .then((detail) => {
+        if (!ignore) setSelected(detail);
+      })
+      .catch((error: unknown) => {
+        if (ignore) return;
+        // Bấm từ danh sách thì đã có sẵn bản ghi cùng shape — giữ nguyên. Vào
+        // thẳng bằng id hỏng thì không có gì để hiện: báo lỗi và bỏ id khỏi URL
+        // thay vì để một modal rỗng đứng im.
+        if (selectedRef.current?.incidentId === openIncidentId) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : tRef.current("incidents.loadFailed"),
+        );
+        updateParams({ incidentId: null });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [detailReloadKey, openIncidentId, updateParams]);
+
+  // Suy ra từ URL, không giữ thêm state: đóng modal chỉ cần xoá `?incidentId=`.
+  // Còn `selected` của sự cố cũ thì tự hết hiệu lực vì id không còn khớp.
+  const detailIncident =
+    selected?.incidentId === openIncidentId ? selected : null;
+  const isLoadingDetail = openIncidentId !== "" && detailIncident === null;
+
+  const suggestedNote =
+    tripActionNote?.incidentId === openIncidentId ? tripActionNote.message : "";
+
+  // Chỉ nạp khi admin thật sự mở một sự cố chưa xử lý. Vào màn xem danh sách
+  // không việc gì phải kéo về toàn bộ xe và nhân sự của nhà xe; và nạp một lần
+  // rồi dùng lại cho mọi sự cố mở sau đó.
+  const needsFleet = canResolve && detailIncident?.status === "OPEN";
+  const hasRequestedFleet = useRef(false);
+  useEffect(() => {
+    if (!needsFleet || hasRequestedFleet.current) return;
+    hasRequestedFleet.current = true;
+
+    let ignore = false;
+    void Promise.all([
+      fetchAllPages((params) => getOperatorVehicles(params)),
+      fetchAllPages((params) => getOperatorUsers(params)),
+    ])
+      .then(([vehicleItems, userItems]) => {
+        if (ignore) return;
+        setOperatorVehicles(vehicleItems);
+        setOperatorStaff(userItems);
+      })
+      .catch(() => {
+        // Chỉ hỏng form thay xe — đổi lộ trình và ghi nhận gián đoạn vẫn chạy,
+        // nên báo tại chỗ trong modal chứ không chặn cả màn.
+        if (!ignore) setFleetFailed(true);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [needsFleet]);
+
+  // Thay xe tạo CHUYẾN MỚI và sự cố vẫn gắn chuyến cũ; đổi lộ trình thì giữ
+  // nguyên tripId. Không hành động nào tự đóng sự cố — chỉ điền sẵn câu tổng kết
+  // vào ghi chú để người dùng xác nhận, rồi tải lại vì trạng thái chuyến đã đổi.
+  const handleTripActionCompleted = useCallback(
+    (message: string) => {
+      if (!openIncidentId) return;
+      setTripActionNote({ incidentId: openIncidentId, message });
+      setDetailReloadKey((current) => current + 1);
+      setReloadKey((current) => current + 1);
+    },
+    [openIncidentId],
+  );
 
   // Thay bản ghi bằng đúng object BE trả về sau khi resolve — không tự dựng
   // `resolvedAt`/`resolvedByUserId` ở client.
@@ -163,40 +307,39 @@ export default function ManagerIncidents() {
       ),
     );
     setResolveMessage(tRef.current("incidents.resolveSuccess"));
+    // Vá tại chỗ ở trên chỉ để khỏi nháy; vẫn phải tải lại danh sách vì bản ghi
+    // vừa đóng có thể không còn khớp bộ lọc (`status=OPEN`) và `totalItems` dùng
+    // cho phân trang thì đã lệch mất một.
+    setReloadKey((current) => current + 1);
   }, []);
 
   // 409 INCIDENT_ALREADY_RESOLVED: admin khác vừa đóng. Tải lại chi tiết rồi
   // làm mới danh sách để bộ lọc theo trạng thái khớp dữ liệu mới.
-  const handleAlreadyResolved = useCallback(async (incidentId: string) => {
+  const handleAlreadyResolved = useCallback(() => {
     setResolveMessage(tRef.current("incidents.resolveAlreadyResolved"));
-    try {
-      const detail = await getOperatorIncident(incidentId);
-      setSelected(detail);
-    } catch {
-      // Không tải lại được thì vẫn refresh danh sách bên dưới
-    }
+    // Effect theo `?incidentId=` lo phần tải lại chi tiết
+    setDetailReloadKey((current) => current + 1);
     setReloadKey((current) => current + 1);
   }, []);
 
   function resetFilters() {
-    setCategory("");
-    setStatus("");
-    setFrom("");
-    setTo("");
     // Ô tìm kiếm cũng là bộ lọc: bỏ sót nó thì bấm "Đặt lại" xong danh sách vẫn
     // bị lọc theo từ khoá cũ mà không có gì trên màn giải thích tại sao.
     setSearch("");
-    setDebouncedSearch("");
-    setPage(1);
+    updateParams({
+      category: null,
+      status: null,
+      from: null,
+      to: null,
+      search: null,
+      page: null,
+    });
   }
 
   // Bỏ deep-link `?tripId=` (vào từ thông báo sự cố hoặc Trung tâm vận hành).
   // Không có nút này thì người dùng phải tự sửa URL mới xem được toàn bộ sự cố.
   function clearTripFilter() {
-    const next = new URLSearchParams(searchParams);
-    next.delete("tripId");
-    setSearchParams(next, { replace: true });
-    setPage(1);
+    updateParams({ tripId: null, page: null });
   }
 
   return (
@@ -267,8 +410,10 @@ export default function ManagerIncidents() {
               className={inputClass}
               value={category}
               onChange={(event) => {
-                setCategory(event.target.value as IncidentCategory | "");
-                setPage(1);
+                updateParams({
+                  category: event.target.value || null,
+                  page: null,
+                });
               }}
             >
               <option value="">{tc("all")}</option>
@@ -287,8 +432,10 @@ export default function ManagerIncidents() {
               className={inputClass}
               value={status}
               onChange={(event) => {
-                setStatus(event.target.value as IncidentStatus | "");
-                setPage(1);
+                updateParams({
+                  status: event.target.value || null,
+                  page: null,
+                });
               }}
             >
               <option value="">{tc("all")}</option>
@@ -305,8 +452,7 @@ export default function ManagerIncidents() {
               type="date"
               value={from}
               onChange={(event) => {
-                setFrom(event.target.value);
-                setPage(1);
+                updateParams({ from: event.target.value || null, page: null });
               }}
               className={inputClass}
             />
@@ -320,8 +466,7 @@ export default function ManagerIncidents() {
               onChange={(event) => {
                 // BE bắt to >= from; chặn ngay ở input để khỏi ăn 422
                 if (from && event.target.value < from) return;
-                setTo(event.target.value);
-                setPage(1);
+                updateParams({ to: event.target.value || null, page: null });
               }}
               className={inputClass}
             />
@@ -406,7 +551,7 @@ export default function ManagerIncidents() {
 
                   <button
                     type="button"
-                    onClick={() => void openDetail(incident)}
+                    onClick={() => openDetail(incident)}
                     className="inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                   >
                     <FiEye aria-hidden="true" /> {tc("details")}
@@ -421,22 +566,27 @@ export default function ManagerIncidents() {
           page={page}
           pageSize={PAGE_SIZE}
           totalItems={totalItems}
-          onPageChange={setPage}
+          onPageChange={(next) =>
+            updateParams({ page: next > 1 ? String(next) : null })
+          }
         />
       </section>
 
       <IncidentDetailModal
-        incident={selected}
+        incident={detailIncident}
         isLoading={isLoadingDetail}
         onClose={() => {
-          setSelected(null);
           setResolveMessage("");
+          updateParams({ incidentId: null });
         }}
         canResolve={canResolve}
         onResolved={handleResolved}
-        onAlreadyResolved={(incidentId) => {
-          void handleAlreadyResolved(incidentId);
-        }}
+        onAlreadyResolved={handleAlreadyResolved}
+        vehicles={operatorVehicles}
+        staff={operatorStaff}
+        fleetFailed={fleetFailed}
+        suggestedNote={suggestedNote}
+        onTripActionCompleted={handleTripActionCompleted}
       />
     </div>
   );

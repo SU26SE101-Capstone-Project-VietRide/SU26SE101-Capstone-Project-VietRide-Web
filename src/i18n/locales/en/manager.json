@@ -2660,6 +2660,8 @@
     "resolveAlreadyResolved": "Someone else already marked this incident resolved; the details were reloaded.",
     "resolveStaffHint": "Only an operator admin can mark an incident as resolved.",
     "operationsHint": "Vehicle substitution, disruption, and route changes update the trip only — the incident stays Open until you mark it resolved below.",
+    "tripActionsSubtitle": "Handle the affected trip right here. Open the operations centre linked below if you need to see where the vehicle is on the map.",
+    "tripActionsFleetFailed": "Could not load vehicles and staff, so no replacement vehicle can be picked. Reopen the incident to retry, or substitute the vehicle from the operations centre.",
     "viewOnOperations": "Handle trip in the Operations Center",
     "categories": {
       "TRAFFIC_JAM": "Traffic jam",

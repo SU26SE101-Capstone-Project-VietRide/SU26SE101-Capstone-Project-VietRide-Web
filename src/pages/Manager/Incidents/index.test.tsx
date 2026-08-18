@@ -1,13 +1,19 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../../../api/client";
 import {
   getOperatorIncident,
   getOperatorIncidents,
+  getOperatorUsers,
+  getOperatorVehicles,
+  getPublicTrip,
   resolveOperatorIncident,
+  disruptOperatorTripNoSubstitution,
   type OperatorIncident,
+  type OperatorUser,
+  type OperatorVehicle,
 } from "../../../api/vietride";
 import ManagerIncidents from "./index";
 
@@ -30,6 +36,16 @@ vi.mock("../../../api/vietride", async () => {
     getOperatorIncident: vi.fn(),
     getOperatorIncidents: vi.fn(),
     resolveOperatorIncident: vi.fn(),
+    // Khối xử lý chuyến trong modal: xe/nhân sự cho form thay xe, và chuyến công
+    // khai để biết xe nào đang chạy mà loại khỏi danh sách xe thay thế.
+    getOperatorVehicles: vi.fn(),
+    getOperatorUsers: vi.fn(),
+    getPublicTrip: vi.fn(),
+    getAlternativeRoutes: vi.fn(),
+    getOperatorTripCargoCapacity: vi.fn(),
+    substituteOperatorTripVehicle: vi.fn(),
+    disruptOperatorTripNoSubstitution: vi.fn(),
+    changeOperatorTripRoute: vi.fn(),
   };
 });
 
@@ -69,7 +85,7 @@ const incident: OperatorIncident = {
   },
 };
 
-function pageOf(items: OperatorIncident[]) {
+function pageOf<T>(items: T[]) {
   return {
     items,
     page: 1,
@@ -81,13 +97,49 @@ function pageOf(items: OperatorIncident[]) {
   };
 }
 
+// Bộ lọc và sự cố đang mở nằm trên URL — probe này để khẳng định chúng thật sự
+// được ghi ra, vì đó mới là thứ sống sót qua một lượt rời màn rồi back về.
+function LocationProbe() {
+  return <span data-testid="location-search">{useLocation().search}</span>;
+}
+
 function renderPage(entry = "/manager/incidents") {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <ManagerIncidents />
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
+
+// Xe đang chạy chuyến gặp sự cố phải bị loại khỏi danh sách xe thay thế — id của
+// nó chỉ lấy được qua `GET /v1/trips/{id}` vì `GET /v1/operator/trips` không lọc
+// theo tripId.
+const brokenVehicle = {
+  id: "vehicle-broken",
+  operatorId: "operator-1",
+  licensePlate: "51B-000.00",
+  vehicleTypeId: "type-1",
+  totalSeats: 40,
+  maxCargoWeightKg: 500,
+  maxCargoVolumeM3: 5,
+  status: "ACTIVE",
+} as OperatorVehicle;
+
+const spareVehicle = {
+  ...brokenVehicle,
+  id: "vehicle-spare",
+  licensePlate: "51B-999.99",
+} as OperatorVehicle;
+
+const spareDriver = {
+  userId: "driver-2",
+  email: "driver2@operator.vn",
+  displayName: "Trần Văn Rảnh",
+  role: "DRIVER",
+  status: "ACTIVE",
+  operatorId: "operator-1",
+} as OperatorUser;
 
 const resolvedIncident: OperatorIncident = {
   ...incident,
@@ -104,6 +156,18 @@ describe("Manager Incidents", () => {
     vi.mocked(getOperatorIncidents).mockResolvedValue(pageOf([incident]));
     vi.mocked(getOperatorIncident).mockResolvedValue(incident);
     vi.mocked(resolveOperatorIncident).mockResolvedValue(resolvedIncident);
+    vi.mocked(getOperatorVehicles).mockResolvedValue(
+      pageOf([brokenVehicle, spareVehicle]),
+    );
+    vi.mocked(getOperatorUsers).mockResolvedValue(pageOf([spareDriver]));
+    vi.mocked(disruptOperatorTripNoSubstitution).mockResolvedValue({
+      tripId: "trip-1",
+      status: "DISRUPTED",
+    });
+    vi.mocked(getPublicTrip).mockResolvedValue({
+      tripId: "trip-1",
+      vehicleId: "vehicle-broken",
+    } as unknown as Awaited<ReturnType<typeof getPublicTrip>>);
   });
 
   it("hiển thị sự cố kèm loại, trạng thái và người báo", async () => {
@@ -177,7 +241,9 @@ describe("Manager Incidents", () => {
 
     const dialog = await screen.findByRole("dialog");
     await user.type(
-      within(dialog).getByRole("textbox"),
+      within(dialog).getByRole("textbox", {
+        name: "incidents.resolveNoteLabel",
+      }),
       "  Đã điều xe thay thế  ",
     );
     await user.click(
@@ -202,7 +268,9 @@ describe("Manager Incidents", () => {
     await user.click(screen.getByRole("button", { name: /details/ }));
 
     const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByRole("textbox"), "   ");
+    await user.type(within(dialog).getByRole("textbox", {
+        name: "incidents.resolveNoteLabel",
+      }), "   ");
     await user.click(
       within(dialog).getByRole("button", { name: "incidents.resolveAction" }),
     );
@@ -232,7 +300,9 @@ describe("Manager Incidents", () => {
     await user.click(screen.getByRole("button", { name: /details/ }));
 
     const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByRole("textbox"), "Đã xử lý");
+    await user.type(within(dialog).getByRole("textbox", {
+        name: "incidents.resolveNoteLabel",
+      }), "Đã xử lý");
     await user.click(
       within(dialog).getByRole("button", { name: "incidents.resolveAction" }),
     );
@@ -361,6 +431,274 @@ describe("Manager Incidents", () => {
     expect(
       within(dialog).queryByText("incidents.openInMaps"),
     ).not.toBeInTheDocument();
+  });
+
+  // Sang Trung tâm vận hành xử lý rồi back về: URL phải mang đủ bộ lọc lẫn id sự
+  // cố, nếu không người dùng rơi về trang 1 chưa lọc và phải tự mò lại.
+  it("khôi phục bộ lọc và trang từ URL khi quay lại màn", async () => {
+    renderPage(
+      "/manager/incidents?category=ACCIDENT&status=OPEN&search=" +
+        encodeURIComponent("động cơ") +
+        "&page=2",
+    );
+
+    await waitFor(() =>
+      expect(getOperatorIncidents).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 2,
+          category: "ACCIDENT",
+          status: "OPEN",
+          search: "động cơ",
+        }),
+      ),
+    );
+    expect(screen.getByLabelText("incidents.searchLabel")).toHaveValue(
+      "động cơ",
+    );
+  });
+
+  it("đổi bộ lọc thì ghi lên URL và về trang 1", async () => {
+    const user = userEvent.setup();
+    renderPage("/manager/incidents?page=3");
+    await screen.findByText("TP.HCM - Hà Nội");
+
+    await user.click(screen.getByRole("button", { name: "incidents.category" }));
+    await user.click(
+      screen.getByRole("option", {
+        name: "incidents.categories.VEHICLE_BREAKDOWN",
+      }),
+    );
+
+    await waitFor(() => {
+      const search = screen.getByTestId("location-search").textContent ?? "";
+      expect(search).toContain("category=VEHICLE_BREAKDOWN");
+      expect(search).not.toContain("page=");
+    });
+  });
+
+  it("?page= rác thì về trang 1 thay vì gửi NaN lên BE", async () => {
+    renderPage("/manager/incidents?page=abc");
+
+    await waitFor(() =>
+      expect(getOperatorIncidents).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1 }),
+      ),
+    );
+  });
+
+  it("deep-link ?incidentId= mở thẳng chi tiết", async () => {
+    renderPage("/manager/incidents?incidentId=incident-1");
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Xe gặp sự cố động cơ")).toBeInTheDocument();
+    expect(getOperatorIncident).toHaveBeenCalledWith("incident-1");
+  });
+
+  it("mở chi tiết đẩy id lên URL, đóng lại thì xoá đi", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+
+    await user.click(screen.getByRole("button", { name: /details/ }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain(
+        "incidentId=incident-1",
+      ),
+    );
+
+    // Modal có 3 nút cùng nhãn "close" (nền mờ, dấu X, nút ở chân) — lấy nút chân
+    const closeButtons = within(dialog).getAllByRole("button", {
+      name: "close",
+    });
+    await user.click(closeButtons[closeButtons.length - 1]);
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("location-search").textContent).not.toContain(
+      "incidentId",
+    );
+  });
+
+  // Vá tại chỗ thôi thì bản ghi vừa đóng vẫn nằm lại trong danh sách đang lọc
+  // `status=OPEN`, và totalItems của phân trang thì lệch mất một.
+  it("đóng sự cố xong thì tải lại danh sách cho khớp bộ lọc", async () => {
+    const user = userEvent.setup();
+    renderPage("/manager/incidents?status=OPEN");
+    await screen.findByText("TP.HCM - Hà Nội");
+    await waitFor(() => expect(getOperatorIncidents).toHaveBeenCalled());
+    const callsBefore = vi.mocked(getOperatorIncidents).mock.calls.length;
+
+    await user.click(screen.getByRole("button", { name: /details/ }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByRole("textbox", {
+        name: "incidents.resolveNoteLabel",
+      }), "Đã điều xe thay thế");
+    await user.click(
+      within(dialog).getByRole("button", { name: "incidents.resolveAction" }),
+    );
+
+    await waitFor(() =>
+      expect(vi.mocked(getOperatorIncidents).mock.calls.length).toBeGreaterThan(
+        callsBefore,
+      ),
+    );
+  });
+
+  // `setSearchParams` đổi identity sau mỗi lần URL đổi — lỡ để nó rò vào deps của
+  // effect tải chi tiết thì mỗi thao tác lọc lại bắn thêm một request detail.
+  it("đổi bộ lọc khi đang mở chi tiết thì không gọi lại endpoint detail", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+
+    await user.click(screen.getByRole("button", { name: /details/ }));
+    await screen.findByRole("dialog");
+    await waitFor(() => expect(getOperatorIncident).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: "incidents.category" }));
+    await user.click(
+      screen.getByRole("option", {
+        name: "incidents.categories.VEHICLE_BREAKDOWN",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(getOperatorIncidents).toHaveBeenLastCalledWith(
+        expect.objectContaining({ category: "VEHICLE_BREAKDOWN" }),
+      ),
+    );
+    expect(getOperatorIncident).toHaveBeenCalledTimes(1);
+  });
+
+  // Xử lý ngay trong modal: hỏng xe thì thay xe, tắc đường thì đổi lộ trình —
+  // không phải nhảy sang Trung tâm vận hành rồi tự mò đường quay lại đóng sự cố.
+  it("OPERATOR_ADMIN xử lý được chuyến ngay trong modal sự cố", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByRole("button", {
+        name: "tripOperations.substitute",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "tripOperations.changeRoute" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "tripOperations.disrupt" }),
+    ).toBeInTheDocument();
+  });
+
+  it("OPERATOR_STAFF không thấy khối xử lý chuyến", async () => {
+    currentRole = "OPERATOR_STAFF";
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "tripOperations.substitute",
+      }),
+    ).not.toBeInTheDocument();
+    // Staff không mở form thay xe thì cũng đừng kéo về xe/nhân sự của cả nhà xe
+    expect(getOperatorVehicles).not.toHaveBeenCalled();
+  });
+
+  it("sự cố đã xử lý thì không còn khối xử lý chuyến", async () => {
+    vi.mocked(getOperatorIncidents).mockResolvedValue(pageOf([resolvedIncident]));
+    vi.mocked(getOperatorIncident).mockResolvedValue(resolvedIncident);
+
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "tripOperations.substitute",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Chỉ xem danh sách thì không việc gì phải kéo về toàn bộ xe và nhân sự
+  it("chưa mở sự cố nào thì chưa nạp xe/nhân sự", async () => {
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+
+    expect(getOperatorVehicles).not.toHaveBeenCalled();
+    expect(getOperatorUsers).not.toHaveBeenCalled();
+  });
+
+  it("loại xe đang chạy chuyến khỏi danh sách xe thay thế", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(getPublicTrip).toHaveBeenCalledWith("trip-1"),
+    );
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "tripOperations.vehicle" }),
+    );
+    expect(
+      await screen.findByRole("option", { name: "51B-999.99" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "51B-000.00" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Xử lý chuyến KHÔNG tự đóng sự cố — chỉ điền sẵn câu tổng kết để bấm xác nhận,
+  // và làm mới danh sách vì trạng thái chuyến vừa đổi.
+  it("xử lý chuyến xong thì điền sẵn ghi chú và làm mới danh sách", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    const note = within(dialog).getByRole("textbox", {
+      name: "incidents.resolveNoteLabel",
+    });
+    expect(note).toHaveValue("");
+
+    await user.type(
+      within(dialog).getByLabelText("tripOperations.reason"),
+      "Xe hỏng giữa đường",
+    );
+    const callsBefore = vi.mocked(getOperatorIncidents).mock.calls.length;
+    await user.click(
+      within(dialog).getByRole("button", { name: "tripOperations.disrupt" }),
+    );
+    await user.click(screen.getByRole("button", { name: "confirm" }));
+
+    await waitFor(() =>
+      expect(disruptOperatorTripNoSubstitution).toHaveBeenCalledWith("trip-1", {
+        reason: "Xe hỏng giữa đường",
+      }),
+    );
+
+    // Sự cố vẫn OPEN, chỉ ghi chú được điền sẵn
+    await waitFor(() =>
+      expect(note).toHaveValue("tripOperations.disruptSuccess DISRUPTED"),
+    );
+    expect(resolveOperatorIncident).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(vi.mocked(getOperatorIncidents).mock.calls.length).toBeGreaterThan(
+        callsBefore,
+      ),
+    );
   });
 
   it("chịu được reporter thiếu displayName/role", async () => {
