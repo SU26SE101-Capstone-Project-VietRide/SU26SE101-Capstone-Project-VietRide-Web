@@ -58,7 +58,7 @@ export default function StationScheduleFields({
                 }
                 className={inputClass}
               />
-              <span className="text-center text-gray-400">–</span>
+              <span className="text-center text-gray-500">–</span>
               <CustomDateTimeInput
                 type="time"
                 value={schedule.close}

@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiSearch } from "react-icons/fi";
 import type { AdminOperator } from "../../../api/vietride";
 import Checkbox from "../../../components/form/Checkbox";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 type OperatorSelectorProps = {
   operators: AdminOperator[];
@@ -88,7 +88,7 @@ export default function OperatorSelector({
             type="button"
             onClick={toggleAllFilteredOperators}
             disabled={filteredOperators.length === 0}
-            className="rounded-lg border border-vr-200 px-3 py-1.5 text-xs font-semibold text-vr-700 transition hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-vr-200 px-3 py-1.5 text-xs font-semibold text-vr-900 transition hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {allFilteredOperatorsSelected
               ? t("vouchers.clearSelectedOperators")
@@ -97,21 +97,14 @@ export default function OperatorSelector({
         </div>
       </div>
 
-      <div className="relative mt-2">
-        <FiSearch
-          aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          size={15}
-        />
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder={t("vouchers.searchOperatorsPlaceholder")}
-          aria-label={t("vouchers.searchOperators")}
-          className={`${inputClass} pl-9`}
-        />
-      </div>
+      <SearchInput
+        label={t("vouchers.searchOperators")}
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder={t("vouchers.searchOperatorsPlaceholder")}
+        inputClassName={`${inputClass} pl-9`}
+        wrapperClassName="relative mt-2"
+      />
 
       <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
         {operators.length > 0 && filteredOperators.length > 0 ? (

@@ -105,7 +105,7 @@ export default function ScheduleFormModal({
             type="button"
             onClick={onCheckAvailability}
             disabled={isSaving || isLoadingResources || isCheckingAvailability}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 bg-white px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 bg-white px-4 py-2 text-sm font-semibold text-vr-900 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FiAlertCircle />
             {t("resourceConflict.check")}
@@ -123,7 +123,7 @@ export default function ScheduleFormModal({
             type="button"
             onClick={() => onSave("open")}
             disabled={isSaving || isLoadingResources}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FiCheckCircle />
             {t("trips.openForOperation")}
@@ -139,7 +139,7 @@ export default function ScheduleFormModal({
 
         {editingSchedule ? (
           <div
-            className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-800"
+            className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-900"
             role="status"
           >
             {t("trips.editScheduleFocusNotice")}
@@ -285,7 +285,7 @@ export default function ScheduleFormModal({
                 <button
                   type="button"
                   onClick={onSuggestDeparture}
-                  className="inline-flex cursor-pointer items-center gap-1 font-semibold text-vr-700 hover:underline"
+                  className="inline-flex cursor-pointer items-center gap-1 font-semibold text-vr-900 hover:underline"
                 >
                   <FiCalendar aria-hidden="true" />
                   {t("trips.suggestNextDeparture")}
@@ -395,7 +395,7 @@ export default function ScheduleFormModal({
             </FormSection>
             <details className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 mt-2.5">
               <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-gray-900">
-                <span className="text-vr-700">
+                <span className="text-vr-900">
                   <FiAlertCircle />
                 </span>
                 {t("trips.businessRules")}

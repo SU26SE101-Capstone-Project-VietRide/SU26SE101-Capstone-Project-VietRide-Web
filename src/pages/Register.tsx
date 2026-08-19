@@ -22,6 +22,7 @@ import {
   verifyEmail,
   type RegisterOperatorRequest,
 } from "../api/vietride";
+import { Button } from "../components/ui/Button";
 
 const emptyOperatorForm: RegisterOperatorRequest = {
   name: "",
@@ -419,18 +420,14 @@ export default function Register() {
                       type="button"
                       onClick={handleResendVerificationEmail}
                       disabled={loading || resendLoading}
-                      className="cursor-pointer font-semibold text-vr-700 underline-offset-4 transition hover:text-vr-900 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                      className="cursor-pointer font-semibold text-vr-900 underline-offset-4 transition hover:text-vr-900 hover:underline disabled:cursor-not-allowed disabled:text-gray-500 disabled:no-underline"
                     >
                       {resendLoading
                         ? t("resendingVerification")
                         : t("resendVerification")}
                     </button>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={loading || resendLoading}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-600 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                  >
+                  <Button variant="primary" className="w-full" type="submit" disabled={loading || resendLoading}>
                     {loading ? (
                       <>
                         <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -442,7 +439,7 @@ export default function Register() {
                         <FiArrowRight className="h-5 w-5" />
                       </>
                     )}
-                  </button>
+                  </Button>
                 </form>
               ) : (
                 <form
@@ -489,7 +486,7 @@ export default function Register() {
                   </div>
 
                   <div>
-                    <p className="text-sm font-semibold text-vr-700">
+                    <p className="text-sm font-semibold text-vr-900">
                       {t(registerSteps[currentStep].titleKey)}
                     </p>
                     <p className="text-sm text-gray-500">
@@ -610,7 +607,7 @@ export default function Register() {
                       type="button"
                       onClick={handlePreviousStep}
                       disabled={currentStep === 0 || loading}
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-2.5 text-base font-bold text-slate-700 transition hover:border-vr-200 hover:bg-vr-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-2.5 text-base font-bold text-slate-700 transition hover:border-vr-200 hover:bg-vr-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
                     >
                       <FiArrowLeft className="h-5 w-5" />
                       {t("back")}
@@ -624,26 +621,12 @@ export default function Register() {
                         dispatch xong nên đọc phải type mới → gọi luôn API đăng
                         ký. `preventDefault` là lớp chặn thứ hai cho chắc. */}
                     {currentStep < registerSteps.length - 1 ? (
-                      <button
-                        key="register-next-step"
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          handleNextStep();
-                        }}
-                        disabled={loading}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                      >
+                      <Button variant="primary" className="flex-1" key="register-next-step" onClick={(event) => { event.preventDefault(); handleNextStep(); }} disabled={loading}>
                         {t("continue")}
                         <FiArrowRight className="h-5 w-5" />
-                      </button>
+                      </Button>
                     ) : (
-                      <button
-                        key="register-submit"
-                        type="submit"
-                        disabled={loading}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-600 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                      >
+                      <Button variant="primary" className="flex-1" key="register-submit" type="submit" disabled={loading}>
                         {loading ? (
                           <>
                             <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -655,7 +638,7 @@ export default function Register() {
                             <FiArrowRight className="h-5 w-5" />
                           </>
                         )}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </form>
@@ -664,7 +647,7 @@ export default function Register() {
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-2 font-semibold text-vr-700 hover:text-vr-900"
+                  className="inline-flex items-center gap-2 font-semibold text-vr-900 hover:text-vr-900"
                 >
                   <FiArrowLeft /> {t("backToLogin")}
                 </Link>
@@ -672,7 +655,7 @@ export default function Register() {
                   {t("hasAccount")}{" "}
                   <Link
                     to="/login"
-                    className="font-semibold text-vr-700 underline-offset-2 hover:underline"
+                    className="font-semibold text-vr-900 underline-offset-2 hover:underline"
                   >
                     {t("submit")}
                   </Link>
@@ -717,7 +700,7 @@ function Field({
         {label} <span className="text-red-500">*</span>
       </label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center text-gray-400">
+        <span className="pointer-events-none absolute left-3.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center text-gray-500">
           {icon}
         </span>
         <input
@@ -728,7 +711,7 @@ function Field({
           readOnly={readOnly}
           className={`w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 ${
             isPassword ? "pr-11" : "pr-4"
-          } text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25`}
+          } text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25`}
         />
         {isPassword && (
           <button

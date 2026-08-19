@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiMapPin, FiRefreshCw, FiSearch } from "react-icons/fi";
+import { FiMapPin, FiRefreshCw } from "react-icons/fi";
 import { getOperatorStations, type OperatorStation } from "../../../api/vietride";
 import { StatCard } from "../../../components/StatCard";
 import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useLatestRequest } from "../../../hooks/useLatestRequest";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { Badge } from "../../../components/ui/Badge";
 
 const PAGE_SIZE = 10;
 const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -89,7 +91,7 @@ export default function ManagerStationsPage() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label={t("stations.total")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-700" isLoading={isLoading} />
+        <StatCard label={t("stations.total")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-900" isLoading={isLoading} />
         <StatCard label={t("stations.active")} value={activeCount} icon={<FiMapPin size={20} />} iconClassName="bg-emerald-50 text-emerald-600" isLoading={isLoading} />
         <StatCard label={t("stations.shuttle")} value={shuttleCount} icon={<FiMapPin size={20} />} iconClassName="bg-amber-50 text-amber-700" isLoading={isLoading} />
       </div>
@@ -97,10 +99,14 @@ export default function ManagerStationsPage() {
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_220px]">
-            <div className="relative">
-              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input aria-label={t("stations.searchLabel")} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t("stations.searchPlaceholder")} className={`${inputClass} pl-9`} />
-            </div>
+            <SearchInput
+              label={t("stations.searchLabel")}
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+              placeholder={t("stations.searchPlaceholder")}
+              inputClassName={`${inputClass} pl-9`}
+              wrapperClassName="relative"
+            />
             <CustomSelect aria-label={t("stations.filterActive")} value={activeFilter} onChange={(event) => { setActiveFilter(event.target.value); setPage(1); }} className={inputClass}>
               <option value="">{t("stations.allActive")}</option>
               <option value="ACTIVE">{tc("active")}</option>
@@ -134,7 +140,7 @@ export default function ManagerStationsPage() {
                       <p className="break-words">{stationAddress(item)}</p>
                     </td>
                     <td className="px-5 py-4 align-middle text-center text-gray-600">{item.station?.supportsShuttle ? tc("yes") : tc("no")}</td>
-                    <td className="px-5 py-4 align-middle text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${item.isActive !== false ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{item.isActive !== false ? tc("active") : tc("inactive")}</span></td>
+                    <td className="px-5 py-4 align-middle text-center"><Badge tone={item.isActive !== false ? "success" : "neutral"}>{item.isActive !== false ? tc("active") : tc("inactive")}</Badge></td>
                   </tr>
                 ))}
               </tbody>

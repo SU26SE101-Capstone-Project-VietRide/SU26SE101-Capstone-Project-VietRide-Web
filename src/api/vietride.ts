@@ -198,7 +198,7 @@ export type AdminActivityLog = {
   id: string;
   actor: AdminActivityLogActor;
   action: string;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, unknown> | null;
   ipAddress?: string | null;
   userAgent?: string | null;
   createdAt: string;
@@ -3360,6 +3360,7 @@ export type TripSeatMap = {
   tripId: string;
   vehicleType: string;
   seats: TripSeatMapSeat[];
+  aisles?: Array<{ afterCol: number }>;
 };
 
 export type FirebaseUploadPurpose =
@@ -3994,7 +3995,9 @@ type AdminUserApiItem = Omit<AdminUser, "userId"> & {
   userId?: string;
 };
 
-export async function getAdminUsers(params: AdminUserParams = {}) {
+export async function getAdminUsers(
+  params: AdminUserParams = {},
+): Promise<PagedResult<AdminUser>> {
   const result = await apiRequest<PagedResult<AdminUserApiItem>>(
     `/v1/admin/users${buildQuery(params)}`,
   );
@@ -6300,7 +6303,6 @@ export const updateOperatorPolicy = (
 ) => updatePolicy("/v1/operator/policies", policyId, request);
 export const deleteOperatorPolicy = (policyId: string) =>
   deletePolicy("/v1/operator/policies", policyId);
-
 
 
 

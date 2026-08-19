@@ -3,6 +3,7 @@ import { FiHome } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import { type CreateAdminOperatorRequest } from "../../../api/vietride";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { Button } from "../../../components/ui/Button";
 
 type OperatorOnboardModalProps = {
   open: boolean;
@@ -47,14 +48,9 @@ export default function OperatorOnboardModal({
           >
             {tc("cancel")}
           </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={busy}
-            className="cursor-pointer rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <Button variant="primary" onClick={onSubmit} disabled={busy}>
             {t("operators.createOperator")}
-          </button>
+          </Button>
         </>
       }
     >

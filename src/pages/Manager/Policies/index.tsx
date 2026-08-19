@@ -25,6 +25,7 @@ import {
   inputClass,
   labelClass,
 } from "../../../components/form/formClasses";
+import { Badge } from "../../../components/ui/Badge";
 
 export default function ManagerPolicies() {
   const { t } = useTranslation("manager");
@@ -189,7 +190,7 @@ export default function ManagerPolicies() {
             resetForm();
             setCreateOpen(true);
           }}
-          className="flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 font-medium text-white transition hover:bg-vr-600"
+          className="flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 font-medium text-white transition hover:bg-vr-900"
         >
           <FiPlus size={16} />
           {t("policies.create")}
@@ -257,13 +258,7 @@ export default function ManagerPolicies() {
                     {formatDateOnly(policy.updatedAt)}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
-                        policy.active
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
+                    <Badge tone={policy.active ? "success" : "neutral"} className="gap-1">
                       {policy.active ? (
                         <>
                           <FiCheck className="text-lg" />
@@ -275,7 +270,7 @@ export default function ManagerPolicies() {
                           {tc("off")}
                         </>
                       )}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -414,7 +409,7 @@ export default function ManagerPolicies() {
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="flex-1 rounded-xl bg-vr-500 py-2.5 font-semibold text-white shadow-sm transition hover:bg-vr-600 disabled:opacity-60"
+              className="flex-1 rounded-xl bg-vr-800 py-2.5 font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:opacity-60"
             >
               {saving ? t("policies.saving") : selectedPolicy ? tc("update") : tc("create")}
             </button>

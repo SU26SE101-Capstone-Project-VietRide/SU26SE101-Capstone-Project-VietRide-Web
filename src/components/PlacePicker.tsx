@@ -20,6 +20,7 @@ import {
   type GooglePlacesLibrary,
 } from "../lib/googleMaps";
 import { extractGoogleAddressParts } from "../lib/googlePlaces";
+import { Button } from "./ui/Button";
 
 export type PlaceSelection = {
   placeId: string;
@@ -398,9 +399,9 @@ export default function PlacePicker({
         </span>
         <div className="flex gap-2">
           <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
-              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
               value={query}
               onChange={(event) => handleQueryChange(event.target.value)}
               onKeyDown={(event) => {
@@ -413,17 +414,12 @@ export default function PlacePicker({
               autoComplete="off"
             />
           </div>
-          <button
-            type="button"
-            onClick={handleManualSearch}
-            disabled={isSearching || !placesLibrary}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-          >
+          <Button variant="secondary" onClick={handleManualSearch} disabled={isSearching || !placesLibrary}>
             <FiSearch size={16} />
             {isSearching
               ? t("placePicker.searching")
               : t("placePicker.searchButton")}
-          </button>
+          </Button>
         </div>
       </label>
 

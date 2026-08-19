@@ -45,7 +45,7 @@ export default function GeometryToolbar({
   const travelModeButtonClass = (active: boolean) =>
     `px-2.5 py-1.5 text-xs font-semibold transition-colors ${
       active
-        ? "bg-vr-500 text-white"
+        ? "bg-vr-800 text-white"
         : "bg-white text-gray-600 hover:bg-gray-50"
     }`;
 

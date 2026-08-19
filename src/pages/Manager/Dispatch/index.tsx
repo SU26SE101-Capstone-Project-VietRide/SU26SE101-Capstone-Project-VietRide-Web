@@ -1171,7 +1171,7 @@ export default function DispatchPanel() {
           })}
           value={passengersOnPage}
           icon={<FiUsers size={20} />}
-          iconClassName="bg-vr-50 text-vr-700"
+          iconClassName="bg-vr-50 text-vr-900"
         />
       </div>
 
@@ -1260,7 +1260,7 @@ export default function DispatchPanel() {
               {/* Mất realtime nghĩa là số liệu đứng im tới khi bấm làm mới —
                   điều độ viên phải thấy được điều đó ngay cạnh tiêu đề. */}
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${
                   realtimeStatus === "connected"
                     ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
                     : realtimeStatus === "connecting"

@@ -6,7 +6,7 @@ import {
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FiAlertTriangle, FiCheckCircle, FiPauseCircle, FiPlus, FiRefreshCw, FiSearch, FiTruck } from "react-icons/fi";
+import { FiAlertTriangle, FiCheckCircle, FiPauseCircle, FiPlus, FiRefreshCw, FiTruck } from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
 import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
@@ -14,6 +14,7 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { StatCard } from "../../../components/StatCard";
 import CustomSelect from "../../../components/CustomSelect";
 import { ConfirmModal } from "../../../components/ConfirmModal";
+import InlineAlert from "../../../components/InlineAlert";
 import {
   readSessionCache,
   writeSessionCache,
@@ -45,7 +46,6 @@ import {
   getImageEntries,
   getUniquePublicImageUrls,
   getVehicleId,
-  inputClass,
   isVehicleStatus,
   MAX_COLUMNS_PER_ROW,
   MAX_ROWS_PER_DECK,
@@ -63,6 +63,8 @@ import {
   parseVehicleSeatLayout,
   toggleVehicleSeat,
 } from "./vehicleSeatHelpers";
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 const VEHICLE_PAGE_SIZE = 10;
 const VEHICLE_TYPES_CACHE_KEY = "vietride:vehicleTypes";
@@ -120,11 +122,15 @@ export default function VehiclesPage() {
   const [vehicleImageFiles, setVehicleImageFiles] = useState<File[]>([]);
   const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
+  // Tách khỏi `formError`: trước đây lỗi mạng khi tải danh sách cũng ghi vào
+  // `formError`, mà state đó lại được truyền thẳng vào modal — tải danh sách
+  // hỏng rồi mở "Thêm xe" là thấy sẵn lỗi mạng cũ như thể form nhập sai.
+  const [listError, setListError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<VehicleFormErrors>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
-  useToastFeedback({ message, error: formError || seatError });
+  useToastFeedback({ message, error: formError || seatError || listError });
   const [fleetTotalItems, setFleetTotalItems] = useState<number | null>(null);
   const listAbortControllerRef = useRef<AbortController | null>(null);
   const detailAbortControllerRef = useRef<AbortController | null>(null);
@@ -181,7 +187,7 @@ export default function VehiclesPage() {
     const controller = new AbortController();
     listAbortControllerRef.current = controller;
     setIsLoading(true);
-    setFormError("");
+    setListError("");
 
     try {
       const vehicleResult = await getOperatorVehicles(
@@ -210,7 +216,7 @@ export default function VehiclesPage() {
         return;
       }
 
-      setFormError(
+      setListError(
         err instanceof Error
           ? err.message
           : tRef.current("vehicles.loadFailed"),
@@ -270,7 +276,7 @@ export default function VehiclesPage() {
         }
       } catch (err) {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
-          setFormError(
+          setListError(
             err instanceof Error
               ? err.message
               : tRef.current("vehicles.loadFailed"),
@@ -876,18 +882,13 @@ export default function VehiclesPage() {
 
   const vehicleToolbar = (
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_240px] lg:items-center">
-          <div className="relative min-w-0">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="search"
-              name="vehicleSearch"
-              className={`${inputClass} pl-10`}
-              placeholder={`${tc("search")}: ${t("vehicles.plate")}`}
-              aria-label={`${tc("search")}: ${t("vehicles.plate")}`}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
+          <SearchInput
+            label={`${tc("search")}: ${t("vehicles.plate")}`}
+            name="vehicleSearch"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={`${tc("search")}: ${t("vehicles.plate")}`}
+          />
           <CustomSelect
             value={queryStatus}
             onChange={(event) =>
@@ -950,19 +951,15 @@ export default function VehiclesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={loadVehicles}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <FiRefreshCw size={16} />
+          <Button variant="secondary" onClick={loadVehicles} disabled={isLoading}>
+            <FiRefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
             {tc("refresh")}
-          </button>
+          </Button>
           {canManageVehicles && (
             <button
               type="button"
               onClick={openCreateModal}
-              className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
+              className="px-4 py-2 bg-vr-800 cursor-pointer hover:bg-vr-900 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
             >
               <FiPlus size={18} />
               {t("vehicles.add")}
@@ -972,11 +969,30 @@ export default function VehiclesPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t("vehicles.total")} value={total} icon={<FiTruck size={20} />} iconClassName="bg-vr-50 text-vr-700" />
+        <StatCard label={t("vehicles.total")} value={total} icon={<FiTruck size={20} />} iconClassName="bg-vr-50 text-vr-900" />
         <StatCard label={t("vehicles.active")} value={activeCount} icon={<FiCheckCircle size={20} />} iconClassName="bg-emerald-50 text-emerald-700" />
         <StatCard label={t("vehicles.statusMaintenance")} value={maintenanceCount} icon={<FiAlertTriangle size={20} />} iconClassName="bg-amber-50 text-amber-700" />
         <StatCard label={t("vehicles.inactive")} value={inactiveCount} icon={<FiPauseCircle size={20} />} iconClassName="bg-slate-100 text-slate-700" />
       </div>
+
+      {/* Toast lỗi tự tắt, còn đây là dấu vết ở lại: không có nó thì sau vài
+          giây màn hình chỉ còn dữ liệu cũ, không nhãn, không cách thử lại. */}
+      {listError && (
+        <div className="mb-4">
+          <InlineAlert tone="error">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>{listError}</span>
+              <button
+                type="button"
+                onClick={() => void loadVehicles()}
+                className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-sm font-semibold text-red-800 transition hover:bg-red-50"
+              >
+                {tc("retry")}
+              </button>
+            </div>
+          </InlineAlert>
+        </div>
+      )}
 
       <VehicleTable
         toolbar={vehicleToolbar}

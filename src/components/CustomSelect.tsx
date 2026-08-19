@@ -308,7 +308,7 @@ export default function CustomSelect({
           openList();
         }}
         onKeyDown={handleKeyDown}
-        className={`${className} flex min-h-11 w-full items-center justify-between gap-3 text-left transition focus:border-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100`}
+        className={`${className} flex min-h-11 w-full items-center justify-between gap-3 text-left transition focus:border-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-100`}
       >
         <span className={`min-w-0 flex-1 ${allowWrap ? "whitespace-normal break-words" : "truncate"}`}>
           {selectedOption?.label ?? ""}
@@ -330,7 +330,7 @@ export default function CustomSelect({
               <div className="relative">
                 <FiSearch
                   aria-hidden="true"
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
                   size={16}
                 />
                 <input
@@ -349,7 +349,7 @@ export default function CustomSelect({
                   onChange={(event) => handleSearchChange(event.target.value)}
                   onKeyDown={handleSearchKeyDown}
                   placeholder={searchPlaceholder}
-                  className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-vr-500 focus:bg-white focus:ring-2 focus:ring-vr-100"
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-500 focus:border-vr-500 focus:bg-white focus:ring-2 focus:ring-vr-100"
                 />
               </div>
             </div>
@@ -374,7 +374,7 @@ export default function CustomSelect({
                 disabled={option.disabled}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => commit(option.value)}
-                className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:text-gray-400 ${
+                className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:text-gray-500 ${
                   isSelected
                     ? "bg-vr-100 font-semibold text-vr-900"
                     : isActive

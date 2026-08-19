@@ -87,7 +87,7 @@ export default function ShuttleTrackingCard({
               {trip.vehicle.licensePlate || t("dispatch.unknownVehicle")}
             </h3>
             <span
-              className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusBadgeClass[trip.status]}`}
+              className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadgeClass[trip.status]}`}
             >
               {t(`dispatch.shuttleStatus.${trip.status}`)}
             </span>
@@ -107,7 +107,7 @@ export default function ShuttleTrackingCard({
               aria-pressed={isSelected}
               className={`inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border transition ${
                 isSelected
-                  ? "border-vr-500 bg-vr-500 text-white"
+                  ? "border-vr-500 bg-vr-800 text-white"
                   : "border-gray-200 text-gray-600 hover:bg-gray-50"
               }`}
               title={t("dispatch.showOnMap")}
@@ -215,7 +215,7 @@ export default function ShuttleTrackingCard({
               {t("dispatch.latestLocation")}
               {tracking?.isLive && (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700"
                   title={t("dispatch.realtime.connected")}
                 >
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
@@ -269,7 +269,7 @@ export default function ShuttleTrackingCard({
         <button
           type="button"
           onClick={() => onOpenDetail(trip)}
-          className="w-full cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-vr-300 hover:text-vr-700"
+          className="w-full cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-vr-300 hover:text-vr-900"
         >
           {t("dispatch.viewTripDetail")}
         </button>

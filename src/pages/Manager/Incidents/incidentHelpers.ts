@@ -8,17 +8,26 @@ export const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
 export const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
 
+/**
+ * LOẠI sự cố dùng pill trung tính — cố ý không mã hoá bằng màu.
+ *
+ * Trước đây `ACCIDENT` là đỏ đậm và `VEHICLE_BREAKDOWN` là đỏ nhạt, đứng ngay
+ * cạnh pill TRẠNG THÁI `OPEN` cũng màu đỏ. Hai pill đỏ liền nhau, một cái nói
+ * "chuyện gì xảy ra" một cái nói "đã xử lý chưa" — người đọc không có cách nào
+ * biết cái nào là cái nào. Màu ở màn này chỉ dành cho trạng thái.
+ */
 export const categoryBadgeClass: Record<IncidentCategory, string> = {
-  TRAFFIC_JAM: "bg-amber-50 text-amber-800 ring-1 ring-amber-100",
-  VEHICLE_BREAKDOWN: "bg-red-50 text-red-800 ring-1 ring-red-100",
-  ACCIDENT: "bg-red-100 text-red-900 ring-1 ring-red-200",
-  WEATHER: "bg-sky-50 text-sky-800 ring-1 ring-sky-100",
+  TRAFFIC_JAM: "bg-gray-100 text-gray-700 ring-1 ring-gray-200",
+  VEHICLE_BREAKDOWN: "bg-gray-100 text-gray-700 ring-1 ring-gray-200",
+  ACCIDENT: "bg-gray-100 text-gray-700 ring-1 ring-gray-200",
+  WEATHER: "bg-gray-100 text-gray-700 ring-1 ring-gray-200",
   OTHER: "bg-gray-100 text-gray-700 ring-1 ring-gray-200",
 };
 
+/** TRẠNG THÁI là chỗ duy nhất được dùng màu ngữ nghĩa ở màn này. */
 export const statusBadgeClass: Record<IncidentStatus, string> = {
-  OPEN: "bg-red-50 text-red-700 ring-1 ring-red-100",
-  RESOLVED: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
+  OPEN: "bg-rose-50 text-rose-700 ring-1 ring-rose-100",
+  RESOLVED: "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100",
 };
 
 export function badgeClassFor(

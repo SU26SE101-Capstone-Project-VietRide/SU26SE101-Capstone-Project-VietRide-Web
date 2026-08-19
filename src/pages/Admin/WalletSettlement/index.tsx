@@ -15,7 +15,6 @@ import {
   FiCheckCircle,
   FiDollarSign,
   FiRefreshCw,
-  FiSearch,
 } from "react-icons/fi";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -35,6 +34,7 @@ import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import { StatCard } from "../../../components/StatCard";
 import { formatCurrency } from "../../../utils/currency";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 const pageSize = 10;
 
@@ -404,7 +404,7 @@ export default function WalletSettlement() {
             onClick={() => selectTab(tab)}
             className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${
               activeTab === tab
-                ? "border-vr-500 text-vr-700"
+                ? "border-vr-500 text-vr-900"
                 : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
           >
@@ -417,15 +417,14 @@ export default function WalletSettlement() {
         <>
           <section className="space-y-4">
 <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t("walletSettlement.searchPlaceholder")}
-              />
-            </div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><SearchInput
+  label={t("walletSettlement.searchPlaceholder")}
+  value={search}
+  onChange={(event) => setSearch(event.target.value)}
+  placeholder={t("walletSettlement.searchPlaceholder")}
+  inputClassName="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
+  wrapperClassName="relative min-w-0 flex-1"
+/>
             <CustomSelect
               value={settlementView}
               onChange={(event) => selectSettlementView(event.target.value as SettlementView)}
@@ -456,7 +455,7 @@ export default function WalletSettlement() {
                       {t("walletSettlement.method")}
                     </th>
                     <th className="px-4 py-3 text-center">{t("walletSettlement.issue")}</th>
-                    <th className="px-4 py-3 text-center">{tc("actions")}</th>
+                    <th className="sticky right-0 z-10 bg-gray-50 px-4 py-3 text-center">{tc("actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -529,7 +528,9 @@ export default function WalletSettlement() {
                           "-"
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
+                      {/* Ghim cột Thao tác — bảng min-w-[1120px] nên ở laptop
+                          cột này luôn nằm ngoài khung nếu không ghim. */}
+                      <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-4 py-3 text-center">
                         <button
                           type="button"
                           disabled={
@@ -702,15 +703,14 @@ function WalletTransactionTable({
       <div className="border-b border-gray-100 p-4">
         <h2 className="text-center text-lg font-semibold text-gray-900">{t("walletSettlement.latestTransactions")}</h2>
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={(event) => onSearch(event.target.value)}
-              placeholder={t("walletSettlement.searchPlaceholder")}
-              className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
-            />
-          </div>
+          <SearchInput
+            label={t("walletSettlement.searchPlaceholder")}
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder={t("walletSettlement.searchPlaceholder")}
+            inputClassName="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
+            wrapperClassName="relative min-w-0 flex-1"
+          />
           <CustomSelect
             value={transactionType}
             onChange={(event) => onTransactionTypeChange(event.target.value as WalletTransactionType | "")}

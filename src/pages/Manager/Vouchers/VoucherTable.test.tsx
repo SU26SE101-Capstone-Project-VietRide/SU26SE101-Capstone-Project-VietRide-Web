@@ -44,6 +44,7 @@ function renderTable(props: Partial<Parameters<typeof VoucherTable>[0]> = {}) {
       onEdit={vi.fn()}
       onToggle={vi.fn()}
       onDelete={vi.fn()}
+      onCreate={vi.fn()}
       {...props}
     />,
   );

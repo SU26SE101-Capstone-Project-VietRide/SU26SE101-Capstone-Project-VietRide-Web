@@ -1,3 +1,4 @@
+import type { BadgeTone } from "../../../components/ui/Badge";
 import type {
   TripSettlementProcessingState,
   TripSettlementStatus,
@@ -27,18 +28,19 @@ export function processingStateClass(state?: TripSettlementProcessingState) {
 
 // status cũ (không có processingState trên response) vẫn cần map màu — giữ
 // map riêng vì bộ giá trị enum khác nhau (4 so với 5 trạng thái).
-export function settlementStatusClass(status: TripSettlementStatus) {
+/** Tone của Badge theo trạng thái đối soát — 4 trạng thái, 4 tone khác nhau. */
+export function settlementStatusTone(status: TripSettlementStatus): BadgeTone {
   switch (status) {
     case "SETTLED":
-      return "bg-emerald-50 text-emerald-700";
+      return "success";
     case "ELIGIBLE":
-      return "bg-blue-50 text-blue-700";
+      return "info";
     case "PENDING_HOLD":
-      return "bg-amber-50 text-amber-800";
+      return "warning";
     case "CANCELLED":
-      return "bg-red-50 text-red-700";
+      return "danger";
     default:
-      return "bg-gray-100 text-gray-700";
+      return "neutral";
   }
 }
 

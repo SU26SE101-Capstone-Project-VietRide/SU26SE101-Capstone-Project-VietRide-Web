@@ -65,7 +65,7 @@ function TransactionRow({
         {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
         {copy}
         {item.adjustmentReason && (
-          <p className="mt-0.5 text-xs font-normal text-gray-400">
+          <p className="mt-0.5 text-xs font-normal text-gray-600">
             {t(`wallet.adjustmentReasons.${item.adjustmentReason}`, {
               defaultValue: item.adjustmentReason,
             })}

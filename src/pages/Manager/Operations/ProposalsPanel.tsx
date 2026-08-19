@@ -8,7 +8,6 @@ import {
   FiFilter,
   FiMap,
   FiRefreshCw,
-  FiSearch,
   FiX,
   FiXCircle,
 } from "react-icons/fi";
@@ -26,6 +25,9 @@ import {
 } from "../../../api/vietride";
 import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 import { decodeGooglePolyline, routeGeometryPath } from "./gpsHelpers";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { Badge } from "../../../components/ui/Badge";
+import type { BadgeTone } from "../../../components/ui/Badge";
 
 const pageSize = 50;
 
@@ -35,12 +37,13 @@ const currentPathColor = "#9ca3af";
 
 const defaultMapCenter: GoogleMapCoordinate = { lat: 10.7769, lng: 106.7009 };
 
-const statusStyles: Record<RouteChangeProposalStatus, string> = {
-  PENDING: "bg-orange-100 text-orange-700",
-  APPROVED: "bg-green-100 text-green-700",
-  REJECTED: "bg-red-100 text-red-700",
-  SUPERSEDED: "bg-gray-100 text-gray-600",
-  EXPIRED: "bg-gray-100 text-gray-600",
+// SUPERSEDED và EXPIRED vốn đã chung màu xám nên gộp về `neutral` không mất gì.
+const statusStyles: Record<RouteChangeProposalStatus, BadgeTone> = {
+  PENDING: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+  SUPERSEDED: "neutral",
+  EXPIRED: "neutral",
 };
 
 function formatDate(value: string) {
@@ -299,15 +302,14 @@ export default function ProposalsPanel({
       </div>
 
       <div className="flex flex-col gap-2">
-        <div className="relative">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t("routeEta.searchPlaceholder")}
-            className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm"
-          />
-        </div>
+        <SearchInput
+          label={t("routeEta.searchPlaceholder")}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={t("routeEta.searchPlaceholder")}
+          inputClassName="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm"
+          wrapperClassName="relative"
+        />
         <label className="flex items-center gap-2 text-sm text-gray-600">
           <FiFilter />
           <select
@@ -337,12 +339,12 @@ export default function ProposalsPanel({
             <article key={request.id} className="rounded-lg border border-gray-200 bg-white p-3">
               <div className="flex items-start gap-3">
                 <div className="pt-1">
-                  {request.status === "PENDING" ? <FiAlertCircle className="text-orange-500" /> : request.status === "APPROVED" ? <FiCheckCircle className="text-green-500" /> : <FiXCircle className="text-gray-400" />}
+                  {request.status === "PENDING" ? <FiAlertCircle className="text-orange-500" /> : request.status === "APPROVED" ? <FiCheckCircle className="text-green-500" /> : <FiXCircle className="text-gray-500" />}
                 </div>
                 <button type="button" onClick={() => void openDetails(request)} className="min-w-0 flex-1 text-left">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-gray-900">{request.snapshot.name}</span>
-                    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>{t(`routeEta.status.${request.status}`)}</span>
+                    <Badge tone={statusStyles[request.status]}>{t(`routeEta.status.${request.status}`)}</Badge>
                   </div>
                   <p className="mt-2 text-sm text-gray-700">{request.reason}</p>
                   <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
@@ -366,7 +368,7 @@ export default function ProposalsPanel({
                   <button
                     type="button"
                     onClick={() => void openDetails(request)}
-                    className="rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-semibold text-white"
+                    className="rounded-lg bg-vr-800 px-3 py-1.5 text-sm font-semibold text-white"
                   >
                     {t("routeEta.review")}
                   </button>
@@ -435,9 +437,9 @@ export default function ProposalsPanel({
                 <div>
                   <dt className="text-gray-500">{tc("status")}</dt>
                   <dd>
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusStyles[selectedRequest.status]}`}>
+                    <Badge tone={statusStyles[selectedRequest.status]}>
                       {t(`routeEta.status.${selectedRequest.status}`)}
-                    </span>
+                    </Badge>
                   </dd>
                 </div>
                 {selectedRequest.decidedAt && (

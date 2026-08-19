@@ -1,7 +1,7 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiRefreshCw, FiSearch, FiTag, FiTrash2 } from "react-icons/fi";
+import { FiPlus, FiRefreshCw, FiTag, FiTrash2 } from "react-icons/fi";
 import {
   createAdminVoucher,
   deleteAdminVoucher,
@@ -41,6 +41,9 @@ import {
   toUpdateRequest,
   usedCountOf,
 } from "./voucherHelpers";
+import { Button } from "../../../components/ui/Button";
+import { EmptyState } from "../../../components/ui/EmptyState";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 export default function Vouchers() {
   const { t } = useTranslation("admin");
@@ -251,18 +254,17 @@ export default function Vouchers() {
   const parcelCount = summary?.parcel ?? 0;
   const voucherToolbar = (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-      <div className="relative min-w-0 flex-1">
-        <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white"
-          placeholder={t("vouchers.searchPlaceholder")}
-          value={search}
-          onChange={(event) => {
+      <SearchInput
+        label={t("vouchers.searchPlaceholder")}
+        value={search}
+        onChange={(event) => {
             setSearch(event.target.value);
             setVoucherPage(1);
           }}
-        />
-      </div>
+        placeholder={t("vouchers.searchPlaceholder")}
+        inputClassName="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white"
+        wrapperClassName="relative min-w-0 flex-1"
+      />
       <CustomSelect
         value={statusFilter}
         onChange={(event) => {
@@ -303,22 +305,21 @@ export default function Vouchers() {
           <p className="mt-1 text-gray-600">{t("vouchers.subtitleLong")}</p>
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={loadVouchers}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            disabled={isLoading}
           >
-            <FiRefreshCw size={16} />
+            <FiRefreshCw
+              size={16}
+              className={isLoading ? "animate-spin" : ""}
+            />
             {tc("refresh")}
-          </button>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-          >
+          </Button>
+          <Button variant="primary" onClick={openCreateModal}>
             <FiPlus size={16} />
             {t("vouchers.create")}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -329,7 +330,7 @@ export default function Vouchers() {
             label={t("vouchers.totalVouchers")}
             value={summary?.total ?? totalVouchers}
             icon={<FiTag size={20} />}
-            iconClassName="bg-vr-50 text-vr-700"
+            iconClassName="bg-vr-50 text-vr-900"
           />
           <StatCard
             label={t("vouchers.activeVouchers")}
@@ -359,17 +360,20 @@ export default function Vouchers() {
             toolbar={voucherToolbar}
             isLoading={isLoading}
             emptyState={
-              <>
-                <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
-                <p className="text-gray-600">
-                  {t("vouchers.emptyType", {
-                    type: t("vouchers.emptyTypeBooking"),
-                  })}
-                </p>
-                <p className="mt-1 text-sm text-gray-500">
-                  {t("vouchers.emptyHint")}
-                </p>
-              </>
+              <EmptyState
+                tone="plain"
+                icon={<FiTag size={26} />}
+                title={t("vouchers.emptyType", {
+                  type: t("vouchers.emptyTypeBooking"),
+                })}
+                description={t("vouchers.emptyHint")}
+                action={
+                  <Button variant="primary" onClick={openCreateModal}>
+                    <FiPlus size={16} />
+                    {t("vouchers.create")}
+                  </Button>
+                }
+              />
             }
             vouchers={vouchers}
             page={voucherPage}
@@ -392,13 +396,9 @@ export default function Vouchers() {
         title={t("vouchers.detailTitle")}
         subtitle={detailVoucher?.code}
         footer={
-          <button
-            type="button"
-            onClick={() => setDetailVoucher(null)}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700"
-          >
+          <Button variant="secondary" onClick={() => setDetailVoucher(null)}>
             {tc("close")}
-          </button>
+          </Button>
         }
       >
         {detailVoucher && (
@@ -406,7 +406,7 @@ export default function Vouchers() {
             <section className="rounded-2xl border border-vr-100 bg-gradient-to-br from-vr-50 to-white p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-vr-700">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-vr-900">
                     {t("vouchers.code")}
                   </p>
                   <p className="mt-1 text-xl font-bold text-gray-900">
@@ -420,7 +420,7 @@ export default function Vouchers() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     {t("vouchers.discount")}
                   </p>
-                  <p className="mt-1 text-2xl font-bold text-vr-700">
+                  <p className="mt-1 text-2xl font-bold text-vr-900">
                     {discountTypeOf(detailVoucher) === "percent"
                       ? String(discountValueOf(detailVoucher)) + "%"
                       : formatNumber(discountValueOf(detailVoucher)) + " đ"}

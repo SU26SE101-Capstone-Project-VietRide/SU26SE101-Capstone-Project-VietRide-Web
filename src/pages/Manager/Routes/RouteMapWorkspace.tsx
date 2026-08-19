@@ -24,6 +24,7 @@ import type { RouteMapPoint, StationOption, StopSuggestion } from "./types";
 import type { UseRouteGeometryResult } from "./useRouteGeometry";
 import type { UseRouteStopEditorResult } from "./useRouteStopEditor";
 import type { RouteTab } from "./routeFormUtils";
+import { Badge } from "../../../components/ui/Badge";
 
 type RouteMapWorkspaceProps = {
   // Nội dung panel nổi hiện theo tab đang mở: "info" = form tuyến, "stops" =
@@ -138,9 +139,9 @@ export default function RouteMapWorkspace({
           canManageRoutes ? (
             <>
               {isDirty && (
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+                <Badge tone="warning" className="ring-1 ring-amber-200">
                   {t("routes.unsavedChanges")}
-                </span>
+                </Badge>
               )}
               <button
                 type="button"
@@ -148,8 +149,8 @@ export default function RouteMapWorkspace({
                 disabled={!isDirty || isSaving}
                 className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed ${
                   isDirty
-                    ? "bg-vr-500 text-white shadow-sm hover:bg-vr-600 disabled:opacity-70"
-                    : "border border-gray-200 bg-white text-gray-400"
+                    ? "bg-vr-800 text-white shadow-sm hover:bg-vr-900 disabled:opacity-70"
+                    : "border border-gray-200 bg-white text-gray-500"
                 }`}
               >
                 <FiSave size={16} />

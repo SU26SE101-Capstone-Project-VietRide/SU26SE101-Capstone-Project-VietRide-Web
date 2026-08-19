@@ -4,6 +4,7 @@
     "support": "HỖ TRỢ"
   },
   "closeMenu": "Đóng menu",
+  "mainNavigation": "Điều hướng chính",
   "manager": {
     "dashboard": "Tổng quan",
     "trips": "Lịch chạy",
@@ -44,7 +45,8 @@
     "reports": "Báo cáo",
     "ragAudit": "Tài liệu AI & kiểm tra hội thoại",
     "outboxDlq": "Hàng đợi lỗi",
-    "assistant": "Trợ lý nghiệp vụ"
+    "assistant": "Trợ lý nghiệp vụ",
+    "activityLogs": "Nhật ký hoạt động"
   },
   "layout": {
     "adminDashboard": "Tổng quan quản trị",

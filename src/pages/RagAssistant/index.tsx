@@ -196,7 +196,7 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-900 sm:text-3xl">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-vr-100 text-vr-800">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-vr-100 text-vr-900">
                 <FiBookOpen className="h-5 w-5" aria-hidden="true" />
               </span>
               {t("assistant.pageTitle")}
@@ -230,7 +230,7 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
               setConversationId(undefined);
               setMessages([]);
             }}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-vr-500 focus:ring-2 focus:ring-vr-500/25"
+            className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none placeholder:text-gray-500 focus:border-vr-500 focus:ring-2 focus:ring-vr-500/25"
             placeholder={t("assistant.operatorScopePlaceholder")}
           />
         </label>

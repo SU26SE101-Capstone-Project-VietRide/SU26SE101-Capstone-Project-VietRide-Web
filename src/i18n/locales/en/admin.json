@@ -55,7 +55,7 @@
     "title": "Operators",
     "subtitle": "Manage, approve and authorize operators on the platform.",
     "total": "Total operators",
-    "approved": "Active",
+    "approved": "Approved",
     "pending": "Pending approval",
     "restricted": "Suspended / rejected",
     "addOperator": "Add operator",
@@ -70,9 +70,10 @@
     "pendingBanner": "{{count}} operator applications awaiting verification",
     "viewNow": "View now",
     "searchPlaceholder": "Search by name, tax ID",
-    "allStatus": "All statuses",
+    "allStatus": "Approval: all",
     "filterActivation": "Filter by activation",
-    "allActivation": "All activation states",
+    "filterStatus": "Filter by approval status",
+    "allActivation": "Activation: all",
     "advancedFilters": "Advanced filters",
     "clearFilters": "Clear filters",
     "dateFieldLabel": "Filter by date field",
@@ -415,6 +416,8 @@
     "activeStat": "Active",
     "levelStat": "Administrative levels on this page",
     "filterType": "Filter by administrative level",
+    "allStatuses": "Status: all",
+    "allTypes": "Level: all",
     "filterParent": "Filter by parent",
     "allParents": "All parents",
     "whatIsThis": "What is this?"
@@ -934,6 +937,54 @@
     "platformCommission": "Platform commission",
     "monthlyRevenue": "Revenue by month"
   },
+  "activityLogs": {
+    "title": "Activity logs",
+    "subtitle": "Review important administrative actions across the platform.",
+    "filters": "Activity log filters",
+    "actorFilter": "Actor",
+    "actorPlaceholder": "Search by name or email",
+    "clearActor": "Clear actor",
+    "searchingActors": "Searching users...",
+    "actionFilter": "Action",
+    "allActions": "All actions",
+    "from": "From date",
+    "to": "To date",
+    "clearFilters": "Clear filters",
+    "pageSize": "Rows per page",
+    "time": "Time",
+    "actor": "Actor",
+    "action": "Action",
+    "context": "Target / context",
+    "ip": "Access address",
+    "details": "Details",
+    "view": "View",
+    "empty": "No activity logs",
+    "emptyHint": "Try changing the filters or date range.",
+    "loadFailed": "Could not load activity logs.",
+    "retry": "Try again",
+    "detailsEyebrow": "Technical investigation",
+    "detailsTitle": "Activity log details",
+    "close": "Close details",
+    "logId": "Log ID",
+    "userAgent": "User agent",
+    "metadata": "Readable metadata",
+    "noMetadata": "No metadata.",
+    "rawJson": "Raw JSON",
+    "actionGroups": {
+      "users": "Users",
+      "operators": "Operators",
+      "stations": "Stations"
+    },
+    "actions": {
+      "LOCK_USER": "Lock user",
+      "UNLOCK_USER": "Unlock user",
+      "APPROVE_OPERATOR": "Approve operator",
+      "REJECT_OPERATOR": "Reject operator",
+      "SUSPEND_OPERATOR": "Suspend operator",
+      "STATION_MERGED": "Merge stations"
+    },
+    "ipHint": "The network address recorded by the system for this action."
+  },
   "outboxDlq": {
     "title": "Outbox dead-letter queue",
     "subtitle": "Review terminal outbox delivery failures across VietRide services.",
@@ -958,3 +1009,4 @@
     "page": "Cursor page {{page}}"
   }
 }
+

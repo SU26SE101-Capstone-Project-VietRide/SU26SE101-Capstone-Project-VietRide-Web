@@ -16,7 +16,6 @@ import {
   FiPackage,
   FiPlus,
   FiRefreshCw,
-  FiSearch,
   FiSave,
   FiTruck,
   FiXCircle,
@@ -60,6 +59,8 @@ import {
   type FareEditorMode,
   type RouteFareStatus,
 } from "./parcelFareHelpers";
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
 type FareSort = "priceAsc" | "priceDesc";
 const routePickerPageSize = 8;
 
@@ -545,24 +546,22 @@ export default function ParcelsList() {
           </h1>
           <p className="mt-1 text-gray-600">{t("parcels.subtitle")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadData()}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
-          <FiRefreshCw size={16} />
+        <Button variant="secondary" onClick={() => void loadData()} disabled={isLoading}>
+          <FiRefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
           {tc("refresh")}
-        </button>
+        </Button>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<FiPackage />} label={t("parcels.todayOrders")} value={summary?.totalParcels ?? 0} iconClassName="bg-vr-50 text-vr-700" />
+        <StatCard icon={<FiPackage />} label={t("parcels.todayOrders")} value={summary?.totalParcels ?? 0} iconClassName="bg-vr-50 text-vr-900" />
         <StatCard icon={<FiTruck />} label={t("parcels.inTransit")} value={summary?.totalLoaded ?? 0} iconClassName="bg-blue-50 text-blue-700" />
         <StatCard icon={<FiCheckCircle />} label={t("parcels.delivered")} value={summary?.totalDelivered ?? 0} iconClassName="bg-emerald-50 text-emerald-700" />
         <StatCard icon={<FiXCircle />} label={t("parcels.needsAction")} value={pendingActionCount} iconClassName="bg-amber-50 text-amber-700" />
       </div>
       <ParcelQueue />
 
-      <main className="space-y-6">
+      {/* <div> chứ không phải <main>: layout đã có <main> bao ngoài, lồng
+          thêm <main> nữa là hai landmark `main` trên cùng một trang. */}
+      <div className="space-y-6">
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="border-b border-gray-100 p-5">
               <h2 className="text-lg font-bold text-gray-900">
@@ -574,9 +573,9 @@ export default function ParcelsList() {
             </div>
             {canManageRouteFares && (
               <div className="flex justify-end border-b border-gray-100 bg-gray-50/60 p-4">
-                <button type="button" onClick={() => { resetFareForm(); setIsFareModalOpen(true); }} className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-vr-600">
+                <Button variant="primary" onClick={() => { resetFareForm(); setIsFareModalOpen(true); }}>
                   <FiPlus size={16} />{t("parcels.createFare")}
-                </button>
+                </Button>
               </div>
             )}
             <Modal
@@ -591,13 +590,13 @@ export default function ParcelsList() {
               icon={<FiPackage size={20} />}
               wide
               footer={<>
-                <button type="button" onClick={resetFareForm} className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">{t("parcels.cancelEdit")}</button>
-                <button type="button" disabled={isFareSaving} onClick={() => void handleSaveFare()} className="inline-flex min-w-44 items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                <Button variant="secondary" onClick={resetFareForm}>{t("parcels.cancelEdit")}</Button>
+                <Button variant="primary" disabled={isFareSaving} onClick={() => void handleSaveFare()}>
                   {editingFare ? <FiSave /> : <FiPlus />}
                   {editingFare
                     ? t("parcels.updateFare")
                     : t(batchActionKey[fareEditorMode])}
-                </button>
+                </Button>
               </>}
             >
               <div className="space-y-5">
@@ -670,11 +669,14 @@ export default function ParcelsList() {
             </Modal>
             <div className="border-b border-gray-100 bg-white p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                <label className="relative min-w-0 flex-1">
-                  <span className="sr-only">{t("parcels.fareSearch")}</span>
-                  <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input value={fareSearch} onChange={(event) => { setFareSearch(event.target.value); setFarePage(1); }} placeholder={t("parcels.fareSearchPlaceholder")} className="w-full rounded-lg border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-vr-400 focus:ring-2 focus:ring-vr-100" />
-                </label>
+                <SearchInput
+                  label={t("parcels.fareSearchPlaceholder")}
+                  value={fareSearch}
+                  onChange={(event) => { setFareSearch(event.target.value); setFarePage(1); }}
+                  placeholder={t("parcels.fareSearchPlaceholder")}
+                  inputClassName="w-full rounded-lg border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
+                  wrapperClassName="relative min-w-0 flex-1"
+                />
                 <CustomSelect value={fareSizeFilter} onChange={(event) => { setFareSizeFilter(event.target.value as "" | ParcelSizeCategory); setFarePage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100 lg:w-48">
                   <option value="">{t("parcels.allSizeCategories")}</option>
                   {parcelSizeCategories.map((size) => <option key={size} value={size}>{t("parcels.sizeCategories." + size)}</option>)}
@@ -688,8 +690,8 @@ export default function ParcelsList() {
                 </CustomSelect>
               </div>
             </div>
-            <div className="w-full overflow-hidden">
-              <table className="w-full table-fixed whitespace-nowrap">
+            <div className="w-full overflow-x-auto" tabIndex={0}>
+              <table className="w-full min-w-[1100px] table-fixed whitespace-nowrap">
                 <colgroup>
                   <col className="w-[26%]" />
                   <col className="w-[12%]" />
@@ -702,7 +704,7 @@ export default function ParcelsList() {
                   <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="whitespace-nowrap px-4 py-3">{t("parcels.route")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.sizeCategory")}</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-center"><button type="button" onClick={toggleFareSort} className="inline-flex items-center justify-center gap-1.5 font-semibold transition hover:text-vr-700" aria-label={t("parcels.fee")} title={fareSort === "priceAsc" ? t("parcels.priceHighToLow") : t("parcels.priceLowToHigh")}>{t("parcels.fee")}{fareSortIcon()}</button></th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center"><button type="button" onClick={toggleFareSort} className="inline-flex items-center justify-center gap-1.5 font-semibold transition hover:text-vr-900" aria-label={t("parcels.fee")} title={fareSort === "priceAsc" ? t("parcels.priceHighToLow") : t("parcels.priceLowToHigh")}>{t("parcels.fee")}{fareSortIcon()}</button></th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveFrom")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{t("parcels.effectiveUntil")}</th>
                     <th className="whitespace-nowrap px-4 py-3 text-center">{tc("actions")}</th>
@@ -736,14 +738,14 @@ export default function ParcelsList() {
                           <button
                             type="button"
                             onClick={() => handleEditFare(fare)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-300 hover:bg-vr-50 hover:text-vr-700"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-300 hover:bg-vr-50 hover:text-vr-900"
                             aria-label={t("parcels.editFare")}
                             title={t("parcels.editFare")}
                           >
                             <FiEdit2 size={16} />
                           </button>
                         ) : (
-                          <span className="text-gray-400">-</span>
+                          <span className="text-gray-500">-</span>
                         )}
                       </td>
                     </tr>
@@ -763,7 +765,7 @@ export default function ParcelsList() {
               onPageChange={setFarePage}
             />
           </section>
-      </main>
+      </div>
     </div>
   );
 }

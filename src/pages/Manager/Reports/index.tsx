@@ -287,7 +287,7 @@ export default function ManagerReports() {
         <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-vr-50 text-vr-900">
                 <FiFileText />
               </span>
               <div>
@@ -354,9 +354,9 @@ export default function ManagerReports() {
                 </span>
               </span>
               {downloadingType === reportType ? (
-                <FiLoader className="shrink-0 animate-spin text-vr-600" />
+                <FiLoader className="shrink-0 animate-spin text-vr-900" />
               ) : (
-                <FiDownload className="shrink-0 text-vr-700" />
+                <FiDownload className="shrink-0 text-vr-900" />
               )}
             </button>
           ))}

@@ -17,6 +17,7 @@ import type {
 import Modal from "../../../components/Modal";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { formatDistance, formatTime } from "./dispatchHelpers";
+import { Button } from "../../../components/ui/Button";
 
 type ShuttleTripDetailModalProps = {
   open: boolean;
@@ -79,13 +80,9 @@ export default function ShuttleTripDetailModal({
       title={t("dispatch.tripDetailTitle")}
       subtitle={trip?.vehicle.licensePlate || t("dispatch.unknownVehicle")}
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
+        <Button variant="secondary" onClick={onClose}>
           {tc("close")}
-        </button>
+        </Button>
       }
     >
       {trip && (
@@ -175,14 +172,14 @@ export default function ShuttleTripDetailModal({
                     className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2.5"
                   >
                     <div className="flex min-w-0 gap-3">
-                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-vr-700 ring-1 ring-vr-100">
+                      <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-vr-900 ring-1 ring-vr-100">
                         {stop.pickupOrder}
                       </span>
                       <div className="min-w-0">
                         <p className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
                           <FiMapPin
                             size={13}
-                            className="shrink-0 text-gray-400"
+                            className="shrink-0 text-gray-500"
                             aria-hidden="true"
                           />
                           {/* Điểm bến không có `serviceAddress`; lùi về tên bến

@@ -14,6 +14,7 @@ import {
   type VoucherForm,
   type VoucherServiceTab,
 } from "./voucherHelpers";
+import { Button } from "../../../components/ui/Button";
 
 type VoucherModalProps = {
   open: boolean;
@@ -74,14 +75,9 @@ export default function VoucherModal({
           >
             {tc("cancel")}
           </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={busy}
-            className="rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <Button variant="primary" onClick={onSubmit} disabled={busy}>
             {isEditing ? t("vouchers.update") : t("vouchers.create")}
-          </button>
+          </Button>
         </>
       }
     >

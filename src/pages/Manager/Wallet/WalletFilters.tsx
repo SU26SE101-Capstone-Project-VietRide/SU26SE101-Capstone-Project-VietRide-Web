@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import type { Translate } from "./walletTableShared";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -41,12 +42,14 @@ export function WalletFilters({
 }) {
   return (
     <div className="flex flex-col gap-3 border-b border-gray-100 p-4 lg:flex-row lg:items-center lg:flex-wrap">
-      <input
-        type="search"
+      {/* Trước đây đây là <input> trần: không icon kính lúp (mọi màn khác đều
+          có) và không nhãn nào ngoài placeholder. */}
+      <SearchInput
+        label={searchPlaceholder}
         value={searchTerm}
         onChange={(event) => onSearchChange(event.target.value)}
         placeholder={searchPlaceholder}
-        className={`flex-1 ${inputClass} lg:min-w-64`}
+        wrapperClassName="relative min-w-0 flex-1 lg:min-w-64"
       />
       {extraFilter}
       {dateFieldOptions.length > 1 && (
@@ -71,7 +74,7 @@ export function WalletFilters({
           className={inputClass}
           placeholder={t("wallet.dateFrom")}
         />
-        <span className="text-sm text-gray-400">-</span>
+        <span className="text-sm text-gray-500">-</span>
         <CustomDateTimeInput
           type="date"
           value={dateTo}

@@ -211,7 +211,7 @@ export default function ManagerWallet() {
               onClick={() => selectTab(item.value)}
               className={`cursor-pointer border-b-2 px-4 py-3 text-sm font-semibold transition ${
                 tab === item.value
-                  ? "border-vr-500 text-vr-700"
+                  ? "border-vr-500 text-vr-900"
                   : "border-transparent text-gray-500 hover:text-gray-800"
               }`}
             >

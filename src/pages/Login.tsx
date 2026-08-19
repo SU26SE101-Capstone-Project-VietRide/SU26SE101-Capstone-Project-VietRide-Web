@@ -12,6 +12,7 @@ import {
 } from "../auth";
 import Checkbox from "../components/form/Checkbox";
 import { isRecord } from "../utils/typeGuards";
+import { Button } from "../components/ui/Button";
 
 /**
  * `PrivateRoute` và `EntryRedirect` đá về đây kèm `state.from` = trang người
@@ -147,7 +148,7 @@ export default function Login() {
               <h1 className="text-2xl text-center font-bold tracking-tight text-vr-800 sm:text-4xl">
                 {t("title")}
               </h1>
-              <p className="mt-2 text-center text-[13px] leading-relaxed text-gray-500">
+              <p className="mt-2 text-center text-sm leading-relaxed text-gray-500">
                 {t("subtitle")}
               </p>
 
@@ -157,13 +158,13 @@ export default function Login() {
                     {t("email")} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative w-full max-w-lg">
-                    <FiMail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <FiMail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={t("emailPlaceholder")}
-                      className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                      className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
                     />
                   </div>
                 </div>
@@ -173,14 +174,14 @@ export default function Login() {
                     {t("password")} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative w-full max-w-lg">
-                    <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
                     <input
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder={t("passwordPlaceholder")}
-                      className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-11 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                      className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-11 text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
                     />
                     <button
                       type="button"
@@ -213,17 +214,13 @@ export default function Login() {
                   />
                   <Link
                     to="/forgot-password"
-                    className="text-sm font-semibold text-vr-700 hover:text-vr-900"
+                    className="text-sm font-semibold text-vr-900 hover:text-vr-900"
                   >
                     {t("forgotPassword")}
                   </Link>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-500 py-3.5 text-[18px] font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-600 hover:text-white disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                >
+                <Button variant="primary" className="w-full" type="submit" disabled={loading}>
                   {loading ? (
                     <>
                       <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -235,14 +232,14 @@ export default function Login() {
                       <FiArrowRight className="h-5 w-5" />
                     </>
                   )}
-                </button>
+                </Button>
               </form>
 
               <p className="mt-8 text-center text-sm text-gray-500">
                 {t("noAccount")}{" "}
                 <Link
                   to="/register"
-                  className="font-semibold text-vr-700 underline-offset-2 hover:underline"
+                  className="font-semibold text-vr-900 underline-offset-2 hover:underline"
                 >
                   {t("register")}
                 </Link>

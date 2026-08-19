@@ -41,6 +41,7 @@ import {
   reporterLabel,
   statusBadgeClass,
 } from "./incidentHelpers";
+import { Button } from "../../../components/ui/Button";
 
 const PAGE_SIZE = 10;
 
@@ -353,19 +354,14 @@ export default function ManagerIncidents() {
             {t("incidents.subtitle")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setReloadKey((current) => current + 1)}
-          disabled={isLoading}
-          className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <Button variant="secondary" onClick={() => setReloadKey((current) => current + 1)} disabled={isLoading}>
           <FiRefreshCw
             size={16}
             className={isLoading ? "animate-spin" : ""}
             aria-hidden="true"
           />
           {tc("refresh")}
-        </button>
+        </Button>
       </header>
 
       {linkedTripId && (
@@ -473,13 +469,9 @@ export default function ManagerIncidents() {
           </label>
 
           <div className="flex items-end">
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="min-h-11 w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-            >
+            <Button variant="secondary" className="w-full" onClick={resetFilters}>
               {tc("reset")}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -534,7 +526,7 @@ export default function ManagerIncidents() {
 
                     <p className="mt-2 flex items-start gap-1.5 font-semibold text-gray-900">
                       <FiMapPin
-                        className="mt-0.5 shrink-0 text-vr-600"
+                        className="mt-0.5 shrink-0 text-vr-900"
                         aria-hidden="true"
                       />
                       {incident.trip.route.name}
@@ -549,13 +541,9 @@ export default function ManagerIncidents() {
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => openDetail(incident)}
-                    className="inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                  >
+                  <Button variant="secondary" className="shrink-0" onClick={() => openDetail(incident)}>
                     <FiEye aria-hidden="true" /> {tc("details")}
-                  </button>
+                  </Button>
                 </div>
               </li>
             ))}

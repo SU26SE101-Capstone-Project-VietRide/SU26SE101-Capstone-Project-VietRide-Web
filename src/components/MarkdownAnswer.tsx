@@ -297,7 +297,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
           href={linkHref}
           target="_blank"
           rel="noreferrer noopener"
-          className="font-medium text-vr-700 underline underline-offset-2 hover:text-vr-800"
+          className="font-medium text-vr-900 underline underline-offset-2 hover:text-vr-800"
         >
           {linkText}
         </a>,
@@ -315,7 +315,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 }
 
 function renderList(list: ListBlock, keyPrefix: string): ReactNode {
-  const itemClass = "marker:text-vr-600 [&>p]:m-0";
+  const itemClass = "marker:text-vr-900 [&>p]:m-0";
   const children = list.items.map((item, position) => {
     const key = `${keyPrefix}-i${position}`;
     return (
@@ -350,7 +350,7 @@ function renderBlock(block: Block, position: number): ReactNode {
     case "heading": {
       const className =
         block.level <= 2
-          ? "text-[15px] font-bold text-slate-900"
+          ? "text-base font-bold text-slate-900"
           : block.level === 3
             ? "text-sm font-bold text-slate-900"
             : "text-sm font-semibold text-slate-800";

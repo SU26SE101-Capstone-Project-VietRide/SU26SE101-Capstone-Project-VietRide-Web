@@ -10,6 +10,7 @@ import { Field } from "./formControls";
 import type { CampaignForm } from "./types";
 import { isActiveOperator } from "./voucherHelpers";
 import Checkbox from "../../../components/form/Checkbox";
+import { Button } from "../../../components/ui/Button";
 
 type CampaignModalProps = {
   open: boolean;
@@ -51,23 +52,14 @@ export default function CampaignModal({
       subtitle={t("vouchers.campaignModalSubtitle")}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-          >
+          <Button variant="secondary" onClick={onClose}>
             {tc("cancel")}
-          </button>
-          <button
-            type="button"
-            disabled={isActionLoading}
-            onClick={() => void onSave()}
-            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Button>
+          <Button variant="primary" disabled={isActionLoading} onClick={() => void onSave()}>
             {editingCampaign
               ? t("vouchers.saveActionUpdate")
               : t("vouchers.createCampaign")}
-          </button>
+          </Button>
         </>
       }
     >

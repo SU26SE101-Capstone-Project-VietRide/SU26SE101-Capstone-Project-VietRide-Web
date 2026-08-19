@@ -10,6 +10,8 @@ import {
 } from "recharts";
 import EmptyChartState from "./EmptyChartState";
 import { compactRouteName, type ParcelRoutePoint } from "./dashboardHelpers";
+import { CHART_GRID_COLOR, chartColorAt } from "../../../lib/chartColors";
+import { Badge } from "../../../components/ui/Badge";
 
 type ParcelRouteChartProps = {
   data: ParcelRoutePoint[];
@@ -39,12 +41,12 @@ export default function ParcelRouteChart({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+          <Badge tone="info">
             {t("dashboard.parcelRouteTotal", { count: total })}
-          </span>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          </Badge>
+          <Badge tone="neutral">
             {t("dashboard.topRoutes", { count: data.length })}
-          </span>
+          </Badge>
         </div>
       </div>
       {data.length === 0 ? (
@@ -67,13 +69,13 @@ export default function ParcelRouteChart({
             >
               <defs>
                 <linearGradient id="parcelRouteBar" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#0284c7" />
+                  <stop offset="0%" stopColor={chartColorAt(0)} />
                   <stop offset="100%" stopColor="#38bdf8" />
                 </linearGradient>
               </defs>
               <CartesianGrid
                 strokeDasharray="4 4"
-                stroke="#e5e7eb"
+                stroke={CHART_GRID_COLOR}
                 horizontal={false}
               />
               <XAxis

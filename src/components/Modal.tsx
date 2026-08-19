@@ -51,7 +51,7 @@ export default function Modal({
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 px-6 py-4">
           <div className="flex items-start gap-3 min-w-0">
             {icon && (
-              <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
+              <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-900">
                 {icon}
               </span>
             )}
@@ -65,7 +65,7 @@ export default function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            className="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             aria-label={t("close")}
           >
             <FiX size={20} />

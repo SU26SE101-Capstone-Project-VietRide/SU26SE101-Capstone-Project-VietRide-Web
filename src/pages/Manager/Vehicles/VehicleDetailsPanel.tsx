@@ -28,6 +28,7 @@ import {
   getVehicleSeatStats,
   parseVehicleSeatLayout,
 } from "./vehicleSeatHelpers";
+import { Button } from "../../../components/ui/Button";
 
 export type VehiclePanelMode = "info" | "seats";
 
@@ -77,7 +78,7 @@ function StatBadge({ label, value, tone }: { label: string; value: string; tone:
 
   return (
     <div className={`rounded-xl border px-3 py-2.5 ${toneClass}`}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-70">{label}</p>
       <p className="mt-1 text-lg font-bold tabular-nums">{value}</p>
     </div>
   );
@@ -185,10 +186,10 @@ function VehicleInfoSummary({
         <DetailItem label={t("vehicles.cargoVolume")} value={`${vehicle.maxCargoVolumeM3 ?? 0} m³`} />
       </div>
 
-      <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/40">
+      <Button variant="secondary" onClick={onEdit}>
         <FiEdit2 size={16} />
         {tc("edit")}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -277,7 +278,7 @@ export function VehicleDetailsPanel({
       <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col border-l border-gray-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="vehicle-panel-title">
         <header className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 sm:px-7">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-vr-700">{isCreate ? t("vehicles.registerTitle") : t("vehicles.detailEyebrow", { defaultValue: "Phương tiện" })}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-vr-900">{isCreate ? t("vehicles.registerTitle") : t("vehicles.detailEyebrow", { defaultValue: "Phương tiện" })}</p>
             <h2 id="vehicle-panel-title" className="mt-1 truncate text-xl font-bold text-gray-900">{vehicle?.licensePlate ?? t("vehicles.registerTitle")}</h2>
             <p className="mt-1 truncate text-sm text-gray-500">{vehicle ? getVehicleTypeLabel(vehicle, vehicleTypes) : t("vehicles.registerSubtitle")}</p>
           </div>
@@ -350,7 +351,7 @@ export function VehicleDetailsPanel({
                 <div className="sticky bottom-0 flex flex-col gap-3 border-t border-gray-100 bg-white/95 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-gray-500">{t("vehicles.seatChangesCount", { count: seatChangeCount, defaultValue: `${seatChangeCount} thay đổi chưa lưu` })}</p>
                   <div className="flex gap-2">
-                    <button type="button" onClick={onResetSeats} disabled={isSeatSaving} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">{tc("undo", { defaultValue: "Hoàn tác" })}</button>
+                    <Button variant="secondary" onClick={onResetSeats} disabled={isSeatSaving}>{tc("undo", { defaultValue: "Hoàn tác" })}</Button>
                     <button type="button" onClick={onSaveSeats} disabled={isSeatSaving} className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-vr-600 disabled:cursor-wait disabled:opacity-60"><FiSave size={15} />{isSeatSaving ? t("vehicles.saving") : tc("save")}</button>
                   </div>
                 </div>
@@ -361,21 +362,21 @@ export function VehicleDetailsPanel({
 
         {isCreate && activeMode === "info" && (
           <footer className="flex shrink-0 justify-between gap-2 border-t border-gray-100 bg-white px-5 py-4 sm:px-7">
-            <button type="button" onClick={onCloseRequest} disabled={isBusy} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">{tc("cancel")}</button>
+            <Button variant="secondary" onClick={onCloseRequest} disabled={isBusy}>{tc("cancel")}</Button>
             <button type="button" onClick={nextCreateStep} disabled={isBusy} className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-vr-600 disabled:opacity-60">{t("vehicles.nextStep", { defaultValue: "Tiếp tục" })}<FiArrowRight size={16} /></button>
           </footer>
         )}
 
         {isCreate && activeMode === "seats" && (
           <footer className="flex shrink-0 justify-between gap-2 border-t border-gray-100 bg-white px-5 py-4 sm:px-7">
-            <button type="button" onClick={() => setCreateStep("info")} disabled={isBusy} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"><FiArrowLeft size={16} />{tc("back", { defaultValue: "Quay lại" })}</button>
+            <Button variant="secondary" onClick={() => setCreateStep("info")} disabled={isBusy}><FiArrowLeft size={16} />{tc("back", { defaultValue: "Quay lại" })}</Button>
             <button type="button" onClick={() => createLayout && onSubmitCreate(createLayout)} disabled={isBusy || !createLayout} className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-vr-600 disabled:cursor-wait disabled:opacity-60"><FiSave size={15} />{isInfoSaving ? t("vehicles.saving") : t("vehicles.register")}</button>
           </footer>
         )}
 
         {!isCreate && isInfoEditing && activeMode === "info" && (
           <footer className="flex shrink-0 justify-end gap-2 border-t border-gray-100 bg-white px-5 py-4 sm:px-7">
-            <button type="button" onClick={onCancelInfo} disabled={isInfoSaving} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">{tc("cancel")}</button>
+            <Button variant="secondary" onClick={onCancelInfo} disabled={isInfoSaving}>{tc("cancel")}</Button>
             <button type="button" onClick={onSubmitInfo} disabled={!isInfoDirty || isInfoSaving} className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"><FiSave size={15} />{isInfoSaving ? t("vehicles.saving") : tc("save")}</button>
           </footer>
         )}

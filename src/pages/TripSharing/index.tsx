@@ -24,6 +24,7 @@ import {
   useSharedTripTracking,
   type SharedConnectionState,
 } from "./useSharedTripTracking";
+import { Button } from "../../components/ui/Button";
 
 function formatDateTime(iso: string | null | undefined, locale: string): string {
   if (!iso) return "—";
@@ -242,7 +243,7 @@ export default function TripSharingPage() {
               <TrackingSkeleton />
             ) : (
               <div className="flex h-full min-h-[46dvh] flex-col items-center justify-center px-7 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-vr-100 text-vr-800">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-vr-100 text-vr-900">
                   {showEnded ? (
                     <FiClock className="h-7 w-7" aria-hidden />
                   ) : (
@@ -256,14 +257,10 @@ export default function TripSharingPage() {
                   {showEnded ? revokedCopy ?? t("revoked.tripEnded") : errorCopy}
                 </p>
                 {canRetry && tracking.connection === "error" ? (
-                  <button
-                    type="button"
-                    onClick={tracking.retry}
-                    className="mt-6 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-vr-500 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-vr-600"
-                  >
+                  <Button variant="primary" className="mt-6" onClick={tracking.retry}>
                     <FiRefreshCw className="h-4 w-4" aria-hidden />
                     {t("actions.retry")}
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             )}
@@ -272,7 +269,7 @@ export default function TripSharingPage() {
               <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-center lg:inset-x-5 lg:top-5">
                 <div className="max-w-full rounded-xl border border-gray-200 bg-white/95 px-3.5 py-2 shadow-sm backdrop-blur-md">
                   <p className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                    <FiNavigation className="h-4 w-4 shrink-0 text-vr-700" aria-hidden />
+                    <FiNavigation className="h-4 w-4 shrink-0 text-vr-900" aria-hidden />
                     <span className="truncate">
                       {tracking.context?.route.originName} → {tracking.context?.route.destinationName}
                     </span>
@@ -284,7 +281,7 @@ export default function TripSharingPage() {
 
           <aside className="flex flex-col border-t border-gray-200 bg-white p-4 sm:p-5 lg:border-l lg:border-t-0 lg:p-6">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-vr-100 text-vr-800">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-vr-100 text-vr-900">
                 <FiNavigation className="h-5 w-5" aria-hidden />
               </div>
               <div className="min-w-0 flex-1">
@@ -305,7 +302,7 @@ export default function TripSharingPage() {
                     style={{ backgroundColor: originStopColor }}
                   />
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold text-gray-500">{t("route.origin")}</p>
+                    <p className="text-xs font-semibold text-gray-500">{t("route.origin")}</p>
                     <p className="truncate text-sm font-bold text-slate-900">{tracking.context.route.originName}</p>
                   </div>
                 </div>
@@ -333,7 +330,7 @@ export default function TripSharingPage() {
                     style={{ backgroundColor: destinationStopColor }}
                   />
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold text-gray-500">{t("route.destination")}</p>
+                    <p className="text-xs font-semibold text-gray-500">{t("route.destination")}</p>
                     <p className="truncate text-sm font-bold text-slate-900">{tracking.context.route.destinationName}</p>
                   </div>
                 </div>
@@ -347,7 +344,7 @@ export default function TripSharingPage() {
 
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               <div className="rounded-xl border border-gray-200 bg-slate-50 px-3.5 py-3">
-                <p className="text-[11px] font-semibold text-gray-500">{t("eta.label")}</p>
+                <p className="text-xs font-semibold text-gray-500">{t("eta.label")}</p>
                 <p className="mt-1 text-sm font-extrabold tabular-nums">
                   {formatRelativeMinutes(
                     tracking.context?.eta?.remainingSeconds ?? null,
@@ -360,7 +357,7 @@ export default function TripSharingPage() {
                 </p>
               </div>
               <div className="rounded-xl border border-gray-200 bg-slate-50 px-3.5 py-3">
-                <p className="text-[11px] font-semibold text-gray-500">{t("metrics.speed")}</p>
+                <p className="text-xs font-semibold text-gray-500">{t("metrics.speed")}</p>
                 <p className="mt-1 text-sm font-extrabold tabular-nums">{speedLabel}</p>
                 <p className="mt-1 text-xs text-slate-600 tabular-nums">
                   {tracking.location?.recordedAt
@@ -371,7 +368,7 @@ export default function TripSharingPage() {
               <div className="col-span-2 rounded-xl border border-gray-200 bg-slate-50 px-3.5 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-semibold text-gray-500">{t("metrics.tripStatus")}</p>
+                    <p className="text-xs font-semibold text-gray-500">{t("metrics.tripStatus")}</p>
                     <p className="mt-1 text-sm font-extrabold">
                       {tracking.context?.status
                         ? t(`tripStatus.${tracking.context.status}`, {
@@ -380,7 +377,7 @@ export default function TripSharingPage() {
                         : "—"}
                     </p>
                   </div>
-                  <FiClock className="mt-0.5 h-4 w-4 shrink-0 text-vr-700" aria-hidden />
+                  <FiClock className="mt-0.5 h-4 w-4 shrink-0 text-vr-900" aria-hidden />
                 </div>
                 <p className="mt-1.5 text-xs text-slate-600 tabular-nums">
                   {tracking.context?.expiresAt
@@ -403,7 +400,7 @@ export default function TripSharingPage() {
                 <FiShield className="mt-0.5 h-4 w-4 shrink-0 text-vr-800" aria-hidden />
                 <p>{t("privacy.note")}</p>
               </div>
-              <p className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-500">
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
                 <FiMapPin className="h-3.5 w-3.5" aria-hidden />
                 {t("privacy.noLogin")}
               </p>

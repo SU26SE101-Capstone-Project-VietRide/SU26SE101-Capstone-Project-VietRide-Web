@@ -4,6 +4,7 @@
     "support": "SUPPORT"
   },
   "closeMenu": "Close menu",
+  "mainNavigation": "Main navigation",
   "manager": {
     "dashboard": "Dashboard",
     "trips": "Schedules",
@@ -44,7 +45,8 @@
     "reports": "Reports",
     "ragAudit": "RAG & audit",
     "outboxDlq": "Outbox DLQ",
-    "assistant": "Knowledge assistant"
+    "assistant": "Knowledge assistant",
+    "activityLogs": "Activity logs"
   },
   "layout": {
     "adminDashboard": "Admin dashboard",

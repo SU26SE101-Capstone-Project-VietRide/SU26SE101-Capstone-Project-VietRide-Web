@@ -6,6 +6,7 @@ import type {
 } from "../../../api/vietride";
 import { formatNumber, formatPrice, planLimit } from "./subscriptionHelpers";
 import { LimitRow } from "./packageDetails";
+import { Badge } from "../../../components/ui/Badge";
 
 type PlanCardProps = {
   plan: SubscriptionPlan;
@@ -39,9 +40,9 @@ export default function PlanCard({
             {plan.name}
           </h3>
         </div>
-        <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+        <Badge tone="success">
           {tc("active")}
-        </span>
+        </Badge>
       </div>
 
       <p className="mb-4 text-sm text-gray-600">
@@ -49,7 +50,7 @@ export default function PlanCard({
       </p>
 
       <div className="mb-6 border-b border-gray-200 pb-6">
-        <p className="text-3xl font-bold text-vr-600">
+        <p className="text-3xl font-bold text-vr-900">
           {formatPrice(plan, billingPeriod)}
         </p>
         <p className="mt-1 text-sm text-gray-500">
@@ -91,7 +92,7 @@ export default function PlanCard({
               key={key}
               className={`rounded-full px-2 py-1 font-semibold ${
                 enabled
-                  ? "bg-vr-50 text-vr-700"
+                  ? "bg-vr-50 text-vr-900"
                   : "bg-gray-100 text-gray-500"
               }`}
             >
@@ -105,7 +106,7 @@ export default function PlanCard({
         type="button"
         onClick={() => onPurchase(plan)}
         disabled={purchaseDisabled}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-vr-500 py-2 font-medium text-white transition-colors hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-vr-800 py-2 font-medium text-white transition-colors hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <FiShoppingCart className="text-lg" />
         {t("packages.buyPackage")}

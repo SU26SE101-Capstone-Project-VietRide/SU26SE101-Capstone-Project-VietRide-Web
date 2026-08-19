@@ -10,6 +10,7 @@ import { createIdempotencyKey } from "../api/idempotency";
 import { clearAuthSession } from "../auth";
 import logo from "../assets/Login/logo.svg";
 import login_2 from "../assets/Login/login_2.png";
+import { Button } from "../components/ui/Button";
 
 export default function ForgotPassword() {
   const { t } = useTranslation("login");
@@ -173,14 +174,14 @@ export default function ForgotPassword() {
                     {t("email")} <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
-                    <FiMail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <FiMail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
                     <input
                       type="email"
                       value={email}
                       disabled={otpRequested || loading}
                       onChange={(event) => setEmail(event.target.value)}
                       placeholder={t("emailPlaceholder")}
-                      className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25 disabled:bg-slate-50 disabled:text-slate-500"
+                      className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25 disabled:bg-slate-50 disabled:text-slate-500"
                     />
                   </div>
                 </div>
@@ -193,14 +194,14 @@ export default function ForgotPassword() {
                         <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
-                        <FiKey className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <FiKey className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
                         <input
                           type="text"
                           value={code}
                           onChange={(event) => setCode(event.target.value)}
                           placeholder={t("forgotPasswordPage.codePlaceholder")}
                           maxLength={6}
-                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
                         />
                       </div>
                     
@@ -213,13 +214,13 @@ export default function ForgotPassword() {
                         <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
-                        <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
                         <input
                           type="password"
                           value={newPassword}
                           onChange={(event) => setNewPassword(event.target.value)}
                           placeholder={t("forgotPasswordPage.newPasswordPlaceholder")}
-                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
                         />
                       </div>
                     </div>
@@ -230,7 +231,7 @@ export default function ForgotPassword() {
                         <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
-                        <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
                         <input
                           type="password"
                           value={confirmPassword}
@@ -240,18 +241,14 @@ export default function ForgotPassword() {
                           placeholder={t(
                             "forgotPasswordPage.confirmPasswordPlaceholder",
                           )}
-                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+                          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
                         />
                       </div>
                     </div>
                   </>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-                >
+                <Button variant="primary" className="w-full" type="submit" disabled={loading}>
                   {loading ? (
                     <>
                       <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -265,12 +262,12 @@ export default function ForgotPassword() {
                       <FiArrowRight className="h-5 w-5" />
                     </>
                   )}
-                </button>
+                </Button>
               </form>
 
               <Link
                 to="/login"
-                className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-vr-700 hover:text-vr-900"
+                className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-vr-900 hover:text-vr-900"
               >
                 <FiArrowLeft /> {t("backToLogin")}
               </Link>

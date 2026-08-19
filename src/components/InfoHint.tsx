@@ -85,7 +85,7 @@ export default function InfoHint({ text, label }: InfoHintProps) {
         aria-expanded={open}
         aria-describedby={open ? descriptionId : undefined}
         title={text}
-        className="info-hint-button inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-semibold leading-none text-gray-400 transition hover:border-vr-300 hover:bg-vr-50 hover:text-vr-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40"
+        className="info-hint-button inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-semibold leading-none text-gray-500 transition hover:border-vr-300 hover:bg-vr-50 hover:text-vr-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40"
       >
         !
       </button>
@@ -99,7 +99,7 @@ export default function InfoHint({ text, label }: InfoHintProps) {
             left: position.left,
             width: TOOLTIP_WIDTH,
           }}
-          className="fixed z-50 whitespace-normal rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-gray-700 shadow-lg shadow-gray-900/10"
+          className="fixed z-50 whitespace-normal rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium leading-relaxed text-gray-700 shadow-lg shadow-gray-900/10"
         >
           {text}
         </span>

@@ -39,7 +39,7 @@ export default function RejectDeliveryForm({
       </label>
       <textarea
         id="parcel-delivery-rejection-reason"
-        className="min-h-24 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+        className="min-h-24 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
         maxLength={REJECTION_REASON_MAX_LENGTH}
         value={reason}
         disabled={submitting}

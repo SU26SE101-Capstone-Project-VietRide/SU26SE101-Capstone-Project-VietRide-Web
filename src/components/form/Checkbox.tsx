@@ -4,7 +4,7 @@ import { FiCheck, FiMinus } from "react-icons/fi";
 // Checkbox dùng chung toàn hệ thống.
 //
 // Vì sao phải tự vẽ thay vì style thẳng <input type="checkbox">: dự án KHÔNG
-// cài @tailwindcss/forms, nên `text-vr-600` (class mà phần lớn màn đang dùng)
+// cài @tailwindcss/forms, nên `text-vr-900` (class mà phần lớn màn đang dùng)
 // không hề đổi được màu ô tick — trình duyệt vẫn vẽ màu xanh mặc định. Chỉ
 // `accent-*` đổi được màu nhưng lại không chỉnh được bo góc, viền, focus ring
 // và không đồng nhất giữa các trình duyệt.

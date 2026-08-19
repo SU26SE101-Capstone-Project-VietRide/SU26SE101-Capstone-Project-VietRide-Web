@@ -3,6 +3,7 @@ import { FiCheck, FiX } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import { type AdminOperator } from "../../../api/vietride";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { Button } from "../../../components/ui/Button";
 
 // Nhóm 3 modal xác nhận nhỏ liên quan chặt (duyệt / từ chối / tạm ngưng) —
 // dùng named export theo ngoại lệ §3 CODE_CONVENTIONS (như DetailLayout).
@@ -34,12 +35,9 @@ export function OperatorApproveModal({
       title={t("operators.approveTitle")}
       footer={
         <>
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={onClose}>
             {tc("cancel")}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={onConfirm}
@@ -95,12 +93,9 @@ export function OperatorRejectModal({
       title={t("operators.rejectTitle")}
       footer={
         <>
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={onClose}>
             {tc("cancel")}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={onConfirm}
@@ -170,12 +165,9 @@ export function OperatorSuspendModal({
       title={t("operators.suspendTitle")}
       footer={
         <>
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={onClose}>
             {tc("cancel")}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={() => void onConfirm()}

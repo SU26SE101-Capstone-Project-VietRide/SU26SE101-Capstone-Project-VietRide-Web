@@ -51,7 +51,7 @@ export default function WeekdayPicker({
               className={`font-semibold transition hover:underline ${
                 isSameDayOfWeek(selected, preset.days)
                   ? "text-vr-800 underline"
-                  : "text-vr-600"
+                  : "text-vr-900"
               }`}
             >
               {t(`trips.weekdayPreset.${preset.key}`)}
@@ -70,7 +70,7 @@ export default function WeekdayPicker({
               onClick={() => toggle(day)}
               className={`h-11 rounded-lg border text-sm font-semibold transition ${
                 isOn
-                  ? "border-vr-500 bg-vr-500 text-white shadow-sm"
+                  ? "border-vr-500 bg-vr-800 text-white shadow-sm"
                   : "border-gray-200 bg-white text-gray-600 hover:border-vr-300 hover:bg-vr-50"
               }`}
             >

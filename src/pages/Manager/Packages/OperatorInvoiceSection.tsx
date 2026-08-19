@@ -15,6 +15,7 @@ import { formatDateOnly } from "../../../utils/date";
 import Pagination from "../../../components/Pagination";
 import { formatNumber } from "./subscriptionHelpers";
 import InvoiceDetailContent from "./InvoiceDetailContent";
+import { Badge } from "../../../components/ui/Badge";
 
 export default function OperatorInvoiceSection() {
   const { t } = useTranslation("manager");
@@ -210,17 +211,11 @@ export default function OperatorInvoiceSection() {
                     {formatNumber(invoice.amount)} đ
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        invoice.status === "ISSUED"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
+                    <Badge tone={invoice.status === "ISSUED" ? "success" : "neutral"}>
                       {tc(`enumLabels.${invoice.status}`, {
                         defaultValue: invoice.status,
                       })}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 text-center">
                     {tc(`enumLabels.${invoice.pdfGenerationStatus}`, {
@@ -235,7 +230,7 @@ export default function OperatorInvoiceSection() {
                         onClick={() =>
                           void openInvoiceDetail(invoice.invoiceId)
                         }
-                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-900 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
                         title={t("packages.viewInvoice")}
                         aria-label={t("packages.viewInvoice")}
                       >
@@ -249,7 +244,7 @@ export default function OperatorInvoiceSection() {
                           downloadingId === invoice.invoiceId
                         }
                         onClick={() => void downloadInvoice(invoice.invoiceId)}
-                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-900 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
                         title={t("packages.downloadInvoice")}
                         aria-label={t("packages.downloadInvoice")}
                       >

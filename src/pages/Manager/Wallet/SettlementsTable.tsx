@@ -2,7 +2,8 @@ import { useState } from "react";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import type { TripSettlement } from "../../../api/vietride";
 import { formatCurrency } from "../../../utils/currency";
-import { actorDisplayName, formatWalletDate, settlementStatusClass } from "./walletFormat";
+import { actorDisplayName, formatWalletDate, settlementStatusTone } from "./walletFormat";
+import { Badge } from "../../../components/ui/Badge";
 import { DataCompletenessBadge, ProcessingStateBadge } from "./WalletBadges";
 import { EmptyRow, type Translate } from "./walletTableShared";
 
@@ -10,8 +11,8 @@ export function SettlementsTable({ items, t, tc }: { items: TripSettlement[]; t:
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
-    <div className="overflow-x-auto p-4">
-      <table className="w-full table-fixed text-center text-sm">
+    <div className="overflow-x-auto p-4" tabIndex={0}>
+      <table className="w-full min-w-[900px] table-fixed text-center text-sm">
         <thead>
           <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
             <th className="px-4 py-3">{t("wallet.trip")}</th>
@@ -69,16 +70,16 @@ function SettlementRowGroup({
           {item.processingState ? (
             <ProcessingStateBadge state={item.processingState} t={t} />
           ) : (
-            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${settlementStatusClass(item.status)}`}>
+            <Badge tone={settlementStatusTone(item.status)}>
               {t(`wallet.status.${item.status}`)}
-            </span>
+            </Badge>
           )}
         </td>
         <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatCurrency(netAmount)}</td>
         <td className="px-4 py-3">
           {item.settlementMethod ? t(`wallet.methods.${item.settlementMethod}`) : "-"}
         </td>
-        <td className="px-4 py-3 text-gray-400">{expanded ? <FiChevronUp /> : <FiChevronDown />}</td>
+        <td className="px-4 py-3 text-gray-500">{expanded ? <FiChevronUp /> : <FiChevronDown />}</td>
       </tr>
       {expanded && <SettlementDetailRow item={item} t={t} tc={tc} />}
     </>

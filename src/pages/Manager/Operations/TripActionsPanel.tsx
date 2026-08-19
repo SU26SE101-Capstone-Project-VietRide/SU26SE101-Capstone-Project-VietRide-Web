@@ -25,6 +25,7 @@ import { ConfirmModal } from "../../../components/ConfirmModal";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { toDatetimeLocalValue } from "../../../utils/date";
 import Checkbox from "../../../components/form/Checkbox";
+import { Badge } from "../../../components/ui/Badge";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -364,7 +365,7 @@ export default function TripActionsPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-            <FiTruck className="text-vr-700" />
+            <FiTruck className="text-vr-900" />
             {t("tripOperations.title")}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -372,9 +373,9 @@ export default function TripActionsPanel({
           </p>
         </div>
         {!canMutate && (
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+          <Badge tone="info">
             {t("tripOperations.readOnly")}
-          </span>
+          </Badge>
         )}
       </div>
 
@@ -395,7 +396,7 @@ export default function TripActionsPanel({
           type="button"
           disabled={isLoading}
           onClick={() => void loadCapacity()}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
         >
           <FiRefreshCw className={isLoading ? "animate-spin" : ""} />
           {t("tripOperations.loadCapacity")}
@@ -431,7 +432,7 @@ export default function TripActionsPanel({
         <details className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-slate-50/40">
           <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3.5 text-sm font-semibold text-gray-900 marker:hidden select-none">
             <span>{t("tripOperations.substitute")}</span>
-            <span className="mt-0.5 text-lg leading-none text-gray-400" aria-hidden="true">⌄</span>
+            <span className="mt-0.5 text-lg leading-none text-gray-500" aria-hidden="true">⌄</span>
           </summary>
           <div className="border-t border-gray-200 px-4 pb-4 pt-4">
           <p className="mb-4 text-xs text-gray-500">
@@ -544,7 +545,7 @@ export default function TripActionsPanel({
               type="button"
               disabled={isMutating || trip?.canSubstituteVehicle === false}
               onClick={() => void substituteVehicle()}
-              className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               <FiRepeat />
               {t("tripOperations.substitute")}
@@ -571,7 +572,7 @@ export default function TripActionsPanel({
             aria-expanded={isChangeRouteOpen}
             className="inline-flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
           >
-            <FiGitBranch className="text-vr-700" />
+            <FiGitBranch className="text-vr-900" />
             {t("tripOperations.changeRoute")}
           </button>
 
@@ -615,7 +616,7 @@ export default function TripActionsPanel({
                           onChange={() =>
                             setSelectedAlternativeRouteId(alternative.id)
                           }
-                          className="mt-1 h-4 w-4 border-gray-300 text-vr-600 focus:ring-vr-500"
+                          className="mt-1 h-4 w-4 border-gray-300 text-vr-900 focus:ring-vr-500"
                         />
                         <span>
                           <span className="block text-sm font-semibold text-gray-800">
@@ -636,7 +637,7 @@ export default function TripActionsPanel({
                       type="button"
                       disabled={isMutating || !selectedAlternativeRouteId}
                       onClick={() => void changeRoute()}
-                      className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                     >
                       <FiGitBranch />
                       {t("tripOperations.changeRouteApply")}

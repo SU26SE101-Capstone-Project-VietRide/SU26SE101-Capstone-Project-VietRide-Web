@@ -93,7 +93,7 @@ export default function Pagination({
             aria-current={item === currentPage ? "page" : undefined}
             className={`min-w-10 rounded-lg border px-3 py-1.5 text-sm font-semibold ${
               item === currentPage
-                ? "border-vr-500 bg-vr-500 text-white"
+                ? "border-vr-500 bg-vr-800 text-white"
                 : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
             }`}
           >

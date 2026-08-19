@@ -62,6 +62,7 @@ import {
   type OperatorDriverSchedulePatch,
   type ResourceAvailabilityResult,
 } from "../../../api/vietride";
+import { Button } from "../../../components/ui/Button";
 
 // Cache danh mục (tuyến/xe/nhân sự) theo phiên — stale-while-revalidate, hạn 10 phút.
 // KHÔNG cache schedules vì đó là dữ liệu nghiệp vụ đổi thường xuyên.
@@ -948,14 +949,10 @@ export default function TripsPage() {
           </p>
         </div>
         {canManageSchedules ? (
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-vr-600"
-          >
+          <Button variant="primary" onClick={openCreateModal}>
             <FiPlus />
             {t("trips.createScheduleTitle")}
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -964,7 +961,7 @@ export default function TripsPage() {
           label={t("trips.totalSchedules")}
           value={scheduleStats.total}
           icon={<FiCalendar size={20} />}
-          iconClassName="bg-vr-50 text-vr-700"
+          iconClassName="bg-vr-50 text-vr-900"
           isLoading={isLoadingSchedules}
         />
         <StatCard
@@ -1027,14 +1024,9 @@ export default function TripsPage() {
           title={t("trips.deleteScheduleTitle")}
           footer={
             <>
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                disabled={isDeleting}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
+              <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
                 {tc("cancel")}
-              </button>
+              </Button>
               <button
                 type="button"
                 onClick={() => void confirmDeleteSchedule()}

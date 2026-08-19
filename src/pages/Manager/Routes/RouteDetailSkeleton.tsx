@@ -3,7 +3,7 @@
 // "chưa chọn tuyến" gây hiểu nhầm.
 export default function RouteDetailSkeleton() {
   return (
-    <main
+    <div
       aria-hidden="true"
       data-testid="route-detail-skeleton"
       className="min-w-0 animate-pulse space-y-4"
@@ -30,6 +30,6 @@ export default function RouteDetailSkeleton() {
         </div>
         <div className="absolute bottom-3 left-3 h-12 w-2/3 rounded-xl bg-white/90 shadow-sm" />
       </div>
-    </main>
+    </div>
   );
 }

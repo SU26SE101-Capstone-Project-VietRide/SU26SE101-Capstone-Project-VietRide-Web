@@ -424,7 +424,7 @@ export default function ManagerPackages() {
         >
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
-              <FiBox className="mt-1 text-2xl text-vr-700" />
+              <FiBox className="mt-1 text-2xl text-vr-900" />
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
                   {t(
@@ -449,7 +449,7 @@ export default function ManagerPackages() {
                       ? "text-red-700"
                       : hasPendingPayment || isExpiredSubscription
                         ? "text-amber-700"
-                        : "text-vr-700"
+                        : "text-vr-900"
                   }`}
                 >
                   {tc(`enumLabels.${subscription.status}`, {
@@ -589,7 +589,7 @@ export default function ManagerPackages() {
                 <button
                   type="button"
                   onClick={() => openPurchase(currentPlan)}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-vr-600"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 font-semibold text-white transition-colors hover:bg-vr-900"
                 >
                   <FiShoppingCart />
                   {t("packages.repurchasePackage")}

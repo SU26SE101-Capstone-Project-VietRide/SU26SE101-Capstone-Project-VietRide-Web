@@ -33,7 +33,7 @@ export default function InvoiceDetailContent({
       <div className="rounded-xl border border-vr-100 bg-gradient-to-br from-vr-50 via-white to-slate-50 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-vr-600">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-vr-900">
               {t("packages.invoiceNumber")}
             </p>
             <p className="mt-2 font-mono text-lg font-bold tracking-tight text-gray-900">
@@ -51,7 +51,7 @@ export default function InvoiceDetailContent({
           <span className="text-sm font-medium text-gray-500">
             {t("packages.amount")}
           </span>
-          <span className="text-2xl font-bold tracking-tight text-vr-700">
+          <span className="text-2xl font-bold tracking-tight text-vr-900">
             {formatNumber(detail.amount)} đ
           </span>
         </div>

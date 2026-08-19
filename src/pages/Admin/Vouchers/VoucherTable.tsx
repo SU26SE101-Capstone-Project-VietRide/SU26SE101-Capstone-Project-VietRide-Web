@@ -11,6 +11,8 @@ import {
   quantityOf,
   usedCountOf,
 } from "./voucherHelpers";
+import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
+import { Badge } from "../../../components/ui/Badge";
 
 type VoucherTableProps = {
   toolbar: ReactNode;
@@ -53,8 +55,8 @@ export default function VoucherTable({
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 p-4">{toolbar}</div>
-      <div className="overflow-hidden px-2">
-      <table className="w-full table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
+      <div className="overflow-x-auto px-2" tabIndex={0}>
+      <table className="w-full min-w-[1000px] table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
         <colgroup>
           <col className="w-[14%]" />
           <col className="w-[22%]" />
@@ -90,16 +92,13 @@ export default function VoucherTable({
           </tr>
         </thead>
         <tbody>
-          {vouchers.length === 0 && (
+          {isLoading && vouchers.length === 0 && (
+            <TableSkeletonRows columns={7} testId="admin-vouchers-table-skeleton" cellClassName="px-6 py-4" />
+          )}
+          {!isLoading && vouchers.length === 0 && (
             <tr>
               <td colSpan={7} className="px-6 py-12 text-center">
-                {isLoading ? (
-                  <span className="text-sm text-gray-500">
-                    {t("vouchers.loading")}
-                  </span>
-                ) : (
-                  emptyState
-                )}
+                {emptyState}
               </td>
             </tr>
           )}
@@ -114,7 +113,7 @@ export default function VoucherTable({
               <tr key={voucher.id} className="border-t border-gray-200">
                 <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
                   <span
-                    className="block truncate font-mono font-semibold text-vr-600"
+                    className="block truncate font-mono font-semibold text-vr-900"
                     title={voucher.code}
                   >
                     {voucher.code}
@@ -169,22 +168,16 @@ export default function VoucherTable({
                   </div>
                 </td>
                 <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
-                      activeOf(voucher)
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
+                  <Badge tone={activeOf(voucher) ? "success" : "neutral"}>
                     {activeOf(voucher) ? tc("active") : tc("inactive")}
-                  </span>
+                  </Badge>
                 </td>
                 <td className="whitespace-nowrap px-2 py-4 text-center">
                   <div className="flex justify-center gap-1">
                     <button
                       type="button"
                       onClick={() => onView(voucher)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-vr-100 text-vr-600 hover:bg-vr-50"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-vr-100 text-vr-900 hover:bg-vr-50"
                       aria-label={t("vouchers.viewDetails")}
                       title={t("vouchers.viewDetails")}
                     >

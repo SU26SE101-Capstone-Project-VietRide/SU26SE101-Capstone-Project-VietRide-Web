@@ -3,6 +3,7 @@
 // — trước đây mỗi nơi tự khai một bản, sửa style một bên là lệch bên kia.
 import { useTranslation } from "react-i18next";
 import { FiMapPin } from "react-icons/fi";
+import { Button } from "../../../components/ui/Button";
 
 type StationManagementButtonProps = {
   onClick: () => void;
@@ -14,13 +15,9 @@ export default function StationManagementButton({
   const { t } = useTranslation("manager");
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-    >
+    <Button variant="secondary" onClick={onClick}>
       <FiMapPin size={16} />
       {t("routes.stationManagement")}
-    </button>
+    </Button>
   );
 }

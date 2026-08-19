@@ -21,7 +21,7 @@ export default function ChatEmptyState({
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-1 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-vr-100 text-vr-800">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-vr-100 text-vr-900">
         <FiMessageSquare className="h-6 w-6" aria-hidden="true" />
       </div>
       <p className="mt-4 text-base font-bold text-slate-900">
@@ -33,7 +33,7 @@ export default function ChatEmptyState({
         </p>
       )}
 
-      <p className="mt-6 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+      <p className="mt-6 text-xs font-semibold uppercase tracking-wide text-gray-600">
         {t("assistant.starterLabel")}
       </p>
       <div className="mt-2 flex w-full max-w-md flex-col gap-2">
@@ -48,7 +48,7 @@ export default function ChatEmptyState({
             >
               <span className="min-w-0">{question}</span>
               <FiArrowUpRight
-                className="h-4 w-4 shrink-0 text-gray-300 transition group-hover:text-vr-700"
+                className="h-4 w-4 shrink-0 text-gray-300 transition group-hover:text-vr-900"
                 aria-hidden="true"
               />
             </button>

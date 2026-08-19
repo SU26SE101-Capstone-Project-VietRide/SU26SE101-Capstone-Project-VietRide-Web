@@ -3,6 +3,8 @@ import { FiEdit2, FiPlus, FiPower } from "react-icons/fi";
 import type { AdminCampaign } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
 import { formatDisplayDate } from "./voucherHelpers";
+import { Button } from "../../../components/ui/Button";
+import { Badge } from "../../../components/ui/Badge";
 
 type CampaignTableProps = {
   campaigns: AdminCampaign[];
@@ -43,14 +45,10 @@ export default function CampaignTable({
             {t("vouchers.campaignsDesc")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onCreate}
-          className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
-        >
+        <Button variant="primary" onClick={onCreate}>
           <FiPlus size={16} />
           {t("vouchers.createCampaign")}
-        </button>
+        </Button>
       </div>
 
       <div className="mt-4 overflow-x-auto">
@@ -79,15 +77,9 @@ export default function CampaignTable({
                   {formatDisplayDate(campaign.validUntil)}
                 </td>
                 <td className="px-5 py-4">
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
-                      campaign.isActive
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
+                  <Badge tone={campaign.isActive ? "success" : "neutral"}>
                     {campaign.isActive ? tc("active") : tc("inactive")}
-                  </span>
+                  </Badge>
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex justify-end gap-2">

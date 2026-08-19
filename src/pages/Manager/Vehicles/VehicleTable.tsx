@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { FiEye, FiGrid } from "react-icons/fi";
 import type { OperatorVehicle, VehicleType } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
+import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
 import { VehicleImage } from "./VehicleImage";
 import {
   getVehicleId,
@@ -95,8 +96,8 @@ export function VehicleTable({
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       {toolbar && <div className="border-b border-gray-100 p-4">{toolbar}</div>}
-      <div className="w-full overflow-hidden px-3 sm:px-6">
-        <table className="w-full table-fixed text-center">
+      <div className="w-full overflow-x-auto px-3 sm:px-6" tabIndex={0}>
+        <table className="w-full min-w-[1080px] table-fixed text-center">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
               <th className="w-[12%] whitespace-nowrap px-3 py-3 sm:px-5">{t("vehicles.photo")}</th>
@@ -110,11 +111,7 @@ export function VehicleTable({
           </thead>
           <tbody>
             {isLoading ? (
-              <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">
-                  {t("vehicles.loading")}
-                </td>
-              </tr>
+              <TableSkeletonRows columns={7} testId="vehicles-table-skeleton" cellClassName="px-5 py-4" />
             ) : vehicles.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
@@ -181,7 +178,7 @@ export function VehicleTable({
                         <button
                           type="button"
                           onClick={() => onOpenPanel(vehicle, "info")}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/40"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900 focus:outline-none focus:ring-2 focus:ring-vr-500/40"
                           title={t("vehicles.viewDetail")}
                           aria-label={t("vehicles.viewDetail")}
                         >
@@ -190,7 +187,7 @@ export function VehicleTable({
                         <button
                           type="button"
                           onClick={() => onOpenPanel(vehicle, "seats")}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/40"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900 focus:outline-none focus:ring-2 focus:ring-vr-500/40"
                           title={t("vehicles.seatMap", { defaultValue: "Sơ đồ ghế" })}
                           aria-label={t("vehicles.seatMap", { defaultValue: "Sơ đồ ghế" })}
                         >
@@ -216,3 +213,4 @@ export function VehicleTable({
     </div>
   );
 }
+

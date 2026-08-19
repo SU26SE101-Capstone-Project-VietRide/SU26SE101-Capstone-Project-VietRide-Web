@@ -225,9 +225,9 @@ export default function CustomDateTimeInput({
           setIsOpen(true);
         }}
         onKeyDown={handleKeyDown}
-        className={`${className} flex min-h-11 w-full items-center justify-between gap-3 text-left transition focus:border-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100`}
+        className={`${className} flex min-h-11 w-full items-center justify-between gap-3 text-left transition focus:border-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-100`}
       >
-        <span className={selectedValue ? "text-gray-900" : "text-gray-400"}>
+        <span className={selectedValue ? "text-gray-900" : "text-gray-500"}>
           {displayValue(selectedValue, type) || placeholder || t("dateTimePicker.selectDate")}
         </span>
         {isTimeOnly ? (
@@ -304,10 +304,10 @@ export default function CustomDateTimeInput({
                         isDateDisabled
                           ? "cursor-not-allowed text-gray-300"
                           : isSelected
-                            ? "bg-vr-600 font-bold text-white shadow-sm"
+                            ? "bg-vr-800 font-bold text-white shadow-sm"
                             : isCurrentMonth
                               ? "text-gray-800 hover:bg-vr-50"
-                              : "text-gray-400 hover:bg-gray-50"
+                              : "text-gray-500 hover:bg-gray-50"
                       }`}
                     >
                       {date.getDate()}

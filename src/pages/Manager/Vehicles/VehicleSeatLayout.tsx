@@ -81,7 +81,7 @@ function getSeatTone(seat: VehicleSeat): string {
   }
 
   if (seat.disabled) {
-    return "border-gray-200 bg-gray-100 text-gray-400";
+    return "border-gray-200 bg-gray-100 text-gray-500";
   }
 
   switch (seat.type) {
@@ -174,7 +174,7 @@ export function VehicleSeatLayout({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-          <PiBus className="text-vr-700" size={18} aria-hidden="true" />
+          <PiBus className="text-vr-900" size={18} aria-hidden="true" />
           <span>{t("vehicles.frontOfVehicle", { defaultValue: "Đầu xe" })}</span>
         </div>
         <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("vehicles.deckSelector", { defaultValue: "Chọn tầng" })}>
@@ -209,7 +209,7 @@ export function VehicleSeatLayout({
           {t("vehicles.activeSeat", { defaultValue: "Đang hoạt động" })}
         </span>
         <span className="inline-flex items-center gap-2">
-          <PiProhibit className="text-gray-400" aria-hidden="true" />
+          <PiProhibit className="text-gray-500" aria-hidden="true" />
           {t("vehicles.disabledSeat", { defaultValue: "Đã khóa" })}
         </span>
         {hasDriverArea && (
@@ -238,7 +238,7 @@ export function VehicleSeatLayout({
           aria-colcount={gridColumns.length + 1}
         >
           <div
-            className="grid items-center gap-2 px-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400"
+            className="grid items-center gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400"
             style={{ gridTemplateColumns: `2rem repeat(${gridColumns.length}, minmax(3.1rem, 1fr))` }}
           >
             <span aria-hidden="true" />
@@ -290,7 +290,7 @@ export function VehicleSeatLayout({
                     );
                     const canToggle = mode === "toggle-disabled" && isPassengerSeat(seat) && Boolean(onToggle);
                     const label = getSeatLabel(seat, t);
-                    const className = `relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-vr-500/50 ${getSeatTone(seat)} ${
+                    const className = `relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-vr-500/50 ${getSeatTone(seat)} ${
                       canToggle
                         ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md"
                         : ""

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { FiAlertTriangle, FiCheckCircle, FiInfo } from "react-icons/fi";
 import Modal from "./Modal";
+import { Button } from "./ui/Button";
 
 type ConfirmTone = "danger" | "warning" | "success";
 type ConfirmModalProps = {
@@ -19,7 +20,7 @@ export function ConfirmModal({ open, title, message, confirmLabel, cancelLabel, 
   return (
     <Modal open={open} onClose={() => !busy && onClose()} title={title}
       icon={<span className={`flex h-10 w-10 items-center justify-center rounded-lg ${styles.icon}`}>{icon}</span>}
-      footer={<><button type="button" onClick={onClose} disabled={busy} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">{cancelLabel}</button><button type="button" onClick={onConfirm} disabled={busy} className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${styles.button}`}>{confirmLabel}</button></>}
+      footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>{cancelLabel}</Button><button type="button" onClick={onConfirm} disabled={busy} className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${styles.button}`}>{confirmLabel}</button></>}
     >
       <div className="space-y-4"><p className="text-sm leading-6 text-gray-700">{message}</p>{children}</div>
     </Modal>

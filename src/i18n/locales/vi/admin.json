@@ -55,7 +55,7 @@
     "title": "Nhà xe",
     "subtitle": "Quản lý, duyệt và phân quyền các nhà xe trên nền tảng.",
     "total": "Tổng nhà xe",
-    "approved": "Đang hoạt động",
+    "approved": "Đã duyệt",
     "pending": "Chờ duyệt",
     "restricted": "Tạm ngưng / từ chối",
     "addOperator": "Thêm nhà xe",
@@ -70,9 +70,10 @@
     "pendingBanner": "{{count}} đơn đăng ký nhà xe chờ xác thực",
     "viewNow": "Xem ngay",
     "searchPlaceholder": "Tìm theo tên, MST",
-    "allStatus": "Tất cả trạng thái",
+    "allStatus": "Duyệt: tất cả",
     "filterActivation": "Lọc theo bật/tắt",
-    "allActivation": "Tất cả trạng thái bật",
+    "filterStatus": "Lọc theo trạng thái duyệt",
+    "allActivation": "Hoạt động: tất cả",
     "advancedFilters": "Bộ lọc nâng cao",
     "clearFilters": "Xóa bộ lọc",
     "dateFieldLabel": "Lọc theo mốc thời gian",
@@ -415,6 +416,8 @@
     "activeStat": "Đang hoạt động",
     "levelStat": "Cấp hành chính trên trang",
     "filterType": "Lọc cấp hành chính",
+    "allStatuses": "Trạng thái: tất cả",
+    "allTypes": "Cấp: tất cả",
     "filterParent": "Lọc trực thuộc",
     "allParents": "Tất cả trực thuộc",
     "whatIsThis": "Đây là gì?"
@@ -934,6 +937,54 @@
     "platformCommission": "Doanh thu sau chi trả",
     "monthlyRevenue": "Doanh thu theo tháng"
   },
+  "activityLogs": {
+    "title": "Nhật ký hoạt động",
+    "subtitle": "Theo dõi các thao tác quản trị quan trọng trên hệ thống.",
+    "filters": "Bộ lọc nhật ký",
+    "actorFilter": "Người thực hiện",
+    "actorPlaceholder": "Tìm theo tên hoặc email",
+    "clearActor": "Xóa người thực hiện",
+    "searchingActors": "Đang tìm người dùng...",
+    "actionFilter": "Hành động",
+    "allActions": "Tất cả hành động",
+    "from": "Từ ngày",
+    "to": "Đến ngày",
+    "clearFilters": "Xóa bộ lọc",
+    "pageSize": "Số dòng mỗi trang",
+    "time": "Thời gian",
+    "actor": "Người thực hiện",
+    "action": "Hành động",
+    "context": "Đối tượng / ngữ cảnh",
+    "ip": "Địa chỉ truy cập",
+    "details": "Chi tiết",
+    "view": "Xem",
+    "empty": "Chưa có nhật ký hoạt động",
+    "emptyHint": "Thử thay đổi bộ lọc hoặc khoảng ngày.",
+    "loadFailed": "Không thể tải nhật ký hoạt động.",
+    "retry": "Thử lại",
+    "detailsEyebrow": "Điều tra kỹ thuật",
+    "detailsTitle": "Chi tiết nhật ký",
+    "close": "Đóng chi tiết",
+    "logId": "Mã nhật ký",
+    "userAgent": "User agent",
+    "metadata": "Metadata dễ đọc",
+    "noMetadata": "Không có metadata.",
+    "rawJson": "JSON gốc",
+    "actionGroups": {
+      "users": "Tài khoản",
+      "operators": "Nhà xe",
+      "stations": "Bến xe"
+    },
+    "actions": {
+      "LOCK_USER": "Khóa tài khoản",
+      "UNLOCK_USER": "Mở khóa tài khoản",
+      "APPROVE_OPERATOR": "Duyệt nhà xe",
+      "REJECT_OPERATOR": "Từ chối nhà xe",
+      "SUSPEND_OPERATOR": "Tạm ngưng nhà xe",
+      "STATION_MERGED": "Gộp bến"
+    },
+    "ipHint": "Địa chỉ mạng được hệ thống ghi nhận khi thao tác."
+  },
   "outboxDlq": {
     "title": "Hàng đợi lỗi Outbox",
     "subtitle": "Rà soát các sự kiện Outbox đã hết lượt gửi lại trên toàn hệ thống VietRide.",
@@ -958,3 +1009,4 @@
     "page": "Trang cursor {{page}}"
   }
 }
+

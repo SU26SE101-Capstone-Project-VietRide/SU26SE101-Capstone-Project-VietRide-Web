@@ -997,9 +997,10 @@ export default function RoutesPage() {
         <button
           type="button"
           onClick={() => runAction(loadData)}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          disabled={isLoadingRoutes}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <FiRefreshCw size={16} />
+          <FiRefreshCw size={16} className={isLoadingRoutes ? "animate-spin" : ""} />
           {tc("refresh")}
         </button>
       </div>
@@ -1037,7 +1038,9 @@ export default function RoutesPage() {
         />
 
         {selectedRoute ? (
-          <main className="min-w-0">
+          // Không dùng <main>: layout đã có <main> bao ngoài, lồng thêm nữa là
+          // hai landmark `main` trên cùng một trang.
+          <div className="min-w-0">
             <RouteDetailHeader
               routeName={selectedRoute.name}
               activeTab={activeTab}
@@ -1119,7 +1122,7 @@ export default function RoutesPage() {
                 />
               )}
             </div>
-          </main>
+          </div>
         ) : isLoadingRoutes ? (
           // Đang tải lần đầu mà chưa có tuyến để hiển thị → skeleton panel phải,
           // không hiện empty-state "chưa chọn tuyến" gây hiểu nhầm không có dữ liệu

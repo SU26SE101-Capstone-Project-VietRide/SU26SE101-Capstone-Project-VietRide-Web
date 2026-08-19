@@ -14,7 +14,6 @@ import {
   FiMapPin,
   FiPlus,
   FiPower,
-  FiSearch,
 } from "react-icons/fi";
 import {
   createAdminLocation,
@@ -37,6 +36,10 @@ import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
 import { formatDateTime } from "../../../utils/date";
 import Checkbox from "../../../components/form/Checkbox";
+import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { Badge } from "../../../components/ui/Badge";
 
 
 type LocationForm = {
@@ -331,38 +334,31 @@ export default function AdminLocations() {
             {t("locations.subtitle")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-600"
-        >
+        <Button variant="primary" onClick={openCreate}>
           <FiPlus />
           {t("locations.create")}
-        </button>
+        </Button>
       </header>
 
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label={t("locations.totalStat")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-700" isLoading={loading} />
+        <StatCard label={t("locations.totalStat")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-900" isLoading={loading} />
         <StatCard label={t("locations.activeStat")} value={activeTotal} icon={<FiPower size={20} />} iconClassName="bg-emerald-50 text-emerald-700" isLoading={loading} />
         <StatCard label={t("locations.levelStat")} value={new Set(items.map((item) => item.type)).size} icon={<FiLayers size={20} />} iconClassName="bg-violet-50 text-violet-700" isLoading={loading} />
       </div>
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(145px,0.85fr)_minmax(160px,0.85fr)_minmax(200px,1.1fr)]">
-          <div className="relative">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={(event) => {
+          <SearchInput
+            label={t("locations.searchLabel")}
+            value={search}
+            onChange={(event) => {
                 setSearch(event.target.value);
                 setPage(1);
               }}
-              className={`${inputClass} pl-10`}
-              placeholder={t("locations.search")}
-              aria-label={t("locations.searchLabel")}
-            />
-          </div>
+            placeholder={t("locations.search")}
+            wrapperClassName="relative"
+          />
           <CustomSelect
             value={status}
             aria-label={t("locations.filterStatus")}
@@ -372,11 +368,11 @@ export default function AdminLocations() {
             }}
             className={inputClass}
           >
-            <option value="">{tc("all")}</option>
+            <option value="">{t("locations.allStatuses")}</option>
             <option value="ACTIVE">{tc("active")}</option>
             <option value="INACTIVE">{tc("inactive")}</option>
           </CustomSelect>
-          <CustomSelect value={administrativeType} aria-label={t("locations.filterType")} onChange={(event) => { setAdministrativeType(event.target.value as "" | LocationType); setPage(1); }} className={inputClass}><option value="">{tc("all")}</option>{[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map((type) => <option key={type} value={type}>{t(`locations.types.${type}`, { defaultValue: type })}</option>)}</CustomSelect>
+          <CustomSelect value={administrativeType} aria-label={t("locations.filterType")} onChange={(event) => { setAdministrativeType(event.target.value as "" | LocationType); setPage(1); }} className={inputClass}><option value="">{t("locations.allTypes")}</option>{[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map((type) => <option key={type} value={type}>{t(`locations.types.${type}`, { defaultValue: type })}</option>)}</CustomSelect>
           <CustomSelect
             value={parentCode}
             aria-label={t("locations.filterParent")}
@@ -402,8 +398,8 @@ export default function AdminLocations() {
           </CustomSelect>
         </div>
 
-        <div className="overflow-hidden" aria-busy={loading}>
-          <table className="w-full table-fixed whitespace-nowrap">
+        <div className="overflow-x-auto" aria-busy={loading} tabIndex={0}>
+          <table className="w-full min-w-[1100px] table-fixed whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-600">
                 <th className="w-[8%] px-3 py-3 text-center sm:px-5">{t("locations.code")}</th>
@@ -422,18 +418,18 @@ export default function AdminLocations() {
                     key={location.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
                   >
-                    <td className="w-[8%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-700 sm:px-5">
+                    <td className="w-[8%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-900 sm:px-5">
                       {location.code}
                     </td>
                     <td className="w-[24%] min-w-0 px-3 py-4 text-left sm:px-5">
                       <button
                         type="button"
                         onClick={() => openDetail(location)}
-                        className="text-center font-semibold text-gray-900 transition hover:text-vr-700"
+                        className="text-center font-semibold text-gray-900 transition hover:text-vr-900"
                       >
                         {location.name}
                       </button>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-1 text-xs text-gray-600">
                         {t("locations.updatedAt", {
                           value: formatDateTime(location.updatedAt),
                         })}
@@ -465,22 +461,16 @@ export default function AdminLocations() {
                       {location.parentName ? (
                         location.parentName
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-gray-500">—</span>
                       )}
                     </td>
                     <td className="w-[8%] whitespace-nowrap px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
                       {location.sortOrder}
                     </td>
                     <td className="w-[10%] whitespace-nowrap px-3 py-4 text-center sm:px-5">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          location.isActive
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
+                      <Badge tone={location.isActive ? "success" : "neutral"}>
                         {location.isActive ? tc("active") : tc("inactive")}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="w-[16%] whitespace-nowrap px-3 py-4 text-center sm:px-5">
                       <div className="flex justify-center gap-2">
@@ -496,7 +486,7 @@ export default function AdminLocations() {
                         <button
                           type="button"
                           onClick={() => openEdit(location)}
-                          className={`${actionButtonClass} text-vr-700`}
+                          className={`${actionButtonClass} text-vr-900`}
                           aria-label={tc("edit")}
                           title={tc("edit")}
                         >
@@ -535,14 +525,7 @@ export default function AdminLocations() {
                 </tr>
               )}
               {loading && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-5 py-12 text-center text-sm text-gray-500"
-                  >
-                    {tc("loading")}
-                  </td>
-                </tr>
+                <TableSkeletonRows columns={7} testId="locations-table-skeleton" cellClassName="px-5 py-4" />
               )}
             </tbody>
           </table>
@@ -563,22 +546,14 @@ export default function AdminLocations() {
         subtitle={t("locations.detailSubtitle")}
         footer={
           <>
-            <button
-              type="button"
-              onClick={() => setViewing(null)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-            >
+            <Button variant="secondary" onClick={() => setViewing(null)}>
               {tc("close")}
-            </button>
+            </Button>
             {viewing && (
-              <button
-                type="button"
-                onClick={() => openEdit(viewing)}
-                className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-600"
-              >
+              <Button variant="primary" onClick={() => openEdit(viewing)}>
                 <FiEdit2 />
                 {t("locations.edit")}
-              </button>
+              </Button>
             )}
           </>
         }
@@ -587,7 +562,7 @@ export default function AdminLocations() {
           <div className="space-y-5">
             <div className="flex flex-col gap-4 rounded-xl border border-vr-100 bg-vr-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white font-mono text-sm font-bold text-vr-700 shadow-sm">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white font-mono text-sm font-bold text-vr-900 shadow-sm">
                   {viewing.code}
                 </span>
                 <div>
@@ -685,28 +660,16 @@ export default function AdminLocations() {
         }
         footer={
           <>
-            <button
-              type="button"
-              onClick={() => {
-                setFormOpen(false);
-                setFormError("");
-              }}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-            >
+            <Button variant="secondary" onClick={() => { setFormOpen(false); setFormError(""); }}>
               {tc("cancel")}
-            </button>
-            <button
-              type="submit"
-              form="location-form"
-              disabled={saving}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            </Button>
+            <Button variant="primary" type="submit" form="location-form" disabled={saving}>
               {saving
                 ? t("locations.saving")
                 : editing
                   ? t("locations.saveChanges")
                   : t("locations.createSubmit")}
-            </button>
+            </Button>
           </>
         }
       >
@@ -762,7 +725,7 @@ export default function AdminLocations() {
                 )}
               </CustomSelect>
               {form.type === "MUNICIPALITY" && (
-                <span className="mt-1.5 block text-xs font-medium text-vr-700">
+                <span className="mt-1.5 block text-xs font-medium text-vr-900">
                   {t("locations.types.MUNICIPALITY")} ={" "}
                   {t("locations.typeFullName.MUNICIPALITY")}
                 </span>

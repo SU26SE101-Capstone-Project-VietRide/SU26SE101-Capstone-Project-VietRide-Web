@@ -77,7 +77,13 @@ describe("Admin Vouchers table", () => {
     vi.mocked(getAdminCampaigns).mockResolvedValue([]);
   });
 
-  it("keeps voucher data on one line without a horizontal table scroller", async () => {
+  // Trước đây bảng cố ép 7 cột vừa khung ở mọi bề rộng (không min-w, wrapper
+  // overflow-hidden). Ở 390px cách đó làm 5/8 ô bị cắt cụt — `table-fixed` co
+  // cột theo phần trăm tới khi chữ đè lên nhau, mà wrapper lại không cho cuộn
+  // nên không có cách nào đọc phần bị khuất. Nay giữ nguyên "một dòng mỗi ô"
+  // (truncate + nowrap) nhưng cho bảng có bề rộng tối thiểu và cuộn ngang khi
+  // khung hẹp hơn. Ở desktop bảng vẫn vừa khung nên không sinh thanh cuộn.
+  it("keeps voucher data on one line and lets a narrow viewport scroll the table", async () => {
     render(<Vouchers />);
 
     const voucherName = await screen.findByText("Gói Premium - Giảm 100K");
@@ -86,9 +92,12 @@ describe("Admin Vouchers table", () => {
 
     expect(table).not.toBeNull();
     expect(table).toHaveClass("table-fixed");
-    expect(table).not.toHaveClass("min-w-[980px]");
-    expect(container).toHaveClass("overflow-hidden");
-    expect(container).not.toHaveClass("overflow-x-auto");
+    expect(table).toHaveClass("min-w-[1000px]");
+    expect(container).toHaveClass("overflow-x-auto");
+    expect(container).not.toHaveClass("overflow-hidden");
+    // Vùng cuộn phải focus được, nếu không người dùng bàn phím không cuộn tới
+    // được cột cuối (axe: scrollable-region-focusable).
+    expect(container).toHaveAttribute("tabindex", "0");
     expect(voucherName).toHaveClass("truncate");
     expect(voucherName.closest("td")).toHaveClass("whitespace-nowrap");
   });

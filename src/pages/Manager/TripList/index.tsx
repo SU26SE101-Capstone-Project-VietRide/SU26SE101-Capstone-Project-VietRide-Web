@@ -108,7 +108,7 @@ const columnClasses = {
 function statusClass(status: string) {
   switch (status) {
     case "IN_PROGRESS":
-      return "bg-vr-50 text-vr-700";
+      return "bg-vr-50 text-vr-900";
     case "BOARDING":
       return "bg-sky-50 text-sky-800";
     case "COMPLETED":
@@ -400,7 +400,7 @@ export default function TripListPage() {
                 {t("tripList.searchLabel")}
               </label>
               <div className="relative">
-                <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   id="trip-list-search"
                   type="search"
@@ -469,7 +469,7 @@ export default function TripListPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="mt-3 text-sm font-semibold text-vr-700 hover:underline"
+              className="mt-3 text-sm font-semibold text-vr-900 hover:underline"
             >
               {t("tripList.clearFilters")}
             </button>
@@ -502,7 +502,7 @@ export default function TripListPage() {
                 </th>
                 <th className={`${cols.status} py-3`}>{tc("status")}</th>
                 {canOpenBoarding && (
-                  <th className={`${cols.actions} py-3`}>{tc("actions")}</th>
+                  <th className={`${cols.actions} sticky right-0 z-10 bg-gray-50 py-3`}>{tc("actions")}</th>
                 )}
               </tr>
             </thead>
@@ -559,19 +559,21 @@ export default function TripListPage() {
                       trạng thái khác không có thao tác nào ở màn này. Bước start
                       chuyến là của tài xế trên app tài xế, không dựng ở đây. */}
                   {canOpenBoarding && (
-                    <td className={`${cols.actions} py-4 text-center`}>
+                    // Ghim: bảng min-w-[1200px] nên cột này nằm ngoài khung
+                    // ngay ở desktop 1440px.
+                    <td className={`${cols.actions} sticky right-0 z-10 bg-white py-4 text-center`}>
                       {trip.status === "SCHEDULED" ? (
                         <button
                           type="button"
                           onClick={() => setBoardingTripId(trip.tripId)}
                           disabled={busyBoardingTripId === trip.tripId}
-                          className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-vr-200 bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-700 transition hover:bg-vr-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-vr-200 bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-900 transition hover:bg-vr-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <FiLogIn aria-hidden="true" size={14} />
                           {t("tripList.boarding")}
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-xs text-gray-600">-</span>
                       )}
                     </td>
                   )}

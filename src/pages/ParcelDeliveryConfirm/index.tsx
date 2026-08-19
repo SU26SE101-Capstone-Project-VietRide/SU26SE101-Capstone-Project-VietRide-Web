@@ -27,7 +27,7 @@ type Phase = "idle" | "confirmed" | "rejected" | "blocked";
 type PendingAction = "confirm" | "reject" | "undo";
 
 const primaryButtonClass =
-  "flex w-full items-center justify-center gap-2 rounded-xl bg-vr-500 px-5 py-3.5 text-[17px] font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none";
+  "flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none";
 const secondaryButtonClass =
   "flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 font-semibold text-slate-700 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60";
 const statusCircleClass =

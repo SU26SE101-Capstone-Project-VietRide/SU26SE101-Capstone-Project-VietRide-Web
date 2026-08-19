@@ -7,7 +7,6 @@ import {
   FiMapPin,
   FiPower,
   FiRefreshCw,
-  FiSearch,
   FiTruck,
 } from "react-icons/fi";
 import {
@@ -43,6 +42,7 @@ import {
   type OperatingDaySchedule,
   type StationForm,
 } from "./stationHelpers";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 export default function AdminStations() {
   const { t } = useTranslation("admin");
@@ -533,9 +533,10 @@ export default function AdminStations() {
         <button
           type="button"
           onClick={() => setReloadKey((value) => value + 1)}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          disabled={isLoading}
+          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <FiRefreshCw />
+          <FiRefreshCw className={isLoading ? "animate-spin" : ""} />
           {tc("refresh")}
         </button>
       </header>
@@ -544,7 +545,7 @@ export default function AdminStations() {
           icon={<FiMapPin size={20} />}
           label={t("stations.totalStations")}
           value={totalStations}
-          iconClassName="bg-vr-50 text-vr-700"
+          iconClassName="bg-vr-50 text-vr-900"
         />
         <StatCard
           icon={<FiCheckCircle size={20} />}
@@ -569,18 +570,17 @@ export default function AdminStations() {
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <div className="relative min-w-0 flex-1">
-                <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => {
+              <SearchInput
+                label={t("stations.searchPlaceholder")}
+                value={searchTerm}
+                onChange={(event) => {
                     setSearchTerm(event.target.value);
                     setPage(1);
                   }}
-                  placeholder={t("stations.searchPlaceholder")}
-                  className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
-                />
-              </div>
+                placeholder={t("stations.searchPlaceholder")}
+                inputClassName="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
+                wrapperClassName="relative min-w-0 flex-1"
+              />
               <CustomSelect
                 value={filterStatus}
                 onChange={(event) => {

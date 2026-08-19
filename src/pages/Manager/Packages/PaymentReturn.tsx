@@ -61,7 +61,7 @@ function resolvePackagesHref() {
 }
 
 const backButtonClass =
-  "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-vr-500 px-5 py-3.5 font-semibold text-white transition hover:bg-vr-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40";
+  "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 py-3.5 font-semibold text-white transition hover:bg-vr-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40";
 
 const MAX_VERIFICATION_ATTEMPTS = 30;
 const VERIFICATION_INTERVAL_MS = 2_000;
@@ -346,7 +346,7 @@ export default function SubscriptionPaymentReturn() {
   let title = t("paymentReturn.verifyingTitle");
   let description = t("paymentReturn.verifyingDescription");
   let icon = <FiLoader className="h-8 w-8 animate-spin" aria-hidden="true" />;
-  let iconClassName = "bg-vr-100 text-vr-700";
+  let iconClassName = "bg-vr-100 text-vr-900";
 
   if (status === "success") {
     title = t("paymentReturn.successTitle");
@@ -412,7 +412,7 @@ export default function SubscriptionPaymentReturn() {
           alt={tc("brand")}
           className="mx-auto h-20 w-20 object-contain"
         />
-        <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-vr-700">
+        <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-vr-900">
           {t("paymentReturn.pageTitle")}
         </p>
 
@@ -432,7 +432,7 @@ export default function SubscriptionPaymentReturn() {
         </div>
 
         {status === "success" && !signedOut ? (
-          <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-vr-200 bg-vr-50 px-3.5 py-1.5 text-xs font-semibold text-vr-800">
+          <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-vr-200 bg-vr-50 px-3.5 py-1.5 text-xs font-semibold text-vr-900">
             <FiClock className="h-4 w-4" aria-hidden="true" />
             {t("paymentReturn.redirectingToPackages", {
               seconds: redirectSeconds,
@@ -470,7 +470,7 @@ export default function SubscriptionPaymentReturn() {
 
         <div className="mt-7 flex items-start gap-3 rounded-xl border border-vr-200 bg-vr-50 p-4 text-left text-sm leading-6 text-slate-600">
           <FiShield
-            className="mt-0.5 h-5 w-5 shrink-0 text-vr-700"
+            className="mt-0.5 h-5 w-5 shrink-0 text-vr-900"
             aria-hidden="true"
           />
           <span>{t("paymentReturn.securityNote")}</span>
