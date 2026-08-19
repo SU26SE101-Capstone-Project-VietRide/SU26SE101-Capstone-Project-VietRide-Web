@@ -91,7 +91,7 @@ export default function StopDetailCard({
             type="button"
             aria-label={t("routes.suggestClose")}
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-500 hover:text-gray-600"
           >
             ×
           </button>
@@ -147,7 +147,7 @@ export default function StopDetailCard({
           {!isLoadingPlaceDetails && placeDetails?.phone && (
             <a
               href={`tel:${placeDetails.phone}`}
-              className="mt-1 flex items-center gap-1 text-xs text-vr-600 hover:underline"
+              className="mt-1 flex items-center gap-1 text-xs text-vr-900 hover:underline"
             >
               <FiPhone />
               {placeDetails.phone}
@@ -159,7 +159,7 @@ export default function StopDetailCard({
               href={placeDetails.googleMapsUri}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 block text-xs font-medium text-vr-600 hover:underline"
+              className="mt-1 block text-xs font-medium text-vr-900 hover:underline"
             >
               {t("routes.detailViewOnGoogle")}
             </a>

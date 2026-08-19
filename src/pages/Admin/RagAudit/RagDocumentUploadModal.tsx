@@ -122,7 +122,7 @@ export function RagDocumentUploadModal({
             type="submit"
             form="rag-upload-form"
             disabled={submitting}
-            className="rounded-xl bg-vr-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? tc("processing") : tc("upload")}
           </button>
@@ -149,9 +149,9 @@ export function RagDocumentUploadModal({
             <input id="rag-document-file" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="sr-only" required />
             {file ? (
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-vr-100 text-vr-700"><FiFileText size={22} /></span>
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-vr-100 text-vr-900"><FiFileText size={22} /></span>
                 <span className="text-left"><span className="block max-w-xs truncate text-sm font-semibold text-gray-900">{file.name}</span><span className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</span></span>
-                <button type="button" onClick={(event) => { event.preventDefault(); setFile(null); }} className="rounded-full p-2 text-gray-400 hover:bg-red-50 hover:text-red-600" aria-label={t("ragAudit.removeFile")}><FiX /></button>
+                <button type="button" onClick={(event) => { event.preventDefault(); setFile(null); }} className="rounded-full p-2 text-gray-500 hover:bg-red-50 hover:text-red-600" aria-label={t("ragAudit.removeFile")}><FiX /></button>
               </div>
             ) : (
               <><FiUploadCloud className="text-vr-500" size={30} /><span className="mt-2 text-sm font-semibold text-gray-700">{t("ragAudit.filePickerLabel")}</span><span className="mt-1 text-xs text-gray-500">{t("ragAudit.filePickerFormats")}</span></>

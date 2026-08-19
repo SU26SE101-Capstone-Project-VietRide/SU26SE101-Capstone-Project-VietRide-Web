@@ -81,7 +81,7 @@ export default function RequestDetailModal({
           type="button"
           onClick={onAssign}
           disabled={cutoffPassed || bookings.length === 0}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-vr-600 px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-44"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-44"
         >
           <FiTruck aria-hidden="true" />
           {cutoffPassed
@@ -125,11 +125,11 @@ export default function RequestDetailModal({
                   {t("dispatch.mainRoute")}
                 </p>
                 <h3 className="mt-1 flex items-start gap-2 text-lg font-bold text-gray-900 sm:text-xl">
-                  <FiMap className="mt-1 shrink-0 text-vr-600" aria-hidden="true" />
+                  <FiMap className="mt-1 shrink-0 text-vr-900" aria-hidden="true" />
                   <span>{shuttleRouteLabel(group, group.stationName)}</span>
                 </h3>
                 <p className="mt-2 flex items-start gap-2 text-sm text-gray-600">
-                  <FiMapPin className="mt-0.5 shrink-0 text-gray-400" aria-hidden="true" />
+                  <FiMapPin className="mt-0.5 shrink-0 text-gray-500" aria-hidden="true" />
                   <span>
                     {t("dispatch.station", { defaultValue: "Bến phục vụ" })}:{" "}
                     <span className="font-semibold text-gray-800">
@@ -212,7 +212,7 @@ export default function RequestDetailModal({
                   id="dispatch-detail-bookings"
                   className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold text-gray-900"
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-vr-100 text-vr-700">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-vr-100 text-vr-900">
                     <FiNavigation aria-hidden="true" />
                   </span>
                   {t("dispatch.suggestedOrder", {
@@ -226,7 +226,7 @@ export default function RequestDetailModal({
                   })}
                 </p>
               </div>
-              <span className="shrink-0 rounded-full border border-vr-100 bg-white px-3 py-1.5 text-xs font-semibold text-vr-700 shadow-sm">
+              <span className="shrink-0 rounded-full border border-vr-100 bg-white px-3 py-1.5 text-xs font-semibold text-vr-900 shadow-sm">
                 {t("dispatch.stopCount", {
                   count: bookings.length,
                   defaultValue: "{{count}} điểm",
@@ -247,13 +247,13 @@ export default function RequestDetailModal({
                   className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm transition hover:border-vr-200 hover:shadow-md sm:p-4"
                 >
                   <div className="flex gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-600 text-sm font-bold text-white shadow-sm ring-4 ring-vr-50">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-800 text-sm font-bold text-white shadow-sm ring-4 ring-vr-50">
                       {index + 1}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-600">
                             {t("dispatch.stopOrdinal", {
                               index: index + 1,
                               defaultValue: "Điểm {{index}}",
@@ -286,14 +286,14 @@ export default function RequestDetailModal({
                       </div>
                       <p className="mt-3 flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2.5 text-sm font-medium text-gray-900">
                         <FiMapPin
-                          className="mt-0.5 shrink-0 text-vr-600"
+                          className="mt-0.5 shrink-0 text-vr-900"
                           aria-hidden="true"
                         />
                         <span>{booking.pickupAddress}</span>
                       </p>
                       <dl className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
                         <div className="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                          <dt className="text-gray-400">
+                          <dt className="text-gray-500">
                             {t("dispatch.passengerCount", {
                               defaultValue: "Số khách",
                             })}
@@ -303,7 +303,7 @@ export default function RequestDetailModal({
                           </dd>
                         </div>
                         <div className="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                          <dt className="text-gray-400">
+                          <dt className="text-gray-500">
                             {t("dispatch.roadDistance", {
                               defaultValue: "Khoảng cách đường bộ",
                             })}
@@ -313,7 +313,7 @@ export default function RequestDetailModal({
                           </dd>
                         </div>
                         <div className="rounded-lg border border-gray-100 bg-white px-3 py-2">
-                          <dt className="text-gray-400">
+                          <dt className="text-gray-500">
                             {t("dispatch.requestedAt", {
                               defaultValue: "Yêu cầu lúc",
                             })}

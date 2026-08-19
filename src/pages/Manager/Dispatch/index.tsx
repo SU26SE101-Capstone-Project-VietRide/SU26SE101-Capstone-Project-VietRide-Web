@@ -1171,7 +1171,7 @@ export default function DispatchPanel() {
           })}
           value={passengersOnPage}
           icon={<FiUsers size={20} />}
-          iconClassName="bg-vr-50 text-vr-700"
+          iconClassName="bg-vr-50 text-vr-900"
         />
       </div>
 

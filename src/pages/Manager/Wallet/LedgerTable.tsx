@@ -6,8 +6,8 @@ import { EmptyRow, type Translate } from "./walletTableShared";
 
 export function LedgerTable({ items, t, tc }: { items: OperatorLedgerEntry[]; t: Translate; tc: Translate }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full table-fixed text-center text-sm">
+    <div className="overflow-x-auto" tabIndex={0}>
+      <table className="w-full min-w-[900px] table-fixed text-center text-sm">
         {/* `table-fixed` mà không khai bề rộng thì 6 cột chia đều 16.7% — mã tham
             chiếu (VR-PCL-20260815-44KV5S53) bị bẻ xuống hai dòng trong khi cột
             trạng thái chỉ chứa dấu "-" lại thừa chỗ. */}
@@ -51,7 +51,7 @@ function LedgerRow({ item, t, tc }: { item: OperatorLedgerEntry; t: Translate; t
     <tr className="border-t border-gray-100">
       <td className="whitespace-nowrap px-4 py-3">
         {formatWalletDate(occurredAt)}
-        {isFallback && <p className="text-[11px] font-normal text-gray-400">{t("wallet.occurredAtFallback")}</p>}
+        {isFallback && <p className="text-[11px] font-normal text-gray-600">{t("wallet.occurredAtFallback")}</p>}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-gray-600">
         {item.referenceCode ?? "-"}
@@ -59,10 +59,10 @@ function LedgerRow({ item, t, tc }: { item: OperatorLedgerEntry; t: Translate; t
       <td className="px-4 py-3 font-semibold">
         {tc("enumLabels." + item.entryType, { defaultValue: item.entryType })}
         {item.affectsSettlement === false && (
-          <p className="text-[11px] font-normal text-gray-400">{t("wallet.notAffectingSettlement")}</p>
+          <p className="text-[11px] font-normal text-gray-600">{t("wallet.notAffectingSettlement")}</p>
         )}
         {item.operatorFundedVoucherAmount ? (
-          <p className="text-[11px] font-normal text-gray-400">
+          <p className="text-[11px] font-normal text-gray-600">
             {t("wallet.operatorFundedVoucherAmount")}: {formatCurrency(item.operatorFundedVoucherAmount)}
           </p>
         ) : null}

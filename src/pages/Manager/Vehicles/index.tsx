@@ -877,7 +877,7 @@ export default function VehiclesPage() {
   const vehicleToolbar = (
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_240px] lg:items-center">
           <div className="relative min-w-0">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
               type="search"
               name="vehicleSearch"
@@ -962,7 +962,7 @@ export default function VehiclesPage() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
+              className="px-4 py-2 bg-vr-800 cursor-pointer hover:bg-vr-900 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
             >
               <FiPlus size={18} />
               {t("vehicles.add")}
@@ -972,7 +972,7 @@ export default function VehiclesPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t("vehicles.total")} value={total} icon={<FiTruck size={20} />} iconClassName="bg-vr-50 text-vr-700" />
+        <StatCard label={t("vehicles.total")} value={total} icon={<FiTruck size={20} />} iconClassName="bg-vr-50 text-vr-900" />
         <StatCard label={t("vehicles.active")} value={activeCount} icon={<FiCheckCircle size={20} />} iconClassName="bg-emerald-50 text-emerald-700" />
         <StatCard label={t("vehicles.statusMaintenance")} value={maintenanceCount} icon={<FiAlertTriangle size={20} />} iconClassName="bg-amber-50 text-amber-700" />
         <StatCard label={t("vehicles.inactive")} value={inactiveCount} icon={<FiPauseCircle size={20} />} iconClassName="bg-slate-100 text-slate-700" />

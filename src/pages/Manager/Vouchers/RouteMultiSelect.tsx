@@ -76,7 +76,7 @@ export default function RouteMultiSelect({
           type="button"
           onClick={toggleAllFilteredRoutes}
           disabled={filteredRoutes.length === 0}
-          className="self-start rounded-lg border border-vr-200 px-3 py-1.5 text-xs font-semibold text-vr-700 transition hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
+          className="self-start rounded-lg border border-vr-200 px-3 py-1.5 text-xs font-semibold text-vr-900 transition hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
         >
           {allFilteredRoutesSelected
             ? t("vouchers.clearSelectedRoutes")
@@ -87,7 +87,7 @@ export default function RouteMultiSelect({
       <div className="relative mt-2">
         <FiSearch
           aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
           size={15}
         />
         <input

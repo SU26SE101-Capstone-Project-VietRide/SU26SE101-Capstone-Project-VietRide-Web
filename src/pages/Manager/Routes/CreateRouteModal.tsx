@@ -326,7 +326,7 @@ export default function CreateRouteModal({
             type="button"
             onClick={() => void handleSubmit()}
             disabled={!canSubmit}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-vr-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-vr-800 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? (
               <FiLoader className="animate-spin" size={16} />
@@ -355,7 +355,7 @@ export default function CreateRouteModal({
       <div className="space-y-5">
         <section className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 sm:p-5">
           <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-vr-700 shadow-sm ring-1 ring-gray-200">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-vr-900 shadow-sm ring-1 ring-gray-200">
               <FiMapPin aria-hidden="true" size={17} />
             </span>
             <div>

@@ -62,7 +62,7 @@ export default function CampaignModal({
             type="button"
             disabled={isActionLoading}
             onClick={() => void onSave()}
-            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-vr-800 px-4 py-2 text-sm font-bold text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {editingCampaign
               ? t("vouchers.saveActionUpdate")

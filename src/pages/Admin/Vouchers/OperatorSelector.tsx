@@ -88,7 +88,7 @@ export default function OperatorSelector({
             type="button"
             onClick={toggleAllFilteredOperators}
             disabled={filteredOperators.length === 0}
-            className="rounded-lg border border-vr-200 px-3 py-1.5 text-xs font-semibold text-vr-700 transition hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-vr-200 px-3 py-1.5 text-xs font-semibold text-vr-900 transition hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {allFilteredOperatorsSelected
               ? t("vouchers.clearSelectedOperators")
@@ -100,7 +100,7 @@ export default function OperatorSelector({
       <div className="relative mt-2">
         <FiSearch
           aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
           size={15}
         />
         <input

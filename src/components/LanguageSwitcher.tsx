@@ -40,7 +40,7 @@ export default function LanguageSwitcher({ compact = false }: LanguageSwitcherPr
           onClick={() => switchLanguage(lang)}
           className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
             current === lang
-              ? "bg-white text-vr-700 shadow-sm"
+              ? "bg-white text-vr-900 shadow-sm"
               : "text-gray-600 hover:text-gray-900"
           }`}
           aria-pressed={current === lang}

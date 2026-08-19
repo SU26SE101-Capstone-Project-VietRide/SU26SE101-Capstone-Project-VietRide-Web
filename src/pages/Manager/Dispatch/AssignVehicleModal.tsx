@@ -138,7 +138,7 @@ export default function AssignVehicleModal({
           <section className="rounded-xl border border-vr-200 bg-vr-50 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-vr-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-vr-900">
                   {directionLabel(group.direction)}
                 </p>
                 <p className="mt-1 font-semibold text-gray-900">
@@ -235,7 +235,7 @@ export default function AssignVehicleModal({
                       />
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-vr-700">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-vr-900">
                             {index + 1}
                           </span>
                           <span className="truncate text-xs font-semibold text-gray-700">
@@ -418,7 +418,7 @@ export default function AssignVehicleModal({
               disabled={isSubmitting}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500 disabled:bg-gray-100"
             />
-            <p className="mt-1 text-right text-xs text-gray-400">
+            <p className="mt-1 text-right text-xs text-gray-600">
               {form.notes.length}/1000
             </p>
           </div>
@@ -449,7 +449,7 @@ export default function AssignVehicleModal({
                 isLoadingResources ||
                 form.selectedBookingIds.length === 0
               }
-              className="min-h-11 flex-1 rounded-lg border border-vr-200 px-4 py-2 font-medium text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-11 flex-1 rounded-lg border border-vr-200 px-4 py-2 font-medium text-vr-900 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t("resourceConflict.check")}
             </button>
@@ -469,7 +469,7 @@ export default function AssignVehicleModal({
                 form.selectedBookingIds.length === 0 ||
                 exceedsCapacity
               }
-              className="min-h-11 flex-1 rounded-lg bg-vr-600 px-4 py-2 font-semibold text-white transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-11 flex-1 rounded-lg bg-vr-800 px-4 py-2 font-semibold text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting
                 ? t("dispatch.assigning", { defaultValue: "Đang phân công..." })

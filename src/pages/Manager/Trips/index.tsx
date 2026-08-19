@@ -951,7 +951,7 @@ export default function TripsPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-vr-600"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-vr-900"
           >
             <FiPlus />
             {t("trips.createScheduleTitle")}
@@ -964,7 +964,7 @@ export default function TripsPage() {
           label={t("trips.totalSchedules")}
           value={scheduleStats.total}
           icon={<FiCalendar size={20} />}
-          iconClassName="bg-vr-50 text-vr-700"
+          iconClassName="bg-vr-50 text-vr-900"
           isLoading={isLoadingSchedules}
         />
         <StatCard

@@ -334,7 +334,7 @@ export default function AdminLocations() {
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-600"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900"
         >
           <FiPlus />
           {t("locations.create")}
@@ -343,7 +343,7 @@ export default function AdminLocations() {
 
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label={t("locations.totalStat")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-700" isLoading={loading} />
+        <StatCard label={t("locations.totalStat")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-900" isLoading={loading} />
         <StatCard label={t("locations.activeStat")} value={activeTotal} icon={<FiPower size={20} />} iconClassName="bg-emerald-50 text-emerald-700" isLoading={loading} />
         <StatCard label={t("locations.levelStat")} value={new Set(items.map((item) => item.type)).size} icon={<FiLayers size={20} />} iconClassName="bg-violet-50 text-violet-700" isLoading={loading} />
       </div>
@@ -351,7 +351,7 @@ export default function AdminLocations() {
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="grid gap-3 border-b border-gray-100 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(145px,0.85fr)_minmax(160px,0.85fr)_minmax(200px,1.1fr)]">
           <div className="relative">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
               value={search}
               onChange={(event) => {
@@ -402,8 +402,8 @@ export default function AdminLocations() {
           </CustomSelect>
         </div>
 
-        <div className="overflow-hidden" aria-busy={loading}>
-          <table className="w-full table-fixed whitespace-nowrap">
+        <div className="overflow-x-auto" aria-busy={loading} tabIndex={0}>
+          <table className="w-full min-w-[1100px] table-fixed whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-600">
                 <th className="w-[8%] px-3 py-3 text-center sm:px-5">{t("locations.code")}</th>
@@ -422,18 +422,18 @@ export default function AdminLocations() {
                     key={location.id}
                     className="border-b border-gray-100 hover:bg-gray-50"
                   >
-                    <td className="w-[8%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-700 sm:px-5">
+                    <td className="w-[8%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-900 sm:px-5">
                       {location.code}
                     </td>
                     <td className="w-[24%] min-w-0 px-3 py-4 text-left sm:px-5">
                       <button
                         type="button"
                         onClick={() => openDetail(location)}
-                        className="text-center font-semibold text-gray-900 transition hover:text-vr-700"
+                        className="text-center font-semibold text-gray-900 transition hover:text-vr-900"
                       >
                         {location.name}
                       </button>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-1 text-xs text-gray-600">
                         {t("locations.updatedAt", {
                           value: formatDateTime(location.updatedAt),
                         })}
@@ -465,7 +465,7 @@ export default function AdminLocations() {
                       {location.parentName ? (
                         location.parentName
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-gray-500">—</span>
                       )}
                     </td>
                     <td className="w-[8%] whitespace-nowrap px-3 py-4 text-center text-sm text-gray-700 sm:px-5">
@@ -496,7 +496,7 @@ export default function AdminLocations() {
                         <button
                           type="button"
                           onClick={() => openEdit(location)}
-                          className={`${actionButtonClass} text-vr-700`}
+                          className={`${actionButtonClass} text-vr-900`}
                           aria-label={tc("edit")}
                           title={tc("edit")}
                         >
@@ -574,7 +574,7 @@ export default function AdminLocations() {
               <button
                 type="button"
                 onClick={() => openEdit(viewing)}
-                className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-600"
+                className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-900"
               >
                 <FiEdit2 />
                 {t("locations.edit")}
@@ -587,7 +587,7 @@ export default function AdminLocations() {
           <div className="space-y-5">
             <div className="flex flex-col gap-4 rounded-xl border border-vr-100 bg-vr-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white font-mono text-sm font-bold text-vr-700 shadow-sm">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white font-mono text-sm font-bold text-vr-900 shadow-sm">
                   {viewing.code}
                 </span>
                 <div>
@@ -699,7 +699,7 @@ export default function AdminLocations() {
               type="submit"
               form="location-form"
               disabled={saving}
-              className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving
                 ? t("locations.saving")
@@ -762,7 +762,7 @@ export default function AdminLocations() {
                 )}
               </CustomSelect>
               {form.type === "MUNICIPALITY" && (
-                <span className="mt-1.5 block text-xs font-medium text-vr-700">
+                <span className="mt-1.5 block text-xs font-medium text-vr-900">
                   {t("locations.types.MUNICIPALITY")} ={" "}
                   {t("locations.typeFullName.MUNICIPALITY")}
                 </span>

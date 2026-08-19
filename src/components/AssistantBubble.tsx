@@ -268,7 +268,7 @@ export default function AssistantBubble() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="shrink-0 rounded-full p-2 text-gray-400 transition hover:bg-white hover:text-gray-700"
+                className="shrink-0 rounded-full p-2 text-gray-500 transition hover:bg-white hover:text-gray-700"
                 aria-label={t("assistant.close")}
                 title={t("close")}
               >
@@ -285,7 +285,7 @@ export default function AssistantBubble() {
         type="button"
         onPointerDown={handlePointerDown}
         onClick={handleClick}
-        className={`flex h-14 w-14 touch-none items-center justify-center rounded-full bg-vr-500 text-white shadow-lg shadow-vr-900/25 ring-4 ring-white/70 transition duration-200 hover:-translate-y-0.5 hover:bg-vr-600 hover:shadow-xl active:translate-y-0 active:scale-95 ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+        className={`flex h-14 w-14 touch-none items-center justify-center rounded-full bg-vr-800 text-white shadow-lg shadow-vr-900/25 ring-4 ring-white/70 transition duration-200 hover:-translate-y-0.5 hover:bg-vr-900 hover:shadow-xl active:translate-y-0 active:scale-95 ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
         aria-label={open ? t("assistant.close") : t("assistant.open")}
         aria-expanded={open}
         title={t("assistant.dragHint")}

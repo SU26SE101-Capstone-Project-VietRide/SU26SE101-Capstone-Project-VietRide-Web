@@ -48,7 +48,7 @@ export default function RoutePanelStopsSection({
         className="flex w-full items-center justify-between gap-2 text-sm font-bold text-gray-900"
       >
         <span className="inline-flex items-center gap-2">
-          <FiMapPin className="text-vr-700" size={15} />
+          <FiMapPin className="text-vr-900" size={15} />
           {t("routes.panelStopsTitle", { count: items.length })}
         </span>
         {isExpanded ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
@@ -70,7 +70,7 @@ export default function RoutePanelStopsSection({
                 {t("routes.suggestModeHint")}
               </p>
               {isLoadingSuggestions && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-600">
                   {t("routes.suggestLoading")}
                 </p>
               )}

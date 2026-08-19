@@ -28,7 +28,7 @@ export default function RouteEmptyState({
       </div>
 
       <div className="flex min-h-96 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-vr-50 text-vr-700">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-vr-50 text-vr-900">
           <FiMap size={26} />
         </span>
         <h2 className="text-lg font-bold text-gray-900">
@@ -41,7 +41,7 @@ export default function RouteEmptyState({
           <button
             type="button"
             onClick={onCreateRoute}
-            className="mt-2 inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+            className="mt-2 inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-900"
           >
             <FiPlus size={16} />
             {t("routes.newRoute")}

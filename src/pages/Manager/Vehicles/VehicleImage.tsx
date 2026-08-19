@@ -55,7 +55,7 @@ export function VehicleImage({
 
       {status === "error" && (
         <div
-          className="absolute inset-0 z-10 flex items-center justify-center bg-gray-100 text-gray-400"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-gray-100 text-gray-500"
           role="img"
           aria-label={errorLabel}
         >

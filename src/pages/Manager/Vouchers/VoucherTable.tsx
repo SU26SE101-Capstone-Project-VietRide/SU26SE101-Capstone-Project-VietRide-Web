@@ -37,9 +37,9 @@ export default function VoucherTable({ toolbar, vouchers, isLoading, page, pageS
       pageSize={pageSize}
       totalItems={totalItems}
       onPageChange={onPageChange}
-      className="w-full table-fixed whitespace-nowrap"
+      className="w-full min-w-[1000px] table-fixed whitespace-nowrap"
       columns={[
-        { key: "code", header: t("vouchers.code"), headerClassName: "w-[14%] px-3 py-3 text-center", cellClassName: "w-[14%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-700", render: (voucher) => voucher.code },
+        { key: "code", header: t("vouchers.code"), headerClassName: "w-[14%] px-3 py-3 text-center", cellClassName: "w-[14%] whitespace-nowrap px-3 py-4 text-center font-mono text-sm font-semibold text-vr-900", render: (voucher) => voucher.code },
         { key: "name", header: t("vouchers.name"), headerClassName: "w-[24%] px-3 py-3 text-left", cellClassName: "w-[24%] min-w-0 px-3 py-4 text-left", render: (voucher) => <><p className="max-w-full truncate text-sm font-semibold leading-5 text-gray-900" title={voucher.name}>{truncateVoucherName(voucher.name)}</p><p className="whitespace-nowrap truncate text-xs text-gray-500">{tc(`voucherTypes.${voucher.type}`, { defaultValue: voucher.type })}</p></> },
         { key: "discount", header: t("vouchers.discount"), headerClassName: "w-[10%] px-3 py-3 text-center", cellClassName: "w-[10%] whitespace-nowrap px-3 py-4 text-center text-sm text-gray-700", render: (voucher) => voucher.type === "PERCENT_OFF" ? `${voucher.value}%` : `${formatMoney(voucher.value)} đ` },
         { key: "limit", header: t("vouchers.limit"), headerClassName: "w-[11%] px-3 py-3 text-center", cellClassName: "w-[11%] whitespace-nowrap px-3 py-4 text-center text-sm text-gray-700", render: (voucher) => <><p>{t("vouchers.totalLimit", { count: voucher.totalUsageLimit })}</p><p className="text-xs text-gray-500">{t("vouchers.perUserLimit", { count: voucher.perUserLimit })}</p></> },

@@ -16,8 +16,10 @@ type InputProps = {
   disabled?: boolean;
 };
 
+// <label> bọc control thay vì đứng cạnh: <label> anh em không có htmlFor thì
+// KHÔNG gắn với input nào cả — trình đọc màn hình đọc ra ô trống (axe: label).
 export function Input({ label, value, onChange, placeholder, type = "text", disabled = false }: InputProps) {
-  return <div><label className={labelClass}>{label}</label><input className={inputClass} value={value} type={type} placeholder={placeholder} disabled={disabled} onChange={(event) => onChange(event.target.value)} /></div>;
+  return <label className="block"><span className={labelClass}>{label}</span><input className={inputClass} value={value} type={type} placeholder={placeholder} disabled={disabled} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
 type StationSelectProps = {
@@ -33,6 +35,9 @@ export function StationSelect({ label, stations, value, placeholder, onChange, d
   const { t } = useTranslation("common");
   const hasSelectedValue = value && !stations.some((station) => station.id === value);
 
+  // Không gắn aria-label ở đây: CustomSelect render ra <button> và tên khả
+  // truy cập của nó chính là option đang chọn — thêm aria-label sẽ đè mất giá
+  // trị đó. Rule `label` của axe cũng chỉ soi input/select/textarea gốc.
   return <div>
     <label className={labelClass}>{label}</label>
     <CustomSelect
@@ -61,5 +66,5 @@ type NumberInputProps = {
 };
 
 export function NumberInput({ label, value, onChange, disabled = false, currency = false }: NumberInputProps) {
-  return <div><label className={labelClass}>{label}</label>{currency ? <CurrencyInput className={inputClass} value={value} disabled={disabled} onChange={(event) => onChange(toNumber(event.target.value))} /> : <input className={inputClass} value={value} type="number" disabled={disabled} onChange={(event) => onChange(toNumber(event.target.value))} />}</div>;
+  return <label className="block"><span className={labelClass}>{label}</span>{currency ? <CurrencyInput className={inputClass} value={value} disabled={disabled} onChange={(event) => onChange(toNumber(event.target.value))} /> : <input className={inputClass} value={value} type="number" disabled={disabled} onChange={(event) => onChange(toNumber(event.target.value))} />}</label>;
 }

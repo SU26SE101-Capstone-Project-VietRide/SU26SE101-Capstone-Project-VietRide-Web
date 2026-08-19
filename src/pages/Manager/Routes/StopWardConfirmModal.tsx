@@ -111,7 +111,7 @@ export default function StopWardConfirmModal({
             type="button"
             onClick={() => onConfirm(wardId)}
             disabled={!wardId || isSubmitting}
-            className="cursor-pointer rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="cursor-pointer rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting
               ? t("routes.stopWardConfirmSaving")

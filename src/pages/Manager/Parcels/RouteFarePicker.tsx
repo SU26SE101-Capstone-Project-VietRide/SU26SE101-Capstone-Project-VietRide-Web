@@ -182,7 +182,7 @@ export function RouteFarePicker({
       <div ref={containerRef} className="relative">
         <div className="relative">
         <FiSearch
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
           size={17}
         />
         <input
@@ -208,10 +208,10 @@ export function RouteFarePicker({
             setActiveIndex(0);
             onQueryChange(event.target.value);
           }}
-          className="min-h-12 w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-11 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-vr-500 focus:ring-2 focus:ring-vr-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-600"
+          className="min-h-12 w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-11 text-sm text-gray-900 outline-none transition placeholder:text-gray-500 focus:border-vr-500 focus:ring-2 focus:ring-vr-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-600"
         />
         <FiChevronDown
-          className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition ${
+          className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition ${
             isOpen ? "rotate-180" : ""
           }`}
           size={18}
@@ -279,7 +279,7 @@ export function RouteFarePicker({
                         : t(`parcels.routeFareStatus.${summary.status}`)}
                     </span>
                     {selectedRoute?.id === route.id && (
-                      <FiCheck className="mt-0.5 text-vr-600" size={16} />
+                      <FiCheck className="mt-0.5 text-vr-900" size={16} />
                     )}
                   </span>
                 </button>
@@ -301,7 +301,7 @@ export function RouteFarePicker({
               })}
             </span>
             {isLoading ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-vr-700">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-vr-900">
                 <FiLoader className="animate-spin" />
                 {t("parcels.routeSearchLoading")}
               </span>
@@ -309,7 +309,7 @@ export function RouteFarePicker({
               <button
                 type="button"
                 onClick={onLoadMore}
-                className="text-xs font-semibold text-vr-700 hover:text-vr-800"
+                className="text-xs font-semibold text-vr-900 hover:text-vr-800"
               >
                 {t("parcels.routeSearchMore")}
               </button>

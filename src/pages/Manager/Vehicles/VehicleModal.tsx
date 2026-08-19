@@ -293,7 +293,7 @@ export function VehicleInfoForm({
             className="rounded-xl border border-dashed border-vr-200 bg-vr-50/40 p-4 transition hover:border-vr-300 hover:bg-vr-50"
           >
             <div className="flex flex-col items-center justify-center gap-2 text-center">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-vr-700 shadow-sm">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-vr-900 shadow-sm">
                 <FiUpload size={18} />
               </span>
               <div>
@@ -304,7 +304,7 @@ export function VehicleInfoForm({
                   {t("vehicles.imagePickerHint")}
                 </p>
               </div>
-              <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-vr-200 bg-white px-3 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50">
+              <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-vr-200 bg-white px-3 py-2 text-sm font-semibold text-vr-900 hover:bg-vr-50">
                 {t("vehicles.chooseImages")}
                 <input
                   type="file"

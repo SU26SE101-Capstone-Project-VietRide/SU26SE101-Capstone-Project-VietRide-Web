@@ -103,7 +103,7 @@ export default function SharedTripMapLegend({
           {t("map.legendVehicle")}
         </span>
       )}
-      <span className="ml-auto text-xs text-gray-400">{t("map.legendNote")}</span>
+      <span className="ml-auto text-xs text-gray-600">{t("map.legendNote")}</span>
     </aside>
   );
 }

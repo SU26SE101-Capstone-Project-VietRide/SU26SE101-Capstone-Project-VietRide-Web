@@ -300,7 +300,7 @@ export default function ProposalsPanel({
 
       <div className="flex flex-col gap-2">
         <div className="relative">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -337,7 +337,7 @@ export default function ProposalsPanel({
             <article key={request.id} className="rounded-lg border border-gray-200 bg-white p-3">
               <div className="flex items-start gap-3">
                 <div className="pt-1">
-                  {request.status === "PENDING" ? <FiAlertCircle className="text-orange-500" /> : request.status === "APPROVED" ? <FiCheckCircle className="text-green-500" /> : <FiXCircle className="text-gray-400" />}
+                  {request.status === "PENDING" ? <FiAlertCircle className="text-orange-500" /> : request.status === "APPROVED" ? <FiCheckCircle className="text-green-500" /> : <FiXCircle className="text-gray-500" />}
                 </div>
                 <button type="button" onClick={() => void openDetails(request)} className="min-w-0 flex-1 text-left">
                   <div className="flex flex-wrap items-center gap-2">
@@ -366,7 +366,7 @@ export default function ProposalsPanel({
                   <button
                     type="button"
                     onClick={() => void openDetails(request)}
-                    className="rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-semibold text-white"
+                    className="rounded-lg bg-vr-800 px-3 py-1.5 text-sm font-semibold text-white"
                   >
                     {t("routeEta.review")}
                   </button>

@@ -26,6 +26,7 @@ import {
   useOperatorSubscription,
   type SubscriptionModule,
 } from "../contexts/operatorSubscriptionContext";
+import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 
 type MenuItem = {
   labelKey: string;
@@ -211,7 +212,7 @@ type SidebarProps = {
 };
 
 const sectionHeadingClass =
-  "px-3 pb-2.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400";
+  "px-3 pb-2.5 pt-1 text-xs font-semibold uppercase tracking-[0.2em] text-gray-600";
 
 const itemBaseClass =
   "flex items-center gap-3.5 rounded-lg px-3 py-3 text-[13px] font-medium transition-colors";
@@ -224,6 +225,11 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   const navigate = useNavigate();
   const { t } = useTranslation(["nav", "common"]);
   const { hasModule } = useOperatorSubscription();
+  // Từ `lg` trở lên sidebar là cột cố định (`lg:translate-x-0`) nên luôn hiển
+  // thị bất kể `isOpen`. Chỉ dưới mốc đó nó mới là drawer trượt ra ngoài màn
+  // hình — và chỉ khi đó mới được `inert`, nếu không desktop mất hẳn menu.
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
+  const isOffscreenDrawer = !isDesktop && !isOpen;
   const menuConfigByRole: Record<AuthRole, MenuSection[]> = {
     SYSTEM_ADMIN: adminMenuConfig,
     OPERATOR_ADMIN: operatorAdminMenuConfig,
@@ -254,6 +260,10 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
       )}
 
       <aside
+        // Drawer đóng vẫn nằm trong DOM để giữ hiệu ứng trượt, nhưng `inert`
+        // kéo nó khỏi tab order — trước đó người dùng bàn phím phải Tab qua 19
+        // phần tử vô hình ngoài màn hình mới tới được nội dung (WCAG 2.4.3).
+        inert={isOffscreenDrawer || undefined}
         className={`
           fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-gray-100 bg-white
           transform transition-transform duration-300 ease-out
@@ -268,10 +278,12 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
                 <img src={logo} alt={t("common:brand")} />
               </div>
               <div className="min-w-0">
-                <h1 className="truncate text-lg font-bold tracking-tight text-slate-900">
+                {/* Không dùng <h1>: mỗi page đã có <h1> riêng cho tiêu đề màn,
+                    để ở đây nữa là 2 <h1> trên mọi trang (WCAG 1.3.1). */}
+                <p className="truncate text-lg font-bold tracking-tight text-slate-900">
                   {t("common:brand")}
-                </h1>
-                <p className="mt-0.5 truncate text-xs text-gray-400">
+                </p>
+                <p className="mt-0.5 text-xs text-gray-600">
                   {/* common:roles là nguồn duy nhất cho tên vai trò — nav có
                       bản sao riêng nên cùng một người đọc được hai tên khác
                       nhau giữa sidebar và các màn khác. */}
@@ -282,7 +294,7 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-gray-400 hover:bg-gray-50 hover:text-slate-800 lg:hidden"
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-50 hover:text-slate-800 lg:hidden"
               aria-label={t("closeMenu")}
             >
               <FiX size={20} />
@@ -319,7 +331,7 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
                         `}
                       >
                         <span
-                          className={`${iconWrapClass} ${active ? "text-vr-700" : "text-slate-700"}`}
+                          className={`${iconWrapClass} ${active ? "text-vr-900" : "text-slate-700"}`}
                         >
                           {item.icon}
                         </span>
@@ -337,7 +349,7 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center rounded-lg cursor-pointer px-3 py-2.5 text-left text-[13px] font-medium text-rose-500 transition hover:bg-rose-50 hover:text-rose-600"
+            className="w-full flex items-center rounded-lg cursor-pointer px-3 py-2.5 text-left text-[13px] font-medium text-rose-700 transition hover:bg-rose-50 hover:text-rose-800"
           >
             <AiOutlineLogout className="mr-2" /> {t("common:logout")}
           </button>

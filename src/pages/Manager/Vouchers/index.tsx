@@ -185,7 +185,7 @@ export default function ManagerVouchers() {
   const filteredVouchers = vouchers;
 
   const voucherToolbar = (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" placeholder={t("vouchers.searchPlaceholder")} value={voucherSearch} onChange={(event) => setVoucherSearch(event.target.value)} /></div><CustomSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[210px]" aria-label={t("vouchers.filterStatus")}><option value="">{t("vouchers.allStatuses")}</option><option value="ACTIVE">{t("vouchers.enabled")}</option><option value="INACTIVE">{t("vouchers.disabled")}</option></CustomSelect><CustomSelect value={voucherTypeFilter} onChange={(event) => setVoucherTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[240px]" aria-label={t("vouchers.filterType")}><option value="">{t("vouchers.allTypes")}</option><option value="PERCENT_OFF">{tc("voucherTypes.PERCENT_OFF")}</option><option value="FIXED_AMOUNT">{tc("voucherTypes.FIXED_AMOUNT")}</option></CustomSelect></div>
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" /><input className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" placeholder={t("vouchers.searchPlaceholder")} value={voucherSearch} onChange={(event) => setVoucherSearch(event.target.value)} /></div><CustomSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[210px]" aria-label={t("vouchers.filterStatus")}><option value="">{t("vouchers.allStatuses")}</option><option value="ACTIVE">{t("vouchers.enabled")}</option><option value="INACTIVE">{t("vouchers.disabled")}</option></CustomSelect><CustomSelect value={voucherTypeFilter} onChange={(event) => setVoucherTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[240px]" aria-label={t("vouchers.filterType")}><option value="">{t("vouchers.allTypes")}</option><option value="PERCENT_OFF">{tc("voucherTypes.PERCENT_OFF")}</option><option value="FIXED_AMOUNT">{tc("voucherTypes.FIXED_AMOUNT")}</option></CustomSelect></div>
   );
   function openCreateModal() {
     setSelectedVoucher(null);
@@ -318,7 +318,7 @@ export default function ManagerVouchers() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-bold text-white hover:bg-vr-600"
+              className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-bold text-white hover:bg-vr-900"
             >
               <FiPlus size={16} />
               {t("vouchers.create")}
@@ -327,14 +327,14 @@ export default function ManagerVouchers() {
         </div>
       </div>
 
-      {isOperatorAdmin && <div className={`grid gap-4 sm:grid-cols-2 ${parcelEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}><StatCard label={t("vouchers.totalVouchers")} value={summary?.total ?? 0} icon={<FiTag size={20} />} iconClassName="bg-vr-50 text-vr-700" /><StatCard label={t("vouchers.activeVouchers")} value={summary?.active ?? 0} icon={<FiTag size={20} />} iconClassName="bg-emerald-50 text-emerald-700" /><StatCard label={t("vouchers.bookingVouchers")} value={summary?.booking ?? 0} icon={<FiTag size={20} />} iconClassName="bg-blue-50 text-blue-700" />{parcelEnabled && <StatCard label={t("vouchers.parcelVouchers")} value={summary?.parcel ?? 0} icon={<FiTag size={20} />} iconClassName="bg-amber-50 text-amber-700" />}</div>}
+      {isOperatorAdmin && <div className={`grid gap-4 sm:grid-cols-2 ${parcelEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}><StatCard label={t("vouchers.totalVouchers")} value={summary?.total ?? 0} icon={<FiTag size={20} />} iconClassName="bg-vr-50 text-vr-900" /><StatCard label={t("vouchers.activeVouchers")} value={summary?.active ?? 0} icon={<FiTag size={20} />} iconClassName="bg-emerald-50 text-emerald-700" /><StatCard label={t("vouchers.bookingVouchers")} value={summary?.booking ?? 0} icon={<FiTag size={20} />} iconClassName="bg-blue-50 text-blue-700" />{parcelEnabled && <StatCard label={t("vouchers.parcelVouchers")} value={summary?.parcel ?? 0} icon={<FiTag size={20} />} iconClassName="bg-amber-50 text-amber-700" />}</div>}
 
 
       {isOperatorAdmin ? (
         <div className="space-y-4">
           <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
                 {t("vouchers.applicableTo")}
               </p>
               <h2 className="mt-1 text-lg font-bold text-gray-900">
@@ -357,7 +357,7 @@ export default function ManagerVouchers() {
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs ${
                     activeServiceTab === "BOOKING"
-                      ? "bg-vr-100 text-vr-700"
+                      ? "bg-vr-100 text-vr-900"
                       : "bg-white text-gray-500"
                   }`}
                 >
@@ -377,7 +377,7 @@ export default function ManagerVouchers() {
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs ${
                     activeServiceTab === "PARCEL"
-                      ? "bg-vr-100 text-vr-700"
+                      ? "bg-vr-100 text-vr-900"
                       : "bg-white text-gray-500"
                   }`}
                 >

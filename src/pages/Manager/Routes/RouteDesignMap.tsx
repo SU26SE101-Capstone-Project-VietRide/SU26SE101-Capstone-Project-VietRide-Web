@@ -1117,7 +1117,7 @@ export default function RouteDesignMap({
       testId="stop-suggestion-popup"
       title={activeSuggestion.name}
       titleBadge={
-        <span className="rounded-full bg-vr-100 px-2 py-0.5 text-xs font-medium text-vr-700">
+        <span className="rounded-full bg-vr-100 px-2 py-0.5 text-xs font-medium text-vr-900">
           {activeSuggestion.kind === "operatorStop"
             ? t("routes.suggestSourceOperator")
             : t("routes.suggestSourceGoogle")}
@@ -1155,7 +1155,7 @@ export default function RouteDesignMap({
           });
           setActiveSuggestion(null);
         }}
-        className="mt-3 w-full rounded-md bg-vr-500 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+        className="mt-3 w-full rounded-md bg-vr-800 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
       >
         {activeSuggestion.kind === "operatorStop"
           ? t("routes.suggestAdd")

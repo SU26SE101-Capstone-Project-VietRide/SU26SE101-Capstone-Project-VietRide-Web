@@ -6,7 +6,11 @@
   --color-vr-200: #a8e9e9;
   --color-vr-300: #7ddede;
   --color-vr-400: #5fd4d4;
-  --color-vr-500: #73d9d9;
+  /* vr-500 từng là #73d9d9 — sáng hơn CẢ vr-400 lẫn vr-300, tức thang bị nhô
+     lên giữa chừng (luminance 400=0,543 · 500=0,583 · 600=0,456). Giá trị mới
+     có luminance 0,497, nằm đúng giữa 400 và 600. Nút primary không còn dùng
+     bậc này nữa (đã sang vr-800), nó chỉ còn làm nền nhạt và viền focus. */
+  --color-vr-500: #5acccc;
   --color-vr-600: #5ac4c4;
   --color-vr-700: #42a8a8;
   --color-vr-800: #2d8282;
@@ -18,8 +22,10 @@
   font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  --primary: #73d9d9;
-  --primary-dark: #42a8a8;
+  /* Dùng cho chữ/viền/accent nên phải đạt AA: #2d8282 cho chữ trắng 4,54:1,
+     và làm border-color lúc focus thì nhìn rõ hơn hẳn #42a8a8 (2,84:1). */
+  --primary: #2d8282;
+  --primary-dark: #2d8282;
   --primary-light: #d4f4f4;
   --border: #e5e7eb;
   --bg: #f9fafb;
@@ -312,6 +318,19 @@ tbody td button[title]:not(.info-hint-button):hover {
 tbody td button[title]:not(.info-hint-button):focus-visible {
   outline: 2px solid rgba(115, 217, 217, 0.75);
   outline-offset: 2px;
+}
+
+/*
+  Vòng focus mặc định của trình duyệt ở đây đo được 0,89px màu vr-700 (2,84:1
+  trên nền trắng) — gần như không thấy, mà đây là công cụ vận hành dùng bàn
+  phím nhiều. `:where()` giữ specificity = 0 nên mọi rule sẵn có vẫn thắng,
+  bao gồm cả rule .table-action-button ở trên.
+  `box-shadow` trắng bọc ngoài để vòng focus không chìm vào nút nền teal.
+*/
+:where(a, button, [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid #1a5555;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px #fff;
 }
 
 .table-action-button:disabled,

@@ -252,7 +252,7 @@ export default function Vouchers() {
   const voucherToolbar = (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div className="relative min-w-0 flex-1">
-        <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
         <input
           className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white"
           placeholder={t("vouchers.searchPlaceholder")}
@@ -314,7 +314,7 @@ export default function Vouchers() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+            className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-900"
           >
             <FiPlus size={16} />
             {t("vouchers.create")}
@@ -329,7 +329,7 @@ export default function Vouchers() {
             label={t("vouchers.totalVouchers")}
             value={summary?.total ?? totalVouchers}
             icon={<FiTag size={20} />}
-            iconClassName="bg-vr-50 text-vr-700"
+            iconClassName="bg-vr-50 text-vr-900"
           />
           <StatCard
             label={t("vouchers.activeVouchers")}
@@ -360,7 +360,7 @@ export default function Vouchers() {
             isLoading={isLoading}
             emptyState={
               <>
-                <FiTag size={48} className="mx-auto mb-4 text-gray-400" />
+                <FiTag size={48} className="mx-auto mb-4 text-gray-500" />
                 <p className="text-gray-600">
                   {t("vouchers.emptyType", {
                     type: t("vouchers.emptyTypeBooking"),
@@ -406,7 +406,7 @@ export default function Vouchers() {
             <section className="rounded-2xl border border-vr-100 bg-gradient-to-br from-vr-50 to-white p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-vr-700">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-vr-900">
                     {t("vouchers.code")}
                   </p>
                   <p className="mt-1 text-xl font-bold text-gray-900">
@@ -420,7 +420,7 @@ export default function Vouchers() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     {t("vouchers.discount")}
                   </p>
-                  <p className="mt-1 text-2xl font-bold text-vr-700">
+                  <p className="mt-1 text-2xl font-bold text-vr-900">
                     {discountTypeOf(detailVoucher) === "percent"
                       ? String(discountValueOf(detailVoucher)) + "%"
                       : formatNumber(discountValueOf(detailVoucher)) + " đ"}

@@ -31,13 +31,17 @@ function isActiveStatus(status: string) {
 function isLockedStatus(status: string) {
   return status.toUpperCase() === "LOCKED";
 }
+// Chữ viết tắt trên avatar là chữ trắng 14px/700 — theo WCAG đây KHÔNG phải
+// "chữ lớn" (mốc là 18,66px bold) nên vẫn cần 4,5:1. Mọi bậc -400 đều trượt
+// (bậc cam cũ đo được ≈2,2:1), vì vậy điểm sáng nhất của mỗi gradient phải từ
+// -600 trở lên, và -700 với các gam vàng/xanh lá vốn sáng sẵn.
 const avatarGradientByRole: Record<AdminUserRole, string> = {
-  PASSENGER: "from-sky-400 to-cyan-600",
-  OPERATOR_ADMIN: "from-violet-400 to-indigo-600",
-  OPERATOR_STAFF: "from-blue-400 to-blue-700",
-  DRIVER: "from-amber-400 to-orange-600",
-  ASSISTANT: "from-emerald-400 to-teal-600",
-  SYSTEM_ADMIN: "from-rose-400 to-pink-600",
+  PASSENGER: "from-sky-700 to-cyan-800",
+  OPERATOR_ADMIN: "from-violet-600 to-indigo-800",
+  OPERATOR_STAFF: "from-blue-600 to-blue-800",
+  DRIVER: "from-amber-700 to-orange-800",
+  ASSISTANT: "from-emerald-700 to-teal-800",
+  SYSTEM_ADMIN: "from-rose-600 to-pink-800",
 };
 
 function getInitials(value: string) {
@@ -251,14 +255,14 @@ export default function Users() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Cả 4 thẻ đọc từ `stats` (đếm toàn hệ thống), không đếm mảng `users` của trang đang xem */}
-        <StatCard label={t("users.total")} value={stats?.total ?? 0} icon={<FiUsers size={20} />} iconClassName="bg-vr-50 text-vr-700" />
+        <StatCard label={t("users.total")} value={stats?.total ?? 0} icon={<FiUsers size={20} />} iconClassName="bg-vr-50 text-vr-900" />
         <StatCard label={tc("active")} value={stats?.active ?? 0} icon={<FiActivity size={20} />} iconClassName="bg-emerald-50 text-emerald-700" />
         <StatCard label={t("users.operatorStaff")} value={stats?.operatorStaff ?? 0} icon={<FiUsers size={20} />} iconClassName="bg-blue-50 text-blue-700" />
         <StatCard label={tc("enumLabels.PENDING_INITIAL_PASSWORD")} value={stats?.pendingInitialPassword ?? 0} icon={<FiKey size={20} />} iconClassName="bg-amber-50 text-amber-700" />
       </div>
       <PersonnelTable
         toolbar={<div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_180px_170px_190px]">
-          <div className="relative"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="search" placeholder={t("users.searchPlaceholder")} value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" /></div>
+          <div className="relative"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" /><input type="search" placeholder={t("users.searchPlaceholder")} value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" /></div>
           <CustomSelect value={role} onChange={(event) => { setRole(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.allRoles")}</option><option value="PASSENGER">{t("users.customer")}</option><option value="OPERATOR_ADMIN">{t("users.operatorAdmin")}</option><option value="OPERATOR_STAFF">{t("users.operatorStaff")}</option><option value="DRIVER">{t("users.driver")}</option><option value="ASSISTANT">{t("users.assistant")}</option><option value="SYSTEM_ADMIN">{t("users.systemAdmin")}</option></CustomSelect>
           <CustomSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.allStatuses")}</option><option value="ACTIVE">{tc("active")}</option><option value="LOCKED">{t("users.locked")}</option><option value="PENDING_EMAIL_VERIFICATION">{tc("enumLabels.PENDING_EMAIL_VERIFICATION")}</option><option value="PENDING_INITIAL_PASSWORD">{tc("enumLabels.PENDING_INITIAL_PASSWORD")}</option><option value="DELETED">{tc("enumLabels.DELETED")}</option></CustomSelect>
           <CustomSelect aria-label={t("users.filterOperator")} value={operatorId} onChange={(event) => { setOperatorId(event.target.value); setPage(1); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"><option value="">{t("users.filterOperator")}</option>{operators.map((operator) => <option key={operator.operatorId} value={operator.operatorId}>{operator.name}</option>)}</CustomSelect>
@@ -269,7 +273,7 @@ export default function Users() {
           { key: "phone", header: tc("phone"), headerClassName: "w-[12%] px-4 py-3 text-center", cellClassName: "w-[12%] px-4 py-4 text-center text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
           { key: "role", header: t("users.role"), headerClassName: "w-[18%] px-4 py-3 text-center", cellClassName: "w-[18%] px-4 py-4 text-center text-sm text-gray-700", render: (user) => <span className="block truncate">{roleLabel(user.role)}</span> },
           { key: "status", header: tc("status"), headerClassName: "w-[16%] px-4 py-3 text-center", cellClassName: "w-[16%] px-4 py-4 text-center text-sm", render: (user) => <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-50 text-emerald-700" : isLockedStatus(user.status) ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}>{user.status ? tc(`enumLabels.${user.status}`, { defaultValue: user.status }) : "-"}</span> },
-          { key: "actions", header: tc("actions"), headerClassName: "w-[120px] px-2 py-3 text-center", cellClassName: "sticky right-0 w-[120px] bg-white px-2 py-4 text-center", render: (user) => { const canToggle = user.userId !== currentUserId && (isActiveStatus(user.status) || isLockedStatus(user.status)); return <div className="mx-auto flex w-[80px] justify-center gap-2"><button type="button" aria-label="details" onClick={() => setSelected(user)} className={actionButtonClass}><FiEye size={16} /></button>{(isActiveStatus(user.status) || isLockedStatus(user.status)) ? <button type="button" onClick={() => setPendingLockUser(user)} disabled={!canToggle || actionUserId === user.userId} className={actionButtonClass}>{isLockedStatus(user.status) ? <FiUnlock /> : <FiLock />}</button> : <span className="h-8 w-8" />}</div>; } },
+          { key: "actions", header: tc("actions"), headerClassName: "w-[120px] px-2 py-3 text-center", cellClassName: "sticky right-0 w-[120px] bg-white px-2 py-4 text-center", render: (user) => { const canToggle = user.userId !== currentUserId && (isActiveStatus(user.status) || isLockedStatus(user.status)); return <div className="mx-auto flex w-[80px] justify-center gap-2"><button type="button" aria-label={tc("details")} onClick={() => setSelected(user)} className={actionButtonClass}><FiEye size={16} /></button>{(isActiveStatus(user.status) || isLockedStatus(user.status)) ? <button type="button" aria-label={isLockedStatus(user.status) ? t("users.unlock") : t("users.lock")} onClick={() => setPendingLockUser(user)} disabled={!canToggle || actionUserId === user.userId} className={actionButtonClass}>{isLockedStatus(user.status) ? <FiUnlock /> : <FiLock />}</button> : <span className="h-8 w-8" />}</div>; } },
         ]}
         rows={users}
         getRowKey={(user) => user.userId}
@@ -357,7 +361,7 @@ function UserDetailModal({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2 pb-1">
-                  <span className="rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-700">
+                  <span className="rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-900">
                     {roleLabel(user.role)}
                   </span>
                   <span
@@ -384,7 +388,7 @@ function UserDetailModal({
                   {t("users.accountInformationHint")}
                 </p>
               </div>
-              <FiUser className="text-vr-600" />
+              <FiUser className="text-vr-900" />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <DetailItem

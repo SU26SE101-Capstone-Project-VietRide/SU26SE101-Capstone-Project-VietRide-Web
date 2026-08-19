@@ -71,7 +71,7 @@ export function SectionHeader({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 shrink-0 text-vr-600">{icon}</div>
+      <div className="mt-0.5 shrink-0 text-vr-900">{icon}</div>
       <div className="min-w-0">
         <h2 className="text-lg font-bold text-gray-900">{title}</h2>
         {subtitle ? <p className="mt-1 text-sm text-gray-500">{subtitle}</p> : null}

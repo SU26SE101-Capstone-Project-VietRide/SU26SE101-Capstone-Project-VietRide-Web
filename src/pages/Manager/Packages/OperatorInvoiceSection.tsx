@@ -235,7 +235,7 @@ export default function OperatorInvoiceSection() {
                         onClick={() =>
                           void openInvoiceDetail(invoice.invoiceId)
                         }
-                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-900 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
                         title={t("packages.viewInvoice")}
                         aria-label={t("packages.viewInvoice")}
                       >
@@ -249,7 +249,7 @@ export default function OperatorInvoiceSection() {
                           downloadingId === invoice.invoiceId
                         }
                         onClick={() => void downloadInvoice(invoice.invoiceId)}
-                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-700 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-vr-900 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-40"
                         title={t("packages.downloadInvoice")}
                         aria-label={t("packages.downloadInvoice")}
                       >

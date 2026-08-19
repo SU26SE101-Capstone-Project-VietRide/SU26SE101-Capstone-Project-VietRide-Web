@@ -100,7 +100,7 @@ export default function SetInitialPassword() {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-600 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
           >
             {loading ? (
               <>
@@ -118,7 +118,7 @@ export default function SetInitialPassword() {
 
         <Link
           to="/login"
-          className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-vr-700 hover:text-vr-900"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-vr-900 hover:text-vr-900"
         >
           <FiArrowLeft /> {t("backToLogin")}
         </Link>
@@ -146,13 +146,13 @@ function Field({
         {label} <span className="text-red-500">*</span>
       </label>
       <div className="relative">
-        <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+        <FiLock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
         <input
           type={type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
+          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-slate-900 shadow-sm placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/25"
         />
       </div>
     </div>

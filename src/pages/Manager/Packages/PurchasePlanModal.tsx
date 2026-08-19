@@ -53,7 +53,7 @@ export default function PurchasePlanModal({
             type="button"
             onClick={onConfirm}
             disabled={isUpgrading}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FiShoppingCart />
             {t("packages.confirmPurchase")}
@@ -108,7 +108,7 @@ export default function PurchasePlanModal({
           </h3>
           <div className="mt-4">
             <div className="flex items-start gap-3 rounded-lg border border-vr-400 bg-vr-50 p-4 text-left">
-              <FiCreditCard className="mt-0.5 shrink-0 text-vr-600" />
+              <FiCreditCard className="mt-0.5 shrink-0 text-vr-900" />
               <span>
                 <span className="block font-semibold text-gray-900">
                   {t("packages.paymentMethods.VNPAY.title")}

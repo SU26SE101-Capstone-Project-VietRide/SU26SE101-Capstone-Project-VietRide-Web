@@ -534,7 +534,7 @@ export default function ManagerIncidents() {
 
                     <p className="mt-2 flex items-start gap-1.5 font-semibold text-gray-900">
                       <FiMapPin
-                        className="mt-0.5 shrink-0 text-vr-600"
+                        className="mt-0.5 shrink-0 text-vr-900"
                         aria-hidden="true"
                       />
                       {incident.trip.route.name}

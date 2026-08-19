@@ -89,7 +89,7 @@ export default function ManagerStationsPage() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label={t("stations.total")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-700" isLoading={isLoading} />
+        <StatCard label={t("stations.total")} value={totalItems} icon={<FiMapPin size={20} />} iconClassName="bg-vr-50 text-vr-900" isLoading={isLoading} />
         <StatCard label={t("stations.active")} value={activeCount} icon={<FiMapPin size={20} />} iconClassName="bg-emerald-50 text-emerald-600" isLoading={isLoading} />
         <StatCard label={t("stations.shuttle")} value={shuttleCount} icon={<FiMapPin size={20} />} iconClassName="bg-amber-50 text-amber-700" isLoading={isLoading} />
       </div>
@@ -98,7 +98,7 @@ export default function ManagerStationsPage() {
         <div className="border-b border-gray-100 p-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_220px]">
             <div className="relative">
-              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
               <input aria-label={t("stations.searchLabel")} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t("stations.searchPlaceholder")} className={`${inputClass} pl-9`} />
             </div>
             <CustomSelect aria-label={t("stations.filterActive")} value={activeFilter} onChange={(event) => { setActiveFilter(event.target.value); setPage(1); }} className={inputClass}>

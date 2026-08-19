@@ -87,7 +87,7 @@ export function ProfileCancellationPolicy({
             <button
               type="button"
               onClick={onAdd}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-vr-600 px-3 py-2 text-sm font-semibold text-white hover:bg-vr-700"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-vr-800 px-3 py-2 text-sm font-semibold text-white hover:bg-vr-900"
             >
               <FiPlus size={14} />
               {t("profilePage.cancellationAddTier")}

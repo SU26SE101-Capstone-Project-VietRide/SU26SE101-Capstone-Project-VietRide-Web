@@ -252,7 +252,7 @@ export default function RagAudit() {
           <button
             type="button"
             onClick={() => setUploadOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600"
+            className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-900"
           >
             <FiUploadCloud size={16} />
             {t("ragAudit.uploadDocument")}
@@ -273,7 +273,7 @@ export default function RagAudit() {
               </p>
             </div>
             <div className="relative w-full sm:w-72">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
                 aria-label={t("ragAudit.searchPlaceholder")}
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
@@ -401,7 +401,7 @@ export default function RagAudit() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-3">
-                        <FiFileText className="mt-1 text-vr-600" />
+                        <FiFileText className="mt-1 text-vr-900" />
                         <div>
                           <p className="font-semibold text-gray-900">
                             {document.title}
@@ -432,7 +432,7 @@ export default function RagAudit() {
                           })}
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-500">-</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -461,7 +461,7 @@ export default function RagAudit() {
                       ) : (
                         // Trạng thái khác PENDING_REVIEW không còn thao tác nào
                         // — nói rõ là "đã xử lý" thay vì để ô trống khó hiểu.
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-600">
                           {t("ragAudit.alreadyProcessed")}
                         </span>
                       )}
@@ -505,12 +505,12 @@ export default function RagAudit() {
                     <span className="text-xs font-semibold text-gray-500">
                       {t("ragAudit.conversationRole")}
                     </span>
-                    <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-vr-700">
+                    <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-vr-900">
                       {tc("roles." + (item.conversation?.role ?? item.role ?? ""), {
                         defaultValue: item.conversation?.role ?? item.role ?? "-",
                       })}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-600">
                       {formatDateTime(item.message?.createdAt ?? item.createdAt)}
                     </span>
                   </div>

@@ -36,8 +36,8 @@ export default function StationTable({
 
   return (
     <>
-      <div>
-        <table className="w-full table-fixed text-sm">
+      <div className="overflow-x-auto" tabIndex={0}>
+        <table className="w-full min-w-[900px] table-fixed text-sm">
           <colgroup>
             <col className="w-[27%]" />
             <col className="w-[21%]" />
@@ -63,7 +63,7 @@ export default function StationTable({
                 <td className="px-8 py-3">
                   <p className="font-semibold text-gray-900">{station.name}</p>
 
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-gray-600">
                     {formatDateTime(station.updatedAt)}
                   </p>
                 </td>
@@ -94,7 +94,7 @@ export default function StationTable({
                   <div className="flex items-center justify-center gap-2">
                     <button
                       type="button"
-                      className={`${iconButtonClass} text-vr-700 hover:bg-vr-50`}
+                      className={`${iconButtonClass} text-vr-900 hover:bg-vr-50`}
                       onClick={() => onEdit(station)}
                       title={tc("edit")}
                       aria-label={tc("edit")}

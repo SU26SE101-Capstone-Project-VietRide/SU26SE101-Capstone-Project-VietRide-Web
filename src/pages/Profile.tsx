@@ -211,7 +211,7 @@ function ImageUploadControl({
             className="h-full w-full object-cover"
           />
         ) : (
-          <span className="text-xl font-bold text-vr-700">
+          <span className="text-xl font-bold text-vr-900">
             {initials || <FiCamera />}
           </span>
         )}
@@ -227,7 +227,7 @@ function ImageUploadControl({
           <FiCamera size={13} />
         </span>
         {isUploading && (
-          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-white/90 text-[11px] font-medium text-vr-700">
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-white/90 text-[11px] font-medium text-vr-900">
             <FiLoader className="animate-spin" size={20} />
             {t("profilePage.uploadingImage")}
           </span>
@@ -244,7 +244,7 @@ function ImageUploadControl({
           event.target.value = "";
         }}
       />
-      <p className="max-w-40 text-center text-[11px] text-gray-400 sm:text-left">
+      <p className="max-w-40 text-center text-[11px] text-gray-600 sm:text-left">
         {t("profilePage.imageHint")}
       </p>
     </div>
@@ -589,7 +589,7 @@ export default function Profile() {
         >
           <FiHome size={16} /> {t("profilePage.home")}
         </Link>
-        <FiChevronRight size={16} className="text-gray-400" />
+        <FiChevronRight size={16} className="text-gray-500" />
         <span className="font-medium text-gray-800">
           {t("profilePage.userProfile")}
         </span>
@@ -619,7 +619,7 @@ export default function Profile() {
               {currentUser?.email}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-full bg-vr-50 px-2.5 py-0.5 text-xs font-semibold text-vr-700">
+              <span className="inline-flex items-center rounded-full bg-vr-50 px-2.5 py-0.5 text-xs font-semibold text-vr-900">
                 {roleBadgeLabel(currentUser?.role, t)}
               </span>
               {isOperator && serverOperator && (
@@ -721,7 +721,7 @@ export default function Profile() {
                       readOnly
                       className={readOnlyInputClass}
                     />
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-gray-600">
                       {t("profilePage.operatorFieldReadOnlyHint")}
                     </p>
                   </div>
@@ -831,7 +831,7 @@ export default function Profile() {
                         {t("profilePage.businessRegistrationNumber")}
                       </label>
                       <p className={readOnlyInputClass}>{formData.postalCode}</p>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-1 text-xs text-gray-600">
                         {t("profilePage.operatorFieldReadOnlyHint")}
                       </p>
                     </div>
@@ -900,7 +900,7 @@ export default function Profile() {
                 type="button"
                 onClick={() => void handleSave()}
                 disabled={isSaving}
-                className="w-full rounded-xl bg-vr-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                className="w-full rounded-xl bg-vr-800 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {t("save")}
               </button>
@@ -957,7 +957,7 @@ export default function Profile() {
             <label className={labelClass}>{t("profilePage.confirmPassword")}</label>
             <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} autoComplete="new-password" />
           </div>
-          <button type="submit" disabled={passwordLoading} className="rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="submit" disabled={passwordLoading} className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60">
             {passwordLoading ? t("profilePage.changingPassword") : t("profilePage.changePassword")}
           </button>
         </form>

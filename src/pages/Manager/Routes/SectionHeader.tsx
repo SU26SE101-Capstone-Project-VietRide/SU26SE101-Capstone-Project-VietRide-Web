@@ -14,7 +14,7 @@ export default function SectionHeader({
 }: SectionHeaderProps) {
   return (
     <div className="flex gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
+      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-900">
         {icon}
       </div>
       <div>

@@ -26,11 +26,19 @@ export type PersonnelTableProps<Row> = {
   loadingContent?: ReactNode;
 };
 
-export function PersonnelTable<Row>({ toolbar, rows, columns, getRowKey, isLoading, emptyMessage, page, pageSize, totalItems, onPageChange, className = "w-full table-fixed whitespace-nowrap", wrapperClassName = "overflow-hidden rounded-lg border border-gray-200 bg-white", loadingMessage = "Đang tải...", loadingContent }: PersonnelTableProps<Row>) {
+export function PersonnelTable<Row>({ toolbar, rows, columns, getRowKey, isLoading, emptyMessage, page, pageSize, totalItems, onPageChange, className = "w-full min-w-[960px] table-fixed whitespace-nowrap", wrapperClassName = "overflow-hidden rounded-lg border border-gray-200 bg-white", loadingMessage = "Đang tải...", loadingContent }: PersonnelTableProps<Row>) {
   return (
     <section className={wrapperClassName}>
       <div className="border-b border-gray-100 p-4">{toolbar}</div>
-      <div className="overflow-x-auto" aria-busy={isLoading}>
+      {/*
+        `min-w` trên <table> là thứ làm `overflow-x-auto` ở đây có tác dụng:
+        thiếu nó thì `table-fixed` co mọi cột theo phần trăm cho vừa khung, bảng
+        không bao giờ rộng hơn wrapper nên không bao giờ cuộn — chữ các cột đè
+        lên nhau ở mobile thay vì cuộn ngang được.
+        `tabIndex` cho vùng cuộn: không có thì người dùng bàn phím không cuộn
+        ngang tới được cột cuối (axe: scrollable-region-focusable).
+      */}
+      <div className="overflow-x-auto" aria-busy={isLoading} tabIndex={0}>
         <table className={className}>
           <thead><tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold text-gray-700">{columns.map((column) => <th key={column.key} className={column.headerClassName ?? "px-4 py-3"}>{column.header}</th>)}</tr></thead>
           <tbody>

@@ -207,9 +207,10 @@ export default function StopSearchBox({
   return (
     <div className="space-y-2">
       <div className="relative">
-        <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
         <input
-          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+          aria-label={t("routes.stopSearchPlaceholder")}
+          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
           value={query}
           onChange={(event) => handleQueryChange(event.target.value)}
           placeholder={t("routes.stopSearchPlaceholder")}
@@ -222,7 +223,7 @@ export default function StopSearchBox({
         <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">
           {operatorMatches.length > 0 && (
             <div>
-              <p className="px-3 pt-2 text-xs font-semibold uppercase text-gray-400">
+              <p className="px-3 pt-2 text-xs font-semibold uppercase text-gray-600">
                 {t("routes.stopSearchGroupOperator")}
               </p>
               {operatorMatches.map((stop) => (
@@ -233,7 +234,7 @@ export default function StopSearchBox({
                   disabled={disabled || isResolvingPlace}
                   className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-vr-50 disabled:opacity-60"
                 >
-                  <FiMapPin className="mt-0.5 shrink-0 text-vr-700" size={14} />
+                  <FiMapPin className="mt-0.5 shrink-0 text-vr-900" size={14} />
                   <span>
                     <span className="block font-semibold text-gray-900">
                       {stop.name}
@@ -251,7 +252,7 @@ export default function StopSearchBox({
 
           {googleSuggestions.length > 0 && (
             <div>
-              <p className="px-3 pt-2 text-xs font-semibold uppercase text-gray-400">
+              <p className="px-3 pt-2 text-xs font-semibold uppercase text-gray-600">
                 {t("routes.stopSearchGroupGoogle")}
               </p>
               {googleSuggestions.map((prediction) => (
@@ -262,7 +263,7 @@ export default function StopSearchBox({
                   disabled={disabled || isResolvingPlace}
                   className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-vr-50 disabled:opacity-60"
                 >
-                  <FiMapPin className="mt-0.5 shrink-0 text-gray-400" size={14} />
+                  <FiMapPin className="mt-0.5 shrink-0 text-gray-500" size={14} />
                   <span>
                     <span className="block font-semibold text-gray-900">
                       {prediction.mainText?.toString() ??

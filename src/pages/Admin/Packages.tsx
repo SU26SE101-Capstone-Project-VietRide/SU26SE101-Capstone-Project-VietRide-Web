@@ -236,7 +236,7 @@ export default function Packages() {
         <button
           type="button"
           onClick={openCreate}
-          className="flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 font-medium text-white transition hover:bg-vr-600"
+          className="flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 font-medium text-white transition hover:bg-vr-900"
         >
           <FiPlus size={16} /> {t("packages.create")}
         </button>
@@ -277,7 +277,7 @@ export default function Packages() {
               <p className="text-sm text-gray-500">
                 {t("packages.monthlyPrice")}
               </p>
-              <p className="text-3xl font-bold text-vr-600">
+              <p className="text-3xl font-bold text-vr-900">
                 {formatCurrency(plan.pricePerMonth)}
               </p>
               <p className="mt-2 text-sm text-gray-500">
@@ -306,7 +306,7 @@ export default function Packages() {
                     <span
                       key={feature.key}
                       className={`rounded-full px-2 py-1 font-semibold ${
-                        enabled ? "bg-vr-50 text-vr-700" : "bg-gray-100 text-gray-500"
+                        enabled ? "bg-vr-50 text-vr-900" : "bg-gray-100 text-gray-500"
                       }`}
                       title={feature.description}
                     >
@@ -367,7 +367,7 @@ export default function Packages() {
               type="button"
               onClick={() => void savePlan()}
               disabled={isSaving}
-              className="cursor-pointer rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="cursor-pointer rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t("packages.savePackage", {
                 action: selectedPlan ? tc("update") : tc("create"),

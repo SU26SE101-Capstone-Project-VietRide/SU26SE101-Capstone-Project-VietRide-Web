@@ -20,7 +20,7 @@ const seatStatusClass: Record<string, string> = {
   AVAILABLE: "border-gray-200 bg-white text-gray-600",
   HELD: "border-amber-300 bg-amber-50 text-amber-800",
   BOOKED: "border-vr-300 bg-vr-50 text-vr-800",
-  UNAVAILABLE: "border-gray-200 bg-gray-100 text-gray-400 line-through",
+  UNAVAILABLE: "border-gray-200 bg-gray-100 text-gray-500 line-through",
 };
 
 const LEGEND_STATUSES = [
@@ -117,7 +117,7 @@ export default function TripSeatMapPanel({ tripId }: { tripId: string }) {
           type="button"
           onClick={() => void load()}
           disabled={isLoading}
-          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <FiRefreshCw aria-hidden="true" size={14} />
           {t("bookings.seatMapRefresh")}

@@ -78,7 +78,7 @@ export default function VoucherModal({
             type="button"
             onClick={onSubmit}
             disabled={busy}
-            className="rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isEditing ? t("vouchers.update") : t("vouchers.create")}
           </button>

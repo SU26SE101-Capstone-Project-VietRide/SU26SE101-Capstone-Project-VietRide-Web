@@ -463,7 +463,7 @@ export default function ManagerDashboard() {
             type="button"
             onClick={() => void handleRefresh()}
             disabled={isLoading}
-            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-white transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <FiRefreshCw
               size={18}
@@ -513,7 +513,7 @@ export default function ManagerDashboard() {
                 {t("dashboard.fleetStatusHint")}
               </p>
             </div>
-            <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">
+            <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-900">
               {t("dashboard.vehicleCount", { count: vehicles.length })}
             </span>
           </div>
@@ -533,7 +533,7 @@ export default function ManagerDashboard() {
                   className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gradient-to-r from-slate-50 to-white p-3.5 transition hover:border-vr-100 hover:shadow-sm"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vr-50 text-vr-600">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vr-50 text-vr-900">
                       <FiTruck size={18} />
                     </span>
                     <div>
@@ -553,7 +553,9 @@ export default function ManagerDashboard() {
                       vehicleStatusClass(vehicle.status)
                     }
                   >
-                    {vehicle.status}
+                    {tc(`enumLabels.${vehicle.status}`, {
+                      defaultValue: vehicle.status,
+                    })}
                   </span>
                 </div>
               ))}

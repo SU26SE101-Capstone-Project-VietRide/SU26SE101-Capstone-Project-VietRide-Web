@@ -10,8 +10,8 @@ export function SettlementsTable({ items, t, tc }: { items: TripSettlement[]; t:
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
-    <div className="overflow-x-auto p-4">
-      <table className="w-full table-fixed text-center text-sm">
+    <div className="overflow-x-auto p-4" tabIndex={0}>
+      <table className="w-full min-w-[900px] table-fixed text-center text-sm">
         <thead>
           <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
             <th className="px-4 py-3">{t("wallet.trip")}</th>
@@ -78,7 +78,7 @@ function SettlementRowGroup({
         <td className="px-4 py-3">
           {item.settlementMethod ? t(`wallet.methods.${item.settlementMethod}`) : "-"}
         </td>
-        <td className="px-4 py-3 text-gray-400">{expanded ? <FiChevronUp /> : <FiChevronDown />}</td>
+        <td className="px-4 py-3 text-gray-500">{expanded ? <FiChevronUp /> : <FiChevronDown />}</td>
       </tr>
       {expanded && <SettlementDetailRow item={item} t={t} tc={tc} />}
     </>

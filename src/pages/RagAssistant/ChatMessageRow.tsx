@@ -81,7 +81,7 @@ export default function ChatMessageRow({
         <div
           className={`min-w-0 px-4 py-2.5 text-sm leading-6 shadow-sm ${
             isUser
-              ? "rounded-2xl rounded-br-md bg-vr-700 text-white"
+              ? "rounded-2xl rounded-br-md bg-vr-800 text-white"
               : "rounded-2xl rounded-bl-md border border-gray-100 bg-white text-slate-700"
           }`}
         >
@@ -97,12 +97,12 @@ export default function ChatMessageRow({
               <span className="text-xs">{t("assistant.thinking")}</span>
             </span>
           ) : (
-            <p className="text-gray-400">—</p>
+            <p className="text-gray-500">—</p>
           )}
         </div>
 
         <div
-          className={`mt-1 flex items-center gap-2 px-1 text-[11px] text-gray-400 ${
+          className={`mt-1 flex items-center gap-2 px-1 text-[11px] text-gray-600 ${
             isUser ? "flex-row-reverse" : ""
           }`}
         >
@@ -138,7 +138,7 @@ export default function ChatMessageRow({
               className={`${actionButtonClass} ${
                 message.rating === 1
                   ? "bg-emerald-50 text-emerald-700"
-                  : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-600"
               }`}
               aria-label={t("assistant.helpful")}
               aria-pressed={message.rating === 1}
@@ -152,7 +152,7 @@ export default function ChatMessageRow({
               className={`${actionButtonClass} ${
                 message.rating === -1
                   ? "bg-rose-50 text-rose-700"
-                  : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-600"
               }`}
               aria-label={t("assistant.notHelpful")}
               aria-pressed={message.rating === -1}

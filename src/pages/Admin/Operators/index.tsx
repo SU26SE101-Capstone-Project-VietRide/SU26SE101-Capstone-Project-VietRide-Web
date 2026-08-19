@@ -353,7 +353,7 @@ export default function Operators() {
         <button
           type="button"
           onClick={() => setOpenOnboard(true)}
-          className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 text-white font-bold rounded-lg transition flex items-center gap-2"
+          className="px-4 py-2 bg-vr-800 cursor-pointer hover:bg-vr-900 text-white font-bold rounded-lg transition flex items-center gap-2"
         >
           <FiPlus size={16} /> {t("operators.addOperator")}
         </button>
@@ -389,7 +389,7 @@ export default function Operators() {
           icon={<FiUsers size={20} />}
           label={t("operators.total")}
           value={summary?.total ?? operators.length}
-          iconClassName="bg-vr-50 text-vr-700"
+          iconClassName="bg-vr-50 text-vr-900"
         />
         <StatCard
           icon={<FiCheckCircle size={20} />}
@@ -416,7 +416,7 @@ export default function Operators() {
             trước đây nhồi 6 ô trên 2 lưới khác nhau nên mép các ô so le. */}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_auto_auto]">
           <div className="relative min-w-0 md:col-span-2 xl:col-span-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
               type="search"
               placeholder={t("operators.searchPlaceholder")}
@@ -629,7 +629,7 @@ export default function Operators() {
                               setError(err instanceof Error ? err.message : t("operators.loadFailed"));
                             }
                           }}
-                          className="p-1.5 text-vr-600 hover:bg-vr-50 rounded-lg transition"
+                          className="p-1.5 text-vr-900 hover:bg-vr-50 rounded-lg transition"
                           title={tc("details")}
                         >
                           <FiEye size={16} />

@@ -71,7 +71,7 @@ export function WalletFilters({
           className={inputClass}
           placeholder={t("wallet.dateFrom")}
         />
-        <span className="text-sm text-gray-400">-</span>
+        <span className="text-sm text-gray-500">-</span>
         <CustomDateTimeInput
           type="date"
           value={dateTo}

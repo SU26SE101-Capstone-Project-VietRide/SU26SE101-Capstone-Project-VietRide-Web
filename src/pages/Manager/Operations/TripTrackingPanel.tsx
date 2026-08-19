@@ -64,7 +64,7 @@ export default function TripTrackingPanel({
           <h2 className="text-lg font-bold text-gray-900">
             {t("gps.realTrackingTitle")}
           </h2>
-          <p className="mt-1 truncate text-sm font-semibold text-vr-700" title={tripLabel}>
+          <p className="mt-1 truncate text-sm font-semibold text-vr-900" title={tripLabel}>
             {tripLabel}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
@@ -73,7 +73,7 @@ export default function TripTrackingPanel({
           {routeId && (
             <Link
               to={`/manager/routes?routeId=${routeId}`}
-              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-vr-700 hover:text-vr-800 hover:underline"
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-vr-900 hover:text-vr-800 hover:underline"
             >
               <FiExternalLink size={12} />
               {t("operations.viewRoute")}
@@ -155,7 +155,7 @@ export default function TripTrackingPanel({
           type="button"
           disabled={isApiLoading}
           onClick={onLoadTracking}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 text-sm font-semibold text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <FiRefreshCw size={16} />
           {isApiLoading ? t("gps.loadingTracking") : t("gps.loadTracking")}

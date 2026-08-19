@@ -57,7 +57,7 @@ export default function OperatorDetailModal({
         <button
           type="button"
           onClick={onClose}
-          className="cursor-pointer rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700"
+          className="cursor-pointer rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900"
         >
           {tc("close")}
         </button>
@@ -78,12 +78,12 @@ export default function OperatorDetailModal({
                     className="h-[72px] w-[72px] shrink-0 rounded-2xl border border-white bg-white object-contain p-2 shadow-sm"
                   />
                 ) : (
-                  <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-vr-600 shadow-sm">
+                  <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-vr-900 shadow-sm">
                     {operator.name.charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-vr-700">{t("operators.profile")}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-vr-900">{t("operators.profile")}</p>
                   <h3 className="mt-1 truncate text-xl font-bold tracking-tight text-slate-950">{operator.name}</h3>
                   <p className="mt-1 text-sm text-slate-500">{t("operators.createdAt")}: {formatDateTime(operator.createdAt)}</p>
                 </div>

@@ -312,7 +312,7 @@ export default function AdminPolicies() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-vr-600">
+          <p className="text-sm font-semibold text-vr-900">
             {t("policies.systemAdminBadge")}
           </p>
           <h1 className="mt-1 text-3xl font-bold text-gray-900">
@@ -326,7 +326,7 @@ export default function AdminPolicies() {
             resetForm();
             setCreateOpen(true);
           }}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-600"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900"
         >
           <FiPlus size={16} />
           {t("policies.create")}
@@ -347,7 +347,7 @@ export default function AdminPolicies() {
           }`}
         >
           {t("policies.tabOperator")}
-          <span className="ml-2 inline-flex rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-700">
+          <span className="ml-2 inline-flex rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-900">
             {tabCounts.operator}
           </span>
         </button>
@@ -364,7 +364,7 @@ export default function AdminPolicies() {
           }`}
         >
           {t("policies.tabUser")}
-          <span className="ml-2 inline-flex rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-700">
+          <span className="ml-2 inline-flex rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-900">
             {tabCounts.user}
           </span>
         </button>
@@ -373,7 +373,7 @@ export default function AdminPolicies() {
       {/* BE đã hỗ trợ sẵn search/category/active/sort; màn chỉ thiếu UI */}
       <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_200px_180px]">
         <div className="relative min-w-0">
-          <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             type="search"
             aria-label={t("policies.searchLabel")}
@@ -424,10 +424,10 @@ export default function AdminPolicies() {
           <table className="w-full min-w-[920px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3 text-left"><button type="button" onClick={() => { setSortBy("title"); setPage(1); }} aria-label={t("policies.sortTitle")} className="inline-flex items-center gap-1.5 text-left transition hover:text-vr-700">{tc("title")}<FiArrowUp size={14} className={sortBy === "title" ? "text-vr-600" : "text-gray-300"} aria-hidden="true" /></button></th>
+                <th className="px-5 py-3 text-left"><button type="button" onClick={() => { setSortBy("title"); setPage(1); }} aria-label={t("policies.sortTitle")} className="inline-flex items-center gap-1.5 text-left transition hover:text-vr-900">{tc("title")}<FiArrowUp size={14} className={sortBy === "title" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th>
                 <th className="px-5 py-3 text-center">{t("policies.type")}</th>
                 <th className="px-5 py-3 text-center">{t("policies.version")}</th>
-                <th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("createdAt"); setPage(1); }} aria-label={t("policies.sortCreatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-700">{t("policies.createdAt")}<FiArrowDown size={14} className={sortBy === "createdAt" ? "text-vr-600" : "text-gray-300"} aria-hidden="true" /></button></th><th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("updatedAt"); setPage(1); }} aria-label={t("policies.sortUpdatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-700">{t("policies.updatedAt")}<FiArrowDown size={14} className={sortBy === "updatedAt" ? "text-vr-600" : "text-gray-300"} aria-hidden="true" /></button></th>
+                <th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("createdAt"); setPage(1); }} aria-label={t("policies.sortCreatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-900">{t("policies.createdAt")}<FiArrowDown size={14} className={sortBy === "createdAt" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th><th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("updatedAt"); setPage(1); }} aria-label={t("policies.sortUpdatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-900">{t("policies.updatedAt")}<FiArrowDown size={14} className={sortBy === "updatedAt" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th>
                 <th className="px-5 py-3 text-center">{tc("status")}</th>
                 <th className="px-5 py-3 text-center">{tc("actions")}</th>
               </tr>
@@ -463,7 +463,7 @@ export default function AdminPolicies() {
                     </div>
                   </td>
                   <td className="px-5 py-4 text-center">
-                    <span className="inline-flex rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">
+                    <span className="inline-flex rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-900">
                       {policy.category}
                     </span>
                   </td>
@@ -641,7 +641,7 @@ export default function AdminPolicies() {
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="flex-1 rounded-lg bg-vr-500 py-2 font-medium text-white hover:bg-vr-600 transition-colors"
+              className="flex-1 rounded-lg bg-vr-800 py-2 font-medium text-white hover:bg-vr-900 transition-colors"
             >
               {saving
                 ? t("policies.saving")
@@ -713,7 +713,7 @@ function PolicyDetailModal({
             <button
               type="button"
               onClick={() => onEdit(policy)}
-              className="rounded-xl bg-vr-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-600"
+              className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900"
             >
               {tc("edit")}
             </button>

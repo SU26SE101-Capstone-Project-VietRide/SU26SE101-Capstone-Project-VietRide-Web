@@ -32,14 +32,14 @@ export default function ShuttleVehiclePanel({
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-900">
             <FiTruck size={18} aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-gray-900">
               {trip.vehicle.licensePlate || t("gps.unknownVehicle")}
             </p>
-            <p className="mt-0.5 text-xs font-medium text-vr-700">
+            <p className="mt-0.5 text-xs font-medium text-vr-900">
               {t("gps.shuttleBadge")}
             </p>
           </div>

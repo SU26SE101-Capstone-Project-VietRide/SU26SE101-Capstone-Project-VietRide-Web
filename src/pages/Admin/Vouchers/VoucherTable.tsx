@@ -53,8 +53,8 @@ export default function VoucherTable({
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 p-4">{toolbar}</div>
-      <div className="overflow-hidden px-2">
-      <table className="w-full table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
+      <div className="overflow-x-auto px-2" tabIndex={0}>
+      <table className="w-full min-w-[1000px] table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
         <colgroup>
           <col className="w-[14%]" />
           <col className="w-[22%]" />
@@ -114,7 +114,7 @@ export default function VoucherTable({
               <tr key={voucher.id} className="border-t border-gray-200">
                 <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
                   <span
-                    className="block truncate font-mono font-semibold text-vr-600"
+                    className="block truncate font-mono font-semibold text-vr-900"
                     title={voucher.code}
                   >
                     {voucher.code}
@@ -184,7 +184,7 @@ export default function VoucherTable({
                     <button
                       type="button"
                       onClick={() => onView(voucher)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-vr-100 text-vr-600 hover:bg-vr-50"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-vr-100 text-vr-900 hover:bg-vr-50"
                       aria-label={t("vouchers.viewDetails")}
                       title={t("vouchers.viewDetails")}
                     >

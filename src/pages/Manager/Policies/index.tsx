@@ -189,7 +189,7 @@ export default function ManagerPolicies() {
             resetForm();
             setCreateOpen(true);
           }}
-          className="flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 font-medium text-white transition hover:bg-vr-600"
+          className="flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 font-medium text-white transition hover:bg-vr-900"
         >
           <FiPlus size={16} />
           {t("policies.create")}
@@ -414,7 +414,7 @@ export default function ManagerPolicies() {
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="flex-1 rounded-xl bg-vr-500 py-2.5 font-semibold text-white shadow-sm transition hover:bg-vr-600 disabled:opacity-60"
+              className="flex-1 rounded-xl bg-vr-800 py-2.5 font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:opacity-60"
             >
               {saving ? t("policies.saving") : selectedPolicy ? tc("update") : tc("create")}
             </button>

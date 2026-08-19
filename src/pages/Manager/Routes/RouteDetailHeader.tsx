@@ -74,7 +74,7 @@ export default function RouteDetailHeader({
               onClick={() => onSelectTab(tab)}
               className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${
                 activeTab === tab
-                  ? "border-vr-500 text-vr-700"
+                  ? "border-vr-500 text-vr-900"
                   : "border-transparent text-gray-500 hover:text-gray-800"
               }`}
             >

@@ -264,8 +264,11 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
               className="relative cursor-pointer text-gray-600 hover:text-gray-900 transition p-2 hover:bg-gray-100 rounded-lg"
             >
               <FiBell size={20} />
+              {/* red-600 + 12px: chữ trắng trên red-500 chỉ đạt 3,81:1, mà đây
+                  là con số người dùng phải đọc được chứ không phải chấm trang
+                  trí. */}
               {unreadNotifications > 0 && (
-                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1 text-center text-[10px] font-semibold leading-5 text-white">
+                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1 text-center text-xs font-semibold leading-5 text-white">
                   {unreadNotifications > 99 ? "99+" : unreadNotifications}
                 </span>
               )}
@@ -357,7 +360,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
                               translateNotificationCode,
                             )}
                           </span>
-                          <span className="mt-1 block text-xs text-gray-400">
+                          <span className="mt-1 block text-xs text-gray-600">
                             {formatNotificationDate(
                               notification.createdAt,
                               i18n.resolvedLanguage,

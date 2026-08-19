@@ -544,7 +544,7 @@ export default function AdminStations() {
           icon={<FiMapPin size={20} />}
           label={t("stations.totalStations")}
           value={totalStations}
-          iconClassName="bg-vr-50 text-vr-700"
+          iconClassName="bg-vr-50 text-vr-900"
         />
         <StatCard
           icon={<FiCheckCircle size={20} />}
@@ -570,7 +570,7 @@ export default function AdminStations() {
           <div className="border-b border-gray-100 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative min-w-0 flex-1">
-                <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   value={searchTerm}
                   onChange={(event) => {

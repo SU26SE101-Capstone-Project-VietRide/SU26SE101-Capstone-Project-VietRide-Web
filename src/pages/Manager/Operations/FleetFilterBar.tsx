@@ -40,18 +40,18 @@ export default function FleetFilterBar({
     <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center p-4">
         <div className="relative min-w-0 flex-1">
-          <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             type="text"
             placeholder={t("gps.searchPlaceholder")}
             value={searchTerm}
             onChange={(e) => onSearchTermChange(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-gray-50/50 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+            className="w-full rounded-lg border border-gray-200 bg-gray-50/50 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-500 focus:border-vr-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-vr-500/35"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <FiFilter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiFilter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <CustomSelect
               value={filterStatus}
               onChange={(e) =>

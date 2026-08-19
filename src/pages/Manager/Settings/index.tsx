@@ -65,10 +65,10 @@ function Field({
     <div className="flex flex-col gap-1">
       <label className={labelClass}>
         {label}
-        {required && <span className="text-rose-500"> *</span>}
+        {required && <span className="text-rose-700"> *</span>}
       </label>
       {children}
-      {hint && <p className="text-xs text-gray-400">{hint}</p>}
+      {hint && <p className="text-xs text-gray-600">{hint}</p>}
     </div>
   );
 }
@@ -364,7 +364,7 @@ export default function ManagerSettings() {
                 <button
                   type="button"
                   onClick={openAddPeriod}
-                  className="flex items-center gap-1.5 rounded-lg bg-vr-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-vr-600"
+                  className="flex items-center gap-1.5 rounded-lg bg-vr-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-vr-900"
                 >
                   <FiPlus size={14} />
                   {t("settings.addPeriod")}
@@ -483,7 +483,7 @@ export default function ManagerSettings() {
             type="button"
             onClick={handleSave}
             disabled={isSavingConfig}
-            className="rounded-lg bg-vr-500 px-4 py-2 text-sm font-medium text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg bg-vr-800 px-4 py-2 text-sm font-medium text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("settings.saveConfig")}
           </button>
@@ -561,7 +561,7 @@ export default function ManagerSettings() {
                   })
                 }
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                 %
               </span>
             </div>
@@ -584,7 +584,7 @@ export default function ManagerSettings() {
               type="button"
               onClick={handleSavePeriod}
               disabled={isSavingPeriod}
-              className="flex-1 rounded-lg bg-vr-500 py-2 text-sm font-medium text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-lg bg-vr-800 py-2 text-sm font-medium text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {editingPeriod ? tc("update") : t("settings.add")}
             </button>

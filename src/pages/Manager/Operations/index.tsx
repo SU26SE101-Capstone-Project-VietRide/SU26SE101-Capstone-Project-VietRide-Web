@@ -929,7 +929,7 @@ export default function OperationsPage() {
             onClick={() => void loadFleet()}
             disabled={isFleetLoading}
             aria-busy={isFleetLoading}
-            className="px-4 py-2 bg-vr-500 cursor-pointer hover:bg-vr-600 disabled:cursor-wait disabled:opacity-70 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
+            className="px-4 py-2 bg-vr-800 cursor-pointer hover:bg-vr-900 disabled:cursor-wait disabled:opacity-70 text-slate-50 font-bold rounded-lg transition flex items-center gap-2"
           >
             <FiRefreshCw size={16} />
             {isFleetLoading ? t("gps.loadingTracking") : tc("refresh")}
@@ -993,7 +993,7 @@ export default function OperationsPage() {
                 onClick={() => setFollowSelectedVehicle((current) => !current)}
                 className={`absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
                   followSelectedVehicle
-                    ? "border-vr-200 bg-vr-50 text-vr-700 hover:bg-vr-100"
+                    ? "border-vr-200 bg-vr-50 text-vr-900 hover:bg-vr-100"
                     : "border-gray-200 bg-white/95 text-gray-700 hover:bg-gray-50"
                 }`}
               >
@@ -1036,7 +1036,7 @@ export default function OperationsPage() {
               </div>
             ) : fleetVehicles.length === 0 ? (
               <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-gray-500">
-                <FiTruck size={28} className="text-gray-400" aria-hidden="true" />
+                <FiTruck size={28} className="text-gray-500" aria-hidden="true" />
                 <span className="font-semibold text-gray-700">{t("gps.noLiveSignal")}</span>
                 <span>{t("gps.noLiveSignalHint")}</span>
               </div>
@@ -1138,7 +1138,7 @@ export default function OperationsPage() {
                 value={metrics.total}
                 hint={t("gps.tracking")}
                 valueClass="text-gray-900"
-                iconClass="bg-vr-50 text-vr-700"
+                iconClass="bg-vr-50 text-vr-900"
                 icon={<FiTruck size={20} />}
               />
               <FleetMetricCard

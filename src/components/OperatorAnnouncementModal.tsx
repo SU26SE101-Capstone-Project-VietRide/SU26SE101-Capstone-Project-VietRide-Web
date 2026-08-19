@@ -100,7 +100,7 @@ export default function OperatorAnnouncementModal({
             type="button"
             disabled={submitting}
             onClick={() => void handleSubmit()}
-            className="inline-flex items-center gap-2 rounded-lg bg-vr-500 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FiSend />{" "}
             {submitting
@@ -147,7 +147,7 @@ export default function OperatorAnnouncementModal({
             className={inputClass}
             placeholder={t("announcementModal.titlePlaceholder")}
           />
-          <span className="mt-1 block text-right text-xs text-gray-400">{title.length}/120</span>
+          <span className="mt-1 block text-right text-xs text-gray-600">{title.length}/120</span>
         </label>
 
         <label className="block">
@@ -159,7 +159,7 @@ export default function OperatorAnnouncementModal({
             className={`${inputClass} min-h-28 resize-y`}
             placeholder={t("announcementModal.bodyPlaceholder")}
           />
-          <span className="mt-1 block text-right text-xs text-gray-400">{body.length}/500</span>
+          <span className="mt-1 block text-right text-xs text-gray-600">{body.length}/500</span>
         </label>
 
       </div>

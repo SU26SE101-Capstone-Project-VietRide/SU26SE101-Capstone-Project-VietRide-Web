@@ -42,11 +42,11 @@ export default function ScheduleSummary({ form }: { form: ScheduleForm }) {
 
   return (
     <div className="rounded-lg border-l-4 border-vr-500 bg-vr-50 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-vr-700">
+      <p className="text-xs font-semibold uppercase tracking-wide text-vr-900">
         {t("trips.summaryTitle")}
       </p>
       <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-vr-900">
-        <FiCalendar className="shrink-0 text-vr-700" aria-hidden="true" />
+        <FiCalendar className="shrink-0 text-vr-900" aria-hidden="true" />
         <span className="font-bold">{frequency}</span>
         <span>{t("trips.summaryAt", { time: timePart })}</span>
         <span className="text-vr-400">·</span>

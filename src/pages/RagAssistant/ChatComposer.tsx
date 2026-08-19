@@ -51,13 +51,13 @@ export default function ChatComposer({
           }}
           rows={1}
           maxLength={MESSAGE_MAX_LENGTH}
-          className="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent py-1.5 text-sm leading-6 text-slate-900 outline-none placeholder:text-gray-400"
+          className="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent py-1.5 text-sm leading-6 text-slate-900 outline-none placeholder:text-gray-500"
           placeholder={t("assistant.placeholder")}
         />
         <button
           type="submit"
           disabled={!canSend}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-500 text-white shadow-sm transition hover:bg-vr-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-800 text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none"
           aria-label={t("send")}
           title={t("send")}
         >
@@ -70,9 +70,9 @@ export default function ChatComposer({
       </div>
 
       <div className="mt-1.5 flex items-center justify-between gap-2 px-1">
-        <p className="text-[11px] text-gray-400">{t("assistant.composerHint")}</p>
+        <p className="text-[11px] text-gray-600">{t("assistant.composerHint")}</p>
         {value.length > MESSAGE_MAX_LENGTH * 0.8 && (
-          <p className="text-[11px] tabular-nums text-gray-400">
+          <p className="text-[11px] tabular-nums text-gray-600">
             {value.length}/{MESSAGE_MAX_LENGTH}
           </p>
         )}

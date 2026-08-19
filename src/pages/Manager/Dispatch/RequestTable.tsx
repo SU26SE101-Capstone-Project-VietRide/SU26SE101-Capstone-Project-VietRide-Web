@@ -93,14 +93,14 @@ export default function RequestTable({
                       được UUID. */}
                   <p className="mt-2 flex items-start gap-1.5 text-base font-bold text-gray-900">
                     <FiMap
-                      className="mt-1 shrink-0 text-vr-600"
+                      className="mt-1 shrink-0 text-vr-900"
                       aria-hidden="true"
                     />
                     {shuttleRouteLabel(group, group.stationName)}
                   </p>
                   <p className="mt-1 flex items-start gap-1.5 text-sm text-gray-600">
                     <FiMapPin
-                      className="mt-0.5 shrink-0 text-gray-400"
+                      className="mt-0.5 shrink-0 text-gray-500"
                       aria-hidden="true"
                     />
                     {group.stationName}
@@ -125,7 +125,7 @@ export default function RequestTable({
                       type="button"
                       onClick={() => onAssign(group)}
                       disabled={cutoffPassed || bookings.length === 0}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-vr-600 px-3 py-2 text-sm font-semibold text-white hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-vr-800 px-3 py-2 text-sm font-semibold text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <FiTruck aria-hidden="true" /> {t("dispatch.assignVehicle")}
                     </button>
@@ -185,7 +185,7 @@ export default function RequestTable({
                       defaultValue: "Thứ tự đón/trả được đề xuất",
                     })}
                   </p>
-                  <span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-700">
+                  <span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-900">
                     {t("dispatch.stopCount", {
                       count: bookings.length,
                       defaultValue: "{{count}} điểm",
@@ -198,12 +198,12 @@ export default function RequestTable({
                       key={booking.bookingId}
                       className="group flex min-w-0 gap-3 rounded-xl border border-gray-200 bg-white p-3 transition hover:border-vr-200 hover:bg-vr-50/30"
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-vr-50 text-xs font-bold text-vr-700 ring-4 ring-white">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-vr-50 text-xs font-bold text-vr-900 ring-4 ring-white">
                         {index + 1}
                       </span>
                       <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-[minmax(150px,0.7fr)_minmax(260px,1.5fr)_auto] sm:items-center">
                         <div className="min-w-0">
-                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-600">
                             {t("dispatch.stopOrdinal", {
                               index: index + 1,
                               defaultValue: "Điểm {{index}}",
@@ -218,7 +218,7 @@ export default function RequestTable({
                         </div>
                         <p className="flex min-w-0 items-start gap-1.5 text-sm font-medium text-gray-900">
                           <FiMapPin
-                            className="mt-0.5 shrink-0 text-vr-600"
+                            className="mt-0.5 shrink-0 text-vr-900"
                             aria-hidden="true"
                           />
                           <span>{booking.pickupAddress}</span>

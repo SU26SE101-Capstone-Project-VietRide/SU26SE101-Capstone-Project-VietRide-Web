@@ -33,7 +33,7 @@ import { StatCard } from "../../../components/StatCard";
 
 const PAGE_SIZE = 10;
 const actionIconClass =
-  "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900 disabled:cursor-not-allowed disabled:opacity-50";
 
 const emptyPage: PagedResult<OperatorBookingListItem> = {
   items: [],
@@ -360,7 +360,7 @@ export default function BookingsList() {
         <div className="border-b border-gray-100 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1">
-              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
                 type="search"
                 placeholder={t("bookings.searchPlaceholder")}
@@ -402,8 +402,8 @@ export default function BookingsList() {
           </div>
         </div>
 
-        <div className="overflow-hidden">
-          <table className="w-full table-fixed whitespace-nowrap" aria-busy={isLoading}>
+        <div className="overflow-x-auto" tabIndex={0}>
+          <table className="w-full min-w-[1000px] table-fixed whitespace-nowrap" aria-busy={isLoading}>
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="w-[17%] px-3 py-3 text-left sm:px-5">{t("bookings.bookingCode")}</th>
@@ -538,20 +538,20 @@ function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProp
       <section className="overflow-hidden rounded-2xl border border-vr-100 bg-gradient-to-br from-vr-50 via-white to-sky-50 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-vr-700">{t("bookings.bookingCode")}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-vr-900">{t("bookings.bookingCode")}</p>
             <p className="mt-2 break-all text-xl font-bold tracking-tight text-gray-950">{booking.bookingCode || "-"}</p>
             <div className="mt-3">{statusBadge(booking.status)}</div>
           </div>
           <div className="rounded-xl border border-white/80 bg-white/80 px-4 py-3 shadow-sm sm:min-w-44 sm:text-right">
             <p className="text-xs font-medium text-gray-500">{t("bookings.totalAmount")}</p>
-            <p className="mt-1 text-2xl font-bold text-vr-700">{formatMoney(booking.totalAmount)}</p>
+            <p className="mt-1 text-2xl font-bold text-vr-900">{formatMoney(booking.totalAmount)}</p>
           </div>
         </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("bookings.route")}</p><p className="mt-2 font-semibold text-gray-900">{route}</p><p className="mt-1 text-sm text-gray-500">{journey}</p></div>
-        <div className="rounded-xl border border-vr-200 bg-vr-50/60 p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-vr-700">{t("bookings.departure")}</p><p className="mt-2 text-xl font-bold tracking-tight text-vr-900">{formatDateTime(booking.trip.currentDepartureAt ?? booking.trip.departureAt)}</p><p className="mt-1 text-sm font-medium text-vr-700">{booking.tripDirection || "-"}</p></div>
+        <div className="rounded-xl border border-vr-200 bg-vr-50/60 p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-vr-900">{t("bookings.departure")}</p><p className="mt-2 text-xl font-bold tracking-tight text-vr-900">{formatDateTime(booking.trip.currentDepartureAt ?? booking.trip.departureAt)}</p><p className="mt-1 text-sm font-medium text-vr-900">{booking.tripDirection || "-"}</p></div>
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("bookings.seatCount")}</p><p className="mt-2 text-2xl font-bold text-gray-900">{booking.seatCount.toLocaleString("vi-VN")}</p><p className="mt-1 text-sm text-gray-500">{t("bookings.seatDetails")}</p></div>
       </section>
 
@@ -573,8 +573,8 @@ function BookingDetailContent({ booking, statusBadge }: BookingDetailContentProp
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-100 pb-3"><div><h3 className="text-base font-semibold text-gray-900">{t("bookings.fareInfo")}</h3><p className="mt-1 text-xs text-gray-500">{t("bookings.ticketRevenue")}</p></div><span className="rounded-lg bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-700">đ</span></div>
-        <div className="mt-4 space-y-3 text-sm"><div className="flex justify-between gap-4 text-gray-600"><span>{t("bookings.baseFare")}</span><span className="font-medium text-gray-900">{formatMoney(booking.baseFare)}</span></div><div className="flex justify-between gap-4 text-gray-600"><span>{t("bookings.discountAmount")}</span><span className="font-medium text-emerald-700">-{formatMoney(booking.discountAmount)}</span></div><div className="flex justify-between gap-4 border-t border-dashed border-gray-200 pt-3 text-base"><span className="font-semibold text-gray-900">{t("bookings.totalAmount")}</span><span className="font-bold text-vr-700">{formatMoney(booking.totalAmount)}</span></div></div>
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3"><div><h3 className="text-base font-semibold text-gray-900">{t("bookings.fareInfo")}</h3><p className="mt-1 text-xs text-gray-500">{t("bookings.ticketRevenue")}</p></div><span className="rounded-lg bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-900">đ</span></div>
+        <div className="mt-4 space-y-3 text-sm"><div className="flex justify-between gap-4 text-gray-600"><span>{t("bookings.baseFare")}</span><span className="font-medium text-gray-900">{formatMoney(booking.baseFare)}</span></div><div className="flex justify-between gap-4 text-gray-600"><span>{t("bookings.discountAmount")}</span><span className="font-medium text-emerald-700">-{formatMoney(booking.discountAmount)}</span></div><div className="flex justify-between gap-4 border-t border-dashed border-gray-200 pt-3 text-base"><span className="font-semibold text-gray-900">{t("bookings.totalAmount")}</span><span className="font-bold text-vr-900">{formatMoney(booking.totalAmount)}</span></div></div>
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">

@@ -54,7 +54,7 @@ export default function RegisterSuccess() {
 
         <Link
           to="/login"
-          className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-vr-500 px-5 py-3.5 font-semibold text-white transition hover:bg-vr-600"
+          className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 py-3.5 font-semibold text-white transition hover:bg-vr-900"
         >
           {t("goToLogin")}
           <FiArrowRight className="h-5 w-5" aria-hidden="true" />

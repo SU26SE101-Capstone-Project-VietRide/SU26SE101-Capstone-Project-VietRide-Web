@@ -208,7 +208,7 @@ export default function StationManagementPanel({
                 !manager.selectedStationPlace ||
                 (!manager.selectedStationId && !manager.selectedLocationId)
               }
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-700 hover:bg-vr-50 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-vr-200 px-4 py-2 text-sm font-semibold text-vr-900 hover:bg-vr-50 disabled:opacity-50"
             >
               <FiMapPin size={16} />
               {/* Nhãn chỉ nói việc chính của từng nhánh: bến đã có trong hệ thống

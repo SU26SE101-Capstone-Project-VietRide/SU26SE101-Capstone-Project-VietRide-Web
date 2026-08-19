@@ -185,7 +185,7 @@ function VehicleInfoSummary({
         <DetailItem label={t("vehicles.cargoVolume")} value={`${vehicle.maxCargoVolumeM3 ?? 0} m³`} />
       </div>
 
-      <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/40">
+      <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900 focus:outline-none focus:ring-2 focus:ring-vr-500/40">
         <FiEdit2 size={16} />
         {tc("edit")}
       </button>
@@ -277,7 +277,7 @@ export function VehicleDetailsPanel({
       <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col border-l border-gray-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="vehicle-panel-title">
         <header className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 sm:px-7">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-vr-700">{isCreate ? t("vehicles.registerTitle") : t("vehicles.detailEyebrow", { defaultValue: "Phương tiện" })}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-vr-900">{isCreate ? t("vehicles.registerTitle") : t("vehicles.detailEyebrow", { defaultValue: "Phương tiện" })}</p>
             <h2 id="vehicle-panel-title" className="mt-1 truncate text-xl font-bold text-gray-900">{vehicle?.licensePlate ?? t("vehicles.registerTitle")}</h2>
             <p className="mt-1 truncate text-sm text-gray-500">{vehicle ? getVehicleTypeLabel(vehicle, vehicleTypes) : t("vehicles.registerSubtitle")}</p>
           </div>

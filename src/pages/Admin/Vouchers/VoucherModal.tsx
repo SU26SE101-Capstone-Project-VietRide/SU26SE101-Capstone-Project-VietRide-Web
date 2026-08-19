@@ -97,7 +97,7 @@ export default function VoucherModal({
           <button
             type="button"
             onClick={onSave}
-            className="rounded-xl bg-vr-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-700"
+            className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-900"
           >
             {t("vouchers.saveButton", {
               action: editingVoucher

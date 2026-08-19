@@ -39,7 +39,7 @@ export default function RecentShipmentsTable({
           type="button"
           onClick={onExport}
           disabled={shipments.length === 0}
-          className="flex cursor-pointer items-center gap-2 text-sm font-medium text-vr-600 hover:text-vr-700 disabled:cursor-not-allowed disabled:text-gray-400"
+          className="flex cursor-pointer items-center gap-2 text-sm font-medium text-vr-900 hover:text-vr-900 disabled:cursor-not-allowed disabled:text-gray-500"
         >
           <FiDownload size={16} />
           {tc("exportCsv")}
@@ -73,7 +73,7 @@ export default function RecentShipmentsTable({
                   <button
                     type="button"
                     onClick={() => onViewShipment(shipment.id)}
-                    className="cursor-pointer rounded p-2 text-vr-600 hover:bg-vr-50"
+                    className="cursor-pointer rounded p-2 text-vr-900 hover:bg-vr-50"
                     title={tc("details")}
                     aria-label={`${tc("details")} ${shipment.code}`}
                   >

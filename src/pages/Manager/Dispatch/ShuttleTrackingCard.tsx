@@ -107,7 +107,7 @@ export default function ShuttleTrackingCard({
               aria-pressed={isSelected}
               className={`inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border transition ${
                 isSelected
-                  ? "border-vr-500 bg-vr-500 text-white"
+                  ? "border-vr-500 bg-vr-800 text-white"
                   : "border-gray-200 text-gray-600 hover:bg-gray-50"
               }`}
               title={t("dispatch.showOnMap")}
@@ -269,7 +269,7 @@ export default function ShuttleTrackingCard({
         <button
           type="button"
           onClick={() => onOpenDetail(trip)}
-          className="w-full cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-vr-300 hover:text-vr-700"
+          className="w-full cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-vr-300 hover:text-vr-900"
         >
           {t("dispatch.viewTripDetail")}
         </button>

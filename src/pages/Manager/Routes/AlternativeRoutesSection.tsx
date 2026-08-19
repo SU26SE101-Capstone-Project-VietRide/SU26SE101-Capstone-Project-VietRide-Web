@@ -84,7 +84,7 @@ export default function AlternativeRoutesSection({
           </p>
           {/* Đếm theo bản ĐANG ÁP DỤNG — bản đã ngưng vẫn nằm trong danh sách
               (xoá mềm) nhưng không chiếm chỗ, xem maxActiveAlternatives */}
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-vr-700">
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-vr-900">
             {activeAlternativeCount}/{maxActiveAlternatives}
           </span>
         </div>
@@ -114,7 +114,7 @@ export default function AlternativeRoutesSection({
             }
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-vr-700">
+              <span className="text-xs font-bold uppercase tracking-wide text-vr-900">
                 {t("routes.alternativeNumber", { number: index + 1 })}
               </span>
               <span
@@ -224,7 +224,7 @@ export default function AlternativeRoutesSection({
                     type="button"
                     aria-label={t("routes.removeAlternativeStop")}
                     onClick={() => removeAltStop(stop.stopId)}
-                    className="shrink-0 text-gray-400 hover:text-red-600"
+                    className="shrink-0 text-gray-500 hover:text-red-600"
                   >
                     <FiTrash2 size={16} />
                   </button>
@@ -237,7 +237,7 @@ export default function AlternativeRoutesSection({
             <div className="mt-3 space-y-2">
               <p className="text-xs text-gray-500">{t("routes.suggestModeHint")}</p>
               {isLoadingSuggestions && (
-                <p className="text-xs text-gray-400">{t("routes.suggestLoading")}</p>
+                <p className="text-xs text-gray-600">{t("routes.suggestLoading")}</p>
               )}
               <StopSearchBox stops={stops} onPick={onPickSearchResult} />
             </div>

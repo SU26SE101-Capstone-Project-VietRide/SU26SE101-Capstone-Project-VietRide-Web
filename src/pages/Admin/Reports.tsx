@@ -199,7 +199,7 @@ export default function AdminReports() {
           label: t("reports.completedBookings"),
           value: numberFormatter.format(report.totals.completedBookingCount),
           icon: <FiBookOpen size={20} />,
-          iconClassName: "bg-vr-50 text-vr-700",
+          iconClassName: "bg-vr-50 text-vr-900",
         },
         {
           label: t("reports.completedTrips"),
@@ -261,7 +261,7 @@ export default function AdminReports() {
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-vr-50 text-vr-700">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-vr-50 text-vr-900">
               <FiCalendar size={20} />
             </span>
             <div>
@@ -295,7 +295,7 @@ export default function AdminReports() {
               className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2.5 text-sm hover:border-gray-300 hover:bg-white"
             />
           </label>
-          <span className="hidden h-11 items-center text-gray-400 lg:flex">
+          <span className="hidden h-11 items-center text-gray-500 lg:flex">
             <FiArrowRight size={18} />
           </span>
           <label>
@@ -311,7 +311,7 @@ export default function AdminReports() {
           </label>
           <button
             type="submit"
-            className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-vr-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30"
+            className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900 focus:outline-none focus:ring-2 focus:ring-vr-500/30"
           >
             <FiFilter />
             {t("reports.applyFilters")}

@@ -390,7 +390,7 @@ export default function AdminDashboard() {
         <button
           onClick={handleRefresh}
           disabled={isLoading}
-          className="flex items-center cursor-pointer gap-2 px-4 py-2 bg-vr-500 hover:bg-vr-600 rounded-lg text-white transition"
+          className="flex items-center cursor-pointer gap-2 px-4 py-2 bg-vr-800 hover:bg-vr-900 rounded-lg text-white transition"
         >
           <FiRefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
           {tc("refresh")}

@@ -134,7 +134,7 @@ export function EtaTimeline({ trip, etaTargets }: EtaTimelineProps) {
     >
       <div className="border-b border-gray-100 bg-slate-50 px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-vr-50 text-vr-700">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-vr-50 text-vr-900">
             <FiClock size={16} aria-hidden="true" />
           </span>
           <div>
@@ -179,8 +179,8 @@ export function EtaTimeline({ trip, etaTargets }: EtaTimelineProps) {
                 <span
                   className={`relative z-[1] flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-4 ring-white ${
                     isDestination
-                      ? "bg-vr-600 text-white"
-                      : "border-2 border-vr-200 bg-vr-50 text-vr-700"
+                      ? "bg-vr-800 text-white"
+                      : "border-2 border-vr-200 bg-vr-50 text-vr-900"
                   }`}
                 >
                   {isDestination ? (
@@ -225,7 +225,7 @@ export function EtaTimeline({ trip, etaTargets }: EtaTimelineProps) {
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
                     {item.eta && (
                       <>
-                        <span className="font-semibold text-vr-700">
+                        <span className="font-semibold text-vr-900">
                           {t("gps.etaMinutes", {
                             minutes: item.eta.etaMinutes,
                           })}

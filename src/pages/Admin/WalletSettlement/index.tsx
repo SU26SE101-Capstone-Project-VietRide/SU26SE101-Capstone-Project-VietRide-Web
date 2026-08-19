@@ -404,7 +404,7 @@ export default function WalletSettlement() {
             onClick={() => selectTab(tab)}
             className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${
               activeTab === tab
-                ? "border-vr-500 text-vr-700"
+                ? "border-vr-500 text-vr-900"
                 : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
           >
@@ -418,7 +418,7 @@ export default function WalletSettlement() {
           <section className="space-y-4">
 <div className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
                 value={search}
@@ -703,7 +703,7 @@ function WalletTransactionTable({
         <h2 className="text-center text-lg font-semibold text-gray-900">{t("walletSettlement.latestTransactions")}</h2>
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
               value={search}
               onChange={(event) => onSearch(event.target.value)}

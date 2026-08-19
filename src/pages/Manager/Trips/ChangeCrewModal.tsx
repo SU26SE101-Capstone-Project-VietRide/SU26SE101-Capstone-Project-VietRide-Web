@@ -57,7 +57,7 @@ export default function ChangeCrewModal({
             type="button"
             onClick={onSubmit}
             disabled={isSaving || !form.driverId}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vr-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FiUsers />
             {t("trips.changeCrewAction")}

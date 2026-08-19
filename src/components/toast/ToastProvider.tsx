@@ -169,7 +169,7 @@ function ToastCard({ toast, onClose, onPause, onResume }: ToastCardProps) {
         type="button"
         onClick={onClose}
         aria-label={t("close")}
-        className="shrink-0 rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+        className="shrink-0 rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
       >
         <FiX size={16} aria-hidden="true" />
       </button>
