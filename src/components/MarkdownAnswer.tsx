@@ -350,7 +350,7 @@ function renderBlock(block: Block, position: number): ReactNode {
     case "heading": {
       const className =
         block.level <= 2
-          ? "text-[15px] font-bold text-slate-900"
+          ? "text-base font-bold text-slate-900"
           : block.level === 3
             ? "text-sm font-bold text-slate-900"
             : "text-sm font-semibold text-slate-800";

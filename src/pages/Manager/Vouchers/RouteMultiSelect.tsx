@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiSearch } from "react-icons/fi";
 import type { OperatorRoute } from "../../../api/vietride";
 import Checkbox from "../../../components/form/Checkbox";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 type RouteMultiSelectProps = {
   routes: OperatorRoute[];
@@ -84,21 +84,14 @@ export default function RouteMultiSelect({
         </button>
       </div>
 
-      <div className="relative mt-2">
-        <FiSearch
-          aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-          size={15}
-        />
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder={t("vouchers.searchRoutesPlaceholder")}
-          aria-label={t("vouchers.searchRoutes")}
-          className={`${inputClass} pl-9`}
-        />
-      </div>
+      <SearchInput
+        label={t("vouchers.searchRoutes")}
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder={t("vouchers.searchRoutesPlaceholder")}
+        inputClassName={`${inputClass} pl-9`}
+        wrapperClassName="relative mt-2"
+      />
 
       <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
         {routes.length > 0 && filteredRoutes.length > 0 ? (

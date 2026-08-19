@@ -87,7 +87,7 @@ export default function ShuttleTrackingCard({
               {trip.vehicle.licensePlate || t("dispatch.unknownVehicle")}
             </h3>
             <span
-              className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusBadgeClass[trip.status]}`}
+              className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadgeClass[trip.status]}`}
             >
               {t(`dispatch.shuttleStatus.${trip.status}`)}
             </span>
@@ -215,7 +215,7 @@ export default function ShuttleTrackingCard({
               {t("dispatch.latestLocation")}
               {tracking?.isLive && (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700"
                   title={t("dispatch.realtime.connected")}
                 >
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />

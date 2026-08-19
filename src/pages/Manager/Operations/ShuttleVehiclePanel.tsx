@@ -99,7 +99,7 @@ export default function ShuttleVehiclePanel({
       <button
         type="button"
         onClick={onOpenDispatch}
-        className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-vr-200 bg-vr-50 px-3 py-2 text-sm font-semibold text-vr-800 transition hover:bg-vr-100"
+        className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-vr-200 bg-vr-50 px-3 py-2 text-sm font-semibold text-vr-900 transition hover:bg-vr-100"
       >
         <FiExternalLink size={15} aria-hidden="true" />
         {t("gps.openDispatch")}

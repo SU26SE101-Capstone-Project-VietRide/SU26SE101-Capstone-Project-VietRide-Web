@@ -15,6 +15,7 @@ import { formatDateOnly } from "../../../utils/date";
 import Pagination from "../../../components/Pagination";
 import { formatNumber } from "./subscriptionHelpers";
 import InvoiceDetailContent from "./InvoiceDetailContent";
+import { Badge } from "../../../components/ui/Badge";
 
 export default function OperatorInvoiceSection() {
   const { t } = useTranslation("manager");
@@ -210,17 +211,11 @@ export default function OperatorInvoiceSection() {
                     {formatNumber(invoice.amount)} đ
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        invoice.status === "ISSUED"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
+                    <Badge tone={invoice.status === "ISSUED" ? "success" : "neutral"}>
                       {tc(`enumLabels.${invoice.status}`, {
                         defaultValue: invoice.status,
                       })}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 text-center">
                     {tc(`enumLabels.${invoice.pdfGenerationStatus}`, {

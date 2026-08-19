@@ -43,7 +43,7 @@ export function DataCompletenessBadge({
   return (
     <span
       title={tooltip}
-      className="ml-2 inline-flex cursor-help rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800"
+      className="ml-2 inline-flex cursor-help rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800"
     >
       {t("wallet.partialBadge")}
     </span>

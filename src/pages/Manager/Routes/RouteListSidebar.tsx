@@ -2,10 +2,12 @@
 // Mobile (<lg) thu gọn thành CustomSelect + nút tạo để không chiếm màn hình.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiSearch } from "react-icons/fi";
+import { FiPlus } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import { inputClass } from "../../../components/form/formClasses";
 import type { OperatorRoute } from "../../../api/vietride";
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 type RouteListSidebarProps = {
   routes: OperatorRoute[];
@@ -57,14 +59,10 @@ export default function RouteListSidebar({
           ))}
         </CustomSelect>
         {canManageRoutes && (
-          <button
-            type="button"
-            onClick={onCreateRoute}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-900"
-          >
+          <Button variant="primary" className="w-full" onClick={onCreateRoute}>
             <FiPlus size={16} />
             {t("routes.newRoute")}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -74,28 +72,19 @@ export default function RouteListSidebar({
           <p className="text-sm font-bold text-gray-900">
             {t("routes.routeListTitle")}
           </p>
-          <div className="relative">
-            <FiSearch
-              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-500"
-              size={15}
-            />
-            <input
-              aria-label={t("routes.searchRoutePlaceholder")}
-              className={`${inputClass} pl-9`}
-              value={search}
-              placeholder={t("routes.searchRoutePlaceholder")}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
+          <SearchInput
+            label={t("routes.searchRoutePlaceholder")}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t("routes.searchRoutePlaceholder")}
+            inputClassName={`${inputClass} pl-9`}
+            wrapperClassName="relative"
+          />
           {canManageRoutes && (
-            <button
-              type="button"
-              onClick={onCreateRoute}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-900"
-            >
+            <Button variant="primary" className="w-full" onClick={onCreateRoute}>
               <FiPlus size={16} />
               {t("routes.newRoute")}
-            </button>
+            </Button>
           )}
         </div>
         <ul

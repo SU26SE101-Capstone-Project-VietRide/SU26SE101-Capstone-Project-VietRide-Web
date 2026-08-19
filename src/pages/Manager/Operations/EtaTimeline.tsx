@@ -6,6 +6,7 @@ import type {
   TrackingEstimateQuality,
   TrackingEtaTarget,
 } from "../../../api/vietride";
+import { Badge } from "../../../components/ui/Badge";
 
 type EtaTimelineProps = {
   trip: PublicTrip | null;
@@ -196,17 +197,11 @@ export function EtaTimeline({ trip, etaTargets }: EtaTimelineProps) {
                       <p className="truncate text-sm font-semibold text-gray-900">
                         {item.name}
                       </p>
-                      <span
-                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                          isRealtime
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
+                      <Badge tone={isRealtime ? "success" : "neutral"} className="mt-1 uppercase tracking-wide">
                         {isRealtime
                           ? t("gps.etaRealtime")
                           : t("gps.etaPlanned")}
-                      </span>
+                      </Badge>
                     </div>
 
                     <div className="shrink-0 text-right">
@@ -216,7 +211,7 @@ export function EtaTimeline({ trip, etaTargets }: EtaTimelineProps) {
                       >
                         {formatArrivalTime(arrivalTime)}
                       </time>
-                      <span className="text-[11px] text-gray-500">
+                      <span className="text-xs text-gray-500">
                         {t("gps.estimatedArrival")}
                       </span>
                     </div>

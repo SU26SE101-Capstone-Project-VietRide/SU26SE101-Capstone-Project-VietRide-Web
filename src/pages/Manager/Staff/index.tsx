@@ -14,7 +14,6 @@ import {
   FiLock,
   FiMail,
   FiPlus,
-  FiSearch,
   FiTruck,
   FiUnlock,
   FiUser,
@@ -39,6 +38,9 @@ import CustomSelect from "../../../components/CustomSelect";
 import { PersonnelTable } from "../../../components/PersonnelTable";
 import { labelClass } from "../../../components/form/formClasses";
 import { StatCard } from "../../../components/StatCard";
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
+import { Badge } from "../../../components/ui/Badge";
 
 const inputClass =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
@@ -455,13 +457,18 @@ export default function StaffPage() {
         />
       </div>
       <PersonnelTable
-        toolbar={<div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_300px] lg:items-center"><div className="relative min-w-0"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" /><input className={inputClass + " pl-10"} placeholder={t("staff.searchPlaceholder")} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div><div className="contents"><CustomSelect className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 lg:w-[220px]" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 lg:w-[300px]" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect>{/* sortBy/sortDir BE đã nhận sẵn, màn chỉ thiếu ô chọn */}</div></div>}
+        toolbar={<div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_300px] lg:items-center"><SearchInput
+  label={t("staff.searchPlaceholder")}
+  value={search}
+  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+  placeholder={t("staff.searchPlaceholder")}
+/><div className="contents"><CustomSelect className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 lg:w-[220px]" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 lg:w-[300px]" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect>{/* sortBy/sortDir BE đã nhận sẵn, màn chỉ thiếu ô chọn */}</div></div>}
         columns={[
           { key: "name", header: <button type="button" onClick={toggleNameSort} className="inline-flex items-center gap-1.5 font-semibold transition hover:text-vr-900" aria-label={t("staff.sortNameAsc")}>{t("staff.fullName")}{nameSortIcon()}</button>, headerClassName: "w-[20%] px-3 py-3 text-left", cellClassName: "w-[20%] px-3 py-4 text-left", render: (user) => <div className="flex min-w-0 items-center justify-start gap-3">{user.avatarUrl ? ( <img src={user.avatarUrl} alt={user.displayName || user.email} width={40} height={40} loading="lazy" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover" /> ) : ( <RoleAvatar role={user.role} name={user.displayName || user.email} /> )}<span className="min-w-0 truncate text-sm font-semibold text-gray-900" title={user.displayName || "-"}>{user.displayName || "-"}</span></div> },
           { key: "email", header: tc("email"), headerClassName: "w-[24%] px-3 py-3 text-center", cellClassName: "w-[24%] px-3 py-4 text-center text-sm text-gray-600", render: (user) => <span className="block truncate" title={user.email}>{user.email}</span> },
           { key: "phone", header: tc("phone"), headerClassName: "w-[10%] px-3 py-3 text-center", cellClassName: "w-[10%] px-3 py-4 text-center text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
           { key: "role", header: t("staff.role"), headerClassName: "w-[13%] px-3 py-3 text-center", cellClassName: "w-[13%] px-3 py-4 text-center text-sm text-gray-700", render: (user) => roleLabel(user.role) },
-          { key: "status", header: tc("status"), headerClassName: "w-[18%] px-3 py-3 text-center", cellClassName: "w-[18%] px-3 py-4 text-center", render: (user) => <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-700"}`}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</span> },
+          { key: "status", header: tc("status"), headerClassName: "w-[18%] px-3 py-3 text-center", cellClassName: "w-[18%] px-3 py-4 text-center", render: (user) => <Badge tone={isActiveStatus(user.status) ? "success" : "neutral"}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</Badge> },
           { key: "actions", header: tc("actions"), headerClassName: "w-[15%] px-2 py-3 text-center", cellClassName: "w-[15%] px-2 py-4 text-center text-sm", render: (user) => {
             const canResend = user.status === "PENDING_INITIAL_PASSWORD";
             const canLock = getAuthUser()?.role === "OPERATOR_ADMIN" &&
@@ -477,7 +484,6 @@ export default function StaffPage() {
         rows={users}
         getRowKey={(user) => getUserId(user)}
         isLoading={isLoading}
-        loadingMessage={t("staff.loading")}
         emptyMessage="Không có nhân sự phù hợp"
         page={page}
         pageSize={pageSize}
@@ -493,13 +499,9 @@ export default function StaffPage() {
         subtitle={t("staff.addInitialPasswordSubtitle")}
         footer={
           <>
-            <button
-              type="button"
-              onClick={() => setOpenAdd(false)}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
+            <Button variant="secondary" onClick={() => setOpenAdd(false)}>
               {tc("cancel")}
-            </button>
+            </Button>
             <button
               type="button"
               onClick={handleCreateUser}
@@ -588,10 +590,10 @@ export default function StaffPage() {
           icon={lockTarget.status === "ACTIVE" ? <FiLock /> : <FiUnlock />}
           footer={
             <>
-              <button type="button" disabled={isLockingUser} onClick={() => setLockTarget(null)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700">{tc("cancel")}</button>
-              <button type="button" disabled={isLockingUser} onClick={() => void confirmLockAction()} className="rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              <Button variant="secondary" disabled={isLockingUser} onClick={() => setLockTarget(null)}>{tc("cancel")}</Button>
+              <Button variant="primary" disabled={isLockingUser} onClick={() => void confirmLockAction()}>
                 {isLockingUser ? tc("loading") : lockTarget.status === "ACTIVE" ? t("staff.lockUser") : t("staff.unlockUser")}
-              </button>
+              </Button>
             </>
           }
         >
@@ -637,13 +639,9 @@ function StaffDetailModal({
       title={t("staff.detailModalTitle")}
       subtitle={t("staff.detailModalSubtitle")}
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
+        <Button variant="secondary" onClick={onClose}>
           {tc("close")}
-        </button>
+        </Button>
       }
     >
       {user && (
@@ -668,7 +666,7 @@ function StaffDetailModal({
               <p className="mt-1 truncate text-sm text-gray-600">
                 {user.email || "-"}
               </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2"><span className="inline-flex items-center rounded-full bg-vr-100 px-3 py-1 text-xs font-semibold text-vr-800">{roleLabel(user.role)}</span><span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isActiveStatus(user.status) ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</span></div>
+              <div className="mt-3 flex flex-wrap items-center gap-2"><Badge tone="brand">{roleLabel(user.role)}</Badge><Badge tone={isActiveStatus(user.status) ? "success" : "neutral"}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</Badge></div>
             </div>
           </div>
 

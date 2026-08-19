@@ -1,7 +1,7 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiTag } from "react-icons/fi";
+import { FiPlus, FiRefreshCw, FiTrash2, FiTag } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import CustomSelect from "../../../components/CustomSelect";
 import { StatCard } from "../../../components/StatCard";
@@ -33,6 +33,8 @@ import {
   type VoucherServiceTab,
 } from "./voucherHelpers";
 import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 const VOUCHER_PAGE_SIZE = 10;
 
@@ -185,7 +187,14 @@ export default function ManagerVouchers() {
   const filteredVouchers = vouchers;
 
   const voucherToolbar = (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" /><input className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white" placeholder={t("vouchers.searchPlaceholder")} value={voucherSearch} onChange={(event) => setVoucherSearch(event.target.value)} /></div><CustomSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[210px]" aria-label={t("vouchers.filterStatus")}><option value="">{t("vouchers.allStatuses")}</option><option value="ACTIVE">{t("vouchers.enabled")}</option><option value="INACTIVE">{t("vouchers.disabled")}</option></CustomSelect><CustomSelect value={voucherTypeFilter} onChange={(event) => setVoucherTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[240px]" aria-label={t("vouchers.filterType")}><option value="">{t("vouchers.allTypes")}</option><option value="PERCENT_OFF">{tc("voucherTypes.PERCENT_OFF")}</option><option value="FIXED_AMOUNT">{tc("voucherTypes.FIXED_AMOUNT")}</option></CustomSelect></div>
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><SearchInput
+  label={t("vouchers.searchPlaceholder")}
+  value={voucherSearch}
+  onChange={(event) => setVoucherSearch(event.target.value)}
+  placeholder={t("vouchers.searchPlaceholder")}
+  inputClassName="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white"
+  wrapperClassName="relative min-w-0 flex-1"
+/><CustomSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[210px]" aria-label={t("vouchers.filterStatus")}><option value="">{t("vouchers.allStatuses")}</option><option value="ACTIVE">{t("vouchers.enabled")}</option><option value="INACTIVE">{t("vouchers.disabled")}</option></CustomSelect><CustomSelect value={voucherTypeFilter} onChange={(event) => setVoucherTypeFilter(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[240px]" aria-label={t("vouchers.filterType")}><option value="">{t("vouchers.allTypes")}</option><option value="PERCENT_OFF">{tc("voucherTypes.PERCENT_OFF")}</option><option value="FIXED_AMOUNT">{tc("voucherTypes.FIXED_AMOUNT")}</option></CustomSelect></div>
   );
   function openCreateModal() {
     setSelectedVoucher(null);
@@ -306,23 +315,15 @@ export default function ManagerVouchers() {
           <p className="mt-1 text-gray-600">{t("vouchers.operatorSubtitle")}</p>
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={loadData}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <FiRefreshCw size={16} />
+          <Button variant="secondary" onClick={loadData} disabled={isLoading}>
+            <FiRefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
             {tc("refresh")}
-          </button>
+          </Button>
           {isOperatorAdmin && (
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-bold text-white hover:bg-vr-900"
-            >
+            <Button variant="primary" onClick={openCreateModal}>
               <FiPlus size={16} />
               {t("vouchers.create")}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -397,6 +398,7 @@ export default function ManagerVouchers() {
             onEdit={openEditModal}
             onToggle={handleToggle}
             onDelete={setDeletingVoucher}
+            onCreate={openCreateModal}
           />
         </div>
       ) : (
@@ -411,6 +413,7 @@ export default function ManagerVouchers() {
           onEdit={openEditModal}
           onToggle={handleToggle}
           onDelete={setDeletingVoucher}
+          onCreate={openCreateModal}
         />
       )}
 

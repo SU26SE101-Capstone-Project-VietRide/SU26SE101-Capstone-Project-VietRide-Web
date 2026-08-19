@@ -20,6 +20,7 @@ import {
   type GooglePlacesLibrary,
 } from "../lib/googleMaps";
 import { extractGoogleAddressParts } from "../lib/googlePlaces";
+import { Button } from "./ui/Button";
 
 export type PlaceSelection = {
   placeId: string;
@@ -413,17 +414,12 @@ export default function PlacePicker({
               autoComplete="off"
             />
           </div>
-          <button
-            type="button"
-            onClick={handleManualSearch}
-            disabled={isSearching || !placesLibrary}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-          >
+          <Button variant="secondary" onClick={handleManualSearch} disabled={isSearching || !placesLibrary}>
             <FiSearch size={16} />
             {isSearching
               ? t("placePicker.searching")
               : t("placePicker.searchButton")}
-          </button>
+          </Button>
         </div>
       </label>
 

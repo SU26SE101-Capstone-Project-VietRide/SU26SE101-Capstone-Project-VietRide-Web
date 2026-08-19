@@ -139,7 +139,7 @@ export default function ScheduleFormModal({
 
         {editingSchedule ? (
           <div
-            className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-800"
+            className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-900"
             role="status"
           >
             {t("trips.editScheduleFocusNotice")}

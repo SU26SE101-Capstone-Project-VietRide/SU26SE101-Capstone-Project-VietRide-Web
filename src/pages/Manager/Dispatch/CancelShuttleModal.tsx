@@ -4,6 +4,7 @@
 import { useTranslation } from "react-i18next";
 import { FiAlertTriangle } from "react-icons/fi";
 import Modal from "../../../components/Modal";
+import { Button } from "../../../components/ui/Button";
 
 type CancelShuttleModalProps = {
   open: boolean;
@@ -48,14 +49,9 @@ export default function CancelShuttleModal({
       }
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="min-h-11 cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
             {tc("close")}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={onConfirm}

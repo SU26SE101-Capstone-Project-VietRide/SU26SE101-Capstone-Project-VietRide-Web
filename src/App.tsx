@@ -6,6 +6,7 @@ import { lazy, Suspense } from "react";
 
 import ToastProvider from "./components/toast/ToastProvider";
 import EntryRedirect from "./components/EntryRedirect";
+import NotFound from "./pages/NotFound";
 
 const ManagerLayout = lazy(() => import("./layouts/ManagerLayout"));
 const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
@@ -45,6 +46,7 @@ const AdminStations = lazy(() => import("./pages/Admin/Stations"));
 const AdminLocations = lazy(() => import("./pages/Admin/Locations"));
 const WalletSettlement = lazy(() => import("./pages/Admin/WalletSettlement"));
 const RagAudit = lazy(() => import("./pages/Admin/RagAudit"));
+const ActivityLogs = lazy(() => import("./pages/Admin/ActivityLogs"));
 const RagAssistant = lazy(() => import("./pages/RagAssistant"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -248,6 +250,7 @@ export default function App() {
                   element={<WalletSettlement />}
                 />
                 <Route path="rag-audit" element={<RagAudit />} />
+                <Route path="activity-logs" element={<ActivityLogs />} />
                 <Route path="assistant" element={<RagAssistant />} />
                 <Route path="policies" element={<AdminPolicies />} />
                 <Route path="profile" element={<Profile />} />
@@ -256,7 +259,8 @@ export default function App() {
 
             {/* Redirects */}
             <Route path="/" element={<EntryRedirect />} />
-            <Route path="*" element={<EntryRedirect />} />
+            {/* URL sai không còn bị đá âm thầm về dashboard */}
+            <Route path="*" element={<EntryRedirect fallback={<NotFound />} />} />
           </Routes>
         </ToastProvider>
       </Suspense>

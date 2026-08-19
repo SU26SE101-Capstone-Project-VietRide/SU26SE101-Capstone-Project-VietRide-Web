@@ -53,7 +53,7 @@ import FleetFilterBar, {
 } from "./FleetFilterBar";
 import OperationsStatusBar from "./OperationsStatusBar";
 import FleetMapLegend from "./FleetMapLegend";
-import FleetMetricCard from "./FleetMetricCard";
+import { StatCard } from "../../../components/StatCard";
 import FleetVehicleList from "./FleetVehicleList";
 import ProposalsPanel from "./ProposalsPanel";
 import ShuttleVehiclePanel from "./ShuttleVehiclePanel";
@@ -1133,36 +1133,37 @@ export default function OperationsPage() {
         ) : (
           <div className="flex min-h-0 flex-col gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <FleetMetricCard
+              {/* Dùng StatCard chung thay cho FleetMetricCard riêng của màn này:
+                  trước đây cùng một "thẻ số liệu" có hai hình dạng khác nhau
+                  (icon trái/phải, cao cố định/không, nhãn text-sm/text-xs).
+                  Màu riêng của từng con số bỏ đi — trạng thái đã được mã hoá
+                  bằng màu icon, tô cả số nữa là thừa một tầng. */}
+              <StatCard
                 label={t("gps.totalOnMap")}
                 value={metrics.total}
-                hint={t("gps.tracking")}
-                valueClass="text-gray-900"
-                iconClass="bg-vr-50 text-vr-900"
+                helper={t("gps.tracking")}
+                iconClassName="bg-vr-50 text-vr-900"
                 icon={<FiTruck size={20} />}
               />
-              <FleetMetricCard
+              <StatCard
                 label={t("gps.moving")}
                 value={metrics.moving}
-                hint={t("gps.hasMovement")}
-                valueClass="text-emerald-700"
-                iconClass="bg-emerald-50 text-emerald-600"
+                helper={t("gps.hasMovement")}
+                iconClassName="bg-emerald-50 text-emerald-700"
                 icon={<FiNavigation size={20} />}
               />
-              <FleetMetricCard
+              <StatCard
                 label={t("gps.stopped")}
                 value={metrics.idle}
-                hint={t("gps.zeroSpeed")}
-                valueClass="text-amber-700"
-                iconClass="bg-amber-50 text-amber-600"
+                helper={t("gps.zeroSpeed")}
+                iconClassName="bg-amber-50 text-amber-700"
                 icon={<FiPauseCircle size={20} />}
               />
-              <FleetMetricCard
+              <StatCard
                 label={t("gps.alerts")}
                 value={metrics.offline}
-                hint={t("gps.signalLost")}
-                valueClass="text-red-600"
-                iconClass="bg-red-50 text-red-600"
+                helper={t("gps.signalLost")}
+                iconClassName="bg-red-50 text-red-700"
                 icon={<FiAlertTriangle size={20} />}
               />
             </div>

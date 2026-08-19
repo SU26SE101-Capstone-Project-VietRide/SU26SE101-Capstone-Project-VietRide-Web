@@ -12,6 +12,7 @@ import {
 } from "../auth";
 import Checkbox from "../components/form/Checkbox";
 import { isRecord } from "../utils/typeGuards";
+import { Button } from "../components/ui/Button";
 
 /**
  * `PrivateRoute` và `EntryRedirect` đá về đây kèm `state.from` = trang người
@@ -147,7 +148,7 @@ export default function Login() {
               <h1 className="text-2xl text-center font-bold tracking-tight text-vr-800 sm:text-4xl">
                 {t("title")}
               </h1>
-              <p className="mt-2 text-center text-[13px] leading-relaxed text-gray-500">
+              <p className="mt-2 text-center text-sm leading-relaxed text-gray-500">
                 {t("subtitle")}
               </p>
 
@@ -219,11 +220,7 @@ export default function Login() {
                   </Link>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 py-3.5 text-[18px] font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-900 hover:text-white disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                >
+                <Button variant="primary" className="w-full" type="submit" disabled={loading}>
                   {loading ? (
                     <>
                       <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -235,7 +232,7 @@ export default function Login() {
                       <FiArrowRight className="h-5 w-5" />
                     </>
                   )}
-                </button>
+                </Button>
               </form>
 
               <p className="mt-8 text-center text-sm text-gray-500">

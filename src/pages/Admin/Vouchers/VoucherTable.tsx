@@ -11,6 +11,8 @@ import {
   quantityOf,
   usedCountOf,
 } from "./voucherHelpers";
+import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
+import { Badge } from "../../../components/ui/Badge";
 
 type VoucherTableProps = {
   toolbar: ReactNode;
@@ -90,16 +92,13 @@ export default function VoucherTable({
           </tr>
         </thead>
         <tbody>
-          {vouchers.length === 0 && (
+          {isLoading && vouchers.length === 0 && (
+            <TableSkeletonRows columns={7} testId="admin-vouchers-table-skeleton" cellClassName="px-6 py-4" />
+          )}
+          {!isLoading && vouchers.length === 0 && (
             <tr>
               <td colSpan={7} className="px-6 py-12 text-center">
-                {isLoading ? (
-                  <span className="text-sm text-gray-500">
-                    {t("vouchers.loading")}
-                  </span>
-                ) : (
-                  emptyState
-                )}
+                {emptyState}
               </td>
             </tr>
           )}
@@ -169,15 +168,9 @@ export default function VoucherTable({
                   </div>
                 </td>
                 <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
-                      activeOf(voucher)
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
+                  <Badge tone={activeOf(voucher) ? "success" : "neutral"}>
                     {activeOf(voucher) ? tc("active") : tc("inactive")}
-                  </span>
+                  </Badge>
                 </td>
                 <td className="whitespace-nowrap px-2 py-4 text-center">
                   <div className="flex justify-center gap-1">

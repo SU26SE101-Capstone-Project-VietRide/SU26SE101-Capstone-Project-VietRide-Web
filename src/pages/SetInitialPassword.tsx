@@ -6,6 +6,7 @@ import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useToastFeedback } from "../hooks/useToastFeedback";
 import { setInitialPassword } from "../api/vietride";
 import logo from "../assets/Login/logo.svg";
+import { Button } from "../components/ui/Button";
 
 export default function SetInitialPassword() {
   const navigate = useNavigate();
@@ -97,11 +98,7 @@ export default function SetInitialPassword() {
             type="password"
           />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 py-3.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-          >
+          <Button variant="primary" className="w-full" type="submit" disabled={loading}>
             {loading ? (
               <>
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -113,7 +110,7 @@ export default function SetInitialPassword() {
                 <FiArrowRight className="h-5 w-5" />
               </>
             )}
-          </button>
+          </Button>
         </form>
 
         <Link

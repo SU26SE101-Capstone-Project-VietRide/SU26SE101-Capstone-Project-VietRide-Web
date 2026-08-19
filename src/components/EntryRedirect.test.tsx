@@ -81,4 +81,38 @@ describe("EntryRedirect", () => {
     renderAt("/unknown?vnp_ResponseCode=24");
     expect(screen.getByText(/payment-return-page/)).toBeInTheDocument();
   });
+
+  // Route `*` truyền `fallback` để URL sai hiện trang 404 thay vì bị đá âm thầm
+  // về dashboard — nhưng kết quả thanh toán vẫn phải thoát ra trước.
+  describe("với fallback (route *)", () => {
+    function renderWithFallback(entry: string) {
+      return render(
+        <MemoryRouter initialEntries={[entry]}>
+          <Routes>
+            <Route
+              path="/payments/return"
+              element={<PaymentReturnProbe />}
+            />
+            <Route
+              path="*"
+              element={<EntryRedirect fallback={<div>not-found-page</div>} />}
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+
+    it("hiện trang 404 cho URL lạ thay vì đá về dashboard", () => {
+      signIn("SYSTEM_ADMIN");
+      renderWithFallback("/some/unknown/path");
+      expect(screen.getByText("not-found-page")).toBeInTheDocument();
+    });
+
+    it("vẫn ưu tiên chuyển kết quả VNPay trước khi tính tới 404", () => {
+      signIn("OPERATOR_ADMIN");
+      renderWithFallback("/unknown?vnp_ResponseCode=00");
+      expect(screen.getByText(/payment-return-page/)).toBeInTheDocument();
+      expect(screen.queryByText("not-found-page")).not.toBeInTheDocument();
+    });
+  });
 });

@@ -35,6 +35,8 @@ import {
   parseCancellationPolicyDrafts,
   type CancellationPolicyDraft,
 } from "../utils/operatorCancellationPolicy";
+import { Button } from "../components/ui/Button";
+import { Badge } from "../components/ui/Badge";
 
 const readOnlyInputClass = `${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`;
 
@@ -135,7 +137,7 @@ type FieldProps = { label: string; value: string; span2?: boolean };
 function Field({ label, value, span2 }: FieldProps) {
   return (
     <div className={span2 ? "sm:col-span-2" : undefined}>
-      <p className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">
+      <p className="text-xs font-bold tracking-wider text-gray-500 uppercase">
         {label}
       </p>
       <p className="mt-1.5 font-semibold text-gray-900">{value || "-"}</p>
@@ -227,7 +229,7 @@ function ImageUploadControl({
           <FiCamera size={13} />
         </span>
         {isUploading && (
-          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-white/90 text-[11px] font-medium text-vr-900">
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-white/90 text-xs font-medium text-vr-900">
             <FiLoader className="animate-spin" size={20} />
             {t("profilePage.uploadingImage")}
           </span>
@@ -244,7 +246,7 @@ function ImageUploadControl({
           event.target.value = "";
         }}
       />
-      <p className="max-w-40 text-center text-[11px] text-gray-600 sm:text-left">
+      <p className="max-w-40 text-center text-xs text-gray-600 sm:text-left">
         {t("profilePage.imageHint")}
       </p>
     </div>
@@ -619,9 +621,9 @@ export default function Profile() {
               {currentUser?.email}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-full bg-vr-50 px-2.5 py-0.5 text-xs font-semibold text-vr-900">
+              <Badge tone="brand">
                 {roleBadgeLabel(currentUser?.role, t)}
-              </span>
+              </Badge>
               {isOperator && serverOperator && (
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -654,13 +656,9 @@ export default function Profile() {
               {t("profilePage.operatorInfoTitle")}
             </h2>
             {canEditOperatorCard && (
-              <button
-                type="button"
-                onClick={handleEdit}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-vr-300 hover:bg-vr-50"
-              >
+              <Button variant="secondary" onClick={handleEdit}>
                 <FiEdit2 size={16} /> {t("edit")}
-              </button>
+              </Button>
             )}
           </div>
 
@@ -889,21 +887,12 @@ export default function Profile() {
 
           {isEditing && (
             <div className="sticky bottom-0 z-10 -mx-5 mt-8 flex flex-col gap-3 border-t border-gray-200 bg-white/95 px-5 pt-6 pb-1 backdrop-blur sm:-mx-7 sm:flex-row sm:justify-end sm:px-7">
-              <button
-                type="button"
-                onClick={handleCancelClick}
-                className="w-full rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50 sm:w-auto"
-              >
+              <Button variant="secondary" className="w-full sm:w-auto" onClick={handleCancelClick}>
                 {t("cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={isSaving}
-                className="w-full rounded-xl bg-vr-800 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-              >
+              </Button>
+              <Button variant="primary" className="w-full sm:w-auto" onClick={() => void handleSave()} disabled={isSaving}>
                 {t("save")}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -957,9 +946,9 @@ export default function Profile() {
             <label className={labelClass}>{t("profilePage.confirmPassword")}</label>
             <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} autoComplete="new-password" />
           </div>
-          <button type="submit" disabled={passwordLoading} className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60">
+          <Button variant="primary" type="submit" disabled={passwordLoading}>
             {passwordLoading ? t("profilePage.changingPassword") : t("profilePage.changePassword")}
-          </button>
+          </Button>
         </form>
       </section>
       <ConfirmModal

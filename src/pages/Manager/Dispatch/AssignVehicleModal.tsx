@@ -25,6 +25,7 @@ import {
   type ShuttleDriver,
   type ShuttleVehicle,
 } from "./dispatchHelpers";
+import { Button } from "../../../components/ui/Button";
 
 export type AssignVehicleForm = {
   vehicleId: string;
@@ -461,20 +462,11 @@ export default function AssignVehicleModal({
             >
               {tc("cancel")}
             </button>
-            <button
-              type="submit"
-              disabled={
-                isSubmitting ||
-                isLoadingResources ||
-                form.selectedBookingIds.length === 0 ||
-                exceedsCapacity
-              }
-              className="min-h-11 flex-1 rounded-lg bg-vr-800 px-4 py-2 font-semibold text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <Button variant="primary" className="flex-1" type="submit" disabled={ isSubmitting || isLoadingResources || form.selectedBookingIds.length === 0 || exceedsCapacity }>
               {isSubmitting
                 ? t("dispatch.assigning", { defaultValue: "Đang phân công..." })
                 : t("dispatch.assignVehicle")}
-            </button>
+            </Button>
           </div>
         </form>
       )}

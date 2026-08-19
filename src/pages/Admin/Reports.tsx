@@ -20,6 +20,7 @@ import Pagination from "../../components/Pagination";
 import { StatCard } from "../../components/StatCard";
 import { formatDateInputValue } from "../../utils/date";
 import { formatCurrency } from "../../utils/currency";
+import { Button } from "../../components/ui/Button";
 
 type ReportFilters = {
   from: string;
@@ -244,15 +245,14 @@ export default function AdminReports() {
           </h1>
           <p className="mt-1 text-gray-600">{t("reports.subtitle")}</p>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           onClick={() => setReloadKey((value) => value + 1)}
           disabled={isLoading}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <FiRefreshCw className={isLoading ? "animate-spin" : ""} />
           {tc("refresh")}
-        </button>
+        </Button>
       </header>
 
       <form
@@ -275,7 +275,7 @@ export default function AdminReports() {
           </div>
           <p
             aria-live="polite"
-            className="w-fit rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-800"
+            className="w-fit rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-900"
           >
             {appliedPeriodLabel}
           </p>
@@ -309,13 +309,10 @@ export default function AdminReports() {
               className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2.5 text-sm hover:border-gray-300 hover:bg-white"
             />
           </label>
-          <button
-            type="submit"
-            className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900 focus:outline-none focus:ring-2 focus:ring-vr-500/30"
-          >
+          <Button variant="primary" type="submit">
             <FiFilter />
             {t("reports.applyFilters")}
-          </button>
+          </Button>
         </div>
 
         {filterError && (

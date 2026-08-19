@@ -1,4 +1,5 @@
-// Toast system dùng chung: nổi góc phải-trên (dưới topbar), tự tắt sau 3s.
+// Toast system dùng chung: nổi góc phải-trên (dưới topbar). Toast thành công
+// tự tắt sau 3s, toast lỗi ở lại tới khi người dùng đóng.
 // Không thêm dependency — render qua createPortal vào body, animation bằng Tailwind.
 import {
   useCallback,
@@ -19,7 +20,8 @@ type ToastItem = {
   message: string;
 };
 
-// Toast tự tắt sau 3s; hover thì tạm dừng đếm giờ (rời chuột đếm lại từ đầu).
+// Toast thành công tự tắt sau 3s; hover thì tạm dừng đếm giờ (rời chuột đếm
+// lại từ đầu).
 const TOAST_DURATION_MS = 3000;
 // Tối đa 5 toast cùng lúc — cái cũ nhất bị đẩy ra khỏi stack.
 const MAX_TOASTS = 5;
@@ -44,10 +46,16 @@ export default function ToastProvider({ children }: ToastProviderProps) {
   }, []);
 
   const startTimer = useCallback(
-    (id: number) => {
+    (id: number, tone: ToastTone) => {
       const existing = timersRef.current.get(id);
       if (existing !== undefined) {
         clearTimeout(existing);
+      }
+      // Lỗi KHÔNG tự tắt: 3s là quá ngắn để đọc xong một thông báo lỗi, và khi
+      // nó biến mất thì màn hình chỉ còn dữ liệu cũ — người dùng không còn dấu
+      // vết nào cho biết thao tác vừa rồi đã hỏng. Phải bấm X mới đóng.
+      if (tone === "error") {
+        return;
       }
       timersRef.current.set(
         id,
@@ -80,7 +88,7 @@ export default function ToastProvider({ children }: ToastProviderProps) {
       setToasts((current) =>
         [...current, { id, tone, message: content }].slice(-MAX_TOASTS),
       );
-      startTimer(id);
+      startTimer(id, tone);
     },
     [startTimer],
   );
@@ -119,7 +127,7 @@ export default function ToastProvider({ children }: ToastProviderProps) {
                 toast={toast}
                 onClose={() => dismiss(toast.id)}
                 onPause={() => pauseTimer(toast.id)}
-                onResume={() => startTimer(toast.id)}
+                onResume={() => startTimer(toast.id, toast.tone)}
               />
             ))}
           </div>,

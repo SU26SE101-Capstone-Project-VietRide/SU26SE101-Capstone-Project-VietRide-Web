@@ -51,7 +51,7 @@ function LedgerRow({ item, t, tc }: { item: OperatorLedgerEntry; t: Translate; t
     <tr className="border-t border-gray-100">
       <td className="whitespace-nowrap px-4 py-3">
         {formatWalletDate(occurredAt)}
-        {isFallback && <p className="text-[11px] font-normal text-gray-600">{t("wallet.occurredAtFallback")}</p>}
+        {isFallback && <p className="text-xs font-normal text-gray-600">{t("wallet.occurredAtFallback")}</p>}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-gray-600">
         {item.referenceCode ?? "-"}
@@ -59,10 +59,10 @@ function LedgerRow({ item, t, tc }: { item: OperatorLedgerEntry; t: Translate; t
       <td className="px-4 py-3 font-semibold">
         {tc("enumLabels." + item.entryType, { defaultValue: item.entryType })}
         {item.affectsSettlement === false && (
-          <p className="text-[11px] font-normal text-gray-600">{t("wallet.notAffectingSettlement")}</p>
+          <p className="text-xs font-normal text-gray-600">{t("wallet.notAffectingSettlement")}</p>
         )}
         {item.operatorFundedVoucherAmount ? (
-          <p className="text-[11px] font-normal text-gray-600">
+          <p className="text-xs font-normal text-gray-600">
             {t("wallet.operatorFundedVoucherAmount")}: {formatCurrency(item.operatorFundedVoucherAmount)}
           </p>
         ) : null}

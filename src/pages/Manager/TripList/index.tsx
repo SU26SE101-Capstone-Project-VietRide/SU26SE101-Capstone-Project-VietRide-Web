@@ -502,7 +502,7 @@ export default function TripListPage() {
                 </th>
                 <th className={`${cols.status} py-3`}>{tc("status")}</th>
                 {canOpenBoarding && (
-                  <th className={`${cols.actions} py-3`}>{tc("actions")}</th>
+                  <th className={`${cols.actions} sticky right-0 z-10 bg-gray-50 py-3`}>{tc("actions")}</th>
                 )}
               </tr>
             </thead>
@@ -559,7 +559,9 @@ export default function TripListPage() {
                       trạng thái khác không có thao tác nào ở màn này. Bước start
                       chuyến là của tài xế trên app tài xế, không dựng ở đây. */}
                   {canOpenBoarding && (
-                    <td className={`${cols.actions} py-4 text-center`}>
+                    // Ghim: bảng min-w-[1200px] nên cột này nằm ngoài khung
+                    // ngay ở desktop 1440px.
+                    <td className={`${cols.actions} sticky right-0 z-10 bg-white py-4 text-center`}>
                       {trip.status === "SCHEDULED" ? (
                         <button
                           type="button"

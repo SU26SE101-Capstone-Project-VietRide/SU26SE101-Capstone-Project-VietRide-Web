@@ -21,6 +21,7 @@ import AlternativeRoutesSection from "./AlternativeRoutesSection";
 import type { RouteCoordinate } from "./polyline";
 import type { RouteStopDraft, StationOption, StopSuggestion } from "./types";
 import type { UseAlternativeRouteWorkspaceResult } from "./useAlternativeRouteWorkspace";
+import { Badge } from "../../../components/ui/Badge";
 
 // Hai màu nhận diện của tab này (routeColors.ts): tuyến chính teal (đứt nét,
 // chỉ xem) — tuyến thay thế đang soạn cam. Phương án đường chưa chọn = cùng
@@ -109,9 +110,9 @@ export default function AlternativeRouteWorkspace({
           canManageRoutes ? (
             <>
               {isDirty && (
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+                <Badge tone="warning" className="ring-1 ring-amber-200">
                   {t("routes.unsavedChanges")}
-                </span>
+                </Badge>
               )}
               <button
                 type="button"

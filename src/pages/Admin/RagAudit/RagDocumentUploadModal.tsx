@@ -12,6 +12,7 @@ import {
 import CustomSelect from "../../../components/CustomSelect";
 import Checkbox from "../../../components/form/Checkbox";
 import Modal from "../../../components/Modal";
+import { Button } from "../../../components/ui/Button";
 
 /**
  * Vai trò được phép đọc tài liệu. BE khớp mảng này với vai trò của NGƯỜI ĐANG HỎI
@@ -111,21 +112,12 @@ export function RagDocumentUploadModal({
       subtitle={t("ragAudit.uploadHint")}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={onClose}>
             {tc("cancel")}
-          </button>
-          <button
-            type="submit"
-            form="rag-upload-form"
-            disabled={submitting}
-            className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          </Button>
+          <Button variant="primary" type="submit" form="rag-upload-form" disabled={submitting}>
             {submitting ? tc("processing") : tc("upload")}
-          </button>
+          </Button>
         </>
       }
     >

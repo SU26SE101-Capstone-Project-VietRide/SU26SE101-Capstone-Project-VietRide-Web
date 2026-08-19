@@ -102,7 +102,7 @@ export default function ChatMessageRow({
         </div>
 
         <div
-          className={`mt-1 flex items-center gap-2 px-1 text-[11px] text-gray-600 ${
+          className={`mt-1 flex items-center gap-2 px-1 text-xs text-gray-600 ${
             isUser ? "flex-row-reverse" : ""
           }`}
         >
@@ -110,7 +110,7 @@ export default function ChatMessageRow({
           <span aria-hidden="true">·</span>
           <span className="tabular-nums">{formatTime(message.createdAt, locale)}</span>
           {sourceCount > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-vr-50 px-2 py-0.5 font-medium text-vr-800">
+            <span className="inline-flex items-center gap-1 rounded-full bg-vr-50 px-2 py-0.5 font-medium text-vr-900">
               <FiFileText className="h-3 w-3" aria-hidden="true" />
               {t("assistant.sources", { value: sourceCount })}
             </span>

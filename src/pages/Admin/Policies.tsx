@@ -9,7 +9,7 @@ import {
   FiEye,
   FiFileText,
   FiPlus,
-  FiSearch,
+
   FiShield,
   FiTrash2,
   FiX,
@@ -28,6 +28,10 @@ import {
   type PolicyItem,
 } from "../../api/vietride";
 import { inputClass, labelClass } from "../../components/form/formClasses";
+import { TableSkeletonRows } from "../../components/TableSkeletonRows";
+import { Button } from "../../components/ui/Button";
+import { SearchInput } from "../../components/ui/SearchInput";
+import { Badge } from "../../components/ui/Badge";
 
 type PolicyTab = "for_operator" | "for_user";
 type Policy = Omit<PolicyItem, "policyType" | "createdBy"> & {
@@ -53,16 +57,10 @@ function activeBadge(
   inactiveLabel: string,
 ) {
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-        policy.active
-          ? "bg-emerald-50 text-emerald-800"
-          : "bg-gray-100 text-gray-700"
-      }`}
-    >
+    <Badge tone={policy.active ? "success" : "neutral"} className="gap-1">
       {policy.active ? <FiCheck size={14} /> : <FiX size={14} />}
       {policy.active ? activeLabel : inactiveLabel}
-    </span>
+    </Badge>
   );
 }
 
@@ -320,17 +318,10 @@ export default function AdminPolicies() {
           </h1>
           <p className="mt-1 text-sm text-gray-600">{t("policies.subtitle")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            resetForm();
-            setCreateOpen(true);
-          }}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900"
-        >
+        <Button variant="primary" onClick={() => { resetForm(); setCreateOpen(true); }}>
           <FiPlus size={16} />
           {t("policies.create")}
-        </button>
+        </Button>
       </div>
 
       <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:grid-cols-2">
@@ -347,9 +338,9 @@ export default function AdminPolicies() {
           }`}
         >
           {t("policies.tabOperator")}
-          <span className="ml-2 inline-flex rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-900">
+          <Badge tone="brand" className="ml-2">
             {tabCounts.operator}
-          </span>
+          </Badge>
         </button>
         <button
           type="button"
@@ -364,25 +355,20 @@ export default function AdminPolicies() {
           }`}
         >
           {t("policies.tabUser")}
-          <span className="ml-2 inline-flex rounded-full bg-vr-100 px-2 py-0.5 text-xs text-vr-900">
+          <Badge tone="brand" className="ml-2">
             {tabCounts.user}
-          </span>
+          </Badge>
         </button>
       </div>
 
       {/* BE đã hỗ trợ sẵn search/category/active/sort; màn chỉ thiếu UI */}
       <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_200px_180px]">
-        <div className="relative min-w-0">
-          <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input
-            type="search"
-            aria-label={t("policies.searchLabel")}
-            placeholder={t("policies.searchPlaceholder")}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className={`${inputClass} pl-10`}
-          />
-        </div>
+        <SearchInput
+          label={t("policies.searchLabel")}
+          placeholder={t("policies.searchPlaceholder")}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
         {/*
           `category` là free text ở cả FE lẫn BE (admin tự đặt: Terms,
           Cancellation, Privacy...), nên đây là ô nhập chứ không phải dropdown.
@@ -441,11 +427,7 @@ export default function AdminPolicies() {
                 </tr>
               )}
               {loading && (
-                <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">
-                    {t("policies.loading")}
-                  </td>
-                </tr>
+                <TableSkeletonRows columns={7} testId="policies-table-skeleton" cellClassName="px-5 py-4" />
               )}
               {paginatedPolicies.map((policy) => (
                 <tr
@@ -463,9 +445,9 @@ export default function AdminPolicies() {
                     </div>
                   </td>
                   <td className="px-5 py-4 text-center">
-                    <span className="inline-flex rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-900">
+                    <Badge tone="brand">
                       {policy.category}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-5 py-4 text-center text-gray-600">v{policy.version}</td>
                   <td className="px-5 py-4 text-center text-gray-600">
@@ -626,29 +608,16 @@ export default function AdminPolicies() {
           </div>
 
           <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                setCreateOpen(false);
-                setEditOpen(false);
-                resetForm();
-              }}
-              className="flex-1 rounded-lg border border-gray-200 bg-white py-2 font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
+            <Button variant="secondary" className="flex-1" onClick={() => { setCreateOpen(false); setEditOpen(false); resetForm(); }}>
               {tc("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving}
-              className="flex-1 rounded-lg bg-vr-800 py-2 font-medium text-white hover:bg-vr-900 transition-colors"
-            >
+            </Button>
+            <Button variant="primary" className="flex-1" onClick={() => void handleSave()} disabled={saving}>
               {saving
                 ? t("policies.saving")
                 : selectedPolicy
                   ? tc("update")
                   : tc("create")}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -702,21 +671,13 @@ function PolicyDetailModal({
       subtitle={policy?.title}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={onClose}>
             {tc("close")}
-          </button>
+          </Button>
           {policy && (
-            <button
-              type="button"
-              onClick={() => onEdit(policy)}
-              className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900"
-            >
+            <Button variant="primary" onClick={() => onEdit(policy)}>
               {tc("edit")}
-            </button>
+            </Button>
           )}
         </>
       }
@@ -725,7 +686,7 @@ function PolicyDetailModal({
         <div className="space-y-6">
           <div className="rounded-2xl border border-vr-100 bg-gradient-to-r from-vr-50 to-white p-5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-vr-100 px-3 py-1 text-xs font-semibold text-vr-800">{policy.policyType === "for_operator" ? t("policies.forOperator") : t("policies.forUser")}</span>
+              <Badge tone="brand">{policy.policyType === "for_operator" ? t("policies.forOperator") : t("policies.forUser")}</Badge>
               {activeBadge(policy, tc("active"), tc("inactive"))}
             </div>
             <p className="mt-3 text-lg font-bold text-gray-900">{policy.title}</p>
@@ -776,7 +737,7 @@ function PolicyDetailModal({
             <h3 className="text-sm font-semibold text-gray-900">
               {t("policies.policyContent")}
             </h3>
-            <div className="mt-3 max-h-[42vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-gray-200 bg-white p-5 text-[15px] leading-8 text-slate-700 shadow-sm">
+            <div className="mt-3 max-h-[42vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-gray-200 bg-white p-5 text-base leading-8 text-slate-700 shadow-sm">
               {policy.content || "-"}
             </div>
           </section>
@@ -785,7 +746,4 @@ function PolicyDetailModal({
     </Modal>
   );
 }
-
-
-
 

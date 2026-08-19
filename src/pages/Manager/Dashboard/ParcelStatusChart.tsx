@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import EmptyChartState from "./EmptyChartState";
 import type { ParcelStatusPoint } from "./dashboardHelpers";
+import { Badge } from "../../../components/ui/Badge";
 
 type ParcelStatusChartProps = {
   data: ParcelStatusPoint[];
@@ -32,9 +33,9 @@ export default function ParcelStatusChart({
           </p>
         </div>
         {total > 0 && (
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          <Badge tone="neutral">
             {total} {t("dashboard.parcelsUnit")}
-          </span>
+          </Badge>
         )}
       </div>
       {data.length === 0 ? (

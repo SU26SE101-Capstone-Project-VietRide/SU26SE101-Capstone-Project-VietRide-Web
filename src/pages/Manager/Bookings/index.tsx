@@ -9,7 +9,7 @@ import {
   FiClock,
   FiEye,
   FiRefreshCw,
-  FiSearch,
+
   FiTag,
 } from "react-icons/fi";
 import {
@@ -30,6 +30,8 @@ import TripSeatMapPanel from "./TripSeatMapPanel";
 import { formatDateTime } from "../../../utils/date";
 import { inputClass } from "../../../components/form/formClasses";
 import { StatCard } from "../../../components/StatCard";
+import { Button } from "../../../components/ui/Button";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 const PAGE_SIZE = 10;
 const actionIconClass =
@@ -48,7 +50,6 @@ const emptyPage: PagedResult<OperatorBookingListItem> = {
 function formatMoney(value: number) {
   return formatCurrency(value);
 }
-
 
 function normalizeStatus(status?: string | null) {
   return (status || "unknown")
@@ -315,15 +316,10 @@ export default function BookingsList() {
             {t("bookings.subtitle")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setReloadVersion((value) => value + 1)}
-          disabled={isLoading}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <Button variant="secondary" onClick={() => setReloadVersion((value) => value + 1)} disabled={isLoading}>
           <FiRefreshCw className={isLoading ? "animate-spin" : ""} />
           {t("bookings.refresh")}
-        </button>
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -359,16 +355,13 @@ export default function BookingsList() {
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="relative min-w-0 flex-1">
-              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                type="search"
-                placeholder={t("bookings.searchPlaceholder")}
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className={`${inputClass} pl-10`}
-              />
-            </div>
+            <SearchInput
+              label={t("bookings.searchPlaceholder")}
+              placeholder={t("bookings.searchPlaceholder")}
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              wrapperClassName="relative min-w-0 flex-1"
+            />
             <div className="w-full lg:w-72">
               <CustomSelect
                 className={inputClass}
@@ -494,13 +487,9 @@ export default function BookingsList() {
         icon={<FiTag size={20} />}
         title={t("bookings.detailTitle")}
         footer={
-          <button
-            type="button"
-            onClick={closeBookingDetail}
-            className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={closeBookingDetail}>
             {tc("close")}
-          </button>
+          </Button>
         }
       >
         {isDetailLoading && (

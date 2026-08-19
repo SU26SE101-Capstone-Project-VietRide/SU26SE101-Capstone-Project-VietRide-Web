@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { FleetVehicleMapPoint } from "../../../components/fleetMapPoint";
 import { statusDotClass, statusLabel, statusRowBadge } from "./gpsHelpers";
+import { Badge } from "../../../components/ui/Badge";
 
 type FleetVehicleListProps = {
   /** Danh sách đã lọc theo search + trạng thái */
@@ -37,9 +38,9 @@ export default function FleetVehicleList({
           <h2 className="text-sm font-bold text-gray-900">
             {t("gps.vehicleList")}
           </h2>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+          <Badge tone="neutral">
             {vehicles.length}
-          </span>
+          </Badge>
         </div>
         <p className="mt-0.5 text-xs text-gray-500">
           {t("gps.selectVehicle")}

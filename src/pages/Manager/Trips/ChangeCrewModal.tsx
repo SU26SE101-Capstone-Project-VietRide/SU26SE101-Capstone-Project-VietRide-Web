@@ -6,6 +6,7 @@ import { inputClass } from "../../../components/form/formClasses";
 import CustomSelect from "../../../components/CustomSelect";
 import { FieldLabel } from "./formControls";
 import type { StaffOption, TripSchedule } from "./types";
+import { Button } from "../../../components/ui/Button";
 
 export type ChangeCrewForm = {
   driverId: string;
@@ -45,23 +46,13 @@ export default function ChangeCrewModal({
       subtitle={t("trips.changeCrewSubtitle")}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSaving}
-            className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button variant="secondary" onClick={onClose} disabled={isSaving}>
             {tc("cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={isSaving || !form.driverId}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Button>
+          <Button variant="primary" onClick={onSubmit} disabled={isSaving || !form.driverId}>
             <FiUsers />
             {t("trips.changeCrewAction")}
-          </button>
+          </Button>
         </>
       }
     >

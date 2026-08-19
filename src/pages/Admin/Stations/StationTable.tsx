@@ -5,6 +5,8 @@ import { type AdminStation } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
 import { formatDateTime } from "../../../utils/date";
 import { displayCityName, iconButtonClass } from "./stationHelpers";
+import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
+import { Badge } from "../../../components/ui/Badge";
 
 type StationTableProps = {
   stations: AdminStation[];
@@ -71,24 +73,16 @@ export default function StationTable({
                   {displayCityName(station.city) || "-"}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 pr-6 text-center text-gray-700">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${station.supportsShuttle ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}
-                  >
+                  <Badge tone={station.supportsShuttle ? "info" : "neutral"}>
                     {station.supportsShuttle
                       ? t("stations.shuttleVehicle")
                       : t("stations.nonShuttleVehicle")}
-                  </span>
+                  </Badge>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 pl-6 text-center">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${
-                      station.isActive === false
-                        ? "bg-slate-100 text-slate-600"
-                        : "bg-emerald-50 text-emerald-700"
-                    }`}
-                  >
+                  <Badge tone={station.isActive === false ? "neutral" : "success"}>
                     {station.isActive === false ? tc("inactive") : tc("active")}
-                  </span>
+                  </Badge>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-center gap-2">
@@ -143,14 +137,7 @@ export default function StationTable({
               </tr>
             )}
             {isLoading && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-12 text-center text-sm text-gray-500"
-                >
-                  {t("stations.loading")}
-                </td>
-              </tr>
+              <TableSkeletonRows columns={5} testId="stations-table-skeleton" />
             )}
           </tbody>
         </table>

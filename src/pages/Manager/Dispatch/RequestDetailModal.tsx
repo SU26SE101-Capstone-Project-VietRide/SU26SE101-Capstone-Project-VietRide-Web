@@ -24,6 +24,8 @@ import {
   isInboundDirection,
   shuttleRouteLabel,
 } from "./dispatchHelpers";
+import { Button } from "../../../components/ui/Button";
+import { Badge } from "../../../components/ui/Badge";
 
 type RequestDetailModalProps = {
   open: boolean;
@@ -69,27 +71,18 @@ export default function RequestDetailModal({
     : undefined;
   const footer = group ? (
     <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-      <button
-        type="button"
-        onClick={onClose}
-        className="min-h-11 rounded-xl border border-gray-200 bg-white px-5 py-2 font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50 sm:min-w-32"
-      >
+      <Button variant="secondary" className="sm:min-w-32" onClick={onClose}>
         {tc("close")}
-      </button>
+      </Button>
       {canDispatchShuttle && (
-        <button
-          type="button"
-          onClick={onAssign}
-          disabled={cutoffPassed || bookings.length === 0}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 py-2 font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-44"
-        >
+        <Button variant="primary" className="sm:min-w-44" onClick={onAssign} disabled={cutoffPassed || bookings.length === 0}>
           <FiTruck aria-hidden="true" />
           {cutoffPassed
             ? t("dispatch.cutoffPassed", {
                 defaultValue: "Đã quá hạn điều phối",
               })
             : t("dispatch.assignVehicle")}
-        </button>
+        </Button>
       )}
     </div>
   ) : undefined;
@@ -114,11 +107,11 @@ export default function RequestDetailModal({
                     {directionLabel(group.direction)}
                   </span>
                   {cutoffPassed && (
-                    <span className="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+                    <Badge tone="danger">
                       {t("dispatch.cutoffPassed", {
                         defaultValue: "Đã quá hạn điều phối",
                       })}
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -253,7 +246,7 @@ export default function RequestDetailModal({
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-600">
+                          <p className="text-xs font-medium uppercase tracking-wide text-gray-600">
                             {t("dispatch.stopOrdinal", {
                               index: index + 1,
                               defaultValue: "Điểm {{index}}",

@@ -254,7 +254,7 @@ export default function AssistantBubble() {
         >
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-vr-50 to-white px-4 py-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-100 text-vr-800">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-100 text-vr-900">
                 <FiCpu size={17} aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">

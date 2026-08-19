@@ -10,6 +10,7 @@ import type {
 import type { TripStatusChangedEvent } from "../../../lib/trackingSocket";
 import { EtaTimeline } from "./EtaTimeline";
 import type { RealtimeStatus, RouteGeometryStatus } from "./gpsHelpers";
+import { Button } from "../../../components/ui/Button";
 
 type TripTrackingPanelProps = {
   tripId: string;
@@ -151,23 +152,14 @@ export default function TripTrackingPanel({
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={isApiLoading}
-          onClick={onLoadTracking}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 text-sm font-semibold text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <Button variant="primary" disabled={isApiLoading} onClick={onLoadTracking}>
           <FiRefreshCw size={16} />
           {isApiLoading ? t("gps.loadingTracking") : t("gps.loadTracking")}
-        </button>
-        <button
-          type="button"
-          onClick={onDeselect}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
+        </Button>
+        <Button variant="secondary" onClick={onDeselect}>
           <FiX size={16} />
           {t("operations.deselectTrip")}
-        </button>
+        </Button>
       </div>
 
       {apiMessage && (
@@ -230,7 +222,7 @@ export default function TripTrackingPanel({
           )}
           {eta?.eta && eta.eta.delayStatus !== "UNKNOWN" && (
             <p
-              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
                 eta.eta.delayStatus === "DELAYED"
                   ? "bg-amber-50 text-amber-800 ring-1 ring-amber-100"
                   : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"

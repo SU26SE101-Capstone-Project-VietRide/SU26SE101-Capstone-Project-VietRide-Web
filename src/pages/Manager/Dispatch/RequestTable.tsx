@@ -15,6 +15,7 @@ import {
   isInboundDirection,
   shuttleRouteLabel,
 } from "./dispatchHelpers";
+import { Badge } from "../../../components/ui/Badge";
 
 type RequestTableProps = {
   groups: ShuttleRequestGroup[];
@@ -81,11 +82,11 @@ export default function RequestTable({
                       {directionLabel(group.direction)}
                     </span>
                     {cutoffPassed && (
-                      <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                      <Badge tone="danger">
                         {t("dispatch.cutoffPassed", {
                           defaultValue: "Đã quá hạn điều phối",
                         })}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   {/* Định danh nhóm yêu cầu là tên tuyến + bến + giờ chuyến
@@ -185,12 +186,12 @@ export default function RequestTable({
                       defaultValue: "Thứ tự đón/trả được đề xuất",
                     })}
                   </p>
-                  <span className="rounded-full bg-vr-50 px-2.5 py-1 text-xs font-semibold text-vr-900">
+                  <Badge tone="brand">
                     {t("dispatch.stopCount", {
                       count: bookings.length,
                       defaultValue: "{{count}} điểm",
                     })}
-                  </span>
+                  </Badge>
                 </div>
                 <ol className="grid gap-2">
                   {bookings.map((booking, index) => (
@@ -203,7 +204,7 @@ export default function RequestTable({
                       </span>
                       <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-[minmax(150px,0.7fr)_minmax(260px,1.5fr)_auto] sm:items-center">
                         <div className="min-w-0">
-                          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-600">
+                          <p className="text-xs font-medium uppercase tracking-wide text-gray-600">
                             {t("dispatch.stopOrdinal", {
                               index: index + 1,
                               defaultValue: "Điểm {{index}}",
@@ -224,15 +225,15 @@ export default function RequestTable({
                           <span>{booking.pickupAddress}</span>
                         </p>
                         <div className="flex flex-wrap gap-1.5 sm:justify-end">
-                          <span className="whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                          <Badge tone="neutral">
                             {booking.passengerCount}{" "}
                             {t("dispatch.passengers", {
                               defaultValue: "khách",
                             })}
-                          </span>
-                          <span className="whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                          </Badge>
+                          <Badge tone="neutral">
                             {formatDistance(getBookingDistance(booking))}
-                          </span>
+                          </Badge>
                         </div>
                       </div>
                     </li>

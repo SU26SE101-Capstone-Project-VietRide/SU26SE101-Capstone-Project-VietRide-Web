@@ -4,7 +4,7 @@
 // Chọn 1 dòng bất kỳ → trả StopSuggestion cho nơi gọi (index pan map + mở popup).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiMapPin, FiSearch } from "react-icons/fi";
+import { FiMapPin } from "react-icons/fi";
 import type { OperatorStop } from "../../../api/vietride";
 import {
   loadGooglePlacesLibrary,
@@ -13,6 +13,7 @@ import {
   type GooglePlacesLibrary,
 } from "../../../lib/googleMaps";
 import type { StopSuggestion } from "./types";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 type StopSearchBoxProps = {
   stops: OperatorStop[];
@@ -206,18 +207,18 @@ export default function StopSearchBox({
 
   return (
     <div className="space-y-2">
-      <div className="relative">
-        <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-        <input
-          aria-label={t("routes.stopSearchPlaceholder")}
-          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
-          value={query}
-          onChange={(event) => handleQueryChange(event.target.value)}
-          placeholder={t("routes.stopSearchPlaceholder")}
-          disabled={disabled || isResolvingPlace}
-          autoComplete="off"
-        />
-      </div>
+      <SearchInput
+        // Ô autocomplete: giữ `text` như trước, không dùng `search`
+        type="text"
+        label={t("routes.stopSearchPlaceholder")}
+        value={query}
+        onChange={(event) => handleQueryChange(event.target.value)}
+        disabled={disabled || isResolvingPlace}
+        autoComplete="off"
+        placeholder={t("routes.stopSearchPlaceholder")}
+        inputClassName="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+        wrapperClassName="relative"
+      />
 
       {isQueryLongEnough && (
         <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">

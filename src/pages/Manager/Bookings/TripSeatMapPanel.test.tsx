@@ -15,10 +15,11 @@ vi.mock("../../../api/vietride", () => ({
 const seatMap = {
   tripId: "trip-1",
   vehicleType: "SLEEPER_BUS",
+  aisles: [{ afterCol: 2 }],
   seats: [
     { seatNumber: "A01", status: "BOOKED", type: "BED", row: 1, col: 1, deck: 1 },
     { seatNumber: "A02", status: "HELD", type: "BED", row: 1, col: 2, deck: 1 },
-    { seatNumber: "A03", status: "AVAILABLE", type: "BED", row: 2, col: 1, deck: 1 },
+    { seatNumber: "A03", status: "AVAILABLE", type: "BED", row: 2, col: 4, deck: 1 },
     { seatNumber: "B01", status: "UNAVAILABLE", type: "BED", row: 1, col: 1, deck: 2 },
   ],
 };
@@ -38,6 +39,14 @@ describe("TripSeatMapPanel", () => {
     expect(screen.getByText("B01")).toBeInTheDocument();
     // Hai tầng => hiện nhãn tầng
     expect(screen.getAllByText("bookings.seatMapDeck")).toHaveLength(2);
+  });
+
+  it("giữ vị trí trống và tách lối đi theo sơ đồ xe", async () => {
+    render(<TripSeatMapPanel tripId="trip-1" />);
+
+    await screen.findByText("A01");
+    expect(screen.getAllByLabelText("vehicles.aisleAfterColumn")).toHaveLength(3);
+    expect(screen.getAllByLabelText("vehicles.emptyPosition").length).toBeGreaterThan(0);
   });
 
   // HELD là trạng thái quan trọng nhất với nhà xe: ghế khách đang giữ chờ trả

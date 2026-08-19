@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { getAuthUser, getHomePathForRole } from "../auth";
 
@@ -11,8 +12,12 @@ import { getAuthUser, getHomePathForRole } from "../auth";
  *
  * Nên: còn query `vnp_*` thì luôn giữ nguyên và đưa về trang kết quả thanh toán;
  * hết đường thì mới về home theo role, chưa đăng nhập mới về /login.
+ *
+ * `fallback` dành riêng cho route `*`: thay vì đá âm thầm về dashboard (người
+ * dùng gõ sai URL không hề biết mình gõ sai), render trang 404. Nhánh `vnp_*`
+ * VẪN chạy trước — kết quả thanh toán không được rơi vào 404.
  */
-export default function EntryRedirect() {
+export default function EntryRedirect({ fallback }: { fallback?: ReactNode }) {
   const location = useLocation();
   const hasVnPayResult = Array.from(
     new URLSearchParams(location.search).keys(),
@@ -25,6 +30,10 @@ export default function EntryRedirect() {
         replace
       />
     );
+  }
+
+  if (fallback) {
+    return <>{fallback}</>;
   }
 
   const user = getAuthUser();

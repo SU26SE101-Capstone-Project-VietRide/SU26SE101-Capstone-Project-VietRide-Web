@@ -22,6 +22,7 @@ import {
   verifyEmail,
   type RegisterOperatorRequest,
 } from "../api/vietride";
+import { Button } from "../components/ui/Button";
 
 const emptyOperatorForm: RegisterOperatorRequest = {
   name: "",
@@ -426,11 +427,7 @@ export default function Register() {
                         : t("resendVerification")}
                     </button>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={loading || resendLoading}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                  >
+                  <Button variant="primary" className="w-full" type="submit" disabled={loading || resendLoading}>
                     {loading ? (
                       <>
                         <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -442,7 +439,7 @@ export default function Register() {
                         <FiArrowRight className="h-5 w-5" />
                       </>
                     )}
-                  </button>
+                  </Button>
                 </form>
               ) : (
                 <form
@@ -624,26 +621,12 @@ export default function Register() {
                         dispatch xong nên đọc phải type mới → gọi luôn API đăng
                         ký. `preventDefault` là lớp chặn thứ hai cho chắc. */}
                     {currentStep < registerSteps.length - 1 ? (
-                      <button
-                        key="register-next-step"
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          handleNextStep();
-                        }}
-                        disabled={loading}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-800 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                      >
+                      <Button variant="primary" className="flex-1" key="register-next-step" onClick={(event) => { event.preventDefault(); handleNextStep(); }} disabled={loading}>
                         {t("continue")}
                         <FiArrowRight className="h-5 w-5" />
-                      </button>
+                      </Button>
                     ) : (
-                      <button
-                        key="register-submit"
-                        type="submit"
-                        disabled={loading}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-vr-800 py-2.5 text-base font-bold text-white shadow-sm shadow-vr-900/15 transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none"
-                      >
+                      <Button variant="primary" className="flex-1" key="register-submit" type="submit" disabled={loading}>
                         {loading ? (
                           <>
                             <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -655,7 +638,7 @@ export default function Register() {
                             <FiArrowRight className="h-5 w-5" />
                           </>
                         )}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </form>

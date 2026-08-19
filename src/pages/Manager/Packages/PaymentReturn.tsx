@@ -432,7 +432,7 @@ export default function SubscriptionPaymentReturn() {
         </div>
 
         {status === "success" && !signedOut ? (
-          <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-vr-200 bg-vr-50 px-3.5 py-1.5 text-xs font-semibold text-vr-800">
+          <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-vr-200 bg-vr-50 px-3.5 py-1.5 text-xs font-semibold text-vr-900">
             <FiClock className="h-4 w-4" aria-hidden="true" />
             {t("paymentReturn.redirectingToPackages", {
               seconds: redirectSeconds,

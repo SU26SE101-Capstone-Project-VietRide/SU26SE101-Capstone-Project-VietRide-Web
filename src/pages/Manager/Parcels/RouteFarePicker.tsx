@@ -268,7 +268,7 @@ export function RouteFarePicker({
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span
-                      className={`rounded-full px-2 py-1 text-[11px] font-semibold ${statusClass[summary.status]}`}
+                      className={`rounded-full px-2 py-1 text-xs font-semibold ${statusClass[summary.status]}`}
                     >
                       {!route.isActive
                         ? t("parcels.routeInactive")

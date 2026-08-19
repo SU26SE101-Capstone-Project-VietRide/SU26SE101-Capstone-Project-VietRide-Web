@@ -17,6 +17,7 @@ import {
   type OperatingDaySchedule,
   type StationForm,
 } from "./stationHelpers";
+import { Button } from "../../../components/ui/Button";
 
 type StationEditorPanelProps = {
   /** Mã tỉnh/thành đang chọn ở cấp trên của cascade */
@@ -195,15 +196,10 @@ export default function StationEditorPanel({
         </label>
       </div>
 
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={isSaving}
-        className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button variant="primary" className="mt-5 w-full" onClick={onSave} disabled={isSaving}>
         <FiSave />
         {t("stations.saveStation")}
-      </button>
+      </Button>
 
     </div>
   );

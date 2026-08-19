@@ -42,6 +42,7 @@ import {
   type RevenueChartPoint,
   type Shipment,
 } from "./dashboardHelpers";
+import { Badge } from "../../../components/ui/Badge";
 
 function revenueMonthOptions() {
   const now = new Date();
@@ -513,9 +514,9 @@ export default function ManagerDashboard() {
                 {t("dashboard.fleetStatusHint")}
               </p>
             </div>
-            <span className="rounded-full bg-vr-50 px-3 py-1 text-xs font-semibold text-vr-900">
+            <Badge tone="brand">
               {t("dashboard.vehicleCount", { count: vehicles.length })}
-            </span>
+            </Badge>
           </div>
           {vehicles.length === 0 ? (
             <EmptyChartState
@@ -549,7 +550,7 @@ export default function ManagerDashboard() {
                   </div>
                   <span
                     className={
-                      "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
+                      "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold " +
                       vehicleStatusClass(vehicle.status)
                     }
                   >

@@ -22,6 +22,7 @@ import {
   reporterLabel,
   statusBadgeClass,
 } from "./incidentHelpers";
+import { Button } from "../../../components/ui/Button";
 
 /** Giới hạn của BE sau khi trim; chặn sớm để khỏi ăn 422 VALIDATION_ERROR */
 const RESOLUTION_NOTE_MAX_LENGTH = 1000;
@@ -120,15 +121,10 @@ function IncidentResolveForm({
           {resolveError}
         </p>
       )}
-      <button
-        type="button"
-        onClick={() => void handleResolve()}
-        disabled={isResolving}
-        className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button variant="primary" onClick={() => void handleResolve()} disabled={isResolving}>
         <FiCheckCircle aria-hidden="true" />
         {isResolving ? t("incidents.resolving") : t("incidents.resolveAction")}
-      </button>
+      </Button>
     </section>
   );
 }
@@ -178,13 +174,9 @@ export default function IncidentDetailModal({
       subtitle={t("incidents.detailSubtitle")}
       wide
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-        >
+        <Button variant="secondary" onClick={onClose}>
           {tc("close")}
-        </button>
+        </Button>
       }
     >
       {isLoading && !incident ? (

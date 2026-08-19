@@ -25,6 +25,7 @@ import {
   inputClass,
   labelClass,
 } from "../../../components/form/formClasses";
+import { Badge } from "../../../components/ui/Badge";
 
 export default function ManagerPolicies() {
   const { t } = useTranslation("manager");
@@ -257,13 +258,7 @@ export default function ManagerPolicies() {
                     {formatDateOnly(policy.updatedAt)}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
-                        policy.active
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
+                    <Badge tone={policy.active ? "success" : "neutral"} className="gap-1">
                       {policy.active ? (
                         <>
                           <FiCheck className="text-lg" />
@@ -275,7 +270,7 @@ export default function ManagerPolicies() {
                           {tc("off")}
                         </>
                       )}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

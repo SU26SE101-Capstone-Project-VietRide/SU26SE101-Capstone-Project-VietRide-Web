@@ -23,6 +23,9 @@ import {
   inputClass,
   labelClass,
 } from "../../../components/form/formClasses";
+import { Button } from "../../../components/ui/Button";
+import { Badge } from "../../../components/ui/Badge";
+import type { BadgeTone } from "../../../components/ui/Badge";
 
 function Toggle({
   checked,
@@ -74,11 +77,13 @@ function Field({
 }
 
 /** BE: `status = UPCOMING | APPLYING | EXPIRED | DISABLED`. */
-const periodStatusTone: Record<FareSurchargeStatus, string> = {
-  APPLYING: "bg-green-100 text-green-800",
-  UPCOMING: "bg-blue-100 text-blue-800",
-  EXPIRED: "bg-gray-100 text-gray-600",
-  DISABLED: "bg-gray-100 text-gray-600",
+// EXPIRED và DISABLED vốn đã dùng chung một màu xám, nên gộp về `neutral`
+// không làm mất phân biệt nào.
+const periodStatusTone: Record<FareSurchargeStatus, BadgeTone> = {
+  APPLYING: "success",
+  UPCOMING: "info",
+  EXPIRED: "neutral",
+  DISABLED: "neutral",
 };
 
 /** Tên dịp: BE trim rồi giới hạn 1..120 ký tự. */
@@ -361,14 +366,10 @@ export default function ManagerSettings() {
                 <h3 className="text-base font-semibold text-gray-800">
                   {t("settings.periodList")}
                 </h3>
-                <button
-                  type="button"
-                  onClick={openAddPeriod}
-                  className="flex items-center gap-1.5 rounded-lg bg-vr-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-vr-900"
-                >
+                <Button variant="primary" onClick={openAddPeriod}>
                   <FiPlus size={14} />
                   {t("settings.addPeriod")}
-                </button>
+                </Button>
               </div>
 
               {config.holidayPeriods.length === 0 ? (
@@ -408,17 +409,18 @@ export default function ManagerSettings() {
                             {formatDateOnly(period.endDate)}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
+                            <Badge tone="warning">
                               +{period.surchargePercent}%
-                            </span>
+                            </Badge>
                           </td>
                           <td className="px-4 py-3">
                             {/* Dùng `status` của BE, không suy từ mỗi cờ bật/tắt:
                                 dịp đã bật nhưng chưa tới ngày là UPCOMING, hết
                                 ngày là EXPIRED — trước đây cả hai đều hiện
                                 "Đang áp dụng". */}
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${periodStatusTone[period.status]}`}
+                            <Badge
+                              tone={periodStatusTone[period.status]}
+                              className="gap-1"
                             >
                               {period.status === "APPLYING" ? (
                                 <FiCheck />
@@ -426,7 +428,7 @@ export default function ManagerSettings() {
                                 <FiX />
                               ) : null}
                               {t(`settings.periodStatuses.${period.status}`)}
-                            </span>
+                            </Badge>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
@@ -472,21 +474,12 @@ export default function ManagerSettings() {
         </div>
 
         <div className="mt-8 flex justify-end gap-3 border-t border-gray-100 pt-5">
-          <button
-            type="button"
-            onClick={handleReset}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={handleReset}>
             {t("settings.undo")}
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSavingConfig}
-            className="rounded-lg bg-vr-800 px-4 py-2 text-sm font-medium text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          </Button>
+          <Button variant="primary" onClick={handleSave} disabled={isSavingConfig}>
             {t("settings.saveConfig")}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -580,14 +573,9 @@ export default function ManagerSettings() {
             >
               {tc("cancel")}
             </button>
-            <button
-              type="button"
-              onClick={handleSavePeriod}
-              disabled={isSavingPeriod}
-              className="flex-1 rounded-lg bg-vr-800 py-2 text-sm font-medium text-white hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            <Button variant="primary" className="flex-1" onClick={handleSavePeriod} disabled={isSavingPeriod}>
               {editingPeriod ? tc("update") : t("settings.add")}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -598,7 +586,7 @@ export default function ManagerSettings() {
         subtitle={t("settings.confirmDeletePeriod")}
         footer={
           <>
-            <button type="button" onClick={() => setDeletePeriodTarget(null)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{tc("cancel")}</button>
+            <Button variant="secondary" onClick={() => setDeletePeriodTarget(null)}>{tc("cancel")}</Button>
             <button type="button" onClick={() => void confirmDeletePeriod()} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">{tc("delete")}</button>
           </>
         }

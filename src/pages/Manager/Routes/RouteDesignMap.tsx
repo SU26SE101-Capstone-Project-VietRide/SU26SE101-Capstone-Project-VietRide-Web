@@ -35,6 +35,7 @@ import { estimateCoachDurationMinutes, type RouteCoordinate } from "./polyline";
 import StopDetailCard from "./StopDetailCard";
 import type { RouteMapPoint, StopSuggestion } from "./types";
 import Checkbox from "../../../components/form/Checkbox";
+import { Badge } from "../../../components/ui/Badge";
 
 const defaultRouteMapCenter: GoogleMapCoordinate = {
   lat: 10.7769,
@@ -1117,11 +1118,11 @@ export default function RouteDesignMap({
       testId="stop-suggestion-popup"
       title={activeSuggestion.name}
       titleBadge={
-        <span className="rounded-full bg-vr-100 px-2 py-0.5 text-xs font-medium text-vr-900">
+        <Badge tone="brand">
           {activeSuggestion.kind === "operatorStop"
             ? t("routes.suggestSourceOperator")
             : t("routes.suggestSourceGoogle")}
-        </span>
+        </Badge>
       }
       address={activeSuggestion.address}
       googlePlaceId={activeSuggestionPlaceId}

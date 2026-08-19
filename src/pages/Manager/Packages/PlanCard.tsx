@@ -6,6 +6,7 @@ import type {
 } from "../../../api/vietride";
 import { formatNumber, formatPrice, planLimit } from "./subscriptionHelpers";
 import { LimitRow } from "./packageDetails";
+import { Badge } from "../../../components/ui/Badge";
 
 type PlanCardProps = {
   plan: SubscriptionPlan;
@@ -39,9 +40,9 @@ export default function PlanCard({
             {plan.name}
           </h3>
         </div>
-        <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+        <Badge tone="success">
           {tc("active")}
-        </span>
+        </Badge>
       </div>
 
       <p className="mb-4 text-sm text-gray-600">

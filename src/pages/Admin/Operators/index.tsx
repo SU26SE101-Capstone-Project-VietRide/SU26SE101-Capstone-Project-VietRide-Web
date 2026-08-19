@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import {
   FiDownload,
   FiPlus,
-  FiSearch,
   FiCheck,
   FiX,
   FiEye,
@@ -49,6 +48,8 @@ import {
   toKnownStatus,
   type OperatorStatus,
 } from "./operatorHelpers";
+import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 // Mọi ô lọc dùng chung một class để cao bằng nhau (min-h-11 khớp CustomSelect /
 // CustomDateTimeInput) — trước đây ô search py-3 còn select py-2 nên so le.
@@ -212,6 +213,11 @@ export default function Operators() {
   };
 
   // Lấy từ `/summary`: đếm trên toàn platform chứ không phải trang đang xem.
+  // Ba thẻ này là MỘT trục duy nhất: trạng thái hồ sơ đăng ký.
+  // `summary.approved` là số hồ sơ đã duyệt (luỹ kế), KHÔNG phải số nhà xe đang
+  // bật — nhãn cũ ghi "Đang hoạt động" nên đọc lệch hẳn so với thẻ
+  // "Nhà xe hoạt động" ở Bảng điều khiển (thẻ đó là `activeOperators`, tính
+  // theo kỳ báo cáo). Muốn hiện số đang bật thì dùng `summary.active`.
   const pendingCount = summary?.pending ?? 0;
   const approvedCount = summary?.approved ?? 0;
   const restrictedCount = (summary?.suspended ?? 0) + (summary?.rejected ?? 0);
@@ -415,20 +421,25 @@ export default function Operators() {
             panel nâng cao như màn Chuyến bên Manager (ScheduleTable) — hàng lọc
             trước đây nhồi 6 ô trên 2 lưới khác nhau nên mép các ô so le. */}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_auto_auto]">
-          <div className="relative min-w-0 md:col-span-2 xl:col-span-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input
-              type="search"
-              placeholder={t("operators.searchPlaceholder")}
-              value={searchTerm}
-              onChange={(e) => {
+          <SearchInput
+            label={t("operators.searchPlaceholder")}
+            value={searchTerm}
+            onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setPage(1);
               }}
-              className={searchInputClass}
-            />
-          </div>
+            placeholder={t("operators.searchPlaceholder")}
+            inputClassName={searchInputClass}
+            wrapperClassName="relative min-w-0 md:col-span-2 xl:col-span-1"
+          />
 
+          {/* Hai ô lọc này đều nói về "trạng thái" nên nhãn cũ ("Tất cả trạng
+              thái" / "Tất cả trạng thái bật") bị truncate thành cùng một chuỗi
+              "Tất cả trạng t…" — người dùng không biết ô nào lọc gì. Nhãn mới
+              khác nhau ngay từ ký tự đầu.
+              KHÔNG gắn `aria-label` ở đây: CustomSelect render ra <button> mà
+              tên khả truy cập chính là option đang chọn, thêm aria-label sẽ đè
+              mất giá trị đó. Nhãn hiển thị riêng cho bộ lọc là việc của 5.8. */}
           <CustomSelect
             value={filterStatus}
             onChange={(e) => {
@@ -585,7 +596,7 @@ export default function Operators() {
                 <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
                   {tc("status")}
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
+                <th className="sticky right-0 z-10 bg-gray-50 px-6 py-3 text-center text-xs font-semibold text-gray-700">
                   {tc("actions")}
                 </th>
               </tr>
@@ -617,7 +628,9 @@ export default function Operators() {
                     <td className="px-6 py-4 text-center text-sm">
                       {getStatusBadge(status, tc)}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    {/* Ghim cột Thao tác: từ 1320px trở xuống cột này bị đẩy
+                        khỏi khung, nút "từ chối" mất một nửa và không bấm được. */}
+                    <td className="sticky right-0 z-10 bg-white px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={async () => {
@@ -681,6 +694,9 @@ export default function Operators() {
                   </tr>
                 );
               })}
+              {isLoading && (
+                <TableSkeletonRows columns={8} testId="operators-table-skeleton" />
+              )}
               {!isLoading && operators.length === 0 && (
                 <tr>
                   <td
@@ -695,11 +711,7 @@ export default function Operators() {
           </table>
         </div>
 
-        {isLoading && (
-          <div className="mt-4 text-sm text-gray-500">
-            {t("operators.loading")}
-          </div>
-        )}
+
 
         <Pagination
           page={page}

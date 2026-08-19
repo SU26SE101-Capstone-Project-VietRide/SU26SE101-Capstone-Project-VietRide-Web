@@ -238,7 +238,7 @@ export function VehicleSeatLayout({
           aria-colcount={gridColumns.length + 1}
         >
           <div
-            className="grid items-center gap-2 px-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400"
+            className="grid items-center gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400"
             style={{ gridTemplateColumns: `2rem repeat(${gridColumns.length}, minmax(3.1rem, 1fr))` }}
           >
             <span aria-hidden="true" />
@@ -290,7 +290,7 @@ export function VehicleSeatLayout({
                     );
                     const canToggle = mode === "toggle-disabled" && isPassengerSeat(seat) && Boolean(onToggle);
                     const label = getSeatLabel(seat, t);
-                    const className = `relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-vr-500/50 ${getSeatTone(seat)} ${
+                    const className = `relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-vr-500/50 ${getSeatTone(seat)} ${
                       canToggle
                         ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md"
                         : ""

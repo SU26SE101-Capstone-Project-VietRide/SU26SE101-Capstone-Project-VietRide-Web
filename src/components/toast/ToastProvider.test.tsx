@@ -64,6 +64,28 @@ describe("ToastProvider", () => {
     expect(screen.queryByTestId("toast")).not.toBeInTheDocument();
   });
 
+  // 3s không đủ để đọc xong một thông báo lỗi, và khi nó tắt thì màn hình chỉ
+  // còn dữ liệu cũ — không còn dấu vết nào cho biết thao tác vừa rồi đã hỏng.
+  it("keeps an error toast on screen until the user closes it", () => {
+    render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "fire-error" }));
+    expect(screen.getByTestId("toast")).toBeInTheDocument();
+
+    // Quá xa mốc 3s của toast thành công mà vẫn còn nguyên
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(screen.getByTestId("toast")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "close" }));
+    expect(screen.queryByTestId("toast")).not.toBeInTheDocument();
+  });
+
   it("renders an error toast with role=alert", () => {
     render(
       <ToastProvider>

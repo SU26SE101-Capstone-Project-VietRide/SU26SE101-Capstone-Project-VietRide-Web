@@ -13,6 +13,7 @@ import {
   operatorIdsToValue,
   toOperatorIds,
 } from "./voucherHelpers";
+import { Button } from "../../../components/ui/Button";
 
 type VoucherModalProps = {
   open: boolean;
@@ -94,17 +95,13 @@ export default function VoucherModal({
           >
             {tc("cancel")}
           </button>
-          <button
-            type="button"
-            onClick={onSave}
-            className="rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-vr-900"
-          >
+          <Button variant="primary" onClick={onSave}>
             {t("vouchers.saveButton", {
               action: editingVoucher
                 ? t("vouchers.saveActionUpdate")
                 : t("vouchers.saveActionCreate"),
             })}
-          </button>
+          </Button>
         </>
       }
     >

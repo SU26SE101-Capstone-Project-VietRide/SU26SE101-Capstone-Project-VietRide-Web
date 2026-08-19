@@ -1,4 +1,15 @@
 import type { ReactNode } from "react";
+import { Badge } from "../components/ui/Badge";
+
+/**
+ * Nhãn KPI xuống tối đa 2 dòng thay vì `truncate`.
+ *
+ * Với `truncate`, trên laptop 1280–1366px (rất phổ biến ở văn phòng) các nhãn
+ * tài chính dài bị cắt cụt giữa chừng — đo được "Tổng tiền cần thanh toán" chỉ
+ * còn 142/156px, "Người dùng hoạt độ...". Thẻ cao cố định 128px nên hai dòng
+ * vẫn vừa khung, không đẩy layout.
+ */
+const labelClass = "min-w-0 line-clamp-2 [overflow-wrap:anywhere]";
 
 export type StatCardProps = {
   label: ReactNode;
@@ -40,7 +51,7 @@ export function StatCard({
               {icon}
             </div>
           )}
-          {labelInline && <p className="truncate text-sm text-gray-500">{label}</p>}
+          {labelInline && <p className={`${labelClass} text-sm text-gray-500`}>{label}</p>}
         </div>
         {trend !== undefined && (
           <span title={trendTitle} className={`text-xs font-semibold ${trendClassName}`}>
@@ -49,7 +60,7 @@ export function StatCard({
         )}
       </div>
       <div className="mt-auto min-w-0">
-        {!labelInline && <p className="truncate text-sm text-gray-500">{label}</p>}
+        {!labelInline && <p className={`${labelClass} text-sm text-gray-500`}>{label}</p>}
         {isLoading ? (
           <div
             className="mt-2 h-8 w-16 animate-pulse rounded-md bg-slate-200"
@@ -61,9 +72,9 @@ export function StatCard({
         )}
         {helper && <p className="mt-1 truncate text-xs text-gray-500">{helper}</p>}
         {badge && (
-          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${danger ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>
+          <Badge tone={danger ? "danger" : "success"} className="mt-1">
             {badge}
-          </span>
+          </Badge>
         )}
       </div>
     </div>

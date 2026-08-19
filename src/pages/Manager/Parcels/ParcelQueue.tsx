@@ -5,7 +5,7 @@ import CustomSelect from "../../../components/CustomSelect";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { FiArrowDown, FiArrowUp, FiCheckCircle, FiSearch, FiSliders } from "react-icons/fi";
+import { FiArrowDown, FiArrowUp, FiCheckCircle, FiSliders } from "react-icons/fi";
 import {
   getOperatorParcel,
   getOperatorParcels,
@@ -28,6 +28,7 @@ import {
   queueTabs,
   statusTone,
 } from "./parcelQueueHelpers";
+import { SearchInput } from "../../../components/ui/SearchInput";
 
 type ConfirmState = { label: string; run: () => Promise<void> } | null;
 
@@ -292,11 +293,12 @@ export default function ParcelQueue() {
             tên/SĐT của cả người gửi lẫn người nhận.
           */}
           <div className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_280px_auto]">
-            <label className="relative min-w-0">
-              <span className="sr-only">{t("parcels.queue.searchLabel")}</span>
-              <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} className={`${inputClass} pl-10`} placeholder={t("parcels.queue.searchPlaceholder")} />
-            </label>
+            <SearchInput
+              label={t("parcels.queue.searchPlaceholder")}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={t("parcels.queue.searchPlaceholder")}
+            />
             <CustomSelect value={queue} onChange={(event) => { setQueue(event.target.value); setPage(1); }} className={inputClass} aria-label={t("parcels.queue.tabListAriaLabel")}>{queueTabs.map((tab) => <option key={tab.value} value={tab.value}>{tab.labelKey === "all" ? tc("all") : tab.labelKey.startsWith("enumLabels.") ? tc(tab.labelKey) : t(tab.labelKey)}</option>)}</CustomSelect>
             <button type="button" onClick={() => setShowAdvancedFilters((current) => !current)} aria-expanded={showAdvancedFilters} aria-label={t("trips.advancedFilters")} className={"inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-vr-500/30 " + (advancedFilterCount > 0 ? "border-vr-300 bg-vr-50 text-vr-800" : "border-gray-200 bg-white text-gray-700 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900")}>
               <FiSliders aria-hidden="true" size={16} />
@@ -345,7 +347,6 @@ export default function ParcelQueue() {
         rows={items}
         getRowKey={(item) => item.parcelId}
         isLoading={loading}
-        loadingMessage={t("parcels.queue.loadingList")}
         emptyMessage={<div className="py-4"><p className="font-medium text-gray-700">{t("parcels.queue.emptyTitle")}</p><p className="mt-1 text-sm text-gray-500">{t("parcels.queue.emptyHint")}</p></div>}
         page={page}
         pageSize={pageSize}

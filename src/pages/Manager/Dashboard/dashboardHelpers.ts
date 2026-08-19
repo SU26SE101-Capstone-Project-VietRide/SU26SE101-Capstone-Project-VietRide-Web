@@ -5,6 +5,7 @@ import type {
   OperatorVehicle,
 } from "../../../api/vietride";
 import { formatCurrency } from "../../../utils/currency";
+import { chartColorAt } from "../../../lib/chartColors";
 
 // Type dữ liệu dùng chung giữa index và các sub-component của màn Dashboard
 export type RevenueChartPoint = {
@@ -106,16 +107,27 @@ export function formatCompactMoney(value: number) {
   return formatCurrency(value);
 }
 
+/**
+ * Màu theo trạng thái cho biểu đồ tròn/cột.
+ *
+ * Giữ nguyên họ màu ngữ nghĩa (đỏ = hỏng, xanh lá = xong, xanh dương = đang
+ * chạy, hổ phách = chờ) nhưng đẩy xuống bậc đủ tương phản: bản cũ có 4/7 màu
+ * dưới 3:1 với nền trắng (PENDING `#f59e0b` chỉ 2,15:1).
+ *
+ * EXPIRED chuyển sang xám trung tính thay vì cam: đây là trạng thái đã chết,
+ * và quan trọng hơn — bản cũ để nó cách PENDING đúng **13°** hue nên hai lát
+ * bánh cạnh nhau gần như không phân biệt được, càng không nếu mù màu.
+ */
 export function statusColor(key: string, index: number) {
   const normalized = key.toUpperCase();
-  if (normalized.includes("EXPIRED")) return "#f97316";
-  if (normalized.includes("REJECT")) return "#dc2626";
-  if (normalized.includes("CANCEL") || normalized.includes("FAIL")) return "#ef4444";
-  if (normalized.includes("DELIVER") || normalized.includes("COMPLETE")) return "#10b981";
-  if (normalized.includes("TRANSIT") || normalized.includes("LOADED")) return "#0ea5e9";
-  if (normalized.includes("CONFIRM") || normalized.includes("PROCESS")) return "#2563eb";
-  if (normalized.includes("PENDING") || normalized.includes("WAIT")) return "#f59e0b";
-  return ["#64748b", "#8b5cf6", "#14b8a6"][index % 3];
+  if (normalized.includes("EXPIRED")) return "#374151"; // gray-700
+  if (normalized.includes("REJECT")) return "#991b1b"; // red-800
+  if (normalized.includes("CANCEL") || normalized.includes("FAIL")) return "#dc2626"; // red-600
+  if (normalized.includes("DELIVER") || normalized.includes("COMPLETE")) return "#15803d"; // green-700
+  if (normalized.includes("TRANSIT") || normalized.includes("LOADED")) return "#0369a1"; // sky-700
+  if (normalized.includes("CONFIRM") || normalized.includes("PROCESS")) return "#4338ca"; // indigo-700
+  if (normalized.includes("PENDING") || normalized.includes("WAIT")) return "#a16207"; // amber-700
+  return chartColorAt(index);
 }
 
 export function vehicleStatusClass(status: string) {

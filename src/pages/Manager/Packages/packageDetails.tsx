@@ -61,7 +61,7 @@ export function LimitRow({
 export function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-lg bg-gray-50 px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </p>
       <p className="mt-1 break-words text-sm font-semibold text-gray-900">

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { FiEye, FiGrid } from "react-icons/fi";
 import type { OperatorVehicle, VehicleType } from "../../../api/vietride";
 import Pagination from "../../../components/Pagination";
+import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
 import { VehicleImage } from "./VehicleImage";
 import {
   getVehicleId,
@@ -110,11 +111,7 @@ export function VehicleTable({
           </thead>
           <tbody>
             {isLoading ? (
-              <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">
-                  {t("vehicles.loading")}
-                </td>
-              </tr>
+              <TableSkeletonRows columns={7} testId="vehicles-table-skeleton" cellClassName="px-5 py-4" />
             ) : vehicles.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
@@ -216,3 +213,4 @@ export function VehicleTable({
     </div>
   );
 }
+

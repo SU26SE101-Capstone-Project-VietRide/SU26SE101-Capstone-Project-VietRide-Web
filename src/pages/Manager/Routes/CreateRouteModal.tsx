@@ -30,6 +30,7 @@ import { encodeGooglePolyline, estimateCoachDurationMinutes } from "./polyline";
 import DurationInput from "./DurationInput";
 import { Input, NumberInput, StationSelect } from "./formControls";
 import type { StationOption } from "./types";
+import { Button } from "../../../components/ui/Button";
 
 export type CreateRouteBasics = {
   name: string;
@@ -315,26 +316,17 @@ export default function CreateRouteModal({
       icon={<FiGitBranch />}
       footer={
         <>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={handleClose}>
             {tc("cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSubmit()}
-            disabled={!canSubmit}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-vr-800 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Button>
+          <Button variant="primary" onClick={() => void handleSubmit()} disabled={!canSubmit}>
             {isSubmitting ? (
               <FiLoader className="animate-spin" size={16} />
             ) : (
               <FiPlus size={16} />
             )}
             {t("routes.createRoute")}
-          </button>
+          </Button>
         </>
       }
     >
@@ -453,7 +445,7 @@ export default function CreateRouteModal({
 
           <section className="rounded-xl border border-vr-100 bg-vr-50/30 p-4 sm:p-5">
             <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-vr-100 text-vr-800">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-vr-100 text-vr-900">
                 <FiClock aria-hidden="true" size={17} />
               </span>
               <div>

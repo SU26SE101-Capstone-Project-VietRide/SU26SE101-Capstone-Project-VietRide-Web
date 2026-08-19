@@ -1,6 +1,7 @@
 import { useEffect, useRef, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { FiSend } from "react-icons/fi";
+import { Button } from "../../components/ui/Button";
 
 export const MESSAGE_MAX_LENGTH = 4000;
 
@@ -54,25 +55,19 @@ export default function ChatComposer({
           className="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent py-1.5 text-sm leading-6 text-slate-900 outline-none placeholder:text-gray-500"
           placeholder={t("assistant.placeholder")}
         />
-        <button
-          type="submit"
-          disabled={!canSend}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-800 text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none"
-          aria-label={t("send")}
-          title={t("send")}
-        >
+        <Button variant="primary" className="shrink-0" type="submit" disabled={!canSend} aria-label={t("send")} title={t("send")}>
           {streaming ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
           ) : (
             <FiSend className="h-4 w-4" aria-hidden="true" />
           )}
-        </button>
+        </Button>
       </div>
 
       <div className="mt-1.5 flex items-center justify-between gap-2 px-1">
-        <p className="text-[11px] text-gray-600">{t("assistant.composerHint")}</p>
+        <p className="text-xs text-gray-600">{t("assistant.composerHint")}</p>
         {value.length > MESSAGE_MAX_LENGTH * 0.8 && (
-          <p className="text-[11px] tabular-nums text-gray-600">
+          <p className="text-xs tabular-nums text-gray-600">
             {value.length}/{MESSAGE_MAX_LENGTH}
           </p>
         )}

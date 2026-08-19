@@ -16,6 +16,7 @@ import Modal from "../../../components/Modal";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { matchProvinceCode, matchWardId } from "../../../utils/locationMatching";
 import type { StopSuggestion } from "./types";
+import { Button } from "../../../components/ui/Button";
 
 type StopWardConfirmModalProps = {
   /** Gợi ý đang chờ xác nhận; null = đóng modal */
@@ -99,24 +100,14 @@ export default function StopWardConfirmModal({
       subtitle={t("routes.stopWardConfirmSubtitle")}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isSubmitting}
-            className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <Button variant="secondary" onClick={onCancel} disabled={isSubmitting}>
             {tc("cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(wardId)}
-            disabled={!wardId || isSubmitting}
-            className="cursor-pointer rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          </Button>
+          <Button variant="primary" onClick={() => onConfirm(wardId)} disabled={!wardId || isSubmitting}>
             {isSubmitting
               ? t("routes.stopWardConfirmSaving")
               : t("routes.stopWardConfirmSubmit")}
-          </button>
+          </Button>
         </>
       }
     >

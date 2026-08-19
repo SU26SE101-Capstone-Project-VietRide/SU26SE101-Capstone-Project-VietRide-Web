@@ -2,7 +2,8 @@ import { useState } from "react";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import type { TripSettlement } from "../../../api/vietride";
 import { formatCurrency } from "../../../utils/currency";
-import { actorDisplayName, formatWalletDate, settlementStatusClass } from "./walletFormat";
+import { actorDisplayName, formatWalletDate, settlementStatusTone } from "./walletFormat";
+import { Badge } from "../../../components/ui/Badge";
 import { DataCompletenessBadge, ProcessingStateBadge } from "./WalletBadges";
 import { EmptyRow, type Translate } from "./walletTableShared";
 
@@ -69,9 +70,9 @@ function SettlementRowGroup({
           {item.processingState ? (
             <ProcessingStateBadge state={item.processingState} t={t} />
           ) : (
-            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${settlementStatusClass(item.status)}`}>
+            <Badge tone={settlementStatusTone(item.status)}>
               {t(`wallet.status.${item.status}`)}
-            </span>
+            </Badge>
           )}
         </td>
         <td className="whitespace-nowrap px-4 py-3 font-semibold">{formatCurrency(netAmount)}</td>

@@ -39,6 +39,8 @@ import { formatCurrency } from "../../utils/currency";
 import { StatCard } from "../../components/StatCard";
 
 import { downloadRevenueCsv } from "./revenueCsv";
+import { CHART_CATEGORICAL_COLORS, CHART_GRID_COLOR, chartColorAt } from "../../lib/chartColors";
+import { Button } from "../../components/ui/Button";
 type BookingChartPoint = {
   month: string;
   revenue: number;
@@ -50,14 +52,7 @@ type OperatorRevenuePoint = {
   revenue: number;
 };
 
-const operatorRevenueColors = [
-  "#14b8a6",
-  "#3b82f6",
-  "#8b5cf6",
-  "#f59e0b",
-  "#ec4899",
-  "#22c55e",
-];
+const operatorRevenueColors = CHART_CATEGORICAL_COLORS;
 
 function currentYearRange() {
   const year = new Date().getFullYear();
@@ -93,7 +88,12 @@ function mapDashboardChart(
   revenueItems.forEach((item) => {
     points.set(item.month, {
       month: monthLabel(item.month),
-      revenue: item.revenue.netTransportRevenueVnd,
+      // Phải cùng đại lượng với KPI "Tổng doanh thu" ngay phía trên
+      // (`totalProjectRevenueVnd`). Trước đây chỗ này vẽ
+      // `netTransportRevenueVnd` — chỉ là doanh thu vận tải ròng, không gồm
+      // doanh thu gói thuê bao — nên cột thấp hơn KPI cả trăm lần mà không có
+      // nhãn nào cho biết đó là hai thứ khác nhau.
+      revenue: item.revenue.totalProjectRevenueVnd,
       bookings: 0,
     });
   });
@@ -300,14 +300,7 @@ export default function AdminDashboard() {
     OPERATOR_ADMIN: t("dashboard.operatorAdmin"),
     SYSTEM_ADMIN: t("dashboard.systemAdmin"),
   };
-  const distributionColors = [
-    "#3b82f6",
-    "#8b5cf6",
-    "#10b981",
-    "#f59e0b",
-    "#ef4444",
-    "#06b6d4",
-  ];
+  const distributionColors = CHART_CATEGORICAL_COLORS;
   const userDistribution = (metrics?.userDistribution ?? []).map(
     (item, index) => ({
       name: roleLabels[item.role] ?? item.role,
@@ -387,14 +380,10 @@ export default function AdminDashboard() {
             {t("dashboard.title")}
           </h1>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isLoading}
-          className="flex items-center cursor-pointer gap-2 px-4 py-2 bg-vr-800 hover:bg-vr-900 rounded-lg text-white transition"
-        >
+        <Button variant="primary" onClick={handleRefresh} disabled={isLoading}>
           <FiRefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
           {tc("refresh")}
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -435,7 +424,7 @@ export default function AdminDashboard() {
               >
                 <CartesianGrid
                   strokeDasharray="4 4"
-                  stroke="#e5e7eb"
+                  stroke={CHART_GRID_COLOR}
                   vertical={false}
                 />
                 <XAxis
@@ -480,14 +469,14 @@ export default function AdminDashboard() {
                 <Bar
                   yAxisId="revenue"
                   dataKey="revenue"
-                  fill="#0284c7"
+                  fill={chartColorAt(0)}
                   radius={[5, 5, 0, 0]}
                   name={t("dashboard.revenueLegend")}
                 />
                 <Bar
                   yAxisId="bookings"
                   dataKey="bookings"
-                  fill="#14b8a6"
+                  fill={chartColorAt(1)}
                   radius={[5, 5, 0, 0]}
                   name={t("dashboard.bookingLegend")}
                 />

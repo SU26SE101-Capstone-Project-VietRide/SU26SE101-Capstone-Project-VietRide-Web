@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Pagination from "./Pagination";
+import { TableSkeletonRows } from "./TableSkeletonRows";
 
 export type PersonnelTableColumn<Row> = {
   key: string;
@@ -22,11 +23,15 @@ export type PersonnelTableProps<Row> = {
   onPageChange: (page: number) => void;
   className?: string;
   wrapperClassName?: string;
-  loadingMessage?: ReactNode;
+  /**
+   * Skeleton riêng của màn. Bỏ trống thì bảng tự dựng skeleton theo số cột —
+   * trước đây mặc định là một dòng chữ "Đang tải...", khiến bảng sụt từ N hàng
+   * xuống 1 dòng và mọi thứ bên dưới nhảy lên.
+   */
   loadingContent?: ReactNode;
 };
 
-export function PersonnelTable<Row>({ toolbar, rows, columns, getRowKey, isLoading, emptyMessage, page, pageSize, totalItems, onPageChange, className = "w-full min-w-[960px] table-fixed whitespace-nowrap", wrapperClassName = "overflow-hidden rounded-lg border border-gray-200 bg-white", loadingMessage = "Đang tải...", loadingContent }: PersonnelTableProps<Row>) {
+export function PersonnelTable<Row>({ toolbar, rows, columns, getRowKey, isLoading, emptyMessage, page, pageSize, totalItems, onPageChange, className = "w-full min-w-[960px] table-fixed whitespace-nowrap", wrapperClassName = "overflow-hidden rounded-lg border border-gray-200 bg-white", loadingContent }: PersonnelTableProps<Row>) {
   return (
     <section className={wrapperClassName}>
       <div className="border-b border-gray-100 p-4">{toolbar}</div>
@@ -44,11 +49,14 @@ export function PersonnelTable<Row>({ toolbar, rows, columns, getRowKey, isLoadi
           <tbody>
             {!isLoading && rows.map((row) => <tr key={getRowKey(row)} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60">{columns.map((column) => <td key={column.key} className={column.cellClassName ?? "px-4 py-4"}>{column.render(row)}</td>)}</tr>)}
             {!isLoading && rows.length === 0 && <tr><td colSpan={columns.length} className="px-5 py-12 text-center text-sm text-gray-500">{emptyMessage}</td></tr>}
-            {isLoading && loadingContent}
+            {isLoading && (loadingContent ?? <TableSkeletonRows columns={columns.length} testId="personnel-table-skeleton" />)}
           </tbody>
         </table>
       </div>
-      {isLoading && !loadingContent && <div className="border-t border-gray-100 px-5 py-4 text-sm text-gray-500">{loadingMessage}</div>}
+      {/* Phân trang CỐ Ý hiện cả lúc đang tải: ẩn đi thì nút chuyển trang biến
+          mất ngay dưới con trỏ vừa bấm, và người dùng mất luôn đường sang trang
+          khác trong lúc chờ. Con số ở chân bảng không còn mâu thuẫn nữa vì
+          skeleton đã giữ đúng khung N hàng thay cho một dòng chữ. */}
       <Pagination page={page} pageSize={pageSize} totalItems={totalItems} onPageChange={onPageChange} />
     </section>
   );

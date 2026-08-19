@@ -7,6 +7,7 @@ import type {
 } from "../../../api/vietride";
 import { formatPrice } from "./subscriptionHelpers";
 import { InfoItem } from "./packageDetails";
+import { Button } from "../../../components/ui/Button";
 
 type PurchasePlanModalProps = {
   open: boolean;
@@ -42,22 +43,13 @@ export default function PurchasePlanModal({
       subtitle={selectedPlan?.description}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
+          <Button variant="secondary" onClick={onClose}>
             {tc("cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isUpgrading}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-vr-800 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Button>
+          <Button variant="primary" onClick={onConfirm} disabled={isUpgrading}>
             <FiShoppingCart />
             {t("packages.confirmPurchase")}
-          </button>
+          </Button>
         </>
       }
     >

@@ -15,6 +15,8 @@ import { toNumber } from "../../utils/number";
 import { formatCurrency } from "../../utils/currency";
 import { inputClass, labelClass } from "../../components/form/formClasses";
 import Checkbox from "../../components/form/Checkbox";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
 
 function formatNumber(n: number) {
   return n.toLocaleString("vi-VN");
@@ -233,13 +235,9 @@ export default function Packages() {
           </h1>
           <p className="mt-1 text-gray-600">{t("packages.subtitleLong")}</p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2 font-medium text-white transition hover:bg-vr-900"
-        >
+        <Button variant="primary" onClick={openCreate}>
           <FiPlus size={16} /> {t("packages.create")}
-        </button>
+        </Button>
       </div>
 
 
@@ -258,15 +256,9 @@ export default function Packages() {
                   {plan.name}
                 </h3>
               </div>
-              <span
-                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                  plan.isActive
-                    ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-gray-700"
-                }`}
-              >
+              <Badge tone={plan.isActive ? "success" : "neutral"}>
                 {plan.isActive ? tc("active") : tc("inactive")}
-              </span>
+              </Badge>
             </div>
 
             <p className="mb-4 text-sm text-gray-600">
@@ -363,16 +355,11 @@ export default function Packages() {
             >
               {tc("cancel")}
             </button>
-            <button
-              type="button"
-              onClick={() => void savePlan()}
-              disabled={isSaving}
-              className="cursor-pointer rounded-xl bg-vr-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <Button variant="primary" onClick={() => void savePlan()} disabled={isSaving}>
               {t("packages.savePackage", {
                 action: selectedPlan ? tc("update") : tc("create"),
               })}
-            </button>
+            </Button>
           </>
         }
       >

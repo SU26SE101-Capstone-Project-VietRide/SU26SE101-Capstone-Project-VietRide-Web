@@ -18,6 +18,7 @@ import Checkbox from "../../../components/form/Checkbox";
 import SectionHeader from "./SectionHeader";
 import { Input, NumberInput, StationSelect } from "./formControls";
 import type { StationOption } from "./types";
+import { Badge } from "../../../components/ui/Badge";
 
 type RouteFormSectionProps = {
   canManageRoutes: boolean;
@@ -178,9 +179,9 @@ export default function RouteFormSection({
           </p>
         ) : metricsLocked ? (
           <div className="space-y-1">
-            <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+            <Badge tone="success" className="inline-block">
               {t("routes.autoMetricsBadge")}
-            </span>
+            </Badge>
             {/* Không còn nút "Sửa tay": có pathPolyline thì server bỏ qua manualMetrics
                 (số nhập tay bị ghi đè sau khi lưu) — muốn nhập tay phải xóa đường đi */}
             {canManageRoutes && (
