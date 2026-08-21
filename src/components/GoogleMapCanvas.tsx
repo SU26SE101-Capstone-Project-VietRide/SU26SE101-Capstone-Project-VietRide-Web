@@ -35,6 +35,9 @@ export type GoogleMapMarker = {
 
 export type GoogleMapPolyline = {
   color: string;
+  // Con trỏ khi rê chuột lên đường: "grab" báo cho user biết đường này TÚM
+  // ĐƯỢC (không thử thì không biết), "pointer" cho đường chỉ bấm chọn.
+  cursor?: string;
   // Vẽ đứt nét thay vì liền — dùng cho đường THAM CHIẾU (vd tuyến chính vẽ nền
   // khi đang soạn tuyến thay thế): cùng màu nhận diện nhưng nhìn phát biết ngay
   // đây không phải đường đang sửa.
@@ -46,6 +49,11 @@ export type GoogleMapPolyline = {
   // Mousedown trên thân đường — khởi động kéo nắn tuỳ chỉnh kiểu Google Maps
   // (túm thẳng thân đường); có handler thì polyline cũng clickable
   onMouseDown?: (position: GoogleMapCoordinate) => void;
+  // Rê chuột DỌC thân đường — dùng vẽ "tay nắm ma" bám con trỏ (Google Maps hiện
+  // chấm trắng nhỏ tại chỗ sắp cắm điểm nắn). Có handler thì polyline clickable.
+  onMouseMove?: (position: GoogleMapCoordinate) => void;
+  // Chuột rời khỏi đường — tắt tay nắm ma
+  onMouseOut?: () => void;
   opacity?: number;
   path: GoogleMapCoordinate[];
   weight?: number;
@@ -163,8 +171,60 @@ function clearCircles(circles: GoogleCircleInstance[]) {
   circles.forEach((circle) => circle.setMap(null));
 }
 
-function clearPolylines(polylines: GooglePolylineInstance[]) {
-  polylines.forEach((polyline) => polyline.setMap(null));
+// Một polyline đang sống trên bản đồ (pool reconcile theo id) — cùng vai trò
+// PooledPointMarker: đường giữ nguyên id + kiểu vẽ thì GIỮ NGUYÊN instance, chỉ
+// setPath khi hình dạng đổi. Trước đây mỗi lần mảng polylines đổi identity là gỡ
+// + vẽ lại TOÀN BỘ đường; trong lúc kéo nắn (path đổi từng nhịp chuột) nghĩa là
+// huỷ + dựng lại vài nghìn đỉnh mỗi khung hình → đường nháy và giật.
+type PooledPolyline = {
+  data: GoogleMapPolyline;
+  listeners: GoogleMapsEventListener[];
+  overlay: GooglePolylineInstance;
+  styleKey: string;
+};
+
+function isPolylineClickable(polyline: GoogleMapPolyline) {
+  return Boolean(
+    polyline.onClick || polyline.onMouseDown || polyline.onMouseMove,
+  );
+}
+
+// Khóa "kiểu vẽ" — đổi khóa này mới phải setOptions; KHÔNG gồm path (đổi tại chỗ
+// bằng setPath) và callback (đọc qua entry.data lúc sự kiện xảy ra)
+function buildPolylineStyleKey(polyline: GoogleMapPolyline) {
+  return JSON.stringify({
+    clickable: isPolylineClickable(polyline),
+    color: polyline.color,
+    cursor: polyline.cursor ?? "",
+    dashed: Boolean(polyline.dashed),
+    opacity: polyline.opacity ?? 1,
+    weight: polyline.weight ?? 5,
+    zIndex: polyline.zIndex,
+  });
+}
+
+// Icon "gạch" của đường đứt nét — phụ thuộc màu/độ dày/độ mờ nên phải dựng lại
+// mỗi khi styleKey đổi
+function buildDashedIcons(polyline: GoogleMapPolyline) {
+  if (!polyline.dashed) {
+    return undefined;
+  }
+
+  const weight = polyline.weight ?? 5;
+
+  return [
+    {
+      icon: {
+        path: dashedStrokePath,
+        scale: weight,
+        strokeColor: polyline.color,
+        strokeOpacity: polyline.opacity ?? 1,
+        strokeWeight: weight,
+      },
+      offset: "0",
+      repeat: `${weight * 4}px`,
+    },
+  ];
 }
 
 // Một gạch của đường đứt nét: đoạn thẳng dọc quanh gốc, scale theo strokeWeight
@@ -255,6 +315,7 @@ export default function GoogleMapCanvas({
   const onMapReadyRef = useRef(onMapReady);
   // Pool marker Symbol theo id — reconcile thay vì gỡ + vẽ lại toàn bộ
   const pointMarkerPoolRef = useRef(new Map<string, PooledPointMarker>());
+  const polylinePoolRef = useRef(new Map<string, PooledPolyline>());
   // InfoWindow dùng chung cho marker Symbol — tạo LƯỜI một lần và giữ qua các
   // lượt reconcile (effect chạy lại mỗi khi mảng marker đổi, tạo mới mỗi lượt
   // là rò overlay)
@@ -508,77 +569,119 @@ export default function GoogleMapCanvas({
     };
   }, [markers, readyMap]);
 
+  // Polyline — RECONCILE theo id (cùng cơ chế pool với marker bên dưới). Đường
+  // giữ nguyên id + styleKey thì giữ nguyên instance, chỉ setPath khi mảng path
+  // đổi identity. Quan trọng cho kéo nắn: preview đổi path mỗi nhịp chuột, gỡ +
+  // vẽ lại cả tuyến vài nghìn đỉnh mỗi khung hình là nguyên nhân đường nháy/giật.
+  // Instance thiếu setPath/setOptions (mock cũ) → fallback tạo lại như trước.
   useEffect(() => {
     if (!readyMap) {
       return;
     }
 
-    const listeners: GoogleMapsEventListener[] = [];
-    const overlays = polylines
+    const pool = polylinePoolRef.current;
+    const seenIds = new Set<string>();
+
+    polylines
       .filter((polyline) => polyline.path.length > 1)
-      .map((polyline) => {
+      .forEach((polyline) => {
+        seenIds.add(polyline.id);
+        const styleKey = buildPolylineStyleKey(polyline);
+        const entry = pool.get(polyline.id);
+        const canUpdateInPlace = Boolean(
+          entry?.overlay.setPath && entry.overlay.setOptions,
+        );
+
+        if (entry && canUpdateInPlace) {
+          if (entry.styleKey !== styleKey) {
+            entry.overlay.setOptions?.({
+              clickable: isPolylineClickable(polyline),
+              cursor: polyline.cursor,
+              icons: buildDashedIcons(polyline),
+              strokeColor: polyline.color,
+              strokeOpacity: polyline.dashed ? 0 : (polyline.opacity ?? 1),
+              strokeWeight: polyline.weight ?? 5,
+              zIndex: polyline.zIndex,
+            });
+            entry.styleKey = styleKey;
+          }
+
+          // So identity mảng: nơi gọi đã memo path theo dữ liệu nên mảng mới =
+          // hình dạng mới. So từng đỉnh sẽ tốn hơn chính lần setPath tiết kiệm được.
+          if (entry.data.path !== polyline.path) {
+            entry.overlay.setPath?.(polyline.path);
+          }
+
+          // Handler đọc qua entry.data → không phải gỡ/gắn lại listener
+          entry.data = polyline;
+          return;
+        }
+
+        if (entry) {
+          entry.listeners.forEach((listener) => listener?.remove());
+          entry.overlay.setMap(null);
+          pool.delete(polyline.id);
+        }
+
         // Đứt nét = thân đường trong suốt + Symbol gạch lặp lại (cách chính
         // thức của Maps JS API; không có option strokeDashArray)
-        const weight = polyline.weight ?? 5;
         const overlay = new readyMap.library.Polyline({
-          clickable: Boolean(polyline.onClick || polyline.onMouseDown),
-          icons: polyline.dashed
-            ? [
-                {
-                  icon: {
-                    path: dashedStrokePath,
-                    scale: weight,
-                    strokeColor: polyline.color,
-                    strokeOpacity: polyline.opacity ?? 1,
-                    strokeWeight: weight,
-                  },
-                  offset: "0",
-                  repeat: `${weight * 4}px`,
-                },
-              ]
-            : undefined,
+          clickable: isPolylineClickable(polyline),
+          cursor: polyline.cursor,
+          icons: buildDashedIcons(polyline),
           map: readyMap.instance,
           path: polyline.path,
           strokeColor: polyline.color,
           strokeOpacity: polyline.dashed ? 0 : (polyline.opacity ?? 1),
-          strokeWeight: weight,
+          strokeWeight: polyline.weight ?? 5,
           zIndex: polyline.zIndex,
         });
+        const nextEntry: PooledPolyline = {
+          data: polyline,
+          listeners: [],
+          overlay,
+          styleKey,
+        };
 
-        if (polyline.onClick) {
-          const handleClick = polyline.onClick;
-          listeners.push(
-            overlay.addListener("click", (event) => {
-              handleClick(
-                event?.latLng
-                  ? { lat: event.latLng.lat(), lng: event.latLng.lng() }
-                  : undefined,
-              );
-            }),
-          );
-        }
-
-        if (polyline.onMouseDown) {
-          const handleMouseDown = polyline.onMouseDown;
-          listeners.push(
-            overlay.addListener("mousedown", (event) => {
-              if (event?.latLng) {
-                handleMouseDown({
-                  lat: event.latLng.lat(),
-                  lng: event.latLng.lng(),
-                });
-              }
-            }),
-          );
-        }
-
-        return overlay;
+        nextEntry.listeners = [
+          overlay.addListener("click", (event) => {
+            nextEntry.data.onClick?.(
+              event?.latLng
+                ? { lat: event.latLng.lat(), lng: event.latLng.lng() }
+                : undefined,
+            );
+          }),
+          overlay.addListener("mousedown", (event) => {
+            if (event?.latLng) {
+              nextEntry.data.onMouseDown?.({
+                lat: event.latLng.lat(),
+                lng: event.latLng.lng(),
+              });
+            }
+          }),
+          overlay.addListener("mousemove", (event) => {
+            if (event?.latLng) {
+              nextEntry.data.onMouseMove?.({
+                lat: event.latLng.lat(),
+                lng: event.latLng.lng(),
+              });
+            }
+          }),
+          overlay.addListener("mouseout", () => {
+            nextEntry.data.onMouseOut?.();
+          }),
+        ];
+        pool.set(polyline.id, nextEntry);
       });
 
-    return () => {
-      listeners.forEach((listener) => listener?.remove());
-      clearPolylines(overlays);
-    };
+    // Đường không còn trong props → gỡ khỏi bản đồ
+    pool.forEach((entry, id) => {
+      if (!seenIds.has(id)) {
+        entry.listeners.forEach((listener) => listener?.remove());
+        entry.overlay.setMap(null);
+        pool.delete(id);
+      }
+    });
   }, [polylines, readyMap]);
 
   // Marker dạng Symbol (nhãn bubble / điểm kéo) — cần thư viện marker; thiếu thì
@@ -713,6 +816,18 @@ export default function GoogleMapCanvas({
       pool.clear();
       pointInfoWindowRef.current?.close();
       pointInfoWindowRef.current = null;
+    };
+  }, []);
+
+  // Cùng lý do, cho pool polyline
+  useEffect(() => {
+    const pool = polylinePoolRef.current;
+    return () => {
+      pool.forEach((entry) => {
+        entry.listeners.forEach((listener) => listener?.remove());
+        entry.overlay.setMap(null);
+      });
+      pool.clear();
     };
   }, []);
 

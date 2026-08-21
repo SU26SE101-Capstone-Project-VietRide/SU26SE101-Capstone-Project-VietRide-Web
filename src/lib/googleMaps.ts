@@ -97,9 +97,24 @@ type GooglePolylineIcon = {
 
 type GooglePolylineOptions = {
   clickable?: boolean;
+  // Con trỏ khi rê chuột lên đường — "grab" cho đường kéo nắn được, "pointer"
+  // cho đường chỉ bấm chọn. Không đặt thì đường dùng con trỏ của bản đồ.
+  cursor?: string;
   icons?: GooglePolylineIcon[];
   map: GoogleMapInstance;
   path: GoogleMapCoordinate[];
+  strokeColor?: string;
+  strokeOpacity?: number;
+  strokeWeight?: number;
+  zIndex?: number;
+};
+
+// Tập option đổi được tại chỗ qua polyline.setOptions — đủ để reconcile mà không
+// phải gỡ + vẽ lại instance (xem pool polyline trong GoogleMapCanvas)
+export type GooglePolylineOptionUpdates = {
+  clickable?: boolean;
+  cursor?: string;
+  icons?: GooglePolylineIcon[];
   strokeColor?: string;
   strokeOpacity?: number;
   strokeWeight?: number;
@@ -112,6 +127,10 @@ export type GooglePolylineInstance = {
     handler: (event?: GoogleMapMouseEvent) => void,
   ) => GoogleMapsEventListener;
   setMap: (map: GoogleMapInstance | null) => void;
+  // Optional (mock/test cũ không gãy): đổi hình dạng/kiểu vẽ TẠI CHỖ thay vì gỡ
+  // + vẽ lại. Thiếu hai hàm này thì pool tự fallback về tạo instance mới.
+  setPath?: (path: GoogleMapCoordinate[]) => void;
+  setOptions?: (options: GooglePolylineOptionUpdates) => void;
 };
 
 // Nhãn chữ hiển thị trên marker (bubble thời lượng phương án đường)

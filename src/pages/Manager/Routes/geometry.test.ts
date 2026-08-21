@@ -6,9 +6,11 @@ import {
   dedupeRouteOptions,
   excludeMatchingRouteOptions,
   findMatchingRouteOption,
+  findPathAnchorWindow,
   findRouteLabelAnchor,
   isTruckDetour,
   requestRoadGeometry,
+  splicePathSegment,
   type RoadRouteOption,
 } from "./geometry";
 import { encodeGooglePolyline } from "./polyline";
@@ -383,5 +385,83 @@ describe("findRouteLabelAnchor", () => {
 
     // Chỗ tách rộng nhất (107.0) nằm sát bubble đã đặt → lùi sang chỗ tách kia
     expect(anchor?.longitude).toBe(106.95);
+  });
+});
+
+describe("findPathAnchorWindow + splicePathSegment", () => {
+  // Đường ngang 6 đỉnh, mỗi đỉnh cách nhau 0.01 độ kinh — đủ để đọc kết quả bằng mắt
+  const path = [
+    { latitude: 10, longitude: 106.0 },
+    { latitude: 10, longitude: 106.01 },
+    { latitude: 10, longitude: 106.02 },
+    { latitude: 10, longitude: 106.03 },
+    { latitude: 10, longitude: 106.04 },
+    { latitude: 10, longitude: 106.05 },
+  ];
+
+  it("bounds the leg by the anchors nearest the dragged point", () => {
+    expect(
+      findPathAnchorWindow(
+        path,
+        [
+          { latitude: 10, longitude: 106.01 },
+          { latitude: 10, longitude: 106.04 },
+        ],
+        { latitude: 10, longitude: 106.025 },
+      ),
+    ).toEqual({ previousIndex: 1, nextIndex: 4 });
+  });
+
+  it("falls back to the whole path when there is no anchor around", () => {
+    expect(
+      findPathAnchorWindow(path, [], { latitude: 10, longitude: 106.02 }),
+    ).toEqual({ previousIndex: 0, nextIndex: 5 });
+  });
+
+  it("ignores an anchor sitting on the same vertex as the dragged point", () => {
+    // Mỏ neo trùng đỉnh của điểm đang kéo mà tính vào thì cửa sổ co về rỗng
+    // và không còn chặng nào để tính lại
+    expect(
+      findPathAnchorWindow(
+        path,
+        [{ latitude: 10, longitude: 106.02 }],
+        { latitude: 10, longitude: 106.02 },
+      ),
+    ).toEqual({ previousIndex: 0, nextIndex: 5 });
+  });
+
+  it("returns null for a path too short to splice", () => {
+    expect(
+      findPathAnchorWindow([{ latitude: 10, longitude: 106 }], [], {
+        latitude: 10,
+        longitude: 106,
+      }),
+    ).toBeNull();
+  });
+
+  it("replaces exactly the leg and keeps the rest of the road shape", () => {
+    // Google trả hình chặng path[1] → path[4] có ghé qua điểm kéo; hai đầu đã
+    // trùng sẵn nên ghép xong không có mối nối gãy
+    const segment = [
+      { latitude: 10, longitude: 106.01 },
+      { latitude: 10.5, longitude: 106.025 },
+      { latitude: 10, longitude: 106.04 },
+    ];
+
+    expect(
+      splicePathSegment(path, { previousIndex: 1, nextIndex: 4 }, segment),
+    ).toEqual([
+      { latitude: 10, longitude: 106.0 },
+      { latitude: 10, longitude: 106.01 },
+      { latitude: 10.5, longitude: 106.025 },
+      { latitude: 10, longitude: 106.04 },
+      { latitude: 10, longitude: 106.05 },
+    ]);
+  });
+
+  it("leaves the path untouched when the segment is empty", () => {
+    expect(
+      splicePathSegment(path, { previousIndex: 1, nextIndex: 4 }, []),
+    ).toEqual(path);
   });
 });

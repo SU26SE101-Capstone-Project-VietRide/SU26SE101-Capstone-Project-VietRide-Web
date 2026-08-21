@@ -685,4 +685,155 @@ describe("GoogleMapCanvas", () => {
 
     await waitFor(() => expect(setZoom).toHaveBeenCalledWith(14));
   });
+  it("reuses a polyline instance when only its path changes", async () => {
+    // Kéo nắn đường đổi path mỗi nhịp chuột. Trước đây mỗi lần đổi là gỡ + dựng
+    // lại TOÀN BỘ polyline (vài nghìn đỉnh) → đường nháy và giật; pool reconcile
+    // theo id phải giữ nguyên instance và chỉ gọi setPath.
+    const polylineCreated = vi.fn();
+    const setPath = vi.fn();
+    const setPolylineOptions = vi.fn();
+    const polylineRemoved = vi.fn();
+
+    class Map {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      fitBounds() {}
+
+      panTo() {}
+
+      setCenter() {}
+
+      setZoom() {}
+    }
+
+    class Circle {
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      setMap() {}
+    }
+
+    class InfoWindow {
+      close() {}
+
+      open() {}
+
+      setContent() {}
+
+      setPosition() {}
+    }
+
+    class LatLngBounds {
+      extend() {}
+
+      isEmpty() {
+        return true;
+      }
+    }
+
+    class Polyline {
+      constructor() {
+        polylineCreated();
+      }
+
+      addListener() {
+        return { remove: vi.fn() };
+      }
+
+      setMap(map: unknown) {
+        if (map === null) {
+          polylineRemoved();
+        }
+      }
+
+      setOptions(options: unknown) {
+        setPolylineOptions(options);
+      }
+
+      setPath(path: unknown) {
+        setPath(path);
+      }
+    }
+
+    loadGoogleMapsLibraryMock.mockResolvedValue({
+      Circle,
+      InfoWindow,
+      LatLngBounds,
+      Map,
+      Polyline,
+    } as unknown as GoogleMapsLibrary);
+
+    const mapCenter = { lat: 10.8, lng: 106.7 };
+    const firstPath = [
+      { lat: 10.8, lng: 106.7 },
+      { lat: 10.9, lng: 106.8 },
+    ];
+
+    const view = render(
+      <GoogleMapCanvas
+        ariaLabel="Route map"
+        center={mapCenter}
+        polylines={[{ color: "#0f766e", id: "route", path: firstPath }]}
+        zoom={12}
+      />,
+    );
+
+    await waitFor(() => expect(polylineCreated).toHaveBeenCalledTimes(1));
+
+    const secondPath = [
+      { lat: 10.8, lng: 106.7 },
+      { lat: 10.85, lng: 106.9 },
+      { lat: 10.9, lng: 106.8 },
+    ];
+
+    view.rerender(
+      <GoogleMapCanvas
+        ariaLabel="Route map"
+        center={mapCenter}
+        polylines={[{ color: "#0f766e", id: "route", path: secondPath }]}
+        zoom={12}
+      />,
+    );
+
+    await waitFor(() => expect(setPath).toHaveBeenCalledWith(secondPath));
+    expect(polylineCreated).toHaveBeenCalledTimes(1);
+    expect(polylineRemoved).not.toHaveBeenCalled();
+    // Kiểu vẽ không đổi → không đụng setOptions
+    expect(setPolylineOptions).not.toHaveBeenCalled();
+
+    // Đổi độ dày (vd đường trở thành đường đang chọn) → setOptions tại chỗ,
+    // vẫn không dựng lại instance
+    view.rerender(
+      <GoogleMapCanvas
+        ariaLabel="Route map"
+        center={mapCenter}
+        polylines={[
+          { color: "#0f766e", id: "route", path: secondPath, weight: 8 },
+        ]}
+        zoom={12}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(setPolylineOptions).toHaveBeenCalledWith(
+        expect.objectContaining({ strokeWeight: 8 }),
+      ),
+    );
+    expect(polylineCreated).toHaveBeenCalledTimes(1);
+
+    // Đường biến mất khỏi props → gỡ khỏi bản đồ
+    view.rerender(
+      <GoogleMapCanvas
+        ariaLabel="Route map"
+        center={mapCenter}
+        polylines={[]}
+        zoom={12}
+      />,
+    );
+
+    await waitFor(() => expect(polylineRemoved).toHaveBeenCalled());
+  });
 });

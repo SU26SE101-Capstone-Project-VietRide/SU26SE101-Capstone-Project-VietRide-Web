@@ -47,6 +47,39 @@ const durationBubblePath =
   "M -24 -12 H 24 A 12 12 0 0 1 24 12 H -24 A 12 12 0 0 1 -24 -12 Z";
 // Symbol path: chấm tròn cho điểm nắn lộ trình kéo được
 const viaPointPath = "M 0 -9 a 9 9 0 1 1 0 18 a 9 9 0 1 1 0 -18 Z";
+// Cùng hình nhưng nhỏ hơn: "tay nắm ma" bám con trỏ khi rê dọc đường đang chọn
+const hoverHandlePath = "M 0 -6 a 6 6 0 1 1 0 12 a 6 6 0 1 1 0 -12 Z";
+
+// Bề rộng vùng bắt chuột vô hình đè lên mỗi đường tương tác. Nét vẽ chỉ 4–6px,
+// bắt user trỏ trúng đúng vệt đó mới túm/bấm được là lý do lớn khiến thao tác
+// bị chê khó — Google Maps cũng có vùng bắt rộng hơn nét vẽ nhiều lần.
+const hitLineWeight = 18;
+
+// Bản sao trong suốt, rộng hơn, của một đường tương tác. Đặt TRƯỚC đường thật
+// trong mảng: cùng zIndex thì overlay thêm sau nổi lên trên, nên nét vẽ vẫn bắt
+// sự kiện ở giữa và bản sao lo phần rìa. Đường đứt nét bỏ `dashed` ở bản sao —
+// vùng bắt phải liền mạch, không thủng theo từng gạch.
+function withHitLayer(line: GoogleMapPolyline): GoogleMapPolyline[] {
+  // Chỉ nới vùng bắt cho đường TÚM ĐƯỢC và đường mờ bấm-để-chọn. Đường đang
+  // chọn nhưng chưa áp (chỉ click-để-áp-phương-án) không được nới: lớp 18px của
+  // nó sẽ trùm lên các phương án mờ chạy sát bên và user hết bấm chọn được.
+  const grabbable = Boolean(line.onMouseDown);
+  const dimSelectable = (line.opacity ?? 1) < 1 && Boolean(line.onClick);
+  if (!grabbable && !dimSelectable) {
+    return [line];
+  }
+
+  return [
+    {
+      ...line,
+      dashed: false,
+      id: `${line.id}-hit`,
+      opacity: 0,
+      weight: hitLineWeight,
+    },
+    line,
+  ];
+}
 
 // Vị trí bubble thời lượng dọc theo đường theo index phương án (40%/55%/70%
 // chiều dài) — tránh 2 bubble đè nhau khi các phương án bám sát nhau
@@ -311,12 +344,22 @@ export default function RouteDesignMap({
   // Đang kéo điểm nắn bằng drag NATIVE của marker (không phải gesture túm đường)
   const [isMarkerDragging, setIsMarkerDragging] = useState(false);
   // Index + vị trí đang kéo native — cùng vai trò activeGrab nhưng cho nhánh
-  // kéo marker chấm tròn (thay vì túm thân đường): dùng để dựng đường xem
-  // trước nối thẳng qua điểm đang kéo, xem dragPreviewPath bên dưới.
+  // kéo marker chấm tròn (thay vì túm thân đường): gộp thành activeDragPoint
+  // để biết "đang có gesture kéo" mà tắt chấm bám con trỏ + ngưng đồng bộ camera.
   const [nativeDragPoint, setNativeDragPoint] = useState<{
     index: number;
     position: GoogleMapCoordinate;
   } | null>(null);
+  // Tay nắm "ma" bám con trỏ khi rê dọc đường đang chọn — Google Maps hiện một
+  // chấm trắng nhỏ tại chỗ sắp cắm điểm nắn, nhìn phát là biết đường này túm
+  // được (trước đây không có tín hiệu gì, user phải thử mới biết). Marker này
+  // KHÔNG clickable nên mousedown vẫn rơi xuống polyline và vào gesture kéo.
+  const [hoverHandle, setHoverHandle] = useState<GoogleMapCoordinate | null>(
+    null,
+  );
+  // mousemove bắn dày hơn nhịp vẽ — gộp về 1 lần setState mỗi khung hình
+  const hoverFrameRef = useRef<number | null>(null);
+  const pendingHoverRef = useRef<GoogleMapCoordinate | null>(null);
   // Hàm chốt gesture đang chạy — gọi khi unmount giữa chừng để không rò listener
   const grabCleanupRef = useRef<(() => void) | null>(null);
   // Sau mouseup của gesture, Google còn bắn thêm "click" trên polyline — chặn
@@ -329,85 +372,119 @@ export default function RouteDesignMap({
     };
   }, []);
 
+  const clearHoverHandle = useCallback(() => {
+    pendingHoverRef.current = null;
+    if (hoverFrameRef.current !== null) {
+      window.cancelAnimationFrame(hoverFrameRef.current);
+      hoverFrameRef.current = null;
+    }
+
+    setHoverHandle(null);
+  }, []);
+
+  const trackHoverHandle = useCallback((position: GoogleMapCoordinate) => {
+    pendingHoverRef.current = position;
+    if (hoverFrameRef.current !== null) {
+      return;
+    }
+
+    hoverFrameRef.current = window.requestAnimationFrame(() => {
+      hoverFrameRef.current = null;
+      setHoverHandle(pendingHoverRef.current);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverFrameRef.current !== null) {
+        window.cancelAnimationFrame(hoverFrameRef.current);
+      }
+    };
+  }, []);
+
   // Bắt đầu kéo nắn từ mousedown trên thân đường đang chọn: cắm điểm nắn ngay
   // dưới chuột, khoá kéo bản đồ, theo mousemove cập nhật marker + preview
   // (hook tự throttle), mouseup → mở lại kéo bản đồ + chốt reroute như dragend.
-  const beginPolylineGrab = useCallback((position: GoogleMapCoordinate) => {
-    const map = mapRef.current;
-    const begin = callbacksRef.current.onBeginViaDrag;
-    // Không đủ khả năng chạy gesture (map chưa sẵn sàng / mock không hỗ trợ)
-    // → bỏ qua, click fallback trên đường vẫn cắm điểm nắn được
-    if (!map?.setOptions || !begin) {
-      return;
-    }
-
-    const index = begin({ latitude: position.lat, longitude: position.lng });
-    if (index < 0) {
-      return;
-    }
-
-    suppressLineClickRef.current = true;
-    map.setOptions({
-      draggable: false,
-      draggableCursor: "grabbing",
-      draggingCursor: "grabbing",
-    });
-    setActiveGrab({ index, position });
-
-    let lastPosition = position;
-    let finished = false;
-    let upListener: GoogleMapsEventListener | null = null;
-    const moveListener = map.addListener("mousemove", (event) => {
-      if (!event?.latLng) {
+  const beginPolylineGrab = useCallback(
+    (position: GoogleMapCoordinate) => {
+      const map = mapRef.current;
+      const begin = callbacksRef.current.onBeginViaDrag;
+      // Không đủ khả năng chạy gesture (map chưa sẵn sàng / mock không hỗ trợ)
+      // → bỏ qua, click fallback trên đường vẫn cắm điểm nắn được
+      if (!map?.setOptions || !begin) {
         return;
       }
 
-      lastPosition = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-      setActiveGrab({ index, position: lastPosition });
-      callbacksRef.current.onDragViaPoint?.(index, {
-        latitude: lastPosition.lat,
-        longitude: lastPosition.lng,
-      });
-    });
-
-    const finish = () => {
-      if (finished) {
+      const index = begin({ latitude: position.lat, longitude: position.lng });
+      if (index < 0) {
         return;
       }
 
-      finished = true;
-      grabCleanupRef.current = null;
-      moveListener.remove();
-      upListener?.remove();
-      window.removeEventListener("mouseup", handleWindowMouseUp);
-      // Optional chaining: guard đầu hàm không narrow được vào closure chạy sau
-      map.setOptions?.({
-        draggable: true,
-        draggableCursor: "",
-        draggingCursor: "",
+      suppressLineClickRef.current = true;
+      clearHoverHandle();
+      map.setOptions({
+        draggable: false,
+        draggableCursor: "grabbing",
+        draggingCursor: "grabbing",
       });
-      setActiveGrab(null);
-      callbacksRef.current.onMoveViaPoint?.(index, {
-        latitude: lastPosition.lat,
-        longitude: lastPosition.lng,
-      });
-      // Click "trễ" của Google tới ngay sau mouseup — nhả cờ chặn sau một nhịp
-      window.setTimeout(() => {
-        suppressLineClickRef.current = false;
-      }, 250);
-    };
+      setActiveGrab({ index, position });
 
-    upListener = map.addListener("mouseup", (event) => {
-      if (event?.latLng) {
+      let lastPosition = position;
+      let finished = false;
+      let upListener: GoogleMapsEventListener | null = null;
+      const moveListener = map.addListener("mousemove", (event) => {
+        if (!event?.latLng) {
+          return;
+        }
+
         lastPosition = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-      }
-      finish();
-    });
-    // Thả chuột NGOÀI bản đồ (kéo ra khỏi khung) → vẫn phải chốt gesture
-    const handleWindowMouseUp = () => finish();
-    window.addEventListener("mouseup", handleWindowMouseUp);
-    grabCleanupRef.current = finish;
-  }, []);
+        setActiveGrab({ index, position: lastPosition });
+        callbacksRef.current.onDragViaPoint?.(index, {
+          latitude: lastPosition.lat,
+          longitude: lastPosition.lng,
+        });
+      });
+
+      const finish = () => {
+        if (finished) {
+          return;
+        }
+
+        finished = true;
+        grabCleanupRef.current = null;
+        moveListener.remove();
+        upListener?.remove();
+        window.removeEventListener("mouseup", handleWindowMouseUp);
+        // Optional chaining: guard đầu hàm không narrow được vào closure chạy sau
+        map.setOptions?.({
+          draggable: true,
+          draggableCursor: "",
+          draggingCursor: "",
+        });
+        setActiveGrab(null);
+        callbacksRef.current.onMoveViaPoint?.(index, {
+          latitude: lastPosition.lat,
+          longitude: lastPosition.lng,
+        });
+        // Click "trễ" của Google tới ngay sau mouseup — nhả cờ chặn sau một nhịp
+        window.setTimeout(() => {
+          suppressLineClickRef.current = false;
+        }, 250);
+      };
+
+      upListener = map.addListener("mouseup", (event) => {
+        if (event?.latLng) {
+          lastPosition = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+        }
+        finish();
+      });
+      // Thả chuột NGOÀI bản đồ (kéo ra khỏi khung) → vẫn phải chốt gesture
+      const handleWindowMouseUp = () => finish();
+      window.addEventListener("mouseup", handleWindowMouseUp);
+      grabCleanupRef.current = finish;
+    },
+    [clearHoverHandle],
+  );
 
   const displayedPath = pathPoints.length > 0 ? pathPoints : points;
   const center: GoogleMapCoordinate = useMemo(
@@ -432,37 +509,13 @@ export default function RouteDesignMap({
     () => toMapPath(displayedPath),
     [displayedPath],
   );
-  // Xem trước dạng đường thẳng nối qua điểm đang kéo (gesture túm thân đường
-  // HOẶC kéo native marker chấm tròn): bám tay chuột NGAY LẬP TỨC, không đợi
-  // request tính đường bộ thật (throttle 350ms/50m — xem useRouteGeometry.ts,
-  // mức owner đã duyệt vì API tính tiền theo request, không hạ thấp thêm).
-  // Khi throttle trả kết quả mới, đường thật (routeOptions/pathPoints) thay
-  // chỗ bản xem trước này.
+  // Trong lúc kéo (gesture túm thân đường HOẶC kéo native marker chấm tròn),
+  // đường KHÔNG được vẽ tạm bằng đoạn thẳng: Google Maps giữ đường bám mặt
+  // đường suốt thao tác, chỉ chấm trắng chạy theo tay. Đường ở đây cũng vậy —
+  // useRouteGeometry tính lại đúng chặng đang nắn (request nhỏ, về nhanh) rồi
+  // ghép vào pathPoints, nên displayedPath luôn là đường bộ thật.
+  // Biến này chỉ còn dùng để tạm ngưng đồng bộ camera + tắt chấm bám con trỏ.
   const activeDragPoint = activeGrab ?? nativeDragPoint;
-  const dragPreviewPath = useMemo(() => {
-    if (!activeDragPoint || displayedPath.length < 2) {
-      return null;
-    }
-
-    const start = displayedPath[0];
-    const end = displayedPath[displayedPath.length - 1];
-    const draggedPoint: RouteCoordinate = {
-      latitude: activeDragPoint.position.lat,
-      longitude: activeDragPoint.position.lng,
-    };
-    const viaList =
-      activeDragPoint.index >= viaPoints.length
-        ? [...viaPoints, draggedPoint]
-        : viaPoints.map((point, index) =>
-            index === activeDragPoint.index ? draggedPoint : point,
-          );
-
-    return [start, ...viaList, end];
-  }, [activeDragPoint, displayedPath, viaPoints]);
-  const dragPreviewLinePositions = useMemo(
-    () => (dragPreviewPath ? toMapPath(dragPreviewPath) : null),
-    [dragPreviewPath],
-  );
   // Đường tham chiếu (tuyến chính) khi soạn tuyến thay thế — vẽ mờ, không bắt
   // sự kiện (không onClick/onMouseDown), zIndex thấp nhất để luôn nằm dưới.
   const referenceLinePositions = useMemo(
@@ -563,67 +616,87 @@ export default function RouteDesignMap({
           : []),
       ]
         .sort((first, second) => first.zIndex - second.zIndex)
-        .map(
-          (line): GoogleMapPolyline => ({
+        .map((line): GoogleMapPolyline => {
+          // Đường đang chọn và ĐÃ ÁP: vừa là đường kéo nắn được, vừa là đường
+          // phải vẽ theo pathPoints (xem `path` bên dưới)
+          const isAppliedSelection = line.selected && hasSavedOrDraftPath;
+
+          return {
             // Tuyến đang chọn giữ màu chính; phương án chưa chọn cùng tông nhưng nhạt.
             color: line.selected ? activeColor : dimmedColor,
+            // "grab" trên đường nắn được, "pointer" trên đường chỉ bấm chọn —
+            // con trỏ là tín hiệu đầu tiên user thấy trước khi thử thao tác
+            cursor: isAppliedSelection && canGrabLine ? "grab" : "pointer",
             id: line.isSavedPath
               ? "route-geometry"
               : `route-option-${line.index}`,
-            onClick:
-              line.selected && hasSavedOrDraftPath
-                ? addViaPoint
-                : canSelectOption
-                  ? () => callbacksRef.current.onSelectOption?.(line.index)
-                  : undefined,
-            onMouseDown:
-              line.selected && hasSavedOrDraftPath ? grabLine : undefined,
+            onClick: isAppliedSelection
+              ? addViaPoint
+              : canSelectOption
+                ? () => callbacksRef.current.onSelectOption?.(line.index)
+                : undefined,
+            onMouseDown: isAppliedSelection ? grabLine : undefined,
+            // Chấm trắng bám con trỏ chỉ vẽ trên đường TÚM ĐƯỢC — trên đường mờ
+            // nó sẽ hứa hẹn sai (bấm vào đó là đổi phương án, không phải nắn)
+            onMouseMove:
+              isAppliedSelection && canGrabLine ? trackHoverHandle : undefined,
+            onMouseOut:
+              isAppliedSelection && canGrabLine ? clearHoverHandle : undefined,
             // Màu đã pha nhạt sẵn nên giữ opacity cao — mờ thêm nữa là chìm vào
             // nền bản đồ, đúng thứ user phàn nàn ở bản màu tím/cam trước
             opacity: line.selected ? 1 : 0.9,
-            // Đang kéo nắn đường này → bám thẳng qua điểm dưới tay chuột thay
-            // vì đợi request tính đường bộ thật (xem dragPreviewLinePositions)
-            path:
-              line.selected && dragPreviewLinePositions
-                ? dragPreviewLinePositions
-                : line.path,
+            // Đường đang chọn ĐÃ ÁP vẽ từ pathPoints, KHÔNG từ option.points.
+            // Lúc tĩnh hai cái bằng nhau (applyRouteOption gán pathPoints =
+            // points của phương án đang chọn), nhưng trong lúc kéo nắn chỉ
+            // pathPoints được cập nhật theo chặng vừa tính lại — đọc
+            // option.points thì đường đứng im, chỉ có chấm chạy theo tay.
+            path: isAppliedSelection ? linePositions : line.path,
             weight: line.selected ? 6 : 4,
             zIndex: line.zIndex,
-          }),
-        )
-        .flatMap((line) =>
-          // Đường mờ (chưa chọn) chỉ vẽ mảnh 4px — thêm lớp "vùng bắt click"
-          // rộng vô hình đè lên trên để bấm gần đường vẫn chọn được luôn,
-          // không phải rê chuột trúng đúng vệt mảnh mới đổi được tuyến. Tách
-          // bước map thành ref/closure trước rồi flatMap thuần trên object đã
-          // dựng xong (không đọc ref ở đây) để không dính rule react-hooks/refs.
-          line.opacity === 1 || !line.onClick
-            ? [line]
-            : [
-                {
-                  ...line,
-                  id: `${line.id}-hit`,
-                  opacity: 0,
-                  weight: 18,
-                },
-                line,
-              ],
-        );
+          };
+        })
+        .flatMap(withHitLayer);
     }
+
+    // Đường đơn: vẽ lớp vùng bắt rộng vô hình TRƯỚC, nét thật sau (cùng zIndex
+    // thì overlay thêm sau nổi lên trên). Viết tay hai object thay vì gọi
+    // withHitLayer — truyền object chứa closure đọc suppressLineClickRef vào
+    // một hàm bị rule react-hooks/refs coi là đọc ref trong lúc render.
+    const singleLineGrabbable = hasSavedOrDraftPath && canGrabLine;
 
     return linePositions.length > 1
       ? [
+          ...(hasSavedOrDraftPath
+            ? [
+                {
+                  color: activeColor,
+                  cursor: singleLineGrabbable ? "grab" : undefined,
+                  id: "route-geometry-hit",
+                  onClick: addViaPoint,
+                  onMouseDown: grabLine,
+                  onMouseMove: singleLineGrabbable
+                    ? trackHoverHandle
+                    : undefined,
+                  onMouseOut: singleLineGrabbable
+                    ? clearHoverHandle
+                    : undefined,
+                  opacity: 0,
+                  path: linePositions,
+                  weight: hitLineWeight,
+                },
+              ]
+            : []),
           {
             color: hasSavedOrDraftPath ? activeColor : "#64748b",
+            cursor: singleLineGrabbable ? "grab" : undefined,
             id: "route-geometry",
             // Đường đơn (1 phương án sau khi nắn / đường đã lưu) cũng nắn tiếp được
             onClick: hasSavedOrDraftPath ? addViaPoint : undefined,
             onMouseDown: hasSavedOrDraftPath ? grabLine : undefined,
+            onMouseMove: singleLineGrabbable ? trackHoverHandle : undefined,
+            onMouseOut: singleLineGrabbable ? clearHoverHandle : undefined,
             opacity: hasSavedOrDraftPath ? 1 : 0.62,
-            path:
-              hasSavedOrDraftPath && dragPreviewLinePositions
-                ? dragPreviewLinePositions
-                : linePositions,
+            path: linePositions,
             weight: hasSavedOrDraftPath ? 5 : 3,
           },
         ]
@@ -634,13 +707,14 @@ export default function RouteDesignMap({
     canAddViaPoint,
     canGrabLine,
     canSelectOption,
+    clearHoverHandle,
     dimmedColor,
-    dragPreviewLinePositions,
     hasSavedOrDraftPath,
     linePositions,
     routeOptions,
     selectedOptionIndex,
     showOptionOverlay,
+    trackHoverHandle,
   ]);
 
   // Nhãn bubble thời lượng + marker điểm nắn tách thành 2 memo RIÊNG rồi mới gộp:
@@ -726,66 +800,66 @@ export default function RouteDesignMap({
 
     return selectedLabels.concat(
       routeOptions
-      .map((option, index): GoogleMapPointMarker | null => {
-      const selected = index === selectedOptionIndex;
-      // Phương án đang chọn đã có bubble tô đặc ở trên, không vẽ chồng lần nữa.
-      if (selected || option.points.length === 0) {
-        return null;
-      }
-      // Bubble phải nằm trên ĐOẠN TÁCH của chính phương án này, không phải trên
-      // đoạn nó trùng tuyến đang chọn (nhìn ra sẽ tưởng nhãn của tuyến chính).
-      // Hai đường gần như trùng khít → không có đoạn riêng, lùi về vị trí theo
-      // tỉ lệ chiều dài (40%/55%/70%, lệch nhau theo index cho khỏi chồng).
-      const divergentAnchor = findRouteLabelAnchor(
-        option.points,
-        referencePoints,
-        takenAnchors,
-      );
-      const fraction =
-        bubblePositionFractions[index % bubblePositionFractions.length];
-      const midPoint =
-        divergentAnchor ??
-        option.points[
-          Math.min(
-            option.points.length - 1,
-            Math.floor(option.points.length * fraction),
-          )
-        ];
-      takenAnchors.push(midPoint);
-      const duration = formatDuration(option.estimatedDurationMinutes);
+        .map((option, index): GoogleMapPointMarker | null => {
+          const selected = index === selectedOptionIndex;
+          // Phương án đang chọn đã có bubble tô đặc ở trên, không vẽ chồng lần nữa.
+          if (selected || option.points.length === 0) {
+            return null;
+          }
+          // Bubble phải nằm trên ĐOẠN TÁCH của chính phương án này, không phải trên
+          // đoạn nó trùng tuyến đang chọn (nhìn ra sẽ tưởng nhãn của tuyến chính).
+          // Hai đường gần như trùng khít → không có đoạn riêng, lùi về vị trí theo
+          // tỉ lệ chiều dài (40%/55%/70%, lệch nhau theo index cho khỏi chồng).
+          const divergentAnchor = findRouteLabelAnchor(
+            option.points,
+            referencePoints,
+            takenAnchors,
+          );
+          const fraction =
+            bubblePositionFractions[index % bubblePositionFractions.length];
+          const midPoint =
+            divergentAnchor ??
+            option.points[
+              Math.min(
+                option.points.length - 1,
+                Math.floor(option.points.length * fraction),
+              )
+            ];
+          takenAnchors.push(midPoint);
+          const duration = formatDuration(option.estimatedDurationMinutes);
 
-      return {
-        cursor: "pointer",
-        icon: {
-          fillColor: "#ffffff",
-          fillOpacity: 1,
-          path: durationBubblePath,
-          scale: 1,
-          strokeColor: dimmedColor,
-          strokeWeight: 2,
-        },
-        id: `route-option-label-${index}`,
-        label: {
-          color: dimmedColor,
-          fontSize: "11px",
-          fontWeight: "600",
-          text: duration,
-        },
-        onClick: canSelectOption
-          ? () => callbacksRef.current.onSelectOption?.(index)
-          : undefined,
-        position: {
-          lat: midPoint.latitude,
-          lng: midPoint.longitude,
-        },
-        title: t("routes.routeOptionLabel", {
-          index: index + 1,
-          duration,
-          km: option.totalDistanceKm,
-        }),
-        zIndex: 4,
-      };
-    })
+          return {
+            cursor: "pointer",
+            icon: {
+              fillColor: "#ffffff",
+              fillOpacity: 1,
+              path: durationBubblePath,
+              scale: 1,
+              strokeColor: dimmedColor,
+              strokeWeight: 2,
+            },
+            id: `route-option-label-${index}`,
+            label: {
+              color: dimmedColor,
+              fontSize: "11px",
+              fontWeight: "600",
+              text: duration,
+            },
+            onClick: canSelectOption
+              ? () => callbacksRef.current.onSelectOption?.(index)
+              : undefined,
+            position: {
+              lat: midPoint.latitude,
+              lng: midPoint.longitude,
+            },
+            title: t("routes.routeOptionLabel", {
+              index: index + 1,
+              duration,
+              km: option.totalDistanceKm,
+            }),
+            zIndex: 4,
+          };
+        })
         .filter((marker): marker is GoogleMapPointMarker => marker !== null),
     );
   }, [
@@ -1023,9 +1097,38 @@ export default function RouteDesignMap({
     });
   }, [suggestions]);
 
+  // Chấm trắng nhỏ bám con trỏ dọc đường đang chọn — chỉ là gợi ý thị giác nên
+  // KHÔNG có onClick/infoTitle: GoogleMapCanvas dựng marker với clickable=false,
+  // mousedown xuyên qua nó tới polyline bên dưới và vào gesture kéo như thường.
+  // Tắt ngay khi gesture bắt đầu (activeDragPoint) — lúc đó đã có marker điểm
+  // nắn thật dưới tay, thêm chấm ma nữa là thừa.
+  const hoverHandleMarkers: GoogleMapPointMarker[] = useMemo(() => {
+    if (!hoverHandle || activeDragPoint) {
+      return noPointMarkers;
+    }
+
+    return [
+      {
+        icon: {
+          fillColor: "#ffffff",
+          fillOpacity: 1,
+          path: hoverHandlePath,
+          scale: 1,
+          strokeColor: activeColor,
+          strokeOpacity: 0.85,
+          strokeWeight: 3,
+        },
+        id: "via-point-hover-handle",
+        position: hoverHandle,
+        zIndex: 4,
+      },
+    ];
+  }, [activeColor, activeDragPoint, hoverHandle]);
+
   const mapPointMarkers: GoogleMapPointMarker[] = useMemo(
     () =>
       durationLabels === noPointMarkers &&
+      hoverHandleMarkers === noPointMarkers &&
       viaPointMarkers === noPointMarkers &&
       routeEndpointMarkers === noPointMarkers &&
       routeStopMarkers === noPointMarkers &&
@@ -1034,6 +1137,7 @@ export default function RouteDesignMap({
         ? noPointMarkers
         : [
             ...durationLabels,
+            ...hoverHandleMarkers,
             ...viaPointMarkers,
             ...routeEndpointMarkers,
             ...referenceStopMarkers,
@@ -1042,6 +1146,7 @@ export default function RouteDesignMap({
           ],
     [
       durationLabels,
+      hoverHandleMarkers,
       referenceStopMarkers,
       routeEndpointMarkers,
       routeStopMarkers,
@@ -1135,16 +1240,16 @@ export default function RouteDesignMap({
       onClose={() => setActiveSuggestion(null)}
     >
       {showPickupDropoffOptions && (
-      <div className="mt-2 flex items-center gap-4">
-        <label className="flex items-center gap-1.5 text-xs text-gray-700">
-          <Checkbox checked={allowPickup} onChange={setAllowPickup} />
-          {t("routes.allowPickup")}
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-gray-700">
-          <Checkbox checked={allowDropoff} onChange={setAllowDropoff} />
-          {t("routes.allowDropoff")}
-        </label>
-      </div>
+        <div className="mt-2 flex items-center gap-4">
+          <label className="flex items-center gap-1.5 text-xs text-gray-700">
+            <Checkbox checked={allowPickup} onChange={setAllowPickup} />
+            {t("routes.allowPickup")}
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-gray-700">
+            <Checkbox checked={allowDropoff} onChange={setAllowDropoff} />
+            {t("routes.allowDropoff")}
+          </label>
+        </div>
       )}
       <button
         type="button"
