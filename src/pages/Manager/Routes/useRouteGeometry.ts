@@ -23,8 +23,11 @@ import {
   distanceKmBetween,
   excludeMatchingRouteOptions,
   findMatchingRouteOption,
+  findPathAnchorWindow,
   isTruckDetour,
   requestRoadGeometry,
+  splicePathSegment,
+  type PathAnchorWindow,
   type RoadGeometryOptions,
   type RoadRouteOption,
   type RouteTravelMode,
@@ -41,6 +44,36 @@ import type { TranslateFn } from "./types";
 // cho cảm giác "ì" — preview đi sau tay quá xa).
 const dragRecomputeThrottleMs = 350;
 const dragRecomputeMinMeters = 50;
+
+// Trạng thái throttle của stream drag
+type DragPreviewState = {
+  lastRunAt: number;
+  lastPoint: RouteCoordinate | null;
+};
+
+// Lượt kéo này có được phép gọi Google không (đủ xa lượt trước cả về thời gian
+// lẫn quãng đường)? Trả về state mới, hoặc null nếu phải bỏ qua.
+// Để ở module scope vì `Date.now()` gọi trong thân hook bị react-hooks/purity
+// chặn — compiler không phân biệt được event handler với code chạy lúc render.
+function nextDragPreviewState(
+  current: DragPreviewState,
+  point: RouteCoordinate,
+): DragPreviewState | null {
+  const now = Date.now();
+
+  if (now - current.lastRunAt < dragRecomputeThrottleMs) {
+    return null;
+  }
+
+  if (
+    current.lastPoint &&
+    distanceKmBetween(current.lastPoint, point) * 1000 < dragRecomputeMinMeters
+  ) {
+    return null;
+  }
+
+  return { lastRunAt: now, lastPoint: point };
+}
 
 // Đợi 400ms sau hành động (chọn tuyến / đổi loại xe / xoá đường) mới auto-fetch
 // phương án — gom các thay đổi liên tiếp thành 1 request, đỡ đốt quota
@@ -120,10 +153,17 @@ export function useRouteGeometry({
   // Chống race khi kéo/xoá điểm nắn liên tiếp: chỉ nhận kết quả của lượt mới nhất
   const rerouteSeqRef = useRef(0);
   // Throttle cho stream drag: thời điểm + vị trí của lần tính preview gần nhất
-  const dragPreviewRef = useRef<{
-    lastRunAt: number;
-    lastPoint: RouteCoordinate | null;
-  }>({ lastRunAt: 0, lastPoint: null });
+  const dragPreviewRef = useRef<DragPreviewState>({
+    lastRunAt: 0,
+    lastPoint: null,
+  });
+  // Chặng đang nắn của gesture kéo hiện tại: đường gốc lúc bắt đầu kéo + khoảng
+  // đỉnh cần tính lại. Chốt MỘT lần lúc bắt đầu và giữ nguyên tới lúc thả —
+  // tính lại theo con trỏ mỗi nhịp thì cửa sổ trượt theo tay, mối ghép nhảy loạn.
+  const dragLegRef = useRef<{
+    basePath: RouteCoordinate[];
+    window: PathAnchorWindow;
+  } | null>(null);
   // Đang trong gesture túm thân đường (mousedown→mouseup): chặn effect auto-fetch
   // bắn request trùng khi viaPoints đổi giữa gesture — phát chốt lúc thả mới ghi
   // cache + key như thường
@@ -464,39 +504,13 @@ export function useRouteGeometry({
   // Tính lại đường với bộ điểm nắn mới (thêm/kéo/xoá điểm trên bản đồ). Kết quả
   // thay TOÀN BỘ bộ phương án hiện tại; lượt cũ về muộn bị bỏ qua theo seq —
   // kể cả preview trong lúc kéo về muộn hơn phát chốt lúc thả.
-  async function recomputeWithViaPoints(
-    nextViaPoints: RouteCoordinate[],
-    opts?: { preview?: boolean },
-  ) {
+  async function recomputeWithViaPoints(nextViaPoints: RouteCoordinate[]) {
     const seq = ++rerouteSeqRef.current;
     setIsRerouting(true);
     // Reroute chủ động vô hiệu lượt auto-fetch đang bay (nếu có) → tắt spinner của nó
     setIsFetchingOptions(false);
 
     try {
-      if (opts?.preview) {
-        // Preview trong lúc kéo: 1 request duy nhất (bỏ so sánh DRIVE cho đỡ đốt
-        // quota) và KHÔNG setViaPoints — đổi state điểm nắn giữa chừng sẽ vẽ lại
-        // marker đang kéo và cắt đứt thao tác kéo trên bản đồ thật
-        const options = await requestRoadGeometry(
-          routeWaypoints,
-          t("routes.routingFailed"),
-          buildGeometryOptions(travelMode, nextViaPoints),
-        );
-
-        if (seq !== rerouteSeqRef.current) {
-          return;
-        }
-
-        savedOptionIndexRef.current = -1;
-        setAllOptionsExcluded(false);
-        setRouteOptions(options);
-        setSelectedOptionIndex(0);
-        applyRouteOption(options[0]);
-        setIsGeometryDirty(true);
-        return;
-      }
-
       const { options, warning } = await requestGeometryWithWarning(
         travelMode,
         nextViaPoints,
@@ -557,29 +571,95 @@ export function useRouteGeometry({
     setTruckWarning("");
   }
 
-  // Kéo tới đâu tính tới đó: gọi trong event drag liên tục của marker điểm nắn.
-  // Throttle ~800ms + phải dịch tối thiểu ~150m so với lần preview trước (đỡ đốt
-  // quota); lỗi preview nuốt im lặng — phát chốt lúc thả (dragend) mới báo lỗi.
-  function handleDragViaPoint(index: number, point: RouteCoordinate) {
-    const now = Date.now();
-    const { lastRunAt, lastPoint } = dragPreviewRef.current;
-
-    if (now - lastRunAt < dragRecomputeThrottleMs) {
-      return;
-    }
-
-    if (
-      lastPoint &&
-      distanceKmBetween(lastPoint, point) * 1000 < dragRecomputeMinMeters
-    ) {
-      return;
-    }
-
-    dragPreviewRef.current = { lastRunAt: now, lastPoint: point };
-    void recomputeWithViaPoints(replaceViaPointAt(index, point), {
-      preview: true,
-    }).catch(() => {});
+  // Mỏ neo của chặng đang nắn: điểm dừng của tuyến + các điểm nắn KHÁC. Kéo ở
+  // chặng nào thì chỉ chặng đó được tính lại, các chặng khác không đụng tới.
+  function buildDragAnchors(draggedIndex: number) {
+    return [
+      ...routeWaypoints,
+      ...viaPoints.filter((_, index) => index !== draggedIndex),
+    ];
   }
+
+  // Chốt chặng cần nắn cho gesture hiện tại (một lần cho cả lượt kéo). seed là
+  // vị trí GỐC của điểm đang kéo — chỗ bấm chuột xuống với gesture túm đường,
+  // hoặc toạ độ cũ của điểm nắn với kéo marker (viaPoints chỉ đổi lúc thả).
+  function beginDragLeg(draggedIndex: number, seed: RouteCoordinate) {
+    const basePath = routePathPointsRef.current;
+    const window = findPathAnchorWindow(
+      basePath,
+      buildDragAnchors(draggedIndex),
+      seed,
+    );
+
+    dragLegRef.current = window ? { basePath, window } : null;
+  }
+
+  // Kéo tới đâu tính tới đó: gọi trong event drag liên tục của marker điểm nắn.
+  // Throttle 350ms + phải dịch tối thiểu 50m so với lần preview trước (API tính
+  // tiền theo request); lỗi preview nuốt im lặng — phát chốt lúc thả (dragend)
+  // mới báo lỗi.
+  //
+  // Preview chỉ tính lại ĐÚNG CHẶNG đang nắn (2 waypoint + 1 via) rồi ghép vào
+  // đường hiện có, KHÔNG tính lại cả tuyến. Hai lý do: request nhỏ về nhanh hơn
+  // nhiều nên đường bám tay kịp, và đường vẽ ra luôn là đường bộ thật — không
+  // bao giờ có đoạn chim bay như khi vẽ tạm bằng đường thẳng.
+  function handleDragViaPoint(index: number, point: RouteCoordinate) {
+    isDraggingViaRef.current = true;
+    const nextPreviewState = nextDragPreviewState(dragPreviewRef.current, point);
+
+    if (!nextPreviewState) {
+      return;
+    }
+
+    // Kéo marker native không đi qua handleBeginViaPointDrag → chốt chặng ở
+    // nhịp drag đầu tiên (nhịp này không bao giờ bị throttle chặn: lastRunAt=0
+    // và lastPoint=null), seed là toạ độ CŨ của chính điểm nắn đó
+    if (!dragLegRef.current) {
+      beginDragLeg(index, viaPoints[index] ?? point);
+    }
+
+    const leg = dragLegRef.current;
+    if (!leg) {
+      return;
+    }
+
+    dragPreviewRef.current = nextPreviewState;
+    void previewDragLeg(leg, point).catch(() => {});
+  }
+
+  // Một lượt preview: tính lại chặng path[previousIndex] → path[nextIndex] có
+  // ghé qua con trỏ, rồi ghép hình trả về vào đúng khoảng đó. CHỈ đổi polyline
+  // — km/phút của form và bộ phương án giữ nguyên tới lúc thả, vì số của một
+  // chặng không phải số của cả tuyến.
+  async function previewDragLeg(
+    leg: { basePath: RouteCoordinate[]; window: PathAnchorWindow },
+    point: RouteCoordinate,
+  ) {
+    const seq = ++rerouteSeqRef.current;
+    setIsRerouting(true);
+
+    try {
+      const { basePath, window: legWindow } = leg;
+      const options = await requestRoadGeometry(
+        [basePath[legWindow.previousIndex], basePath[legWindow.nextIndex]],
+        tRef.current("routes.routingFailed"),
+        { travelMode, intermediates: [point] },
+      );
+
+      if (seq !== rerouteSeqRef.current) {
+        return;
+      }
+
+      setRoutePathPoints(
+        splicePathSegment(basePath, legWindow, options[0].points),
+      );
+    } finally {
+      if (seq === rerouteSeqRef.current) {
+        setIsRerouting(false);
+      }
+    }
+  }
+
 
   // Bộ điểm nắn với điểm tại index thay bằng point. Gesture túm thân đường có
   // thể bắn drag/mouseup TRƯỚC khi render sau setViaPoints của begin kịp chạy —
@@ -606,6 +686,9 @@ export function useRouteGeometry({
     isDraggingViaRef.current = true;
     // Chưa từng preview trong gesture này — lần drag đầu tiên đủ xa là tính ngay
     dragPreviewRef.current = { lastRunAt: 0, lastPoint: point };
+    // Điểm nắn mới nằm ĐÚNG trên đường (mousedown trên polyline) nên chính nó
+    // là seed định vị chặng cần nắn
+    beginDragLeg(viaPoints.length, point);
     setViaPoints((current) => [...current, point]);
     return viaPoints.length;
   }
@@ -615,6 +698,7 @@ export function useRouteGeometry({
   function handleMoveViaPoint(index: number, point: RouteCoordinate) {
     isDraggingViaRef.current = false;
     dragPreviewRef.current = { lastRunAt: 0, lastPoint: null };
+    dragLegRef.current = null;
     runReroute(replaceViaPointAt(index, point));
   }
 

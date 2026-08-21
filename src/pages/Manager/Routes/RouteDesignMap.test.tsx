@@ -329,10 +329,11 @@ describe("RouteDesignMap", () => {
     expect(dimmed?.onMouseDown).toBeUndefined();
   });
 
-  // Kéo mượt hơn: trong lúc kéo (native marker chấm tròn hoặc túm thân đường),
-  // đường ĐANG CHỌN phải bám thẳng qua điểm dưới tay chuột NGAY LẬP TỨC thay
-  // vì giữ nguyên đường bộ cũ chờ throttle 350ms trả kết quả mới.
-  it("previews the selected line as a straight path through the point being natively dragged", () => {
+  // Google Maps không vẽ đoạn thẳng nào trong lúc kéo — đường bám mặt đường
+  // suốt thao tác, chỉ chấm trắng chạy theo tay. Đường ở đây cũng vậy: polyline
+  // luôn là pathPoints (đường bộ thật), việc tính lại chặng đang nắn do
+  // useRouteGeometry lo và trả về qua chính pathPoints.
+  it("never draws a straight preview while a via point is being dragged", () => {
     canvasProps.length = 0;
     render(
       <RouteDesignMap
@@ -346,6 +347,10 @@ describe("RouteDesignMap", () => {
       />,
     );
 
+    const roadPath = routeOptions[0].points.map((point) => ({
+      lat: point.latitude,
+      lng: point.longitude,
+    }));
     const viaMarker = canvasProps
       .at(-1)
       ?.pointMarkers?.find((marker) => marker.id === "via-point-0");
@@ -355,16 +360,225 @@ describe("RouteDesignMap", () => {
       viaMarker?.onDrag?.({ lat: 11.35, lng: 107.35 });
     });
 
+    // Chấm điểm nắn do chính Google dời theo tay (drag native), còn đường thì
+    // giữ nguyên hình đường bộ — không nối thẳng qua con trỏ
+    expect(
+      canvasProps
+        .at(-1)
+        ?.polylines?.find((polyline) => polyline.id === "route-option-0")?.path,
+    ).toEqual(roadPath);
+  });
+
+  // Regression: kéo lần đầu thì đường chạy theo, các lần sau chỉ còn chấm chạy.
+  // Nguyên nhân: mở tuyến lên, đường đã lưu không trùng phương án nào
+  // (selectedOptionIndex = -1) nên đường đậm được vẽ từ pathPoints — kéo được.
+  // Thả tay xong, reroute chốt lại đặt selectedOptionIndex = 0, đường đậm
+  // chuyển sang vẽ từ routeOptions[0].points; preview lúc kéo chỉ cập nhật
+  // pathPoints nên đường đứng im. Đường đang chọn ĐÃ ÁP phải luôn đọc pathPoints.
+  it("draws the applied selection from pathPoints, not from the option points", () => {
+    canvasProps.length = 0;
+    // pathPoints khác hẳn routeOptions[0].points — mô phỏng đúng lúc giữa nhịp
+    // kéo: chặng vừa tính lại đã ghép vào pathPoints, routeOptions còn nguyên
+    const draggedPath = [
+      { latitude: 10.77, longitude: 106.69 },
+      { latitude: 11.6, longitude: 107.1 },
+      { latitude: 11.94, longitude: 108.44 },
+    ];
+
+    render(
+      <RouteDesignMap
+        emptyText="empty"
+        points={[]}
+        pathPoints={draggedPath}
+        routeOptions={routeOptions}
+        selectedOptionIndex={0}
+        onSelectOption={vi.fn()}
+        viaPoints={[{ latitude: 11.6, longitude: 107.1 }]}
+        onAddViaPoint={vi.fn()}
+        onBeginViaDrag={vi.fn()}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
+    const { polylines = [] } = canvasProps.at(-1) ?? {};
+    expect(
+      polylines.find((line) => line.id === "route-option-0")?.path,
+    ).toEqual(
+      draggedPath.map((point) => ({
+        lat: point.latitude,
+        lng: point.longitude,
+      })),
+    );
+    // Các phương án chưa chọn vẫn vẽ từ chính hình của chúng
+    expect(
+      polylines.find((line) => line.id === "route-option-1")?.path,
+    ).toEqual(
+      routeOptions[1].points.map((point) => ({
+        lat: point.latitude,
+        lng: point.longitude,
+      })),
+    );
+  });
+
+  // Cùng ràng buộc cho gesture túm thẳng thân đường (mousedown trên polyline)
+  it("keeps the road shape while grabbing the line body", () => {
+    canvasProps.length = 0;
+    const path = [
+      { latitude: 10.0, longitude: 106.0 },
+      { latitude: 10.0, longitude: 106.1 },
+      { latitude: 10.0, longitude: 106.2 },
+      { latitude: 10.0, longitude: 106.3 },
+    ];
+    const onBeginViaDrag = vi.fn(() => 0);
+
+    render(
+      <RouteDesignMap
+        emptyText="empty"
+        points={[]}
+        pathPoints={path}
+        viaPoints={[]}
+        onAddViaPoint={vi.fn()}
+        onBeginViaDrag={onBeginViaDrag}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
+    const line = canvasProps
+      .at(-1)
+      ?.polylines?.find((polyline) => polyline.id === "route-geometry");
+
+    act(() => {
+      line?.onMouseDown?.({ lat: 10.0, lng: 106.15 });
+    });
+
+    // Map thật (GoogleMapCanvas) bị mock nên gesture không chạy tiếp được;
+    // điều cần chốt là polyline không bị thay bằng đường tạm nào
+    expect(
+      canvasProps
+        .at(-1)
+        ?.polylines?.find((polyline) => polyline.id === "route-geometry")?.path,
+    ).toEqual(
+      path.map((point) => ({ lat: point.latitude, lng: point.longitude })),
+    );
+  });
+
+  // Nét vẽ chỉ 4–6px: bắt user trỏ trúng đúng vệt đó mới túm được là lý do
+  // chính khiến thao tác bị chê khó. Mỗi đường tương tác phải có thêm một bản
+  // sao trong suốt rộng hơn hẳn để bấm "gần đúng" vẫn ăn.
+  it("adds a wide invisible hit layer under every interactive line", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        viaPoints={[]}
+        onAddViaPoint={vi.fn()}
+        onBeginViaDrag={vi.fn()}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
+    const { polylines = [] } = canvasProps.at(-1) ?? {};
+    const selected = polylines.find((line) => line.id === "route-option-0");
+    const selectedHit = polylines.find(
+      (line) => line.id === "route-option-0-hit",
+    );
+    const dimmedHit = polylines.find(
+      (line) => line.id === "route-option-1-hit",
+    );
+
+    expect(selectedHit?.opacity).toBe(0);
+    expect(selectedHit?.weight).toBeGreaterThan(selected?.weight ?? 0);
+    // Vùng bắt phải mang đúng bộ handler của đường nó phủ
+    expect(typeof selectedHit?.onMouseDown).toBe("function");
+    expect(dimmedHit?.opacity).toBe(0);
+    expect(typeof dimmedHit?.onClick).toBe("function");
+    // Bản sao vẽ TRƯỚC nét thật: cùng zIndex thì overlay thêm sau nổi lên trên
+    expect(polylines.indexOf(selectedHit!)).toBeLessThan(
+      polylines.indexOf(selected!),
+    );
+  });
+
+  // Con trỏ là tín hiệu đầu tiên user thấy: đường nắn được phải là "grab",
+  // đường chỉ bấm-để-chọn là "pointer"
+  it("marks the grabbable line with a grab cursor and the others with pointer", () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        viaPoints={[]}
+        onAddViaPoint={vi.fn()}
+        onBeginViaDrag={vi.fn()}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
+    const { polylines = [] } = canvasProps.at(-1) ?? {};
+    expect(
+      polylines.find((line) => line.id === "route-option-0")?.cursor,
+    ).toBe("grab");
+    expect(
+      polylines.find((line) => line.id === "route-option-1")?.cursor,
+    ).toBe("pointer");
+  });
+
+  // Chấm trắng bám con trỏ dọc đường đang chọn (Google Maps có, bản cũ không):
+  // không có nó thì user không biết đường túm được cho tới khi thử
+  it("shows a ghost handle following the cursor along the grabbable line", async () => {
+    canvasProps.length = 0;
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        viaPoints={[]}
+        onAddViaPoint={vi.fn()}
+        onBeginViaDrag={vi.fn()}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
     const selected = canvasProps
       .at(-1)
-      ?.polylines?.find((polyline) => polyline.id === "route-option-0");
-    // pathPoints[0]/[2] của buildProps() làm điểm đầu/cuối, điểm giữa là vị
-    // trí đang kéo — không phải đường bộ gốc (11.2, 107.5) đã fetch trước đó.
-    expect(selected?.path).toEqual([
-      { lat: 10.77, lng: 106.69 },
-      { lat: 11.35, lng: 107.35 },
-      { lat: 11.94, lng: 108.44 },
-    ]);
+      ?.polylines?.find((line) => line.id === "route-option-0");
+    expect(typeof selected?.onMouseMove).toBe("function");
+
+    act(() => {
+      selected?.onMouseMove?.({ lat: 11.2, lng: 107.5 });
+    });
+
+    const handle = await waitFor(() => {
+      const marker = canvasProps
+        .at(-1)
+        ?.pointMarkers?.find(
+          (item) => item.id === "via-point-hover-handle",
+        );
+      expect(marker).toBeDefined();
+      return marker;
+    });
+    // Chỉ là gợi ý thị giác — có onClick thì GoogleMapCanvas dựng marker
+    // clickable và nó sẽ nuốt mất mousedown lẽ ra phải rơi xuống polyline
+    expect(handle?.onClick).toBeUndefined();
+    expect(handle?.position).toEqual({ lat: 11.2, lng: 107.5 });
+
+    act(() => {
+      selected?.onMouseOut?.();
+    });
+
+    await waitFor(() => {
+      expect(
+        canvasProps
+          .at(-1)
+          ?.pointMarkers?.some((item) => item.id === "via-point-hover-handle"),
+      ).toBe(false);
+    });
   });
 
   it("keeps overlay array identities stable across unrelated re-renders", () => {

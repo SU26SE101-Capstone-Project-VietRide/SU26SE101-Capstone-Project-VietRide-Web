@@ -377,3 +377,104 @@ export async function requestRoadGeometry(
 
   return options;
 }
+
+// ---------------------------------------------------------------------------
+// KÉO NẮN: tính lại ĐÚNG CHẶNG đang nắn rồi ghép vào đường thật
+// ---------------------------------------------------------------------------
+// Google Maps không bao giờ vẽ đoạn thẳng trong lúc kéo — đường luôn bám mặt
+// đường, chỉ có chấm trắng chạy theo tay. Muốn vậy thì preview cũng phải là
+// đường bộ thật, nên nó phải VỀ NHANH: thay vì tính lại cả tuyến (origin →
+// mọi điểm dừng → destination) mỗi nhịp kéo, chỉ tính lại chặng giữa hai "mỏ
+// neo" kề điểm đang kéo rồi ghép hình đường trả về vào đúng chỗ đó.
+// Request 2 waypoint + 1 via về nhanh hơn hẳn cả tuyến, và cũng rẻ hơn.
+
+// Chỉ số đỉnh gần `point` nhất trên `path`. Dùng bình phương khoảng cách theo độ
+// (lng nhân cos(lat) để bù méo kinh tuyến) — chỉ cần so sánh tương đối nên không
+// cần haversine, path có thể tới hàng nghìn đỉnh và hàm này chạy mỗi lượt kéo.
+export function findNearestPathIndex(
+  path: RouteCoordinate[],
+  point: RouteCoordinate,
+) {
+  const lngScale = Math.cos(toRadians(point.latitude));
+  let bestIndex = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  path.forEach((vertex, index) => {
+    const latDelta = vertex.latitude - point.latitude;
+    const lngDelta = (vertex.longitude - point.longitude) * lngScale;
+    const score = latDelta * latDelta + lngDelta * lngDelta;
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+export type PathAnchorWindow = {
+  previousIndex: number;
+  nextIndex: number;
+};
+
+// Khoảng [previousIndex, nextIndex] trên `path` cần tính lại khi kéo điểm tại
+// `seed`. Mỏ neo = điểm dừng của tuyến + các điểm nắn KHÁC; hai đầu đường luôn
+// là mỏ neo ngầm. Mỏ neo rơi trúng đúng đỉnh của seed bị bỏ qua — không thì
+// cửa sổ co về rỗng và không còn gì để tính lại.
+export function findPathAnchorWindow(
+  path: RouteCoordinate[],
+  anchors: RouteCoordinate[],
+  seed: RouteCoordinate,
+): PathAnchorWindow | null {
+  if (path.length < 2) {
+    return null;
+  }
+
+  const lastIndex = path.length - 1;
+  const seedIndex = findNearestPathIndex(path, seed);
+
+  if (seedIndex < 0) {
+    return null;
+  }
+
+  let previousIndex = 0;
+  let nextIndex = lastIndex;
+
+  anchors.forEach((anchor) => {
+    const anchorIndex = findNearestPathIndex(path, anchor);
+
+    if (anchorIndex < 0 || anchorIndex === seedIndex) {
+      return;
+    }
+
+    if (anchorIndex < seedIndex && anchorIndex > previousIndex) {
+      previousIndex = anchorIndex;
+    }
+
+    if (anchorIndex > seedIndex && anchorIndex < nextIndex) {
+      nextIndex = anchorIndex;
+    }
+  });
+
+  return { previousIndex, nextIndex };
+}
+
+// Thay đoạn [previousIndex, nextIndex] của `path` bằng hình đường mới `segment`.
+// `segment` do Google trả về khi tính chặng path[previousIndex] → path[nextIndex]
+// nên hai đầu đã trùng sẵn — ghép xong đường liền mạch, không có mối nối gãy.
+export function splicePathSegment(
+  path: RouteCoordinate[],
+  { previousIndex, nextIndex }: PathAnchorWindow,
+  segment: RouteCoordinate[],
+): RouteCoordinate[] {
+  if (segment.length === 0) {
+    return path;
+  }
+
+  return [
+    ...path.slice(0, previousIndex),
+    ...segment,
+    ...path.slice(nextIndex + 1),
+  ];
+}
