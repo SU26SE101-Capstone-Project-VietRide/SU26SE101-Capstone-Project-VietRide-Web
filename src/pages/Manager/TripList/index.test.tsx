@@ -63,6 +63,7 @@ function makeTrip(
     status: "IN_PROGRESS",
     route: {
       routeId: "route-1",
+      code: "HCM-CT-01",
       name: "HCM-CT",
       originName: "Bến xe Miền Tây",
       destinationName: "Bến xe Cần Thơ",
@@ -127,19 +128,29 @@ describe("Manager trip list", () => {
     });
   });
 
+  it("hiện mã chuyến và mã tuyến do BE trả", async () => {
+    renderTripList();
+
+    expect(await screen.findByText("TRIP-20260816-001")).toBeInTheDocument();
+    expect(screen.getByText(/HCM-CT-01/)).toBeInTheDocument();
+  });
+
   // Trước đây cột "Mã chuyến" hiện 8 ký tự đầu của UUID viết hoa khi BE không
-  // trả `tripCode` — trông như mã nghiệp vụ nhưng tra cứu ở đâu cũng không ra.
-  // Cột đã bỏ; không được để lỗi này quay lại dưới dạng khác.
-  it("không dựng mã chuyến từ tripId", async () => {
+  // trả `tripCode` — trông như mã nghiệp vụ nhưng tra cứu ở đâu cũng không ra,
+  // và gõ chuỗi đó vào ô tìm kiếm thì BE không khớp row nào. Row legacy phải ra
+  // "-"; không được để lỗi này quay lại dưới dạng khác.
+  it("không dựng mã chuyến từ tripId khi BE chưa backfill", async () => {
     vi.mocked(getOperatorTrips).mockImplementation(async (params = {}) => {
       if (params.pageSize === 1) return makePage([], 0);
-      return makePage([makeTrip({ tripCode: undefined })], 1);
+      return makePage([makeTrip({ tripCode: null })], 1);
     });
 
     renderTripList();
 
     await screen.findByText("HCM-CT");
     expect(screen.queryByText("6E4B0A1C")).not.toBeInTheDocument();
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
   it("đẩy từ khoá vào query `search` sau debounce", async () => {
@@ -225,6 +236,65 @@ describe("Manager trip list", () => {
       // Trạng thái mới lấy lại từ BE, không ép local (§11)
       await waitFor(() => expect(listCalls().length).toBeGreaterThan(1));
     });
+
+    // Thao tác vận hành quan trọng nhất của màn này nên nút phải có chữ, không
+    // giấu nghĩa trong tooltip. `title` bị cấm trên nút này: rule chung
+    // `tbody td button[title]` trong App.css ép nút về ô vuông 40px, chữ sẽ bị
+    // bóp mất.
+    it("nút mở boarding hiện chữ, không phải nút icon trần", async () => {
+      renderTripList();
+
+      const button = await screen.findByRole("button", {
+        name: "tripList.boarding",
+      });
+      expect(button).toHaveTextContent("tripList.boarding");
+      expect(button).not.toHaveAttribute("title");
+      expect(button.querySelector("svg")).toBeInTheDocument();
+    });
+
+    // Hai bộ bề rộng khác nhau: OPERATOR_ADMIN có cột Thao tác, OPERATOR_STAFF
+    // thì không — sửa một bộ mà quên bộ kia là lỗi rất dễ lọt.
+    it.each(["OPERATOR_ADMIN", "OPERATOR_STAFF"] as const)(
+      "tổng bề rộng các cột đúng 100%% với %s",
+      async (role) => {
+        signInAs(role);
+        renderTripList();
+        await screen.findByText("HCM-CT");
+
+        const total = screen
+          .getAllByRole("columnheader")
+          .map((th) => Number(/w-\[(\d+)%\]/.exec(th.className)?.[1] ?? 0))
+          .reduce((sum, width) => sum + width, 0);
+
+        // Lệch khỏi 100 là `table-fixed` chia dư/thiếu, cột cuối bị đội ra
+        // ngoài khung và scroll ngang quay lại.
+        expect(total).toBe(100);
+      },
+    );
+
+    // Cột Tuyến phải rộng hơn cột Mã chuyến: mã có bề rộng CỐ ĐỊNH (chuỗi
+    // TRIP-yyyyMMdd-XXXXXXXX luôn 146px) nên thừa chỗ là lãng phí, còn dòng phụ
+    // của tuyến (mã · bến đi → bến đến) dài ~260px, không cột nào chứa nổi nên
+    // mọi phần dôi ra phải dồn về đây.
+    it.each(["OPERATOR_ADMIN", "OPERATOR_STAFF"] as const)(
+      "cột Tuyến rộng hơn cột Mã chuyến với %s",
+      async (role) => {
+        signInAs(role);
+        renderTripList();
+        await screen.findByText("HCM-CT");
+
+        const widthOf = (name: string) =>
+          Number(
+            /w-\[(\d+)%\]/.exec(
+              screen.getByRole("columnheader", { name }).className,
+            )?.[1] ?? 0,
+          );
+
+        expect(widthOf("tripList.route")).toBeGreaterThan(
+          widthOf("tripList.tripCode"),
+        );
+      },
+    );
 
     it("ẩn cột thao tác với OPERATOR_STAFF", async () => {
       signInAs("OPERATOR_STAFF");

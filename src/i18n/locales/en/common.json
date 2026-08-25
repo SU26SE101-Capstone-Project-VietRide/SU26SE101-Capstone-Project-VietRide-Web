@@ -103,7 +103,13 @@
     "OPERATOR_CANCELLED_TRIP": "operator cancelled the trip",
     "OPERATOR_DISRUPTED_IN_PROGRESS": "trip disrupted while running",
     "SCHEDULE_CHANGED": "schedule changed",
-    "STOP_DISABLED_REFUSED": "stop removed"
+    "STOP_DISABLED_REFUSED": "stop removed",
+    "SHUTTLE_STARTED": "the shuttle has started",
+    "SHUTTLE_REASSIGNED": "shuttle assignment changed",
+    "SHUTTLE_ASSIGNED": "a shuttle vehicle was assigned",
+    "SHUTTLE_CANCELLED": "the shuttle trip was cancelled",
+    "SHUTTLE_WARNING": "passengers still have no shuttle vehicle",
+    "SHUTTLE_UNFULFILLED": "no shuttle vehicle could be arranged"
   },
   "topbar": {
     "defaultUserName": "Operator manager",
@@ -113,7 +119,11 @@
     "noNotifications": "No notifications yet.",
     "notificationLoadFailed": "Unable to load notifications.",
     "notificationReadFailed": "Unable to mark notification as read.",
-    "sendOperatorAnnouncement": "Send operational announcement"
+    "sendOperatorAnnouncement": "Send operational announcement",
+    "markAllRead": "Mark all read",
+    "markingAllRead": "Marking…",
+    "markAllReadFailed": "Could not mark notifications as read.",
+    "markAllReadPartial": "{{count}} notifications could not be marked. Please try again."
   },
   "announcementModal": {
     "title": "Send operational announcement",
@@ -134,12 +144,12 @@
     "sendFailed": "Unable to send the announcement."
   },
   "placePicker": {
-    "loadFailed": "Unable to load Google Places.",
+    "loadFailed": "Unable to load the Goong places service.",
     "minChars": "Enter at least 2 characters to search for a place.",
-    "libraryLoading": "Google Places is still loading, please try again.",
+    "libraryLoading": "The places service is still loading, please try again.",
     "noResults": "No matching places found in Vietnam.",
     "searchFailed": "Unable to search for places right now.",
-    "missingCoordinates": "Google Places has not returned coordinates for this place.",
+    "missingCoordinates": "The places service has not returned coordinates for this place.",
     "detailsFailed": "Unable to fetch details for the selected place.",
     "reverseNoResult": "Unable to get information at the selected map position.",
     "reverseFailed": "Unable to get the selected position information.",
@@ -150,9 +160,9 @@
     "mapEmptyState": "Search for a place or click directly on the map to select."
   },
   "map": {
-    "loading": "Loading Google Maps...",
-    "initFailed": "Unable to initialize Google Maps.",
-    "loadFailed": "Unable to load Google Maps."
+    "loading": "Loading map...",
+    "initFailed": "Unable to initialize the Goong map.",
+    "loadFailed": "Unable to load the Goong map."
   },
   "voucherConsentStatuses": {
     "PENDING": "Pending",
@@ -259,7 +269,8 @@
     "OPERATOR_STAFF": "Operator staff",
     "DRIVER": "Driver",
     "ASSISTANT": "Assistant"
-  },  "profilePage": {
+  },
+  "profilePage": {
     "accountInfo": "Account information",
     "roleLabel": "Role",
     "systemRole": "System administrator",
@@ -276,7 +287,8 @@
     "passwordRules": "Use 8–128 characters with at least one letter and one number.",
     "passwordMismatch": "Password confirmation does not match.",
     "passwordChanged": "Password changed successfully. Please sign in again.",
-    "passwordChangeFailed": "Unable to change password. Please try again.",    "securityHint": "System administrator accounts are managed by the platform security controls.",
+    "passwordChangeFailed": "Unable to change password. Please try again.",
+    "securityHint": "System administrator accounts are managed by the platform security controls.",
     "home": "Home",
     "userProfile": "User profile",
     "myProfile": "My profile",
@@ -330,34 +342,8 @@
     "discardChangesConfirm": "Discard changes",
     "continueEditing": "Continue editing",
     "retry": "Retry",
-    "cancellationPolicy": "Ticket refund policy",
-    "cancellationPolicyHint": "When a passenger cancels, the operator keeps part of the fare. The closer it is to departure, the higher the fee.",
-    "cancellationPolicyEmpty": "No tiers yet. Any cancellation is refunded in full.",
-    "cancellationHours": "No more than",
-    "cancellationHoursUnit": "hours",
-    "cancellationFee": "Operator keeps",
-    "cancellationAddTier": "Add tier",
-    "cancellationRemoveTier": "Remove tier",
-    "cancellationUseTemplate": "Use 3-tier sample",
-    "cancellationTemplateHint": "Sample: 1 hour keeps 100%, 2 hours keeps 50%, 24 hours keeps 10%. Earlier than 24 hours is a full refund.",
-    "cancellationIfWithin": "If the passenger cancels with no more than this many hours left",
-    "cancellationOperatorKeeps": "Operator keeps",
-    "cancellationPreviewPending": "Enter hours and a percent to see the passenger refund.",
-    "cancellationSummaryTitle": "How it applies",
-    "cancellationWindowWithin": "No more than {{hours}} hours left",
-    "cancellationWindowBetween": "More than {{from}} hours, up to {{to}} hours left",
-    "cancellationWindowAfter": "More than {{hours}} hours left",
-    "cancellationAlwaysFullRefund": "Any cancellation is refunded in full",
-    "cancellationRefundAmount": "Passenger is refunded {{refund}}%",
-    "cancellationRefundNone": "No refund",
-    "cancellationRefundFull": "Full 100% refund",
-    "cancellationKeepAmount": "Operator keeps {{fee}}%",
-    "cancellationErrors": {
-      "empty-field": "Enter hours and a fee for every tier.",
-      "invalid-number": "Hours and fee must be whole numbers.",
-      "out-of-range": "The cancellation fee must be between 0 and 100%.",
-      "duplicate-hours": "Each hour value can only be used once."
-    }
+    "cancellationMovedHint": "The ticket refund policy has moved to the Settings screen.",
+    "cancellationMovedLink": "Open Settings"
   },
   "reset": "Reset",
   "assistant": {
@@ -390,5 +376,18 @@
     "streamStopped": "The assistant stopped before finishing the answer.",
     "connectionFailed": "Could not reach the AI assistant.",
     "feedbackFailed": "Could not send your rating."
+  },
+  "copy": "Copy",
+  "evidenceUpload": {
+    "add": "Choose photos",
+    "uploading": "Uploading…",
+    "empty": "No photos attached",
+    "count": "{{count}} of {{max}} photos attached",
+    "remove": "Remove photo",
+    "photoIndex": "Photo {{index}}",
+    "tooMany": "At most {{max}} photos.",
+    "invalidType": "Only JPG, PNG or WEBP images are accepted.",
+    "invalidSize": "Each photo must be under 5 MB.",
+    "failed": "Upload failed, please try again."
   }
 }

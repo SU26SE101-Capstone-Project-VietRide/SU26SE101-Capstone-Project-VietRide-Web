@@ -48,3 +48,41 @@ describe("i18n parity vi/en", () => {
     expect(viKeys.filter((key) => !enKeys.includes(key))).toEqual([]);
   });
 });
+
+/**
+ * Lịch sử trạng thái bưu kiện in `reason` do BE ghi. Thiếu key là người dùng
+ * nhìn thấy mã thô kiểu `CHECK_IN_TIMEOUT` giữa dòng tiếng Việt.
+ *
+ * Danh sách lấy từ `ParcelRejectionReasons.cs` cộng các mã do handler chuyến và
+ * nhóm thanh toán cọc truyền vào.
+ */
+const parcelReasonCodes = [
+  "OPERATOR_REVIEW_TIMEOUT",
+  "CHECK_IN_TIMEOUT",
+  "FINAL_PAYMENT_TIMEOUT",
+  "PARCEL_ADDITIONAL_PAYMENT_TIMEOUT",
+  "PARCEL_LATE_LOAD",
+  "DEPOSIT_PAYMENT_EXPIRED",
+  "DEPOSIT_PAYMENT_LATE",
+  "DEPOSIT_PAYMENT_FAILED",
+  "TRIP_CANCELLED",
+  "TRIP_DISRUPTED",
+  "TRIP_CARGO_CAPACITY_EXCEEDED",
+] as const;
+
+describe("lý do đổi trạng thái bưu kiện", () => {
+  it.each(parcelReasonCodes)("dịch được mã %s ở cả vi và en", (code) => {
+    const vi = (
+      viManager.parcels.statusHistoryReasons as Record<string, string>
+    )[code];
+    const en = (
+      enManager.parcels.statusHistoryReasons as Record<string, string>
+    )[code];
+
+    expect(vi, `thiếu bản dịch tiếng Việt cho ${code}`).toBeTruthy();
+    expect(en, `thiếu bản dịch tiếng Anh cho ${code}`).toBeTruthy();
+    // Không được để lọt chính cái mã ra làm "bản dịch"
+    expect(vi).not.toBe(code);
+    expect(en).not.toBe(code);
+  });
+});

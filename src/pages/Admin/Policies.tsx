@@ -361,168 +361,171 @@ export default function AdminPolicies() {
         </button>
       </div>
 
-      {/* BE đã hỗ trợ sẵn search/category/active/sort; màn chỉ thiếu UI */}
-      <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_200px_180px]">
-        <SearchInput
-          label={t("policies.searchLabel")}
-          placeholder={t("policies.searchPlaceholder")}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        {/*
-          `category` là free text ở cả FE lẫn BE (admin tự đặt: Terms,
-          Cancellation, Privacy...), nên đây là ô nhập chứ không phải dropdown.
-          `datalist` gợi ý các nhóm đang có trên trang để đỡ phải gõ lại.
-        */}
-        <div className="min-w-0">
-          <input
-            type="text"
-            list="policy-category-options"
-            aria-label={t("policies.filterCategory")}
-            placeholder={t("policies.filterCategory")}
-            value={categoryDraft}
-            onChange={(event) => setCategoryDraft(event.target.value)}
-            className={inputClass}
+      {/* Thanh lọc và bảng nằm CHUNG một khung, giống PersonnelTable ở các màn
+          admin khác — tách hai card rời làm hàng lọc trông như khối không liên
+          quan tới bảng bên dưới.
+          BE đã hỗ trợ sẵn search/category/active/sort; màn chỉ thiếu UI. */}
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="grid gap-3 border-b border-gray-100 p-4 lg:grid-cols-[minmax(0,1fr)_200px_180px]">
+          <SearchInput
+            label={t("policies.searchLabel")}
+            placeholder={t("policies.searchPlaceholder")}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
           />
-          <datalist id="policy-category-options">
-            {knownCategories.map((value) => (
-              <option key={value} value={value} />
-            ))}
-          </datalist>
-        </div>
-        <CustomSelect
-          aria-label={t("policies.filterActive")}
-          className={inputClass}
-          value={activeFilter}
-          onChange={(event) => {
-            setActiveFilter(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">{t("policies.filterActive")}</option>
-          <option value="ACTIVE">{tc("active")}</option>
-          <option value="INACTIVE">{tc("inactive")}</option>
-        </CustomSelect>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-5 py-3 text-left"><button type="button" onClick={() => { setSortBy("title"); setPage(1); }} aria-label={t("policies.sortTitle")} className="inline-flex items-center gap-1.5 text-left transition hover:text-vr-900">{tc("title")}<FiArrowUp size={14} className={sortBy === "title" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th>
-                <th className="px-5 py-3 text-center">{t("policies.type")}</th>
-                <th className="px-5 py-3 text-center">{t("policies.version")}</th>
-                <th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("createdAt"); setPage(1); }} aria-label={t("policies.sortCreatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-900">{t("policies.createdAt")}<FiArrowDown size={14} className={sortBy === "createdAt" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th><th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("updatedAt"); setPage(1); }} aria-label={t("policies.sortUpdatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-900">{t("policies.updatedAt")}<FiArrowDown size={14} className={sortBy === "updatedAt" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th>
-                <th className="px-5 py-3 text-center">{tc("status")}</th>
-                <th className="px-5 py-3 text-center">{tc("actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!loading && paginatedPolicies.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">
-                    {t("policies.empty")}
-                  </td>
-                </tr>
-              )}
-              {loading && (
-                <TableSkeletonRows columns={7} testId="policies-table-skeleton" cellClassName="px-5 py-4" />
-              )}
-              {paginatedPolicies.map((policy) => (
-                <tr
-                  key={policy.id}
-                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
-                >
-                  <td className="px-5 py-4 text-left">
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {policy.title}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {policy.description}
-                      </p>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-center">
-                    <Badge tone="brand">
-                      {policy.category}
-                    </Badge>
-                  </td>
-                  <td className="px-5 py-4 text-center text-gray-600">v{policy.version}</td>
-                  <td className="px-5 py-4 text-center text-gray-600">
-                    {formatDateOnly(policy.createdAt)}
-                  </td>
-                  <td className="px-5 py-4 text-center text-gray-600">
-                    {formatDateOnly(policy.updatedAt)}
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-center">
-                    {activeBadge(policy, tc("active"), tc("inactive"))}
-                  </td>
-                  <td className="px-5 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleViewDetail(policy)}
-                        title={tc("details")}
-                        aria-label={tc("details")}
-                        className="table-action-button"
-                      >
-                        <FiEye size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleToggleActive(policy)}
-                        title={
-                          policy.active
-                            ? t("policies.turnOff")
-                            : t("policies.turnOn")
-                        }
-                        aria-label={
-                          policy.active
-                            ? t("policies.turnOff")
-                            : t("policies.turnOn")
-                        }
-                        className="table-action-button"
-                      >
-                        {policy.active ? (
-                          <FiCheck size={16} />
-                        ) : (
-                          <FiX size={16} />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(policy)}
-                        title={tc("edit")}
-                        aria-label={tc("edit")}
-                        className="table-action-button"
-                      >
-                        <FiEdit2 size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDelete(policy)}
-                        title={tc("delete")}
-                        aria-label={tc("delete")}
-                        className="table-action-button"
-                      >
-                        <FiTrash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+          {/*
+            `category` là free text ở cả FE lẫn BE (admin tự đặt: Terms,
+            Cancellation, Privacy...), nên đây là ô nhập chứ không phải dropdown.
+            `datalist` gợi ý các nhóm đang có trên trang để đỡ phải gõ lại.
+          */}
+          <div className="min-w-0">
+            <input
+              type="text"
+              list="policy-category-options"
+              aria-label={t("policies.filterCategory")}
+              placeholder={t("policies.filterCategory")}
+              value={categoryDraft}
+              onChange={(event) => setCategoryDraft(event.target.value)}
+              className={inputClass}
+            />
+            <datalist id="policy-category-options">
+              {knownCategories.map((value) => (
+                <option key={value} value={value} />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </datalist>
+          </div>
+          <CustomSelect
+            aria-label={t("policies.filterActive")}
+            className={inputClass}
+            value={activeFilter}
+            onChange={(event) => {
+              setActiveFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">{t("policies.filterActive")}</option>
+            <option value="ACTIVE">{tc("active")}</option>
+            <option value="INACTIVE">{tc("inactive")}</option>
+          </CustomSelect>
+          </div>
+
+        <div className="overflow-x-auto" tabIndex={0}>
+            <table className="w-full min-w-[920px] text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <th className="px-5 py-3 text-left"><button type="button" onClick={() => { setSortBy("title"); setPage(1); }} aria-label={t("policies.sortTitle")} className="inline-flex items-center gap-1.5 text-left transition hover:text-vr-900">{tc("title")}<FiArrowUp size={14} className={sortBy === "title" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th>
+                  <th className="px-5 py-3 text-center">{t("policies.type")}</th>
+                  <th className="px-5 py-3 text-center">{t("policies.version")}</th>
+                  <th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("createdAt"); setPage(1); }} aria-label={t("policies.sortCreatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-900">{t("policies.createdAt")}<FiArrowDown size={14} className={sortBy === "createdAt" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th><th className="px-5 py-3 text-center"><button type="button" onClick={() => { setSortBy("updatedAt"); setPage(1); }} aria-label={t("policies.sortUpdatedAt")} className="inline-flex items-center gap-1.5 transition hover:text-vr-900">{t("policies.updatedAt")}<FiArrowDown size={14} className={sortBy === "updatedAt" ? "text-vr-900" : "text-gray-500"} aria-hidden="true" /></button></th>
+                  <th className="px-5 py-3 text-center">{tc("status")}</th>
+                  <th className="px-5 py-3 text-center">{tc("actions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!loading && paginatedPolicies.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">
+                      {t("policies.empty")}
+                    </td>
+                  </tr>
+                )}
+                {loading && (
+                  <TableSkeletonRows columns={7} testId="policies-table-skeleton" cellClassName="px-5 py-4" />
+                )}
+                {paginatedPolicies.map((policy) => (
+                  <tr
+                    key={policy.id}
+                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
+                  >
+                    <td className="px-5 py-4 text-left">
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {policy.title}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-1">
+                          {policy.description}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <Badge tone="brand">
+                        {policy.category}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-4 text-center text-gray-600">v{policy.version}</td>
+                    <td className="px-5 py-4 text-center text-gray-600">
+                      {formatDateOnly(policy.createdAt)}
+                    </td>
+                    <td className="px-5 py-4 text-center text-gray-600">
+                      {formatDateOnly(policy.updatedAt)}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-center">
+                      {activeBadge(policy, tc("active"), tc("inactive"))}
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleViewDetail(policy)}
+                          title={tc("details")}
+                          aria-label={tc("details")}
+                          className="table-action-button"
+                        >
+                          <FiEye size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleActive(policy)}
+                          title={
+                            policy.active
+                              ? t("policies.turnOff")
+                              : t("policies.turnOn")
+                          }
+                          aria-label={
+                            policy.active
+                              ? t("policies.turnOff")
+                              : t("policies.turnOn")
+                          }
+                          className="table-action-button"
+                        >
+                          {policy.active ? (
+                            <FiCheck size={16} />
+                          ) : (
+                            <FiX size={16} />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(policy)}
+                          title={tc("edit")}
+                          aria-label={tc("edit")}
+                          className="table-action-button"
+                        >
+                          <FiEdit2 size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDelete(policy)}
+                          title={tc("delete")}
+                          aria-label={tc("delete")}
+                          className="table-action-button"
+                        >
+                          <FiTrash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         <Pagination
           page={page}
           pageSize={pageSize}
           totalItems={totalItems}
           onPageChange={setPage}
         />
-      </div>
+      </section>
 
       <Modal
         open={createOpen || editOpen}

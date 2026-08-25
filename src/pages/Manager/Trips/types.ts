@@ -1,10 +1,14 @@
 // Type cục bộ của màn Trips — dùng chung giữa index, ScheduleForm, ScheduleTable, tripHelpers.
 
+import type { BusinessCode } from "../../../api/vietride";
+
 export type ResourceStatus = "active" | "inactive" | "available" | "busy";
 export type ScheduleStatus = "draft" | "open" | "blocked";
 
 export type RouteOption = {
   id: string;
+  /** Mã tuyến do nhà xe đặt — có thể null với tuyến tạo trước khi BE thêm mã. */
+  code?: BusinessCode;
   name: string;
   origin: string;
   destination: string;
@@ -62,6 +66,8 @@ export type TripSchedule = ScheduleForm & {
   id: string;
   status: ScheduleStatus;
   routeName?: string;
+  /** Mã tuyến của lịch chạy — hiển thị kèm tên tuyến, xem `BusinessCode`. */
+  routeCode?: BusinessCode;
   vehiclePlate?: string;
   driverName?: string;
   assistantName?: string;

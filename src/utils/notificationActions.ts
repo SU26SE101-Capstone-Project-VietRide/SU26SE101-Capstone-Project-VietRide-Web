@@ -58,6 +58,12 @@ export function getNotificationActionPath(
     case "OPEN_SHUTTLE_TRACKING":
       return withQuery("/manager/dispatch", {
         shuttleTripId: action.params.shuttleTripId,
+        bookingId: action.params.bookingId,
+        // `withQuery` bỏ khoá rỗng nên phải đưa số về chuỗi trước
+        pickupOrder:
+          action.params.pickupOrder == null
+            ? undefined
+            : String(action.params.pickupOrder),
       });
     case "OPEN_INCIDENT":
       // Có `incidentId` thì mở thẳng modal chi tiết; thiếu thì vẫn lọc theo
@@ -174,9 +180,20 @@ export function parseNotificationAction(
     }
     case "OPEN_SHUTTLE_TRACKING": {
       const shuttleTripId = readString(params, "shuttleTripId");
-      return shuttleTripId
-        ? { type, params: { shuttleTripId } }
-        : null;
+      if (!shuttleTripId) return null;
+
+      // Hai field additive: thiếu là chuyện bình thường (notification cũ, hoặc
+      // notification chung cho nhà xe không đại diện nhóm khách nào).
+      const bookingId = readString(params, "bookingId");
+      const pickupOrder = readNumber(params, "pickupOrder");
+      return {
+        type,
+        params: {
+          shuttleTripId,
+          ...(bookingId ? { bookingId } : {}),
+          ...(pickupOrder != null ? { pickupOrder } : {}),
+        },
+      };
     }
     case "OPEN_INVOICE": {
       const invoiceId = readString(params, "invoiceId");
@@ -231,9 +248,17 @@ function inferLegacyAction(
 
   const shuttleTripId = readString(data, "shuttleTripId");
   if (shuttleTripId) {
+    // `data` của SHUTTLE_STARTED/SHUTTLE_REASSIGNED mang sẵn bookingId +
+    // pickupOrder ngay cả khi `action` bị thiếu — tận dụng để mở đúng điểm đón.
+    const bookingId = readString(data, "bookingId");
+    const pickupOrder = readNumber(data, "pickupOrder");
     return {
       type: "OPEN_SHUTTLE_TRACKING",
-      params: { shuttleTripId },
+      params: {
+        shuttleTripId,
+        ...(bookingId ? { bookingId } : {}),
+        ...(pickupOrder != null ? { pickupOrder } : {}),
+      },
     };
   }
 
@@ -285,6 +310,32 @@ function parseUnknownRecord(value: unknown): UnknownRecord | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as UnknownRecord)
     : null;
+}
+
+/**
+ * Đọc một số từ payload.
+ *
+ * Phải chịu được cả hai dạng: JSON inbox trả `pickupOrder` là number, còn FCM
+ * nhét mọi thứ vào `actionParams` dạng chuỗi nên sau khi parse vẫn có thể là
+ * chuỗi ở các client/phiên bản khác nhau. Giá trị không đọc được thì trả null
+ * thay vì `NaN` — `NaN` lọt xuống URL thành `pickupOrder=NaN`.
+ */
+function readNumber(
+  value: UnknownRecord | null | undefined,
+  key: string,
+): number | null {
+  const candidate = value?.[key];
+
+  if (typeof candidate === "number") {
+    return Number.isFinite(candidate) ? candidate : null;
+  }
+
+  if (typeof candidate === "string" && candidate.trim()) {
+    const parsed = Number(candidate.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
 }
 
 function readString(

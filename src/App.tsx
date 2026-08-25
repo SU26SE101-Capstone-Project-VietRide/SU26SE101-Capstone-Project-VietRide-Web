@@ -15,6 +15,13 @@ const TripsList = lazy(() => import("./pages/Manager/Trips/index"));
 const OperatorTripList = lazy(() => import("./pages/Manager/TripList/index"));
 const BookingsList = lazy(() => import("./pages/Manager/Bookings/index"));
 const ParcelsList = lazy(() => import("./pages/Manager/Parcels/index"));
+const ParcelIncidentsPage = lazy(
+  () => import("./pages/Manager/ParcelIncidents/index"),
+);
+const ClaimsPage = lazy(() => import("./pages/Manager/Claims/index"));
+const UnidentifiedPackagesPage = lazy(
+  () => import("./pages/Manager/UnidentifiedPackages/index"),
+);
 const StaffList = lazy(() => import("./pages/Manager/Staff/index"));
 const VehiclesList = lazy(() => import("./pages/Manager/Vehicles/index"));
 const RoutesList = lazy(() => import("./pages/Manager/Routes/index"));
@@ -39,14 +46,13 @@ const VehicleBuilderPage = lazy(() =>
 const Operators = lazy(() => import("./pages/Admin/Operators"));
 const Users = lazy(() => import("./pages/Admin/Users"));
 const Vouchers = lazy(() => import("./pages/Admin/Vouchers"));
-const Packages = lazy(() => import("./pages/Admin/Packages"));
+const Packages = lazy(() => import("./pages/Admin/Packages/index"));
 const AdminReports = lazy(() => import("./pages/Admin/Reports"));
 const AdminPolicies = lazy(() => import("./pages/Admin/Policies"));
 const AdminStations = lazy(() => import("./pages/Admin/Stations"));
 const AdminLocations = lazy(() => import("./pages/Admin/Locations"));
 const WalletSettlement = lazy(() => import("./pages/Admin/WalletSettlement"));
 const RagAudit = lazy(() => import("./pages/Admin/RagAudit"));
-const ActivityLogs = lazy(() => import("./pages/Admin/ActivityLogs"));
 const RagAssistant = lazy(() => import("./pages/RagAssistant"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -149,6 +155,15 @@ export default function App() {
                   }
                 >
                   <Route path="parcels" element={<ParcelsList />} />
+                  <Route
+                    path="parcel-incidents"
+                    element={<ParcelIncidentsPage />}
+                  />
+                  <Route path="claims" element={<ClaimsPage />} />
+                  <Route
+                    path="unidentified-packages"
+                    element={<UnidentifiedPackagesPage />}
+                  />
                 </Route>
                 <Route path="operations" element={<OperationsCenter />} />
                 <Route
@@ -250,7 +265,6 @@ export default function App() {
                   element={<WalletSettlement />}
                 />
                 <Route path="rag-audit" element={<RagAudit />} />
-                <Route path="activity-logs" element={<ActivityLogs />} />
                 <Route path="assistant" element={<RagAssistant />} />
                 <Route path="policies" element={<AdminPolicies />} />
                 <Route path="profile" element={<Profile />} />

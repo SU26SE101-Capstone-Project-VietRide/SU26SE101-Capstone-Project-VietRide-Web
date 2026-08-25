@@ -12,7 +12,9 @@ import {
   FiMap,
   FiMapPin,
   FiBarChart2,
+  FiHelpCircle,
   FiSettings,
+  FiShield,
   FiUsers,
   FiNavigation,
   FiDollarSign,
@@ -20,9 +22,9 @@ import {
   FiDatabase,
   FiCreditCard,
   FiAlertTriangle,
+  FiAlertOctagon,
   FiGlobe,
   FiLayers,
-  FiActivity,
 } from "react-icons/fi";
 import type { AuthRole } from "../auth";
 import type { SubscriptionModule } from "../contexts/operatorSubscriptionContext";
@@ -86,6 +88,24 @@ export const operatorAdminMenuConfig: MenuSection[] = [
         labelKey: "manager.parcels",
         path: "/manager/parcels",
         icon: <FiPackage />,
+        requiredModule: "enableParcel",
+      },
+      {
+        labelKey: "manager.parcelIncidents",
+        path: "/manager/parcel-incidents",
+        icon: <FiAlertOctagon />,
+        requiredModule: "enableParcel",
+      },
+      {
+        labelKey: "manager.claims",
+        path: "/manager/claims",
+        icon: <FiShield />,
+        requiredModule: "enableParcel",
+      },
+      {
+        labelKey: "manager.unidentifiedPackages",
+        path: "/manager/unidentified-packages",
+        icon: <FiHelpCircle />,
         requiredModule: "enableParcel",
       },
       {
@@ -202,11 +222,6 @@ export const adminMenuConfig: MenuSection[] = [
         labelKey: "admin.ragAudit",
         path: "/admin/rag-audit",
         icon: <FiDatabase />,
-      },
-      {
-        labelKey: "admin.activityLogs",
-        path: "/admin/activity-logs",
-        icon: <FiActivity />,
       },
 
 ],

@@ -45,7 +45,19 @@ export type NotificationAction =
   | { type: "OPEN_SUBSCRIPTION"; params: Record<string, never> }
   | { type: "OPEN_INVOICE"; params: { invoiceId: string } }
   | { type: "OPEN_OPERATOR_STATUS"; params: Record<string, never> }
-  | { type: "OPEN_SHUTTLE_TRACKING"; params: { shuttleTripId: string } }
+  /**
+   * `bookingId`/`pickupOrder` là additive (BE 2026-08-22): notification cũ và
+   * notification chung cho nhà xe chỉ có `shuttleTripId`, còn notification gắn
+   * với một nhóm khách cụ thể thì có đủ ba field. Đừng bắt buộc hai field sau.
+   */
+  | {
+      type: "OPEN_SHUTTLE_TRACKING";
+      params: {
+        shuttleTripId: string;
+        bookingId?: string;
+        pickupOrder?: number;
+      };
+    }
   // Màn Báo cáo sự cố không có route riêng cho từng sự cố mà mở modal theo
   // `?incidentId=`, và luôn cần `tripId` để lọc sẵn danh sách phía sau modal —
   // nên `tripId` bắt buộc, `incidentId` chỉ là bonus khi payload có mang theo.
@@ -187,30 +199,6 @@ export type AdminUserActionResult = {
   statusChanged: boolean;
 };
 
-export type AdminActivityLogActor = {
-  id: string;
-  email: string;
-  displayName: string;
-  role: string;
-};
-
-export type AdminActivityLog = {
-  id: string;
-  actor: AdminActivityLogActor;
-  action: string;
-  metadata: Record<string, unknown> | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  createdAt: string;
-};
-
-export type AdminActivityLogParams = Pick<PageParams, "page" | "pageSize"> & {
-  userId?: string;
-  action?: string;
-  from?: string;
-  to?: string;
-};
-
 export type CreateAdminUserRequest = {
   email: string;
   displayName: string;
@@ -306,10 +294,25 @@ export type CreateOperatorUserRequest = {
 
 export type SubscriptionBillingPeriod = "MONTHLY" | "YEARLY";
 
+// WALLET = trừ thẳng ví nhà xe (200 = xong ngay, 402 = thiếu tiền);
+// VNPAY = tạo redirect và chờ IPN.
+export type SubscriptionPaymentMethod = "VNPAY" | "WALLET";
+
+// STANDARD = gói bán cho mọi nhà xe. CUSTOM = gói riêng admin dựng theo yêu cầu
+// của MỘT nhà xe; plan list chỉ trả gói riêng thuộc nhà xe đang đăng nhập.
+export type SubscriptionPlanType = "STANDARD" | "CUSTOM";
+
 export type SubscriptionPlan = {
   planId: string;
   name: string;
   description?: string;
+  // Optional: response cũ chưa có field này, thiếu thì coi như STANDARD.
+  planType?: SubscriptionPlanType;
+  // Chỉ có giá trị với gói CUSTOM. KHÔNG hiển thị ở UI và KHÔNG cho nhập —
+  // gói riêng của nhà xe khác không bao giờ về tới FE (UUID hợp lệ vẫn 404).
+  ownerOperatorId?: string | null;
+  // Hai giá ĐỘC LẬP — không suy giá năm từ giá tháng nhân hệ số. Gói riêng chỉ
+  // cần một trong hai lớn hơn 0, nên giá bằng 0 nghĩa là kỳ đó không bán.
   pricePerMonth: number;
   pricePerYear: number;
   limits: {
@@ -351,6 +354,10 @@ export type SubscriptionPendingUpgrade = {
 export type OperatorSubscriptionDetail = {
   subscriptionId: string;
   status: string;
+  // Quyền lợi có đang được cấp hay không — do BE tính, FE KHÔNG tự suy từ
+  // status hay đồng hồ client. Optional để fixture/response cũ không gãy;
+  // đọc qua `isSubscriptionEntitled` (subscriptionHelpers) để có fallback.
+  entitlementActive?: boolean;
   billingPeriod: SubscriptionBillingPeriod | null;
   startedAt: string | null;
   expiresAt: string | null;
@@ -370,10 +377,150 @@ export type OperatorSubscriptionDetail = {
 // returnUrl đã bị bỏ: Backend tự chọn mode OPERATOR_WEB và dùng
 // VNPAY_WEB_RETURN_URL phía server (VNPAY_WEB_MOBILE_SDK_HANDOFF.md §2.1, §4).
 // FE không được hardcode URL return nữa.
+//
+// LEGACY: luồng "bấm mua là ra VNPAY" một nhịp. Luồng mới là quote → payment
+// (xem createSubscriptionUpgradeQuote). Giữ lại tới khi màn Packages chuyển hẳn.
 export type SubscriptionUpgradeRequest = {
   planId: string;
   billingPeriod: SubscriptionBillingPeriod;
-  paymentMethod: "VNPAY";
+  paymentMethod: SubscriptionPaymentMethod;
+};
+
+// ---------------------------------------------------------------------------
+// Nâng cấp theo proration: báo giá trước, thanh toán sau
+// ---------------------------------------------------------------------------
+
+export type SubscriptionUpgradeQuoteRequest = {
+  planId: string;
+  billingPeriod: SubscriptionBillingPeriod;
+  // Nằm TRONG quote — đổi phương thức thanh toán bắt buộc phải quote lại
+  paymentMethod: SubscriptionPaymentMethod;
+};
+
+export type SubscriptionUpgradeQuote = {
+  upgradeAttemptId: string;
+  sourcePlanId: string;
+  targetPlanId: string;
+  billingPeriod: SubscriptionBillingPeriod;
+  paymentMethod: SubscriptionPaymentMethod;
+  // false = báo giá full-price (trial hoặc subscription đã hết hạn → mở chu kỳ
+  // mới). true = có khấu trừ gói cũ và giữ nguyên ngày hết hạn hiện tại.
+  prorationApplied: boolean;
+  currentCyclePrice: number;
+  targetCyclePrice: number;
+  // Giá trị gói cũ còn lại được trừ đi
+  unusedCredit: number;
+  // Giá gói mới tính cho phần thời gian còn lại
+  proratedTargetAmount: number;
+  // Số phải trả. FE hiển thị NGUYÊN số này — không tự cộng trừ lại từ các field
+  // bên trên (làm tròn của BE mới là số đúng).
+  amountDue: number;
+  periodFrom: string;
+  periodTo: string;
+  quotedAt: string;
+  // Hết hạn báo giá — quá hạn phải quote lại, không confirm được nữa
+  dueAt: string;
+  currency: string;
+  status: string;
+};
+
+// apiRequest chỉ trả phần `data`, không lộ HTTP status — nên FE phân biệt hai
+// nhánh kết quả bằng paymentRedirectUrl: CÓ url = VNPAY (202, phải chuyển
+// hướng); KHÔNG có = ví đã trừ xong (200, chỉ cần refresh subscription).
+// 402 WALLET_INSUFFICIENT_BALANCE ném ApiRequestError, chưa trừ tiền.
+export type SubscriptionUpgradePaymentResult = {
+  upgradeAttemptId: string;
+  status: string;
+  paymentId?: string;
+  paymentRedirectUrl?: string | null;
+  dueAt?: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Custom Plan: nhà xe xin gói riêng, admin duyệt
+// ---------------------------------------------------------------------------
+// LƯU Ý: FE-RESPONSE-2026-08-21 chỉ nêu rõ body của POST create, các trạng thái,
+// `approvedPlanId` và `rejectionReason`. Tên các field còn lại dưới đây
+// (requestId, createdAt, reviewedAt, operatorName) là SUY RA từ URL path và
+// nhu cầu hiển thị — đối chiếu lại với BE khi có response mẫu thật.
+
+export type CustomPlanRequestStatus =
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "REJECTED";
+
+// Sáu quota + ba module — dùng chung cho cả lúc nhà xe xin lẫn lúc admin duyệt
+export type CustomPlanQuota = {
+  maxVehicles: number;
+  maxDrivers: number;
+  maxAssistants: number;
+  maxOperatorUsers: number;
+  maxRoutes: number;
+  maxTripsPerMonth: number;
+  enableParcel: boolean;
+  enableShuttle: boolean;
+  enableRag: boolean;
+};
+
+export type CreateCustomPlanRequestPayload = CustomPlanQuota & {
+  // Chỉ là gợi ý để admin đặt giá — lúc mua nhà xe vẫn chọn kỳ tự do
+  preferredBillingPeriod: SubscriptionBillingPeriod;
+  note?: string;
+};
+
+// Response của custom-request — shape đã xác nhận từ bản chạy thật.
+//
+// Hạn mức và module nằm trong `requestedLimits` / `requestedModules`, không
+// phẳng ở gốc như payload lúc gửi đi.
+export type OperatorCustomPlanRequest = {
+  requestId: string;
+  status: CustomPlanRequestStatus;
+  preferredBillingPeriod: SubscriptionBillingPeriod;
+  note?: string | null;
+  requestedLimits: {
+    maxVehicles: number;
+    maxDrivers: number;
+    maxAssistants: number;
+    maxOperatorUsers: number;
+    maxRoutes: number;
+    maxTripsPerMonth: number;
+  };
+  requestedModules: {
+    enableParcel: boolean;
+    enableShuttle: boolean;
+    enableRag: boolean;
+  };
+  // Chỉ có khi APPROVED — id gói riêng vừa dựng. Duyệt xong KHÔNG có nghĩa là
+  // đã lên gói: nhà xe vẫn phải đi luồng quote → payment như gói thường.
+  approvedPlanId?: string | null;
+  // Chỉ có khi REJECTED
+  rejectionReason?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  reviewedAt?: string | null;
+  // Id admin đã xử lý — BE không trả tên nên FE chưa hiển thị
+  reviewedBy?: string | null;
+};
+
+export type AdminCustomPlanRequest = OperatorCustomPlanRequest & {
+  operatorId: string;
+  // Hai API GET admin trả kèm tên nhà xe, LUÔN có giá trị kể cả khi nhà xe đã
+  // soft-delete (handoff §7). Admin FE render thẳng field này, không gọi thêm
+  // /admin/operators/{id} cho từng dòng.
+  operatorName: string;
+};
+
+export type ApproveCustomPlanRequestPayload = CustomPlanQuota & {
+  name: string;
+  description?: string;
+  // Hai giá độc lập, BE yêu cầu ít nhất một giá > 0. Kỳ nào giá = 0 thì FE
+  // phải khoá kỳ đó khi bán gói này.
+  pricePerMonth: number;
+  pricePerYear: number;
+};
+
+export type RejectCustomPlanRequestPayload = {
+  reason: string;
 };
 
 export type SubscriptionUpgradeResult = {
@@ -429,8 +576,26 @@ export type WalletTransactionType = "CREDIT" | "DEBIT";
 // amount luôn dùng được) nhưng có thể thiếu vài field mô tả nguồn gốc.
 export type FinancialDataCompleteness = "COMPLETE" | "PARTIAL";
 
+/**
+ * Mã nghiệp vụ người đọc được: `TRIP-yyyyMMdd-XXXXXXXX`, `STL-…`, `OWT-…`,
+ * `PWT-…` do BE sinh, hoặc mã tuyến do nhà xe tự đặt (`SG-DL-01`).
+ *
+ * `null` với dữ liệu legacy chưa backfill (Release A của BE vẫn để nullable);
+ * field vắng hẳn khi môi trường chưa deploy commit thêm mã — nên type là
+ * optional + nullable, và KHÔNG được ép non-null cho tới khi BE chốt Release B.
+ *
+ * Luật dùng: hiển thị qua `displayBusinessCode()`, không tự chế mã từ UUID, và
+ * không parse ngày / loại bản ghi / quan hệ nghiệp vụ ra khỏi chuỗi mã. UUID
+ * vẫn là định danh kỹ thuật cho URL và mutation.
+ */
+export type BusinessCode = string | null;
+
 export type OperatorWalletLastSettlement = {
   settlementId: string;
+  /** Mã phiên tất toán (`STL-…`) — xem {@link BusinessCode}. */
+  settlementCode?: BusinessCode;
+  /** Mã chuyến của phiên tất toán này — xem {@link BusinessCode}. */
+  tripCode?: BusinessCode;
   amount: number;
   method: "AUTO_WEEKLY" | "ADMIN_MANUAL" | string;
   settledAt: string;
@@ -472,12 +637,21 @@ export type OperatorWallet = {
 
 export type WalletRelatedSettlement = {
   settlementId: string;
+  /** Mã phiên tất toán (`STL-…`) — xem {@link BusinessCode}. */
+  settlementCode?: BusinessCode;
   tripId: string;
+  /** Mã chuyến (`TRIP-…`) — xem {@link BusinessCode}. */
+  tripCode?: BusinessCode;
   method: "AUTO_WEEKLY" | "ADMIN_MANUAL" | string;
 };
 
 export type WalletTransaction = {
   transactionId: string;
+  /**
+   * Mã giao dịch ví: `OWT-…` cho ví nhà xe, `PWT-…` cho ví nền tảng — cùng type
+   * này phục vụ cả hai endpoint. Xem {@link BusinessCode}.
+   */
+  transactionCode?: BusinessCode;
   type: WalletTransactionType;
   // Luôn dương — giữ lại để tương thích client cũ, KHÔNG dùng để suy dấu.
   amount: number;
@@ -530,13 +704,23 @@ export type TripSettlementProcessingState =
 // không giả định tên field cụ thể ngoài tripId đã có sẵn ở top-level.
 export type TripSettlementTripSummary = {
   tripId?: string;
+  /** Mã chuyến snapshot — xem {@link BusinessCode}. */
+  tripCode?: BusinessCode;
   routeName?: string;
   departureTime?: string;
 } | null;
 
 export type TripSettlement = {
   settlementId: string;
+  /** Mã phiên tất toán (`STL-…`) — xem {@link BusinessCode}. */
+  settlementCode?: BusinessCode;
   tripId: string;
+  /**
+   * CHỈ có ở bản admin (`GET /v1/admin/trip-settlements`, response settle thủ
+   * công). Bản operator KHÔNG có field này — đọc `trip?.tripCode` thay thế.
+   * `pickSettlementTripCode()` bọc đúng thứ tự ưu tiên đó.
+   */
+  tripCode?: BusinessCode;
   operatorId?: string;
   status: TripSettlementStatus;
   processingState?: TripSettlementProcessingState;
@@ -654,10 +838,24 @@ export type OperatorLedgerEntry = {
   adjustmentReason?: string | null;
   affectsRevenue?: boolean;
   affectsSettlement?: boolean;
+  /**
+   * Snapshot phiên tất toán của chuyến, đúng theo `LedgerSettlementDto` của BE
+   * (`GET /v1/operator/ledger`): chỉ có 7 field, KHÔNG có `processingState` —
+   * field đó chỉ tồn tại trên `SettlementDto` của `/v1/operator/trip-settlements`.
+   *
+   * Bảng Lịch sử doanh thu hiện KHÔNG hiển thị field này: cột Trạng thái từng
+   * render badge theo `processingState` nên trống với mọi row, còn hai mã
+   * STL-/TRIP- thì không đủ chỗ trong cột hẹp. Trạng thái đối soát xem ở tab
+   * Doanh thu hàng tuần (`getOperatorTripSettlements`). Type vẫn giữ để soi
+   * đúng response — đừng dựng lại UI từ nó nếu BE chưa bổ sung `processingState`.
+   */
   settlement?: {
     settlementId: string;
+    /** Mã phiên tất toán (`STL-…`) — xem {@link BusinessCode}. */
+    settlementCode?: BusinessCode;
+    /** Mã chuyến của phiên tất toán — xem {@link BusinessCode}. */
+    tripCode?: BusinessCode;
     status: TripSettlementStatus;
-    processingState?: TripSettlementProcessingState;
   } | null;
 };
 
@@ -1106,6 +1304,12 @@ export type AdminStopRequest = Partial<OperatorStopRequest> & {
 export type OperatorRoute = {
   id: string;
   operatorId: string;
+  /**
+   * Mã tuyến do nhà xe tự đặt (`SG-DL-01`). Unique trong phạm vi từng nhà xe
+   * với Route chưa soft-delete; hai nhà xe khác nhau được trùng mã. Tuyến
+   * legacy vẫn `null` kể cả sau Release B. Xem {@link BusinessCode}.
+   */
+  code?: BusinessCode;
   name: string;
   originStationId: string;
   destinationStationId: string;
@@ -1122,6 +1326,12 @@ export type OperatorRoute = {
 };
 
 export type OperatorRouteRequest = {
+  /**
+   * Mã tuyến đã chuẩn hoá (trim + uppercase) — dùng `normalizeRouteCode()`.
+   * BỎ HẲN field khi không đổi mã; KHÔNG gửi `""` hay `null` để xoá mã, BE
+   * không hỗ trợ và sẽ trả `422`.
+   */
+  code?: string;
   name: string;
   originStationId: string;
   destinationStationId: string;
@@ -1170,6 +1380,8 @@ export type OperatorRouteFullStopRequest = {
 };
 
 export type OperatorRouteFullRequest = {
+  /** Xem {@link OperatorRouteRequest.code} — cùng luật chuẩn hoá và cùng lỗi. */
+  code?: string;
   name: string;
   originStationId: string;
   destinationStationId: string;
@@ -2293,6 +2505,23 @@ export type CancelShuttleRequest = {
   reason: string;
 };
 
+/**
+ * Đổi phân công chuyến trung chuyển. Bỏ trống field nào thì BE giữ nguyên giá
+ * trị hiện tại của field đó — nhưng phải gửi ít nhất một trong hai.
+ */
+export type ReassignShuttleTripRequest = {
+  driverUserId?: string;
+  vehicleId?: string;
+  /** Bắt buộc, không được rỗng — lý do đi thẳng vào thông báo cho hành khách */
+  reason: string;
+};
+
+export type ReassignShuttleTripResult = {
+  shuttleTripId: string;
+  driverUserId: string;
+  vehicleId: string;
+};
+
 // ==== Resource availability (driver / assistant / vehicle) ====
 // Rule BE: next.start >= previous.end + 30 phút + thời gian chạy xe sang địa
 // điểm kế tiếp (handoff mục 4).
@@ -3017,14 +3246,15 @@ export type OperatorTripListParams = PageParams & {
 export type OperatorTripListItem = {
   tripId: string;
   /**
-   * Mã chuyến người đọc được (`TRIP-20260729-001`). Optional vì các môi trường
-   * deploy trước khi BE bổ sung field này vẫn trả item không có `tripCode` —
-   * UI phải tự fallback về `tripId` rút gọn thay vì hiện "undefined".
+   * Mã chuyến người đọc được (`TRIP-20260824-M5Q7WV3D`). Xem
+   * {@link BusinessCode}: hiển thị `-` khi thiếu, KHÔNG dựng mã từ `tripId`.
    */
-  tripCode?: string;
+  tripCode?: BusinessCode;
   status: string;
   route: {
     routeId: string;
+    /** Mã tuyến (`SG-DL-01`) — xem {@link BusinessCode}. */
+    code?: BusinessCode;
     name: string;
     originName: string;
     destinationName: string;
@@ -3366,7 +3596,10 @@ export type TripSeatMap = {
 export type FirebaseUploadPurpose =
   | "VEHICLE_IMAGE"
   | "OPERATOR_LOGO"
+  /** Ảnh khách tự chụp lúc gửi hàng — lưu ở `parcels/{userId}/`. */
   | "PARCEL_PHOTO"
+  /** Ảnh phía vận hành — lưu ở `parcel-ops/{operatorId}/{userId}/`. */
+  | "PARCEL_EVIDENCE_PHOTO"
   | "INCIDENT_PHOTO"
   | "USER_AVATAR";
 
@@ -3432,9 +3665,16 @@ export type PublicTripSearchParams = {
 
 export type PublicTrip = {
   tripId: string;
+  /** Mã chuyến top-level của `GET /v1/trips/{id}` — xem {@link BusinessCode}. */
+  tripCode?: BusinessCode;
   operatorId: string;
   operatorName?: string;
   routeId: string;
+  /**
+   * Mã tuyến, trả **top-level** ở Trip detail (không nằm trong object `route`
+   * như bên Trip list). Xem {@link BusinessCode}.
+   */
+  routeCode?: BusinessCode;
   vehicleId?: string;
   status: string;
   departureTime: string;
@@ -4031,12 +4271,6 @@ export function unlockAdminUser(
   });
 }
 
-export function getAdminActivityLogs(params: AdminActivityLogParams = {}) {
-  return apiRequest<PagedResult<AdminActivityLog>>(
-    `/v1/admin/activity-logs${buildQuery(params)}`,
-  );
-}
-
 export function getAdminPlatformReport(params: AdminPlatformReportParams) {
   return apiRequest<AdminPlatformReport>(
     `/v1/admin/reports/platform${buildQuery(params)}`,
@@ -4167,6 +4401,68 @@ export function retryOperatorSubscriptionPayment(
       method: "POST",
       headers: { "Idempotency-Key": idempotencyKey },
     },
+  );
+}
+
+// Bước 1 của nâng cấp: xin báo giá. Chưa tạo Payment, chưa trừ tiền — chỉ mở
+// một upgrade attempt kèm breakdown và hạn `dueAt`.
+export function createSubscriptionUpgradeQuote(
+  request: SubscriptionUpgradeQuoteRequest,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<SubscriptionUpgradeQuote>(
+    "/v1/operator/subscription/upgrade/quote",
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+// Bước 2: chốt thanh toán cho attempt đã báo giá. KHÔNG có request body.
+//
+// Mỗi lần bấm phải truyền một Idempotency-Key MỚI. Dùng lại key đã nhận
+// 402 WALLET_INSUFFICIENT_BALANCE sẽ được replay đúng response 402 cũ trong
+// 24 giờ — nạp tiền xong rồi confirm lại bằng key đó vẫn hỏng.
+export function confirmSubscriptionUpgradePayment(
+  upgradeAttemptId: string,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<SubscriptionUpgradePaymentResult>(
+    `/v1/operator/subscription/upgrade/${upgradeAttemptId}/payment`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+// Nhà xe xin gói riêng. Mỗi nhà xe chỉ được một yêu cầu PENDING_REVIEW —
+// gửi thêm sẽ nhận 409 CUSTOM_REQUEST_ALREADY_PENDING.
+export function createOperatorCustomPlanRequest(
+  request: CreateCustomPlanRequestPayload,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<OperatorCustomPlanRequest>(
+    "/v1/operator/subscription/custom-requests",
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+export function getOperatorCustomPlanRequests() {
+  return apiRequest<OperatorCustomPlanRequest[]>(
+    "/v1/operator/subscription/custom-requests",
+  );
+}
+
+export function getOperatorCustomPlanRequest(requestId: string) {
+  return apiRequest<OperatorCustomPlanRequest>(
+    `/v1/operator/subscription/custom-requests/${requestId}`,
   );
 }
 
@@ -4314,6 +4610,51 @@ export function updateAdminSubscriptionPlan(
     `/v1/admin/subscription-plans/${planId}`,
     {
       method: "PATCH",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+export function getAdminCustomPlanRequests() {
+  return apiRequest<AdminCustomPlanRequest[]>(
+    "/v1/admin/subscription-plans/custom-requests",
+  );
+}
+
+export function getAdminCustomPlanRequest(requestId: string) {
+  return apiRequest<AdminCustomPlanRequest>(
+    `/v1/admin/subscription-plans/custom-requests/${requestId}`,
+  );
+}
+
+// Duyệt: admin chốt tên, mô tả, sáu quota, ba module và hai giá. Quota duyệt
+// thấp hơn usage hiện tại của nhà xe → 422 CUSTOM_PLAN_LIMIT_BELOW_CURRENT_USAGE
+// kèm `error.fields` chỉ đúng ô nào sai (đọc qua ApiRequestError.fields).
+export function approveAdminCustomPlanRequest(
+  requestId: string,
+  request: ApproveCustomPlanRequestPayload,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<AdminCustomPlanRequest>(
+    `/v1/admin/subscription-plans/custom-requests/${requestId}/approve`,
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+export function rejectAdminCustomPlanRequest(
+  requestId: string,
+  request: RejectCustomPlanRequestPayload,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<AdminCustomPlanRequest>(
+    `/v1/admin/subscription-plans/custom-requests/${requestId}/reject`,
+    {
+      method: "POST",
       body: request,
       headers: { "Idempotency-Key": idempotencyKey },
     },
@@ -6048,6 +6389,35 @@ export function cancelOperatorShuttleTrip(
   );
 }
 
+/**
+ * Đổi xe và/hoặc tài xế của một chuyến trung chuyển ĐÃ LÊN LỊCH.
+ *
+ * Luật của BE (`ShuttleDispatchService.ReassignAsync`):
+ * - Phải có ít nhất một trong `driverUserId`/`vehicleId`, và `reason` bắt buộc
+ *   không rỗng — thiếu là `422 VALIDATION_ERROR`.
+ * - Chỉ chuyến `SCHEDULED`; đang chạy/đã xong trả `409 SHUTTLE_TRIP_INVALID_STATE`.
+ * - Xe mới phải đủ chỗ cho số khách đang gán (`409 SHUTTLE_CAPACITY_EXCEEDED`)
+ *   và không trùng lịch (`409 SHUTTLE_VEHICLE_CONFLICT` / `SHUTTLE_DRIVER_CONFLICT`).
+ * - Gửi đúng xe/tài xế cũ vẫn trả 200 nhưng BE KHÔNG phát thông báo — không có
+ *   thông báo giả cho hành khách.
+ */
+export function reassignOperatorShuttleTrip(
+  shuttleTripId: string,
+  request: ReassignShuttleTripRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ReassignShuttleTripResult>(
+    `/v1/operator/shuttle-trips/${shuttleTripId}/assignment`,
+    {
+      method: "PATCH",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
 export function getShuttleTripLatest(shuttleTripId: string) {
   return apiRequest<ShuttleTrackingLatest | null>(
     `/v1/tracking/shuttle-trips/${shuttleTripId}/latest`,
@@ -6309,3 +6679,840 @@ export const deleteOperatorPolicy = (policyId: string) =>
 
 
 
+
+// ===========================================================================
+// Parcel Reliability — sự cố kiện hàng (§6 API-Parcel-Operator-2026-08-21.md)
+//
+// LƯU Ý DEPLOY: production spec chưa có nhóm route này (§1 của tài liệu). Toàn
+// nhóm này lên production sau phần Parcel cơ bản.
+// ===========================================================================
+
+export const PARCEL_INCIDENT_TYPES = [
+  "MISSING",
+  "WRONG_STOP",
+  "DELIVERY_NOT_RECEIVED",
+  "PARTIAL_LOSS",
+  "DAMAGED",
+  "SCAN_IDENTITY_MISMATCH",
+  "PACKAGE_IDENTITY_MISMATCH",
+  "UNSCANNED_HANDOFF",
+  "MISSING_AFTER_DEPARTURE",
+] as const;
+
+export type ParcelIncidentType = (typeof PARCEL_INCIDENT_TYPES)[number];
+
+export const PARCEL_INCIDENT_STATUSES = [
+  "OPEN",
+  "SEARCHING",
+  "FOUND",
+  "FORWARDING",
+  "RESOLVED",
+  "CLOSED",
+  "ESCALATED",
+  "SEARCH_EXPIRED",
+  "LOST_CONFIRMED",
+] as const;
+
+export type ParcelIncidentStatus = (typeof PARCEL_INCIDENT_STATUSES)[number];
+
+/**
+ * `SlaState` KHÔNG phải C# enum — handler kiểm chuỗi trực tiếp (§3.3), nên nới
+ * bằng `| string` để giá trị mới của BE không làm vỡ màn.
+ */
+export const SLA_STATES = [
+  "ON_TRACK",
+  "DUE_SOON",
+  "BREACHED",
+  "CLOSED",
+] as const;
+
+export type SlaState = (typeof SLA_STATES)[number] | (string & {});
+
+export const PARCEL_CUSTODY_LOCATION_TYPES = [
+  "ORIGIN_STATION",
+  "DESTINATION_STATION",
+  "ROUTE_STOP",
+  "VEHICLE",
+  "WAREHOUSE",
+] as const;
+
+export type ParcelCustodyLocationType =
+  (typeof PARCEL_CUSTODY_LOCATION_TYPES)[number];
+
+/**
+ * Hành động backend cho phép trên một incident. FE CHỈ được hiện mutation theo
+ * danh sách này (§11.1) — không tự dựng lại state machine ở client.
+ */
+export type ParcelIncidentAction =
+  | "ASSIGN"
+  | "RECORD_SEARCH"
+  | "MARK_FOUND"
+  | "FORWARD"
+  | "RESOLVE"
+  | "DECLARE_LOST"
+  | (string & {});
+
+export type ReliabilityParcelSummary = {
+  parcelId: string;
+  parcelCode: string;
+  status: string;
+  description?: string | null;
+  photoUrl?: string | null;
+  quantity: number;
+  declaredValueVnd?: number | null;
+};
+
+export type ReliabilityLocation = {
+  type?: string | null;
+  id?: string | null;
+  name?: string | null;
+  orderIndex?: number | null;
+  eta?: string | null;
+};
+
+export type ReliabilityVehicle = {
+  vehicleId: string;
+  licensePlate: string;
+  status?: string | null;
+};
+
+export type ReliabilityRoute = {
+  routeId: string;
+  name: string;
+  origin: ReliabilityLocation;
+  destination: ReliabilityLocation;
+};
+
+export type ReliabilityTripStop = {
+  stopId: string;
+  name: string;
+  orderIndex: number;
+  estimatedArrivalAt: string;
+  status: string;
+  actualArrivalAt?: string | null;
+  actualDepartureAt?: string | null;
+};
+
+export type ReliabilityTrip = {
+  tripId: string;
+  status?: string | null;
+  departureAt?: string | null;
+  eta?: string | null;
+  route?: ReliabilityRoute | null;
+  vehicle?: ReliabilityVehicle | null;
+  stops: ReliabilityTripStop[];
+};
+
+/** Shape ở LIST — `lastConfirmedLocation` là object lồng, khác detail. */
+export type ReliabilityCustodySummary = {
+  lastEventType: string;
+  lastConfirmedLocation?: ReliabilityLocation | null;
+  lastConfirmedAt?: string | null;
+  currentTripId?: string | null;
+  currentVehicleId?: string | null;
+  trackingConfidence: string;
+  hasTrackingGap: boolean;
+};
+
+export type OperatorUserSummary = {
+  userId?: string | null;
+  displayName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+  source?: string | null;
+};
+
+export type ReliabilityClaimSummary = {
+  claimId: string;
+  status: string;
+  totalAwardVnd: number;
+  decisionDeadline?: string | null;
+  payoutDeadline?: string | null;
+  slaState?: SlaState | null;
+};
+
+export type ParcelIncidentTaskSummary = {
+  completed: number;
+  total: number;
+  assignees: OperatorUserSummary[];
+};
+
+export type ParcelIncidentSla = {
+  deadline?: string | null;
+  remainingMinutes?: number | null;
+  state: SlaState;
+};
+
+/**
+ * Một dòng của hàng đợi sự cố. Endpoint đã enrich sẵn Parcel/trip/custody/SLA
+ * nên màn KHÔNG được gọi detail cho từng dòng (§11.4).
+ *
+ * Mọi field enrichment đều nullable: Trip/Identity batch lookup hỏng thì BE vẫn
+ * trả 200 kèm field rỗng chứ không fail cả trang.
+ */
+export type ParcelIncidentListItem = {
+  incidentId: string;
+  parcelId: string;
+  operatorId: string;
+  type: ParcelIncidentType | (string & {});
+  status: ParcelIncidentStatus | (string & {});
+  tripId?: string | null;
+  lastKnownLocation?: string | null;
+  searchDeadline?: string | null;
+  createdAt: string;
+  operatorProcessBreach: boolean;
+  parcel?: ReliabilityParcelSummary | null;
+  trip?: ReliabilityTrip | null;
+  expectedDropoff?: ReliabilityLocation | null;
+  lastCustody?: ReliabilityCustodySummary | null;
+  reporter?: OperatorUserSummary | null;
+  taskSummary?: ParcelIncidentTaskSummary | null;
+  claimSummary?: ReliabilityClaimSummary | null;
+  sla?: ParcelIncidentSla | null;
+  availableActions: ParcelIncidentAction[];
+};
+
+export type ParcelIncidentSearchTask = {
+  taskId: string;
+  incidentId: string;
+  taskType: string;
+  status: string;
+  assigneeId?: string | null;
+  location?: string | null;
+  deadline?: string | null;
+  result?: string | null;
+  completedAt?: string | null;
+  assignee?: OperatorUserSummary | null;
+};
+
+/** Shape ở DETAIL — phẳng, khác `ReliabilityCustodySummary` của list. */
+export type ParcelIncidentCurrentCustody = {
+  lastEventType: string;
+  lastLocationType?: string | null;
+  lastLocationId?: string | null;
+  lastLocationSnapshot?: string | null;
+  lastConfirmedAt?: string | null;
+  currentTripId?: string | null;
+  currentVehicleId?: string | null;
+  trackingConfidence: string;
+};
+
+export type ParcelCustodyEvent = {
+  eventId: string;
+  eventType: string;
+  legId?: string | null;
+  tripId?: string | null;
+  expectedLocationType?: string | null;
+  expectedLocationId?: string | null;
+  actualLocationType?: string | null;
+  actualLocationId?: string | null;
+  locationSnapshot?: string | null;
+  vehicleId?: string | null;
+  actorId?: string | null;
+  actorRole: string;
+  occurredAt: string;
+  recordedAt: string;
+  source: string;
+  evidenceReferences: string[];
+  reason?: string | null;
+  /** Cursor phân trang: gửi `beforeSequence` = sequence NHỎ NHẤT đang có */
+  sequence: number;
+};
+
+export type ParcelCustodyTimeline = {
+  items: ParcelCustodyEvent[];
+  nextCursor?: number | null;
+};
+
+export type ParcelForwardingLeg = {
+  legId: string;
+  tripId: string;
+  sequence: number;
+  status: string;
+  expectedOriginId?: string | null;
+  expectedOriginName?: string | null;
+  expectedDestinationId?: string | null;
+  expectedDestinationName?: string | null;
+  vehicleId?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+};
+
+export type ParcelForwardingOperation = {
+  targetTrip?: ReliabilityTrip | null;
+  newLeg?: ParcelForwardingLeg | null;
+  cargoTransferStatus?: string | null;
+  nextHandoffAction?: string | null;
+};
+
+export type ParcelIncidentDetail = {
+  incident: ParcelIncidentListItem;
+  searchTasks: ParcelIncidentSearchTask[];
+  expectedLocation?: ReliabilityLocation | null;
+  resolutionCode?: string | null;
+  resolutionNote?: string | null;
+  resolvedAt?: string | null;
+  currentCustody?: ParcelIncidentCurrentCustody | null;
+  custodyTimeline: ParcelCustodyTimeline;
+  /** Shape đầy đủ khai ở module Khiếu nại (§7) — chưa dựng nên để `unknown` */
+  claim?: unknown;
+  parcel?: ReliabilityParcelSummary | null;
+  sender?: OperatorUserSummary | null;
+  recipient?: OperatorUserSummary | null;
+  trip?: ReliabilityTrip | null;
+  expectedDropoff?: ReliabilityLocation | null;
+  reporter?: OperatorUserSummary | null;
+  forwardingSummary?: unknown;
+  availableActions: ParcelIncidentAction[];
+  forwardingOperation?: ParcelForwardingOperation | null;
+};
+
+export type ParcelForwardingOption = {
+  trip?: ReliabilityTrip | null;
+  route?: ReliabilityRoute | null;
+  vehicle?: ReliabilityVehicle | null;
+  pickupLocation?: ReliabilityLocation | null;
+  targetDropoff?: ReliabilityLocation | null;
+  departureAt?: string | null;
+  eta?: string | null;
+  canReserve: boolean;
+  unavailableReason?: string | null;
+};
+
+/**
+ * Allow-list BE: status, type, search, tripId, assigneeId, slaState, from, to,
+ * page, pageSize. `from`/`to` là datetime (không phải date như list Parcel).
+ */
+export type ParcelIncidentListParams = {
+  page?: number;
+  pageSize?: number;
+  status?: ParcelIncidentStatus;
+  type?: ParcelIncidentType;
+  /** Tối đa 100 ký tự; quá chung nhận `422 SEARCH_TOO_BROAD` chứ không phải rỗng */
+  search?: string;
+  tripId?: string;
+  assigneeId?: string;
+  slaState?: SlaState;
+  from?: string;
+  to?: string;
+};
+
+export type ParcelIncidentDetailParams = {
+  /** Sequence nhỏ nhất đang hiển thị — lấy custody event CŨ HƠN mốc này */
+  beforeSequence?: number;
+  /** Default 50, tối đa 100 */
+  limit?: number;
+};
+
+export type AssignParcelIncidentRequest = {
+  assigneeUserId: string;
+};
+
+export type ParcelIncidentSearchScanRequest = {
+  taskId: string;
+  found: boolean;
+  /** Bắt buộc nonblank: chuỗi rỗng đi qua Domain exception thành 500 */
+  result: string;
+  evidenceReferences?: string[];
+};
+
+export type MarkParcelIncidentFoundRequest = {
+  actualLocationType: ParcelCustodyLocationType;
+  /** Bắt buộc trừ khi `actualLocationType = VEHICLE` */
+  actualLocationId?: string | null;
+  locationSnapshot?: string | null;
+  evidenceReferences?: string[];
+  note?: string | null;
+};
+
+export type ForwardParcelIncidentRequest = {
+  targetTripId: string;
+};
+
+export type ResolveParcelIncidentRequest = {
+  note?: string | null;
+  /** Blank/null bị handler từ chối — luôn gửi mã cụ thể */
+  resolutionCode?: string;
+};
+
+/** `declare-lost` dùng chung request record nhưng handler chỉ đọc `note` */
+export type DeclareParcelIncidentLostRequest = {
+  note?: string | null;
+};
+
+export function getOperatorParcelIncidents(
+  params: ParcelIncidentListParams = {},
+) {
+  return apiRequest<PagedResult<ParcelIncidentListItem>>(
+    `/v1/operator/parcel-incidents${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorParcelIncident(
+  incidentId: string,
+  params: ParcelIncidentDetailParams = {},
+) {
+  return apiRequest<ParcelIncidentDetail>(
+    `/v1/operator/parcel-incidents/${incidentId}${buildQuery(params)}`,
+  );
+}
+
+// Mọi mutation dưới đây trả về DETAIL đã cập nhật — thay thẳng vào cache, không
+// refetch (§11.1 mục 4).
+export function assignOperatorParcelIncident(
+  incidentId: string,
+  request: AssignParcelIncidentRequest,
+) {
+  return apiRequest<ParcelIncidentDetail>(
+    `/v1/operator/parcel-incidents/${incidentId}/assign`,
+    { method: "POST", body: request },
+  );
+}
+
+export function recordOperatorParcelIncidentSearch(
+  incidentId: string,
+  request: ParcelIncidentSearchScanRequest,
+) {
+  return apiRequest<ParcelIncidentDetail>(
+    `/v1/operator/parcel-incidents/${incidentId}/search-scan`,
+    { method: "POST", body: request },
+  );
+}
+
+export function markOperatorParcelIncidentFound(
+  incidentId: string,
+  request: MarkParcelIncidentFoundRequest,
+) {
+  return apiRequest<ParcelIncidentDetail>(
+    `/v1/operator/parcel-incidents/${incidentId}/mark-found`,
+    { method: "POST", body: request },
+  );
+}
+
+export function getOperatorParcelIncidentForwardingOptions(
+  incidentId: string,
+  params: { limit?: number } = {},
+) {
+  return apiRequest<ParcelForwardingOption[]>(
+    `/v1/operator/parcel-incidents/${incidentId}/forwarding-options${buildQuery(params)}`,
+  );
+}
+
+export function forwardOperatorParcelIncident(
+  incidentId: string,
+  request: ForwardParcelIncidentRequest,
+) {
+  return apiRequest<ParcelIncidentDetail>(
+    `/v1/operator/parcel-incidents/${incidentId}/forward`,
+    { method: "POST", body: request },
+  );
+}
+
+export function resolveOperatorParcelIncident(
+  incidentId: string,
+  request: ResolveParcelIncidentRequest,
+) {
+  return apiRequest<ParcelIncidentDetail>(
+    `/v1/operator/parcel-incidents/${incidentId}/resolve`,
+    { method: "POST", body: request },
+  );
+}
+
+export function declareOperatorParcelIncidentLost(
+  incidentId: string,
+  request: DeclareParcelIncidentLostRequest,
+) {
+  return apiRequest<ParcelIncidentDetail>(
+    `/v1/operator/parcel-incidents/${incidentId}/declare-lost`,
+    { method: "POST", body: request },
+  );
+}
+
+/**
+ * Chính sách bồi thường kiện hàng (`/v1/operator/policies/parcel-compensation`).
+ *
+ * Thuộc nhóm Reliability của Parcel. Policy
+ * được BE CHỤP ẢNH vào từng Parcel lúc tạo đơn — sửa ở đây chỉ áp cho đơn mới,
+ * không hồi tố đơn đang tranh chấp (`effectiveForNewParcelsOnly`).
+ */
+export type ParcelCompensationPolicyDefaults = {
+  compensationRatePercent: number;
+  maxCompensationVnd: number;
+  noProofFallbackMultiplier: number;
+  claimWindowDays: number;
+  searchSlaHours: number;
+  decisionSlaBusinessDays: number;
+  payoutSlaBusinessDays: number;
+};
+
+export type ParcelCompensationPolicy = ParcelCompensationPolicyDefaults & {
+  operatorId: string;
+  version: number;
+  belowDefaultAcknowledged: boolean;
+  platformDefaultPolicy: ParcelCompensationPolicyDefaults;
+  isBelowPlatformDefault: boolean;
+  effectiveForNewParcelsOnly: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
+
+/**
+ * `belowDefaultAcknowledged` PHẢI là true khi rate < 50 hoặc cap < 30.000.000,
+ * nếu không BE trả `422 POLICY_BELOW_DEFAULT_ACK_REQUIRED`.
+ */
+export type UpdateParcelCompensationPolicyRequest =
+  ParcelCompensationPolicyDefaults & {
+    belowDefaultAcknowledged: boolean;
+  };
+
+export function getParcelCompensationPolicy() {
+  return apiRequest<ParcelCompensationPolicy>(
+    "/v1/operator/policies/parcel-compensation",
+  );
+}
+
+export function updateParcelCompensationPolicy(
+  request: UpdateParcelCompensationPolicyRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelCompensationPolicy>(
+    "/v1/operator/policies/parcel-compensation",
+    {
+      method: "PUT",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+/* ── Khiếu nại bồi thường kiện hàng (§7 API-Parcel-Operator) ───────────────
+ *
+ * Thuộc nhóm Reliability của Parcel.
+ */
+
+export const PARCEL_CLAIM_STATUSES = [
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "APPROVED",
+  "FUNDING_PENDING",
+  "PAID",
+  "REJECTED",
+  "CANCELLED",
+  "APPEALED",
+] as const;
+
+export type ParcelClaimStatus = (typeof PARCEL_CLAIM_STATUSES)[number];
+
+/**
+ * BE suy từ `claim.Status`, không phải cột riêng — xem
+ * `ListOperatorParcelClaimsQueryHandler.FundingStatus`.
+ */
+export type ParcelClaimFundingStatus =
+  | "FUNDING_PENDING"
+  | "READY_FOR_PAYOUT"
+  | "PAID"
+  | "NOT_APPLICABLE"
+  | (string & {});
+
+/** Chỉ `DECIDE_CLAIM`; FE không tự dựng lại state machine (§11.1). */
+export type ParcelClaimAction = "DECIDE_CLAIM" | (string & {});
+
+export type ReliabilityIncidentSummary = {
+  incidentId: string;
+  type: string;
+  status: string;
+  searchDeadline?: string | null;
+  nextUpdateAt?: string | null;
+  slaState?: SlaState | null;
+  operatorProcessBreach: boolean;
+};
+
+export type ParcelClaimEvidence = {
+  evidenceId: string;
+  evidenceType: string;
+  reference: string;
+  note?: string | null;
+  uploadedByUserId: string;
+  createdAt: string;
+};
+
+/**
+ * Mức đền được CHỤP ẢNH vào Parcel lúc tạo đơn — đọc từ chính claim này, đừng
+ * lấy policy hiện hành ở `/v1/operator/policies/parcel-compensation`.
+ */
+export type ParcelCompensationPolicySnapshot = {
+  version: number;
+  compensationRatePercent: number;
+  maxCompensationVnd: number;
+  noProofFallbackMultiplier: number;
+  claimWindowDays: number;
+  searchSlaHours: number;
+  decisionSlaBusinessDays: number;
+  payoutSlaBusinessDays: number;
+};
+
+export type ParcelClaim = {
+  claimId: string;
+  parcelId: string;
+  incidentId: string;
+  status: ParcelClaimStatus | (string & {});
+  declaredValueVnd?: number | null;
+  provenDirectLossVnd?: number | null;
+  compensationRatePercent: number;
+  policyCapVnd: number;
+  cargoAwardVnd: number;
+  freightRefundVnd: number;
+  totalAwardVnd: number;
+  policyVersion: number;
+  beneficiaryUserId: string;
+  decisionReason?: string | null;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  payoutReferenceId?: string | null;
+  paidAt?: string | null;
+  appealReason?: string | null;
+  appealedByUserId?: string | null;
+  appealedAt?: string | null;
+  evidence: ParcelClaimEvidence[];
+  parcelSummary?: ReliabilityParcelSummary | null;
+  incidentSummary?: ReliabilityIncidentSummary | null;
+  policySnapshot?: ParcelCompensationPolicySnapshot | null;
+  decisionDeadline?: string | null;
+  payoutDeadline?: string | null;
+  availableActions?: ParcelClaimAction[] | null;
+};
+
+/** Dòng hàng đợi đã enrich sẵn — KHÔNG gọi detail cho từng dòng. */
+export type ParcelClaimListItem = {
+  claimId: string;
+  status: ParcelClaimStatus | (string & {});
+  parcel: ReliabilityParcelSummary;
+  sender: OperatorUserSummary;
+  incident?: ReliabilityIncidentSummary | null;
+  evidenceCount: number;
+  policySnapshot: ParcelCompensationPolicySnapshot;
+  cargoAwardVnd: number;
+  freightRefundVnd: number;
+  totalAwardVnd: number;
+  deadline?: string | null;
+  slaState?: SlaState | null;
+  fundingStatus: ParcelClaimFundingStatus;
+  trip?: ReliabilityTrip | null;
+  availableActions: ParcelClaimAction[];
+};
+
+export type ParcelClaimDetail = {
+  claim: ParcelClaim;
+  parcel: ReliabilityParcelSummary;
+  incident?: ReliabilityIncidentSummary | null;
+  currentCustody?: ReliabilityCustodySummary | null;
+  trip?: ReliabilityTrip | null;
+  expectedDropoff?: ReliabilityLocation | null;
+  beneficiary: OperatorUserSummary;
+  fundingStatus: ParcelClaimFundingStatus;
+  availableActions: ParcelClaimAction[];
+};
+
+/** Allow-list BE: status, search, slaState, from, to, page, pageSize. */
+export type ParcelClaimListParams = {
+  page?: number;
+  pageSize?: number;
+  status?: ParcelClaimStatus;
+  /** Tối đa 100 ký tự; quá chung nhận `422 SEARCH_TOO_BROAD` */
+  search?: string;
+  slaState?: SlaState;
+  from?: string;
+  to?: string;
+};
+
+export type DecideParcelClaimRequest = {
+  decision: "APPROVE" | "REJECT";
+  /** Chỉ dùng khi approve; bỏ trống là BE rơi vào công thức "không chứng từ" */
+  provenDirectLossVnd?: number | null;
+  /** Bắt buộc nonblank — blank trả `PARCEL_CLAIM_EVIDENCE_REQUIRED` */
+  reason: string;
+};
+
+export function getOperatorParcelClaims(params: ParcelClaimListParams = {}) {
+  return apiRequest<PagedResult<ParcelClaimListItem>>(
+    `/v1/operator/claims${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorParcelClaim(claimId: string) {
+  return apiRequest<ParcelClaimDetail>(`/v1/operator/claims/${claimId}`);
+}
+
+/**
+ * Chỉ `OPERATOR_ADMIN`, và chỉ claim còn `DECIDE_CLAIM` trong `availableActions`.
+ * Trả về DETAIL đã cập nhật — thay thẳng vào state, không refetch.
+ *
+ * Approve chỉ phát event; payout/funding do Payment cập nhật bất đồng bộ, đừng
+ * giả định response đã là `PAID`.
+ */
+export function decideOperatorParcelClaim(
+  claimId: string,
+  request: DecideParcelClaimRequest,
+) {
+  return apiRequest<ParcelClaimDetail>(
+    `/v1/operator/claims/${claimId}/decision`,
+    { method: "POST", body: request },
+  );
+}
+
+/* ── Kiện chưa định danh và bàn giao tại bến (§10) ───────────────────────── */
+
+export const UNIDENTIFIED_PACKAGE_STATUSES = [
+  "UNIDENTIFIED",
+  "MATCHED",
+  "FORWARDED",
+  "RETURNED",
+] as const;
+
+export type UnidentifiedPackageStatus =
+  (typeof UNIDENTIFIED_PACKAGE_STATUSES)[number];
+
+export type UnidentifiedPackageAction =
+  | "VIEW_MATCH_CANDIDATES"
+  | "MATCH"
+  | (string & {});
+
+export type UnidentifiedPackage = {
+  packageId: string;
+  temporaryExceptionTag: string;
+  operatorId: string;
+  status: UnidentifiedPackageStatus | (string & {});
+  locationType: ParcelCustodyLocationType | (string & {});
+  locationId: string;
+  matchedParcelId?: string | null;
+  createdAt: string;
+  tripId?: string | null;
+  locationSnapshot?: string | null;
+  description?: string | null;
+  observedWeightKg?: number | null;
+  evidenceReferences?: string[] | null;
+  createdByUserId?: string | null;
+  matchedAt?: string | null;
+  matchedByUserId?: string | null;
+  trip?: ReliabilityTrip | null;
+  matchedParcel?: ReliabilityParcelSummary | null;
+  /** Rỗng ngay sau mutation match — mapper chưa enrich lại (§10.5) */
+  availableActions?: UnidentifiedPackageAction[] | null;
+};
+
+export type UnidentifiedPackageMatchCandidate = {
+  parcelId: string;
+  parcelCode: string;
+  trip: ReliabilityTrip;
+  photoUrl?: string | null;
+  description?: string | null;
+  weightKg: number;
+  expectedDropoff: ReliabilityLocation;
+  matchReasons: string[];
+};
+
+export type UnidentifiedPackageListParams = {
+  page?: number;
+  pageSize?: number;
+  status?: UnidentifiedPackageStatus;
+  search?: string;
+  tripId?: string;
+};
+
+export type RegisterUnidentifiedPackageRequest = {
+  temporaryExceptionTag: string;
+  tripId?: string | null;
+  locationType: ParcelCustodyLocationType;
+  /** Bắt buộc non-empty kể cả khi `locationType = VEHICLE` (khác custody scan) */
+  locationId: string;
+  locationSnapshot?: string | null;
+  description: string;
+  observedWeightKg?: number | null;
+  /** Domain đòi ít nhất 1 phần tử dù DTO khai nullable */
+  evidenceReferences: string[];
+};
+
+export type MatchUnidentifiedPackageRequest = {
+  parcelId: string;
+};
+
+export type ParcelStationHandoffRequest = {
+  parcelCode: string;
+  /** Controller chỉ nhận hai giá trị này */
+  eventType: "HANDOFF" | "RETURNED_TO_STATION";
+  actualLocationType: ParcelCustodyLocationType;
+  /** Bắt buộc trừ khi `actualLocationType = VEHICLE` */
+  actualLocationId?: string | null;
+  locationSnapshot?: string | null;
+  evidenceReferences?: string[];
+  reason?: string | null;
+};
+
+export type ParcelCustodyScanResult = {
+  custodyEventId: string;
+  parcelId: string;
+  eventType: string;
+  actualLocationType?: string | null;
+  actualLocationId?: string | null;
+  occurredAt: string;
+  sequence: number;
+};
+
+export function getUnidentifiedPackages(
+  params: UnidentifiedPackageListParams = {},
+) {
+  return apiRequest<PagedResult<UnidentifiedPackage>>(
+    `/v1/operator/unidentified-packages${buildQuery(params)}`,
+  );
+}
+
+export function getUnidentifiedPackage(packageId: string) {
+  return apiRequest<UnidentifiedPackage>(
+    `/v1/operator/unidentified-packages/${packageId}`,
+  );
+}
+
+/** Package không còn `UNIDENTIFIED` trả mảng rỗng chứ không lỗi. `limit` 1–50. */
+export function getUnidentifiedPackageMatchCandidates(
+  packageId: string,
+  params: { limit?: number } = {},
+) {
+  return apiRequest<UnidentifiedPackageMatchCandidate[]>(
+    `/v1/operator/unidentified-packages/${packageId}/match-candidates${buildQuery(params)}`,
+  );
+}
+
+export function registerUnidentifiedPackage(
+  request: RegisterUnidentifiedPackageRequest,
+) {
+  return apiRequest<UnidentifiedPackage>("/v1/stations/parcels/unidentified", {
+    method: "POST",
+    body: request,
+  });
+}
+
+/**
+ * Match lại package không còn `UNIDENTIFIED` làm BE ném raw exception thành 500
+ * (§10.5). Caller PHẢI ẩn action theo `availableActions`/status và chống double
+ * submit thay vì trông chờ lỗi trả về.
+ */
+export function matchUnidentifiedPackage(
+  packageId: string,
+  request: MatchUnidentifiedPackageRequest,
+) {
+  return apiRequest<UnidentifiedPackage>(
+    `/v1/stations/parcels/unidentified/${packageId}/match`,
+    { method: "POST", body: request },
+  );
+}
+
+export function recordParcelStationHandoff(
+  parcelId: string,
+  request: ParcelStationHandoffRequest,
+) {
+  return apiRequest<ParcelCustodyScanResult>(
+    `/v1/stations/parcels/${parcelId}/handoff`,
+    { method: "POST", body: request },
+  );
+}

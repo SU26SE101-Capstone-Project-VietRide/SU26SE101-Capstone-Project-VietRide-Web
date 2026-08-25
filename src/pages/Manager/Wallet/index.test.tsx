@@ -4,7 +4,7 @@
 // withdrawalSupported=false, dùng processingState/dataCompleteness thay vì tự
 // suy diễn, signedAmount quyết định dấu +/-, search debounce + validate độ
 // dài trước khi gọi API.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ToastProvider from "../../../components/toast/ToastProvider";
 import type {
@@ -65,6 +65,8 @@ const walletMock: OperatorWallet = {
   lifetimeSettledAmount: 3500000,
   lastSettlement: {
     settlementId: "settlement-1",
+    settlementCode: "STL-20260713-AAAA1111",
+    tripCode: "TRIP-20260713-BBBB2222",
     amount: 450000,
     method: "AUTO_WEEKLY",
     settledAt: "2026-07-13T02:00:00Z",
@@ -76,6 +78,7 @@ const walletMock: OperatorWallet = {
 
 const creditTransaction: WalletTransaction = {
   transactionId: "txn-1",
+  transactionCode: "OWT-20260713-7K3M2QPX",
   type: "CREDIT",
   amount: 450000,
   signedAmount: 450000,
@@ -86,7 +89,13 @@ const creditTransaction: WalletTransaction = {
   note: null,
   createdAt: "2026-07-13T02:00:00Z",
   actorType: "SYSTEM",
-  relatedSettlement: { settlementId: "settlement-1", tripId: "trip-1", method: "AUTO_WEEKLY" },
+  relatedSettlement: {
+    settlementId: "settlement-1",
+    settlementCode: "STL-20260713-AAAA1111",
+    tripId: "trip-1",
+    tripCode: "TRIP-20260713-BBBB2222",
+    method: "AUTO_WEEKLY",
+  },
   dataCompleteness: "COMPLETE",
 };
 
@@ -107,6 +116,7 @@ const debitTransaction: WalletTransaction = {
 
 const onHoldSettlement: TripSettlement = {
   settlementId: "settlement-2",
+  settlementCode: "STL-20260810-CCCC3333",
   tripId: "trip-2",
   status: "PENDING_HOLD",
   processingState: "ON_HOLD",
@@ -220,10 +230,12 @@ describe("ManagerWallet", () => {
     const actorHeader = screen.getByText("wallet.actor");
     const settlementHeader = screen.getByText("wallet.relatedSettlement");
 
-    expect(cashFlowHeader).toHaveClass("w-[22%]");
-    expect(timeHeader).toHaveClass("w-[11%]");
+    expect(cashFlowHeader).toHaveClass("w-[21%]");
+    expect(timeHeader).toHaveClass("w-[12%]");
     expect(actorHeader).toHaveClass("w-[12%]");
-    expect(settlementHeader).toHaveClass("w-[28%]");
+    // Cột Liên kết đối soát chỉ còn một pill hình thức nên nhường chỗ lại cho
+    // các cột chữ dài hơn.
+    expect(settlementHeader).toHaveClass("w-[15%]");
     expect(
       screen.getByText("wallet.transactionCopy.TRIP_SETTLEMENT_CREDIT"),
     ).toHaveClass("whitespace-nowrap");
@@ -234,6 +246,56 @@ describe("ManagerWallet", () => {
     expect(await screen.findByText("wallet.partialBadge")).toBeInTheDocument();
   });
 
+  // Mã giao dịch là nhãn chính của tab biến động ví — nhà xe đọc mã này cho
+  // CSKH, nên nó phải hiện nguyên văn và row legacy phải ra "-" chứ không phải
+  // "undefined" hay một mã dựng từ UUID.
+  it("hiện mã giao dịch ví và mã đối soát liên quan, legacy thiếu mã thì để '-'", async () => {
+    renderWallet();
+
+    const transactionCode = await screen.findByText("OWT-20260713-7K3M2QPX");
+    expect(transactionCode).toBeInTheDocument();
+
+    // Cột Liên kết đối soát chỉ hiện HÌNH THỨC đối soát. Hai mã STL-/TRIP- cố ý
+    // không nằm ở đây: ô quá hẹp nên chúng bị bẻ giữa chuỗi, mất tác dụng tra
+    // cứu — muốn đối chiếu mã thì sang tab Doanh thu hàng tuần.
+    const row = transactionCode.closest("tr");
+    if (!row) throw new Error("Không tìm thấy dòng giao dịch");
+    expect(
+      within(row).getByText("wallet.methods.AUTO_WEEKLY"),
+    ).toBeInTheDocument();
+    expect(
+      within(row).queryByText("STL-20260713-AAAA1111"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(row).queryByText("TRIP-20260713-BBBB2222"),
+    ).not.toBeInTheDocument();
+
+    // debitTransaction cố ý không có transactionCode
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+  });
+
+  it("đọc mã chuyến của settlement từ snapshot trip, không từ top-level", async () => {
+    vi.mocked(getOperatorTripSettlements).mockResolvedValue(
+      pagedResult([
+        {
+          ...onHoldSettlement,
+          trip: { tripCode: "TRIP-20260810-EEEE5555", routeName: "HCM - Đà Lạt" },
+        },
+      ]),
+    );
+
+    renderWallet();
+    fireEvent.click(
+      screen.getByRole("button", { name: "wallet.tabs.settlements" }),
+    );
+
+    expect(
+      await screen.findByText("TRIP-20260810-EEEE5555"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("HCM - Đà Lạt")).toBeInTheDocument();
+  });
+
   it("renders processingState chips for settlements and stays safe when trip is null", async () => {
     renderWallet();
 
@@ -241,8 +303,12 @@ describe("ManagerWallet", () => {
 
     await waitFor(() => expect(getOperatorTripSettlements).toHaveBeenCalled());
     expect(await screen.findByText("wallet.processingState.ON_HOLD")).toBeInTheDocument();
-    // trip=null -> fallback theo tripId, không crash
-    expect(screen.getByText("wallet.tripFallback")).toBeInTheDocument();
+    // trip=null (enrichment fail-soft) -> settlement vẫn hợp lệ: mã đối soát hiện
+    // bình thường, mã chuyến về "-" chứ KHÔNG dựng nhãn từ tripId.
+    expect(
+      screen.getByText("STL-20260810-CCCC3333"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
   // Mã enum của BE từng lọt thẳng ra màn hình ("Lý do hủy:
@@ -253,6 +319,7 @@ describe("ManagerWallet", () => {
         {
           ...onHoldSettlement,
           settlementId: "settlement-cancelled",
+          settlementCode: "STL-20260810-DDDD4444",
           status: "CANCELLED",
           processingState: "CANCELLED",
           cancelReason: "NON_POSITIVE_NET_ENTITLEMENT",
@@ -264,7 +331,7 @@ describe("ManagerWallet", () => {
     fireEvent.click(screen.getByRole("button", { name: "wallet.tabs.settlements" }));
 
     // Chi tiết chỉ hiện khi bung hàng — bấm vào dòng chuyến trước
-    const row = await screen.findByText("wallet.tripFallback");
+    const row = await screen.findByText("STL-20260810-DDDD4444");
     fireEvent.click(row);
 
     expect(
@@ -301,6 +368,42 @@ describe("ManagerWallet", () => {
 
     await waitFor(() => expect(getOperatorLedger).toHaveBeenCalled());
     expect(await screen.findByText("BK-100")).toBeInTheDocument();
+  });
+
+  // Endpoint ledger không trả `processingState` (LedgerSettlementDto của BE chỉ
+  // có 7 field), nên cột Trạng thái từng render badge theo field đó luôn trống —
+  // cột đã bị bỏ hẳn. Trạng thái đối soát xem ở tab Doanh thu hàng tuần.
+  it("bảng ledger không còn cột Trạng thái", async () => {
+    vi.mocked(getOperatorLedger).mockResolvedValue(
+      pagedResult([
+        {
+          ...ledgerEntry,
+          settlement: {
+            settlementId: "settlement-1",
+            settlementCode: "STL-20260713-AAAA1111",
+            tripCode: "TRIP-20260713-BBBB2222",
+            status: "SETTLED",
+          },
+        },
+      ]),
+    );
+
+    renderWallet();
+    fireEvent.click(screen.getByRole("button", { name: "wallet.tabs.ledger" }));
+
+    await waitFor(() => expect(getOperatorLedger).toHaveBeenCalled());
+    const table = (await screen.findByText("BK-100")).closest("table");
+    if (!table) throw new Error("Không tìm thấy bảng ledger");
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(5);
+    expect(
+      within(table).queryByText("wallet.statusLabel"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(table).queryByText("wallet.status.SETTLED"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(table).queryByText("STL-20260713-AAAA1111"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not call the API for a 1-character search but does after 2+ characters (debounced)", async () => {

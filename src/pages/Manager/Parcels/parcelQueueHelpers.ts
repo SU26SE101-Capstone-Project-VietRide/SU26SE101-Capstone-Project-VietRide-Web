@@ -133,3 +133,34 @@ export function parcelStatusTone(status: string) {
     return "bg-amber-50 text-amber-700 ring-amber-200";
   return "bg-blue-50 text-blue-700 ring-blue-200";
 }
+
+/**
+ * Trạng thái "chưa lên hàng" — giữ khớp với
+ * `ParcelTripCancellationClassifier.IsPreLoad` của BE. Chỉ những đơn ở đây mới
+ * huỷ tay được; gọi `cancel` ở trạng thái khác trả `409` chứ không phải lỗi
+ * nhập liệu, nên nút phải ẩn thay vì để người dùng bấm rồi ăn lỗi.
+ */
+const preLoadStatuses = [
+  "PENDING_OPERATOR_REVIEW",
+  "PENDING_PAYMENT",
+  "PENDING",
+  "PENDING_ADDITIONAL_PAYMENT",
+  "RESERVED",
+  "CHECKED_IN",
+  "PENDING_FINAL_PAYMENT",
+  "READY_TO_LOAD",
+] as const;
+
+export function isPreLoadParcelStatus(status: string | null | undefined) {
+  return (preLoadStatuses as readonly string[]).includes(status ?? "");
+}
+
+/** Lựa chọn hoàn tiền khi huỷ tay; BE mặc định `POLICY_REFUND` nếu bỏ trống. */
+export const manualCancelRefundChoices = [
+  "POLICY_REFUND",
+  "FULL_REFUND",
+  "NO_REFUND",
+] as const;
+
+export type ManualCancelRefundChoice =
+  (typeof manualCancelRefundChoices)[number];

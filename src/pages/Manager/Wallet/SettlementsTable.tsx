@@ -5,16 +5,18 @@ import { formatCurrency } from "../../../utils/currency";
 import { actorDisplayName, formatWalletDate, settlementStatusTone } from "./walletFormat";
 import { Badge } from "../../../components/ui/Badge";
 import { DataCompletenessBadge, ProcessingStateBadge } from "./WalletBadges";
-import { EmptyRow, type Translate } from "./walletTableShared";
+import { pickSettlementTripCode } from "../../../utils/businessCode";
+import { BusinessCodeCell, EmptyRow, type Translate } from "./walletTableShared";
 
 export function SettlementsTable({ items, t, tc }: { items: TripSettlement[]; t: Translate; tc: Translate }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
     <div className="overflow-x-auto p-4" tabIndex={0}>
-      <table className="w-full min-w-[900px] table-fixed text-center text-sm">
+      <table className="w-full min-w-[1020px] table-fixed text-center text-sm">
         <thead>
           <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
+            <th className="px-4 py-3">{t("wallet.settlementCode")}</th>
             <th className="px-4 py-3">{t("wallet.trip")}</th>
             <th className="px-4 py-3">{t("wallet.statusLabel")}</th>
             <th className="px-4 py-3">{t("wallet.receivedAmount")}</th>
@@ -24,7 +26,7 @@ export function SettlementsTable({ items, t, tc }: { items: TripSettlement[]; t:
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <EmptyRow columns={5} t={t} />
+            <EmptyRow columns={6} t={t} />
           ) : (
             items.map((item) => (
               <SettlementRowGroup
@@ -63,8 +65,17 @@ function SettlementRowGroup({
   return (
     <>
       <tr className="cursor-pointer border-t border-gray-100 hover:bg-gray-50" onClick={onToggle}>
-        <td className="whitespace-nowrap px-4 py-3 text-gray-700">
-          {item.trip?.routeName || t("wallet.tripFallback", { id: item.tripId.slice(0, 8) })}
+        <td className="whitespace-nowrap px-4 py-3">
+          <BusinessCodeCell code={item.settlementCode} />
+        </td>
+        {/* Mã chuyến là nhãn chính, tên tuyến chỉ là phụ đề. Bản operator không
+            có top-level `tripCode` nên phải đọc qua `pickSettlementTripCode`.
+            Không dựng nhãn từ `tripId` nữa — 8 ký tự đầu UUID không tra được. */}
+        <td className="whitespace-nowrap px-4 py-3">
+          <BusinessCodeCell code={pickSettlementTripCode(item)} />
+          {item.trip?.routeName && (
+            <span className="mt-0.5 block text-xs text-gray-500">{item.trip.routeName}</span>
+          )}
         </td>
         <td className="whitespace-nowrap px-4 py-3">
           {item.processingState ? (
@@ -89,7 +100,7 @@ function SettlementRowGroup({
 function SettlementDetailRow({ item, t, tc }: { item: TripSettlement; t: Translate; tc: Translate }) {
   return (
     <tr className="border-t border-gray-100 bg-gray-50/60">
-      <td colSpan={5} className="px-4 py-4 text-left">
+      <td colSpan={6} className="px-4 py-4 text-left">
         <SettlementStateDetail item={item} t={t} tc={tc} />
         <SettlementBreakdown item={item} t={t} />
       </td>

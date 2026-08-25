@@ -138,7 +138,6 @@ input[type="time"]:focus,
 input[type="week"]:focus {
   border-color: var(--primary-dark);
   box-shadow: 0 0 0 3px rgba(115, 217, 217, 0.28);
-  outline: none;
 }
 
 select:disabled,
@@ -326,11 +325,49 @@ tbody td button[title]:not(.info-hint-button):focus-visible {
   phím nhiều. `:where()` giữ specificity = 0 nên mọi rule sẵn có vẫn thắng,
   bao gồm cả rule .table-action-button ở trên.
   `box-shadow` trắng bọc ngoài để vòng focus không chìm vào nút nền teal.
+
+  Màu dùng `--primary-dark` (vr-800 #2d8282) chứ KHÔNG phải vr-900 #1a5555:
+  bậc 900 gần như đen, nhìn chọi hẳn với bảng màu teal của app. vr-800 vẫn đạt
+  4,54:1 trên nền trắng nên vòng focus vẫn rõ. Đừng đổi ngược lại thành màu
+  tối hơn chỉ để "cho dễ thấy".
+
+  Ô nhập liệu / ô chọn KHÔNG nằm trong rule này nữa — chúng có rule riêng ngay
+  bên dưới với vòng focus mảnh và nhạt hơn. Giữ chúng ở đây thì `box-shadow`
+  trắng sẽ đè mất `focus:ring-*` của Tailwind, tạo ra vòng trắng chen giữa viền
+  ô và vòng focus — chính là kiểu "hai vòng khác tông" nhìn rất rối.
 */
-:where(a, button, [role="button"], input, select, textarea):focus-visible {
-  outline: 2px solid #1a5555;
+:where(a, button:not([aria-haspopup="listbox"]), [role="button"]):focus-visible {
+  outline: 2px solid var(--primary-dark);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px #fff;
+}
+
+/*
+  Ô nhập liệu và ô chọn phải hiện viền khi ĐANG chọn, kể cả khi mở bằng chuột —
+  rule :focus-visible ở trên không đủ vì Chrome không coi cú click chuột vào
+  <select> hay <button> là focus-visible, nên các ô này trước đây chỉ còn đúng
+  đường viền 1px nhạt của `focus:border-*`.
+
+  `button[aria-haspopup="listbox"]` là nút mở của `CustomSelect` — đây mới là ô
+  lọc thật của app (56 file dùng, chỉ 3 file còn dùng <select> gốc), nên thiếu
+  nó thì gần như không màn nào được sửa.
+
+  Checkbox/radio loại trừ: viền đọng lại sau khi tick trông như lỗi. Nút bấm
+  thường và link vẫn chỉ dùng :focus-visible để chuột không để lại viền thừa.
+
+  Cố ý dùng `outline-offset: 0` và đúng màu `vr-500` của `focus:border-vr-500`:
+  outline nằm sát ngay ngoài border nên hai nét gộp thành MỘT nét teal nhạt dày
+  2px, thay vì "viền ô + khoảng trắng + vòng đậm" như bản trước. Đổi sang màu
+  đậm hơn hoặc thêm offset là vòng focus tách đôi trở lại.
+*/
+:where(
+  select,
+  textarea,
+  input:not([type="checkbox"], [type="radio"]),
+  button[aria-haspopup="listbox"]
+):focus {
+  outline: 1px solid var(--color-vr-500);
+  outline-offset: 0;
 }
 
 .table-action-button:disabled,

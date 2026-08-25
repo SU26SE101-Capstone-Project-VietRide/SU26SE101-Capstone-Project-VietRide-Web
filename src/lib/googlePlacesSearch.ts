@@ -1,11 +1,58 @@
-// Tìm địa điểm dọc theo tuyến (Places API New — searchAlongRoute). Lỗi/thiếu key
-// → trả mảng rỗng im lặng: gợi ý Google là tính năng phụ, không được chặn flow.
-import { isRecord } from "../utils/typeGuards";
+// Tìm địa điểm dọc theo tuyến + chi tiết địa điểm, chạy trên Place API của
+// Goong. Lỗi/thiếu key → trả rỗng im lặng: gợi ý địa điểm là tính năng phụ,
+// không được chặn flow soạn tuyến.
+//
+// Khác biệt so với Google: Places New có hẳn `searchAlongRouteParameters` nhận
+// nguyên polyline, Goong thì không có cả nearby lẫn text search. Bù bằng
+// Place AutoComplete — endpoint này CÓ `location` + `radius` nên vẫn là "tìm
+// theo chữ, quanh một điểm": lấy mẫu vài điểm dọc tuyến rồi hỏi quanh từng
+// điểm, và LỌC LẠI theo khoảng cách ở client.
+//
+// Chỗ tốn kém: AutoComplete của Goong không kèm toạ độ, mà không có toạ độ thì
+// không chấm lên bản đồ được. Nên gợi ý nào thiếu toạ độ phải gọi thêm Place
+// Detail — có trần `maxDetailLookups` để một tuyến không thổi bay quota.
+import {
+  goongAutocomplete,
+  goongPlaceDetail,
+  type GoongLatLng,
+} from "./goongApi";
+import { getGoongApiKey } from "./goongConfig";
+import { decodeGooglePolyline } from "./googlePolyline";
 
-const searchTextEndpoint = "https://places.googleapis.com/v1/places:searchText";
-const placeDetailsBaseUrl = "https://places.googleapis.com/v1/places";
-const placeDetailsFieldMask =
-  "id,displayName,formattedAddress,rating,userRatingCount,internationalPhoneNumber,primaryTypeDisplayName,regularOpeningHours,photos,googleMapsUri";
+// Số điểm lấy mẫu dọc tuyến. Google có searchAlongRoute nhận nguyên polyline,
+// ở đây phải tự rải điểm nên thưa quá là mất hẳn gợi ý ở khúc giữa: tuyến liên
+// tỉnh ~300km với 5 điểm là mỗi điểm gánh 60km. 12 điểm cho mật độ dùng được mà
+// vẫn nhanh (~1s, chạy song song) và đã cache theo tuyến ở
+// `useRouteStopSuggestions` nên chỉ tốn một lần cho mỗi tuyến mỗi phiên.
+const routeSampleCount = 12;
+// Số gợi ý xin mỗi điểm mẫu (Goong mặc định 10). Nhiều điểm mẫu rồi thì mỗi
+// điểm không cần lấy sâu — trùng nhau sẽ bị dedupe theo place_id.
+const perAnchorLimit = 4;
+// Bán kính ƯU TIÊN gửi cho Goong quanh mỗi điểm mẫu, đơn vị KM. Đã probe thật:
+// tham số này có tác dụng (đổi điểm mẫu là đổi hẳn kết quả), nhưng nó chỉ là
+// gợi ý xếp hạng — Goong vẫn trả về chỗ nằm xa hơn thế.
+const searchRadiusKm = 8;
+// Chặn vệ sinh: bỏ gợi ý xa điểm mẫu một cách vô lý (tỉnh khác hẳn). KHÔNG siết
+// về đúng `searchRadiusKm`: bộ lọc địa lý THẬT là "cách tuyến <= 1km" ở
+// `useRouteStopSuggestions`, siết theo khoảng cách tới ĐIỂM MẪU sẽ cắt nhầm
+// hàng loạt chỗ nằm hợp lệ giữa hai điểm mẫu.
+const sanityRadiusKm = 50;
+// Trần số lần gọi Place Detail để lấy toạ độ cho một từ khoá trên một tuyến
+const maxDetailLookups = 30;
+
+/**
+ * Từ khoá dùng làm gợi ý điểm dừng. Goong tìm theo CHỮ (không có bộ lọc type
+ * như Google Places), nên đây là chuỗi tiếng Việt đưa thẳng vào `input`.
+ */
+export type StopPlaceCategory = {
+  id: string;
+  keyword: string;
+};
+
+export const stopPlaceCategories: StopPlaceCategory[] = [
+  { id: "busStation", keyword: "bến xe" },
+  { id: "restStop", keyword: "trạm dừng chân" },
+];
 
 export type PlaceAlongRoute = {
   placeId: string;
@@ -16,92 +63,161 @@ export type PlaceAlongRoute = {
   types: string[];
 };
 
-// Map 1 phần tử "places" trả về từ API sang PlaceAlongRoute; trả null nếu thiếu
-// field bắt buộc (id/location) — bị loại khỏi kết quả cuối cùng.
-function toPlaceAlongRoute(place: unknown): PlaceAlongRoute | null {
-  if (!isRecord(place)) {
-    return null;
-  }
+const earthRadiusMeters = 6_371_000;
 
-  const { id, displayName, formattedAddress, location, types, primaryType } =
-    place;
-  if (typeof id !== "string" || !isRecord(location)) {
-    return null;
-  }
+function distanceMetersBetween(first: GoongLatLng, second: GoongLatLng) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latDistance = toRadians(second.lat - first.lat);
+  const lngDistance = toRadians(second.lng - first.lng);
+  const haversine =
+    Math.sin(latDistance / 2) ** 2 +
+    Math.cos(toRadians(first.lat)) *
+      Math.cos(toRadians(second.lat)) *
+      Math.sin(lngDistance / 2) ** 2;
 
-  const { latitude, longitude } = location;
-  if (typeof latitude !== "number" || typeof longitude !== "number") {
-    return null;
-  }
-
-  const name =
-    isRecord(displayName) && typeof displayName.text === "string"
-      ? displayName.text
-      : "";
-  const address =
-    typeof formattedAddress === "string" ? formattedAddress : "";
-
-  // Gộp primaryType vào types (nếu có và chưa nằm trong mảng) để lọc
-  // blocklist type ở tầng hook chỉ cần đọc 1 field duy nhất.
-  const typeList = Array.isArray(types)
-    ? types.filter((t): t is string => typeof t === "string")
-    : [];
-  if (typeof primaryType === "string" && !typeList.includes(primaryType)) {
-    typeList.push(primaryType);
-  }
-
-  return {
-    placeId: id,
-    name,
-    address,
-    latitude,
-    longitude,
-    types: typeList,
-  };
+  return (
+    2 *
+    earthRadiusMeters *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
 }
+
+// Lấy mẫu đều tối đa `count` điểm, luôn giữ điểm đầu và điểm cuối
+function samplePoints<T>(points: T[], count: number): T[] {
+  if (points.length <= count || count < 2) {
+    return points;
+  }
+
+  const step = (points.length - 1) / (count - 1);
+  return Array.from(
+    { length: count },
+    (_unused, index) => points[Math.round(index * step)],
+  );
+}
+
+// Gợi ý đã gom đủ dữ liệu để chấm lên bản đồ
+type ResolvedSuggestion = {
+  address: string;
+  location: GoongLatLng;
+  name: string;
+  placeId: string;
+  types: string[];
+};
 
 export async function searchPlacesAlongRoute(
   encodedPolyline: string,
-  textQuery: string,
+  category: StopPlaceCategory,
 ): Promise<PlaceAlongRoute[]> {
-  const apiKey = import.meta.env.VITE_GOOGLE_ROUTES_API_KEY?.trim();
-  if (!apiKey || !encodedPolyline) {
+  if (!getGoongApiKey() || !encodedPolyline) {
     return [];
   }
 
+  const path = decodeGooglePolyline(encodedPolyline);
+  if (path.length === 0) {
+    return [];
+  }
+
+  const anchors = samplePoints(path, routeSampleCount);
+
   try {
-    const response = await fetch(searchTextEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask":
-          "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.primaryType",
-      },
-      body: JSON.stringify({
-        textQuery,
-        languageCode: "vi",
-        searchAlongRouteParameters: { polyline: { encodedPolyline } },
-      }),
+    const predictionsPerAnchor = await Promise.all(
+      anchors.map((anchor) =>
+        goongAutocomplete({
+          input: category.keyword,
+          limit: perAnchorLimit,
+          location: anchor,
+          radiusKm: searchRadiusKm,
+        }).catch(() => []),
+      ),
+    );
+
+    // Gộp + dedupe theo place_id, đồng thời nhớ điểm mẫu gần nhất đã sinh ra nó
+    // để còn đối chiếu khoảng cách sau khi có toạ độ thật.
+    const seen = new Map<
+      string,
+      { anchor: GoongLatLng; prediction: (typeof predictionsPerAnchor)[0][0] }
+    >();
+    predictionsPerAnchor.forEach((predictions, index) => {
+      predictions.forEach((prediction) => {
+        if (!seen.has(prediction.placeId)) {
+          seen.set(prediction.placeId, {
+            anchor: anchors[index],
+            prediction,
+          });
+        }
+      });
     });
-    if (!response.ok) {
-      return [];
-    }
 
-    const payload: unknown = await response.json();
-    if (!isRecord(payload) || !Array.isArray(payload.places)) {
-      return [];
-    }
+    const entries = [...seen.values()];
+    const withLocation: ResolvedSuggestion[] = [];
+    const needDetail: typeof entries = [];
 
-    return payload.places
-      .map(toPlaceAlongRoute)
-      .filter((place): place is PlaceAlongRoute => place !== null);
+    entries.forEach((entry) => {
+      const { prediction } = entry;
+      if (prediction.location) {
+        withLocation.push({
+          address: prediction.description,
+          location: prediction.location,
+          name: prediction.mainText,
+          placeId: prediction.placeId,
+          types: [],
+        });
+        return;
+      }
+      needDetail.push(entry);
+    });
+
+    // Chỉ những gợi ý thiếu toạ độ mới phải gọi Place Detail, và có trần
+    const details = await Promise.all(
+      needDetail.slice(0, maxDetailLookups).map(async (entry) => {
+        const detail = await goongPlaceDetail(entry.prediction.placeId).catch(
+          () => null,
+        );
+        if (!detail) {
+          return null;
+        }
+
+        return {
+          address: detail.formattedAddress || entry.prediction.description,
+          location: detail.location,
+          name: detail.name || entry.prediction.mainText,
+          placeId: entry.prediction.placeId,
+          types: detail.types,
+        } satisfies ResolvedSuggestion;
+      }),
+    );
+
+    const resolved = [
+      ...withLocation,
+      ...details.filter((item): item is ResolvedSuggestion => item !== null),
+    ];
+
+    const radiusMeters = sanityRadiusKm * 1_000;
+    const anchorOf = new Map(
+      entries.map((entry) => [entry.prediction.placeId, entry.anchor]),
+    );
+
+    return resolved
+      .filter((item) => {
+        const anchor = anchorOf.get(item.placeId);
+        return (
+          !anchor || distanceMetersBetween(anchor, item.location) <= radiusMeters
+        );
+      })
+      .map((item) => ({
+        placeId: item.placeId,
+        name: item.name,
+        address: item.address,
+        latitude: item.location.lat,
+        longitude: item.location.lng,
+        types: item.types,
+      }));
   } catch {
     return [];
   }
 }
 
-// Chi tiết 1 địa điểm — dùng để dựng card kiểu Google Maps khi bấm chấm gợi ý.
+// Chi tiết 1 địa điểm — dùng để dựng card khi bấm chấm gợi ý.
 export type PlaceDetails = {
   placeId: string;
   name: string;
@@ -116,8 +232,8 @@ export type PlaceDetails = {
   googleMapsUri: string | null;
 };
 
-// Cache module-level theo placeId — mỗi placeId chỉ gọi Places Details API MỘT
-// LẦN mỗi phiên (giống pattern placesCache trong useRouteStopSuggestions).
+// Cache module-level theo placeId — mỗi placeId chỉ gọi Place Detail MỘT LẦN
+// mỗi phiên (giống pattern placesCache trong useRouteStopSuggestions).
 const placeDetailsCache = new Map<string, PlaceDetails | null>();
 
 // Chỉ dùng trong test để reset cache giữa các case — không export ra ngoài module hook.
@@ -125,82 +241,12 @@ export function __clearPlaceDetailsCacheForTest() {
   placeDetailsCache.clear();
 }
 
-// Map payload chi tiết trả về từ Places API New sang PlaceDetails. Trả null
-// nếu thiếu field bắt buộc (id).
-function toPlaceDetails(payload: unknown): PlaceDetails | null {
-  if (!isRecord(payload)) {
-    return null;
-  }
-
-  const {
-    id,
-    displayName,
-    formattedAddress,
-    rating,
-    userRatingCount,
-    internationalPhoneNumber,
-    primaryTypeDisplayName,
-    regularOpeningHours,
-    photos,
-    googleMapsUri,
-  } = payload;
-  if (typeof id !== "string") {
-    return null;
-  }
-
-  const name =
-    isRecord(displayName) && typeof displayName.text === "string"
-      ? displayName.text
-      : "";
-  const address =
-    typeof formattedAddress === "string" ? formattedAddress : "";
-  const primaryTypeLabel =
-    isRecord(primaryTypeDisplayName) &&
-    typeof primaryTypeDisplayName.text === "string"
-      ? primaryTypeDisplayName.text
-      : null;
-
-  let openNow: boolean | null = null;
-  let weekdayHours: string[] = [];
-  if (isRecord(regularOpeningHours)) {
-    if (typeof regularOpeningHours.openNow === "boolean") {
-      openNow = regularOpeningHours.openNow;
-    }
-    if (Array.isArray(regularOpeningHours.weekdayDescriptions)) {
-      weekdayHours = regularOpeningHours.weekdayDescriptions.filter(
-        (line): line is string => typeof line === "string",
-      );
-    }
-  }
-
-  let photoName: string | null = null;
-  if (Array.isArray(photos) && photos.length > 0 && isRecord(photos[0])) {
-    const firstPhotoName = photos[0].name;
-    photoName = typeof firstPhotoName === "string" ? firstPhotoName : null;
-  }
-
-  return {
-    placeId: id,
-    name,
-    address,
-    rating: typeof rating === "number" ? rating : null,
-    userRatingCount:
-      typeof userRatingCount === "number" ? userRatingCount : null,
-    phone:
-      typeof internationalPhoneNumber === "string"
-        ? internationalPhoneNumber
-        : null,
-    primaryTypeLabel,
-    openNow,
-    weekdayHours,
-    photoName,
-    googleMapsUri: typeof googleMapsUri === "string" ? googleMapsUri : null,
-  };
-}
-
-// Lấy chi tiết 1 địa điểm (ảnh, rating, giờ mở cửa, SĐT...) để dựng card kiểu
-// Google Maps khi bấm chấm gợi ý. Lỗi/thiếu key → null im lặng, cache theo
-// placeId để không gọi lại API khi mở/đóng popup nhiều lần cùng 1 địa điểm.
+/**
+ * Chi tiết 1 địa điểm. Goong là dịch vụ thiên về ĐỊA CHỈ nên phần lớn field
+ * "kiểu Google Places" (rating/ảnh/giờ mở cửa/SĐT) sẽ là null — card tự ẩn các
+ * dòng đó. Lỗi/thiếu key → null im lặng, cache theo placeId để không gọi lại
+ * API khi mở/đóng popup nhiều lần cùng một địa điểm.
+ */
 export async function getPlaceDetails(
   placeId: string,
 ): Promise<PlaceDetails | null> {
@@ -208,26 +254,33 @@ export async function getPlaceDetails(
     return placeDetailsCache.get(placeId) ?? null;
   }
 
-  const apiKey = import.meta.env.VITE_GOOGLE_ROUTES_API_KEY?.trim();
-  if (!apiKey || !placeId) {
+  if (!getGoongApiKey() || !placeId) {
     return null;
   }
 
   try {
-    const response = await fetch(`${placeDetailsBaseUrl}/${placeId}`, {
-      method: "GET",
-      headers: {
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": placeDetailsFieldMask,
-      },
-    });
-    if (!response.ok) {
+    const detail = await goongPlaceDetail(placeId);
+    if (!detail) {
       placeDetailsCache.set(placeId, null);
       return null;
     }
 
-    const payload: unknown = await response.json();
-    const details = toPlaceDetails(payload);
+    const details: PlaceDetails = {
+      placeId: detail.placeId || placeId,
+      name: detail.name,
+      address: detail.formattedAddress,
+      rating: detail.rating,
+      userRatingCount: detail.userRatingCount,
+      phone: detail.phone,
+      // Goong trả `types` dạng mã kỹ thuật, không có nhãn đã dịch như
+      // `primaryTypeDisplayName` của Google → thà bỏ trống còn hơn hiện chuỗi
+      // tiếng Anh gạch dưới giữa card tiếng Việt.
+      primaryTypeLabel: null,
+      openNow: detail.openNow,
+      weekdayHours: detail.weekdayHours,
+      photoName: detail.photoReference,
+      googleMapsUri: detail.url,
+    };
     placeDetailsCache.set(placeId, details);
     return details;
   } catch {
@@ -236,15 +289,16 @@ export async function getPlaceDetails(
   }
 }
 
-// Dựng URL ảnh địa điểm từ photoName trả về ở getPlaceDetails (photos[0].name).
-// Thiếu API key → null (không hiển thị ảnh thay vì gọi URL hỏng).
-export function buildPlacePhotoUrl(
-  photoName: string,
-  maxWidthPx = 640,
-): string | null {
-  const apiKey = import.meta.env.VITE_GOOGLE_ROUTES_API_KEY?.trim();
-  if (!apiKey || !photoName) {
+/**
+ * URL ảnh địa điểm từ `photoName` trả về ở getPlaceDetails. Goong KHÔNG có
+ * Place Photo API (Google có `maxWidthPx`, đây thì không), nên chỉ dùng được
+ * khi bản thân giá trị đã là URL tuyệt đối — còn lại trả null để card ẩn hẳn
+ * khung ảnh thay vì render `img` hỏng.
+ */
+export function buildPlacePhotoUrl(photoName: string): string | null {
+  if (!getGoongApiKey() || !photoName) {
     return null;
   }
-  return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${maxWidthPx}&key=${apiKey}`;
+
+  return /^https?:\/\//i.test(photoName) ? photoName : null;
 }

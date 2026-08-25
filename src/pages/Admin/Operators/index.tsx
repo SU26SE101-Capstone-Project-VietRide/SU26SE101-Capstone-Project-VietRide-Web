@@ -578,9 +578,6 @@ export default function Operators() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700">
-                  {t("operators.code")}
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {t("operators.operatorName")}
                 </th>
@@ -602,17 +599,14 @@ export default function Operators() {
               </tr>
             </thead>
             <tbody>
-              {operators.map((operator, idx) => {
+              {operators.map((operator) => {
                 const status = toKnownStatus(operator.registrationStatus);
-  return (
+
+                return (
                   <tr
                     key={operator.operatorId}
                     className="border-b border-gray-100 hover:bg-gray-50 transition"
                   >
-                    <td className="px-6 py-4 text-center text-sm font-medium text-gray-900">
-                      OP-
-                      {String((page - 1) * pageSize + idx + 1).padStart(3, "0")}
-                    </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                       {operator.name}
                     </td>
@@ -700,7 +694,7 @@ export default function Operators() {
               {!isLoading && operators.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-6 py-12 text-center text-sm text-gray-500"
                   >
                     {t("operators.empty")}

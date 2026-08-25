@@ -2,6 +2,7 @@
 // Mobile (<lg) thu gọn thành CustomSelect + nút tạo để không chiếm màn hình.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { displayBusinessCode } from "../../../utils/businessCode";
 import { FiPlus } from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import { inputClass } from "../../../components/form/formClasses";
@@ -35,7 +36,12 @@ export default function RouteListSidebar({
 
     if (!query) return routes;
 
-    return routes.filter((route) => route.name.toLowerCase().includes(query));
+    // Lọc theo cả mã tuyến: nhà xe quen gọi tuyến bằng mã hơn là bằng tên.
+    return routes.filter(
+      (route) =>
+        route.name.toLowerCase().includes(query) ||
+        (route.code ?? "").toLowerCase().includes(query),
+    );
   }, [routes, search]);
 
   return (
@@ -54,6 +60,7 @@ export default function RouteListSidebar({
           <option value="">{t("routes.selectRoute")}</option>
           {routes.map((route) => (
             <option key={route.id} value={route.id}>
+              {route.code ? `${route.code} · ` : ""}
               {route.name} · {route.totalDistanceKm} km
             </option>
           ))}
@@ -132,7 +139,10 @@ export default function RouteListSidebar({
                     {route.name}
                   </span>
                   <span className="mt-0.5 block text-xs text-gray-500">
-                    {route.totalDistanceKm} km ·{" "}
+                    <span className="font-mono tabular-nums">
+                      {displayBusinessCode(route.code)}
+                    </span>{" "}
+                    · {route.totalDistanceKm} km ·{" "}
                     {route.isActive
                       ? t("routes.activeRoute")
                       : t("routes.inactiveRoute")}

@@ -10,7 +10,7 @@ import {
   FiActivity,
   FiAlertTriangle,
   FiCalendar,
-  FiLogIn,
+  FiUserCheck,
   FiRefreshCw,
   FiSearch,
   FiTruck,
@@ -34,6 +34,7 @@ import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { formatDateTime } from "../../../utils/date";
+import { displayBusinessCode } from "../../../utils/businessCode";
 
 const PAGE_SIZE = 10;
 
@@ -74,33 +75,62 @@ const emptyPage: PagedResult<OperatorTripListItem> = {
 /**
  * Class (width + padding ngang) của từng cột, tách theo hai layout.
  *
- * Bảng dùng `table-fixed` nên tổng width phải xấp xỉ 100% ở CẢ hai trường hợp;
- * để lệch là trình duyệt co giãn theo tỉ lệ và cột hẹp nhất lãnh đủ. Số ở đây
- * lấy từ bề rộng ĐO ĐƯỢC của nội dung (font Aptos của app): nút mở boarding
- * 159px, badge trạng thái 77px, chuỗi ngày giờ 109px, tên tài xế 116px — cộng
- * padding ô rồi mới quy ra %. Cột ngày giờ và trạng thái dùng padding hẹp hơn
- * vì nội dung cố định bề ngang, phần dôi ra dồn cho cột Thao tác.
+ * Bảng dùng `table-fixed` nên tổng width phải đúng 100% ở CẢ hai trường hợp; để
+ * lệch là trình duyệt co giãn theo tỉ lệ và cột hẹp nhất lãnh đủ. `min-w` phải
+ * NHỎ HƠN bề ngang vùng nội dung (~1220px ở màn 1536px), nếu không bảng tự rộng
+ * hơn khung và sinh thanh cuộn ngang dù từng cột vẫn vừa.
  *
- * `min-w` phải NHỎ HƠN bề ngang vùng nội dung (~1220px ở 1536px màn hình), nếu
- * không bảng tự rộng hơn khung và sinh thanh cuộn ngang dù các cột vẫn vừa.
+ * Số % dưới đây quy ra từ bề rộng ĐO ĐƯỢC trong chính app (không phải ước
+ * lượng), ở bảng hẹp nhất 1200px — trừ padding của ô rồi mới so:
+ *
+ * | Nội dung                          | Đo được |
+ * | --------------------------------- | ------- |
+ * | `TRIP-20260824-M5Q7WV3D` mono 12px | 146px   |
+ * | Dòng phụ tuyến (mã · A → B)        | ~260px  |
+ * | Chữ trong nút mở boarding          | 113px   |
+ * | Chuỗi ngày giờ                     | 109px   |
+ * | Tên tài xế                         | 89px    |
+ * | Biển số                            | 70px    |
+ * | Badge trạng thái                   | 77px    |
+ *
+ * Cột Tuyến là cột duy nhất KHÔNG BAO GIỜ đủ chỗ (dòng phụ ~260px), nên nó là
+ * nơi nhận mọi phần dôi ra; các cột khác chỉ cần vừa đủ nội dung của chúng.
  */
 const columnClasses = {
+  /**
+   * Bản OPERATOR_ADMIN — có cột Thao tác. Ngân sách ở 1200px:
+   *
+   * - `tripCode` 15% = 180px, padding 24 → 156px cho chuỗi 146px. Hạ xuống 14%
+   *   (168px → 144px lọt lòng) là mã bị cắt, phải hover mới đọc đủ để đọc cho
+   *   CSKH — mà đọc được mã chính là lý do cột này tồn tại. 15% là sàn.
+   * - `route` 19%: không đủ cho dòng phụ nhưng là con số lớn nhất lấy được sau
+   *   khi mọi cột khác đã ở mức tối thiểu.
+   * - `vehicle` 8% = 96px, padding 24 → 72px cho biển số 70px. Sát, nhưng biển
+   *   số Việt Nam không dài hơn được.
+   * - `actions` 16% = 192px, padding 24 → 168px cho nút 157px (chữ 113 + icon
+   *   16 + gap 8 + padding trong 24). Hạ nữa là nút nong ô và bảng tràn ngang.
+   * - `departure`/`arrival` 11% = 132px, padding 32 → 100px cho chuỗi 109px:
+   *   thiếu ~9px nên ngày giờ xuống hai dòng. Chấp nhận có chủ đích — đây là
+   *   nội dung duy nhất xuống dòng vẫn đọc bình thường.
+   */
   withActions: {
-    route: "w-[20%] px-3 sm:px-4",
-    vehicle: "w-[11%] px-3 sm:px-4",
-    driver: "w-[13%] px-3 sm:px-4",
-    departure: "w-[13%] px-3 sm:px-4",
-    arrival: "w-[13%] px-3 sm:px-4",
+    tripCode: "w-[15%] px-3",
+    route: "w-[19%] px-3 sm:px-4",
+    vehicle: "w-[8%] px-3",
+    driver: "w-[11%] px-3 sm:px-4",
+    departure: "w-[11%] px-3 sm:px-4",
+    arrival: "w-[11%] px-3 sm:px-4",
     status: "w-[9%] px-2 sm:px-3",
-    actions: "w-[21%] px-3 sm:px-4",
+    actions: "w-[16%] px-2 sm:px-3",
   },
   readOnly: {
-    route: "w-[28%] px-3 sm:px-5",
-    vehicle: "w-[14%] px-3 sm:px-5",
-    driver: "w-[20%] px-3 sm:px-5",
-    departure: "w-[14%] px-3 sm:px-5",
-    arrival: "w-[14%] px-3 sm:px-5",
-    status: "w-[10%] px-3 sm:px-5",
+    tripCode: "w-[18%] px-3 sm:px-5",
+    route: "w-[22%] px-3 sm:px-5",
+    vehicle: "w-[12%] px-3 sm:px-5",
+    driver: "w-[15%] px-3 sm:px-5",
+    departure: "w-[12%] px-3 sm:px-5",
+    arrival: "w-[13%] px-3 sm:px-5",
+    status: "w-[8%] px-3 sm:px-5",
     actions: "",
   },
 } as const;
@@ -141,10 +171,10 @@ function shouldKeepIdempotencyKey(error: unknown): boolean {
   return error.code === "IDEMPOTENCY_REQUEST_PENDING";
 }
 
-// KHÔNG dựng "mã chuyến" từ `tripId` ở FE nữa. `GET /v1/operator/trips` hiện
-// không trả `tripCode`, nên cột đó chỉ hiện 8 ký tự đầu của UUID viết hoa —
-// trông như mã nghiệp vụ nhưng không tra cứu được ở đâu. Khi nào BE trả
-// `tripCode` thật (`TRIP-20260729-001`) thì thêm lại cột; type đã có sẵn field.
+// Cột mã chuyến đọc `trip.tripCode` do BE trả (`TRIP-20260824-M5Q7WV3D`), và
+// hiện "-" khi row legacy chưa backfill. Tuyệt đối KHÔNG quay lại cách cũ là
+// cắt 8 ký tự đầu `tripId` viết hoa: nó trông như mã nghiệp vụ nhưng không tra
+// cứu được ở đâu, và search theo chuỗi đó thì BE không khớp row nào.
 function routeLabel(trip: OperatorTripListItem) {
   if (trip.route.name) return trip.route.name;
 
@@ -485,6 +515,9 @@ export default function TripListPage() {
                 các cột còn lại căn giữa cả tiêu đề lẫn dữ liệu. */}
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className={`${cols.tripCode} py-3 text-left`}>
+                  {t("tripList.tripCode")}
+                </th>
                 <th className={`${cols.route} py-3 text-left`}>
                   {t("tripList.route")}
                 </th>
@@ -512,11 +545,29 @@ export default function TripListPage() {
                   key={trip.tripId}
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
+                  <td className={`${cols.tripCode} py-4 text-left`}>
+                    <span
+                      className={`block truncate font-mono text-xs tabular-nums ${
+                        displayBusinessCode(trip.tripCode) === "-"
+                          ? "text-gray-400"
+                          : "text-gray-800"
+                      }`}
+                      title={displayBusinessCode(trip.tripCode)}
+                    >
+                      {displayBusinessCode(trip.tripCode)}
+                    </span>
+                  </td>
                   <td className={`${cols.route} py-4 text-left text-sm font-medium text-gray-800`}>
                     <span className="block truncate" title={routeLabel(trip)}>
                       {routeLabel(trip)}
                     </span>
                     <span className="mt-0.5 block truncate text-xs font-normal text-gray-500">
+                      {trip.route.code && (
+                        <span className="font-mono tabular-nums">
+                          {trip.route.code}
+                          {" · "}
+                        </span>
+                      )}
                       {trip.route.originName} → {trip.route.destinationName}
                     </span>
                   </td>
@@ -563,13 +614,23 @@ export default function TripListPage() {
                     // ngay ở desktop 1440px.
                     <td className={`${cols.actions} sticky right-0 z-10 bg-white py-4 text-center`}>
                       {trip.status === "SCHEDULED" ? (
+                        // Nút có chữ, KHÔNG phải nút icon: đây là thao tác vận
+                        // hành quan trọng nhất của màn này, để icon trần thì
+                        // nghĩa nằm hết trong tooltip và chỉ ai rê chuột mới
+                        // biết nút làm gì.
+                        //
+                        // Tuyệt đối không thêm `title` vào nút: rule chung
+                        // `tbody td button[title]` trong App.css ép mọi nút có
+                        // title về ô vuông 40px, chữ sẽ bị bóp mất. Chữ trong
+                        // nút cũng chính là accessible name nên không cần
+                        // `aria-label` (và trùng khớp đúng WCAG 2.5.3).
                         <button
                           type="button"
                           onClick={() => setBoardingTripId(trip.tripId)}
                           disabled={busyBoardingTripId === trip.tripId}
-                          className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-vr-200 bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-900 transition hover:bg-vr-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex min-h-9 max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-vr-200 bg-vr-50 px-3 py-2 text-xs font-semibold text-vr-900 transition hover:border-vr-300 hover:bg-vr-100 focus:outline-none focus:ring-2 focus:ring-vr-200 disabled:cursor-not-allowed disabled:opacity-45"
                         >
-                          <FiLogIn aria-hidden="true" size={14} />
+                          <FiUserCheck aria-hidden="true" size={15} />
                           {t("tripList.boarding")}
                         </button>
                       ) : (
@@ -582,7 +643,7 @@ export default function TripListPage() {
               {isLoading && tripsPage.items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={canOpenBoarding ? 7 : 6}
+                    colSpan={canOpenBoarding ? 8 : 7}
                     className="px-5 py-10 text-center text-sm text-gray-500"
                   >
                     <span className="inline-flex items-center gap-2">
@@ -595,7 +656,7 @@ export default function TripListPage() {
               {!isLoading && tripsPage.items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={canOpenBoarding ? 7 : 6}
+                    colSpan={canOpenBoarding ? 8 : 7}
                     className="px-5 py-10 text-center text-sm text-gray-500"
                   >
                     {hasActiveFilter

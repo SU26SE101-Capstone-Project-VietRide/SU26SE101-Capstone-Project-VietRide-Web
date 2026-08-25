@@ -1,6 +1,7 @@
-// Test requestRoadGeometry: gọi computeRoutes với computeAlternativeRoutes và
-// parse MẢNG phương án (tối đa 3, bỏ phần tử thiếu field, kèm description);
-// travelMode theo opts, mặc định TRUCK (app nhà xe — xe lớn là chuẩn)
+// Test requestRoadGeometry: gọi Direction của Goong và parse MẢNG phương án
+// (tối đa 3, bỏ phần tử thiếu field, kèm summary). `alternatives` chỉ bật khi
+// caller cần dãy bubble chọn đường; vehicle mặc định truck (app nhà xe — xe lớn
+// là chuẩn). Điểm dừng trung gian đi CHUNG tham số `destination`, ngăn bằng `;`.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   dedupeRouteOptions,
@@ -20,16 +21,21 @@ const endpoints = [
   { latitude: 11.94, longitude: 108.44 },
 ];
 
-function googleRoute(
+// Một phần tử routes[] theo format Google mà Goong Direction trả về
+function directionsRoute(
   distanceMeters: number,
   durationSeconds: number,
-  description?: string,
+  summary?: string,
 ) {
   return {
-    distanceMeters,
-    duration: `${durationSeconds}s`,
-    polyline: { encodedPolyline: encodeGooglePolyline(endpoints) },
-    ...(description ? { description } : {}),
+    legs: [
+      {
+        distance: { value: distanceMeters },
+        duration: { value: durationSeconds },
+      },
+    ],
+    overview_polyline: { points: encodeGooglePolyline(endpoints) },
+    ...(summary ? { summary } : {}),
   };
 }
 
@@ -43,22 +49,29 @@ function stubFetch(body: unknown, ok = true) {
   return fetchMock;
 }
 
+// URL của lần gọi fetch thứ `index` — đã parse để đọc query param
+function requestedUrl(fetchMock: ReturnType<typeof stubFetch>, index = 0) {
+  return new URL(String(fetchMock.mock.calls[index][0]));
+}
+
 describe("requestRoadGeometry", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
-  it("requests alternative routes and returns every parsed option", async () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "test-key");
+  it("calls the Goong Direction endpoint and parses every option", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
     const fetchMock = stubFetch({
       routes: [
-        googleRoute(308_000, 18_600, "QL20"),
-        googleRoute(410_200, 22_320, "QL1A"),
+        directionsRoute(308_000, 18_600, "QL20"),
+        directionsRoute(410_200, 22_320, "QL1A"),
       ],
     });
 
-    const options = await requestRoadGeometry(endpoints, "failed");
+    const options = await requestRoadGeometry(endpoints, "failed", {
+      alternatives: true,
+    });
 
     expect(options).toHaveLength(2);
     expect(options[0]).toMatchObject({
@@ -73,23 +86,147 @@ describe("requestRoadGeometry", () => {
     });
     expect(options[0].points).toHaveLength(endpoints.length);
 
-    // Body bật computeAlternativeRoutes + FieldMask lấy description/routeLabels
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const requestBody = JSON.parse(String(init.body)) as Record<string, unknown>;
-    expect(requestBody.computeAlternativeRoutes).toBe(true);
-    // Không truyền travelMode → mặc định TRUCK (xe khách lớn)
-    expect(requestBody.travelMode).toBe("TRUCK");
-    expect(
-      (init.headers as Record<string, string>)["X-Goog-FieldMask"],
-    ).toContain("routes.description");
-    expect(
-      (init.headers as Record<string, string>)["X-Goog-FieldMask"],
-    ).toContain("routes.routeLabels");
+    const url = requestedUrl(fetchMock);
+    expect(url.origin + url.pathname).toBe("https://rsapi.goong.io/Direction");
+    expect(url.searchParams.get("alternatives")).toBe("true");
+    // Không truyền travelMode → mặc định truck (xe khách lớn)
+    expect(url.searchParams.get("vehicle")).toBe("truck");
+    expect(url.searchParams.get("origin")).toBe("10.77,106.69");
+    expect(url.searchParams.get("destination")).toBe("11.94,108.44");
+    expect(url.searchParams.get("api_key")).toBe("test-key");
   });
 
-  it("appends via:true intermediates for reroute drag points after the stop waypoints", async () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "test-key");
-    const fetchMock = stubFetch({ routes: [googleRoute(320_500, 19_800)] });
+  // Goong luôn chỉ trả 1 đường (đã probe thật) nên dãy bubble chọn đường được
+  // dựng lại bằng cách ép đường vòng qua điểm lệch hai bên tuyến chính.
+  it("synthesises alternatives by re-routing through off-corridor probes", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    // Chặng lệch trả về một đường KHÁC hẳn để không bị lọc trùng tuyến chính
+    const detourPath = [
+      { latitude: 10.77, longitude: 106.69 },
+      { latitude: 11.5, longitude: 108.2 },
+      { latitude: 11.94, longitude: 108.44 },
+    ];
+    const fetchMock = vi.fn(async (url: string) => {
+      const hasProbe = new URL(String(url)).searchParams
+        .get("destination")!
+        .includes(";");
+      return {
+        ok: true,
+        json: async () =>
+          hasProbe
+            ? {
+                routes: [
+                  {
+                    legs: [
+                      {
+                        distance: { value: 352_000 },
+                        duration: { value: 22_800 },
+                      },
+                    ],
+                    overview_polyline: {
+                      points: encodeGooglePolyline(detourPath),
+                    },
+                  },
+                ],
+              }
+            : { routes: [directionsRoute(308_000, 18_600)] },
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const options = await requestRoadGeometry(endpoints, "failed", {
+      alternatives: true,
+    });
+
+    // 1 request tuyến chính + 4 điểm thử lệch (2 vị trí × 2 bên)
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const probeCalls = fetchMock.mock.calls.filter((call) =>
+      new URL(String(call[0])).searchParams.get("destination")!.includes(";"),
+    );
+    expect(probeCalls).toHaveLength(4);
+
+    // Tuyến chính đứng đầu, phương án lệch nối sau và đã dedupe
+    expect(options[0].totalDistanceKm).toBe(308);
+    expect(options.length).toBeGreaterThan(1);
+    expect(options[1].totalDistanceKm).toBe(352);
+  });
+
+  it("drops synthesised detours that are absurdly worse than the main route", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    const farPath = [
+      { latitude: 10.77, longitude: 106.69 },
+      { latitude: 13.5, longitude: 109.2 },
+      { latitude: 11.94, longitude: 108.44 },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const hasProbe = new URL(String(url)).searchParams
+          .get("destination")!
+          .includes(";");
+        return {
+          ok: true,
+          json: async () =>
+            hasProbe
+              ? {
+                  routes: [
+                    {
+                      // > 1.5 lần cả km lẫn phút so với tuyến chính
+                      legs: [
+                        {
+                          distance: { value: 900_000 },
+                          duration: { value: 60_000 },
+                        },
+                      ],
+                      overview_polyline: {
+                        points: encodeGooglePolyline(farPath),
+                      },
+                    },
+                  ],
+                }
+              : { routes: [directionsRoute(308_000, 18_600)] },
+        };
+      }),
+    );
+
+    const options = await requestRoadGeometry(endpoints, "failed", {
+      alternatives: true,
+    });
+
+    expect(options).toHaveLength(1);
+    expect(options[0].totalDistanceKm).toBe(308);
+  });
+
+  it("skips the synthesis when the route already has stops", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    const fetchMock = stubFetch({ routes: [directionsRoute(320_500, 19_800)] });
+
+    const options = await requestRoadGeometry(
+      [endpoints[0], { latitude: 11.1, longitude: 107.1 }, endpoints[1]],
+      "failed",
+      { alternatives: true },
+    );
+
+    // Đường đã bị ghim bởi điểm dừng → ép vòng thêm chỉ ra lộ trình vô nghĩa
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(options).toHaveLength(1);
+  });
+
+  it("does not ask for alternatives unless the caller wants them", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    const fetchMock = stubFetch({ routes: [directionsRoute(308_000, 18_600)] });
+
+    await requestRoadGeometry(endpoints, "failed");
+
+    // Preview lúc kéo nắn + auto-fill chỉ cần đường tốt nhất
+    expect(requestedUrl(fetchMock).searchParams.get("alternatives")).toBe(
+      "false",
+    );
+  });
+
+  it("sends stops and reroute drag points inside destination, separated by ;", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    const fetchMock = stubFetch({ routes: [directionsRoute(320_500, 19_800)] });
     const stopPoint = { latitude: 11.1, longitude: 107.1 };
     const viaPoint = { latitude: 11.31, longitude: 107.61 };
 
@@ -99,55 +236,35 @@ describe("requestRoadGeometry", () => {
       { intermediates: [viaPoint] },
     );
 
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const requestBody = JSON.parse(String(init.body)) as {
-      intermediates: Array<{
-        via?: boolean;
-        location: { latLng: { latitude: number; longitude: number } };
-      }>;
-    };
-    // Điểm dừng của tuyến giữ waypoint thường, điểm nắn thêm sau cùng với via:true
-    expect(requestBody.intermediates).toEqual([
-      {
-        location: {
-          latLng: { latitude: 11.1, longitude: 107.1 },
-        },
-      },
-      {
-        via: true,
-        location: {
-          latLng: { latitude: 11.31, longitude: 107.61 },
-        },
-      },
-    ]);
+    const url = requestedUrl(fetchMock);
+    expect(url.searchParams.get("origin")).toBe("10.77,106.69");
+    // Điểm dừng của tuyến đứng trước, điểm nắn lộ trình nối sau, bến đến cuối cùng
+    expect(url.searchParams.get("destination")).toBe(
+      "11.1,107.1;11.31,107.61;11.94,108.44",
+    );
   });
 
-  it.each(["DRIVE", "TRUCK"] as const)(
-    "sends travelMode %s when passed through opts",
-    async (travelMode) => {
-      vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "test-key");
-      const fetchMock = stubFetch({ routes: [googleRoute(308_000, 18_600)] });
+  it.each([
+    ["DRIVE", "car"],
+    ["TRUCK", "truck"],
+  ] as const)("maps travelMode %s to vehicle %s", async (travelMode, vehicle) => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    const fetchMock = stubFetch({ routes: [directionsRoute(308_000, 18_600)] });
 
-      await requestRoadGeometry(endpoints, "failed", { travelMode });
+    await requestRoadGeometry(endpoints, "failed", { travelMode });
 
-      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      const requestBody = JSON.parse(String(init.body)) as Record<
-        string,
-        unknown
-      >;
-      expect(requestBody.travelMode).toBe(travelMode);
-    },
-  );
+    expect(requestedUrl(fetchMock).searchParams.get("vehicle")).toBe(vehicle);
+  });
 
   it("caps the result at 3 options and skips malformed entries", async () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "test-key");
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
     stubFetch({
       routes: [
-        googleRoute(100_000, 6_000),
-        { distanceMeters: "bad" },
-        googleRoute(200_000, 12_000),
-        googleRoute(300_000, 18_000),
-        googleRoute(400_000, 24_000),
+        directionsRoute(100_000, 6_000),
+        { legs: [{ distance: { value: "bad" } }] },
+        directionsRoute(200_000, 12_000),
+        directionsRoute(300_000, 18_000),
+        directionsRoute(400_000, 24_000),
       ],
     });
 
@@ -161,8 +278,17 @@ describe("requestRoadGeometry", () => {
   });
 
   it("throws the provided message when no valid route is returned", async () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "test-key");
-    stubFetch({ routes: [{ distanceMeters: "bad" }] });
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    stubFetch({ routes: [{ legs: [] }] });
+
+    await expect(requestRoadGeometry(endpoints, "failed")).rejects.toThrow(
+      "failed",
+    );
+  });
+
+  it("throws the provided message when the API answers with an HTTP error", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    stubFetch({ error: { code: "API_KEY_INVALID" } }, false);
 
     await expect(requestRoadGeometry(endpoints, "failed")).rejects.toThrow(
       "failed",
@@ -170,7 +296,7 @@ describe("requestRoadGeometry", () => {
   });
 
   it("throws without calling fetch when the API key is missing", async () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "");
+    vi.stubEnv("VITE_GOONG_API_KEY", "");
     const fetchMock = stubFetch({ routes: [] });
 
     await expect(requestRoadGeometry(endpoints, "failed")).rejects.toThrow(

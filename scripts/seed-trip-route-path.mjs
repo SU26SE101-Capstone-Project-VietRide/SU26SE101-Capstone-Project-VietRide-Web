@@ -4,7 +4,7 @@
 // Bản đồ chỉ vẽ được tuyến khi Route có pathPolyline: endpoint
 // `GET /v1/tracking/trips/{tripId}/route-geometry` trả `geometry: null` khi
 // tuyến chưa lưu đường, và contract cấm client nối bến/điểm dừng thành tuyến
-// giả. Script này lấy đúng dãy bến + điểm dừng của chuyến, hỏi Google Routes
+// giả. Script này lấy đúng dãy bến + điểm dừng của chuyến, hỏi Goong Direction
 // đường bộ đi qua chúng rồi lưu polyline vào tuyến qua API sẵn có.
 //
 // Chạy khô mặc định — phải có --apply mới ghi.
@@ -13,13 +13,13 @@ import { pathToFileURL } from "node:url";
 
 const PRODUCTION_HOSTS = new Set(["api.vietride.online"]);
 
-// Routes API nhận tối đa 25 waypoint/lần gọi. Không lấy mẫu bớt: BE bắt buộc
-// MỌI bến/điểm dừng phải nằm trong 500 m quanh polyline (RouteGeometryValidator),
+// Trần waypoint mỗi lần gọi Directions. Không lấy mẫu bớt: BE bắt buộc MỌI
+// bến/điểm dừng phải nằm trong 500 m quanh polyline (RouteGeometryValidator),
 // bỏ điểm nào là lưu sẽ bị từ chối ROUTE_GEOMETRY_STOP_MISMATCH.
 const MAX_WAYPOINTS = 25;
 
-const googleRoutesEndpoint =
-  "https://routes.googleapis.com/directions/v2:computeRoutes";
+const GOONG_REST_BASE_URL =
+  process.env.VITE_GOONG_REST_BASE_URL?.trim() || "https://rsapi.goong.io";
 
 class ApiError extends Error {
   constructor(message, status, code) {
@@ -274,58 +274,58 @@ function putRouteGeometry(baseUrl, accessToken, routeId, pathPolyline) {
   });
 }
 
-function toGoogleWaypoint(point) {
-  return {
-    location: {
-      latLng: { latitude: point.latitude, longitude: point.longitude },
-    },
-  };
+function toRouteCoordinate(point) {
+  return `${point.latitude},${point.longitude}`;
+}
+
+function sumLegMetric(legs, field) {
+  if (!Array.isArray(legs)) {
+    return 0;
+  }
+
+  return legs.reduce((total, leg) => {
+    const value = leg?.[field]?.value;
+    return typeof value === "number" ? total + value : total;
+  }, 0);
 }
 
 // Trả về { encodedPolyline, distanceKm, durationMinutes } cho đường bộ đi qua
-// lần lượt toàn bộ waypoint.
+// lần lượt toàn bộ waypoint. Dùng Direction của Goong — response theo đúng
+// format Google (routes[].legs[].distance.value, overview_polyline.points).
 export async function computeRoadPolyline(waypoints, apiKey, travelMode) {
-  const response = await fetch(googleRoutesEndpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask":
-        "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
-    },
-    body: JSON.stringify({
-      origin: toGoogleWaypoint(waypoints[0]),
-      destination: toGoogleWaypoint(waypoints[waypoints.length - 1]),
-      intermediates: waypoints.slice(1, -1).map(toGoogleWaypoint),
-      travelMode,
-      routingPreference: "TRAFFIC_AWARE_OPTIMAL",
-      polylineQuality: "HIGH_QUALITY",
-      polylineEncoding: "ENCODED_POLYLINE",
-      languageCode: "vi",
-      units: "METRIC",
-    }),
-  });
+  const url = new URL(`${GOONG_REST_BASE_URL}/Direction`);
+  url.searchParams.set("origin", toRouteCoordinate(waypoints[0]));
+  // Goong không có tham số waypoints riêng: điểm dừng đi chung `destination`,
+  // ngăn bằng `;`, phần tử cuối là bến đến.
+  url.searchParams.set(
+    "destination",
+    waypoints.slice(1).map(toRouteCoordinate).join(";"),
+  );
+  // CLI giữ nguyên TRUCK/DRIVE cho quen tay; Goong nhận truck/car
+  url.searchParams.set("vehicle", travelMode === "DRIVE" ? "car" : "truck");
+  url.searchParams.set("api_key", apiKey);
+
+  const response = await fetch(url);
   const body = await response.json().catch(() => null);
 
   if (!response.ok || !Array.isArray(body?.routes) || body.routes.length === 0) {
     const detail =
-      body?.error?.message ?? `Google Routes trả về ${response.status}.`;
+      body?.error?.message ?? `Goong Direction trả về ${response.status}.`;
     throw new Error(detail);
   }
 
   const route = body.routes[0];
-  const encodedPolyline = route?.polyline?.encodedPolyline;
+  const encodedPolyline = route?.overview_polyline?.points;
   if (typeof encodedPolyline !== "string" || !encodedPolyline) {
-    throw new Error("Google Routes không trả về polyline.");
+    throw new Error("Goong Direction không trả về polyline.");
   }
 
-  const durationSeconds = Number.parseFloat(
-    String(route.duration ?? "0").replace("s", ""),
-  );
+  const distanceMeters = sumLegMetric(route.legs, "distance");
+  const durationSeconds = sumLegMetric(route.legs, "duration");
 
   return {
     encodedPolyline,
-    distanceKm: Number(((route.distanceMeters ?? 0) / 1000).toFixed(1)),
+    distanceKm: Number((distanceMeters / 1000).toFixed(1)),
     durationMinutes: Math.max(1, Math.round(durationSeconds / 60)),
   };
 }
@@ -350,7 +350,7 @@ Options:
 Environment (đọc thêm từ .env trong thư mục hiện tại):
   VIETRIDE_SEED_API_BASE_URL     mặc định http://localhost:3000
   VIETRIDE_SEED_ACCESS_TOKEN     hoặc VIETRIDE_SEED_ADMIN_EMAIL + VIETRIDE_SEED_ADMIN_PASSWORD
-  VIETRIDE_GOOGLE_ROUTES_API_KEY hoặc VITE_GOOGLE_ROUTES_API_KEY
+  VIETRIDE_GOONG_API_KEY         hoặc VITE_GOONG_API_KEY
 
 Lưu ý:
   - Chuyến đang chạy theo LỘ TRÌNH THAY THẾ lấy polyline của alternative route;
@@ -404,7 +404,7 @@ export async function main(argv = process.argv.slice(2)) {
     return;
   }
 
-  // Node >= 20.12: nạp .env cạnh package.json để dùng chung key Google với FE
+  // Node >= 20.12: nạp .env cạnh package.json để dùng chung key Goong với FE
   try {
     process.loadEnvFile?.();
   } catch {
@@ -417,13 +417,13 @@ export async function main(argv = process.argv.slice(2)) {
       "http://localhost:3000",
   );
   const apiKey = (
-    process.env.VIETRIDE_GOOGLE_ROUTES_API_KEY ||
-    process.env.VITE_GOOGLE_ROUTES_API_KEY ||
+    process.env.VIETRIDE_GOONG_API_KEY ||
+    process.env.VITE_GOONG_API_KEY ||
     ""
   ).trim();
   if (!apiKey) {
     throw new Error(
-      "Thiếu VIETRIDE_GOOGLE_ROUTES_API_KEY (hoặc VITE_GOOGLE_ROUTES_API_KEY).",
+      "Thiếu VIETRIDE_GOONG_API_KEY (hoặc VITE_GOONG_API_KEY).",
     );
   }
 

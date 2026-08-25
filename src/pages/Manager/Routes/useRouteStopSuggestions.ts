@@ -1,11 +1,12 @@
 // Hook cục bộ: gợi ý điểm dừng trên tuyến — kho nhà xe (lọc theo khoảng cách tới
-// đường, dedupe stop đã gắn) + Google Places dọc tuyến (cache theo routeKey,
+// đường, dedupe stop đã gắn) + địa điểm Goong dọc tuyến (cache theo routeKey,
 // dedupe với kho lẫn với place trùng vị trí kho).
 import { useEffect, useMemo, useState } from "react";
 import type { OperatorStop } from "../../../api/vietride";
 import { distanceKmBetween } from "./geometry";
 import {
   searchPlacesAlongRoute,
+  stopPlaceCategories,
   type PlaceAlongRoute,
 } from "../../../lib/googlePlacesSearch";
 import {
@@ -15,11 +16,11 @@ import {
 } from "./polyline";
 import type { RouteStopDraft, StopSuggestion } from "./types";
 
-// Xe khách 40 chỗ chỉ rẽ được từ đường lớn — gợi ý (kho lẫn Google) phải nằm
+// Xe khách 40 chỗ chỉ rẽ được từ đường lớn — gợi ý (kho lẫn Goong) phải nằm
 // sát tuyến (đường lớn), không phải trong ngõ/phố cách tuyến vài km.
 const maxDistanceToPathKm = 1;
 const minGooglePlaceSpacingKm = 0.1;
-// Blocklist type Google Places — loại nhầm chỗ không phải điểm dừng khách dù
+// Blocklist type địa điểm — loại nhầm chỗ không phải điểm dừng khách dù
 // tên khớp query (VD: "Trạm Sạc Xe Điện (TRẠM DỪNG CHÂN)" khớp textQuery vì
 // tên chứa chữ). Dùng blocklist chứ không allowlist: trạm dừng chân VN thực
 // tế hay mang type restaurant/food/gas_station rất đa dạng, allowlist sẽ giết
@@ -34,14 +35,8 @@ const blockedPlaceTypes = new Set([
   "insurance_agency",
   "real_estate_agency",
 ]);
-// Places API textQuery KHÔNG hỗ trợ toán tử OR ("|") — Google match cả chuỗi
-// theo nghĩa đen nên "bến xe | trạm dừng chân" chỉ ra kết quả thưa/thất
-// thường. Tách thành nhiều query riêng, gọi song song rồi gộp + dedupe theo
-// placeId ở tầng hook.
-const googlePlacesTextQueries = ["bến xe", "trạm dừng chân"];
-
-// Cache module-level: mỗi `routeKey` chỉ gọi Google Places API MỘT LẦN mỗi
-// phiên — search along route tốn quota. KHÔNG đưa pathPoints.length vào key:
+// Cache module-level: mỗi `routeKey` chỉ gọi Places API MỘT LẦN mỗi phiên —
+// quét dọc tuyến là nhiều request nên tốn quota. KHÔNG đưa pathPoints.length vào key:
 // polyline đổi độ dài liên tục khi thêm stop/kéo via-point lúc suggest-mode
 // bật, đưa vào key sẽ gọi lại Google mỗi lần đổi (tốn quota) mà 2 polyline
 // khác nhau cùng độ dài lại vô tình dùng chung cache (sai kết quả). Places
@@ -72,7 +67,7 @@ export function useRouteStopSuggestions({
   stops,
   currentRouteStops,
 }: UseRouteStopSuggestionsParams) {
-  // Đếm số lần cache Google Places thực sự thay đổi — dùng để buộc useMemo bên
+  // Đếm số lần cache địa điểm thực sự thay đổi — dùng để buộc useMemo bên
   // dưới đọc lại `placesCache` (Map mutate không tự trigger re-render).
   const [placesVersion, setPlacesVersion] = useState(0);
 
@@ -89,9 +84,11 @@ export function useRouteStopSuggestions({
     let cancelled = false;
     const encodedPolyline = encodeGooglePolyline(pathPoints);
 
+    // Mỗi danh mục (bến xe / trạm dừng chân) là một loạt request riêng — gọi
+    // song song rồi gộp + dedupe theo placeId ở đây.
     Promise.all(
-      googlePlacesTextQueries.map((query) =>
-        searchPlacesAlongRoute(encodedPolyline, query),
+      stopPlaceCategories.map((category) =>
+        searchPlacesAlongRoute(encodedPolyline, category),
       ),
     ).then((resultsPerQuery) => {
       if (cancelled) {
@@ -119,7 +116,7 @@ export function useRouteStopSuggestions({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, hasValidPath, cacheKey]);
 
-  // Đọc kết quả Google Places hiện có trong cache cho cacheKey hiện tại (rỗng nếu
+  // Đọc kết quả địa điểm hiện có trong cache cho cacheKey hiện tại (rỗng nếu
   // chưa fetch xong). `placesVersion` chỉ để buộc recompute sau khi cache thay đổi.
   const places = useMemo(
     () => placesCache.get(cacheKey) ?? [],
@@ -165,7 +162,7 @@ export function useRouteStopSuggestions({
     return result;
   }, [enabled, hasValidPath, stops, currentRouteStops, pathPoints]);
 
-  // Gợi ý từ Google Places dọc tuyến: cách đường <= 1km, loại type trong
+  // Gợi ý từ địa điểm Goong dọc tuyến: cách đường <= 1km, loại type trong
   // blocklist, không trùng googlePlaceId với stop kho, không quá gần
   // (< 0.1km) một gợi ý kho.
   const googleSuggestions = useMemo<StopSuggestion[]>(() => {

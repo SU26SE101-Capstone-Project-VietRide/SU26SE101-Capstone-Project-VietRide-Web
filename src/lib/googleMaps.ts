@@ -1,3 +1,20 @@
+// Lớp tương thích bản đồ — TÊN kiểu vẫn là "Google" nhưng RUỘT đã là Goong.
+//
+// Google khoá key nên toàn bộ bản đồ chuyển sang Goong Maps (xem
+// `goongMap.ts` cho adapter SDK và `goongApi.ts` cho REST). Bộ interface
+// dưới đây giữ nguyên hình dáng cũ để `GoogleMapCanvas` + các màn dùng bản đồ +
+// test hiện có không phải sửa: đây là ranh giới duy nhất giữa app và SDK bản đồ.
+// Muốn đổi nhà cung cấp lần nữa thì chỉ cần viết adapter mới thoả các type này.
+import {
+  goongAutocomplete,
+  goongPlaceDetail,
+  goongReverseGeocode,
+  type GoongAddressComponent,
+  type GoongPlaceResult,
+} from "./goongApi";
+import { getGoongApiKey, goongMissingApiKeyMessage } from "./goongConfig";
+import { createGoongMapsLibrary } from "./goongMap";
+
 export type GoogleMapCoordinate = {
   lat: number;
   lng: number;
@@ -143,7 +160,7 @@ type GoogleMarkerLabel = {
 };
 
 // Icon dạng Symbol (path SVG) — dùng vẽ bubble/điểm kéo thay pin mặc định
-type GoogleMarkerIcon = {
+export type GoogleMarkerIcon = {
   fillColor?: string;
   fillOpacity?: number;
   path: string;
@@ -236,10 +253,6 @@ export type GoogleMapsLibrary = {
   Polyline: new (options: GooglePolylineOptions) => GooglePolylineInstance;
 };
 
-type GoogleMapsRenderingLibrary = Omit<GoogleMapsLibrary, "LatLngBounds">;
-
-type GoogleMapsCoreLibrary = Pick<GoogleMapsLibrary, "LatLngBounds">;
-
 export type GoogleAddressComponent = {
   longText?: string;
   shortText?: string;
@@ -309,186 +322,146 @@ export type GoogleGeocodingLibrary = {
   Geocoder: new () => GoogleGeocoderInstance;
 };
 
-type GoogleMapsNamespace = {
-  importLibrary: (name: string) => Promise<unknown>;
-};
+// ── Nạp SDK bản đồ ─────────────────────────────────────────────────────────
 
-type GoogleMapsWindow = Window & {
-  __vietRideGoogleMapsReady?: () => void;
-  google?: {
-    maps?: GoogleMapsNamespace;
-  };
-};
-
-const GOOGLE_MAPS_SCRIPT_ID = "vietride-google-maps-script";
-const GOOGLE_MAPS_CALLBACK = "__vietRideGoogleMapsReady";
-const GOOGLE_MAPS_MISSING_KEY =
-  "Chưa cấu hình VITE_GOOGLE_MAPS_API_KEY. Hãy thêm browser key đã giới hạn domain và API vào file .env.";
-
-let bootstrapPromise: Promise<GoogleMapsNamespace> | null = null;
-
-function getMapsWindow() {
-  return window as GoogleMapsWindow;
-}
-
-function hasCallableProperty(value: unknown, property: string) {
-  if (
-    (typeof value !== "object" && typeof value !== "function") ||
-    value === null
-  ) {
-    return false;
-  }
-
-  return typeof Reflect.get(value, property) === "function";
-}
-
-function hasMapsLibraryShape(
-  value: unknown,
-): value is GoogleMapsRenderingLibrary {
-  return (
-    hasCallableProperty(value, "Map") &&
-    hasCallableProperty(value, "Circle") &&
-    hasCallableProperty(value, "Polyline") &&
-    hasCallableProperty(value, "InfoWindow")
-  );
-}
-
-function hasCoreLibraryShape(value: unknown): value is GoogleMapsCoreLibrary {
-  return hasCallableProperty(value, "LatLngBounds");
-}
-
-function hasPlacesLibraryShape(value: unknown): value is GooglePlacesLibrary {
-  if (
-    !hasCallableProperty(value, "AutocompleteSessionToken") ||
-    (typeof value !== "object" && typeof value !== "function") ||
-    value === null
-  ) {
-    return false;
-  }
-
-  const autocompleteSuggestion = Reflect.get(value, "AutocompleteSuggestion");
-  return hasCallableProperty(
-    autocompleteSuggestion,
-    "fetchAutocompleteSuggestions",
-  );
-}
-
-function hasGeocodingLibraryShape(
-  value: unknown,
-): value is GoogleGeocodingLibrary {
-  return hasCallableProperty(value, "Geocoder");
-}
-
-function loadGoogleMapsBootstrap() {
-  const mapsWindow = getMapsWindow();
-  const existingMaps = mapsWindow.google?.maps;
-
-  if (existingMaps?.importLibrary) {
-    return Promise.resolve(existingMaps);
-  }
-
-  if (bootstrapPromise) {
-    return bootstrapPromise;
-  }
-
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim();
-  if (!apiKey) {
-    return Promise.reject(new Error(GOOGLE_MAPS_MISSING_KEY));
-  }
-
-  bootstrapPromise = new Promise<GoogleMapsNamespace>((resolve, reject) => {
-    const existingScript = document.getElementById(
-      GOOGLE_MAPS_SCRIPT_ID,
-    ) as HTMLScriptElement | null;
-
-    const finishLoading = () => {
-      const maps = mapsWindow.google?.maps;
-      delete mapsWindow.__vietRideGoogleMapsReady;
-
-      if (!maps?.importLibrary) {
-        bootstrapPromise = null;
-        reject(new Error("Google Maps JavaScript API không khởi tạo được."));
-        return;
-      }
-
-      resolve(maps);
-    };
-
-    mapsWindow.__vietRideGoogleMapsReady = finishLoading;
-
-    existingScript?.remove();
-
-    const params = new URLSearchParams({
-      callback: GOOGLE_MAPS_CALLBACK,
-      key: apiKey,
-      language: "vi",
-      loading: "async",
-      region: "VN",
-      v: "quarterly",
-    });
-    const script = document.createElement("script");
-    script.id = GOOGLE_MAPS_SCRIPT_ID;
-    script.async = true;
-    script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
-    script.addEventListener("error", () => {
-      bootstrapPromise = null;
-      delete mapsWindow.__vietRideGoogleMapsReady;
-      script.remove();
-      reject(new Error("Không thể tải Google Maps JavaScript API."));
-    });
-    document.head.appendChild(script);
-  });
-
-  return bootstrapPromise;
-}
-
-function hasMarkerLibraryShape(
-  value: unknown,
-): value is Pick<Required<GoogleMapsLibrary>, "Marker"> {
-  return hasCallableProperty(value, "Marker");
-}
-
+/**
+ * Bộ constructor bản đồ (Map/Circle/Polyline/Marker/InfoWindow/OverlayView).
+ * Chạy trên Goong JS; ném lỗi khi chưa cấu hình VITE_GOONG_MAPTILES_KEY.
+ */
 export async function loadGoogleMapsLibrary(): Promise<GoogleMapsLibrary> {
-  const maps = await loadGoogleMapsBootstrap();
-  const [library, coreLibrary, markerLibrary] = await Promise.all([
-    maps.importLibrary("maps"),
-    maps.importLibrary("core"),
-    maps.importLibrary("marker"),
-  ]);
+  return createGoongMapsLibrary();
+}
 
-  if (!hasMapsLibraryShape(library) || !hasCoreLibraryShape(coreLibrary)) {
-    throw new Error("Google Maps trả về thư viện bản đồ không hợp lệ.");
+// ── Places: autocomplete + chi tiết địa điểm ───────────────────────────────
+
+function toLatLngValue(location: { lat: number; lng: number }): GoogleLatLngValue {
+  return {
+    lat: () => location.lat,
+    lng: () => location.lng,
+  };
+}
+
+function toAddressComponents(
+  components: GoongAddressComponent[],
+): GoogleAddressComponent[] {
+  return components.map((component) => ({
+    long_name: component.long_name,
+    short_name: component.short_name,
+    types: component.types,
+  }));
+}
+
+// Điền dữ liệu chi tiết vào `place` đã trả cho caller — giữ đúng hợp đồng của
+// Google Places New: `toPlace()` trả object rỗng, `fetchFields()` mới nạp field.
+function assignPlaceFields(place: GooglePlace, detail: GoongPlaceResult) {
+  place.addressComponents = toAddressComponents(detail.addressComponents);
+  place.displayName = detail.name || place.displayName;
+  place.formattedAddress = detail.formattedAddress || place.formattedAddress;
+  place.id = detail.placeId;
+  place.location = toLatLngValue(detail.location);
+}
+
+function createPlaceFromPrediction(
+  prediction: { description: string; mainText: string; placeId: string },
+  sessionToken?: string,
+): GooglePlace {
+  const place: GooglePlace = {
+    displayName: prediction.mainText,
+    fetchFields: async () => {
+      // Goong AutoComplete KHÔNG kèm toạ độ — bắt buộc gọi Place Detail mới có
+      const detail = await goongPlaceDetail(prediction.placeId, sessionToken);
+      if (detail) {
+        assignPlaceFields(place, detail);
+      }
+    },
+    formattedAddress: prediction.description,
+    id: prediction.placeId,
+  };
+
+  return place;
+}
+
+function toTextValue(value: string) {
+  return { toString: () => value };
+}
+
+// Goong CÓ session token thật (gom autocomplete + detail vào một phiên tính
+// cước, đúng như Google) — token là một UUID gửi kèm cả hai request.
+class GoongSessionToken {
+  private readonly value =
+    globalThis.crypto?.randomUUID?.() ??
+    `vr-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  toString() {
+    return this.value;
   }
+}
+
+function readSessionToken(token: unknown): string | undefined {
+  return token instanceof GoongSessionToken ? token.toString() : undefined;
+}
+
+/** Thư viện gợi ý địa điểm, chạy trên Place AutoComplete + Place Detail. */
+export async function loadGooglePlacesLibrary(): Promise<GooglePlacesLibrary> {
+  requireGoongApiKey();
 
   return {
-    ...library,
-    LatLngBounds: coreLibrary.LatLngBounds,
-    // Marker là optional: thiếu thì bản đồ vẫn chạy, chỉ không có nhãn/điểm kéo
-    Marker: hasMarkerLibraryShape(markerLibrary)
-      ? markerLibrary.Marker
-      : undefined,
+    AutocompleteSessionToken: GoongSessionToken,
+    AutocompleteSuggestion: {
+      fetchAutocompleteSuggestions: async (request) => {
+        const sessionToken = readSessionToken(request.sessionToken);
+        const predictions = await goongAutocomplete({
+          input: request.input,
+          sessionToken,
+        });
+
+        return {
+          suggestions: predictions.map((prediction) => ({
+            placePrediction: {
+              mainText: toTextValue(prediction.mainText),
+              placeId: prediction.placeId,
+              secondaryText: toTextValue(prediction.secondaryText),
+              text: toTextValue(prediction.description),
+              toPlace: () =>
+                createPlaceFromPrediction(prediction, sessionToken),
+            },
+          })),
+        };
+      },
+    },
   };
 }
 
-export async function loadGooglePlacesLibrary() {
-  const maps = await loadGoogleMapsBootstrap();
-  const library = await maps.importLibrary("places");
+// ── Geocoding: toạ độ → địa chỉ ────────────────────────────────────────────
 
-  if (!hasPlacesLibraryShape(library)) {
-    throw new Error("Google Maps trả về thư viện địa điểm không hợp lệ.");
-  }
-
-  return library;
+function toGeocoderResult(place: GoongPlaceResult): GoogleGeocoderResult {
+  return {
+    address_components: toAddressComponents(place.addressComponents),
+    formatted_address: place.formattedAddress || place.name,
+    geometry: { location: toLatLngValue(place.location) },
+    place_id: place.placeId,
+  };
 }
 
-export async function loadGoogleGeocodingLibrary() {
-  const maps = await loadGoogleMapsBootstrap();
-  const library = await maps.importLibrary("geocoding");
+export async function loadGoogleGeocodingLibrary(): Promise<GoogleGeocodingLibrary> {
+  requireGoongApiKey();
 
-  if (!hasGeocodingLibraryShape(library)) {
-    throw new Error("Google Maps trả về thư viện geocoding không hợp lệ.");
+  return {
+    Geocoder: class {
+      async geocode(request: { location: GoogleMapCoordinate }) {
+        const places = await goongReverseGeocode({
+          lat: request.location.lat,
+          lng: request.location.lng,
+        });
+
+        return { results: places.map(toGeocoderResult) };
+      }
+    },
+  };
+}
+
+function requireGoongApiKey() {
+  if (!getGoongApiKey()) {
+    throw new Error(goongMissingApiKeyMessage);
   }
-
-  return library;
 }

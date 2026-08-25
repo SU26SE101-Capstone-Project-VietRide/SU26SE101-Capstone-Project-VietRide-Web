@@ -29,7 +29,10 @@
     "wallet": "Ví nhà xe",
     "settings": "Cấu hình",
     "assistant": "Trợ lý nghiệp vụ",
-    "incidents": "Báo cáo sự cố"
+    "incidents": "Báo cáo sự cố",
+    "parcelIncidents": "Sự cố kiện hàng",
+    "claims": "Khiếu nại bồi thường",
+    "unidentifiedPackages": "Kiện chưa định danh"
   },
   "admin": {
     "dashboard": "Tổng quan",
@@ -45,8 +48,7 @@
     "reports": "Báo cáo",
     "ragAudit": "Tài liệu AI & kiểm tra hội thoại",
     "outboxDlq": "Hàng đợi lỗi",
-    "assistant": "Trợ lý nghiệp vụ",
-    "activityLogs": "Nhật ký hoạt động"
+    "assistant": "Trợ lý nghiệp vụ"
   },
   "layout": {
     "adminDashboard": "Tổng quan quản trị",

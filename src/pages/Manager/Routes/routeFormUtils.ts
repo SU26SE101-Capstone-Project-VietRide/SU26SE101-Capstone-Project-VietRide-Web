@@ -32,6 +32,7 @@ export const emptyStopForm: OperatorStopRequest = {
 };
 
 export const emptyRouteForm: OperatorRouteRequest = {
+  code: "",
   name: "",
   originStationId: "",
   destinationStationId: "",
@@ -50,6 +51,9 @@ export function isGuid(value: string) {
 
 export function routeToForm(route: OperatorRoute): OperatorRouteRequest {
   return {
+    // Tuyến legacy chưa có mã trả `null` — về "" để ô input là controlled, và
+    // để trống lúc lưu nghĩa là "giữ nguyên", không phải "xoá mã".
+    code: route.code ?? "",
     name: route.name,
     originStationId: route.originStationId,
     destinationStationId: route.destinationStationId,

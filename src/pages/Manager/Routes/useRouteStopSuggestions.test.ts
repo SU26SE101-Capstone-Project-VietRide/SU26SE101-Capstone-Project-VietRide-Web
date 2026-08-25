@@ -7,6 +7,11 @@ import type { RouteStopDraft } from "./types";
 
 vi.mock("../../../lib/googlePlacesSearch", () => ({
   searchPlacesAlongRoute: vi.fn(),
+  // Danh mục thật (không mock) — hook lặp qua đúng bộ này để gọi API
+  stopPlaceCategories: [
+    { id: "busStation", keyword: "bến xe" },
+    { id: "restStop", keyword: "trạm dừng chân" },
+  ],
 }));
 
 import { searchPlacesAlongRoute } from "../../../lib/googlePlacesSearch";
@@ -117,7 +122,7 @@ describe("useRouteStopSuggestions", () => {
     expect(ids).not.toContain("far-stop"); // quá xa đường (>3km)
   });
 
-  it("map place Google thành kind googlePlace và sort theo distanceFromStartKm — gọi 2 query riêng (bến xe, trạm dừng chân)", async () => {
+  it("map place thành kind googlePlace và sort theo distanceFromStartKm — gọi 1 lần cho mỗi danh mục", async () => {
     mockedSearchPlacesAlongRoute.mockResolvedValue([googlePlace]);
 
     const { result } = renderHook(() =>
@@ -141,20 +146,20 @@ describe("useRouteStopSuggestions", () => {
     expect(second.id).toBe("google-place-1");
     expect(first.distanceFromStartKm).toBeLessThan(second.distanceFromStartKm);
 
-    // Places textQuery không hỗ trợ toán tử OR ("|") — phải tách thành 2 lần
-    // gọi riêng, cùng polyline, dedupe kết quả theo placeId ở tầng hook.
+    // Mỗi danh mục địa điểm là một lần gọi riêng, cùng polyline; kết quả gộp
+    // lại và dedupe theo placeId ở tầng hook.
     expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(2);
-    const calledQueries = mockedSearchPlacesAlongRoute.mock.calls.map(
-      (call) => call[1],
-    );
-    expect(calledQueries.sort()).toEqual(["bến xe", "trạm dừng chân"].sort());
+    const calledCategories = mockedSearchPlacesAlongRoute.mock.calls
+      .map((call) => call[1].id)
+      .sort();
+    expect(calledCategories).toEqual(["busStation", "restStop"]);
     const calledPolylines = mockedSearchPlacesAlongRoute.mock.calls.map(
       (call) => call[0],
     );
     expect(calledPolylines[0]).toBe(calledPolylines[1]);
   });
 
-  it("gộp + dedupe theo placeId khi 2 query trả về place trùng nhau", async () => {
+  it("gộp + dedupe theo placeId khi 2 danh mục trả về place trùng nhau", async () => {
     const duplicatePlace: PlaceAlongRoute = {
       placeId: "google-place-1",
       name: "Trạm dừng Google (tên khác)",
@@ -164,8 +169,8 @@ describe("useRouteStopSuggestions", () => {
       types: ["rest_stop"],
     };
 
-    mockedSearchPlacesAlongRoute.mockImplementation((_polyline, query) => {
-      if (query === "bến xe") {
+    mockedSearchPlacesAlongRoute.mockImplementation((_polyline, category) => {
+      if (category.id === "busStation") {
         return Promise.resolve([googlePlace]);
       }
       return Promise.resolve([duplicatePlace]);
@@ -185,7 +190,7 @@ describe("useRouteStopSuggestions", () => {
       expect(result.current.isLoadingPlaces).toBe(false);
     });
 
-    // 2 query trả về 2 place cùng placeId → chỉ 1 suggestion googlePlace duy nhất
+    // 2 danh mục trả về 2 place cùng placeId → chỉ 1 suggestion googlePlace duy nhất
     // (cộng 1 operatorStop suggestion từ nearStop) = 2, không phải 3.
     expect(result.current.suggestions.length).toBe(2);
     const googlePlaceSuggestions = result.current.suggestions.filter(
@@ -195,7 +200,7 @@ describe("useRouteStopSuggestions", () => {
     expect(googlePlaceSuggestions[0].id).toBe("google-place-1");
   });
 
-  it("cache Google theo routeKey|pathPoints.length — chỉ gọi 2 lần (1 lần/query)", async () => {
+  it("cache theo routeKey — chỉ gọi 2 lần (1 lần/danh mục)", async () => {
     mockedSearchPlacesAlongRoute.mockResolvedValue([googlePlace]);
 
     const first = renderHook(() =>
@@ -232,7 +237,7 @@ describe("useRouteStopSuggestions", () => {
   // F-1 regression: cache key phải là routeKey THUẦN, không ghép thêm
   // pathPoints.length — polyline đổi độ dài (thêm stop/kéo via-point) không
   // được bắn thêm request Google Places khi routeKey không đổi.
-  it("cache theo routeKey thuần — đổi độ dài pathPoints cùng routeKey vẫn KHÔNG gọi Google lần 2", async () => {
+  it("cache theo routeKey thuần — đổi độ dài pathPoints cùng routeKey vẫn KHÔNG gọi API lần 2", async () => {
     mockedSearchPlacesAlongRoute.mockResolvedValue([googlePlace]);
 
     const { result, rerender } = renderHook(
@@ -267,7 +272,7 @@ describe("useRouteStopSuggestions", () => {
     expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(2);
   });
 
-  it("loại place Google có type trong blocklist (trạm sạc xe điện) dù nằm sát tuyến", async () => {
+  it("loại place có type trong blocklist (trạm sạc xe điện) dù nằm sát tuyến", async () => {
     const chargingStation: PlaceAlongRoute = {
       ...googlePlace,
       placeId: "charging-station-1",
@@ -294,7 +299,7 @@ describe("useRouteStopSuggestions", () => {
     expect(ids).not.toContain("charging-station-1");
   });
 
-  it("giữ place Google có type rest_stop (không thuộc blocklist)", async () => {
+  it("giữ place có type rest_stop (không thuộc blocklist)", async () => {
     mockedSearchPlacesAlongRoute.mockResolvedValue([googlePlace]);
 
     const { result } = renderHook(() =>
@@ -315,7 +320,7 @@ describe("useRouteStopSuggestions", () => {
     expect(ids).toContain("google-place-1");
   });
 
-  it("loại place Google cách tuyến 2km — trong ngưỡng cũ (3km) nhưng ngoài ngưỡng mới (1km)", async () => {
+  it("loại place cách tuyến 2km — trong ngưỡng cũ (3km) nhưng ngoài ngưỡng mới (1km)", async () => {
     const twoKmAwayPlace: PlaceAlongRoute = {
       ...googlePlace,
       placeId: "google-2km",
@@ -342,7 +347,7 @@ describe("useRouteStopSuggestions", () => {
     expect(ids).not.toContain("google-2km");
   });
 
-  it("loại stop kho cách tuyến 2km — dùng chung ngưỡng mới (1km) với Google Places", async () => {
+  it("loại stop kho cách tuyến 2km — dùng chung ngưỡng mới (1km) với place gợi ý", async () => {
     const twoKmAwayStop = makeOperatorStop({
       id: "warehouse-2km",
       name: "Bến kho cách 2km",

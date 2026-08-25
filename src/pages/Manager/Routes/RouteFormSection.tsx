@@ -16,6 +16,10 @@ import type {
 import DurationInput from "./DurationInput";
 import Checkbox from "../../../components/form/Checkbox";
 import SectionHeader from "./SectionHeader";
+import {
+  ROUTE_CODE_MAX_LENGTH,
+  normalizeRouteCode,
+} from "../../../utils/businessCode";
 import { Input, NumberInput, StationSelect } from "./formControls";
 import type { StationOption } from "./types";
 import { Badge } from "../../../components/ui/Badge";
@@ -26,6 +30,10 @@ type RouteFormSectionProps = {
   stations: StationOption[];
   selectedRouteId: string;
   form: OperatorRouteRequest;
+  /** Lỗi 409/422 của riêng ô mã tuyến — hiện ngay dưới ô, không đẩy lên toast. */
+  codeError?: string;
+  /** Xoá lỗi mã ngay khi người dùng gõ lại, để thông báo cũ không dính lại. */
+  onCodeErrorClear?: () => void;
   onUpdateField: <K extends keyof OperatorRouteRequest>(
     key: K,
     value: OperatorRouteRequest[K],
@@ -45,6 +53,8 @@ export default function RouteFormSection({
   stations,
   selectedRouteId,
   form,
+  codeError,
+  onCodeErrorClear,
   onUpdateField,
   isAutoCalculatingMetrics,
   autoMetricsFallback,
@@ -70,6 +80,20 @@ export default function RouteFormSection({
         subtitle={t("routes.routeManagementHint")}
       />
       <div className="mt-4 space-y-3">
+        <Input
+          label={t("routes.routeCode")}
+          value={form.code ?? ""}
+          onChange={(value) => {
+            onCodeErrorClear?.();
+            onUpdateField("code", value);
+          }}
+          transform={normalizeRouteCode}
+          maxLength={ROUTE_CODE_MAX_LENGTH}
+          placeholder={t("routes.routeCodePlaceholder")}
+          hint={t("routes.routeCodeHint")}
+          error={codeError}
+          disabled={!canManageRoutes}
+        />
         <Input
           label={t("routes.routeName")}
           value={form.name}

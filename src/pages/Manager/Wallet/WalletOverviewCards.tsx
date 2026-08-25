@@ -2,6 +2,7 @@ import { FiArrowDown, FiCheckCircle, FiClock, FiDollarSign } from "react-icons/f
 import type { OperatorWallet } from "../../../api/vietride";
 import { StatCard } from "../../../components/StatCard";
 import { formatCurrency } from "../../../utils/currency";
+import { displayBusinessCode } from "../../../utils/businessCode";
 import { formatWalletDate } from "./walletFormat";
 import type { Translate } from "./walletTableShared";
 
@@ -95,6 +96,11 @@ function WalletScheduleSummary({
             {formatCurrency(wallet.lastSettlement.amount)} (
             {formatWalletDate(wallet.lastSettlement.settledAt)})
           </strong>
+          {/* Mã tất toán để nhà xe đọc thẳng cho CSKH khi thắc mắc lần chi gần
+              nhất, thay vì phải mở tab Đối soát dò lại. */}
+          <span className="font-mono text-xs tabular-nums text-blue-800">
+            {displayBusinessCode(wallet.lastSettlement.settlementCode)}
+          </span>
         </span>
       )}
     </div>

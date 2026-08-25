@@ -32,17 +32,26 @@ export function isPayablePlan(plan: SubscriptionPlan) {
   return plan.pricePerMonth > 0 || plan.pricePerYear > 0;
 }
 
+// Số giây còn lại tới một mốc ISO. Dùng chung cho hạn thanh toán của
+// pendingUpgrade lẫn hạn `dueAt` của báo giá nâng cấp.
+export function getRemainingSecondsUntil(
+  dueAt: string | null | undefined,
+  nowMs: number,
+) {
+  const dueAtMs = dueAt ? Date.parse(dueAt) : Number.NaN;
+  if (!Number.isFinite(dueAtMs)) return 0;
+
+  return Math.max(0, Math.ceil((dueAtMs - nowMs) / 1000));
+}
+
 export function getRemainingPaymentSeconds(
   pendingUpgrade: SubscriptionPendingUpgrade | null,
   nowMs: number,
 ) {
   if (!pendingUpgrade) return 0;
 
-  const dueAtMs = pendingUpgrade.dueAt
-    ? Date.parse(pendingUpgrade.dueAt)
-    : Number.NaN;
-  if (Number.isFinite(dueAtMs)) {
-    return Math.max(0, Math.ceil((dueAtMs - nowMs) / 1000));
+  if (pendingUpgrade.dueAt && Number.isFinite(Date.parse(pendingUpgrade.dueAt))) {
+    return getRemainingSecondsUntil(pendingUpgrade.dueAt, nowMs);
   }
 
   return Math.max(0, Math.floor(pendingUpgrade.remainingSeconds));

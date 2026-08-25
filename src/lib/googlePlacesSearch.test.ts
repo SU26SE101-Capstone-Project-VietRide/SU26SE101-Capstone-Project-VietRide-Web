@@ -1,128 +1,181 @@
+// Gợi ý địa điểm dọc tuyến chạy trên Place API của Goong: không có nearby lẫn
+// text search nên dựng bằng Place AutoComplete (có location + radius) lấy mẫu
+// điểm dọc polyline, rồi gọi Place Detail cho gợi ý nào thiếu toạ độ.
+import { encodeGooglePolyline } from "../pages/Manager/Routes/polyline";
 import {
   buildPlacePhotoUrl,
   getPlaceDetails,
   searchPlacesAlongRoute,
+  stopPlaceCategories,
   __clearPlaceDetailsCacheForTest,
 } from "./googlePlacesSearch";
 
-const fakePlace = {
-  id: "place-1",
-  displayName: { text: "Trạm dừng chân Madagui" },
-  formattedAddress: "QL20, Đạ Huoai, Lâm Đồng",
-  location: { latitude: 11.36, longitude: 107.51 },
-  types: ["point_of_interest", "establishment"],
-  primaryType: "rest_stop",
-};
+const [busStationCategory, restStopCategory] = stopPlaceCategories;
+
+// Polyline 2 điểm → hàm lấy mẫu giữ nguyên cả hai, tức đúng 2 lần AutoComplete
+const routeStart = { latitude: 10.77, longitude: 106.69 };
+const routeEnd = { latitude: 11.94, longitude: 108.44 };
+const encodedRoute = encodeGooglePolyline([routeStart, routeEnd]);
+
+function prediction(placeId: string, description = "Bến xe Miền Đông, HCM") {
+  return {
+    description,
+    place_id: placeId,
+    structured_formatting: {
+      main_text: description.split(",")[0],
+      secondary_text: description,
+    },
+  };
+}
+
+function detailResult(lat: number, lng: number, name = "Bến xe Miền Đông") {
+  return {
+    result: {
+      formatted_address: "QL20, Đạ Huoai, Lâm Đồng",
+      geometry: { location: { lat, lng } },
+      name,
+      types: ["bus_station"],
+    },
+  };
+}
+
+// Trả body theo path của URL để không phụ thuộc thứ tự request song song
+function stubFetchByPath(responder: (url: URL) => unknown) {
+  const fetchMock = vi.fn(async (url: string) => ({
+    ok: true,
+    json: async () => responder(new URL(String(url))),
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  return fetchMock;
+}
+
+function callsTo(fetchMock: ReturnType<typeof stubFetchByPath>, path: string) {
+  return fetchMock.mock.calls.filter((call) =>
+    new URL(String(call[0])).pathname.endsWith(path),
+  );
+}
 
 describe("searchPlacesAlongRoute", () => {
   beforeEach(() => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "test-key");
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
   });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
-  it("gọi đúng endpoint searchText kèm searchAlongRouteParameters và map kết quả", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ places: [fakePlace] }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const results = await searchPlacesAlongRoute("abc123", "bến xe");
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://places.googleapis.com/v1/places:searchText",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          "X-Goog-Api-Key": "test-key",
-          "X-Goog-FieldMask": expect.stringContaining("places.types"),
-        }),
-      }),
+  it("hỏi AutoComplete quanh từng điểm mẫu rồi lấy toạ độ qua Place Detail", async () => {
+    const fetchMock = stubFetchByPath((url) =>
+      url.pathname.endsWith("/Place/Detail")
+        ? detailResult(10.771, 106.691)
+        : { predictions: [prediction("place-1")], status: "OK" },
     );
-    expect(
-      (fetchMock.mock.calls[0][1].headers as Record<string, string>)[
-        "X-Goog-FieldMask"
-      ],
-    ).toContain("places.primaryType");
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body.searchAlongRouteParameters.polyline.encodedPolyline).toBe("abc123");
-    expect(body.textQuery).toBe("bến xe");
-    expect(results).toEqual([
+
+    const places = await searchPlacesAlongRoute(encodedRoute, restStopCategory);
+
+    // 2 điểm mẫu → 2 AutoComplete; trùng place_id nên chỉ 1 Place Detail
+    expect(callsTo(fetchMock, "/Place/AutoComplete")).toHaveLength(2);
+    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(1);
+
+    const autocompleteUrl = new URL(
+      String(callsTo(fetchMock, "/Place/AutoComplete")[0][0]),
+    );
+    expect(autocompleteUrl.origin + autocompleteUrl.pathname).toBe(
+      "https://rsapi.goong.io/Place/AutoComplete",
+    );
+    expect(autocompleteUrl.searchParams.get("input")).toBe("trạm dừng chân");
+    expect(autocompleteUrl.searchParams.get("location")).toBe("10.77,106.69");
+    // `radius` của Goong tính bằng KM
+    expect(autocompleteUrl.searchParams.get("radius")).toBe("8");
+    expect(autocompleteUrl.searchParams.get("api_key")).toBe("test-key");
+
+    expect(places).toEqual([
       {
         placeId: "place-1",
-        name: "Trạm dừng chân Madagui",
+        name: "Bến xe Miền Đông",
         address: "QL20, Đạ Huoai, Lâm Đồng",
-        latitude: 11.36,
-        longitude: 107.51,
-        types: ["point_of_interest", "establishment", "rest_stop"],
+        latitude: 10.771,
+        longitude: 106.691,
+        types: ["bus_station"],
       },
     ]);
   });
 
-  it("gộp primaryType vào types khi thiếu trong mảng types, và mặc định [] khi không có field types/primaryType", async () => {
-    const placeWithoutTypes = {
-      id: "place-2",
-      displayName: { text: "Không rõ loại" },
-      formattedAddress: "Đâu đó",
-      location: { latitude: 10, longitude: 106 },
-    };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ places: [placeWithoutTypes] }),
-      }),
+  it("dùng thẳng toạ độ khi AutoComplete có kèm, không gọi Place Detail", async () => {
+    const fetchMock = stubFetchByPath(() => ({
+      predictions: [
+        {
+          ...prediction("place-2"),
+          geometry: { location: { lat: 10.772, lng: 106.692 } },
+        },
+      ],
+      status: "OK",
+    }));
+
+    const places = await searchPlacesAlongRoute(
+      encodedRoute,
+      busStationCategory,
     );
 
-    const results = await searchPlacesAlongRoute("abc123", "bến xe");
-    expect(results).toEqual([
-      {
-        placeId: "place-2",
-        name: "Không rõ loại",
-        address: "Đâu đó",
-        latitude: 10,
-        longitude: 106,
-        types: [],
-      },
-    ]);
+    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(0);
+    expect(places).toHaveLength(1);
+    expect(places[0]).toMatchObject({
+      placeId: "place-2",
+      latitude: 10.772,
+      longitude: 106.692,
+    });
+  });
+
+  it("loại gợi ý xa điểm mẫu một cách vô lý (tỉnh khác hẳn)", async () => {
+    // Chỉ là chặn vệ sinh 50km. KHÔNG siết về đúng `radius` đã xin: bộ lọc địa
+    // lý thật là "cách tuyến <= 1km" ở useRouteStopSuggestions — siết theo
+    // khoảng cách tới ĐIỂM MẪU sẽ cắt nhầm chỗ nằm giữa hai điểm mẫu.
+    stubFetchByPath((url) =>
+      url.pathname.endsWith("/Place/Detail")
+        ? detailResult(21.02, 105.83)
+        : { predictions: [prediction("far-away")], status: "OK" },
+    );
+
+    await expect(
+      searchPlacesAlongRoute(encodedRoute, busStationCategory),
+    ).resolves.toEqual([]);
   });
 
   it("HTTP lỗi → trả [] không throw", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429 }));
-    await expect(searchPlacesAlongRoute("abc", "bến xe")).resolves.toEqual([]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }),
+    );
+
+    await expect(
+      searchPlacesAlongRoute(encodedRoute, busStationCategory),
+    ).resolves.toEqual([]);
   });
 
   it("thiếu API key → trả [] không gọi fetch", async () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "");
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    await expect(searchPlacesAlongRoute("abc", "bến xe")).resolves.toEqual([]);
+    vi.stubEnv("VITE_GOONG_API_KEY", "");
+    const fetchMock = stubFetchByPath(() => ({ predictions: [] }));
+
+    await expect(
+      searchPlacesAlongRoute(encodedRoute, busStationCategory),
+    ).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("polyline rỗng → trả [] không gọi fetch", async () => {
+    const fetchMock = stubFetchByPath(() => ({ predictions: [] }));
+
+    await expect(
+      searchPlacesAlongRoute("", busStationCategory),
+    ).resolves.toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
-const fakePlaceDetailsPayload = {
-  id: "place-1",
-  displayName: { text: "Trạm dừng chân Madagui" },
-  formattedAddress: "QL20, Đạ Huoai, Lâm Đồng",
-  rating: 4.3,
-  userRatingCount: 128,
-  internationalPhoneNumber: "+84 251 3874 999",
-  primaryTypeDisplayName: { text: "Trạm dừng chân" },
-  regularOpeningHours: {
-    openNow: true,
-    weekdayDescriptions: ["Thứ Hai: 00:00–24:00"],
-  },
-  photos: [{ name: "places/place-1/photos/photo-1" }],
-  googleMapsUri: "https://maps.google.com/?cid=123",
-};
-
 describe("getPlaceDetails", () => {
   beforeEach(() => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "test-key");
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
     __clearPlaceDetailsCacheForTest();
   });
   afterEach(() => {
@@ -130,54 +183,30 @@ describe("getPlaceDetails", () => {
     vi.unstubAllGlobals();
   });
 
-  it("gọi đúng endpoint GET kèm fieldMask và map đủ field", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => fakePlaceDetailsPayload,
-    });
-    vi.stubGlobal("fetch", fetchMock);
+  it("gọi Place Detail và map đủ field", async () => {
+    const fetchMock = stubFetchByPath(() => ({
+      result: {
+        formatted_address: "QL20, Đạ Huoai, Lâm Đồng",
+        geometry: { location: { lat: 11.36, lng: 107.51 } },
+        name: "Trạm dừng chân Madagui",
+        place_id: "place-1",
+      },
+      status: "OK",
+    }));
 
-    const result = await getPlaceDetails("place-1");
+    const details = await getPlaceDetails("place-1");
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://places.googleapis.com/v1/places/place-1",
-      expect.objectContaining({
-        method: "GET",
-        headers: expect.objectContaining({
-          "X-Goog-Api-Key": "test-key",
-          "X-Goog-FieldMask": expect.stringContaining("regularOpeningHours"),
-        }),
-      }),
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.origin + url.pathname).toBe(
+      "https://rsapi.goong.io/Place/Detail",
     );
-    expect(result).toEqual({
+    expect(url.searchParams.get("place_id")).toBe("place-1");
+
+    // Goong thiên về địa chỉ: rating/ảnh/giờ mở cửa/SĐT luôn null, card tự ẩn
+    expect(details).toEqual({
       placeId: "place-1",
       name: "Trạm dừng chân Madagui",
       address: "QL20, Đạ Huoai, Lâm Đồng",
-      rating: 4.3,
-      userRatingCount: 128,
-      phone: "+84 251 3874 999",
-      primaryTypeLabel: "Trạm dừng chân",
-      openNow: true,
-      weekdayHours: ["Thứ Hai: 00:00–24:00"],
-      photoName: "places/place-1/photos/photo-1",
-      googleMapsUri: "https://maps.google.com/?cid=123",
-    });
-  });
-
-  it("thiếu field tuỳ chọn → null/[] mặc định", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ id: "place-2" }),
-      }),
-    );
-
-    const result = await getPlaceDetails("place-2");
-    expect(result).toEqual({
-      placeId: "place-2",
-      name: "",
-      address: "",
       rating: null,
       userRatingCount: null,
       phone: null,
@@ -189,36 +218,37 @@ describe("getPlaceDetails", () => {
     });
   });
 
-  it("HTTP lỗi → trả null không throw", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
-    await expect(getPlaceDetails("place-1")).resolves.toBeNull();
+  it("giữ nguyên placeId truyền vào khi Place Detail không lặp lại field đó", async () => {
+    stubFetchByPath(() => detailResult(11.36, 107.51, "Trạm dừng chân"));
+
+    await expect(getPlaceDetails("place-2")).resolves.toMatchObject({
+      placeId: "place-2",
+      name: "Trạm dừng chân",
+    });
   });
 
-  it("fetch throw → trả null không throw", async () => {
+  it("HTTP lỗi → trả null không throw", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockRejectedValue(new Error("network")),
+      vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }),
     );
-    await expect(getPlaceDetails("place-1")).resolves.toBeNull();
+
+    await expect(getPlaceDetails("place-3")).resolves.toBeNull();
   });
 
   it("thiếu API key → trả null không gọi fetch", async () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "");
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    await expect(getPlaceDetails("place-1")).resolves.toBeNull();
+    vi.stubEnv("VITE_GOONG_API_KEY", "");
+    const fetchMock = stubFetchByPath(() => ({}));
+
+    await expect(getPlaceDetails("place-4")).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("cache theo placeId — chỉ gọi fetch 1 lần cho 2 lần gọi liên tiếp", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => fakePlaceDetailsPayload,
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetchByPath(() => detailResult(11.36, 107.51));
 
-    await getPlaceDetails("place-1");
-    await getPlaceDetails("place-1");
+    await getPlaceDetails("place-5");
+    await getPlaceDetails("place-5");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -229,18 +259,22 @@ describe("buildPlacePhotoUrl", () => {
     vi.unstubAllEnvs();
   });
 
-  it("dựng đúng URL ảnh kèm maxWidthPx và key", () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "test-key");
-    expect(buildPlacePhotoUrl("places/place-1/photos/photo-1")).toBe(
-      "https://places.googleapis.com/v1/places/place-1/photos/photo-1/media?maxWidthPx=640&key=test-key",
-    );
-    expect(buildPlacePhotoUrl("places/place-1/photos/photo-1", 320)).toBe(
-      "https://places.googleapis.com/v1/places/place-1/photos/photo-1/media?maxWidthPx=320&key=test-key",
+  it("dùng thẳng URL tuyệt đối nếu có", () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+
+    expect(buildPlacePhotoUrl("https://cdn.goong.io/p/1.jpg")).toBe(
+      "https://cdn.goong.io/p/1.jpg",
     );
   });
 
+  it("Goong không có Place Photo API → mã tham chiếu trả null để ẩn khung ảnh", () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+
+    expect(buildPlacePhotoUrl("photo-ref-1")).toBeNull();
+  });
+
   it("thiếu API key → trả null", () => {
-    vi.stubEnv("VITE_GOOGLE_ROUTES_API_KEY", "");
-    expect(buildPlacePhotoUrl("places/place-1/photos/photo-1")).toBeNull();
+    vi.stubEnv("VITE_GOONG_API_KEY", "");
+    expect(buildPlacePhotoUrl("https://cdn.goong.io/p/1.jpg")).toBeNull();
   });
 });

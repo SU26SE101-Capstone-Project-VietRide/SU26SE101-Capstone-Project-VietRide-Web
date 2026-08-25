@@ -9,6 +9,7 @@ import {
   getOperatorUsers,
   getOperatorVehicles,
   getPublicTrip,
+  getPublicTripSeatMap,
   resolveOperatorIncident,
   disruptOperatorTripNoSubstitution,
   type OperatorIncident,
@@ -43,6 +44,7 @@ vi.mock("../../../api/vietride", async () => {
     getPublicTrip: vi.fn(),
     getAlternativeRoutes: vi.fn(),
     getOperatorTripCargoCapacity: vi.fn(),
+    getPublicTripSeatMap: vi.fn(),
     substituteOperatorTripVehicle: vi.fn(),
     disruptOperatorTripNoSubstitution: vi.fn(),
     changeOperatorTripRoute: vi.fn(),
@@ -152,6 +154,13 @@ const resolvedIncident: OperatorIncident = {
 describe("Manager Incidents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Panel thao tác chuyến tải sơ đồ ghế lúc mount để kiểm xe thay có đủ ghế —
+    // không mock thì effect vỡ và mọi test dùng panel này đỏ theo.
+    vi.mocked(getPublicTripSeatMap).mockResolvedValue({
+      tripId: "trip-1",
+      vehicleType: "SEAT_40",
+      seats: [],
+    });
     currentRole = "OPERATOR_ADMIN";
     vi.mocked(getOperatorIncidents).mockResolvedValue(pageOf([incident]));
     vi.mocked(getOperatorIncident).mockResolvedValue(incident);
@@ -652,10 +661,10 @@ describe("Manager Incidents", () => {
       within(dialog).getByRole("button", { name: "tripOperations.vehicle" }),
     );
     expect(
-      await screen.findByRole("option", { name: "51B-999.99" }),
+      await screen.findByRole("option", { name: /51B-999\.99/ }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("option", { name: "51B-000.00" }),
+      screen.queryByRole("option", { name: /51B-000\.00/ }),
     ).not.toBeInTheDocument();
   });
 

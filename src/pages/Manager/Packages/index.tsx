@@ -13,11 +13,15 @@ import {
   getOperatorSubscription,
   getOperatorSubscriptionPlans,
   retryOperatorSubscriptionPayment,
-  upgradeOperatorSubscription,
   type OperatorSubscriptionDetail,
   type SubscriptionBillingPeriod,
   type SubscriptionPlan,
 } from "../../../api/vietride";
+import {
+  findPlanUsageShortfalls,
+  findUsagePressure,
+  producesPayableUpgrade,
+} from "../../../utils/subscription";
 import { formatDateOnly } from "../../../utils/date";
 import { saveSubscriptionPaymentIntent } from "./subscriptionPaymentIntent";
 import {
@@ -31,8 +35,14 @@ import {
 } from "./subscriptionHelpers";
 import { PendingUpgradeItem, UsageItem } from "./packageDetails";
 import OperatorInvoiceSection from "./OperatorInvoiceSection";
+import { Badge } from "../../../components/ui/Badge";
 import PlanCard from "./PlanCard";
-import PurchasePlanModal from "./PurchasePlanModal";
+import UpgradeQuoteModal from "./UpgradeQuoteModal";
+import CustomRequestSection from "./CustomRequestSection";
+import UsagePressureBanner from "./UsagePressureBanner";
+import CustomRequestModal from "./CustomRequestModal";
+import { useSubscriptionUpgrade } from "./useSubscriptionUpgrade";
+import { useOperatorCustomPlanRequests } from "./useOperatorCustomPlanRequests";
 import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 
 const PENDING_PAYMENT_REFRESH_INTERVAL_MS = 5_000;
@@ -49,20 +59,16 @@ export default function ManagerPackages() {
   const [subscription, setSubscription] =
     useState<OperatorSubscriptionDetail | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(
-    null,
-  );
-  const [billingPeriod, setBillingPeriod] =
-    useState<SubscriptionBillingPeriod>("YEARLY");
-  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  // Kỳ người dùng CHỦ ĐỘNG chọn ở toggle bảng giá. null = chưa đụng tới, lúc đó
+  // lấy mặc định theo kỳ đang trả (xem `billingPeriod` bên dưới).
+  const [browsedBillingPeriod, setBrowsedBillingPeriod] =
+    useState<SubscriptionBillingPeriod | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isUpgrading, setIsUpgrading] = useState(false);
   const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const [clockMs, setClockMs] = useState(() => Date.now());
-  const upgradeInFlightRef = useRef(false);
-  const upgradeIntentRef = useRef<IdempotentAction | null>(null);
+  const planListRef = useRef<HTMLDivElement>(null);
   const retryInFlightRef = useRef(false);
   const retryIntentRef = useRef<IdempotentAction | null>(null);
 
@@ -97,8 +103,15 @@ export default function ManagerPackages() {
     (subscription?.status === "PENDING_PAYMENT" && Boolean(currentPlan));
   const canPurchasePackage =
     subscription?.status === "ACTIVE" || isInactiveSubscription;
+  // Gói đã ngừng bán thì KHÔNG mua lại được — thiếu điều kiện isActive thì FE
+  // sẽ mời "mua lại" rồi ăn 409 SUBSCRIPTION_UPGRADE_TARGET_PLAN_INACTIVE.
+  // Gói riêng gần như chắc chắn bị tắt sau khi nhà xe lên gói riêng lớn hơn.
+  const isCurrentPlanOnSale = Boolean(currentPlan?.isActive);
   const canRepurchaseCurrentPlan = Boolean(
-    currentPlan && isInactiveSubscription && isPayablePlan(currentPlan),
+    currentPlan &&
+    isInactiveSubscription &&
+    isCurrentPlanOnSale &&
+    isPayablePlan(currentPlan),
   );
   const isCurrentTrialPlan = Boolean(
     currentPlan && !isPayablePlan(currentPlan),
@@ -132,6 +145,53 @@ export default function ManagerPackages() {
     setPlans(planResult);
     return normalizedSubscription;
   }, [syncSubscription]);
+
+  // Chỉ nâng cấp giữa chu kỳ ĐANG TRẢ TIỀN mới phải giữ nguyên kỳ hiện tại
+  // (chặn trước 422 BILLING_PERIOD_MISMATCH). Bản dùng thử và subscription đã
+  // hết hiệu lực đều mở CHU KỲ MỚI nên được chọn kỳ tự do — xem §5 spec.
+  const lockedBillingPeriod =
+    subscription?.status === "ACTIVE" && !isCurrentTrialPlan
+      ? (subscription.billingPeriod ?? null)
+      : null;
+  // Bảng giá mặc định hiện ĐÚNG kỳ đang trả: thấy giá nào thì mua được giá đó.
+  // Trước đây mặc định cứng YEARLY nên nhà xe trả theo tháng vẫn thấy giá năm,
+  // bấm vào mới biết chỉ mua được theo tháng — hai chỗ nói hai kiểu.
+  const billingPeriod =
+    browsedBillingPeriod ?? lockedBillingPeriod ?? "YEARLY";
+  // Đang xem một kỳ khác kỳ mua được — phải nói ra, không thì giá hiển thị là
+  // giá người ta không trả được
+  const isBrowsingUnavailablePeriod =
+    lockedBillingPeriod !== null && billingPeriod !== lockedBillingPeriod;
+
+  const upgrade = useSubscriptionUpgrade({
+    lockedBillingPeriod,
+    onSubscriptionChanged: loadSubscriptionData,
+    t,
+  });
+  const customRequests = useOperatorCustomPlanRequests(t);
+  // Hạn mức của gói ĐANG DÙNG mà nhà xe sắp/đã chạm — báo trước thay vì để họ
+  // phát hiện lúc thao tác bị chặn giữa chừng (handoff §1 mục 1)
+  const usagePressures =
+    subscription && currentPlan && hasCurrentPlanEntitlement
+      ? findUsagePressure(currentPlan, subscription.usage)
+      : [];
+  const [customRequestOpen, setCustomRequestOpen] = useState(false);
+
+  const { load: loadCustomRequests } = customRequests;
+  useEffect(() => {
+    void loadCustomRequests();
+  }, [loadCustomRequests]);
+
+  // Gói riêng vừa được duyệt — tra từ plan list theo approvedPlanId. Không thấy
+  // nghĩa là admin đã ngừng bán nó, lúc đó chỉ hiện trạng thái chứ không mời mua.
+  const approvedCustomPlan =
+    customRequests.latestRequest?.status === "APPROVED"
+      ? (plans.find(
+          (plan) =>
+            plan.planId === customRequests.latestRequest?.approvedPlanId &&
+            plan.isActive,
+        ) ?? null)
+      : null;
 
   useEffect(() => {
     let isCurrent = true;
@@ -237,98 +297,9 @@ export default function ManagerPackages() {
       return;
     }
 
-    setSelectedPlan(plan);
-    setBillingPeriod(subscription?.billingPeriod ?? "YEARLY");
-    upgradeIntentRef.current = null;
-    setPurchaseOpen(true);
     setMessage("");
     setError("");
-  }
-
-  function closePurchase() {
-    upgradeIntentRef.current = null;
-    setPurchaseOpen(false);
-  }
-
-  async function handleUpgrade() {
-    if (!selectedPlan || upgradeInFlightRef.current) {
-      return;
-    }
-
-    const payableAmount =
-      billingPeriod === "YEARLY"
-        ? selectedPlan.pricePerYear
-        : selectedPlan.pricePerMonth;
-    const isCurrentPlan = selectedPlan.planId === currentPlan?.planId;
-    if ((isCurrentPlan && !canRepurchaseCurrentPlan) || payableAmount <= 0) {
-      setError(t("packages.planNotPayable"));
-      return;
-    }
-
-    upgradeInFlightRef.current = true;
-    setIsUpgrading(true);
-    setError("");
-
-    // Không gửi returnUrl nữa — Backend tự chọn mode OPERATOR_WEB và dùng
-    // VNPAY_WEB_RETURN_URL của server (handoff §2.1, §4).
-    const request = {
-      planId: selectedPlan.planId,
-      billingPeriod,
-      paymentMethod: "VNPAY" as const,
-    };
-    const requestSignature = JSON.stringify(request);
-    if (upgradeIntentRef.current?.signature !== requestSignature) {
-      upgradeIntentRef.current = {
-        signature: requestSignature,
-        idempotencyKey: crypto.randomUUID(),
-      };
-    }
-
-    try {
-      const result = await upgradeOperatorSubscription(
-        request,
-        upgradeIntentRef.current.idempotencyKey,
-      );
-      upgradeIntentRef.current = null;
-
-      if (result.paymentRedirectUrl) {
-        saveSubscriptionPaymentIntent({
-          paymentId: result.paymentId,
-          upgradeAttemptId: result.upgradeAttemptId,
-          // pendingTargetPlan không có trong response mẫu 202 của handoff doc —
-          // fallback về gói người dùng vừa chọn để không mất ngữ cảnh.
-          targetPlanId: result.pendingTargetPlan?.planId ?? selectedPlan.planId,
-          targetPlanName: result.pendingTargetPlan?.name ?? selectedPlan.name,
-        });
-        setMessage(t("packages.upgradePending"));
-        window.location.assign(result.paymentRedirectUrl);
-        return;
-      }
-
-      setError(t("packages.missingPaymentRedirect"));
-    } catch (err) {
-      const fallbackError =
-        err instanceof Error ? err.message : t("packages.upgradeFailed");
-
-      try {
-        const refreshedSubscription = await loadSubscriptionData();
-        if (
-          refreshedSubscription.status === "PENDING_PAYMENT" ||
-          refreshedSubscription.pendingUpgrade
-        ) {
-          upgradeIntentRef.current = null;
-          setPurchaseOpen(false);
-          setMessage(t("packages.paymentAlreadyPending"));
-        } else {
-          setError(fallbackError);
-        }
-      } catch {
-        setError(fallbackError);
-      }
-    } finally {
-      upgradeInFlightRef.current = false;
-      setIsUpgrading(false);
-    }
+    upgrade.open(plan, billingPeriod);
   }
 
   async function handleRetryPayment() {
@@ -393,7 +364,12 @@ export default function ManagerPackages() {
     }
   }
 
-  useToastFeedback({ message, error });
+  // Thông báo/lỗi của luồng nâng cấp nổi lên cùng kênh toast của trang; riêng
+  // lỗi có ngữ cảnh (402 ví thiếu tiền, lỗi báo giá) modal tự hiện tại chỗ.
+  useToastFeedback({
+    message: upgrade.notice || customRequests.notice || message,
+    error: error || customRequests.error || (upgrade.isOpen ? "" : upgrade.error),
+  });
   return (
     <div className="space-y-6">
       <div>
@@ -426,7 +402,7 @@ export default function ManagerPackages() {
             <div className="flex items-start gap-4">
               <FiBox className="mt-1 text-2xl text-vr-900" />
               <div>
-                <h3 className="text-lg font-bold text-gray-900">
+                <h3 className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900">
                   {t(
                     isCancelledSubscription
                       ? "packages.cancelledPackage"
@@ -435,6 +411,13 @@ export default function ManagerPackages() {
                         : "packages.currentPackage",
                     { name: currentPlan.name },
                   )}
+                  {/* Gói đã tắt vẫn cấp quyền tới hết hạn nhưng KHÔNG mua lại
+                      được — báo trước, đừng để tới lúc hết hạn mới lộ ra. */}
+                  {!isCurrentPlanOnSale ? (
+                    <Badge tone="warning">
+                      {t("packages.planNoLongerOnSale")}
+                    </Badge>
+                  ) : null}
                 </h3>
                 {subscription.expiresAt ? (
                   <p className="mt-1 text-sm text-gray-600">
@@ -600,10 +583,64 @@ export default function ManagerPackages() {
         </div>
       ) : null}
 
-      <div>
-        <h2 className="mb-4 text-xl font-bold text-gray-900">
-          {t("packages.available")}
-        </h2>
+      {subscription ? (
+        <UsagePressureBanner
+          pressures={usagePressures}
+          // Chỉ mời chọn gói khi thật sự có gói chứa nổi quy mô hiện tại
+          hasUpgradeOption={availablePlans.some(
+            (plan) =>
+              findPlanUsageShortfalls(plan, subscription.usage).length === 0,
+          )}
+          onChoosePlan={() =>
+            planListRef.current?.scrollIntoView({ behavior: "smooth" })
+          }
+        />
+      ) : null}
+
+      <div ref={planListRef}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-bold text-gray-900">
+            {t("packages.available")}
+          </h2>
+          <div className="flex flex-col items-end gap-1">
+            <div
+              role="group"
+              aria-label={t("packages.billingPeriod")}
+              className="inline-flex divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200"
+            >
+              {(["MONTHLY", "YEARLY"] as const).map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  data-testid={`plan-list-period-${period}`}
+                  aria-pressed={billingPeriod === period}
+                  onClick={() => setBrowsedBillingPeriod(period)}
+                  className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    billingPeriod === period
+                      ? "bg-vr-800 text-white"
+                      : "bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {t(`packages.billing.${period}`)}
+                </button>
+              ))}
+            </div>
+            {/* Hai giá độc lập — nói rõ để không ai tưởng giá năm = giá tháng × 12 */}
+            <p className="text-xs text-gray-500">
+              {t("packages.independentPricesHint")}
+            </p>
+            {isBrowsingUnavailablePeriod ? (
+              <p
+                data-testid="browsing-unavailable-period"
+                className="text-xs font-semibold text-amber-700"
+              >
+                {t("packages.browsingUnavailablePeriod", {
+                  period: t(`packages.billing.${lockedBillingPeriod}`),
+                })}
+              </p>
+            ) : null}
+          </div>
+        </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {availablePlans.length === 0 ? (
             <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500 md:col-span-2 lg:col-span-3">
@@ -618,23 +655,55 @@ export default function ManagerPackages() {
               purchaseDisabled={
                 !canPurchasePackage || Boolean(subscription?.pendingUpgrade)
               }
+              usageShortfalls={
+                subscription
+                  ? findPlanUsageShortfalls(plan, subscription.usage)
+                  : []
+              }
+              // Giữa chu kỳ, gói không đắt hơn gói đang dùng thì proration ra
+              // số tiền ≤ 0 và BE từ chối ngay ở bước báo giá
+              notAnUpgrade={
+                lockedBillingPeriod !== null &&
+                currentPlan !== null &&
+                !producesPayableUpgrade(currentPlan, plan, lockedBillingPeriod)
+              }
               onPurchase={openPurchase}
             />
           ))}
         </div>
       </div>
 
+      {subscription && currentPlan ? (
+        <CustomRequestSection
+          queue={customRequests}
+          approvedPlan={approvedCustomPlan}
+          // Đang có yêu cầu chờ duyệt thì không cho gửi thêm (BE chỉ nhận một)
+          canRequest={canPurchasePackage && !customRequests.pendingRequest}
+          onOpenForm={() => setCustomRequestOpen(true)}
+          onUpgradeToApprovedPlan={openPurchase}
+        />
+      ) : null}
+
       <OperatorInvoiceSection />
 
-      <PurchasePlanModal
-        open={purchaseOpen}
-        onClose={closePurchase}
-        onConfirm={() => void handleUpgrade()}
-        selectedPlan={selectedPlan}
-        billingPeriod={billingPeriod}
-        onBillingPeriodChange={setBillingPeriod}
-        isUpgrading={isUpgrading}
+      <UpgradeQuoteModal
+        upgrade={upgrade}
+        currentPlanName={currentPlan?.name ?? "-"}
       />
+
+      {customRequestOpen && subscription && currentPlan ? (
+        <CustomRequestModal
+          currentPlan={currentPlan}
+          usage={subscription.usage}
+          isSubmitting={customRequests.isSubmitting}
+          onClose={() => setCustomRequestOpen(false)}
+          onSubmit={(payload) => {
+            void customRequests.submit(payload).then((ok) => {
+              if (ok) setCustomRequestOpen(false);
+            });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
