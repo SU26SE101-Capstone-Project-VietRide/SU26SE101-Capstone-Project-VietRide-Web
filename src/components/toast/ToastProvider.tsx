@@ -1,5 +1,5 @@
-// Toast system dùng chung: nổi góc phải-trên (dưới topbar). Toast thành công
-// tự tắt sau 3s, toast lỗi ở lại tới khi người dùng đóng.
+// Toast system dùng chung: nổi góc phải-trên (dưới topbar). Cả hai loại đều tự
+// tắt — thành công 3s, lỗi 6s vì cần thời gian đọc.
 // Không thêm dependency — render qua createPortal vào body, animation bằng Tailwind.
 import {
   useCallback,
@@ -20,9 +20,14 @@ type ToastItem = {
   message: string;
 };
 
-// Toast thành công tự tắt sau 3s; hover thì tạm dừng đếm giờ (rời chuột đếm
-// lại từ đầu).
+// Hover thì tạm dừng đếm giờ (rời chuột đếm lại từ đầu) — đủ để người dùng giữ
+// chuột lại mà đọc nốt thông báo dài.
 const TOAST_DURATION_MS = 3000;
+// Lỗi ở lại lâu gấp đôi: 3s không đủ đọc xong một thông báo lỗi, mà khi nó tắt
+// thì màn hình chỉ còn dữ liệu cũ, không còn dấu vết nào cho biết thao tác vừa
+// rồi đã hỏng. Vẫn tự tắt để không đọng toast lỗi cũ trên màn hình; đọc chưa
+// kịp thì rê chuột vào là dừng đếm.
+const TOAST_ERROR_DURATION_MS = 6000;
 // Tối đa 5 toast cùng lúc — cái cũ nhất bị đẩy ra khỏi stack.
 const MAX_TOASTS = 5;
 
@@ -51,15 +56,12 @@ export default function ToastProvider({ children }: ToastProviderProps) {
       if (existing !== undefined) {
         clearTimeout(existing);
       }
-      // Lỗi KHÔNG tự tắt: 3s là quá ngắn để đọc xong một thông báo lỗi, và khi
-      // nó biến mất thì màn hình chỉ còn dữ liệu cũ — người dùng không còn dấu
-      // vết nào cho biết thao tác vừa rồi đã hỏng. Phải bấm X mới đóng.
-      if (tone === "error") {
-        return;
-      }
       timersRef.current.set(
         id,
-        setTimeout(() => dismiss(id), TOAST_DURATION_MS),
+        setTimeout(
+          () => dismiss(id),
+          tone === "error" ? TOAST_ERROR_DURATION_MS : TOAST_DURATION_MS,
+        ),
       );
     },
     [dismiss],
