@@ -1,21 +1,42 @@
 // Modal chi tiết bưu kiện + các nhánh hành động theo trạng thái (actionKind)
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiCheckCircle, FiMail, FiPackage, FiTruck } from "react-icons/fi";
 import {
+  FiCheck,
+  FiCheckCircle,
+  FiMail,
+  FiPackage,
+  FiSlash,
+  FiTruck,
+  FiX,
+} from "react-icons/fi";
+import {
+  cancelOperatorParcel,
+  confirmOperatorParcelDelivery,
   confirmOperatorParcelRefund,
   type OperatorParcelDetail,
   overrideOperatorParcelCapacity,
   requestOperatorParcelTransfer,
   resendOperatorParcelDeliveryEmail,
   returnOperatorParcel,
+  reviewOperatorParcel,
   updateOperatorParcelStatus,
 } from "../../../api/vietride";
+import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
+import { Button } from "../../../components/ui/Button";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
+import StationHandoffModal from "./StationHandoffModal";
 import { formatDateTime } from "../../../utils/date";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
-import { money, parcelStatusTone } from "./parcelQueueHelpers";
+import {
+  inputClass,
+  isPreLoadParcelStatus,
+  manualCancelRefundChoices,
+  money,
+  parcelStatusTone,
+  type ManualCancelRefundChoice,
+} from "./parcelQueueHelpers";
 import {
   ActionBox,
   ActionButton,
@@ -67,11 +88,18 @@ export default function ParcelDetailModal({
 }: ParcelDetailModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const [isHandoffOpen, setIsHandoffOpen] = useState(false);
+  // Chỉ dùng cho hộp huỷ tay nên giữ tại chỗ, không đẩy lên màn cha.
+  const [refundChoice, setRefundChoice] =
+    useState<ManualCancelRefundChoice>("POLICY_REFUND");
 
   const sizeCategoryLabel = (value?: string | null) => value ? t(`parcels.sizeCategories.${value}`, { defaultValue: value }) : "-";
 
   const actionKind = useMemo(() => {
     if (!selected) return "NONE";
+    // Mọi đơn sinh ra ở PENDING_OPERATOR_REVIEW và có job tự từ chối khi quá
+    // hạn — không duyệt được từ đây thì đơn chết dần.
+    if (selected.status === "PENDING_OPERATOR_REVIEW") return "REVIEW";
     if (selected.status === "DELIVERY_REJECTED") return "RETURN";
     if (selected.status === "RETURN_INITIATED") return "MARK_RETURNED";
     if (selected.status === "TRANSFER_ESCALATED") return "TRANSFER";
@@ -85,7 +113,10 @@ export default function ParcelDetailModal({
 
   const statusHistory = selected?.statusHistory ?? [];
 
+  const canCancel = isPreLoadParcelStatus(selected?.status);
+
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -100,14 +131,21 @@ export default function ParcelDetailModal({
       icon={<FiPackage />}
       wide
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={actionLoading}
-          className="rounded-lg border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700"
-        >
-          {tc("close")}
-        </button>
+        <div className="flex w-full flex-wrap items-center justify-end gap-2">
+          {canOperate && selected && (
+            <Button variant="secondary" onClick={() => setIsHandoffOpen(true)}>
+              {t("parcels.handoff.action")}
+            </Button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={actionLoading}
+            className="rounded-lg border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700"
+          >
+            {tc("close")}
+          </button>
+        </div>
       }
     >
       {loading ? (
@@ -221,6 +259,71 @@ export default function ParcelDetailModal({
                   </ol>
                 </section>
               )}
+            {actionKind === "REVIEW" && (
+              <ActionBox title={t("parcels.queue.reviewTitle")}>
+                <p className="text-sm text-gray-600">
+                  {t("parcels.queue.reviewDescription")}
+                </p>
+                <TextArea
+                  label={t("parcels.queue.reviewReasonLabel")}
+                  value={reason}
+                  onChange={onReasonChange}
+                />
+                <div className="flex flex-wrap gap-3">
+                  <ActionButton
+                    tone="success"
+                    disabled={actionLoading || !canOperate}
+                    icon={<FiCheck />}
+                    onClick={() =>
+                      askConfirmation(
+                        t("parcels.queue.approveQuestion"),
+                        () =>
+                          finishAction(
+                            t("parcels.queue.approvedMsg"),
+                            async () => {
+                              await reviewOperatorParcel(selected.parcelId, {
+                                decision: "APPROVED",
+                                ...(reason.trim()
+                                  ? { reason: reason.trim() }
+                                  : {}),
+                              });
+                            },
+                          ),
+                      )
+                    }
+                  >
+                    {t("parcels.queue.approveButton")}
+                  </ActionButton>
+                  <ActionButton
+                    tone="danger"
+                    disabled={actionLoading || !canOperate}
+                    icon={<FiX />}
+                    onClick={() =>
+                      askConfirmation(
+                        t("parcels.queue.rejectQuestion"),
+                        () =>
+                          finishAction(
+                            t("parcels.queue.rejectedMsg"),
+                            async () => {
+                              // BE bắt buộc lý do khi từ chối, thiếu là 422.
+                              if (!reason.trim())
+                                throw new Error(
+                                  t("parcels.queue.rejectReasonRequired"),
+                                );
+                              await reviewOperatorParcel(selected.parcelId, {
+                                decision: "REJECTED",
+                                reason: reason.trim(),
+                              });
+                            },
+                          ),
+                      )
+                    }
+                  >
+                    {t("parcels.queue.rejectButton")}
+                  </ActionButton>
+                </div>
+              </ActionBox>
+            )}
             {actionKind === "REFUND_CONFIRMATION" && (
               <ActionBox title={t("parcels.confirmRefund")}>
                 <TextArea
@@ -409,37 +512,147 @@ export default function ParcelDetailModal({
                 <p className="text-sm text-gray-600">
                   {t("parcels.queue.resendEmailDescription")}
                 </p>
+                <div className="flex flex-wrap gap-3">
+                  <ActionButton
+                    disabled={actionLoading || !canOperate}
+                    icon={<FiMail />}
+                    onClick={() =>
+                      askConfirmation(
+                        t("parcels.queue.resendEmailQuestion"),
+                        () =>
+                          finishAction(
+                            t("parcels.queue.resendEmailSentMsg"),
+                            async () => {
+                              await resendOperatorParcelDeliveryEmail(
+                                selected.parcelId,
+                              );
+                            },
+                          ),
+                      )
+                    }
+                  >
+                    {t("parcels.queue.resendEmailButton")}
+                  </ActionButton>
+                  {/* Đường lùi khi phụ xe không đóng được đơn từ app: đã tan
+                      ca, phân công sai chuyến, hoặc có tranh chấp. */}
+                  <ActionButton
+                    tone="success"
+                    disabled={actionLoading || !canOperate}
+                    icon={<FiCheckCircle />}
+                    onClick={() =>
+                      askConfirmation(
+                        t("parcels.queue.confirmDeliveryQuestion"),
+                        () =>
+                          finishAction(
+                            t("parcels.queue.confirmDeliveryMsg"),
+                            async () => {
+                              await confirmOperatorParcelDelivery(
+                                selected.parcelId,
+                                { note: reason.trim() },
+                              );
+                            },
+                          ),
+                      )
+                    }
+                  >
+                    {t("parcels.queue.confirmDeliveryButton")}
+                  </ActionButton>
+                </div>
+                <TextArea
+                  label={t("parcels.queue.confirmDeliveryNoteLabel")}
+                  value={reason}
+                  onChange={onReasonChange}
+                />
+              </ActionBox>
+            )}
+            {actionKind === "NONE" && !canCancel && (
+              <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                {t("parcels.queue.noActionText")}
+              </p>
+            )}
+
+            {/* Huỷ tay cắt ngang nhiều actionKind (đơn chờ duyệt, chờ trả tiền,
+                đã giữ chỗ...) nên đứng riêng thay vì nhét vào một nhánh. */}
+            {canCancel && (
+              <ActionBox title={t("parcels.queue.cancelTitle")}>
+                <p className="text-sm text-gray-600">
+                  {t("parcels.queue.cancelDescription")}
+                </p>
+                <TextArea
+                  label={t("parcels.queue.cancelReasonLabel")}
+                  value={reason}
+                  onChange={onReasonChange}
+                />
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-600">
+                    {t("parcels.queue.refundChoiceLabel")}
+                  </span>
+                  <CustomSelect
+                    aria-label={t("parcels.queue.refundChoiceLabel")}
+                    className={inputClass}
+                    value={refundChoice}
+                    onChange={(event) =>
+                      setRefundChoice(
+                        event.target.value as ManualCancelRefundChoice,
+                      )
+                    }
+                  >
+                    {manualCancelRefundChoices.map((value) => (
+                      <option key={value} value={value}>
+                        {t(`parcels.queue.refundChoices.${value}`)}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                </label>
                 <ActionButton
+                  tone="danger"
                   disabled={actionLoading || !canOperate}
-                  icon={<FiMail />}
+                  icon={<FiSlash />}
                   onClick={() =>
                     askConfirmation(
-                      t("parcels.queue.resendEmailQuestion"),
+                      t("parcels.queue.cancelQuestion"),
                       () =>
                         finishAction(
-                          t("parcels.queue.resendEmailSentMsg"),
+                          t("parcels.queue.cancelledMsg"),
                           async () => {
-                            await resendOperatorParcelDeliveryEmail(
-                              selected.parcelId,
-                            );
+                            // BE đòi lý do 1–500 ký tự, thiếu là 422.
+                            if (!reason.trim())
+                              throw new Error(
+                                t("parcels.queue.cancelReasonRequired"),
+                              );
+                            await cancelOperatorParcel(selected.parcelId, {
+                              reason: reason.trim(),
+                              refundChoice,
+                            });
                           },
                         ),
                     )
                   }
                 >
-                  {t("parcels.queue.resendEmailButton")}
+                  {t("parcels.queue.cancelButton")}
                 </ActionButton>
               </ActionBox>
-            )}
-            {actionKind === "NONE" && (
-              <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                {t("parcels.queue.noActionText")}
-              </p>
             )}
           </div>
           </div>
         )
       )}
     </Modal>
+
+    {selected && (
+      <StationHandoffModal
+        open={isHandoffOpen}
+        parcelId={selected.parcelId}
+        parcelCode={selected.parcelCode}
+        onClose={() => setIsHandoffOpen(false)}
+        onRecorded={(successMessage) => {
+          setIsHandoffOpen(false);
+          // Custody event không đổi trạng thái Parcel nên không cần tải lại
+          // chi tiết; chỉ cần báo cho người dùng biết đã ghi nhận.
+          void finishAction(successMessage, async () => {});
+        }}
+      />
+    )}
+    </>
   );
 }

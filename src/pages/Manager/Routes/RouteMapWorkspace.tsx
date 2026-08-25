@@ -36,6 +36,9 @@ type RouteMapWorkspaceProps = {
   stations: StationOption[];
   selectedRouteId: string;
   routeForm: OperatorRouteRequest;
+  /** Lỗi 409/422 của ô mã tuyến, chuyển thẳng xuống RouteFormSection. */
+  routeCodeError?: string;
+  onRouteCodeErrorClear?: () => void;
   onUpdateField: <K extends keyof OperatorRouteRequest>(
     key: K,
     value: OperatorRouteRequest[K],
@@ -76,6 +79,8 @@ export default function RouteMapWorkspace({
   stations,
   selectedRouteId,
   routeForm,
+  routeCodeError,
+  onRouteCodeErrorClear,
   onUpdateField,
   routeFeedbackMessage,
   isAutoCalculatingMetrics,
@@ -174,6 +179,8 @@ export default function RouteMapWorkspace({
             stations={stations}
             selectedRouteId={selectedRouteId}
             form={routeForm}
+            codeError={routeCodeError}
+            onCodeErrorClear={onRouteCodeErrorClear}
             onUpdateField={onUpdateField}
             feedbackMessage={routeFeedbackMessage}
             isAutoCalculatingMetrics={isAutoCalculatingMetrics}

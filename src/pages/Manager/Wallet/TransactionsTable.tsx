@@ -1,9 +1,10 @@
 import { FiArrowDown, FiArrowUp } from "react-icons/fi";
 import type { WalletTransaction } from "../../../api/vietride";
 import { formatCurrency } from "../../../utils/currency";
+import { Badge } from "../../../components/ui/Badge";
 import { actorDisplayName, formatWalletDate } from "./walletFormat";
 import { DataCompletenessBadge } from "./WalletBadges";
-import { EmptyRow, type Translate } from "./walletTableShared";
+import { BusinessCodeCell, EmptyRow, type Translate } from "./walletTableShared";
 
 export function TransactionsTable({
   items,
@@ -19,17 +20,18 @@ export function TransactionsTable({
       <table className="w-full min-w-[1100px] table-fixed text-center text-sm">
         <thead>
           <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
-            <th className="w-[11%] px-3 py-3">{t("wallet.time")}</th>
-            <th className="w-[22%] px-4 py-3">{t("wallet.cashFlow")}</th>
-            <th className="w-[13%] px-3 py-3">{t("wallet.change")}</th>
+            <th className="w-[17%] px-3 py-3">{t("wallet.transactionCode")}</th>
+            <th className="w-[12%] px-3 py-3">{t("wallet.time")}</th>
+            <th className="w-[21%] px-4 py-3">{t("wallet.cashFlow")}</th>
+            <th className="w-[12%] px-3 py-3">{t("wallet.change")}</th>
             <th className="w-[11%] px-3 py-3">{t("wallet.balanceAfter")}</th>
             <th className="w-[12%] px-3 py-3">{t("wallet.actor")}</th>
-            <th className="w-[28%] px-4 py-3">{t("wallet.relatedSettlement")}</th>
+            <th className="w-[15%] px-4 py-3">{t("wallet.relatedSettlement")}</th>
           </tr>
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <EmptyRow columns={6} t={t} />
+            <EmptyRow columns={7} t={t} />
           ) : (
             items.map((item) => <TransactionRow key={item.transactionId} item={item} t={t} tc={tc} />)
           )}
@@ -60,8 +62,11 @@ function TransactionRow({
 
   return (
     <tr className="border-t border-gray-100">
-      <td className="w-[11%] whitespace-nowrap px-3 py-3 text-gray-700">{formatWalletDate(item.createdAt)}</td>
-      <td className={`w-[22%] whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
+      <td className="w-[17%] whitespace-nowrap px-3 py-3">
+        <BusinessCodeCell code={item.transactionCode} />
+      </td>
+      <td className="w-[12%] whitespace-nowrap px-3 py-3 text-gray-700">{formatWalletDate(item.createdAt)}</td>
+      <td className={`w-[21%] whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
         {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
         {copy}
         {item.adjustmentReason && (
@@ -73,19 +78,38 @@ function TransactionRow({
         )}
         <DataCompletenessBadge completeness={item.dataCompleteness} missingFields={item.missingFields} t={t} />
       </td>
-      <td className={`w-[13%] whitespace-nowrap px-3 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
+      <td className={`w-[12%] whitespace-nowrap px-3 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
         {isCredit ? "+" : ""}
         {formatCurrency(signed)}
       </td>
-      <td className="w-[14%] whitespace-nowrap px-3 py-3 font-semibold">{formatCurrency(item.balanceAfter)}</td>
+      <td className="w-[11%] whitespace-nowrap px-3 py-3 font-semibold">{formatCurrency(item.balanceAfter)}</td>
       <td className="w-[12%] whitespace-nowrap px-3 py-3 text-gray-600">
         {actorDisplayName(item.actor, tc) ||
           tc("enumLabels.SYSTEM", { defaultValue: "-" })}
       </td>
-      <td className="w-[28%] px-4 py-3 text-gray-600">
-        {item.relatedSettlement
-          ? t("wallet.relatedSettlementValue", { method: t(`wallet.methods.${item.relatedSettlement.method}`, { defaultValue: item.relatedSettlement.method }) })
-          : "-"}
+      {/*
+        Chỉ hiện HÌNH THỨC đối soát, dạng pill.
+
+        Mã tất toán + mã chuyến cố ý KHÔNG hiện ở đây: ô rộng ~210px không đủ
+        cho hai mã 21–22 ký tự nên chúng bị bẻ giữa chuỗi
+        ("TRIP-20260817-" / "8F6AP5SS") và mất luôn tác dụng tra cứu. Cần đối
+        chiếu mã thì xem tab "Doanh thu hàng tuần" — ở đó mã tất toán và mã
+        chuyến là hai cột riêng, đủ chỗ.
+
+        Pill (không phải chữ thường) vì cột "Người thực hiện" ngay bên cạnh
+        cũng là tên người: để chữ trần thì "Đối soát thủ công" đọc như một
+        người thực hiện thứ hai.
+      */}
+      <td className="w-[15%] px-4 py-3 text-gray-600">
+        {item.relatedSettlement ? (
+          <Badge tone="neutral">
+            {t(`wallet.methods.${item.relatedSettlement.method}`, {
+              defaultValue: item.relatedSettlement.method,
+            })}
+          </Badge>
+        ) : (
+          "-"
+        )}
       </td>
     </tr>
   );

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
@@ -13,11 +13,13 @@ import {
   disruptOperatorTripNoSubstitution,
   getAlternativeRoutes,
   getOperatorTripCargoCapacity,
+  getPublicTripSeatMap,
   substituteOperatorTripVehicle,
   type AlternativeRoute,
   type CargoCapacity,
   type OperatorUser,
   type OperatorVehicle,
+  type TripOperationResult,
 } from "../../../api/vietride";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
@@ -26,6 +28,7 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { toDatetimeLocalValue } from "../../../utils/date";
 import Checkbox from "../../../components/form/Checkbox";
 import { Badge } from "../../../components/ui/Badge";
+import { SubstitutionResultCard } from "./SubstitutionResultCard";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
@@ -40,6 +43,17 @@ const EDITABLE_TRIP_STATUSES = new Set(["SCHEDULED", "BOARDING", "IN_PROGRESS"])
 
 function vehicleId(vehicle: OperatorVehicle) {
   return vehicle.id ?? vehicle.vehicleId ?? "";
+}
+
+/**
+ * Số ghế chở khách thật của xe. `usablePassengerCapacity` đã trừ ghế bị vô hiệu
+ * và khu vực tài xế nên khớp với cách BE dựng ghế cho chuyến thay thế
+ * (`ParsePassengerLayout` bỏ ghế `disabled` và `DRIVER_AREA`). `totalSeats` chỉ
+ * là phương án dự phòng cho xe chưa có projection, và nó ĐẾM DƯ so với BE — nên
+ * cảnh báo thiếu ghế dựng trên nó có thể lạc quan hơn thực tế.
+ */
+function usableSeats(vehicle: OperatorVehicle) {
+  return vehicle.usablePassengerCapacity ?? vehicle.totalSeats ?? 0;
 }
 
 function userId(user: OperatorUser) {
@@ -87,6 +101,12 @@ type TripActionsPanelProps = {
    */
   onTripReplaced?: (newTripId: string) => void;
   /**
+   * Kết quả thay xe, đẩy lên trang cha. Cần riêng `onTripReplaced` vì trang cha
+   * đổi selection sang chuyến mới làm panel remount và mất state ngay — trong
+   * khi `pendingSeatAssignmentCount` là thứ nhà xe phải đọc SAU đó.
+   */
+  onSubstituted?: (result: TripOperationResult) => void;
+  /**
    * Bắn sau MỌI hành động thành công kèm câu đã dịch. Cần riêng vì ghi nhận gián
    * đoạn không đổi tripId nên không đi qua `onTripReplaced`, mà màn Báo cáo sự
    * cố thì cần cả ba để gợi ý sẵn ghi chú xử lý.
@@ -102,6 +122,7 @@ export default function TripActionsPanel({
   staff,
   canMutate,
   onTripReplaced,
+  onSubstituted,
   onActionCompleted,
 }: TripActionsPanelProps) {
   const { t } = useTranslation("manager");
@@ -129,6 +150,21 @@ export default function TripActionsPanel({
   const [routeChangeMessage, setRouteChangeMessage] = useState("");
   const [routeChangeError, setRouteChangeError] = useState("");
   const [pendingAction, setPendingAction] = useState<"substitute" | "disrupt" | "route" | null>(null);
+  /**
+   * Số khách phải chuyển sang xe thay, đếm từ ghế `BOOKED` của sơ đồ ghế.
+   * `null` = chưa tải hoặc tải hỏng — lúc đó KHÔNG cảnh báo thiếu ghế, vì đoán
+   * bừa một con số rồi chặn người dùng còn tệ hơn là không kiểm tra.
+   *
+   * Cố ý không đếm ghế `HELD`: đó là khách đang giữ chỗ chờ thanh toán, chưa
+   * phải booking đã xác nhận, và BE cũng không đưa họ vào `impact` để chuyển.
+   */
+  const [occupiedSeats, setOccupiedSeats] = useState<number | null>(null);
+  const [acknowledgeSeatShortage, setAcknowledgeSeatShortage] = useState(false);
+  // Kết quả lần đổi xe gần nhất — giữ trên màn thay vì chỉ bắn toast, vì
+  // `pendingSeatAssignmentCount` là việc nhà xe phải xử lý tiếp, không phải một
+  // thông báo đọc xong rồi bỏ.
+  const [substitutionResult, setSubstitutionResult] =
+    useState<TripOperationResult | null>(null);
   useToastFeedback({ message: message || routeChangeMessage, error: error || routeChangeError });
 
   // Chưa biết trạng thái (panel mở từ deep-link mà fleet chưa có chuyến đó) thì
@@ -154,15 +190,68 @@ export default function TripActionsPanel({
       ),
     [staff],
   );
-  const replacementVehicles = useMemo(
+  /**
+   * Lọc MỀM chứ không loại xe thiếu ghế khỏi danh sách: đây là tình huống sự cố
+   * giữa đường, chở được 29/40 khách vẫn hơn bỏ cả 40 người lại. Xe đủ ghế xếp
+   * lên trước, xe thiếu xếp sau theo mức thiếu tăng dần, và nhãn nói thẳng
+   * thiếu bao nhiêu để nhà xe cân nhắc chứ không phải mò.
+   */
+  const replacementVehicles = useMemo(() => {
+    const eligible = vehicles.filter(
+      (vehicle) =>
+        (vehicle.status === "ACTIVE" || vehicle.status === "AVAILABLE") &&
+        vehicleId(vehicle) !== trip?.vehicleId,
+    );
+
+    if (occupiedSeats === null) return eligible;
+
+    return [...eligible].sort(
+      (left, right) =>
+        Math.max(0, occupiedSeats - usableSeats(left)) -
+        Math.max(0, occupiedSeats - usableSeats(right)),
+    );
+  }, [occupiedSeats, trip, vehicles]);
+
+  const selectedVehicle = useMemo(
     () =>
-      vehicles.filter(
-        (vehicle) =>
-          (vehicle.status === "ACTIVE" || vehicle.status === "AVAILABLE") &&
-          vehicleId(vehicle) !== trip?.vehicleId,
-      ),
-    [trip, vehicles],
+      replacementVehicles.find(
+        (vehicle) => vehicleId(vehicle) === newVehicleId,
+      ) ?? null,
+    [newVehicleId, replacementVehicles],
   );
+
+  const missingSeats =
+    occupiedSeats !== null && selectedVehicle
+      ? Math.max(0, occupiedSeats - usableSeats(selectedVehicle))
+      : 0;
+
+  // Tải số khách ngay khi panel mount thay vì đợi mở mục "Thay xe": mục đó phải
+  // mở ra mới chọn được xe, nên đợi tới lúc đó thì cảnh báo thiếu ghế đến sau
+  // khi người dùng đã chọn xong. Panel chỉ mount khi đã có chuyến được chọn nên
+  // đây là một GET nhỏ cho mỗi lần chọn chuyến, không phải mỗi lần render.
+  useEffect(() => {
+    const normalizedTripId = tripId.trim();
+    if (!normalizedTripId || !canMutate) return;
+
+    let ignore = false;
+    getPublicTripSeatMap(normalizedTripId)
+      .then((seatMap) => {
+        if (ignore) return;
+        setOccupiedSeats(
+          seatMap.seats.filter((seat) => seat.status === "BOOKED").length,
+        );
+      })
+      .catch(() => {
+        // Không kiểm được thì nói thẳng là không kiểm được (xem
+        // `seatCountUnknown`), không chặn thao tác — BE mới là nơi quyết định
+        // cuối, và chặn nhà xe giữa lúc xe hỏng thì tệ hơn nhiều.
+        if (!ignore) setOccupiedSeats(null);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [canMutate, tripId]);
 
   async function loadCapacity() {
     const normalizedTripId = tripId.trim();
@@ -209,6 +298,15 @@ export default function TripActionsPanel({
       return;
     }
 
+    // Thiếu ghế không chặn cứng, nhưng phải là lựa chọn có ý thức: BE hiện
+    // không kiểm số ghế và cũng không có luồng nào lo cho khách bị bỏ lại
+    // (`pendingSeatAssignmentCount` chỉ là con số báo cáo), nên nhà xe phải
+    // thấy trước rồi mới được đi tiếp.
+    if (missingSeats > 0 && !acknowledgeSeatShortage) {
+      setError(t("tripOperations.seatShortageBlocked"));
+      return;
+    }
+
     if (pendingAction !== "substitute") {
       setPendingAction("substitute");
       return;
@@ -233,6 +331,9 @@ export default function TripActionsPanel({
         tripId: newTripId,
       });
       setMessage(successMessage);
+      setSubstitutionResult(result);
+      setAcknowledgeSeatShortage(false);
+      onSubstituted?.(result);
       // Trang cha chuyển selection + URL sang chuyến mới
       if (newTripId) {
         onTripReplaced?.(newTripId);
@@ -445,16 +546,35 @@ export default function TripActionsPanel({
               </span>
               <CustomSelect
                 value={newVehicleId}
-                onChange={(event) => setNewVehicleId(event.target.value)}
+                onChange={(event) => {
+                  setNewVehicleId(event.target.value);
+                  setAcknowledgeSeatShortage(false);
+                }}
                 className={inputClass}
                 aria-label={t("tripOperations.vehicle")}
               >
                 <option value="">{t("tripOperations.selectVehicle")}</option>
-                {replacementVehicles.map((vehicle) => (
-                  <option key={vehicleId(vehicle)} value={vehicleId(vehicle)}>
-                    {vehicle.licensePlate}
-                  </option>
-                ))}
+                {replacementVehicles.map((vehicle) => {
+                  const seats = usableSeats(vehicle);
+                  const missing =
+                    occupiedSeats === null
+                      ? 0
+                      : Math.max(0, occupiedSeats - seats);
+                  return (
+                    <option key={vehicleId(vehicle)} value={vehicleId(vehicle)}>
+                      {missing > 0
+                        ? t("tripOperations.vehicleSeatsShortOption", {
+                            plate: vehicle.licensePlate,
+                            seats,
+                            missing,
+                          })
+                        : t("tripOperations.vehicleSeatsOption", {
+                            plate: vehicle.licensePlate,
+                            seats,
+                          })}
+                    </option>
+                  );
+                })}
               </CustomSelect>
             </label>
             <label>
@@ -535,10 +655,49 @@ export default function TripActionsPanel({
               </span>
             </span>
           </label>
+          {occupiedSeats === null && (
+            <p className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+              {t("tripOperations.seatCountUnknown")}
+            </p>
+          )}
+          {missingSeats > 0 && (
+            <div
+              className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              role="alert"
+            >
+              <p className="font-semibold">
+                {t("tripOperations.seatShortageTitle")}
+              </p>
+              <p className="mt-1">
+                {t("tripOperations.seatShortageBody", {
+                  seats: selectedVehicle ? usableSeats(selectedVehicle) : 0,
+                  passengers: occupiedSeats ?? 0,
+                  missing: missingSeats,
+                })}
+              </p>
+              <label className="mt-3 flex cursor-pointer items-start gap-3">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={acknowledgeSeatShortage}
+                  onChange={setAcknowledgeSeatShortage}
+                />
+                <span className="text-sm font-medium">
+                  {t("tripOperations.seatShortageAck", {
+                    missing: missingSeats,
+                  })}
+                </span>
+              </label>
+            </div>
+          )}
           {trip?.canSubstituteVehicle === false && (
             <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               {t("tripOperations.substituteUnavailable")}
             </p>
+          )}
+          {substitutionResult && (
+            <div className="mt-3">
+              <SubstitutionResultCard result={substitutionResult} t={t} />
+            </div>
           )}
           <div className="mt-4 flex flex-wrap gap-3">
             <button

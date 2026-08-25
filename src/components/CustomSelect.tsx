@@ -308,7 +308,7 @@ export default function CustomSelect({
           openList();
         }}
         onKeyDown={handleKeyDown}
-        className={`${className} flex min-h-11 w-full items-center justify-between gap-3 text-left transition focus:border-vr-700 focus:outline-none focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-100`}
+        className={`${className} flex min-h-11 w-full items-center justify-between gap-3 text-left transition focus:border-vr-500 focus:ring-2 focus:ring-vr-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-100`}
       >
         <span className={`min-w-0 flex-1 ${allowWrap ? "whitespace-normal break-words" : "truncate"}`}>
           {selectedOption?.label ?? ""}

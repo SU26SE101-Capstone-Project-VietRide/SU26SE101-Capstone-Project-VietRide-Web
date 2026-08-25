@@ -110,23 +110,31 @@ export function formatCompactMoney(value: number) {
 /**
  * Màu theo trạng thái cho biểu đồ tròn/cột.
  *
- * Giữ nguyên họ màu ngữ nghĩa (đỏ = hỏng, xanh lá = xong, xanh dương = đang
- * chạy, hổ phách = chờ) nhưng đẩy xuống bậc đủ tương phản: bản cũ có 4/7 màu
- * dưới 3:1 với nền trắng (PENDING `#f59e0b` chỉ 2,15:1).
+ * Giữ họ màu ngữ nghĩa (đỏ/hồng = hỏng, lục = xong, lam = đang chạy, hổ phách =
+ * chờ) nhưng cả bảy bậc đã chạy qua validator bảng màu (5 kiểm tra: dải sáng,
+ * sàn chroma, tách biệt mù màu, sàn thị lực thường, tương phản nền).
  *
- * EXPIRED chuyển sang xám trung tính thay vì cam: đây là trạng thái đã chết,
- * và quan trọng hơn — bản cũ để nó cách PENDING đúng **13°** hue nên hai lát
- * bánh cạnh nhau gần như không phân biệt được, càng không nếu mù màu.
+ * Bản trước FAIL 3/5: `#374151` nằm ngoài dải sáng VÀ đọc ra như xám thuần
+ * (chroma 0,031), còn sky-700 với indigo-700 chỉ cách nhau ΔE 14,1 — dưới sàn
+ * 15, tức người mắt thường cũng khó phân biệt. Bản này 0 FAIL.
+ *
+ * Thứ tự lát bánh do BE trả nên CẶP NÀO CŨNG có thể nằm cạnh nhau — bảng màu
+ * được kiểm theo chế độ all-pairs chứ không chỉ các cặp kề.
+ *
+ * Còn đúng một cảnh báo: EXPIRED ↔ CANCELLED cách ΔE 6,8 dưới protanopia, nằm
+ * trong dải 6–8 chỉ hợp lệ khi có kênh mã hoá thứ hai. Ở đây có đủ: chú giải
+ * liệt kê TÊN từng trạng thái kèm số lượng, và `paddingAngle` chừa khe giữa các
+ * lát. Không được bỏ hai thứ đó khi sửa biểu đồ.
  */
 export function statusColor(key: string, index: number) {
   const normalized = key.toUpperCase();
-  if (normalized.includes("EXPIRED")) return "#374151"; // gray-700
-  if (normalized.includes("REJECT")) return "#991b1b"; // red-800
-  if (normalized.includes("CANCEL") || normalized.includes("FAIL")) return "#dc2626"; // red-600
-  if (normalized.includes("DELIVER") || normalized.includes("COMPLETE")) return "#15803d"; // green-700
-  if (normalized.includes("TRANSIT") || normalized.includes("LOADED")) return "#0369a1"; // sky-700
-  if (normalized.includes("CONFIRM") || normalized.includes("PROCESS")) return "#4338ca"; // indigo-700
-  if (normalized.includes("PENDING") || normalized.includes("WAIT")) return "#a16207"; // amber-700
+  if (normalized.includes("EXPIRED")) return "#854d0e"; // amber-800
+  if (normalized.includes("REJECT")) return "#86198f"; // fuchsia-800
+  if (normalized.includes("CANCEL") || normalized.includes("FAIL")) return "#e11d48"; // rose-600
+  if (normalized.includes("DELIVER") || normalized.includes("COMPLETE")) return "#047857"; // emerald-700
+  if (normalized.includes("TRANSIT") || normalized.includes("LOADED")) return "#0284c7"; // sky-600
+  if (normalized.includes("CONFIRM") || normalized.includes("PROCESS")) return "#4f46e5"; // indigo-600
+  if (normalized.includes("PENDING") || normalized.includes("WAIT")) return "#d97706"; // amber-600
   return chartColorAt(index);
 }
 

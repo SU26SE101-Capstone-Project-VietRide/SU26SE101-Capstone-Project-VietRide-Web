@@ -4,9 +4,12 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelOperatorShuttleRequest,
+  reassignOperatorShuttleTrip,
   cancelOperatorShuttleTrip,
   getOperatorShuttleContext,
   getOperatorShuttleRequests,
+  getOperatorUsers,
+  getOperatorVehicles,
   getOperatorShuttleTrips,
   getShuttleTripEta,
   getShuttleTripLatest,
@@ -37,6 +40,7 @@ vi.mock("../../../api/vietride", () => ({
   getShuttleTripEta: vi.fn(),
   getShuttleTripLatest: vi.fn(),
   getOperatorShuttleContext: vi.fn(),
+  reassignOperatorShuttleTrip: vi.fn(),
 }));
 
 vi.mock("../../../auth", () => ({
@@ -56,6 +60,12 @@ type FleetMapProps = {
     headingDeg?: number | null;
   }>;
   selectedId: string | null;
+  routeStops?: Array<{
+    id: string;
+    name: string;
+    orderIndex?: number;
+    position: { lat: number; lng: number };
+  }>;
 };
 
 const fleetMapProps = vi.hoisted(() => [] as FleetMapProps[]);
@@ -136,9 +146,9 @@ const shuttleTrip: OperatorShuttleTripListItem = {
   stopCount: 1,
 };
 
-function renderPage() {
+function renderPage(entry = "/manager/dispatch") {
   return render(
-    <MemoryRouter initialEntries={["/manager/dispatch"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <DispatchPanel />
     </MemoryRouter>,
   );
@@ -155,6 +165,65 @@ describe("Manager Dispatch", () => {
       room: `shuttle:${shuttleTrip.shuttleTripId}`,
       scope: "OPERATOR",
     });
+    // Danh sách xe/tài xế cho hộp thoại phân công và đổi phân công
+    vi.mocked(getOperatorVehicles).mockResolvedValue({
+      items: [
+        {
+          vehicleId: "vehicle-1",
+          id: "vehicle-1",
+          licensePlate: "51B-123.45",
+          vehicleTypeName: "Limousine",
+          vehicleTypeCode: "LIMO",
+          totalSeats: 16,
+          status: "ACTIVE",
+          isActive: true,
+        },
+        {
+          vehicleId: "vehicle-2",
+          id: "vehicle-2",
+          licensePlate: "51B-678.90",
+          vehicleTypeName: "Hiace",
+          vehicleTypeCode: "HIACE",
+          totalSeats: 9,
+          status: "ACTIVE",
+          isActive: true,
+        },
+      ],
+      page: 1,
+      pageSize: 50,
+      totalItems: 2,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    } as never);
+    vi.mocked(getOperatorUsers).mockResolvedValue({
+      items: [
+        {
+          userId: "driver-1",
+          email: "b@operator.vn",
+          displayName: "Trần Văn B",
+          phone: "0900000001",
+          role: "DRIVER",
+          status: "ACTIVE",
+          operatorId: "operator-1",
+        },
+        {
+          userId: "driver-2",
+          email: "c@operator.vn",
+          displayName: "Trần Văn C",
+          phone: "0900000002",
+          role: "DRIVER",
+          status: "ACTIVE",
+          operatorId: "operator-1",
+        },
+      ],
+      page: 1,
+      pageSize: 50,
+      totalItems: 2,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    } as never);
     vi.mocked(getShuttleTripLatest).mockResolvedValue(null);
     vi.mocked(getShuttleTripEta).mockResolvedValue(null);
     // Nạp cùng lượt với latest/eta; mặc định trả context rỗng để các case cũ
@@ -498,13 +567,24 @@ describe("Manager Dispatch", () => {
       shuttleTripId: shuttleTrip.shuttleTripId,
       latitude: 10.7626,
       longitude: 106.6601,
-      recordedAt: "2026-08-12T21:35:00+07:00",
+      // Mốc thời gian thật: điểm cũ hơn TTL bị đánh dấu mất tín hiệu và không
+      // còn gắn nhãn "trực tiếp" nữa.
+      recordedAt: new Date().toISOString(),
     });
 
+    // Thẻ không in toạ độ thô nữa (điều độ viên không đọc được) — vị trí thể
+    // hiện bằng marker trên bản đồ, thẻ chỉ nói tín hiệu còn sống hay không.
     await waitFor(() =>
-      expect(screen.getByText("10.7626, 106.6601")).toBeInTheDocument(),
+      expect(screen.getByText("dispatch.vehicleSignal")).toBeInTheDocument(),
     );
+    expect(
+      screen.queryByText("dispatch.trackingWaitingSignalHint"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("dispatch.liveBadge")).toBeInTheDocument();
+    expect(screen.queryByText("dispatch.signalLostBadge")).not.toBeInTheDocument();
+    expect(
+      fleetMapProps[fleetMapProps.length - 1].vehicles[0].position,
+    ).toEqual({ lat: 10.7626, lng: 106.6601 });
     expect(getShuttleTripLatest).toHaveBeenCalledTimes(1);
   });
 
@@ -545,8 +625,11 @@ describe("Manager Dispatch", () => {
       longitude: 106.6601,
       recordedAt: "2026-08-12T21:35:00+07:00",
     });
+    // Vị trí chỉ còn quan sát được qua marker đẩy lên bản đồ.
     await waitFor(() =>
-      expect(screen.getByText("10.7626, 106.6601")).toBeInTheDocument(),
+      expect(
+        fleetMapProps[fleetMapProps.length - 1].vehicles[0]?.position,
+      ).toEqual({ lat: 10.7626, lng: 106.6601 }),
     );
 
     emitGps?.({
@@ -556,8 +639,9 @@ describe("Manager Dispatch", () => {
       recordedAt: "2026-08-12T21:30:00+07:00",
     });
 
-    expect(screen.getByText("10.7626, 106.6601")).toBeInTheDocument();
-    expect(screen.queryByText("10.75, 106.65")).not.toBeInTheDocument();
+    expect(
+      fleetMapProps[fleetMapProps.length - 1].vehicles[0].position,
+    ).toEqual({ lat: 10.7626, lng: 106.6601 });
   });
 
   it("chưa có toạ độ thì không dựng bản đồ", async () => {
@@ -626,5 +710,186 @@ describe("Manager Dispatch", () => {
     expect(
       screen.getByText("dispatch.shuttleTrackingOfflineHint"),
     ).toBeInTheDocument();
+  });
+
+  it("hiện SĐT hành khách ngay trong hàng đợi chờ điều phối", async () => {
+    renderPage();
+
+    // Số này BE trả sẵn trong `passengers[]`. Sau khi phân công, lượt đặt rời
+    // khỏi hàng đợi nên đây là chỗ điều độ viên lấy được số để gọi.
+    const phoneLink = await screen.findByRole("link", { name: /0900000000/ });
+    expect(phoneLink).toHaveAttribute("href", "tel:0900000000");
+  });
+
+  it("hiện danh sách hành khách kèm SĐT, số vé và bản đồ điểm đón ở chi tiết", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click((await screen.findAllByRole("button", { name: "details" }))[0]);
+
+    const dialog = await screen.findByRole("dialog");
+    const phoneLink = within(dialog).getByRole("link", { name: /0900000000/ });
+    expect(phoneLink).toHaveAttribute("href", "tel:0900000000");
+    // Tên và số nằm cùng một dòng liên hệ — gọi đúng người chứ không phải đọc
+    // ghép hai chỗ khác nhau trên màn.
+    expect(phoneLink.closest("li")).toHaveTextContent("Nguyễn Văn A");
+    expect(within(dialog).getByText("dispatch.ticketCount 1")).toBeInTheDocument();
+
+    // Bản đồ điểm đón dựng từ `pickupLat`/`pickupLng` — nhóm chờ chưa có chuyến
+    // nên không có xe nào, chỉ có marker điểm đón đánh số theo thứ tự đề xuất.
+    expect(within(dialog).getByTestId("shuttle-map")).toBeInTheDocument();
+    const mapProps = fleetMapProps[fleetMapProps.length - 1];
+    expect(mapProps.vehicles).toHaveLength(0);
+    expect(mapProps.routeStops).toEqual([
+      {
+        id: `pickup:${group.bookingGroups[0].bookingId}`,
+        kind: "stop",
+        name: group.bookingGroups[0].pickupAddress,
+        orderIndex: 1,
+        position: { lat: 10.7731, lng: 106.7032 },
+      },
+    ]);
+  });
+
+  it("phân trang danh sách chuyến trung chuyển thay vì chỉ tải trang đầu", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorShuttleTrips).mockResolvedValue({
+      items: [shuttleTrip],
+      page: 1,
+      pageSize: 12,
+      totalItems: 20,
+      totalPages: 2,
+      hasNextPage: true,
+      hasPreviousPage: false,
+    });
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(getOperatorShuttleTrips).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1, pageSize: 12 }),
+      ),
+    );
+
+    // Hai thanh phân trang trên màn: yêu cầu chờ (trước) và chuyến trung chuyển.
+    const nextButtons = screen.getAllByRole("button", { name: "next" });
+    await user.click(nextButtons[nextButtons.length - 1]);
+
+    await waitFor(() =>
+      expect(getOperatorShuttleTrips).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      ),
+    );
+  });
+
+  it("mở sẵn chi tiết chuyến và tô sáng đúng điểm đón khi vào từ thông báo", async () => {
+    vi.mocked(getOperatorShuttleContext).mockResolvedValue({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      mainTripId: shuttleTrip.mainTripId,
+      direction: "INBOUND_TO_STATION",
+      status: "SCHEDULED",
+      stops: [
+        {
+          pickupOrder: 1,
+          bookingId: "booking-a",
+          latitude: 10.7,
+          longitude: 106.6,
+          status: "PENDING",
+          isStation: false,
+          serviceAddress: "12 Lê Lợi",
+        },
+        {
+          pickupOrder: 2,
+          bookingId: "booking-b",
+          latitude: 10.75,
+          longitude: 106.65,
+          status: "PENDING",
+          isStation: false,
+          serviceAddress: "34 Nguyễn Huệ",
+        },
+      ],
+      station: null,
+    });
+
+    renderPage(
+      `/manager/dispatch?shuttleTripId=${shuttleTrip.shuttleTripId}&bookingId=booking-b&pickupOrder=2`,
+    );
+
+    // Thông báo nói về MỘT điểm đón cụ thể → mở thẳng chi tiết, không bắt tự tìm
+    const dialog = await screen.findByRole("dialog");
+    const badge = await within(dialog).findByText(
+      "dispatch.notifiedStopBadge",
+    );
+    expect(badge.closest("li")).toHaveTextContent("34 Nguyễn Huệ");
+  });
+
+  it("không tự mở chi tiết khi deep-link chỉ có shuttleTripId", async () => {
+    renderPage(`/manager/dispatch?shuttleTripId=${shuttleTrip.shuttleTripId}`);
+
+    await waitFor(() => expect(joinShuttleTracking).toHaveBeenCalled());
+    // Thông báo chung cho nhà xe không đại diện nhóm khách nào — mở modal là phiền
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("đổi phân công chỉ gửi field thật sự thay đổi", async () => {
+    const user = userEvent.setup();
+    vi.mocked(reassignOperatorShuttleTrip).mockResolvedValue({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      driverUserId: "driver-2",
+      vehicleId: shuttleTrip.vehicle.id,
+    });
+
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "dispatch.reassignTitle" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    // CustomSelect là listbox tuỳ biến: mở bằng button rồi chọn option
+    await user.click(
+      await within(dialog).findByRole("button", { name: "dispatch.newDriver" }),
+    );
+    await user.click(screen.getByRole("option", { name: /Trần Văn C/ }));
+    await user.type(
+      within(dialog).getByRole("textbox"),
+      "Tài xế cũ báo ốm",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "dispatch.reassignConfirm" }),
+    );
+
+    await waitFor(() =>
+      expect(reassignOperatorShuttleTrip).toHaveBeenCalledWith(
+        shuttleTrip.shuttleTripId,
+        // Không đổi xe thì KHÔNG gửi `vehicleId` — BE hiểu vắng mặt là giữ nguyên
+        { driverUserId: "driver-2", reason: "Tài xế cũ báo ốm" },
+        expect.any(String),
+      ),
+    );
+  });
+
+  it("chặn đổi phân công khi chưa nhập lý do", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "dispatch.reassignTitle" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      await within(dialog).findByRole("button", { name: "dispatch.newDriver" }),
+    );
+    await user.click(screen.getByRole("option", { name: /Trần Văn C/ }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "dispatch.reassignConfirm" }),
+    );
+
+    // Lý do đi thẳng vào thông báo cho hành khách nên BE bắt buộc; chặn ở FE
+    // để không tốn một vòng 422.
+    expect(
+      await within(dialog).findByText("dispatch.reassignReasonRequired"),
+    ).toBeInTheDocument();
+    expect(reassignOperatorShuttleTrip).not.toHaveBeenCalled();
   });
 });

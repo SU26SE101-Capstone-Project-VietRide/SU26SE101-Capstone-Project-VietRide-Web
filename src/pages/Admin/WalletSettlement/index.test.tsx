@@ -32,7 +32,9 @@ vi.mock("../../../api/vietride", () => ({
 
 const settlement = {
   settlementId: "settlement-1",
+  settlementCode: "STL-20260721-P9R4TX2W",
   tripId: "trip-1",
+  tripCode: "TRIP-20260721-M5Q7WV3D",
   operatorId: "operator-1",
   status: "ELIGIBLE",
   eligibleAt: "2026-07-28T02:00:00Z",
@@ -57,6 +59,7 @@ const page = {
 
 const creditTransaction = {
   transactionId: "transaction-credit",
+  transactionCode: "PWT-20260729-4F8N2KQJ",
   type: "CREDIT",
   amount: 100_000,
   balanceBefore: 1_000_000,
@@ -142,6 +145,28 @@ describe("Admin WalletSettlement", () => {
     ).toBeInTheDocument();
   });
 
+  // Bản admin trả `tripCode` ở TOP-LEVEL (bản operator thì nằm trong snapshot
+  // `trip`) — đọc sai chỗ là cột mã chuyến trắng trơn trên toàn màn admin.
+  it("hiện mã đối soát và mã chuyến top-level của bản admin", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={["/admin/wallet-settlement?tab=settlements"]}
+      >
+        <WalletSettlement />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText("STL-20260721-P9R4TX2W"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("TRIP-20260721-M5Q7WV3D")).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", {
+        name: "walletSettlement.settlementCode",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("combines money in and out into one paginated table", async () => {
     const user = userEvent.setup();
     vi.mocked(getAdminPlatformWalletTransactions).mockResolvedValue({
@@ -165,8 +190,12 @@ describe("Admin WalletSettlement", () => {
     expect(
       await screen.findByText("walletSettlement.latestTransactions"),
     ).toBeInTheDocument();
+    // Tiêu đề khung có ngay từ render đầu, các dòng giao dịch thì tới sau —
+    // chờ nội dung của DÒNG, không thì máy chạy chậm là hụt.
+    expect(
+      await screen.findByText("walletSettlement.moneyIn"),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("table")).toHaveLength(1);
-    expect(screen.getByText("walletSettlement.moneyIn")).toBeInTheDocument();
     expect(screen.getByText("walletSettlement.moneyOut")).toBeInTheDocument();
     expect(
       screen.getByRole("columnheader", { name: "walletSettlement.cashFlow" }),
@@ -177,6 +206,11 @@ describe("Admin WalletSettlement", () => {
     expect(
       screen.getByText("walletSettlement.references.SETTLEMENT_TO_OPERATOR"),
     ).toBeInTheDocument();
+    // Ví nền tảng dùng mã `PWT-…`; row legacy (debitTransaction) chưa backfill
+    // thì để "-", không được ra "undefined".
+    expect(screen.getByText("PWT-20260729-4F8N2KQJ")).toBeInTheDocument();
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "next" }));
     await waitFor(() =>

@@ -34,6 +34,10 @@ import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import { StatCard } from "../../../components/StatCard";
 import { formatCurrency } from "../../../utils/currency";
+import {
+  displayBusinessCode,
+  pickSettlementTripCode,
+} from "../../../utils/businessCode";
 import { SearchInput } from "../../../components/ui/SearchInput";
 
 const pageSize = 10;
@@ -438,9 +442,12 @@ export default function WalletSettlement() {
             </div>
 
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-sm">
+              <table className="w-full min-w-[1300px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold whitespace-nowrap text-gray-600">
+                    <th className="px-4 py-3 text-left">
+                      {t("walletSettlement.settlementCode")}
+                    </th>
                     <th className="px-4 py-3 text-left">
                       {t("walletSettlement.operator")}
                     </th>
@@ -462,7 +469,7 @@ export default function WalletSettlement() {
                   {!loading && filteredRecords.length === 0 && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="px-4 py-10 text-center text-gray-500"
                       >
                         {t("walletSettlement.empty")}
@@ -474,6 +481,16 @@ export default function WalletSettlement() {
                       key={record.settlementId}
                       className="border-b border-gray-100 hover:bg-gray-50"
                     >
+                      {/* Bản admin có top-level `tripCode`; `pickSettlementTripCode`
+                          vẫn dùng chung để nếu BE đổi sang snapshot thì không vỡ. */}
+                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                        <p className="font-mono text-xs tabular-nums font-semibold text-gray-900">
+                          {displayBusinessCode(record.settlementCode)}
+                        </p>
+                        <p className="mt-0.5 font-mono text-xs tabular-nums text-gray-500">
+                          {displayBusinessCode(pickSettlementTripCode(record))}
+                        </p>
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3 text-left">
                         <p className="font-semibold text-gray-900">
                           {record.operator?.name ?? record.operatorId ?? "-"}
@@ -724,9 +741,10 @@ function WalletTransactionTable({
         </div>
       </div>
       <div className="overflow-x-auto p-4">
-        <table className="w-full min-w-[980px] text-sm">
+        <table className="w-full min-w-[1140px] text-sm">
           <thead>
             <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
+              <th className="px-4 py-3 text-center">{t("walletSettlement.transactionCode")}</th>
               <th className="px-4 py-3 text-center">{t("walletSettlement.createdAt")}</th>
               <th className="px-4 py-3 text-center">{t("walletSettlement.cashFlow")}</th>
               <th className="px-4 py-3 text-center">{t("walletSettlement.amount")}</th>
@@ -738,11 +756,14 @@ function WalletTransactionTable({
           </thead>
           <tbody>
             {items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">{t("walletSettlement.empty")}</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">{t("walletSettlement.empty")}</td></tr>
             ) : items.map((item) => {
               const isCredit = item.type === "CREDIT";
   return (
                 <tr key={item.transactionId} className="border-t border-gray-100 hover:bg-gray-50">
+                  {/* Ví nền tảng dùng mã `PWT-…`; cùng type WalletTransaction với ví
+                      nhà xe nên field vẫn là `transactionCode`. */}
+                  <td className="whitespace-nowrap px-4 py-3 text-center font-mono text-xs tabular-nums text-gray-700">{displayBusinessCode(item.transactionCode)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-center">{formatDate(item.createdAt)}</td>
                   <td className="px-4 py-3 text-center"><span className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? <FiArrowDown /> : <FiArrowUp />}{t(isCredit ? "walletSettlement.moneyIn" : "walletSettlement.moneyOut")}</span></td>
                   <td className={`whitespace-nowrap px-4 py-3 text-center font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? "+" : "-"}{formatMoney(item.amount)}</td>

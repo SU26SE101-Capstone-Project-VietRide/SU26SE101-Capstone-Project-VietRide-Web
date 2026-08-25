@@ -5,6 +5,7 @@ import {
   FiMapPin,
   FiNavigation,
   FiRefreshCw,
+  FiUserCheck,
   FiUsers,
   FiXCircle,
 } from "react-icons/fi";
@@ -13,9 +14,13 @@ import type {
   OperatorShuttleTripStatus,
   ShuttleDirection,
 } from "../../../api/vietride";
+import { useNowTicker } from "../../../hooks/useNowTicker";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
+  formatClock,
+  formatDistance,
   formatTime,
+  isStaleSignal,
   isTrackableShuttleStatus,
   nextPickupLabel,
   type ShuttleTripTracking,
@@ -32,6 +37,9 @@ type ShuttleTrackingCardProps = {
   onSelect: (shuttleTripId: string) => void;
   onRefresh: (shuttleTripId: string) => void;
   onCancel: (trip: OperatorShuttleTripListItem) => void;
+  /** Chỉ OPERATOR_ADMIN mới đổi được phân công (BE khoá theo role) */
+  canReassignShuttle: boolean;
+  onReassign: (trip: OperatorShuttleTripListItem) => void;
   onOpenDetail: (trip: OperatorShuttleTripListItem) => void;
   directionLabel: (direction: ShuttleDirection) => string;
 };
@@ -54,6 +62,8 @@ export default function ShuttleTrackingCard({
   trip,
   tracking,
   canCancelShuttle,
+  canReassignShuttle,
+  onReassign,
   isSelected,
   hasPosition,
   onSelect,
@@ -63,10 +73,18 @@ export default function ShuttleTrackingCard({
   directionLabel,
 }: ShuttleTrackingCardProps) {
   const { t } = useTranslation("manager");
+  // "Tín hiệu cũ" phải tính theo thời gian thật: thẻ đứng im trên màn trực ban
+  // cả buổi, chụp `Date.now()` một lần lúc render đầu là không bao giờ báo cũ.
+  const now = useNowTicker();
   const isRefreshing = tracking?.isRefreshing ?? false;
+  const signalLost = isStaleSignal(tracking?.latest, now);
+  const speedKmh = tracking?.latest?.speedKmh;
   const driverName = trip.driver.displayName?.trim();
   const canCancel =
     canCancelShuttle && CANCELLABLE_STATUSES.includes(trip.status);
+  // BE chỉ cho đổi phân công khi chuyến CHƯA chạy — `IN_PROGRESS` gọi lên sẽ
+  // nhận `409 SHUTTLE_TRIP_INVALID_STATE`, nên không bày nút ra làm gì.
+  const canReassign = canReassignShuttle && trip.status === "SCHEDULED";
   // Chuyến đã kết thúc không còn nguồn GPS: thẻ chuyển sang dạng tổng kết
   // (giờ chạy thật + giờ hoàn tất) và bỏ nút làm mới vị trí — bấm cũng chỉ
   // nhận về `latest = null`, hiện ra như thể màn hỏng.
@@ -131,6 +149,17 @@ export default function ShuttleTrackingCard({
               />
             </button>
           )}
+          {canReassign && (
+            <button
+              type="button"
+              onClick={() => onReassign(trip)}
+              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50"
+              title={t("dispatch.reassignTitle")}
+              aria-label={t("dispatch.reassignTitle")}
+            >
+              <FiUserCheck size={15} />
+            </button>
+          )}
           {canCancel && (
             <button
               type="button"
@@ -153,9 +182,12 @@ export default function ShuttleTrackingCard({
           </dd>
         </div>
         <div>
-          <dt className="text-gray-500">{t("dispatch.scheduledDeparture")}</dt>
+          {/* Giờ kết thúc dự kiến là mốc quyết định chuyến trung chuyển có kịp
+              chuyến chính hay không — trước đây chỉ nằm trong modal chi tiết. */}
+          <dt className="text-gray-500">{t("dispatch.scheduledWindow")}</dt>
           <dd className="mt-0.5 font-semibold text-gray-800">
-            {formatTime(trip.scheduledDepartureTime)}
+            {formatTime(trip.scheduledDepartureTime)} →{" "}
+            {formatClock(trip.scheduledEndTime)}
           </dd>
         </div>
         <div>
@@ -210,10 +242,18 @@ export default function ShuttleTrackingCard({
         </p>
       ) : (
         <div className="mt-3 space-y-2 text-xs">
-          <div className="rounded-lg border border-gray-100 px-3 py-2">
-            <p className="flex items-center gap-1.5 font-medium text-gray-500">
-              {t("dispatch.latestLocation")}
-              {tracking?.isLive && (
+          {/* Trước đây ô này in toạ độ thô ("10.762622, 106.660172") — không ai
+              đọc được, mà vị trí thì đã có marker trên bản đồ. Thay bằng thứ
+              đọc lướt là ra: xe đang chạy hay đang đứng, tín hiệu còn tươi
+              không. */}
+          <div
+            className={`rounded-lg border px-3 py-2 ${
+              signalLost ? "border-amber-200 bg-amber-50" : "border-gray-100"
+            }`}
+          >
+            <p className="flex flex-wrap items-center gap-1.5 font-medium text-gray-500">
+              {t("dispatch.vehicleSignal")}
+              {tracking?.isLive && !signalLost && (
                 <span
                   className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700"
                   title={t("dispatch.realtime.connected")}
@@ -222,11 +262,20 @@ export default function ShuttleTrackingCard({
                   {t("dispatch.liveBadge")}
                 </span>
               )}
+              {signalLost && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                  {t("dispatch.signalLostBadge")}
+                </span>
+              )}
             </p>
             <p className="mt-0.5 font-semibold text-gray-900">
-              {tracking?.latest
-                ? `${tracking.latest.latitude}, ${tracking.latest.longitude}`
-                : t("dispatch.noLocationYet")}
+              {!tracking?.latest
+                ? t("dispatch.noLocationYet")
+                : speedKmh == null
+                  ? t("dispatch.speedUnknown")
+                  : speedKmh > 2
+                    ? t("dispatch.speedValue", { speed: Math.round(speedKmh) })
+                    : t("dispatch.vehicleStopped")}
             </p>
             {tracking?.latest && (
               <p className="mt-0.5 text-gray-500">
@@ -245,10 +294,19 @@ export default function ShuttleTrackingCard({
               {tracking?.eta
                 ? t("dispatch.etaValue", {
                     minutes: tracking.eta.etaMinutes,
-                    distance: tracking.eta.distanceMeters,
+                    distance: formatDistance(tracking.eta.distanceMeters),
                   })
                 : t("dispatch.noEtaYet")}
             </p>
+            {/* Giờ đến dự kiến dạng đồng hồ: "còn 12 phút" không so được với
+                hạn chuyến chính, "đến lúc 05:42" thì so được ngay. */}
+            {tracking?.eta && (
+              <p className="mt-0.5 font-medium text-gray-700">
+                {t("dispatch.etaArrivalAt", {
+                  time: formatClock(tracking.eta.estimatedArrivalTime),
+                })}
+              </p>
+            )}
             {tracking?.eta && (
               // Địa chỉ điểm đón lấy từ operator-context, đối chiếu bằng
               // `pickupOrder`. Chưa nạp được context thì lùi về số thứ tự chứ

@@ -741,7 +741,7 @@ describe("Manager route setup workflow", () => {
       await screen.findByText("routes.routeStopDraftAdded"),
     ).toBeInTheDocument();
 
-    // Waypoint gửi lên Google Routes phải gồm CẢ điểm dừng mới thêm (không chỉ
+    // Waypoint gửi lên Directions phải gồm CẢ điểm dừng mới thêm (không chỉ
     // bến đi/bến đến) — xác nhận useRouteMapPoints đã đưa currentRouteStops vào
     // routeWaypoints và auto-fetch nhận đúng bộ waypoint này
     await waitFor(() =>
@@ -1545,6 +1545,154 @@ describe("Manager route setup workflow", () => {
     );
   });
 
+  // Ba test dưới dùng chung phần mở modal + điền các field bắt buộc, chỉ khác
+  // giá trị mã tuyến và mock lỗi. Scope `within(dialog)` là bắt buộc: ô mã và ô
+  // tên cũng có ở panel tuyến bên trái, `screen.getBy*` sẽ bắt nhầm ô đó.
+  async function fillCreateRouteForm(code: string) {
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /routes.newRoute/ })[0],
+    );
+    await screen.findByText("routes.createRouteModalTitle");
+    const dialog = screen.getByRole("dialog");
+
+    fireEvent.change(
+      within(dialog).getByPlaceholderText("routes.routeCodePlaceholder"),
+      { target: { value: code } },
+    );
+    fireEvent.change(
+      within(dialog).getByPlaceholderText("routes.namePlaceholder"),
+      { target: { value: "Tuyến mới" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "routes.selectOriginStation",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("option", { name: "Bến A · Hồ Chí Minh" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "routes.selectDestinationStation",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: "Bến B · Phường Xuân Hương - Đà Lạt, Lâm Đồng",
+      }),
+    );
+    await screen.findByText("routes.autoMetricsFallbackHint");
+
+    return dialog;
+  }
+
+  function mockSingleRoute() {
+    vi.mocked(getOperatorRoutes).mockResolvedValue({
+      ...emptyPage,
+      items: [routeA],
+      totalItems: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getOperatorRoute).mockResolvedValue(routeA);
+    // Không có mock này thì dropdown bến rỗng và không click được option nào.
+    vi.mocked(getOperatorStations).mockResolvedValue({
+      ...emptyPage,
+      items: operatorStations,
+      totalItems: operatorStations.length,
+      totalPages: 1,
+      pageSize: 100,
+    });
+  }
+
+  // Release A của BE: `code` chưa bắt buộc nhưng FE phải gửi ngay để chuẩn bị
+  // Release B, và phải chuẩn hoá (trim + uppercase) đúng như BE lưu.
+  it("gửi mã tuyến đã chuẩn hoá khi tạo tuyến", async () => {
+    mockSingleRoute();
+    vi.mocked(createOperatorRouteFull).mockResolvedValue({
+      ...routeA,
+      stops: [],
+    });
+
+    renderRoutesPage();
+    await waitForLoaded();
+    const dialog = await fillCreateRouteForm(" sg-dl-01 ");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /routes.createRoute/ }),
+    );
+
+    await waitFor(() =>
+      expect(createOperatorRouteFull).toHaveBeenCalledWith(
+        expect.objectContaining({ code: "SG-DL-01" }),
+      ),
+    );
+  });
+
+  // Ô mã để trống = "chưa đặt mã", KHÔNG phải "xoá mã": field phải bị bỏ hẳn
+  // khỏi request, gửi `code: ""` là BE trả 422.
+  it("bỏ hẳn field code khi ô mã tuyến để trống", async () => {
+    mockSingleRoute();
+    vi.mocked(createOperatorRouteFull).mockResolvedValue({
+      ...routeA,
+      stops: [],
+    });
+
+    renderRoutesPage();
+    await waitForLoaded();
+    const dialog = await fillCreateRouteForm("");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /routes.createRoute/ }),
+    );
+
+    await waitFor(() => expect(createOperatorRouteFull).toHaveBeenCalled());
+    expect(
+      "code" in vi.mocked(createOperatorRouteFull).mock.calls[0][0],
+    ).toBe(false);
+  });
+
+  // 409 là lỗi của MỘT field. Đẩy lên banner/toast chung thì người dùng không
+  // biết ô nào sai và phải mò lại cả form.
+  it("hiện lỗi 409 ROUTE_CODE_DUPLICATED ngay tại ô mã tuyến", async () => {
+    mockSingleRoute();
+    vi.mocked(createOperatorRouteFull).mockRejectedValue(
+      new ApiRequestError(
+        "Route code already used.",
+        409,
+        "ROUTE_CODE_DUPLICATED",
+      ),
+    );
+
+    renderRoutesPage();
+    await waitForLoaded();
+    const dialog = await fillCreateRouteForm("SG-DL-01");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /routes.createRoute/ }),
+    );
+
+    expect(
+      await within(dialog).findByText("routes.routeCodeDuplicated"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByPlaceholderText("routes.routeCodePlaceholder"),
+    ).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // Mã sai format bị chặn ở FE, không bắn request để BE trả 422 rồi mất form.
+  it("chặn mã tuyến sai format trước khi gọi API", async () => {
+    mockSingleRoute();
+
+    renderRoutesPage();
+    await waitForLoaded();
+    const dialog = await fillCreateRouteForm("A_B");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /routes.createRoute/ }),
+    );
+
+    expect(
+      await within(dialog).findByText("routes.routeCodeInvalid"),
+    ).toBeInTheDocument();
+    expect(createOperatorRouteFull).not.toHaveBeenCalled();
+  });
+
   it("auto-fills distance and duration from the road geometry and locks the fields", async () => {
     const zeroMetricsRoute: OperatorRoute = {
       ...routeA,
@@ -1814,11 +1962,13 @@ describe("Manager route setup workflow", () => {
       await waitForOptionPolylines(3);
       expect(screen.queryAllByTestId(/route-option-chip-/)).toHaveLength(0);
 
-      // Request chính TRUCK + request DRIVE so sánh chạy song song
+      // Request chính TRUCK + request DRIVE so sánh chạy song song. Chỉ request
+      // của MODE ĐANG CHỌN mới xin phương án phụ — bản DRIVE chỉ để so km/phút
+      // ra cảnh báo đường vòng nên không cần.
       expect(requestRoadGeometry).toHaveBeenCalledWith(
         expect.any(Array),
         "routes.routingFailed",
-        { travelMode: "TRUCK" },
+        { travelMode: "TRUCK", alternatives: true },
       );
       expect(requestRoadGeometry).toHaveBeenCalledWith(
         expect.any(Array),
@@ -2005,6 +2155,7 @@ describe("Manager route setup workflow", () => {
           {
             travelMode: "TRUCK",
             intermediates: [{ latitude: 11.05, longitude: 107.4 }],
+            alternatives: true,
           },
         ),
       );
@@ -2027,6 +2178,7 @@ describe("Manager route setup workflow", () => {
           {
             travelMode: "TRUCK",
             intermediates: [{ latitude: 11.31, longitude: 107.61 }],
+            alternatives: true,
           },
         ),
       );
@@ -2130,10 +2282,11 @@ describe("Manager route setup workflow", () => {
           ),
         { timeout: 2000 },
       );
+      // DRIVE giờ là mode đang chọn → chính nó xin bộ phương án cho user bấm
       expect(requestRoadGeometry).toHaveBeenLastCalledWith(
         expect.any(Array),
         "routes.routingFailed",
-        { travelMode: "DRIVE" },
+        { travelMode: "DRIVE", alternatives: true },
       );
       expect(screen.getByTestId("travel-mode-drive")).toHaveAttribute(
         "aria-pressed",

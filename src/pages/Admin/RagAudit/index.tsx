@@ -274,7 +274,7 @@ export default function RagAudit() {
 
 
       <div className="grid gap-5">
-        <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <section className="min-w-0 rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-gray-900">
@@ -391,20 +391,32 @@ export default function RagAudit() {
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[1320px] whitespace-nowrap text-sm">
+            {/*
+              KHÔNG đặt `whitespace-nowrap` lên cả bảng: nhãn dài nhất
+              ("Câu hỏi thường gặp (FAQ)") tự nó bắt cột rộng ~172px, bảy cột
+              cộng lại đội bề rộng tối thiểu lên 1320px — rộng hơn vùng nội dung
+              (~1120px ở desktop 1440) nên bảng luôn phải cuộn ngang. Cho chữ
+              xuống dòng thì 960px là đủ, và `table-fixed` mới làm các `w-[%]`
+              dưới đây có hiệu lực thật (auto layout chỉ coi chúng là gợi ý).
+              Chỉ pill trạng thái và nút mới giữ nowrap riêng.
+            */}
+            <table className="w-full min-w-[960px] table-fixed text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600">
-                  {/* Ghim cột Tiêu đề: bảng min-w-[1320px] rộng hơn vùng nội
-                      dung (~1120px) ngay ở desktop 1440px, nên khi cuộn ngang
-                      người dùng mất luôn cột định danh và không biết đang đọc
-                      dòng của tài liệu nào. */}
-                  <th className="sticky left-0 z-10 w-[24%] bg-gray-50 px-4 py-3">{tc("title")}</th>
-                  <th className="w-[12%] px-4 py-3 text-center">{t("ragAudit.permission")}</th>
-                  <th className="w-[12%] px-4 py-3 text-center">{t("ragAudit.category")}</th>
-                  <th className="w-[11%] px-4 py-3 text-center">{t("ragAudit.documentType")}</th>
+                  {/* Ghim cột Tiêu đề: ở khung hẹp bảng vẫn phải cuộn ngang,
+                      mất cột này thì không biết đang đọc dòng của tài liệu nào. */}
+                  <th className="sticky left-0 z-10 w-[22%] bg-gray-50 px-4 py-3">{tc("title")}</th>
+                  <th className="w-[11%] px-4 py-3 text-center">{t("ragAudit.permission")}</th>
+                  {/* 16% chứ không phải 12%: nhãn Nhóm dài nhất ("Hỗ trợ khách
+                      hàng") đo được 115px, mà 12% của bảng hẹp nhất (960px)
+                      chỉ cho 83px lọt lòng nên nhãn nào cũng bị bẻ hai dòng.
+                      Phần bù lấy từ cột Tiêu đề — ô đó cho chữ xuống dòng nên
+                      hẹp bớt không mất chữ. */}
+                  <th className="w-[16%] px-4 py-3 text-center">{t("ragAudit.category")}</th>
+                  <th className="w-[12%] px-4 py-3 text-center">{t("ragAudit.documentType")}</th>
                   <th className="w-[13%] px-4 py-3 text-center">{t("ragAudit.ingestStatus")}</th>
-                  <th className="w-[11%] px-4 py-3 text-center">{tc("status")}</th>
-                  <th className="w-[11%] px-4 py-3 text-center">{tc("actions")}</th>
+                  <th className="w-[12%] px-4 py-3 text-center">{tc("status")}</th>
+                  <th className="w-[14%] px-4 py-3 text-center">{tc("actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -415,9 +427,17 @@ export default function RagAudit() {
                   >
                     <td className="sticky left-0 z-10 bg-white px-4 py-3 group-hover:bg-gray-50">
                       <div className="flex items-start gap-3">
-                        <FiFileText className="mt-1 text-vr-900" />
-                        <div>
-                          <p className="font-semibold text-gray-900">
+                        <FiFileText className="mt-1 shrink-0 text-vr-900" />
+                        {/* `min-w-0`: flex item mặc định không co nhỏ hơn
+                            min-content, nên thiếu nó thì `[overflow-wrap]` bên
+                            dưới vô dụng — tên file dài đẩy ô Tiêu đề tràn ra
+                            ngoài cột. */}
+                        <div className="min-w-0 flex-1">
+                          {/* Tên file kiểu "Chinh_sach_van_hanh_2026.pdf" là
+                              một chuỗi liền không dấu cách — không có
+                              `[overflow-wrap:anywhere]` thì nó tràn khỏi ô của
+                              `table-fixed`. */}
+                          <p className="font-semibold break-words [overflow-wrap:anywhere] text-gray-900">
                             {document.title}
                           </p>
                         </div>
@@ -440,7 +460,7 @@ export default function RagAudit() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       {document.ingestStatus ? (
-                        <span className={"rounded-full px-2.5 py-1 text-xs font-semibold " + (statusClass[document.ingestStatus] ?? "bg-gray-100 text-gray-600")}>
+                        <span className={"inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold " + (statusClass[document.ingestStatus] ?? "bg-gray-100 text-gray-600")}>
                           {tc("enumLabels." + document.ingestStatus, {
                             defaultValue: document.ingestStatus,
                           })}
@@ -451,7 +471,7 @@ export default function RagAudit() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${
                           statusClass[document.status] ??
                           "bg-gray-100 text-gray-600"
                         }`}
@@ -467,7 +487,7 @@ export default function RagAudit() {
                           type="button"
                           onClick={() => void handleApprove(document)}
                           disabled={approvingId === document.id}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <FiCheckCircle aria-hidden="true" size={14} />
                           {tc("approve")}
@@ -493,7 +513,7 @@ export default function RagAudit() {
           />
         </section>
 
-        <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <section className="min-w-0 rounded-lg border border-gray-200 bg-white p-4">
           <h2 className="text-lg font-bold text-gray-900">
             {t("ragAudit.conversationAudit")}
           </h2>

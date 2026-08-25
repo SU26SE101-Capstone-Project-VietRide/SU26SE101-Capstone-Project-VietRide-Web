@@ -3,9 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  cancelOperatorParcel,
+  confirmOperatorParcelDelivery,
   getOperatorParcel,
   getOperatorParcels,
   resendOperatorParcelDeliveryEmail,
+  reviewOperatorParcel,
   type OperatorParcelDetail,
   type OperatorParcelListItem,
 } from "../../../api/vietride";
@@ -32,6 +35,9 @@ vi.mock("../../../api/vietride", async (importOriginal) => {
     getOperatorParcel: vi.fn(),
     getOperatorParcels: vi.fn(),
     resendOperatorParcelDeliveryEmail: vi.fn(),
+    reviewOperatorParcel: vi.fn(),
+    cancelOperatorParcel: vi.fn(),
+    confirmOperatorParcelDelivery: vi.fn(),
   };
 });
 
@@ -304,6 +310,174 @@ describe("ParcelQueue", () => {
       expect(getOperatorParcels).toHaveBeenLastCalledWith(
         expect.objectContaining({ status: "PENDING_OPERATOR_ACTION" }),
       ),
+    );
+  });
+
+  // Mọi đơn sinh ra ở PENDING_OPERATOR_REVIEW và backend có job tự từ chối khi
+  // quá hạn — không duyệt được từ màn này thì đơn chết dần.
+  describe("đơn chờ duyệt", () => {
+    beforeEach(() => {
+      vi.mocked(getOperatorParcels).mockResolvedValue({
+        items: [{ ...listItem, status: "PENDING_OPERATOR_REVIEW" }],
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
+      vi.mocked(getOperatorParcel).mockResolvedValue({
+        ...detail,
+        status: "PENDING_OPERATOR_REVIEW",
+      });
+      vi.mocked(reviewOperatorParcel).mockResolvedValue({
+        parcelId: "parcel-1",
+        status: "PENDING_PAYMENT",
+      } as Awaited<ReturnType<typeof reviewOperatorParcel>>);
+    });
+
+    it("duyệt đơn không cần lý do", async () => {
+      const user = userEvent.setup();
+      renderQueue();
+
+      const dialog = await openDetail(user);
+      await user.click(
+        await within(dialog).findByRole("button", {
+          name: "parcels.queue.approveButton",
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "confirm" }));
+
+      await waitFor(() =>
+        expect(reviewOperatorParcel).toHaveBeenCalledWith("parcel-1", {
+          decision: "APPROVED",
+        }),
+      );
+    });
+
+    it("không gọi BE khi từ chối mà chưa nhập lý do", async () => {
+      const user = userEvent.setup();
+      renderQueue();
+
+      const dialog = await openDetail(user);
+      await user.click(
+        await within(dialog).findByRole("button", {
+          name: "parcels.queue.rejectButton",
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "confirm" }));
+
+      // Lỗi đi ra toast (đã mock ở file này) chứ không render trong modal, nên
+      // điều đáng kiểm là BE không hề bị gọi.
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", { name: "confirm" }),
+        ).toBeNull(),
+      );
+      expect(reviewOperatorParcel).not.toHaveBeenCalled();
+    });
+
+    it("từ chối kèm lý do gửi đúng body", async () => {
+      const user = userEvent.setup();
+      renderQueue();
+
+      const dialog = await openDetail(user);
+      await user.type(
+        within(dialog).getByLabelText("parcels.queue.reviewReasonLabel"),
+        "Hàng cấm vận chuyển",
+      );
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "parcels.queue.rejectButton",
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "confirm" }));
+
+      await waitFor(() =>
+        expect(reviewOperatorParcel).toHaveBeenCalledWith("parcel-1", {
+          decision: "REJECTED",
+          reason: "Hàng cấm vận chuyển",
+        }),
+      );
+    });
+
+    // Đơn chờ duyệt vẫn còn ở giai đoạn trước khi lên hàng nên huỷ được
+    it("huỷ đơn gửi kèm lựa chọn hoàn tiền", async () => {
+      const user = userEvent.setup();
+      vi.mocked(cancelOperatorParcel).mockResolvedValue({
+        parcelId: "parcel-1",
+        status: "CANCELLED",
+      } as Awaited<ReturnType<typeof cancelOperatorParcel>>);
+      renderQueue();
+
+      const dialog = await openDetail(user);
+      await user.type(
+        within(dialog).getByLabelText("parcels.queue.cancelReasonLabel"),
+        "Khách gọi xin huỷ",
+      );
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "parcels.queue.cancelButton",
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "confirm" }));
+
+      await waitFor(() =>
+        expect(cancelOperatorParcel).toHaveBeenCalledWith("parcel-1", {
+          reason: "Khách gọi xin huỷ",
+          refundChoice: "POLICY_REFUND",
+        }),
+      );
+    });
+  });
+
+  // Hàng đã lên xe thì BE trả 409 chứ không phải lỗi nhập liệu — nút phải ẩn.
+  it("ẩn hộp huỷ đơn khi hàng đã lên xe", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorParcel).mockResolvedValue({
+      ...detail,
+      status: "IN_TRANSIT",
+    });
+    renderQueue();
+
+    const dialog = await openDetail(user);
+    await within(dialog).findByText("parcels.queue.statusHistorySection");
+
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "parcels.queue.cancelButton",
+      }),
+    ).toBeNull();
+  });
+
+  // Phụ xe đóng đơn từ app là đường chính; nút này là đường lùi khi họ không
+  // làm được, nên vẫn phải gửi đúng body cho BE.
+  it("xác nhận giao tay khi người nhận không bấm link email", async () => {
+    const user = userEvent.setup();
+    vi.mocked(confirmOperatorParcelDelivery).mockResolvedValue({
+      parcelId: "parcel-1",
+      status: "DELIVERY_CONFIRMED",
+    } as Awaited<ReturnType<typeof confirmOperatorParcelDelivery>>);
+    renderQueue();
+
+    const dialog = await openDetail(user);
+    await user.type(
+      await within(dialog).findByLabelText(
+        "parcels.queue.confirmDeliveryNoteLabel",
+      ),
+      "Khách ký nhận tại quầy",
+    );
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "parcels.queue.confirmDeliveryButton",
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "confirm" }));
+
+    await waitFor(() =>
+      expect(confirmOperatorParcelDelivery).toHaveBeenCalledWith("parcel-1", {
+        note: "Khách ký nhận tại quầy",
+      }),
     );
   });
 });

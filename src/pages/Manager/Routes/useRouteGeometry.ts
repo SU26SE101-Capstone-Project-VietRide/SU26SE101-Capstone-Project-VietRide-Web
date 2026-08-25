@@ -318,7 +318,7 @@ export function useRouteGeometry({
     return `${selectedRouteId}|${mode}|${coordsKey(viaList)}|${coordsKey(routeWaypoints)}`;
   }
 
-  // Gọi Google theo mode đang chọn. Với TRUCK: bắn thêm 1 request DRIVE cùng bộ
+  // Gọi Directions theo mode đang chọn. Với TRUCK: bắn thêm 1 request DRIVE cùng bộ
   // điểm (song song) để so sánh — TRUCK dài hơn đáng kể ⇒ cảnh báo "detour";
   // TRUCK lỗi/rỗng mà DRIVE có kết quả ⇒ options = null + cảnh báo "unavailable"
   // (không áp đường DRIVE vì mode đang là xe lớn); cả hai cùng lỗi ⇒ throw như cũ.
@@ -329,19 +329,25 @@ export function useRouteGeometry({
     const failMessage = t("routes.routingFailed");
     const baseOpts = buildGeometryOptions(mode, viaList);
 
+    // `alternatives` chỉ bật cho request của MODE ĐANG CHỌN — đó là bộ phương
+    // án người dùng nhìn thấy và bấm chọn trên bản đồ.
     if (mode === "DRIVE") {
       return {
-        options: await requestRoadGeometry(routeWaypoints, failMessage, baseOpts),
+        options: await requestRoadGeometry(routeWaypoints, failMessage, {
+          ...baseOpts,
+          alternatives: true,
+        }),
         warning: "",
       };
     }
 
     // Tạo promise TRUCK trước DRIVE — thứ tự gọi ổn định (test mock theo thứ tự)
-    const truckPromise = requestRoadGeometry(
-      routeWaypoints,
-      failMessage,
-      baseOpts,
-    );
+    const truckPromise = requestRoadGeometry(routeWaypoints, failMessage, {
+      ...baseOpts,
+      alternatives: true,
+    });
+    // Request DRIVE chỉ để so km/phút ra cảnh báo "đường vòng vì xe lớn" —
+    // không hiện cho user chọn nên không xin phương án phụ.
     const drivePromise = requestRoadGeometry(routeWaypoints, failMessage, {
       ...baseOpts,
       travelMode: "DRIVE",

@@ -24,6 +24,7 @@ import {
   createOperatorShuttleTrip,
   getOperatorShuttleRequests,
   getOperatorShuttleTrips,
+  reassignOperatorShuttleTrip,
   getOperatorUsers,
   getOperatorVehicles,
   getShuttleTripEta,
@@ -66,11 +67,15 @@ import AssignVehicleModal, {
 } from "./AssignVehicleModal";
 import CancelShuttleModal from "./CancelShuttleModal";
 import RequestDetailModal from "./RequestDetailModal";
+import ReassignShuttleModal, {
+  type ReassignShuttleForm,
+} from "./ReassignShuttleModal";
 import RequestTable from "./RequestTable";
 import ShuttleTrackingCard from "./ShuttleTrackingCard";
 import ShuttleTripDetailModal from "./ShuttleTripDetailModal";
 import {
   buildInitialSchedule,
+  findNotifiedStop,
   getBookingDistance,
   getOrderedBookingGroups,
   getOrderedSelectedBookingIds,
@@ -157,6 +162,19 @@ export default function DispatchPanel() {
   const [requestFrom, setRequestFrom] = useState("");
   const [requestTo, setRequestTo] = useState("");
   const linkedShuttleTripId = searchParams.get("shuttleTripId");
+  // Thông báo SHUTTLE_* từ 2026-08-22 mang thêm `bookingId`/`pickupOrder` để chỉ
+  // đúng điểm đón đang được nhắc tới. Hai field này là additive — thông báo cũ
+  // và thông báo chung cho nhà xe chỉ có `shuttleTripId`, màn phải chạy được cả
+  // hai trường hợp.
+  const linkedBookingId = searchParams.get("bookingId");
+  const linkedPickupOrderParam = searchParams.get("pickupOrder");
+  const linkedPickupOrder = useMemo(() => {
+    if (!linkedPickupOrderParam) return null;
+    const parsed = Number(linkedPickupOrderParam);
+    // Query string là dữ liệu ngoài: `?pickupOrder=abc` không được thành NaN
+    // rồi đi so sánh với mọi điểm đón.
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [linkedPickupOrderParam]);
   useEffect(() => {
     tRef.current = t;
   }, [t]);
@@ -194,6 +212,20 @@ export default function DispatchPanel() {
   const isCancellingRef = useRef(false);
   const cancelKeyRef = useRef<string | null>(null);
 
+  // Đổi phân công (xe/tài xế) của chuyến đã lên lịch. BE chỉ mở cho
+  // OPERATOR_ADMIN nên dùng chung quyền với việc tạo chuyến.
+  const [reassignTrip, setReassignTrip] =
+    useState<OperatorShuttleTripListItem | null>(null);
+  const [reassignForm, setReassignForm] = useState<ReassignShuttleForm>({
+    vehicleId: "",
+    driverId: "",
+    reason: "",
+  });
+  const [reassignError, setReassignError] = useState("");
+  const [isReassigning, setIsReassigning] = useState(false);
+  const isReassigningRef = useRef(false);
+  const reassignKeyRef = useRef<string | null>(null);
+
   const [openAssignVehicle, setOpenAssignVehicle] = useState(false);
   const [openRequestDetail, setOpenRequestDetail] = useState(false);
   const [selectedGroup, setSelectedGroup] =
@@ -217,6 +249,18 @@ export default function DispatchPanel() {
   const [isLoadingShuttleTrips, setIsLoadingShuttleTrips] = useState(true);
   const [shuttleTripsError, setShuttleTripsError] = useState("");
   const [shuttleTripsVersion, setShuttleTripsVersion] = useState(0);
+  // Trước đây mục theo dõi gọi cứng `page: 1` và không có điều khiển phân trang:
+  // nhà xe có hơn 12 chuyến thì các chuyến còn lại không xem được bằng bất kỳ
+  // thao tác nào. Phân trang + lọc ngày đều là tham số BE đã hỗ trợ sẵn.
+  const [shuttleTripPage, setShuttleTripPage] = useState(1);
+  const [shuttleTripPageMeta, setShuttleTripPageMeta] = useState({
+    totalItems: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+  const [shuttleFrom, setShuttleFrom] = useState("");
+  const [shuttleTo, setShuttleTo] = useState("");
   // Mặc định xem TẤT CẢ trạng thái (không gửi `status` lên BE) rồi mới lọc lại
   // nếu cần. Chuyến đã kết thúc vẫn hiện nhưng không được đăng ký realtime — xem
   // trackableShuttleTripIds.
@@ -641,11 +685,30 @@ export default function DispatchPanel() {
       try {
         // Filter rỗng = xem tất cả → không gửi `status` lên BE.
         const result = await getOperatorShuttleTrips({
-          page: 1,
+          page: shuttleTripPage,
           pageSize: SHUTTLE_TRIP_PAGE_SIZE,
           ...(shuttleStatusFilter ? { status: shuttleStatusFilter } : {}),
+          ...(shuttleFrom ? { from: shuttleFrom } : {}),
+          ...(shuttleTo ? { to: shuttleTo } : {}),
         });
-        if (!ignore) setShuttleTrips(result.items);
+
+        if (ignore) return;
+
+        // Chuyến bị huỷ/đổi trạng thái có thể làm trang cuối biến mất — lùi về
+        // trang cuối theo `totalPages` của BE thay vì hiện lưới rỗng.
+        const lastPage = Math.max(1, result.totalPages);
+        if (shuttleTripPage > lastPage) {
+          setShuttleTripPage(lastPage);
+          return;
+        }
+
+        setShuttleTrips(result.items);
+        setShuttleTripPageMeta({
+          totalItems: result.totalItems,
+          totalPages: result.totalPages,
+          hasNextPage: result.hasNextPage,
+          hasPreviousPage: result.hasPreviousPage,
+        });
       } catch (error) {
         if (!ignore) {
           setShuttleTripsError(
@@ -663,18 +726,49 @@ export default function DispatchPanel() {
     return () => {
       ignore = true;
     };
-  }, [shuttleStatusFilter, shuttleTripsVersion]);
+  }, [
+    shuttleFrom,
+    shuttleStatusFilter,
+    shuttleTo,
+    shuttleTripPage,
+    shuttleTripsVersion,
+  ]);
 
   // Deep-link ?shuttleTripId= — tải sẵn vị trí cho đúng chuyến đó nếu nó nằm
   // trong danh sách đang hiển thị.
+  //
+  // Có kèm `bookingId`/`pickupOrder` thì mở luôn chi tiết chuyến: thông báo lúc
+  // đó đang nói về MỘT điểm đón cụ thể, dừng ở lưới thẻ là bắt điều độ viên tự
+  // đi tìm. Chỉ mở một lần cho mỗi deep-link, nếu không người dùng đóng modal
+  // xong nó lại tự bật lên.
+  const openedDeepLinkRef = useRef("");
   useEffect(() => {
     const shuttleTripId = linkedShuttleTripId?.trim();
     if (!shuttleTripId) return;
-    if (!shuttleTrips.some((trip) => trip.shuttleTripId === shuttleTripId)) {
-      return;
-    }
+
+    const trip = shuttleTrips.find(
+      (item) => item.shuttleTripId === shuttleTripId,
+    );
+    if (!trip) return;
+
     void refreshShuttleTracking(shuttleTripId);
-  }, [linkedShuttleTripId, refreshShuttleTracking, shuttleTrips]);
+
+    const deepLinkKey = `${shuttleTripId}:${linkedBookingId ?? ""}:${linkedPickupOrder ?? ""}`;
+    if (
+      (linkedBookingId || linkedPickupOrder != null) &&
+      openedDeepLinkRef.current !== deepLinkKey
+    ) {
+      openedDeepLinkRef.current = deepLinkKey;
+      void openTripDetail(trip);
+    }
+  }, [
+    linkedBookingId,
+    linkedPickupOrder,
+    linkedShuttleTripId,
+    openTripDetail,
+    refreshShuttleTracking,
+    shuttleTrips,
+  ]);
 
   function openDetail(group: ShuttleRequestGroup) {
     setSelectedGroup(group);
@@ -883,6 +977,9 @@ export default function DispatchPanel() {
       VEHICLE_NOT_FOUND: t("dispatch.vehicleUnavailable", {
         defaultValue: "Xe không còn sẵn sàng để điều phối.",
       }),
+      // Đổi phân công chỉ hợp lệ khi chuyến chưa chạy. Nút đã ẩn theo trạng
+      // thái, nhưng chuyến có thể vừa khởi hành giữa lúc hộp thoại đang mở.
+      SHUTTLE_TRIP_INVALID_STATE: t("dispatch.reassignInvalidState"),
     };
 
     return (error.code && messages[error.code]) || error.message;
@@ -972,11 +1069,18 @@ export default function DispatchPanel() {
 
       // Danh sách chuyến do server giữ — tải lại thay vì tự chèn vào state.
       setShuttleTripsVersion((current) => current + 1);
+      const successMessage = t("dispatch.assignSuccessDetail", {
+        plate: selectedVehicle?.plate ?? "",
+        count: result.assignedPassengerCount,
+      });
+      // `remainingPassengerCount` là số khách của nhóm này VẪN chưa có xe — điều
+      // độ viên phải biết để mở tiếp một chuyến nữa, không thì tưởng đã xong.
       setMessage(
-        t("dispatch.assignSuccessDetail", {
-          plate: selectedVehicle?.plate ?? "",
-          count: result.assignedPassengerCount,
-        }),
+        result.remainingPassengerCount > 0
+          ? `${successMessage} ${t("dispatch.assignRemainingHint", {
+              count: result.remainingPassengerCount,
+            })}`
+          : successMessage,
       );
       setOpenAssignVehicle(false);
       setSelectedGroup(null);
@@ -993,6 +1097,85 @@ export default function DispatchPanel() {
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
+    }
+  }
+
+  function openReassign(trip: OperatorShuttleTripListItem) {
+    if (!canDispatchShuttle) return;
+
+    setReassignTrip(trip);
+    setReassignError("");
+    // Để trống = giữ nguyên. Điền sẵn xe/tài xế hiện tại thì người dùng phải
+    // nhớ cái nào đang là cũ; để trống thì mỗi lựa chọn đều là một thay đổi có
+    // chủ đích.
+    setReassignForm({ vehicleId: "", driverId: "", reason: "" });
+    reassignKeyRef.current = createIdempotencyKey();
+    void loadAssignmentResources();
+  }
+
+  function closeReassign() {
+    if (isReassigningRef.current) return;
+
+    setReassignTrip(null);
+    setReassignError("");
+    reassignKeyRef.current = null;
+  }
+
+  async function handleReassign() {
+    if (!reassignTrip || isReassigningRef.current) return;
+
+    const reason = reassignForm.reason.trim();
+    if (!reason) {
+      setReassignError(t("dispatch.reassignReasonRequired"));
+      return;
+    }
+
+    // Chỉ gửi field thật sự đổi — BE hiểu field vắng mặt là "giữ nguyên".
+    const vehicleId =
+      reassignForm.vehicleId && reassignForm.vehicleId !== reassignTrip.vehicle.id
+        ? reassignForm.vehicleId
+        : undefined;
+    const driverUserId =
+      reassignForm.driverId && reassignForm.driverId !== reassignTrip.driver.id
+        ? reassignForm.driverId
+        : undefined;
+
+    if (!vehicleId && !driverUserId) {
+      setReassignError(t("dispatch.reassignNoChange"));
+      return;
+    }
+
+    const idempotencyKey = reassignKeyRef.current ?? createIdempotencyKey();
+    reassignKeyRef.current = idempotencyKey;
+    isReassigningRef.current = true;
+    setIsReassigning(true);
+    setReassignError("");
+
+    try {
+      await reassignOperatorShuttleTrip(
+        reassignTrip.shuttleTripId,
+        {
+          ...(vehicleId ? { vehicleId } : {}),
+          ...(driverUserId ? { driverUserId } : {}),
+          reason,
+        },
+        idempotencyKey,
+      );
+
+      setMessage(
+        t("dispatch.reassignSuccess", {
+          plate: reassignTrip.vehicle.licensePlate,
+        }),
+      );
+      setReassignTrip(null);
+      reassignKeyRef.current = null;
+      // Danh sách do server giữ — tải lại thay vì tự sửa state.
+      setShuttleTripsVersion((current) => current + 1);
+    } catch (error) {
+      setReassignError(getSubmitError(error));
+    } finally {
+      isReassigningRef.current = false;
+      setIsReassigning(false);
     }
   }
 
@@ -1283,16 +1466,52 @@ export default function DispatchPanel() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {/* `from`/`to` là ngày Asia/Ho_Chi_Minh, `to` tính trọn ngày. */}
+            <div className="w-40">
+              <label className="min-w-0">
+                <span className="sr-only">{t("dispatch.shuttleFromLabel")}</span>
+                <CustomDateTimeInput
+                  type="date"
+                  value={shuttleFrom}
+                  max={shuttleTo || undefined}
+                  placeholder={t("dispatch.shuttleFromLabel")}
+                  onChange={(event) => {
+                    if (shuttleTo && event.target.value > shuttleTo) return;
+                    setShuttleFrom(event.target.value);
+                    setShuttleTripPage(1);
+                  }}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-1 focus:ring-vr-500/35"
+                />
+              </label>
+            </div>
+            <div className="w-40">
+              <label className="min-w-0">
+                <span className="sr-only">{t("dispatch.shuttleToLabel")}</span>
+                <CustomDateTimeInput
+                  type="date"
+                  value={shuttleTo}
+                  min={shuttleFrom || undefined}
+                  placeholder={t("dispatch.shuttleToLabel")}
+                  onChange={(event) => {
+                    if (shuttleFrom && event.target.value < shuttleFrom) return;
+                    setShuttleTo(event.target.value);
+                    setShuttleTripPage(1);
+                  }}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-1 focus:ring-vr-500/35"
+                />
+              </label>
+            </div>
             <div className="w-52">
               <CustomSelect
                 aria-label={t("dispatch.shuttleStatusFilter")}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
                 value={shuttleStatusFilter}
-                onChange={(event) =>
+                onChange={(event) => {
                   setShuttleStatusFilter(
                     event.target.value as ShuttleTripStatusFilter,
-                  )
-                }
+                  );
+                  setShuttleTripPage(1);
+                }}
               >
                 {SHUTTLE_TRIP_STATUS_FILTERS.map((filter) => (
                   <option key={filter.id} value={filter.value}>
@@ -1363,6 +1582,8 @@ export default function DispatchPanel() {
                 void refreshShuttleTracking(shuttleTripId)
               }
               onCancel={openCancelTrip}
+              canReassignShuttle={canDispatchShuttle}
+              onReassign={openReassign}
               onOpenDetail={(selected) => void openTripDetail(selected)}
               directionLabel={directionLabel}
             />
@@ -1381,7 +1602,9 @@ export default function DispatchPanel() {
                   <p className="mt-2 text-sm font-medium text-gray-700">
                     {/* Rỗng vì lọc khác hẳn rỗng vì nhà xe chưa có chuyến nào —
                         nói nhầm là điều độ viên tưởng mất dữ liệu. */}
-                    {shuttleStatusFilter === SHUTTLE_TRIP_ALL_STATUSES
+                    {shuttleStatusFilter === SHUTTLE_TRIP_ALL_STATUSES &&
+                    !shuttleFrom &&
+                    !shuttleTo
                       ? t("dispatch.shuttleTrackingEmpty")
                       : t("dispatch.shuttleTrackingFilteredEmpty")}
                   </p>
@@ -1390,6 +1613,16 @@ export default function DispatchPanel() {
             </div>
           )}
         </div>
+
+        <Pagination
+          page={shuttleTripPage}
+          pageSize={SHUTTLE_TRIP_PAGE_SIZE}
+          totalItems={shuttleTripPageMeta.totalItems}
+          totalPages={shuttleTripPageMeta.totalPages}
+          hasNextPage={shuttleTripPageMeta.hasNextPage}
+          hasPreviousPage={shuttleTripPageMeta.hasPreviousPage}
+          onPageChange={setShuttleTripPage}
+        />
       </section>
 
       <AssignVehicleModal
@@ -1450,6 +1683,35 @@ export default function DispatchPanel() {
         isLoading={isLoadingDetail}
         error={detailError}
         directionLabel={directionLabel}
+        // Chỉ tô sáng khi modal đang mở đúng chuyến của deep-link — người dùng
+        // mở tay một chuyến khác thì không được dính điểm đón của thông báo cũ.
+        highlightedStop={
+          detailTrip && detailTrip.shuttleTripId === linkedShuttleTripId?.trim()
+            ? findNotifiedStop(detailContext?.stops, {
+                bookingId: linkedBookingId,
+                pickupOrder: linkedPickupOrder,
+              })
+            : null
+        }
+      />
+
+      <ReassignShuttleModal
+        open={reassignTrip !== null}
+        trip={reassignTrip}
+        vehicles={vehicles}
+        drivers={drivers}
+        form={reassignForm}
+        onFormChange={(nextForm) => {
+          setReassignError("");
+          setReassignForm(nextForm);
+        }}
+        onClose={closeReassign}
+        onSubmit={() => void handleReassign()}
+        onRefreshResources={() => void loadAssignmentResources(true)}
+        resourceError={resourceError}
+        submitError={reassignError}
+        isLoadingResources={isLoadingResources}
+        isSubmitting={isReassigning}
       />
 
       <CancelShuttleModal

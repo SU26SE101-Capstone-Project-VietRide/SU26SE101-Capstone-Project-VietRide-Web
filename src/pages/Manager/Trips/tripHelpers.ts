@@ -125,6 +125,7 @@ export function toResourceStatus(status?: string): ResourceStatus {
 export function toRouteOption(route: OperatorRoute): RouteOption {
   return {
     id: route.id,
+    code: route.code,
     name: route.name,
     origin: route.originStation?.name ?? route.originStationId,
     destination: route.destinationStation?.name ?? route.destinationStationId,
@@ -232,6 +233,7 @@ export function toTripSchedule(
     dayOfWeek: normalizeDayOfWeek(schedule.dayOfWeek ?? schedule.daysOfWeek),
     status: schedule.isActive || schedule.status === "ACTIVE" ? "open" : status,
     routeName: schedule.route?.name,
+    routeCode: schedule.route?.code,
     vehiclePlate: schedule.vehicle?.licensePlate,
     driverName: schedule.driver?.displayName,
     assistantName: schedule.assistant?.displayName,
@@ -266,6 +268,7 @@ export function toTripScheduleFromApi(
     isOneTime: isOneTimeSchedule(dayOfWeek, validFrom, validUntil),
     status: schedule.isActive ? "open" : "draft",
     routeName: schedule.route?.name,
+    routeCode: schedule.route?.code,
     vehiclePlate: schedule.vehicle?.licensePlate,
     driverName: schedule.driver?.displayName,
     assistantName: schedule.assistant?.displayName,

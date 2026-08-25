@@ -47,6 +47,10 @@ import {
   toStationOption,
   type RouteTab,
 } from "./routeFormUtils";
+import {
+  isValidRouteCode,
+  routeCodePayload,
+} from "../../../utils/businessCode";
 import type { FeedbackScope, StationOption, StopSuggestion } from "./types";
 import { useRouteGeometry } from "./useRouteGeometry";
 import { useAlternativeRouteWorkspace } from "./useAlternativeRouteWorkspace";
@@ -98,6 +102,8 @@ export default function RoutesPage() {
   const [stops, setStops] = useState<OperatorStop[]>([]);
   const [stations, setStations] = useState<StationOption[]>([]);
   const [locations, setLocations] = useState<AdminLocation[]>([]);
+  // Lỗi riêng của ô mã tuyến ở form sửa (409 trùng mã / 422 sai format).
+  const [routeCodeError, setRouteCodeError] = useState("");
   const [routeForm, setRouteForm] =
     useState<OperatorRouteRequest>(emptyRouteForm);
   const [selectedRouteId, setSelectedRouteId] = useState("");
@@ -765,6 +771,9 @@ export default function RoutesPage() {
       (item) => item.routeId === draftRouteId,
     );
     const created = await createOperatorRouteFull({
+      // Bỏ trắng ô mã thì `routeCodePayload` không đính field `code` vào request
+      // — gửi `""` là ý định xoá mã và BE trả 422.
+      ...routeCodePayload(basics.code),
       name: basics.name,
       originStationId: basics.originStationId,
       destinationStationId: basics.destinationStationId,
@@ -926,10 +935,24 @@ export default function RoutesPage() {
     // Chụp seq (không tăng): nếu user chọn tuyến khác trong lúc lưu thì response
     // save không được đè form của tuyến mới — chỉ cập nhật list + báo đã lưu
     const seq = selectRouteSeqRef.current;
+    setRouteCodeError("");
+
+    // Chặn format sai ngay ở FE: BE trả 422 thì cũng chỉ ra đúng thông báo này.
+    if (
+      (routeForm.code ?? "").trim() &&
+      !isValidRouteCode(routeForm.code ?? "")
+    ) {
+      setRouteCodeError(t("routes.routeCodeInvalid"));
+      return;
+    }
+
     setIsSavingRoute(true);
 
     try {
       const saved = await updateOperatorRouteFull(selectedRouteId, {
+        // Ô mã để trống = giữ nguyên mã hiện tại, nên field bị bỏ hẳn khỏi
+        // request. BE không nhận `""`/`null` để xoá mã.
+        ...routeCodePayload(routeForm.code ?? ""),
         name: routeForm.name,
         originStationId: routeForm.originStationId,
         destinationStationId: routeForm.destinationStationId,
@@ -967,6 +990,25 @@ export default function RoutesPage() {
 
       toast.success(t("routes.routeSaved"));
     } catch (err) {
+      // Lỗi của riêng ô mã tuyến: gắn vào field, KHÔNG ném tiếp lên toast chung
+      // vì người dùng cần thấy ô nào sai chứ không phải một banner đỏ ở đầu màn.
+      if (
+        err instanceof ApiRequestError &&
+        err.code === "ROUTE_CODE_DUPLICATED"
+      ) {
+        setRouteCodeError(t("routes.routeCodeDuplicated"));
+        return;
+      }
+
+      const codeFieldError =
+        err instanceof ApiRequestError
+          ? err.fields?.find((field) => field.field === "code")
+          : undefined;
+      if (codeFieldError) {
+        setRouteCodeError(codeFieldError.message || t("routes.routeCodeInvalid"));
+        return;
+      }
+
       // 409 ROUTE_DUPLICATED (vd đổi tên trùng tuyến khác) → giữ banner tại chỗ
       // với nút mở tuyến cũ (toast không hỗ trợ nút hành động); message lỗi vẫn
       // báo qua toast ở catch chung của runAction (xem throw err bên dưới).
@@ -1071,6 +1113,8 @@ export default function RoutesPage() {
                   stations={stations}
                           selectedRouteId={selectedRouteId}
                   routeForm={routeForm}
+            routeCodeError={routeCodeError}
+            onRouteCodeErrorClear={() => setRouteCodeError("")}
                   onUpdateField={updateRoute}
                   routeFeedbackMessage={messageScope === "route" ? message : ""}
                   isAutoCalculatingMetrics={isAutoCalculatingMetrics}

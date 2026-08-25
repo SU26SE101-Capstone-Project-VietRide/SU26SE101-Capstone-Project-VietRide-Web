@@ -25,6 +25,11 @@ import type {
   OperatorRoute,
   RouteManualMetrics,
 } from "../../../api/vietride";
+import {
+  ROUTE_CODE_MAX_LENGTH,
+  isValidRouteCode,
+  normalizeRouteCode,
+} from "../../../utils/businessCode";
 import { distanceKmBetween, requestRoadGeometry } from "./geometry";
 import { encodeGooglePolyline, estimateCoachDurationMinutes } from "./polyline";
 import DurationInput from "./DurationInput";
@@ -33,6 +38,11 @@ import type { StationOption } from "./types";
 import { Button } from "../../../components/ui/Button";
 
 export type CreateRouteBasics = {
+  /**
+   * Mã tuyến nhà xe tự đặt. Giữ nguyên chuỗi người dùng gõ ở state; chuẩn hoá
+   * và quyết định có gửi hay không nằm ở `routeCodePayload` phía caller.
+   */
+  code: string;
   name: string;
   originStationId: string;
   destinationStationId: string;
@@ -66,6 +76,7 @@ type CreateRouteModalProps = {
 };
 
 const emptyBasics: CreateRouteBasics = {
+  code: "",
   name: "",
   originStationId: "",
   destinationStationId: "",
@@ -88,6 +99,9 @@ export default function CreateRouteModal({
   const { t: tc } = useTranslation("common");
   const [basics, setBasics] = useState<CreateRouteBasics>(emptyBasics);
   const [error, setError] = useState("");
+  // Lỗi riêng của ô mã tuyến (409 trùng mã, 422 sai format). Tách khỏi `error`
+  // vì hai lỗi này chỉ về MỘT field và phải hiện ngay dưới ô đó.
+  const [codeError, setCodeError] = useState("");
   const [duplicateRouteId, setDuplicateRouteId] = useState("");
   useToastFeedback({ error });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -258,6 +272,7 @@ export default function CreateRouteModal({
   function resetForm() {
     setBasics(emptyBasics);
     setError("");
+    setCodeError("");
     setComputedMetrics(null);
     setCalculatingPairKey("");
     setFailedPairKey("");
@@ -271,6 +286,15 @@ export default function CreateRouteModal({
 
   async function handleSubmit() {
     setError("");
+    setCodeError("");
+
+    // Chặn ở FE trước khi bắn request: mã sai format thì BE trả 422 và toàn bộ
+    // form phải nhập lại từ đầu nếu modal đóng.
+    if (basics.code.trim() && !isValidRouteCode(basics.code)) {
+      setCodeError(t("routes.routeCodeInvalid"));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -290,6 +314,21 @@ export default function CreateRouteModal({
       resetForm();
       onClose();
     } catch (err) {
+      if (err instanceof ApiRequestError && err.code === "ROUTE_CODE_DUPLICATED") {
+        setCodeError(t("routes.routeCodeDuplicated"));
+        return;
+      }
+
+      // 422 kèm field `code`: gắn thông báo vào đúng ô thay vì banner chung.
+      const codeFieldError =
+        err instanceof ApiRequestError
+          ? err.fields?.find((field) => field.field === "code")
+          : undefined;
+      if (codeFieldError) {
+        setCodeError(codeFieldError.message || t("routes.routeCodeInvalid"));
+        return;
+      }
+
       if (err instanceof ApiRequestError && err.code === "ROUTE_DUPLICATED") {
         setDuplicateRouteId(
           err.fields?.find((field) => field.field === "existingRouteId")?.message ?? "",
@@ -361,6 +400,19 @@ export default function CreateRouteModal({
           </div>
 
           <div className="mt-4 space-y-4">
+            <Input
+              label={t("routes.routeCode")}
+              value={basics.code}
+              onChange={(value) => {
+                setCodeError("");
+                updateBasics("code", value);
+              }}
+              transform={normalizeRouteCode}
+              maxLength={ROUTE_CODE_MAX_LENGTH}
+              placeholder={t("routes.routeCodePlaceholder")}
+              hint={t("routes.routeCodeHint")}
+              error={codeError}
+            />
             <Input
               label={t("routes.routeName")}
               value={basics.name}

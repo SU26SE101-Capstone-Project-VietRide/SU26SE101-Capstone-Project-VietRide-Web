@@ -10,6 +10,7 @@ import {
   type OperatorSubscriptionDetail,
 } from "../api/vietride";
 import type { AuthRole } from "../auth";
+import { isSubscriptionEntitled } from "../utils/subscription";
 import {
   disabledModuleDefaults,
   enabledModuleDefaults,
@@ -22,13 +23,6 @@ type OperatorSubscriptionProviderProps = {
   role: AuthRole;
   children: ReactNode;
 };
-
-function hasActiveEntitlement(subscription: OperatorSubscriptionDetail) {
-  return (
-    subscription.status === "ACTIVE" ||
-    subscription.status === "PENDING_PAYMENT"
-  );
-}
 
 export function OperatorSubscriptionProvider({
   role,
@@ -96,7 +90,7 @@ export function OperatorSubscriptionProvider({
 
   const modules = useMemo(
     () =>
-      subscription && hasActiveEntitlement(subscription)
+      subscription && isSubscriptionEntitled(subscription)
         ? subscription.plan.modules
         : canReadSubscription
           ? disabledModuleDefaults

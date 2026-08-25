@@ -14,12 +14,21 @@ type InputProps = {
   placeholder?: string;
   type?: string;
   disabled?: boolean;
+  /** Gợi ý dưới ô — dùng cho luật nhập liệu, không dùng để báo lỗi. */
+  hint?: string;
+  /** Lỗi của RIÊNG field này. Có lỗi thì `hint` bị thay chứ không hiện cả hai. */
+  error?: string;
+  maxLength?: number;
+  /** Chuẩn hoá giá trị ngay khi gõ (ví dụ mã tuyến luôn viết hoa). */
+  transform?: (value: string) => string;
 };
 
 // <label> bọc control thay vì đứng cạnh: <label> anh em không có htmlFor thì
 // KHÔNG gắn với input nào cả — trình đọc màn hình đọc ra ô trống (axe: label).
-export function Input({ label, value, onChange, placeholder, type = "text", disabled = false }: InputProps) {
-  return <label className="block"><span className={labelClass}>{label}</span><input className={inputClass} value={value} type={type} placeholder={placeholder} disabled={disabled} onChange={(event) => onChange(event.target.value)} /></label>;
+export function Input({ label, value, onChange, placeholder, type = "text", disabled = false, hint, error, maxLength, transform }: InputProps) {
+  // aria-invalid + thông báo lỗi ngay dưới ô: lỗi mã tuyến là lỗi của MỘT field,
+  // đẩy lên toast chung thì người dùng không biết ô nào sai.
+  return <label className="block"><span className={labelClass}>{label}</span><input className={`${inputClass} ${error ? "border-red-400 focus:border-red-500" : ""}`} value={value} type={type} placeholder={placeholder} disabled={disabled} maxLength={maxLength} aria-invalid={error ? true : undefined} onChange={(event) => onChange(transform ? transform(event.target.value) : event.target.value)} />{error ? <span className="mt-1 block text-xs font-medium text-red-600">{error}</span> : hint ? <span className="mt-1 block text-xs text-gray-500">{hint}</span> : null}</label>;
 }
 
 type StationSelectProps = {

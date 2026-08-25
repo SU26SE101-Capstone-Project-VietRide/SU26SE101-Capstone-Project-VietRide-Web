@@ -1,9 +1,12 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiClock,
   FiMap,
   FiMapPin,
   FiNavigation,
+  FiPhone,
+  FiTag,
   FiTruck,
   FiUsers,
   FiXCircle,
@@ -13,16 +16,21 @@ import type {
   ShuttleDirection,
   ShuttleRequestGroup,
 } from "../../../api/vietride";
+import FleetMap from "../../../components/FleetMap";
 import Modal from "../../../components/Modal";
 import { useNowTicker } from "../../../hooks/useNowTicker";
+import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
   bookingPassengerLabel,
+  bookingTicketCount,
   formatDistance,
   formatTime,
   getBookingDistance,
   getOrderedBookingGroups,
   isInboundDirection,
   shuttleRouteLabel,
+  toRequestPickupMarkers,
+  toRequestPickupPoints,
 } from "./dispatchHelpers";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -52,6 +60,17 @@ export default function RequestDetailModal({
   const { t: tc } = useTranslation("common");
   const currentTime = useNowTicker();
   const bookings = group ? getOrderedBookingGroups(group) : [];
+  // Marker/fitPoints phải giữ nguyên identity giữa các lần render, nếu không
+  // mỗi lượt tick của `useNowTicker` là một lần fitBounds thừa kéo khung nhìn về
+  // giữa lúc điều độ viên đang xem.
+  const pickupMarkers = useMemo(
+    () => (group ? toRequestPickupMarkers(group) : []),
+    [group],
+  );
+  const pickupPoints = useMemo(
+    () => (group ? toRequestPickupPoints(group) : []),
+    [group],
+  );
   const cutoffPassed = Boolean(
     group &&
       isInboundDirection(group.direction) &&
@@ -195,6 +214,35 @@ export default function RequestDetailModal({
             </dl>
           </section>
 
+          {/* Bản đồ điểm đón: BE trả sẵn `pickupLat`/`pickupLng` cho từng lượt
+              đặt, trước đây màn chỉ hiện địa chỉ dạng chữ nên điều độ viên phải
+              tự hình dung các điểm nằm ở đâu mới quyết được có gom chung một xe
+              được không. Nhóm yêu cầu chưa có chuyến nên không có xe để bám —
+              bản đồ chỉ vẽ điểm đón. */}
+          {pickupMarkers.length > 0 && (
+            <section aria-labelledby="dispatch-detail-map">
+              <h3
+                id="dispatch-detail-map"
+                className="mb-3 text-sm font-semibold text-gray-900"
+              >
+                {t("dispatch.pickupMapTitle")}
+              </h3>
+              <div className="h-72 overflow-hidden rounded-xl border border-gray-200 sm:h-80">
+                <FleetMap
+                  vehicles={[]}
+                  selectedId={null}
+                  focusCenter={null}
+                  fitPoints={pickupPoints}
+                  routeStops={pickupMarkers}
+                  onMarkerSelect={() => {}}
+                />
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                {t("dispatch.pickupMapHint")}
+              </p>
+            </section>
+          )}
+
           <section
             className="rounded-2xl border border-gray-200 bg-gray-50/70 p-3 sm:p-4"
             aria-labelledby="dispatch-detail-bookings"
@@ -284,6 +332,50 @@ export default function RequestDetailModal({
                         />
                         <span>{booking.pickupAddress}</span>
                       </p>
+                      {/* Danh sách hành khách kèm SĐT: BE trả sẵn trong
+                          `passengers[]`. Đây là chỗ duy nhất điều độ viên lấy
+                          được số để gọi khi tài xế tới nơi mà không thấy
+                          khách — sau khi phân công, lượt đặt rời khỏi hàng đợi
+                          chờ và số này không còn tra được ở đâu. */}
+                      {booking.passengers.length > 0 && (
+                        <ul className="mt-3 space-y-1.5">
+                          {booking.passengers.map((passenger, passengerIndex) => (
+                            <li
+                              key={
+                                passenger.passengerUserId ??
+                                `${booking.bookingId}-${passengerIndex}`
+                              }
+                              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm"
+                            >
+                              <span className="font-semibold text-gray-800">
+                                {passenger.displayName?.trim() ||
+                                  t("dispatch.unknownPassenger")}
+                              </span>
+                              {passenger.phone?.trim() ? (
+                                <a
+                                  href={`tel:${passenger.phone.trim()}`}
+                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-vr-900 hover:underline"
+                                >
+                                  <FiPhone size={13} aria-hidden="true" />
+                                  {formatVietnamPhoneForDisplay(passenger.phone)}
+                                </a>
+                              ) : (
+                                <span className="text-xs text-gray-500">
+                                  {t("dispatch.noPassengerPhone")}
+                                </span>
+                              )}
+                              {passenger.ticketIds.length > 0 && (
+                                <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                                  <FiTag size={12} aria-hidden="true" />
+                                  {t("dispatch.ticketCount", {
+                                    count: passenger.ticketIds.length,
+                                  })}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       <dl className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
                         <div className="rounded-lg border border-gray-100 bg-white px-3 py-2">
                           <dt className="text-gray-500">
@@ -293,6 +385,14 @@ export default function RequestDetailModal({
                           </dt>
                           <dd className="mt-0.5 font-semibold text-gray-800">
                             {booking.passengerCount}
+                          </dd>
+                        </div>
+                        <div className="rounded-lg border border-gray-100 bg-white px-3 py-2">
+                          <dt className="text-gray-500">
+                            {t("dispatch.ticketCountLabel")}
+                          </dt>
+                          <dd className="mt-0.5 font-semibold text-gray-800">
+                            {bookingTicketCount(booking)}
                           </dd>
                         </div>
                         <div className="rounded-lg border border-gray-100 bg-white px-3 py-2">

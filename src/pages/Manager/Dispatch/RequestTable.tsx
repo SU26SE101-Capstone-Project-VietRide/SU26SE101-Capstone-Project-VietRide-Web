@@ -1,12 +1,22 @@
 import { useTranslation } from "react-i18next";
-import { FiClock, FiEye, FiMap, FiMapPin, FiTruck, FiUsers } from "react-icons/fi";
+import {
+  FiClock,
+  FiEye,
+  FiMap,
+  FiMapPin,
+  FiPhone,
+  FiTruck,
+  FiUsers,
+} from "react-icons/fi";
 import type {
   ShuttleDirection,
   ShuttleRequestGroup,
 } from "../../../api/vietride";
 import { useNowTicker } from "../../../hooks/useNowTicker";
+import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
   bookingPassengerLabel,
+  bookingPassengerPhones,
   formatDistance,
   formatTime,
   getBookingDistance,
@@ -194,7 +204,10 @@ export default function RequestTable({
                   </Badge>
                 </div>
                 <ol className="grid gap-2">
-                  {bookings.map((booking, index) => (
+                  {bookings.map((booking, index) => {
+                    const phones = bookingPassengerPhones(booking);
+
+                    return (
                     <li
                       key={booking.bookingId}
                       className="group flex min-w-0 gap-3 rounded-xl border border-gray-200 bg-white p-3 transition hover:border-vr-200 hover:bg-vr-50/30"
@@ -216,6 +229,24 @@ export default function RequestTable({
                               t("dispatch.bookingOrdinal", { index: index + 1 }),
                             )}
                           </p>
+                          {/* SĐT ngay trong hàng đợi: khi tài xế báo không thấy
+                              khách, mở modal chi tiết mới lấy được số là chậm.
+                              Chỉ hiện số đầu tiên cho gọn, phần còn lại nằm ở
+                              modal chi tiết. */}
+                          {phones.length > 0 && (
+                            <a
+                              href={`tel:${phones[0]}`}
+                              className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-vr-900 hover:underline"
+                            >
+                              <FiPhone size={11} aria-hidden="true" />
+                              {formatVietnamPhoneForDisplay(phones[0])}
+                              {phones.length > 1 && (
+                                <span className="text-gray-500">
+                                  +{phones.length - 1}
+                                </span>
+                              )}
+                            </a>
+                          )}
                         </div>
                         <p className="flex min-w-0 items-start gap-1.5 text-sm font-medium text-gray-900">
                           <FiMapPin
@@ -237,7 +268,8 @@ export default function RequestTable({
                         </div>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ol>
               </div>
             </article>

@@ -29,7 +29,10 @@
     "wallet": "Wallet",
     "settings": "Settings",
     "assistant": "Knowledge assistant",
-    "incidents": "Incident reports"
+    "incidents": "Incident reports",
+    "parcelIncidents": "Parcel incidents",
+    "claims": "Compensation claims",
+    "unidentifiedPackages": "Unidentified packages"
   },
   "admin": {
     "dashboard": "Dashboard",
@@ -45,8 +48,7 @@
     "reports": "Reports",
     "ragAudit": "RAG & audit",
     "outboxDlq": "Outbox DLQ",
-    "assistant": "Knowledge assistant",
-    "activityLogs": "Activity logs"
+    "assistant": "Knowledge assistant"
   },
   "layout": {
     "adminDashboard": "Admin dashboard",

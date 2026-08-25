@@ -12,6 +12,7 @@ import {
   getOperatorShuttleContext,
   getOperatorRouteChangeProposals,
   getOperatorTrips,
+  getPublicTripSeatMap,
   getOperatorUsers,
   getOperatorVehicles,
   getPublicTrip,
@@ -89,6 +90,7 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorRouteChangeProposal: vi.fn(),
   getOperatorRouteChangeProposals: vi.fn(),
   getOperatorTrips: vi.fn(),
+  getPublicTripSeatMap: vi.fn(),
   getOperatorUsers: vi.fn(),
   getOperatorVehicles: vi.fn(),
   getPublicTrip: vi.fn(),
@@ -160,6 +162,13 @@ function renderPage(initialEntry = "/manager/operations") {
 describe("Manager Operations Center", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Panel thao tác chuyến tải sơ đồ ghế lúc mount để kiểm xe thay có đủ ghế —
+    // không mock thì effect vỡ và mọi test dùng panel này đỏ theo.
+    vi.mocked(getPublicTripSeatMap).mockResolvedValue({
+      tripId: "trip-1",
+      vehicleType: "SEAT_40",
+      seats: [],
+    });
     trackingSocketHandlers.clear();
     canvasProps.length = 0;
 

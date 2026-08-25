@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -6,8 +6,16 @@ import {
   FiBell,
   FiUser,
   FiLogOut,
+  FiCheckCircle,
   FiRefreshCw,
   FiSend,
+  FiAlertTriangle,
+  FiCreditCard,
+  FiDollarSign,
+  FiNavigation,
+  FiPackage,
+  FiBookOpen,
+  FiTruck,
 } from "react-icons/fi";
 import LanguageSwitcher from "./LanguageSwitcher";
 import OperatorAnnouncementModal from "./OperatorAnnouncementModal";
@@ -18,6 +26,7 @@ import {
   NOTIFICATION_CREATED_EVENT,
   parseNotificationCreatedEvent,
 } from "../lib/notificationSocket";
+import { markAllNotificationsRead } from "../utils/notificationInbox";
 import {
   getNotifications,
   markNotificationRead,
@@ -25,6 +34,11 @@ import {
 } from "../api/vietride";
 import { getNotificationActionPath } from "../utils/notificationActions";
 import { localizeNotificationText } from "../utils/notificationText";
+import {
+  getNotificationVisualGroup,
+  notificationGroupClasses,
+  type NotificationVisualGroup,
+} from "../utils/notificationVisuals";
 
 type TopbarProps = {
   onMenuToggle: () => void;
@@ -33,6 +47,19 @@ type TopbarProps = {
 
 type NotificationRefreshOptions = {
   silent?: boolean;
+};
+
+// Icon theo nhóm thông báo. Khai ngoài component: map này là hằng, dựng lại mỗi
+// lần render chỉ tốn công.
+const notificationGroupIcons: Record<NotificationVisualGroup, ReactNode> = {
+  shuttle: <FiNavigation size={14} />,
+  trip: <FiTruck size={14} />,
+  parcel: <FiPackage size={14} />,
+  booking: <FiBookOpen size={14} />,
+  wallet: <FiDollarSign size={14} />,
+  subscription: <FiCreditCard size={14} />,
+  incident: <FiAlertTriangle size={14} />,
+  general: <FiBell size={14} />,
 };
 
 const NOTIFICATION_PAGE_SIZE = 20;
@@ -52,6 +79,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState("");
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const notificationRefreshInFlightRef = useRef(false);
   // Refetch trùng lúc đang có request bay không bị bỏ hẳn mà xếp lại một lượt:
@@ -229,6 +257,34 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
     }
   }
 
+  // Đọc tất cả: BE chưa có endpoint gộp nên hàm helper tự gom từng cái (xem
+  // utils/notificationInbox.ts). Không cập nhật lạc quan như click từng cái —
+  // N request thì xác suất lẻ tẻ vài cái hỏng là có thật, tải lại mới ra số đúng.
+  async function handleMarkAllRead() {
+    if (isMarkingAllRead || unreadNotifications === 0) return;
+
+    setIsMarkingAllRead(true);
+    setNotificationsError("");
+
+    try {
+      const { failed } = await markAllNotificationsRead();
+      if (failed > 0) {
+        setNotificationsError(
+          t("topbar.markAllReadPartial", { count: failed }),
+        );
+      }
+    } catch (error) {
+      setNotificationsError(
+        error instanceof Error
+          ? error.message
+          : t("topbar.markAllReadFailed"),
+      );
+    } finally {
+      setIsMarkingAllRead(false);
+      await loadNotifications({ silent: true });
+    }
+  }
+
   const handleLogout = async () => {
     await logout();
     setShowProfile(false);
@@ -287,18 +343,36 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
                       })}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    aria-label={t("refresh")}
-                    title={t("refresh")}
-                    disabled={notificationsLoading}
-                    onClick={() => void loadNotifications()}
-                    className="cursor-pointer rounded-lg p-2 text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <FiRefreshCw
-                      className={notificationsLoading ? "animate-spin" : ""}
-                    />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {/* Chỉ hiện khi thật sự có cái chưa đọc — nút không làm gì
+                        vẫn chiếm chỗ và vẫn bị bấm thử. */}
+                    {unreadNotifications > 0 && (
+                      <button
+                        type="button"
+                        data-testid="mark-all-read"
+                        disabled={isMarkingAllRead || notificationsLoading}
+                        onClick={() => void handleMarkAllRead()}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-vr-900 hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <FiCheckCircle size={14} />
+                        {isMarkingAllRead
+                          ? t("topbar.markingAllRead")
+                          : t("topbar.markAllRead")}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={t("refresh")}
+                      title={t("refresh")}
+                      disabled={notificationsLoading || isMarkingAllRead}
+                      onClick={() => void loadNotifications()}
+                      className="cursor-pointer rounded-lg p-2 text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <FiRefreshCw
+                        className={notificationsLoading ? "animate-spin" : ""}
+                      />
+                    </button>
+                  </div>
                 </div>
                 {canSendOperatorNotification && (
                   <div className="border-b border-gray-100 p-2">
@@ -347,6 +421,29 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
                             notification.readAt ? "bg-transparent" : "bg-vr-500"
                           }`}
                         />
+                        {/* Icon theo nhóm: hộp thư trộn ví/chuyến/trung
+                            chuyển/sự cố, không có icon thì phải đọc từng dòng
+                            mới biết cái nào là cái nào. */}
+                        <span
+                          aria-hidden="true"
+                          className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                            notificationGroupClasses[
+                              getNotificationVisualGroup(
+                                notification.notificationType ??
+                                  notification.type,
+                              )
+                            ]
+                          }`}
+                        >
+                          {
+                            notificationGroupIcons[
+                              getNotificationVisualGroup(
+                                notification.notificationType ??
+                                  notification.type,
+                              )
+                            ]
+                          }
+                        </span>
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold text-gray-900">
                             {localizeNotificationText(

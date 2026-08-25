@@ -1,14 +1,15 @@
-// Helper hình học + gọi Google Routes API cho màn Routes
-import { isRecord } from "../../../utils/typeGuards";
+// Helper hình học + gọi Directions API (Goong) cho màn Routes
+import {
+  goongDirections,
+  type GoongDirectionsRequest,
+  type GoongRoute,
+} from "../../../lib/goongApi";
+import { getGoongApiKey } from "../../../lib/goongConfig";
 import {
   decodeGooglePolyline,
-  parseGoogleDurationSeconds,
   projectPointOntoPolyline,
   type RouteCoordinate,
 } from "./polyline";
-
-const googleRoutesEndpoint =
-  "https://routes.googleapis.com/directions/v2:computeRoutes";
 
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
@@ -65,56 +66,48 @@ export function findRouteGeometryWaypointMismatches(
     .filter(({ distanceToPathKm }) => distanceToPathKm > maximumRouteWaypointDistanceKm);
 }
 
-// Một phương án đường Google trả về — points đã decode, số liệu đã quy đổi km/phút
+// Một phương án đường nhà cung cấp trả về — points đã decode, số liệu đã quy
+// đổi km/phút
 export type RoadRouteOption = {
   points: RouteCoordinate[];
   totalDistanceKm: number;
   estimatedDurationMinutes: number;
-  // Mô tả localized của Google (vd "qua QL20") — có thể vắng
+  // Mô tả tuyến (vd "qua QL20") — có thể vắng
   description?: string;
 };
 
-// Tối đa số phương án hiển thị cho user chọn (Google thường trả 1-3)
+// Tối đa số phương án hiển thị cho user chọn (thường trả 1-3)
 const maxRouteOptions = 3;
 
-// Parse một phần tử routes[] của computeRoutes → RoadRouteOption; null nếu thiếu field
-function parseRouteOption(route: unknown): RoadRouteOption | null {
-  if (
-    !isRecord(route) ||
-    typeof route.distanceMeters !== "number" ||
-    typeof route.duration !== "string"
-  ) {
-    return null;
-  }
-
-  const polyline = route.polyline;
-  if (!isRecord(polyline) || typeof polyline.encodedPolyline !== "string") {
-    return null;
-  }
-
-  const durationSeconds = parseGoogleDurationSeconds(route.duration);
-  if (durationSeconds <= 0) {
+// Một phần tử routes[] của Directions → RoadRouteOption; null nếu polyline rỗng
+function parseRouteOption(route: GoongRoute): RoadRouteOption | null {
+  const points = decodeGooglePolyline(route.encodedPolyline);
+  if (points.length < 2) {
     return null;
   }
 
   return {
-    points: decodeGooglePolyline(polyline.encodedPolyline),
+    points,
     totalDistanceKm: Number((route.distanceMeters / 1000).toFixed(1)),
-    estimatedDurationMinutes: Math.max(1, Math.round(durationSeconds / 60)),
-    description:
-      typeof route.description === "string" && route.description.trim()
-        ? route.description.trim()
-        : undefined,
+    estimatedDurationMinutes: Math.max(
+      1,
+      Math.round(route.durationSeconds / 60),
+    ),
+    description: route.summary || undefined,
   };
 }
 
-// Loại phương tiện để Google tính đường: TRUCK (xe khách lớn — mặc định, tránh
-// đường cấm/hạn chế xe lớn) hoặc DRIVE (xe nhỏ <16 chỗ). Đã probe thật: Routes API
-// chấp nhận travelMode "TRUCK" nhưng KHÔNG nhận truckOptions/dimensions — đừng thêm.
+// Loại phương tiện để tính đường: TRUCK (xe khách lớn — mặc định, tránh đường
+// cấm/hạn chế xe lớn) hoặc DRIVE (xe nhỏ <16 chỗ). Quy đổi sang `vehicle` của
+// Goong ngay tại chỗ gọi API.
 export type RouteTravelMode = "DRIVE" | "TRUCK";
 
 // Tùy chọn bổ sung khi tính đường
 export type RoadGeometryOptions = {
+  // Xin NHIỀU phương án cho user chọn (dãy bubble thời lượng trên bản đồ).
+  // Mặc định false: preview lúc kéo nắn và các màn auto-fill chỉ lấy đường tốt
+  // nhất, xin thêm phương án chỉ tổ chậm và tốn quota.
+  alternatives?: boolean;
   // Điểm nắn lộ trình do user kéo/click trên bản đồ — gửi dạng waypoint `via: true`
   // (đi ngang qua, không tính là điểm dừng) như hành vi kéo đường của Google Maps
   intermediates?: RouteCoordinate[];
@@ -157,11 +150,11 @@ export function isTruckDetour(
   );
 }
 
-// Ngưỡng coi 2 phương án là "gần trùng" (Google đôi khi trả 2 đường lệch không
+// Ngưỡng coi 2 phương án là "gần trùng" (đôi khi API trả 2 đường lệch không
 // đáng kể): lệch km dưới 1% và cùng số phút → bỏ bản đứng sau, đỡ chồng bubble
 const duplicateOptionKmRatio = 0.01;
 
-// Lọc phương án gần trùng — giữ bản đứng trước (đề xuất chính của Google)
+// Lọc phương án gần trùng — giữ bản đứng trước (đề xuất chính của API)
 export function dedupeRouteOptions(
   options: RoadRouteOption[],
 ): RoadRouteOption[] {
@@ -213,7 +206,7 @@ export function findMatchingRouteOption(
 }
 
 // Lọc BỎ các phương án trùng ~ đường `path` — dùng khi soạn tuyến thay thế:
-// phương án Google trùng tuyến chính đang hiện hành thì không phải "thay thế".
+// phương án trùng tuyến chính đang hiện hành thì không phải "thay thế".
 // Cùng ngưỡng với findMatchingRouteOption; path chưa đủ 2 điểm → giữ nguyên.
 export function excludeMatchingRouteOptions(
   options: RoadRouteOption[],
@@ -229,12 +222,12 @@ export function excludeMatchingRouteOptions(
 }
 
 // ── Neo nhãn thời lượng của phương án chưa chọn ───────────────────────────
-// Các phương án Google trả về thường TRÙNG tuyến đang chọn gần hết chiều dài,
+// Các phương án trả về thường TRÙNG tuyến đang chọn gần hết chiều dài,
 // chỉ tách ra một đoạn. Đặt bubble theo tỉ lệ chiều dài (40%/55%/70%) thì rơi
 // đúng đoạn trùng → nhìn như đang gắn nhãn cho tuyến chính. Thay vào đó lấy
 // điểm TÁCH XA tuyến đang chọn nhất của chính phương án đó làm neo.
 
-// Số điểm lấy mẫu khi quét phương án (polyline HIGH_QUALITY vài nghìn điểm)
+// Số điểm lấy mẫu khi quét phương án (polyline có thể vài nghìn điểm)
 const labelAnchorSampleCount = 80;
 // Số điểm lấy mẫu của đường tham chiếu khi đo khoảng cách
 const labelAnchorReferenceSampleCount = 400;
@@ -307,66 +300,146 @@ export function findRouteLabelAnchor(
   return (free ?? candidates[0]).point;
 }
 
-// Gọi Google Routes computeRoutes với computeAlternativeRoutes → trả MẢNG phương án
-// (tối đa 3, phần tử đầu là đề xuất chính của Google). Luôn có ít nhất 1 phần tử,
-// ngược lại throw errorMessage. Có opts.intermediates thì Google chỉ trả 1 phương án.
+/**
+ * Gọi Directions Goong → trả MẢNG phương án (tối đa 3, phần tử đầu là đề xuất
+ * chính). Luôn có ít nhất 1 phần tử, ngược lại throw `errorMessage`.
+ * Nhiều hơn 1 phương án chỉ có khi `opts.alternatives` bật.
+ */
+// ── Tự sinh phương án đường thay thế ──────────────────────────────────────
+// Google Routes có `computeAlternativeRoutes` trả sẵn 2-3 corridor khác nhau.
+// Goong KHÔNG có: đã probe thật `alternatives=true` trên HCM–Đà Lạt/Vũng Tàu/
+// Cần Thơ/Nha Trang và HN–Hải Phòng, cả `car` lẫn `truck` — luôn đúng 1 đường
+// (dạng số kiểu OSRM thì Goong trả về không phải JSON).
+//
+// Nên dãy bubble chọn đường được dựng lại bằng cách ÉP đường đi vòng: lấy vài
+// điểm nằm lệch sang hai bên tuyến chính rồi hỏi lại đường qua đó. Kết quả vẫn
+// là đường bộ thật của Goong, chỉ khác corridor. Bản nào trùng tuyến chính hoặc
+// vòng quá đáng thì loại ngay tại đây.
+
+// Vị trí (theo tỉ lệ chiều dài tuyến) đặt điểm thử lệch. Tránh hai đầu vì mọi
+// phương án đều chụm về bến đi/bến đến.
+const detourProbeFractions = [0.35, 0.65];
+// Độ lệch sang bên, tính theo % chiều dài tuyến rồi kẹp trong [5, 30] km:
+// lệch ít quá thì Goong trả lại đúng tuyến chính, nhiều quá thì ra đường vô lý.
+const detourOffsetRatio = 0.08;
+const minDetourOffsetKm = 5;
+const maxDetourOffsetKm = 30;
+// Phương án dài/lâu hơn tuyến chính quá ngưỡng này thì không đáng đề xuất
+const maxDetourDistanceRatio = 1.5;
+const maxDetourDurationRatio = 1.5;
+
+const kmPerLatitudeDegree = 111.32;
+
+/**
+ * Điểm nằm lệch `offsetKm` vuông góc với hướng đi của tuyến tại vị trí
+ * `fraction`. `side` = +1/-1 cho hai bên. Null khi không xác định được hướng.
+ */
+function offsetAcrossPath(
+  path: RouteCoordinate[],
+  fraction: number,
+  offsetKm: number,
+  side: 1 | -1,
+): RouteCoordinate | null {
+  if (path.length < 2) {
+    return null;
+  }
+
+  const index = Math.min(
+    path.length - 1,
+    Math.max(0, Math.round((path.length - 1) * fraction)),
+  );
+  const anchor = path[index];
+  // Lấy hướng trên một đoạn ngắn quanh điểm neo cho đỡ nhiễu bởi khúc cua lẻ
+  const window = Math.max(1, Math.round(path.length * 0.02));
+  const before = path[Math.max(0, index - window)];
+  const after = path[Math.min(path.length - 1, index + window)];
+
+  const latScale = Math.cos(toRadians(anchor.latitude));
+  const eastward = (after.longitude - before.longitude) * latScale;
+  const northward = after.latitude - before.latitude;
+  const length = Math.hypot(eastward, northward);
+  if (length === 0) {
+    return null;
+  }
+
+  // Vector vuông góc (quay 90°) đã chuẩn hoá
+  const perpendicularEast = -northward / length;
+  const perpendicularNorth = eastward / length;
+
+  return {
+    latitude:
+      anchor.latitude +
+      side * perpendicularNorth * (offsetKm / kmPerLatitudeDegree),
+    longitude:
+      anchor.longitude +
+      side *
+        perpendicularEast *
+        (offsetKm / (kmPerLatitudeDegree * (latScale || 1))),
+  };
+}
+
+/** Bộ điểm thử lệch hai bên tuyến chính. */
+function buildDetourProbes(primary: RoadRouteOption): RouteCoordinate[] {
+  const offsetKm = Math.min(
+    maxDetourOffsetKm,
+    Math.max(minDetourOffsetKm, primary.totalDistanceKm * detourOffsetRatio),
+  );
+
+  return detourProbeFractions
+    .flatMap((fraction) =>
+      ([1, -1] as const).map((side) =>
+        offsetAcrossPath(primary.points, fraction, offsetKm, side),
+      ),
+    )
+    .filter((point): point is RouteCoordinate => point !== null);
+}
+
+/** Loại phương án vòng quá đáng so với tuyến chính. */
+function isReasonableDetour(option: RoadRouteOption, primary: RoadRouteOption) {
+  return (
+    option.totalDistanceKm <=
+      primary.totalDistanceKm * maxDetourDistanceRatio &&
+    option.estimatedDurationMinutes <=
+      primary.estimatedDurationMinutes * maxDetourDurationRatio
+  );
+}
+
 export async function requestRoadGeometry(
   points: RouteCoordinate[],
   errorMessage: string,
   opts?: RoadGeometryOptions,
 ): Promise<RoadRouteOption[]> {
-  const apiKey = import.meta.env.VITE_GOOGLE_ROUTES_API_KEY?.trim();
-  if (!apiKey) {
+  if (!getGoongApiKey() || points.length < 2) {
     throw new Error(errorMessage);
   }
 
-  const toWaypoint = (point: RouteCoordinate) => ({
-    location: {
-      latLng: {
-        latitude: point.latitude,
-        longitude: point.longitude,
-      },
-    },
+  const toLatLng = (point: RouteCoordinate) => ({
+    lat: point.latitude,
+    lng: point.longitude,
   });
-  const response = await fetch(googleRoutesEndpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask":
-        "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.description,routes.routeLabels",
-    },
-    body: JSON.stringify({
-      origin: toWaypoint(points[0]),
-      destination: toWaypoint(points[points.length - 1]),
-      // Điểm dừng của tuyến là waypoint thường; điểm nắn lộ trình gắn via:true
-      // (thứ tự: sau các điểm dừng — flow nắn đường thực tế chỉ dùng khi tuyến
-      // chưa có điểm dừng, vì có điểm dừng thì Google không trả alternative)
-      intermediates: [
-        ...points.slice(1, -1).map(toWaypoint),
-        ...(opts?.intermediates ?? []).map((point) => ({
-          ...toWaypoint(point),
-          via: true,
-        })),
-      ],
-      travelMode: opts?.travelMode ?? "TRUCK",
-      routingPreference: "TRAFFIC_AWARE_OPTIMAL",
-      // Google chỉ trả alternative khi KHÔNG có intermediates — có điểm dừng
-      // trung gian thì vẫn nhận về đúng 1 phương án, UI tự ẩn dãy chip
-      computeAlternativeRoutes: true,
-      polylineQuality: "HIGH_QUALITY",
-      polylineEncoding: "ENCODED_POLYLINE",
-      languageCode: "vi",
-      units: "METRIC",
-    }),
-  });
-  const body: unknown = await response.json();
+  const stopWaypoints = points.slice(1, -1).map(toLatLng);
+  const viaWaypoints = (opts?.intermediates ?? []).map(toLatLng);
+  const request: GoongDirectionsRequest = {
+    // Vẫn gửi cờ cho Goong: hiện họ luôn trả 1 đường, nhưng nếu sau này bật thì
+    // ta nhận phương án THẬT và bỏ qua hẳn phần tự sinh bên dưới.
+    alternatives: opts?.alternatives ?? false,
+    destination: toLatLng(points[points.length - 1]),
+    origin: toLatLng(points[0]),
+    vehicle: opts?.travelMode === "DRIVE" ? "car" : "truck",
+    // Điểm dừng của tuyến đứng trước, rồi tới điểm nắn lộ trình — Goong đi
+    // waypoint theo đúng thứ tự mảng (flow nắn đường thực tế chỉ dùng khi
+    // tuyến chưa có điểm dừng nên hai nhóm không chen nhau)
+    waypoints: [...stopWaypoints, ...viaWaypoints],
+  };
 
-  if (!response.ok || !isRecord(body) || !Array.isArray(body.routes)) {
+  let routes: GoongRoute[];
+  try {
+    routes = await goongDirections(request);
+  } catch {
     throw new Error(errorMessage);
   }
 
-  const options = body.routes
+  const options = routes
     .map(parseRouteOption)
     .filter((option): option is RoadRouteOption => option !== null)
     .slice(0, maxRouteOptions);
@@ -375,13 +448,41 @@ export async function requestRoadGeometry(
     throw new Error(errorMessage);
   }
 
-  return options;
+  // Chỉ dựng phương án thay thế cho tuyến TRẦN (chưa có điểm dừng / điểm nắn):
+  // có waypoint rồi thì đường đã bị ghim, ép vòng thêm chỉ ra lộ trình vô nghĩa
+  // — đúng như hồi Google cũng không trả alternative trong trường hợp đó.
+  const wantsAlternatives =
+    (opts?.alternatives ?? false) && stopWaypoints.length === 0 && viaWaypoints.length === 0;
+  if (!wantsAlternatives || options.length >= maxRouteOptions) {
+    return options;
+  }
+
+  const primary = options[0];
+  const detours = await Promise.all(
+    buildDetourProbes(primary).map((probe) =>
+      goongDirections({ ...request, waypoints: [toLatLng(probe)] })
+        .then((detourRoutes) => detourRoutes.map(parseRouteOption))
+        .catch(() => []),
+    ),
+  );
+
+  const candidates = detours
+    .flat()
+    .filter((option): option is RoadRouteOption => option !== null)
+    .filter((option) => isReasonableDetour(option, primary));
+
+  // Bỏ bản trùng tuyến chính, rồi bỏ các bản gần trùng nhau — cùng ngưỡng với
+  // lúc Google trả nhiều phương án nên UI không phải phân biệt nguồn gốc.
+  return dedupeRouteOptions([
+    ...options,
+    ...excludeMatchingRouteOptions(candidates, primary.points),
+  ]).slice(0, maxRouteOptions);
 }
 
 // ---------------------------------------------------------------------------
 // KÉO NẮN: tính lại ĐÚNG CHẶNG đang nắn rồi ghép vào đường thật
 // ---------------------------------------------------------------------------
-// Google Maps không bao giờ vẽ đoạn thẳng trong lúc kéo — đường luôn bám mặt
+// Không được vẽ đoạn thẳng trong lúc kéo — đường luôn phải bám mặt
 // đường, chỉ có chấm trắng chạy theo tay. Muốn vậy thì preview cũng phải là
 // đường bộ thật, nên nó phải VỀ NHANH: thay vì tính lại cả tuyến (origin →
 // mọi điểm dừng → destination) mỗi nhịp kéo, chỉ tính lại chặng giữa hai "mỏ
@@ -461,7 +562,7 @@ export function findPathAnchorWindow(
 }
 
 // Thay đoạn [previousIndex, nextIndex] của `path` bằng hình đường mới `segment`.
-// `segment` do Google trả về khi tính chặng path[previousIndex] → path[nextIndex]
+// `segment` do Directions trả về khi tính chặng path[previousIndex] → path[nextIndex]
 // nên hai đầu đã trùng sẵn — ghép xong đường liền mạch, không có mối nối gãy.
 export function splicePathSegment(
   path: RouteCoordinate[],

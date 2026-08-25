@@ -7,9 +7,10 @@
 // LƯU Ý: operator-context CỐ TÌNH không trả tên/SĐT hành khách (xem comment của
 // OperatorShuttleContext trong api/vietride.ts). Đừng thêm cột hành khách ở đây.
 import { useTranslation } from "react-i18next";
-import { FiMapPin, FiNavigation, FiRefreshCw } from "react-icons/fi";
+import { FiBell, FiMapPin, FiNavigation, FiRefreshCw } from "react-icons/fi";
 import type {
   OperatorShuttleContext,
+  OperatorShuttleTrackingStop,
   OperatorShuttleTripListItem,
   OperatorShuttleTripStatus,
   ShuttleDirection,
@@ -27,6 +28,11 @@ type ShuttleTripDetailModalProps = {
   isLoading: boolean;
   error: string;
   directionLabel: (direction: ShuttleDirection) => string;
+  /**
+   * Điểm đón mà thông báo đang trỏ tới (deep-link có `bookingId`/`pickupOrder`).
+   * `null` = mở bằng tay hoặc thông báo không nói về điểm nào cụ thể.
+   */
+  highlightedStop?: OperatorShuttleTrackingStop | null;
 };
 
 const statusBadgeClass: Record<OperatorShuttleTripStatus, string> = {
@@ -62,6 +68,7 @@ export default function ShuttleTripDetailModal({
   isLoading,
   error,
   directionLabel,
+  highlightedStop = null,
 }: ShuttleTripDetailModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -70,6 +77,12 @@ export default function ShuttleTripDetailModal({
   const stops = [...(context?.stops ?? [])].sort(
     (left, right) => left.pickupOrder - right.pickupOrder,
   );
+
+  // So bằng chính đối tượng điểm đón đã chọn: `pickupOrder` không phải khoá duy
+  // nhất tuyệt đối (điểm bến cũng mang số thứ tự), so bằng tham chiếu thì không
+  // thể tô nhầm sang điểm khác.
+  const isHighlighted = (stop: OperatorShuttleTrackingStop) =>
+    highlightedStop !== null && stop === highlightedStop;
 
   return (
     <Modal
@@ -169,7 +182,11 @@ export default function ShuttleTripDetailModal({
                 {stops.map((stop) => (
                   <li
                     key={`${stop.pickupOrder}-${stop.bookingId ?? "station"}`}
-                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2.5"
+                    className={`flex flex-wrap items-start justify-between gap-3 rounded-lg border px-3 py-2.5 ${
+                      isHighlighted(stop)
+                        ? "border-vr-300 bg-vr-50 ring-2 ring-vr-100"
+                        : "border-gray-100 bg-gray-50/70"
+                    }`}
                   >
                     <div className="flex min-w-0 gap-3">
                       <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-vr-900 ring-1 ring-vr-100">
@@ -195,6 +212,14 @@ export default function ShuttleTripDetailModal({
                         {stop.roadDistanceMeters !== undefined && (
                           <p className="mt-0.5 text-xs text-gray-500">
                             {formatDistance(stop.roadDistanceMeters)}
+                          </p>
+                        )}
+                        {/* Nói rõ VÌ SAO điểm này được tô sáng — nếu không, một
+                            ô màu khác lạ giữa danh sách chỉ gây hoang mang. */}
+                        {isHighlighted(stop) && (
+                          <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-vr-100 px-2 py-0.5 text-xs font-semibold text-vr-900">
+                            <FiBell size={11} aria-hidden="true" />
+                            {t("dispatch.notifiedStopBadge")}
                           </p>
                         )}
                       </div>

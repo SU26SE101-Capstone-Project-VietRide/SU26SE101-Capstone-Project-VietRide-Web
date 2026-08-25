@@ -583,4 +583,73 @@ describe("Topbar dropdowns", () => {
       "/manager/bookings?bookingId=booking-legacy",
     );
   });
+  it("hides the mark-all button when nothing is unread", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/admin/dashboard"]}>
+        <Topbar onMenuToggle={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getNotifications).toHaveBeenCalled());
+    await user.click(screen.getByRole("button", { name: "notifications" }));
+
+    // Nút không làm gì vẫn chiếm chỗ và vẫn bị bấm thử
+    expect(screen.queryByTestId("mark-all-read")).not.toBeInTheDocument();
+  });
+
+  it("marks every unread notification and refreshes the badge", async () => {
+    const user = userEvent.setup();
+    // BE chưa có endpoint đọc-tất-cả nên FE gom từng cái: một lượt lấy danh
+    // sách chưa đọc rồi bắn markNotificationRead cho từng id.
+    let unreadRemaining = 2;
+    vi.mocked(getNotifications).mockImplementation(async (params) => {
+      const unreadIds = ["n1", "n2"].slice(0, unreadRemaining);
+      const items =
+        params?.unreadOnly === true
+          ? unreadIds.map((id) => ({
+              id,
+              type: "PARCEL",
+              title: id,
+              body: "b",
+              data: null,
+              readAt: null,
+              createdAt: "2026-08-22T10:00:00Z",
+            }))
+          : [];
+
+      return {
+        items,
+        page: 1,
+        pageSize: params?.pageSize ?? 20,
+        totalItems: params?.unreadOnly === true ? unreadRemaining : 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    });
+    vi.mocked(markNotificationRead).mockImplementation(async () => {
+      unreadRemaining = 0;
+      return null;
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/dashboard"]}>
+        <Topbar onMenuToggle={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(getNotifications).toHaveBeenCalled());
+    await user.click(screen.getByRole("button", { name: "notifications" }));
+    await user.click(await screen.findByTestId("mark-all-read"));
+
+    await waitFor(() =>
+      expect(markNotificationRead).toHaveBeenCalledWith("n1"),
+    );
+    expect(markNotificationRead).toHaveBeenCalledWith("n2");
+    // Hết chưa đọc thì nút tự biến mất sau lượt tải lại
+    await waitFor(() =>
+      expect(screen.queryByTestId("mark-all-read")).not.toBeInTheDocument(),
+    );
+  });
 });

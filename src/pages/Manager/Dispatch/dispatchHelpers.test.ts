@@ -2,13 +2,20 @@ import { describe, expect, it } from "vitest";
 import type {
   OperatorShuttleContext,
   OperatorShuttleTripListItem,
+  ShuttleBookingGroup,
+  ShuttleRequestGroup,
 } from "../../../api/vietride";
 import {
   SHUTTLE_SIGNAL_TTL_MS,
+  bookingPassengerPhones,
+  bookingTicketCount,
+  findNotifiedStop,
   findStopByPickupOrder,
+  isStaleSignal,
   nextPickupLabel,
   pickNewerEta,
   pickNewerLatest,
+  toRequestPickupMarkers,
   toShuttleMapPoint,
 } from "./dispatchHelpers";
 import { toShuttleRouteMarkers } from "../../../components/fleetMapPoint";
@@ -272,5 +279,176 @@ describe("operator shuttle context", () => {
 
   it("không có context thì không vẽ marker nào", () => {
     expect(toShuttleRouteMarkers(null, "Bến xe")).toEqual([]);
+  });
+});
+
+describe("isStaleSignal", () => {
+  it("chỉ báo cũ khi điểm GPS vượt TTL của BE", () => {
+    expect(isStaleSignal(latestAt(SHUTTLE_SIGNAL_TTL_MS - 1_000), now)).toBe(
+      false,
+    );
+    expect(isStaleSignal(latestAt(SHUTTLE_SIGNAL_TTL_MS + 1_000), now)).toBe(
+      true,
+    );
+  });
+
+  it("không có điểm hoặc mốc thời gian hỏng thì không báo mất tín hiệu", () => {
+    expect(isStaleSignal(null, now)).toBe(false);
+    expect(isStaleSignal(undefined, now)).toBe(false);
+    // Báo "mất tín hiệu" cho một chuyến vừa gửi dữ liệu còn tệ hơn im lặng.
+    expect(
+      isStaleSignal({ ...latestAt(0), recordedAt: "không-phải-ngày" }, now),
+    ).toBe(false);
+  });
+});
+
+function bookingWith(
+  passengers: ShuttleBookingGroup["passengers"],
+): ShuttleBookingGroup {
+  return {
+    bookingId: "36000000-0000-4000-8000-000000000301",
+    passengerCount: passengers.length,
+    pickupAddress: "123 Nguyễn Huệ, Quận 1",
+    pickupLat: 10.7731,
+    pickupLng: 106.7032,
+    distanceToStationMeters: 9500,
+    roadDistanceMeters: 9500,
+    requestedAt: "2026-08-11T16:30:00+07:00",
+    passengers,
+  };
+}
+
+describe("bookingPassengerPhones", () => {
+  it("bỏ số trùng và số rỗng", () => {
+    const booking = bookingWith([
+      {
+        passengerUserId: "u1",
+        displayName: "A",
+        phone: "0900000000",
+        ticketIds: ["t1"],
+      },
+      {
+        passengerUserId: "u2",
+        displayName: "B",
+        // Cả nhà đi chung thường đăng ký cùng một số — hiện hai lần là thừa.
+        phone: " 0900000000 ",
+        ticketIds: ["t2"],
+      },
+      {
+        passengerUserId: "u3",
+        displayName: "C",
+        phone: null,
+        ticketIds: ["t3"],
+      },
+    ]);
+
+    expect(bookingPassengerPhones(booking)).toEqual(["0900000000"]);
+  });
+});
+
+describe("bookingTicketCount", () => {
+  it("gộp vé của mọi hành khách trong lượt đặt và bỏ trùng", () => {
+    const booking = bookingWith([
+      {
+        passengerUserId: "u1",
+        displayName: "A",
+        phone: "0900000000",
+        ticketIds: ["t1", "t2"],
+      },
+      {
+        passengerUserId: "u2",
+        displayName: "B",
+        phone: "0900000001",
+        ticketIds: ["t2", "t3"],
+      },
+    ]);
+
+    expect(bookingTicketCount(booking)).toBe(3);
+  });
+});
+
+describe("toRequestPickupMarkers", () => {
+  const requestGroup: ShuttleRequestGroup = {
+    mainTripId: "36000000-0000-4000-8000-000000000101",
+    routeName: "Sài Gòn - Đà Lạt",
+    direction: "INBOUND_TO_STATION",
+    departureDateTime: "2026-08-12T23:00:00+07:00",
+    hardCutoffAt: "2026-08-12T22:30:00+07:00",
+    stationId: "36000000-0000-4000-8000-000000000201",
+    stationName: "Bến xe Miền Đông",
+    pendingPassengerCount: 3,
+    bookingGroups: [
+      { ...bookingWith([]), bookingId: "booking-b", pickupLat: 10.8, pickupLng: 106.7 },
+      { ...bookingWith([]), bookingId: "booking-a", pickupLat: 10.7, pickupLng: 106.6 },
+    ],
+    suggestedBookingOrder: ["booking-a", "booking-b"],
+  };
+
+  it("đánh số marker theo thứ tự đề xuất, không theo thứ tự mảng BE trả", () => {
+    const markers = toRequestPickupMarkers(requestGroup);
+
+    expect(markers.map((marker) => marker.id)).toEqual([
+      "pickup:booking-a",
+      "pickup:booking-b",
+    ]);
+    expect(markers.map((marker) => marker.orderIndex)).toEqual([1, 2]);
+    expect(markers[0].position).toEqual({ lat: 10.7, lng: 106.6 });
+    // Nhóm chờ chưa có chuyến nên chưa điểm nào được đi qua.
+    expect(markers.every((marker) => marker.passed === undefined)).toBe(true);
+  });
+});
+
+describe("findNotifiedStop", () => {
+  const stops = [
+    {
+      pickupOrder: 1,
+      bookingId: "booking-a",
+      latitude: 10.7,
+      longitude: 106.6,
+      status: "PENDING",
+      isStation: false,
+    },
+    {
+      pickupOrder: 2,
+      bookingId: "booking-b",
+      latitude: 10.75,
+      longitude: 106.65,
+      status: "PENDING",
+      isStation: false,
+    },
+    {
+      pickupOrder: 3,
+      bookingId: null,
+      latitude: 10.8,
+      longitude: 106.7,
+      status: "PENDING",
+      isStation: true,
+    },
+  ];
+
+  it("ưu tiên khớp cả bookingId lẫn pickupOrder", () => {
+    expect(
+      findNotifiedStop(stops, { bookingId: "booking-b", pickupOrder: 2 }),
+    ).toBe(stops[1]);
+  });
+
+  it("lệch pickupOrder thì vẫn bám theo bookingId", () => {
+    // Điểm bị dời thứ tự sau khi điều phối lại — bookingId mới là thứ ổn định
+    expect(
+      findNotifiedStop(stops, { bookingId: "booking-a", pickupOrder: 99 }),
+    ).toBe(stops[0]);
+  });
+
+  it("thông báo chỉ có pickupOrder thì khớp theo số thứ tự", () => {
+    expect(findNotifiedStop(stops, { pickupOrder: 3 })).toBe(stops[2]);
+  });
+
+  it("không có gì để khớp thì KHÔNG tô sáng bừa một điểm", () => {
+    // Khác app hành khách (lùi về phần tử đầu): console nhà xe nhìn cả chuyến,
+    // tô nhầm điểm của khách khác còn tệ hơn là không tô.
+    expect(findNotifiedStop(stops, {})).toBeNull();
+    expect(findNotifiedStop(stops, { bookingId: "booking-x" })).toBeNull();
+    expect(findNotifiedStop([], { bookingId: "booking-a" })).toBeNull();
+    expect(findNotifiedStop(undefined, { pickupOrder: 1 })).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import type {
   AdminUserRole,
   OperatorShuttleContext,
+  OperatorShuttleTrackingStop,
   OperatorShuttleTripListItem,
   OperatorShuttleTripStatus,
   OperatorUser,
@@ -14,7 +15,9 @@ import type {
 import {
   getFleetStatus,
   type FleetVehicleMapPoint,
+  type TripRouteMarker,
 } from "../../../components/fleetMapPoint";
+import type { GoogleMapCoordinate } from "../../../lib/googleMaps";
 
 export type ShuttleVehicle = {
   id: string;
@@ -63,6 +66,49 @@ export function findStopByPickupOrder(
   return (
     context.stops.find((stop) => stop.pickupOrder === pickupOrder) ?? null
   );
+}
+
+/**
+ * Chọn điểm đón mà một thông báo trỏ tới.
+ *
+ * Thứ tự ưu tiên do BE quy định (FE-RESPONSE-shuttle-dispatch-notifications
+ * 2026-08-22): khớp cả `bookingId` + `pickupOrder` → chỉ `bookingId` → chỉ
+ * `pickupOrder` → không chọn gì.
+ *
+ * Khác bản mẫu trong tài liệu ở một điểm: tài liệu lùi cuối cùng về
+ * `ownPickups[0]` vì app hành khách luôn phải hiện MỘT điểm của chính họ. Console
+ * nhà xe thì nhìn cả chuyến, nên không có điểm nào khớp thì KHÔNG tô sáng bừa —
+ * tô nhầm một điểm của khách khác còn tệ hơn là không tô.
+ */
+export function findNotifiedStop(
+  stops: OperatorShuttleTrackingStop[] | undefined,
+  target: { bookingId?: string | null; pickupOrder?: number | null },
+) {
+  if (!stops || stops.length === 0) return null;
+
+  const { bookingId, pickupOrder } = target;
+  if (!bookingId && pickupOrder == null) return null;
+
+  const exact =
+    bookingId && pickupOrder != null
+      ? stops.find(
+          (stop) =>
+            stop.bookingId === bookingId && stop.pickupOrder === pickupOrder,
+        )
+      : undefined;
+  if (exact) return exact;
+
+  const byBooking = bookingId
+    ? stops.find((stop) => stop.bookingId === bookingId)
+    : undefined;
+  if (byBooking) return byBooking;
+
+  const byOrder =
+    pickupOrder == null
+      ? undefined
+      : stops.find((stop) => stop.pickupOrder === pickupOrder);
+
+  return byOrder ?? null;
 }
 
 /**
@@ -188,6 +234,79 @@ export function bookingPassengerLabel(
 }
 
 /**
+ * SĐT liên hệ của một lượt đặt, đã bỏ trùng và bỏ rỗng.
+ *
+ * Điều độ viên cần gọi khách khi tài xế tới nơi mà không thấy người — số này BE
+ * đã trả sẵn trong `passengers[]`, trước đây màn chỉ lấy mỗi `displayName`.
+ * Nhiều hành khách chung một lượt đặt có thể dùng chung một số nên phải lọc
+ * trùng, không thì danh sách hiện cùng một số hai lần.
+ */
+export function bookingPassengerPhones(booking: ShuttleBookingGroup) {
+  const phones = booking.passengers
+    .map((passenger) => passenger.phone?.trim())
+    .filter((phone): phone is string => Boolean(phone));
+
+  return [...new Set(phones)];
+}
+
+/**
+ * Tổng số vé của một lượt đặt. `ticketIds` gộp từ mọi hành khách trong lượt và
+ * bỏ trùng — BE gom theo hành khách nên một vé không xuất hiện hai lần, nhưng
+ * đây là dữ liệu tổng hợp qua Identity nên không dựa vào giả định đó.
+ */
+export function bookingTicketCount(booking: ShuttleBookingGroup) {
+  return new Set(booking.passengers.flatMap((passenger) => passenger.ticketIds))
+    .size;
+}
+
+/**
+ * Điểm GPS đã quá TTL Redis của BE (`SHUTTLE_LATEST_TTL_SECONDS`) — số liệu
+ * đang hiện chỉ là bản socket đẩy về trước đây, không còn phản ánh vị trí thật.
+ *
+ * Mốc thời gian hỏng thì KHÔNG coi là cũ: `NaN` so sánh nào cũng false, báo
+ * "mất tín hiệu" cho một chuyến vừa gửi dữ liệu còn tệ hơn là im lặng.
+ */
+export function isStaleSignal(
+  latest: ShuttleTrackingLatest | null | undefined,
+  now = Date.now(),
+) {
+  if (!latest) return false;
+
+  const recordedAt = new Date(latest.recordedAt).getTime();
+  return Number.isFinite(recordedAt) && now - recordedAt > SHUTTLE_SIGNAL_TTL_MS;
+}
+
+/**
+ * Marker điểm đón của một nhóm yêu cầu CHỜ điều phối, theo thứ tự đề xuất.
+ *
+ * Khác `toShuttleRouteMarkers` (dựng từ `operator-context` của chuyến ĐÃ tạo):
+ * ở đây chưa có chuyến, chưa có bến trong payload — `ShuttleRequestTripGroup`
+ * chỉ có `stationId`/`stationName`, không có toạ độ bến — nên bản đồ chỉ vẽ
+ * điểm đón. Không điểm nào `passed`: chưa có xe nào chạy.
+ */
+export function toRequestPickupMarkers(
+  group: ShuttleRequestGroup,
+): TripRouteMarker[] {
+  return getOrderedBookingGroups(group).map((booking, index) => ({
+    id: `pickup:${booking.bookingId}`,
+    kind: "stop",
+    name: booking.pickupAddress,
+    orderIndex: index + 1,
+    position: { lat: booking.pickupLat, lng: booking.pickupLng },
+  }));
+}
+
+/** Toạ độ để khung nhìn bao trọn mọi điểm đón của nhóm yêu cầu. */
+export function toRequestPickupPoints(
+  group: ShuttleRequestGroup,
+): GoogleMapCoordinate[] {
+  return group.bookingGroups.map((booking) => ({
+    lat: booking.pickupLat,
+    lng: booking.pickupLng,
+  }));
+}
+
+/**
  * BE giữ điểm GPS shuttle mới nhất trong Redis 300s (`SHUTTLE_LATEST_TTL_SECONDS`).
  * Quá ngưỡng đó thì điểm đang hiện chỉ là bản socket đẩy về trước đây, không còn
  * phản ánh vị trí thật — đánh dấu "lost" thay vì để marker đứng yên như xe đang
@@ -212,9 +331,7 @@ export function toShuttleMapPoint(
   const latest = tracking?.latest;
   if (!latest) return null;
 
-  const recordedAt = new Date(latest.recordedAt).getTime();
-  const isStale =
-    Number.isFinite(recordedAt) && now - recordedAt > SHUTTLE_SIGNAL_TTL_MS;
+  const isStale = isStaleSignal(latest, now);
 
   return {
     id: trip.shuttleTripId,
@@ -244,6 +361,27 @@ export function formatTime(value?: string) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Chỉ giờ:phút. Dùng cho vế thứ hai của một cặp mốc cùng ngày (giờ kết thúc,
+ * giờ đến dự kiến) — lặp lại nguyên ngày/tháng/năm ở đó chỉ làm loãng thông tin
+ * cần đọc nhanh.
+ */
+export function formatClock(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleTimeString("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
   });

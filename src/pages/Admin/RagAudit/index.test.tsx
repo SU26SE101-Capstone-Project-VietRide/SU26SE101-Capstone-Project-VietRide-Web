@@ -62,6 +62,67 @@ function documentPage(items: RagDocument[]) {
   };
 }
 
+describe("bảng tài liệu không được đội bề rộng ra ngoài khung", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getRagDocuments).mockResolvedValue(documentPage([pendingDocument]));
+    vi.mocked(getRagFeedback).mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      totalItems: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+  });
+
+  // Ba thứ này cùng nhau mới giữ được bảng trong khung; thiếu một là cả TRANG
+  // cuộn ngang chứ không phải mỗi bảng:
+  //  - `min-w-0` trên section: section là grid item, mặc định không co nhỏ hơn
+  //    min-content nên bảng nong luôn cả section, `overflow-x-auto` thành vô nghĩa.
+  //  - không `whitespace-nowrap` cấp bảng: nhãn dài nhất ("Câu hỏi thường gặp
+  //    (FAQ)") tự bắt cột rộng ra, bảy cột cộng lại thành 1320px.
+  //  - `table-fixed`: thiếu nó thì các `w-[%]` chỉ là gợi ý, auto layout vẫn
+  //    giãn cột theo nội dung.
+  it("giữ section co được, bảng table-fixed và cột cộng đúng 100%", async () => {
+    render(<RagAudit />);
+
+    const title = await screen.findByText("Quy trình huỷ vé");
+    const table = title.closest("table");
+    if (!table) throw new Error("Không tìm thấy bảng tài liệu");
+
+    expect(table.closest("section")).toHaveClass("min-w-0");
+    expect(table).toHaveClass("table-fixed", "min-w-[960px]");
+    expect(table.className).not.toContain("whitespace-nowrap");
+
+    const total = [...table.querySelectorAll("th")]
+      .map((th) => Number(/w-\[(\d+)%\]/.exec(th.className)?.[1] ?? 0))
+      .reduce((sum, width) => sum + width, 0);
+    expect(total).toBe(100);
+  });
+});
+
+describe("nút Làm mới", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getRagDocuments).mockRejectedValue(new Error("401 Unauthorized"));
+    vi.mocked(getRagFeedback).mockRejectedValue(new Error("401 Unauthorized"));
+  });
+
+  // `loadData` là `Promise.all` của hai loader; chỉ cần một loader để lọt lỗi
+  // ra ngoài `catch` của nó là `finally` của nút không chạy và nút khoá vĩnh
+  // viễn — người dùng hết đường tải lại, phải F5.
+  it("bật lại sau khi cả hai API lỗi", async () => {
+    const user = userEvent.setup();
+    render(<RagAudit />);
+
+    const refresh = await screen.findByRole("button", { name: /refresh/i });
+    await user.click(refresh);
+    await waitFor(() => expect(refresh).not.toBeDisabled());
+  });
+});
+
 describe("RAG audit feedback pagination", () => {
   beforeEach(() => {
     vi.clearAllMocks();

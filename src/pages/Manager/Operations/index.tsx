@@ -28,6 +28,7 @@ import {
   type OperatorShuttleContext,
   type OperatorShuttleTripListItem,
   type OperatorTripListItem,
+  type TripOperationResult,
   type OperatorUser,
   type OperatorVehicle,
   type PublicTrip,
@@ -57,6 +58,7 @@ import { StatCard } from "../../../components/StatCard";
 import FleetVehicleList from "./FleetVehicleList";
 import ProposalsPanel from "./ProposalsPanel";
 import ShuttleVehiclePanel from "./ShuttleVehiclePanel";
+import { SubstitutionResultCard } from "./SubstitutionResultCard";
 import TripActionsPanel, {
   type TripActionsContext,
 } from "./TripActionsPanel";
@@ -101,11 +103,16 @@ const FOLLOW_VEHICLE_ZOOM = 14;
 // thừa, kéo camera ra khỏi chỗ người dùng đang xem
 const emptyFitPoints: GoogleMapCoordinate[] = [];
 
-// Nhãn hiển thị chuyến trong header panel theo dõi
+// Nhãn hiển thị chuyến trong header panel theo dõi.
+//
+// Mã chuyến đứng đầu: trung tâm vận hành gọi bộ đàm / gọi CSKH theo mã, còn
+// tên tuyến thì hai chuyến cùng tuyến khác giờ đọc lên y như nhau. Chuyến
+// legacy chưa có mã thì bỏ hẳn phần mã chứ không chèn "-" vào giữa nhãn.
 function tripLabel(trip: OperatorTripListItem): string {
   const routeName =
     trip.route.name || `${trip.route.originName} - ${trip.route.destinationName}`;
-  return `${routeName} · ${trip.vehicle.licensePlate}`;
+  const parts = [trip.tripCode?.trim(), routeName, trip.vehicle.licensePlate];
+  return parts.filter(Boolean).join(" · ");
 }
 
 export default function OperationsPage() {
@@ -134,6 +141,9 @@ export default function OperationsPage() {
   const [mapReady, setMapReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
   const [tripOptions, setTripOptions] = useState<OperatorTripListItem[]>([]);
+  // Kết quả thay xe gần nhất — xem ghi chú tại chỗ render.
+  const [substitutionResult, setSubstitutionResult] =
+    useState<TripOperationResult | null>(null);
   const [fleetVehicles, setFleetVehicles] = useState<FleetVehicleMapPoint[]>([]);
   // Kết quả tải lộ trình luôn mang theo chuyến + lượt tải mà nó thuộc về, nên
   // response của chuyến trước không thể bị hiểu nhầm là lộ trình của chuyến
@@ -1112,6 +1122,13 @@ export default function OperationsPage() {
               onLoadTracking={() => void loadTripTracking()}
               onDeselect={() => selectTrip(null)}
             />
+            {/* Kết quả thay xe sống ở TRANG, không ở panel: panel remount theo
+                `key={selectedTripId}` ngay khi ta chuyển sang chuyến thay thế
+                bên dưới, nên state trong nó biến mất đúng lúc nhà xe cần đọc
+                xem có bao nhiêu khách chưa có ghế. */}
+            {substitutionResult && (
+              <SubstitutionResultCard result={substitutionResult} t={t} />
+            )}
             <TripActionsPanel
               // key theo tripId: đổi chuyến thì remount, xoá sạch form/kết quả của chuyến trước
               key={selectedTripId}
@@ -1120,6 +1137,7 @@ export default function OperationsPage() {
               vehicles={operatorVehicles}
               staff={operatorStaff}
               canMutate={canMutate}
+              onSubstituted={setSubstitutionResult}
               onTripReplaced={(newTripId) => {
                 // Chuyển selection + URL sang chuyến mới, rồi tải lại fleet để list có chuyến đó.
                 // Đổi lộ trình giữ nguyên tripId — selectTrip vẫn tải lại geometry lộ trình mới.
