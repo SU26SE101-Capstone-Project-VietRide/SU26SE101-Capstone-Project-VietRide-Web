@@ -64,9 +64,9 @@ describe("ToastProvider", () => {
     expect(screen.queryByTestId("toast")).not.toBeInTheDocument();
   });
 
-  // 3s không đủ để đọc xong một thông báo lỗi, và khi nó tắt thì màn hình chỉ
-  // còn dữ liệu cũ — không còn dấu vết nào cho biết thao tác vừa rồi đã hỏng.
-  it("keeps an error toast on screen until the user closes it", () => {
+  // 3s không đủ để đọc xong một thông báo lỗi nên lỗi ở lại lâu gấp đôi, nhưng
+  // vẫn tự tắt để không đọng toast lỗi cũ trên màn hình.
+  it("auto-dismisses an error toast after 6s, not 3s", () => {
     render(
       <ToastProvider>
         <ToastTrigger />
@@ -76,13 +76,57 @@ describe("ToastProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "fire-error" }));
     expect(screen.getByTestId("toast")).toBeInTheDocument();
 
-    // Quá xa mốc 3s của toast thành công mà vẫn còn nguyên
+    // Qua mốc 3s của toast thành công mà vẫn còn nguyên
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByTestId("toast")).toBeInTheDocument();
+
+    // Chưa đủ 6000ms thì chưa tắt
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(screen.getByTestId("toast")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByTestId("toast")).not.toBeInTheDocument();
+  });
+
+  it("still closes an error toast immediately via the X button", () => {
+    render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "fire-error" }));
+    fireEvent.click(screen.getByRole("button", { name: "close" }));
+
+    expect(screen.queryByTestId("toast")).not.toBeInTheDocument();
+  });
+
+  it("pauses the error auto-dismiss timer while hovered", () => {
+    render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "fire-error" }));
+    const toast = screen.getByTestId("toast");
+
+    fireEvent.mouseEnter(toast);
     act(() => {
       vi.advanceTimersByTime(60_000);
     });
     expect(screen.getByTestId("toast")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "close" }));
+    fireEvent.mouseLeave(toast);
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
     expect(screen.queryByTestId("toast")).not.toBeInTheDocument();
   });
 
