@@ -1,20 +1,4 @@
 {
-  "activityLogs": {
-    "title": "Activity logs",
-    "subtitle": "Review administrative actions recorded by the system.",
-    "loadFailed": "Unable to load activity logs.",
-    "actorId": "Actor ID",
-    "action": "Action",
-    "time": "Time",
-    "actor": "Actor",
-    "ipAddress": "IP address",
-    "userAgent": "Device / User agent",
-    "empty": "No activity logs match the current filters.",
-    "loading": "Loading activity logs...",
-    "detailTitle": "Activity log details",
-    "logId": "Log ID",
-    "metadata": "Change metadata"
-  },
   "dashboard": {
     "title": "Dashboard",
     "date": "Today, May 24, 2026",

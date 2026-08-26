@@ -53,7 +53,6 @@ const AdminStations = lazy(() => import("./pages/Admin/Stations"));
 const AdminLocations = lazy(() => import("./pages/Admin/Locations"));
 const WalletSettlement = lazy(() => import("./pages/Admin/WalletSettlement"));
 const RagAudit = lazy(() => import("./pages/Admin/RagAudit"));
-const AdminActivityLogs = lazy(() => import("./pages/Admin/ActivityLogs"));
 const RagAssistant = lazy(() => import("./pages/RagAssistant"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -266,7 +265,6 @@ export default function App() {
                   element={<WalletSettlement />}
                 />
                 <Route path="rag-audit" element={<RagAudit />} />
-                <Route path="activity-logs" element={<AdminActivityLogs />} />
                 <Route path="assistant" element={<RagAssistant />} />
                 <Route path="policies" element={<AdminPolicies />} />
                 <Route path="profile" element={<Profile />} />

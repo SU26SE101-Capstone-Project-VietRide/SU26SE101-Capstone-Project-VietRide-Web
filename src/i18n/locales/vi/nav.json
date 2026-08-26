@@ -48,8 +48,7 @@
     "reports": "Báo cáo",
     "ragAudit": "Tài liệu AI & kiểm tra hội thoại",
     "outboxDlq": "Hàng đợi lỗi",
-    "assistant": "Trợ lý nghiệp vụ",
-    "activityLogs": "Nhật ký hoạt động"
+    "assistant": "Trợ lý nghiệp vụ"
   },
   "layout": {
     "adminDashboard": "Tổng quan quản trị",

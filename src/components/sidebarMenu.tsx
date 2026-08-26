@@ -25,7 +25,6 @@ import {
   FiAlertOctagon,
   FiGlobe,
   FiLayers,
-  FiActivity,
 } from "react-icons/fi";
 import type { AuthRole } from "../auth";
 import type { SubscriptionModule } from "../contexts/operatorSubscriptionContext";
@@ -224,13 +223,7 @@ export const adminMenuConfig: MenuSection[] = [
         path: "/admin/rag-audit",
         icon: <FiDatabase />,
       },
-      {
-        labelKey: "admin.activityLogs",
-        path: "/admin/activity-logs",
-        icon: <FiActivity />,
-      },
-
-],
+    ],
   },
 ];
 
