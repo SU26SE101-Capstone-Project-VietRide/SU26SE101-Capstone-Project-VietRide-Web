@@ -17,6 +17,12 @@ type SearchInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className">
    * lọc so le trở lại.
    */
   inputClassName?: string;
+  /**
+   * Hiện nhãn thay vì `sr-only`. Dùng ở toolbar mà mọi ô lọc bên cạnh đều có
+   * nhãn nổi phía trên — để riêng ô tìm kiếm chỉ có placeholder thì hàng lọc
+   * so le mất đúng một dòng nhãn.
+   */
+  labelClassName?: string;
 };
 
 /**
@@ -29,6 +35,7 @@ export function SearchInput({
   label,
   wrapperClassName = "relative min-w-0",
   inputClassName,
+  labelClassName,
   // `search` là mặc định đúng cho ô lọc danh sách. Nhưng ô autocomplete (gõ ra
   // danh sách gợi ý để chọn) nên giữ `text`: `type="search"` thêm nút xoá của
   // trình duyệt, đá nhau với UX chọn từ danh sách — và đổi role thành
@@ -38,17 +45,23 @@ export function SearchInput({
 }: SearchInputProps) {
   return (
     <label className={wrapperClassName}>
-      <span className="sr-only">{label}</span>
-      <FiSearch
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-        aria-hidden="true"
-      />
-      <input
-        type={type}
-        aria-label={label}
-        className={inputClassName ?? `${inputClass} pl-10`}
-        {...rest}
-      />
+      <span className={labelClassName ?? "sr-only"}>{label}</span>
+      {/* Kính lúp neo vào riêng ô nhập, không vào cả `<label>`: khi nhãn được
+          hiện thì `top-1/2` của label rơi xuống giữa cụm nhãn + ô nhập. Với
+          nhãn `sr-only` (đang `position: absolute`) hộp bọc trùng đúng ô nhập
+          nên các màn cũ giữ nguyên vị trí icon. */}
+      <span className="relative block">
+        <FiSearch
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+          aria-hidden="true"
+        />
+        <input
+          type={type}
+          aria-label={label}
+          className={inputClassName ?? `${inputClass} pl-10`}
+          {...rest}
+        />
+      </span>
     </label>
   );
 }

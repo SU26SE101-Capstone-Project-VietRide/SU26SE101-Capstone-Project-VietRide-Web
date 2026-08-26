@@ -23,7 +23,7 @@ import Pagination from "../../../components/Pagination";
 import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
 import { Badge } from "../../../components/ui/Badge";
 import { SearchInput } from "../../../components/ui/SearchInput";
-import { inputClass } from "../../../components/form/formClasses";
+import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatCurrency } from "../../../utils/currency";
 import { formatDateTime } from "../../../utils/date";
@@ -222,90 +222,108 @@ export default function ClaimsPage() {
         </button>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_180px_180px]">
-        <SearchInput
-          label={t("claims.searchLabel")}
-          placeholder={t("claims.searchPlaceholder")}
-          value={search}
-          maxLength={100}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <CustomSelect
-          aria-label={t("claims.statusFilter")}
-          className={inputClass}
-          value={status}
-          onChange={(event) => {
-            setStatus(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">{t("claims.statusFilter")}</option>
-          {PARCEL_CLAIM_STATUSES.map((value) => (
-            <option key={value} value={value}>
-              {t(`claims.status.${value}`)}
-            </option>
-          ))}
-        </CustomSelect>
-        <CustomSelect
-          aria-label={t("claims.slaFilter")}
-          className={inputClass}
-          value={slaState}
-          onChange={(event) => {
-            setSlaState(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">{t("claims.slaFilter")}</option>
-          {SLA_STATES.map((value) => (
-            <option key={value} value={value}>
-              {t(`parcelIncidents.sla.${value}`)}
-            </option>
-          ))}
-        </CustomSelect>
-
-        {/* `from`/`to` ở endpoint này là DATETIME giống hàng đợi sự cố. */}
-        <label className="min-w-0">
-          <span className="sr-only">{t("claims.fromLabel")}</span>
-          <CustomDateTimeInput
-            type="datetime-local"
-            value={from}
-            max={to || undefined}
-            placeholder={t("claims.fromLabel")}
-            onChange={(event) => {
-              if (to && event.target.value > to) return;
-              setFrom(event.target.value);
-              setPage(1);
-            }}
-            className={inputClass}
-          />
-        </label>
-        <label className="min-w-0">
-          <span className="sr-only">{t("claims.toLabel")}</span>
-          <CustomDateTimeInput
-            type="datetime-local"
-            value={to}
-            min={from || undefined}
-            placeholder={t("claims.toLabel")}
-            onChange={(event) => {
-              if (from && event.target.value < from) return;
-              setTo(event.target.value);
-              setPage(1);
-            }}
-            className={inputClass}
-          />
-        </label>
-        {activeFilterCount > 0 && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            {t("claims.clearFilters", { count: activeFilterCount })}
-          </button>
-        )}
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        {/* Cùng quy ước nhãn nổi với màn Báo cáo sự cố và hàng đợi sự cố kiện. */}
+        <div className="border-b border-gray-100 p-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <SearchInput
+              wrapperClassName="min-w-0 sm:col-span-2 lg:col-span-5"
+              labelClassName={labelClass}
+              inputClassName={`${inputClass} min-h-11 pl-10`}
+              label={t("claims.searchLabel")}
+              placeholder={t("claims.searchPlaceholder")}
+              value={search}
+              maxLength={100}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+
+            <label className="min-w-0">
+              <span className={labelClass}>{t("claims.statusFilter")}</span>
+              <CustomSelect
+                aria-label={t("claims.statusFilter")}
+                className={inputClass}
+                value={status}
+                onChange={(event) => {
+                  setStatus(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">{tc("all")}</option>
+                {PARCEL_CLAIM_STATUSES.map((value) => (
+                  <option key={value} value={value}>
+                    {t(`claims.status.${value}`)}
+                  </option>
+                ))}
+              </CustomSelect>
+            </label>
+            <label className="min-w-0">
+              <span className={labelClass}>{t("claims.slaFilter")}</span>
+              <CustomSelect
+                aria-label={t("claims.slaFilter")}
+                className={inputClass}
+                value={slaState}
+                onChange={(event) => {
+                  setSlaState(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">{tc("all")}</option>
+                {SLA_STATES.map((value) => (
+                  <option key={value} value={value}>
+                    {t(`parcelIncidents.sla.${value}`)}
+                  </option>
+                ))}
+              </CustomSelect>
+            </label>
+
+            {/* `from`/`to` ở endpoint này là DATETIME giống hàng đợi sự cố. */}
+            <label className="min-w-0">
+              <span className={labelClass}>{t("claims.fromLabel")}</span>
+              <CustomDateTimeInput
+                type="datetime-local"
+                aria-label={t("claims.fromLabel")}
+                value={from}
+                max={to || undefined}
+                placeholder={tc("dateTimePicker.selectDateTime")}
+                onChange={(event) => {
+                  if (to && event.target.value > to) return;
+                  setFrom(event.target.value);
+                  setPage(1);
+                }}
+                className={inputClass}
+              />
+            </label>
+            <label className="min-w-0">
+              <span className={labelClass}>{t("claims.toLabel")}</span>
+              <CustomDateTimeInput
+                type="datetime-local"
+                aria-label={t("claims.toLabel")}
+                value={to}
+                min={from || undefined}
+                placeholder={tc("dateTimePicker.selectDateTime")}
+                onChange={(event) => {
+                  if (from && event.target.value < from) return;
+                  setTo(event.target.value);
+                  setPage(1);
+                }}
+                className={inputClass}
+              />
+            </label>
+
+            {activeFilterCount > 0 && (
+              <div className="flex min-w-0 items-end">
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  {t("claims.clearFilters", { count: activeFilterCount })}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="overflow-x-auto" aria-busy={isLoading}>
           <table className="w-full min-w-[1000px] text-sm">
             <thead>
