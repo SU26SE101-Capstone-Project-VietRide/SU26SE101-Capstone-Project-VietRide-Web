@@ -46,6 +46,15 @@ import {
   deleteOperatorDriverSchedule,
   exportOperatorReport,
   exportOperatorParcelReport,
+  addOperatorRouteStop,
+  cancelOperatorTrip,
+  disableOperatorTripSeat,
+  enableOperatorTripSeat,
+  getAdminActivityLogs,
+  getOperatorShuttleTripPassengers,
+  previewOperatorTripCancel,
+  removeOperatorRouteStop,
+  updateOperatorTrip,
   getAdminCampaigns,
   getAdminDashboardSummary,
   getAdminOutboxDlq,
@@ -4659,6 +4668,252 @@ describe("operator shuttle reassignment", () => {
           Authorization: "Bearer access-token",
           "Idempotency-Key": "52bc34c4-8052-4c14-8de8-2971730e69ef",
         }),
+      }),
+    );
+  });
+});
+
+/**
+ * Các endpoint BE công bố trong `API-Response.md` (bản 2026-08-25) mà FE chưa
+ * gắn: nhật ký hoạt động, sửa/huỷ chuyến, khoá ghế, điểm dừng lẻ của tuyến và
+ * danh sách khách chuyến trung chuyển.
+ */
+describe("endpoint bổ sung theo spec BE 2026-08-25", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "operator-admin-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "operator-admin-1",
+          email: "admin@operator.vn",
+          displayName: "Operator Admin",
+          role: "OPERATOR_ADMIN",
+          operatorId: "operator-1",
+        },
+      }),
+    );
+  });
+
+  it("dựng query nhật ký hoạt động và giữ nguyên items null của BE", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(
+        {
+          success: true,
+          data: {
+            items: null,
+            page: 1,
+            pageSize: 15,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        },
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getAdminActivityLogs({
+      page: 2,
+      pageSize: 15,
+      action: "LOCK_USER",
+      from: "2026-08-01T00:00:00Z",
+      to: "2026-08-26T00:00:00Z",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/admin/activity-logs?page=2&pageSize=15&action=LOCK_USER&from=2026-08-01T00%3A00%3A00Z&to=2026-08-26T00%3A00%3A00Z",
+      expect.objectContaining({ method: "GET" }),
+    );
+    // Spec khai `items` có thể null — tầng API giữ nguyên, màn hình tự chuẩn hoá.
+    expect(result.items).toBeNull();
+  });
+
+  it("PATCH chuyến chỉ gửi field được truyền, kèm Idempotency-Key", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(
+        { success: true, data: { tripId: "trip-1", baseFare: 250000 } },
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await updateOperatorTrip(
+      "trip-1",
+      { baseFare: 250000, notes: null },
+      "3f1c1f2a-0b1d-4f8e-9c2a-6b7d8e9f0a1b",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/trips/trip-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ baseFare: 250000, notes: null }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "3f1c1f2a-0b1d-4f8e-9c2a-6b7d8e9f0a1b",
+        }),
+      }),
+    );
+  });
+
+  it("xem trước huỷ chuyến là POST không body, huỷ thật gửi reason + key", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: { tripId: "trip-1" } }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await previewOperatorTripCancel("trip-1");
+    await cancelOperatorTrip(
+      "trip-1",
+      "Xe hỏng, không có xe thay",
+      "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    );
+
+    const previewCall = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.vietride.online/v1/operator/trips/trip-1/cancel/preview",
+    );
+    expect(previewCall.method).toBe("POST");
+    // Preview không đổi dữ liệu nên không gửi body — gửi `{}` chỉ thêm
+    // Content-Type thừa vào một request thuần đọc.
+    expect(previewCall.body).toBeUndefined();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/trips/trip-1/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Xe hỏng, không có xe thay" }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        }),
+      }),
+    );
+  });
+
+  it("khoá ghế gửi reason, mở ghế bodyless, cả hai escape số ghế", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(
+        { success: true, data: { tripId: "trip-1", seats: [] } },
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await disableOperatorTripSeat("trip-1", "A 01", "Ghế hỏng", "key-disable");
+    await enableOperatorTripSeat("trip-1", "A 01", "key-enable");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/trips/trip-1/seats/A%2001/disable",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Ghế hỏng" }),
+        headers: expect.objectContaining({ "Idempotency-Key": "key-disable" }),
+      }),
+    );
+
+    const enableCall = fetchMock.mock.calls[1][1] as RequestInit;
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "https://api.vietride.online/v1/operator/trips/trip-1/seats/A%2001/enable",
+    );
+    expect(enableCall.body).toBeUndefined();
+  });
+
+  it("thêm và gỡ một điểm dừng của tuyến", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: null }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await addOperatorRouteStop(
+      "route-1",
+      {
+        stopId: "stop-9",
+        orderIndex: 3,
+        estimatedDurationFromOriginMinutes: 90,
+        allowPickup: true,
+        allowDropoff: false,
+      },
+      "key-add-stop",
+    );
+    await removeOperatorRouteStop("route-1", "stop-9", "key-remove-stop");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/routes/route-1/stops",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          stopId: "stop-9",
+          orderIndex: 3,
+          estimatedDurationFromOriginMinutes: 90,
+          allowPickup: true,
+          allowDropoff: false,
+        }),
+        headers: expect.objectContaining({ "Idempotency-Key": "key-add-stop" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/routes/route-1/stops/stop-9",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "key-remove-stop",
+        }),
+      }),
+    );
+  });
+
+  it("lấy danh sách khách của chuyến trung chuyển", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(
+        { success: true, data: { shuttleTripId: "shuttle-1", groups: null } },
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getOperatorShuttleTripPassengers("shuttle-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/shuttle-trips/shuttle-1/passengers",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result.groups).toBeNull();
+  });
+
+  it("thay xe gửi acknowledgeInsufficientSeats theo đúng lượt gọi", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(
+        { success: true, data: { substitutionId: "sub-1", newTripId: "trip-2" } },
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const body = {
+      replacementVehicleId: "vehicle-2",
+      estimatedRecoveryDepartureAt: "2026-08-26T04:30:00.000Z",
+      reason: "Vehicle breakdown",
+      notifyPassengers: true,
+      acknowledgeInsufficientSeats: true,
+    };
+    await substituteOperatorTripVehicle("trip-1", body, "key-ack");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/trips/trip-1/substitute-vehicle",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: expect.objectContaining({ "Idempotency-Key": "key-ack" }),
       }),
     );
   });

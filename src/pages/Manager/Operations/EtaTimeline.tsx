@@ -7,6 +7,7 @@ import type {
   TrackingEtaTarget,
 } from "../../../api/vietride";
 import { Badge } from "../../../components/ui/Badge";
+import { EtaQualityBadge } from "../../../components/EtaQualityBadge";
 
 type EtaTimelineProps = {
   trip: PublicTrip | null;
@@ -228,13 +229,9 @@ export function EtaTimeline({ trip, etaTargets }: EtaTimelineProps) {
                         <span>{formatDistance(item.eta.distanceMeters)}</span>
                       </>
                     )}
-                    {quality && (
-                      <span>
-                        {quality === "TRAFFIC_AWARE"
-                          ? t("gps.etaTrafficAware")
-                          : t("gps.etaFallbackQuality")}
-                      </span>
-                    )}
+                    {/* Enum chất lượng là additive: mọi nhánh nằm trong
+                        EtaQualityBadge, ở đây không so chuỗi tay nữa. */}
+                    <EtaQualityBadge quality={quality} />
                   </div>
                 </div>
               </li>

@@ -13,6 +13,7 @@ import {
   FiUserCheck,
   FiRefreshCw,
   FiSearch,
+  FiSettings,
   FiTruck,
 } from "react-icons/fi";
 import {
@@ -35,6 +36,7 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { formatDateTime } from "../../../utils/date";
 import { displayBusinessCode } from "../../../utils/businessCode";
+import TripManageModal from "./TripManageModal";
 
 const PAGE_SIZE = 10;
 
@@ -212,6 +214,16 @@ export default function TripListPage() {
     () => getAuthUser()?.role === "OPERATOR_ADMIN",
   );
   const [boardingTripId, setBoardingTripId] = useState("");
+  /**
+   * Chuyến đang mở bảng quản lý (sửa thông tin / khoá ghế / huỷ chuyến).
+   *
+   * Giữ CẢ ĐỐI TƯỢNG chứ không chỉ id: modal cần tuyến + xe hiện tại để đổ sẵn
+   * hai dropdown, mà `GET /v1/operator/trips` không lọc được theo một tripId
+   * nên tải lại riêng một chuyến là không làm được.
+   */
+  const [manageTrip, setManageTrip] = useState<OperatorTripListItem | null>(
+    null,
+  );
   const [busyBoardingTripId, setBusyBoardingTripId] = useState("");
   const [boardingMessage, setBoardingMessage] = useState("");
   const [boardingError, setBoardingError] = useState("");
@@ -546,16 +558,36 @@ export default function TripListPage() {
                   className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                 >
                   <td className={`${cols.tripCode} py-4 text-left`}>
-                    <span
-                      className={`block truncate font-mono text-xs tabular-nums ${
-                        displayBusinessCode(trip.tripCode) === "-"
-                          ? "text-gray-400"
-                          : "text-gray-800"
-                      }`}
-                      title={displayBusinessCode(trip.tripCode)}
+                    {/* Mã chuyến là lối vào bảng quản lý: cột Thao tác đã kín
+                        chỗ cho nút mở boarding (xem `columnClasses`), thêm nút
+                        thứ hai vào đó là vỡ bảng ở 1200px. `title` đặt trên
+                        `span` bên trong chứ KHÔNG trên nút — rule
+                        `tbody td button[title]` trong App.css ép nút có title
+                        về ô vuông 40px. */}
+                    <button
+                      type="button"
+                      onClick={() => setManageTrip(trip)}
+                      /* Chữ trong nút chỉ là mã chuyến nên tên gọi mặc định
+                         không nói nút LÀM GÌ — người dùng trình đọc màn hình
+                         chỉ nghe một dãy mã. `aria-label` (không phải `title`,
+                         xem rule `tbody td button[title]` trong App.css) gánh
+                         phần đó. */
+                      aria-label={t("tripList.manage.openFor", {
+                        code: displayBusinessCode(trip.tripCode),
+                      })}
+                      className="block w-full text-left focus:outline-none focus:ring-2 focus:ring-vr-200"
                     >
-                      {displayBusinessCode(trip.tripCode)}
-                    </span>
+                      <span
+                        className={`block truncate font-mono text-xs tabular-nums underline decoration-dotted underline-offset-4 hover:text-vr-800 ${
+                          displayBusinessCode(trip.tripCode) === "-"
+                            ? "text-gray-400"
+                            : "text-gray-800"
+                        }`}
+                        title={displayBusinessCode(trip.tripCode)}
+                      >
+                        {displayBusinessCode(trip.tripCode)}
+                      </span>
+                    </button>
                   </td>
                   <td className={`${cols.route} py-4 text-left text-sm font-medium text-gray-800`}>
                     <span className="block truncate" title={routeLabel(trip)}>
@@ -634,7 +666,18 @@ export default function TripListPage() {
                           {t("tripList.boarding")}
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-600">-</span>
+                        // Ô này trước đây chỉ hiện gạch ngang. Chuyến đã rời
+                        // SCHEDULED vẫn còn việc để làm (xem sơ đồ ghế, huỷ
+                        // chuyến đang BOARDING) nên chỗ trống đó dùng cho nút
+                        // Quản lý — vừa đúng ngân sách 168px của cột.
+                        <button
+                          type="button"
+                          onClick={() => setManageTrip(trip)}
+                          className="inline-flex min-h-9 max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900 focus:outline-none focus:ring-2 focus:ring-vr-200"
+                        >
+                          <FiSettings aria-hidden="true" size={15} />
+                          {t("tripList.manage.open")}
+                        </button>
                       )}
                     </td>
                   )}
@@ -690,6 +733,21 @@ export default function TripListPage() {
         cancelLabel={tc("cancel")}
         tone="warning"
         busy={Boolean(busyBoardingTripId)}
+      />
+
+      <TripManageModal
+        // Remount theo chuyến: modal giữ form nháp + kết quả xem trước huỷ, mở
+        // sang chuyến khác mà không remount là mang số liệu chuyến cũ theo.
+        key={manageTrip?.tripId ?? "none"}
+        trip={manageTrip}
+        canMutate={canOpenBoarding}
+        onClose={() => setManageTrip(null)}
+        onChanged={(successMessage) => {
+          setBoardingMessage(successMessage);
+          // Trạng thái mới lấy lại từ BE thay vì tự ép local — huỷ chuyến và
+          // sửa xe đều có thể kéo theo thay đổi khác trên hàng.
+          setReloadVersion((value) => value + 1);
+        }}
       />
     </div>
   );

@@ -1,4 +1,20 @@
 {
+  "activityLogs": {
+    "title": "Nhật ký hoạt động",
+    "subtitle": "Theo dõi các thao tác quản trị được ghi nhận bởi hệ thống.",
+    "loadFailed": "Không thể tải nhật ký hoạt động.",
+    "actorId": "Mã người thực hiện",
+    "action": "Tác vụ",
+    "time": "Thời gian",
+    "actor": "Người thực hiện",
+    "ipAddress": "Địa chỉ IP",
+    "userAgent": "Thiết bị / User agent",
+    "empty": "Không có nhật ký phù hợp với bộ lọc.",
+    "loading": "Đang tải nhật ký hoạt động...",
+    "detailTitle": "Chi tiết nhật ký",
+    "logId": "Mã nhật ký",
+    "metadata": "Dữ liệu thay đổi"
+  },
   "dashboard": {
     "title": "Bảng điều khiển",
     "date": "Hôm nay, 24 Tháng 5 2026",

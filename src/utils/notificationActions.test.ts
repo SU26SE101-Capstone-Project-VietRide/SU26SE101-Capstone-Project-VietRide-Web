@@ -150,3 +150,58 @@ describe("OPEN_SHUTTLE_TRACKING", () => {
     expect(path).toBe("/manager/dispatch?shuttleTripId=shuttle-1");
   });
 });
+
+/**
+ * Hai loại thông báo mới của luồng thay xe (handoff Vehicle Substitution B1-B7
+ * mục 4). Cả hai đều phải mở Trung tâm vận hành: đó là nơi duy nhất xử lý được
+ * chuyến thay thế.
+ */
+describe("cảnh báo thay xe", () => {
+  it("mở chuyến THAY THẾ chứ không phải chuyến cũ", () => {
+    const path = getNotificationActionPath(
+      notification({
+        type: "VEHICLE_SUBSTITUTION_SEAT_SHORTAGE",
+        data: { tripId: "trip-old", newTripId: "trip-new" },
+      }),
+      false,
+    );
+
+    expect(path).toBe("/manager/operations?tripId=trip-new");
+  });
+
+  // `BOOKING_TRANSFER_ESCALATED` mang cả `bookingId`; suy luận cũ ưu tiên
+  // bookingId nên sẽ đẩy sang màn Lượt đặt vé — nơi không xác nhận chuyển được.
+  it("không bị bookingId kéo sang màn Lượt đặt vé", () => {
+    const path = getNotificationActionPath(
+      notification({
+        type: "BOOKING_TRANSFER_ESCALATED",
+        data: { bookingId: "booking-9", newTripId: "trip-new" },
+      }),
+      false,
+    );
+
+    expect(path).toBe("/manager/operations?tripId=trip-new");
+  });
+
+  it("lùi về tripId khi payload chưa khai chuyến thay thế", () => {
+    expect(
+      resolveNotificationAction(
+        notification({
+          type: "VEHICLE_SUBSTITUTION_SEAT_SHORTAGE",
+          data: { tripId: "trip-old" },
+        }),
+      ),
+    ).toEqual({ type: "OPEN_TRIP_TRACKING", params: { tripId: "trip-old" } });
+  });
+
+  it("không đoán bừa khi payload không có chuyến nào", () => {
+    expect(
+      resolveNotificationAction(
+        notification({
+          type: "BOOKING_TRANSFER_ESCALATED",
+          data: { passengerId: "passenger-1" },
+        }),
+      ),
+    ).toEqual({ type: "NONE", params: {} });
+  });
+});

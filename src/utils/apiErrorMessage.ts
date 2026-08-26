@@ -343,6 +343,11 @@ const vietnameseMessages: Record<string, string> = {
   TRIP_VEHICLE_SWAP_TOO_LATE: "Đã quá thời hạn đổi xe cho chuyến này.",
 
   // Phương tiện
+  // Thay xe: xe thay thế ít ghế dùng được hơn số khách phải chuyển. FE đọc ba
+  // con số trong error.fields[] rồi hỏi lại người vận hành (xem
+  // `parseReplacementSeatShortage`) — câu này chỉ là fallback khi không parse được.
+  REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS:
+    "Xe thay thế không đủ ghế cho số khách phải chuyển.",
   VEHICLE_NOT_ACTIVE: "Phương tiện hiện không hoạt động.",
   VEHICLE_NOT_FOUND: "Không tìm thấy phương tiện.",
   VEHICLE_TYPE_NOT_FOUND: "Không tìm thấy loại phương tiện.",

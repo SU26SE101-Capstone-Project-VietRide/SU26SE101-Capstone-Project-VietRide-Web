@@ -1,5 +1,6 @@
 import { ApiRequestError } from "../api/client";
 import type {
+  ReplacementSeatShortage,
   ResourceConflictReason,
   ResourceRole,
 } from "../api/vietride";
@@ -85,4 +86,47 @@ export function conflictReasonKey(reason: ResourceConflictReason | null) {
 
 export function resourceRoleKey(role: ResourceRole | null) {
   return role ? `resourceConflict.role.${role}` : "resourceConflict.role.UNKNOWN";
+}
+
+/**
+ * Mã lỗi BE trả khi xe thay thế không đủ ghế cho số khách phải chuyển
+ * (handoff Vehicle Substitution B1-B7 mục 1). Kèm 409 này BE KHÔNG tạo chuyến
+ * mới, không giải phóng resource và không ghi audit/outbox — nên retry sau khi
+ * xác nhận là an toàn.
+ */
+export const REPLACEMENT_SEAT_SHORTAGE_CODE =
+  "REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS";
+
+/**
+ * Ba con số thiếu ghế nằm trong `error.fields[]` dưới dạng CHUỖI. Đọc theo tên
+ * field chứ không theo thứ tự, và trả `null` cho field không parse được thay vì
+ * `NaN` — màn hình còn phải quyết định có hiện con số đó hay không.
+ */
+export function parseReplacementSeatShortage(
+  error: unknown,
+): ReplacementSeatShortage | null {
+  if (
+    !(error instanceof ApiRequestError) ||
+    error.status !== 409 ||
+    error.code !== REPLACEMENT_SEAT_SHORTAGE_CODE
+  ) {
+    return null;
+  }
+
+  const fields = new Map(
+    error.fields.map((field) => [field.field, field.message]),
+  );
+
+  return {
+    usableSeats: readNumericField(fields, "usableSeats"),
+    passengersToTransfer: readNumericField(fields, "passengersToTransfer"),
+    missingSeats: readNumericField(fields, "missingSeats"),
+  };
+}
+
+function readNumericField(fields: Map<string, string>, name: string) {
+  const raw = fields.get(name);
+  if (raw === undefined || !raw.trim()) return null;
+  const parsed = Number(raw.trim());
+  return Number.isFinite(parsed) ? parsed : null;
 }

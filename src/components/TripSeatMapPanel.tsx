@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next";
 import { FiRefreshCw } from "react-icons/fi";
 import { PiBus, PiPath } from "react-icons/pi";
 import {
+  disableOperatorTripSeat,
+  enableOperatorTripSeat,
   getPublicTripSeatMap,
   type TripSeatMap,
   type TripSeatMapSeat,
-} from "../../../api/vietride";
+} from "../api/vietride";
 
 /**
  * Sơ đồ ghế của MỘT chuyến — khác hẳn sơ đồ ghế ở màn Phương tiện (đó là mẫu ghế
@@ -16,6 +18,18 @@ import {
  * UNAVAILABLE. `HELD` là ghế khách đang giữ chỗ chờ thanh toán — hết hạn giữ thì
  * BE tự nhả về AVAILABLE, nên panel có nút tải lại thay vì tự poll: nhà xe chỉ mở
  * ra xem lúc cần, poll nền sẽ tốn request vô ích.
+ *
+ * Hai chế độ:
+ * - Mặc định (màn Lượt đặt vé): chỉ đọc, ghế là `<span>`.
+ * - `manageable` (màn Chuyến xe): ghế AVAILABLE/UNAVAILABLE thành nút để nhà xe
+ *   khoá/mở ghế. Ghế HELD/BOOKED vẫn không bấm được — BE trả `409
+ *   TRIP_SEAT_IN_USE` cho chúng, chặn sẵn ở đây để khỏi bắt người dùng ăn lỗi.
+ *
+ * Khoá/mở ghế trả về SƠ ĐỒ MỚI nguyên vẹn, nên panel thay cả `seatMap` bằng
+ * response thay vì sửa một ghế trong state — BE có thể đổi kèm thứ khác.
+ *
+ * Khoá i18n vẫn nằm dưới `manager:bookings.*` từ thời component ở trong thư mục
+ * màn Lượt đặt vé; giữ nguyên để khỏi phải đổi cả bộ dịch lẫn test của màn đó.
  */
 const seatStatusClass: Record<string, string> = {
   AVAILABLE: "border-gray-200 bg-white text-gray-600",
@@ -86,11 +100,27 @@ function groupByDeckAndRow(seats: TripSeatMapSeat[]) {
     }));
 }
 
-export default function TripSeatMapPanel({ tripId }: { tripId: string }) {
+/** Ghế đang có khách thì không khoá/mở được — BE từ chối bằng `TRIP_SEAT_IN_USE`. */
+const LOCKED_SEAT_STATUSES = new Set(["HELD", "BOOKED"]);
+
+type TripSeatMapPanelProps = {
+  tripId: string;
+  /** Bật nút khoá/mở ghế. Chỉ truyền `true` cho OPERATOR_ADMIN. */
+  manageable?: boolean;
+  /** Báo cho màn cha biết sơ đồ vừa đổi (để nó tải lại số liệu chuyến). */
+  onSeatsChanged?: (seatMap: TripSeatMap) => void;
+};
+
+export default function TripSeatMapPanel({
+  tripId,
+  manageable = false,
+  onSeatsChanged,
+}: TripSeatMapPanelProps) {
   const { t } = useTranslation("manager");
   const [seatMap, setSeatMap] = useState<TripSeatMap | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [busySeatNumber, setBusySeatNumber] = useState("");
 
   // `t` đổi identity mỗi lần đổi ngôn ngữ; để nó trong deps của `load` là effect
   // bên dưới bắn lại và gọi API thừa. Giữ qua ref theo đúng pattern các màn khác.
@@ -124,6 +154,36 @@ export default function TripSeatMapPanel({ tripId }: { tripId: string }) {
     });
   }, [load]);
 
+  /**
+   * Khoá ghế trống / mở lại ghế đã khoá.
+   *
+   * KHÔNG hỏi lý do: đây là thao tác đảo được ngay bằng chính nút đó, bắt gõ lý
+   * do cho mỗi ghế trong lúc đang xếp xe là cản trở chứ không phải kiểm soát.
+   * BE khai `reason` là optional nên bỏ trống hợp lệ.
+   */
+  async function toggleSeat(seat: TripSeatMapSeat) {
+    if (!manageable || LOCKED_SEAT_STATUSES.has(seat.status)) return;
+
+    setBusySeatNumber(seat.seatNumber);
+    setError("");
+    try {
+      const updated =
+        seat.status === "UNAVAILABLE"
+          ? await enableOperatorTripSeat(tripId, seat.seatNumber)
+          : await disableOperatorTripSeat(tripId, seat.seatNumber);
+      setSeatMap(updated);
+      onSeatsChanged?.(updated);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("bookings.seatToggleFailed"),
+      );
+    } finally {
+      setBusySeatNumber("");
+    }
+  }
+
   const decks = seatMap ? groupByDeckAndRow(seatMap.seats) : [];
   const gridColumns = seatMap
     ? buildGridColumns(seatMap.seats, seatMap.aisles)
@@ -147,7 +207,9 @@ export default function TripSeatMapPanel({ tripId }: { tripId: string }) {
             {t("bookings.seatMapTitle")}
           </h3>
           <p className="mt-1 text-xs text-gray-500">
-            {t("bookings.seatMapHint")}
+            {manageable
+              ? t("bookings.seatMapManageHint")
+              : t("bookings.seatMapHint")}
           </p>
         </div>
         <button
@@ -176,14 +238,25 @@ export default function TripSeatMapPanel({ tripId }: { tripId: string }) {
         ))}
       </div>
 
-      {error ? (
-        <p className="m-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+      {/* Lỗi hiện THÊM chứ không THAY sơ đồ: khoá một ghế hỏng thì phần còn
+          lại của sơ đồ vẫn đúng và vẫn phải nhìn được — nuốt mất cả lưới chỉ vì
+          một ghế từ chối là mất luôn ngữ cảnh để thử ghế khác. Chỉ khi chưa có
+          sơ đồ nào (lỗi lúc tải) thì mới không còn gì để vẽ. */}
+      {error && (
+        <p
+          role="alert"
+          className="m-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+        >
           {error}
         </p>
-      ) : isLoading && !seatMap ? (
+      )}
+      {isLoading && !seatMap ? (
         <p className="p-5 text-sm text-gray-500">{t("bookings.seatMapLoading")}</p>
       ) : decks.length === 0 ? (
-        <p className="p-5 text-sm text-gray-500">{t("bookings.seatMapEmpty")}</p>
+        // Lỗi tải đã nói rõ lý do rồi, thêm "chưa có dữ liệu ghế" là mâu thuẫn.
+        error ? null : (
+          <p className="p-5 text-sm text-gray-500">{t("bookings.seatMapEmpty")}</p>
+        )
       ) : (
         <div className="flex flex-wrap items-start justify-center gap-8 bg-slate-50/60 p-5 sm:p-8">
           {decks.map(({ deck, rows }) => (
@@ -254,15 +327,43 @@ export default function TripSeatMapPanel({ tripId }: { tripId: string }) {
                           );
                         }
 
+                        const seatKey = `${seat.deck}-${seat.row}-${seat.col}-${seat.seatNumber}`;
+                        const seatLabel = `${seat.seatNumber} · ${t(`bookings.seatStatus.${seat.status}`, { defaultValue: seat.status })}`;
+                        const seatClass = `inline-flex h-12 min-w-[3.25rem] items-center justify-center rounded-xl border px-2 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${seatStatusClass[seat.status] ?? seatStatusClass.UNAVAILABLE}`;
+                        const isSeatLocked = LOCKED_SEAT_STATUSES.has(seat.status);
+
+                        if (!manageable || isSeatLocked) {
+                          return (
+                            <span
+                              key={seatKey}
+                              role="gridcell"
+                              title={seatLabel}
+                              className={seatClass}
+                            >
+                              {seat.seatNumber}
+                            </span>
+                          );
+                        }
+
                         return (
-                          <span
-                            key={`${seat.deck}-${seat.row}-${seat.col}-${seat.seatNumber}`}
+                          <button
+                            key={seatKey}
+                            type="button"
                             role="gridcell"
-                            title={`${seat.seatNumber} · ${t(`bookings.seatStatus.${seat.status}`, { defaultValue: seat.status })}`}
-                            className={`inline-flex h-12 min-w-[3.25rem] items-center justify-center rounded-xl border px-2 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${seatStatusClass[seat.status] ?? seatStatusClass.UNAVAILABLE}`}
+                            disabled={Boolean(busySeatNumber)}
+                            onClick={() => void toggleSeat(seat)}
+                            /* Nhãn nói rõ BẤM VÀO SẼ LÀM GÌ, không chỉ trạng
+                               thái hiện tại — chữ trong ô chỉ là số ghế nên
+                               accessible name phải gánh phần còn lại. */
+                            aria-label={`${seatLabel} — ${
+                              seat.status === "UNAVAILABLE"
+                                ? t("bookings.seatEnableAction")
+                                : t("bookings.seatDisableAction")
+                            }`}
+                            className={`${seatClass} cursor-pointer focus:outline-none focus:ring-2 focus:ring-vr-300 disabled:cursor-not-allowed disabled:opacity-50`}
                           >
                             {seat.seatNumber}
-                          </span>
+                          </button>
                         );
                       })}
                     </div>

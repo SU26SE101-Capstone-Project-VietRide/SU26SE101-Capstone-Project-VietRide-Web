@@ -13,6 +13,7 @@ import {
   type OperatorUser,
   type OperatorVehicle,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import TripActionsPanel, { type TripActionsContext } from "./TripActionsPanel";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 
@@ -418,6 +419,112 @@ describe("TripActionsPanel", () => {
         await screen.findByText(/substitutionResultPendingHint/),
       ).toBeInTheDocument();
       expect(screen.getByText("14")).toBeInTheDocument();
+    });
+  });
+
+  /**
+   * BE nay CHẶN CỨNG việc thay sang xe thiếu ghế bằng `409
+   * REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS` (handoff Vehicle Substitution
+   * B1-B7). Số của FE đếm từ sơ đồ ghế chỉ là cảnh báo sớm — ba con số trong
+   * `error.fields[]` mới là kết luận, và phải hỏi lại người vận hành trước khi
+   * gửi lại với `acknowledgeInsufficientSeats: true`.
+   */
+  describe("BE từ chối vì xe thay thiếu ghế", () => {
+    function seatShortageError() {
+      return new ApiRequestError(
+        "Replacement vehicle does not have enough usable seats.",
+        409,
+        "REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS",
+        [
+          // Cố tình đảo thứ tự so với ví dụ trong handoff: FE phải đọc theo TÊN.
+          { field: "missingSeats", message: "1" },
+          { field: "usableSeats", message: "2" },
+          { field: "passengersToTransfer", message: "3" },
+        ],
+      );
+    }
+
+    async function submitSubstitution(
+      user: ReturnType<typeof userEvent.setup>,
+    ) {
+      await user.click(screen.getByLabelText("tripOperations.vehicle"));
+      await user.click(
+        await screen.findByRole("option", { name: /plate=51B-999\.99/ }),
+      );
+      await user.click(screen.getByLabelText("tripOperations.driver"));
+      await user.click(screen.getByRole("option", { name: "Driver Two" }));
+      await user.type(
+        screen.getByLabelText("tripOperations.reason"),
+        "Breakdown",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "tripOperations.substitute" }),
+      );
+      await user.click(screen.getByRole("button", { name: "confirm" }));
+    }
+
+    it("hiện đúng ba con số của BE thay vì số FE tự đếm", async () => {
+      const user = userEvent.setup();
+      vi.mocked(substituteOperatorTripVehicle).mockRejectedValueOnce(
+        seatShortageError(),
+      );
+      renderPanel();
+
+      await submitSubstitution(user);
+
+      // Mặc định của test là 10 khách / xe 40 chỗ nên FE KHÔNG cảnh báo gì;
+      // mọi con số hiện ra ở đây đều đến từ BE.
+      expect(
+        await screen.findByText(
+          "tripOperations.seatShortageServerBody seats=2 passengers=3 missing=1",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("gửi lại với acknowledgeInsufficientSeats sau khi người dùng đồng ý", async () => {
+      const user = userEvent.setup();
+      vi.mocked(substituteOperatorTripVehicle).mockRejectedValueOnce(
+        seatShortageError(),
+      );
+      const onTripReplaced = renderPanel();
+
+      await submitSubstitution(user);
+      await user.click(
+        await screen.findByRole("button", {
+          name: "tripOperations.seatShortageProceed",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(substituteOperatorTripVehicle).toHaveBeenCalledTimes(2),
+      );
+      expect(substituteOperatorTripVehicle).toHaveBeenNthCalledWith(
+        1,
+        "trip-1",
+        expect.objectContaining({ acknowledgeInsufficientSeats: false }),
+      );
+      expect(substituteOperatorTripVehicle).toHaveBeenNthCalledWith(
+        2,
+        "trip-1",
+        expect.objectContaining({ acknowledgeInsufficientSeats: true }),
+      );
+      // Lượt hai không truyền idempotencyKey -> hàm API tự sinh key mới, đúng
+      // yêu cầu "body đổi thì phải đổi key".
+      expect(vi.mocked(substituteOperatorTripVehicle).mock.calls[1][2]).toBeUndefined();
+      expect(onTripReplaced).toHaveBeenCalledWith("trip-2");
+    });
+
+    it("không gửi lại khi người dùng bỏ qua cảnh báo", async () => {
+      const user = userEvent.setup();
+      vi.mocked(substituteOperatorTripVehicle).mockRejectedValueOnce(
+        seatShortageError(),
+      );
+      renderPanel();
+
+      await submitSubstitution(user);
+      await user.click(await screen.findByRole("button", { name: "cancel" }));
+
+      expect(substituteOperatorTripVehicle).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -14,6 +14,7 @@ import type {
   OperatorShuttleTripStatus,
   ShuttleDirection,
 } from "../../../api/vietride";
+import { EtaQualityBadge } from "../../../components/EtaQualityBadge";
 import { useNowTicker } from "../../../hooks/useNowTicker";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
@@ -316,6 +317,14 @@ export default function ShuttleTrackingCard({
                   t("dispatch.pickupOrderValue", { order }),
                 )}
               </p>
+            )}
+            {/* Payload ETA Shuttle hiện chưa kèm `estimateQuality`; badge tự ẩn
+                khi thiếu nên bật field bên BE là hiện ngay, không phải sửa FE. */}
+            {tracking?.eta?.estimateQuality && (
+              <EtaQualityBadge
+                quality={tracking.eta.estimateQuality}
+                className="mt-1"
+              />
             )}
           </div>
         </div>

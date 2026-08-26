@@ -151,14 +151,76 @@ function toPlaceResult(value: unknown): GoongPlaceResult | null {
   };
 }
 
-// Goong báo lỗi bằng `{ error: { code, message } }` kèm HTTP 4xx
-async function fetchGoongJson(url: string): Promise<unknown> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Goong trả về HTTP ${response.status}.`);
+/**
+ * Số request Goong được phép chạy CÙNG LÚC.
+ *
+ * Goong chặn bằng `429 OVER_RATE_LIMIT` khi bắn dồn. Gợi ý điểm dừng dọc tuyến
+ * là chỗ bắn nhiều nhất: mỗi danh mục quét 12 điểm mẫu rồi gọi Place Detail cho
+ * từng gợi ý thiếu toạ độ, hai danh mục ra ~50 request trong một nhịp. Đo thật
+ * trên tuyến TP.HCM - Đà Lạt: bắn thẳng thì 14/28 lời gọi Detail bị 429 và bị
+ * `.catch()` nuốt im lặng, gợi ý "biến mất" mà không có lỗi nào hiện ra.
+ *
+ * 4 là mức đo được vừa không dính 429 vừa không kéo dài chờ đợi. Đừng nâng lên
+ * mà không đo lại bằng chính tuyến dài.
+ */
+const maxConcurrentRequests = 4;
+// Số lần thử lại khi dính 429, giãn theo cấp số nhân (400ms, 800ms, 1600ms).
+const maxRateLimitRetries = 3;
+const rateLimitBaseDelayMs = 400;
+
+let activeRequests = 0;
+const pendingQueue: Array<() => void> = [];
+
+function acquireSlot(): Promise<void> {
+  if (activeRequests < maxConcurrentRequests) {
+    activeRequests += 1;
+    return Promise.resolve();
   }
 
-  return (await response.json()) as unknown;
+  return new Promise((resolve) => {
+    pendingQueue.push(() => {
+      activeRequests += 1;
+      resolve();
+    });
+  });
+}
+
+function releaseSlot() {
+  activeRequests -= 1;
+  pendingQueue.shift()?.();
+}
+
+const delay = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+/**
+ * Goong báo lỗi bằng `{ error: { code, message } }` kèm HTTP 4xx.
+ *
+ * Mọi lời gọi REST Goong đi qua đây nên hàng đợi + retry đặt ở đúng chỗ này:
+ * đặt ở tầng trên thì mỗi tính năng lại phải tự chống 429 một kiểu.
+ */
+async function fetchGoongJson(url: string): Promise<unknown> {
+  await acquireSlot();
+  try {
+    for (let attempt = 0; ; attempt += 1) {
+      const response = await fetch(url);
+      if (response.ok) {
+        return (await response.json()) as unknown;
+      }
+
+      // 429 là tạm thời — chờ rồi thử lại. Các lỗi khác (sai key, place_id
+      // không tồn tại) thử lại chỉ tốn quota nên ném luôn.
+      if (response.status !== 429 || attempt >= maxRateLimitRetries) {
+        throw new Error(`Goong trả về HTTP ${response.status}.`);
+      }
+
+      await delay(rateLimitBaseDelayMs * 2 ** attempt);
+    }
+  } finally {
+    releaseSlot();
+  }
 }
 
 // ── Place: autocomplete ────────────────────────────────────────────────────

@@ -46,6 +46,7 @@ export default function AlternativeRoutesSection({
     altForm,
     altMetrics,
     altStopDrafts,
+    altSuggestions,
     isSavingAlternative,
     startNewAlternative,
     handleSelectAlternativeRoute,
@@ -236,9 +237,14 @@ export default function AlternativeRoutesSection({
             </div>
             <div className="mt-3 space-y-2">
               <p className="text-xs text-gray-500">{t("routes.suggestModeHint")}</p>
-              {isLoadingSuggestions && (
+              {/* Phân biệt "đang tìm" với "tìm xong mà rỗng" — trước đây hai
+                  trạng thái trông y hệt nhau nên gợi ý hụt vì rate limit của
+                  Goong trông như tính năng bị gỡ mất. */}
+              {isLoadingSuggestions ? (
                 <p className="text-xs text-gray-600">{t("routes.suggestLoading")}</p>
-              )}
+              ) : altSuggestions.length === 0 ? (
+                <p className="text-xs text-amber-700">{t("routes.suggestEmpty")}</p>
+              ) : null}
               <StopSearchBox stops={stops} onPick={onPickSearchResult} />
             </div>
           </div>
