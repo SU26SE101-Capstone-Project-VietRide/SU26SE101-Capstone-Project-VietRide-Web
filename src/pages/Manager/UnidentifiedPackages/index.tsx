@@ -203,33 +203,35 @@ export default function UnidentifiedPackagesPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_200px]">
-        <SearchInput
-          label={t("unidentifiedPackages.searchLabel")}
-          placeholder={t("unidentifiedPackages.searchPlaceholder")}
-          value={search}
-          maxLength={100}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <CustomSelect
-          aria-label={t("unidentifiedPackages.statusFilter")}
-          className={inputClass}
-          value={status}
-          onChange={(event) => {
-            setStatus(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">{t("unidentifiedPackages.statusFilter")}</option>
-          {UNIDENTIFIED_PACKAGE_STATUSES.map((value) => (
-            <option key={value} value={value}>
-              {t(`unidentifiedPackages.status.${value}`)}
-            </option>
-          ))}
-        </CustomSelect>
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 p-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px]">
+            <SearchInput
+              label={t("unidentifiedPackages.searchLabel")}
+              placeholder={t("unidentifiedPackages.searchPlaceholder")}
+              value={search}
+              maxLength={100}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <CustomSelect
+              aria-label={t("unidentifiedPackages.statusFilter")}
+              className={inputClass}
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">{t("unidentifiedPackages.statusFilter")}</option>
+              {UNIDENTIFIED_PACKAGE_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`unidentifiedPackages.status.${value}`)}
+                </option>
+              ))}
+            </CustomSelect>
+          </div>
+        </div>
+
         <div className="overflow-x-auto" aria-busy={isLoading}>
           <table className="w-full min-w-[900px] text-sm">
             <thead>

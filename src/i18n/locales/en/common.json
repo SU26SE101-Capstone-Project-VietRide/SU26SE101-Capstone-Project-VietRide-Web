@@ -253,6 +253,7 @@
   },
   "dateTimePicker": {
     "selectDate": "Select date",
+    "selectDateTime": "Select date & time",
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
     "hour": "Hour",

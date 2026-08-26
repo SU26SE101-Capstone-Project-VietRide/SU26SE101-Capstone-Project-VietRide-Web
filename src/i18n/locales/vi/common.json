@@ -253,6 +253,7 @@
   },
   "dateTimePicker": {
     "selectDate": "Chọn ngày",
+    "selectDateTime": "Chọn thời điểm",
     "previousMonth": "Tháng trước",
     "nextMonth": "Tháng sau",
     "hour": "Giờ",
