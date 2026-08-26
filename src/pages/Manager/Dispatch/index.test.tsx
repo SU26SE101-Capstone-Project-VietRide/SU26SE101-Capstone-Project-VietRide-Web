@@ -8,6 +8,7 @@ import {
   cancelOperatorShuttleTrip,
   getOperatorShuttleContext,
   getOperatorShuttleRequests,
+  getOperatorShuttleTripPassengers,
   getOperatorUsers,
   getOperatorVehicles,
   getOperatorShuttleTrips,
@@ -40,6 +41,7 @@ vi.mock("../../../api/vietride", () => ({
   getShuttleTripEta: vi.fn(),
   getShuttleTripLatest: vi.fn(),
   getOperatorShuttleContext: vi.fn(),
+  getOperatorShuttleTripPassengers: vi.fn(),
   reassignOperatorShuttleTrip: vi.fn(),
 }));
 
@@ -164,6 +166,12 @@ describe("Manager Dispatch", () => {
       shuttleTripId: shuttleTrip.shuttleTripId,
       room: `shuttle:${shuttleTrip.shuttleTripId}`,
       scope: "OPERATOR",
+    });
+    // Danh sách khách trong modal chi tiết chuyến — mặc định rỗng để các test
+    // cũ chỉ quan tâm lộ trình điểm đón không phải khai thêm dữ liệu.
+    vi.mocked(getOperatorShuttleTripPassengers).mockResolvedValue({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      groups: [],
     });
     // Danh sách xe/tài xế cho hộp thoại phân công và đổi phân công
     vi.mocked(getOperatorVehicles).mockResolvedValue({

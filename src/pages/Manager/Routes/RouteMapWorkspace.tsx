@@ -66,6 +66,7 @@ type RouteMapWorkspaceProps = {
   onPickSearchResult: (result: StopSuggestion) => void;
   // Đang tải gợi ý Google Places dọc tuyến — hiện dòng loading nhỏ trong panel
   isLoadingSuggestions: boolean;
+  suggestionCount: number;
   routeStopFeedbackMessage: string;
   isDirty: boolean;
   isSaving: boolean;
@@ -97,6 +98,7 @@ export default function RouteMapWorkspace({
   pickedSuggestion,
   onPickSearchResult,
   isLoadingSuggestions,
+  suggestionCount,
   routeStopFeedbackMessage,
   isDirty,
   isSaving,
@@ -196,6 +198,7 @@ export default function RouteMapWorkspace({
             stopEditor={stopEditor}
             onPickSearchResult={onPickSearchResult}
             isLoadingSuggestions={isLoadingSuggestions}
+            suggestionCount={suggestionCount}
             routeStopFeedbackMessage={routeStopFeedbackMessage}
           />
         )}

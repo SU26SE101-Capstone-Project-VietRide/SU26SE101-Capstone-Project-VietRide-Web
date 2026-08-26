@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
@@ -19,8 +20,10 @@ import {
   type CargoCapacity,
   type OperatorUser,
   type OperatorVehicle,
+  type ReplacementSeatShortage,
   type TripOperationResult,
 } from "../../../api/vietride";
+import { parseReplacementSeatShortage } from "../../../utils/resourceConflict";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import CustomSelect from "../../../components/CustomSelect";
 import { ConfirmModal } from "../../../components/ConfirmModal";
@@ -149,7 +152,19 @@ export default function TripActionsPanel({
     useState("");
   const [routeChangeMessage, setRouteChangeMessage] = useState("");
   const [routeChangeError, setRouteChangeError] = useState("");
-  const [pendingAction, setPendingAction] = useState<"substitute" | "disrupt" | "route" | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    "substitute" | "disrupt" | "route" | null
+  >(null);
+  /**
+   * Con số thiếu ghế do CHÍNH BE trả về kèm `409
+   * REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`. Khác hẳn `missingSeats` đoán từ sơ
+   * đồ ghế phía dưới: BE đếm theo `usableSeats` thật của xe thay và số khách
+   * thật phải chuyển, nên khi có nó thì phải hiện nó, không hiện số của FE.
+   *
+   * Khác `null` = đang chờ người vận hành trả lời "vẫn thay dù thiếu ghế?".
+   */
+  const [seatShortage, setSeatShortage] =
+    useState<ReplacementSeatShortage | null>(null);
   /**
    * Số khách phải chuyển sang xe thay, đếm từ ghế `BOOKED` của sơ đồ ghế.
    * `null` = chưa tải hoặc tải hỏng — lúc đó KHÔNG cảnh báo thiếu ghế, vì đoán
@@ -298,10 +313,10 @@ export default function TripActionsPanel({
       return;
     }
 
-    // Thiếu ghế không chặn cứng, nhưng phải là lựa chọn có ý thức: BE hiện
-    // không kiểm số ghế và cũng không có luồng nào lo cho khách bị bỏ lại
-    // (`pendingSeatAssignmentCount` chỉ là con số báo cáo), nên nhà xe phải
-    // thấy trước rồi mới được đi tiếp.
+    // Cảnh báo thiếu ghế ĐOÁN TỪ SƠ ĐỒ GHẾ: chặn ở đây chỉ để khỏi bắn một
+    // request chắc chắn bị BE từ chối. Nơi quyết định thật là `409
+    // REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS` phía dưới — số của FE có thể
+    // đếm dư (xem `usableSeats`) nên không được coi là kết luận.
     if (missingSeats > 0 && !acknowledgeSeatShortage) {
       setError(t("tripOperations.seatShortageBlocked"));
       return;
@@ -312,6 +327,22 @@ export default function TripActionsPanel({
       return;
     }
 
+    await sendSubstitution(recoveryDeparture, acknowledgeSeatShortage);
+  }
+
+  /**
+   * Một lần gửi `substitute-vehicle`.
+   *
+   * `acknowledgeInsufficientSeats` là hai lượt gọi RIÊNG BIỆT theo handoff B1-B7:
+   * lượt đầu gửi `false`, nếu BE trả `409` thì hỏi lại người vận hành rồi gửi
+   * lượt hai với `true`. Body đổi nên BẮT BUỘC dùng Idempotency-Key mới — key
+   * mặc định của `substituteOperatorTripVehicle` sinh mới mỗi lần gọi, nên gọi
+   * lại hàm này là đủ; đừng tái sử dụng một key đã bắt.
+   */
+  async function sendSubstitution(
+    recoveryDeparture: Date,
+    acknowledgeInsufficientSeats: boolean,
+  ) {
     setIsMutating(true);
     setError("");
     setMessage("");
@@ -325,6 +356,7 @@ export default function TripActionsPanel({
           driverId: newDriverUserId,
           assistantId: newAssistantUserId || null,
         },
+        acknowledgeInsufficientSeats,
       });
       const newTripId = result.newTripId ?? result.tripId;
       const successMessage = t("tripOperations.substituteSuccess", {
@@ -333,6 +365,7 @@ export default function TripActionsPanel({
       setMessage(successMessage);
       setSubstitutionResult(result);
       setAcknowledgeSeatShortage(false);
+      setSeatShortage(null);
       onSubstituted?.(result);
       // Trang cha chuyển selection + URL sang chuyến mới
       if (newTripId) {
@@ -340,6 +373,14 @@ export default function TripActionsPanel({
       }
       onActionCompleted?.(successMessage);
     } catch (mutationError) {
+      const shortage = parseReplacementSeatShortage(mutationError);
+      if (shortage && !acknowledgeInsufficientSeats) {
+        // BE KHÔNG tạo chuyến mới và không giữ resource nào khi trả lỗi này,
+        // nên mở hộp xác nhận rồi gửi lại là an toàn — không phải dọn dẹp gì.
+        setSeatShortage(shortage);
+        return;
+      }
+
       setError(
         mutationError instanceof Error
           ? mutationError.message
@@ -349,6 +390,19 @@ export default function TripActionsPanel({
       setIsMutating(false);
       setPendingAction(null);
     }
+  }
+
+  /** Người vận hành bấm "vẫn thay" trong hộp cảnh báo thiếu ghế của BE. */
+  async function confirmSubstitutionDespiteShortage() {
+    const recoveryDeparture = new Date(estimatedRecoveryDepartureAt);
+    if (Number.isNaN(recoveryDeparture.getTime())) {
+      setSeatShortage(null);
+      setError(t("tripOperations.recoveryDepartureFuture"));
+      return;
+    }
+
+    setSeatShortage(null);
+    await sendSubstitution(recoveryDeparture, true);
   }
 
   async function disruptTrip() {
@@ -819,8 +873,44 @@ export default function TripActionsPanel({
         tone={pendingAction === "disrupt" ? "danger" : "warning"}
         busy={isMutating}
       />
+      {/* Cảnh báo thiếu ghế do BE trả về — tách khỏi ConfirmModal chung vì nó
+          mang số liệu riêng và chỉ mở SAU khi request đầu đã bị từ chối. */}
+      <ConfirmModal
+        open={Boolean(seatShortage)}
+        onClose={() => setSeatShortage(null)}
+        onConfirm={() => void confirmSubstitutionDespiteShortage()}
+        title={t("tripOperations.seatShortageTitle")}
+        message={t("tripOperations.seatShortageServerBody", {
+          seats: formatShortageNumber(seatShortage?.usableSeats, t),
+          passengers: formatShortageNumber(
+            seatShortage?.passengersToTransfer,
+            t,
+          ),
+          missing: formatShortageNumber(seatShortage?.missingSeats, t),
+        })}
+        confirmLabel={t("tripOperations.seatShortageProceed")}
+        cancelLabel={tc("cancel")}
+        tone="warning"
+        busy={isMutating}
+      >
+        <p className="text-xs text-gray-500">
+          {t("tripOperations.seatShortageServerHint")}
+        </p>
+      </ConfirmModal>
     </section>
   );
+}
+
+/**
+ * BE gửi ba con số thiếu ghế dưới dạng chuỗi và có thể thiếu field. Không parse
+ * được thì hiện nhãn "không rõ" chứ KHÔNG hiện 0 — 0 ghế dùng được là một khẳng
+ * định khác hẳn "không đọc được số".
+ */
+function formatShortageNumber(
+  value: number | null | undefined,
+  t: TFunction<"manager">,
+) {
+  return value == null ? t("tripOperations.seatShortageUnknownValue") : String(value);
 }
 
 function CapacityMetric({ label, value }: { label: string; value: string }) {

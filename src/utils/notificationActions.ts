@@ -25,6 +25,20 @@ const INCIDENT_NOTIFICATION_TYPES = new Set([
   "INCIDENT_RESOLVED",
 ]);
 
+/**
+ * Cảnh báo của luồng thay xe (handoff Vehicle Substitution B1-B7 mục 4).
+ *
+ * Cả hai đều là việc phải xử lý ở Trung tâm vận hành chứ không phải màn đặt vé:
+ * `VEHICLE_SUBSTITUTION_SEAT_SHORTAGE` báo còn khách chưa có ghế trên chuyến
+ * thay, `BOOKING_TRANSFER_ESCALATED` báo có khách quá 2 tiếng chưa được crew xác
+ * nhận. `BOOKING_TRANSFER_ESCALATED` chứa chữ "BOOKING" nên nếu không chặn ở
+ * đây, suy luận cũ sẽ đẩy sang màn Lượt đặt vé — nơi không làm gì được.
+ */
+const SUBSTITUTION_NOTIFICATION_TYPES = new Set([
+  "VEHICLE_SUBSTITUTION_SEAT_SHORTAGE",
+  "BOOKING_TRANSFER_ESCALATED",
+]);
+
 export function getNotificationActionPath(
   notification: NotificationItem,
   isAdmin: boolean,
@@ -227,6 +241,18 @@ function inferLegacyAction(
     readString(data, "notificationType") ??
     notification.type;
   const normalizedType = notificationType.toUpperCase();
+
+  // Kiểm TRƯỚC mọi suy luận theo field: payload của hai loại này mang cả
+  // bookingId lẫn tripId, mà nhánh bookingId nằm trên nhánh tripId phía dưới.
+  if (SUBSTITUTION_NOTIFICATION_TYPES.has(normalizedType)) {
+    // `newTripId` là chuyến THAY THẾ — đó mới là chuyến cần mở; `tripId` chỉ là
+    // dự phòng cho payload không khai chuyến mới.
+    const substitutionTripId =
+      readString(data, "newTripId") ?? readString(data, "tripId");
+    return substitutionTripId
+      ? { type: "OPEN_TRIP_TRACKING", params: { tripId: substitutionTripId } }
+      : { type: "NONE", params: {} };
+  }
 
   if (normalizedType.includes("WALLET")) {
     return { type: "OPEN_WALLET", params: {} };

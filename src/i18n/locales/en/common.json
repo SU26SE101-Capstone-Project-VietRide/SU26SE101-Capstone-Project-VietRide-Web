@@ -109,7 +109,13 @@
     "SHUTTLE_ASSIGNED": "a shuttle vehicle was assigned",
     "SHUTTLE_CANCELLED": "the shuttle trip was cancelled",
     "SHUTTLE_WARNING": "passengers still have no shuttle vehicle",
-    "SHUTTLE_UNFULFILLED": "no shuttle vehicle could be arranged"
+    "SHUTTLE_UNFULFILLED": "no shuttle vehicle could be arranged",
+    "VEHICLE_SUBSTITUTION_SEAT_SHORTAGE": "replacement vehicle is short on seats",
+    "BOOKING_TRANSFER_ESCALATED": "passenger transfer still unconfirmed",
+    "PENDING_CONFIRM": "awaiting confirmation",
+    "ESCALATED": "confirmation overdue",
+    "CONFIRMED": "confirmed",
+    "QUEUED": "queued for processing"
   },
   "topbar": {
     "defaultUserName": "Operator manager",

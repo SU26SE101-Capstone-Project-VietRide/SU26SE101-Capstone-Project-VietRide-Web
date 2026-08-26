@@ -40,6 +40,10 @@ export function getNotificationVisualGroup(
     return "subscription";
   }
   if (type.includes("TRIP")) return "trip";
+  // `VEHICLE_SUBSTITUTION_*` không chứa "TRIP" nhưng là việc của chuyến chính.
+  // Kiểm sau cùng vì "SUBSTITUTION" chỉ khác "SUBSCRIPTION" vài chữ — để trên
+  // là nuốt nhầm nhóm gói cước.
+  if (type.includes("SUBSTITUTION") || type.includes("VEHICLE")) return "trip";
 
   return "general";
 }

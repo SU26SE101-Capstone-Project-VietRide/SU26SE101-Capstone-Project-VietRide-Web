@@ -5,7 +5,10 @@
 // RequestDetailModal), để chỗ gọi API vẫn nằm gọn ở một nơi.
 //
 // LƯU Ý: operator-context CỐ TÌNH không trả tên/SĐT hành khách (xem comment của
-// OperatorShuttleContext trong api/vietride.ts). Đừng thêm cột hành khách ở đây.
+// OperatorShuttleContext trong api/vietride.ts). Đừng thêm cột hành khách vào
+// danh sách điểm đón bên dưới — danh sách khách có nguồn RIÊNG
+// (`GET /v1/operator/shuttle-trips/{id}/passengers`) và nằm ở
+// `ShuttleTripPassengersSection`, tự nạp lấy.
 import { useTranslation } from "react-i18next";
 import { FiBell, FiMapPin, FiNavigation, FiRefreshCw } from "react-icons/fi";
 import type {
@@ -16,6 +19,7 @@ import type {
   ShuttleDirection,
 } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
+import ShuttleTripPassengersSection from "./ShuttleTripPassengersSection";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { formatDistance, formatTime } from "./dispatchHelpers";
 import { Button } from "../../../components/ui/Button";
@@ -236,6 +240,8 @@ export default function ShuttleTripDetailModal({
               </ol>
             )}
           </section>
+
+          <ShuttleTripPassengersSection shuttleTripId={trip.shuttleTripId} />
         </div>
       )}
     </Modal>

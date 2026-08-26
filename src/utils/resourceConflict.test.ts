@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ApiRequestError } from "../api/client";
 import {
   isResourceConflictError,
+  parseReplacementSeatShortage,
   parseResourceConflictError,
 } from "./resourceConflict";
 
@@ -82,5 +83,52 @@ describe("parseResourceConflictError", () => {
   it("bỏ qua lỗi không phải ApiRequestError", () => {
     expect(parseResourceConflictError(new Error("boom"))).toBeNull();
     expect(isResourceConflictError(null)).toBe(false);
+  });
+});
+
+describe("parseReplacementSeatShortage", () => {
+  // Handoff Vehicle Substitution B1-B7 mục 1: ba con số đến dưới dạng CHUỖI và
+  // FE phải đọc theo tên field, không theo thứ tự.
+  it("đọc ba con số theo tên field bất kể thứ tự", () => {
+    const parsed = parseReplacementSeatShortage(
+      conflictError("REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS", [
+        { field: "missingSeats", message: "1" },
+        { field: "passengersToTransfer", message: "3" },
+        { field: "usableSeats", message: "2" },
+      ]),
+    );
+
+    expect(parsed).toEqual({
+      usableSeats: 2,
+      passengersToTransfer: 3,
+      missingSeats: 1,
+    });
+  });
+
+  // 0 ghế dùng được là một khẳng định thật, không phải "thiếu dữ liệu" — phải
+  // ra số 0 chứ không rơi xuống null.
+  it("giữ số 0 và trả null cho field thiếu hoặc không parse được", () => {
+    const parsed = parseReplacementSeatShortage(
+      conflictError("REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS", [
+        { field: "usableSeats", message: "0" },
+        { field: "missingSeats", message: "không rõ" },
+      ]),
+    );
+
+    expect(parsed?.usableSeats).toBe(0);
+    expect(parsed?.missingSeats).toBeNull();
+    expect(parsed?.passengersToTransfer).toBeNull();
+  });
+
+  it("bỏ qua lỗi khác code, khác status, hoặc không phải ApiRequestError", () => {
+    expect(
+      parseReplacementSeatShortage(conflictError("TRIP_VEHICLE_CONFLICT", [])),
+    ).toBeNull();
+    expect(
+      parseReplacementSeatShortage(
+        conflictError("REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS", [], 422),
+      ),
+    ).toBeNull();
+    expect(parseReplacementSeatShortage(new Error("boom"))).toBeNull();
   });
 });

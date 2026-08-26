@@ -1111,6 +1111,40 @@ export type OperatorReportExportParams = {
   to?: string;
 };
 
+/**
+ * Nhật ký hoạt động của quản trị viên hệ thống (`GET /v1/admin/activity-logs`).
+ *
+ * OpenAPI KHÔNG công bố ràng buộc cho các query param này (spec 2026-08-25 ghi
+ * TODO cho cả sáu), nên FE gửi đúng những gì BE nhận và không tự đặt giá trị
+ * mặc định cứng ngoài `page`/`pageSize`.
+ */
+export type AdminActivityLogParams = {
+  userId?: string;
+  action?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type AdminActivityLogActor = {
+  id?: string;
+  email?: string | null;
+  displayName?: string | null;
+  role?: string | null;
+};
+
+export type AdminActivityLogItem = {
+  id: string;
+  actor?: AdminActivityLogActor | null;
+  action?: string | null;
+  /** BE khai `any` — payload tự do theo từng loại hành động, FE chỉ hiển thị. */
+  metadata?: unknown;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt?: string;
+};
+
 export type AdminOutboxDlqParams = {
   cursor?: string;
   pageSize?: number;
@@ -2301,7 +2335,28 @@ export type TrackingTrailParams = {
 
 export type TrackingDelayStatus = "DELAYED" | "ON_TIME" | "UNKNOWN";
 
-export type TrackingEstimateQuality = "TRAFFIC_AWARE" | "FALLBACK";
+/**
+ * Chất lượng phép tính ETA mà BE công bố ra client (Day 51 — migration routing
+ * provider sang Goong):
+ *
+ * - `TRAFFIC_AWARE`: kết quả có tính tình hình giao thông (dữ liệu Trip lịch sử
+ *   đã tính trước Day 51).
+ * - `ROUTE_BASED`: tính theo quãng đường thực của tuyến, KHÔNG có traffic.
+ * - `FALLBACK`: route baseline hoặc tính cục bộ từ GPS speed + khoảng cách.
+ *
+ * BE nói rõ đây là enum **additive**: còn có thể thêm giá trị mới mà không đổi
+ * shape payload, nên union để mở bằng `(string & {})`. UI phải có nhánh mặc
+ * định trung tính — gặp giá trị lạ thì hiển thị nhãn chung chứ không được crash
+ * hay ẩn cả khối ETA. Xem `describeEtaQuality` trong `src/utils/etaQuality.ts`.
+ *
+ * Enum là phân loại CHẤT LƯỢNG, không phải tên nhà cung cấp: không được suy ra
+ * provider từ giá trị này và không hiển thị tên provider cho người dùng.
+ */
+export type TrackingEstimateQuality =
+  | "TRAFFIC_AWARE"
+  | "ROUTE_BASED"
+  | "FALLBACK"
+  | (string & {});
 
 type TrackingEtaTargetCommon = {
   tripId: string;
@@ -2698,6 +2753,12 @@ export type ShuttleTrackingEta = {
   estimatedArrivalTime: string;
   distanceMeters: number;
   updatedAt: string;
+  /**
+   * Handoff Day 51 xếp ETA Shuttle chung ô `estimateQuality` với stop/station,
+   * nhưng payload Shuttle hiện tại của Tracking CHƯA kèm field này. Để optional
+   * để bật lên bên BE là FE hiển thị được ngay, chưa có thì badge tự ẩn.
+   */
+  estimateQuality?: TrackingEstimateQuality;
 };
 
 /**
@@ -3269,6 +3330,116 @@ export type OperatorTripListItem = {
   departureAt: string;
   arrivalEstimate: string | null;
   canSubstituteVehicle: boolean;
+};
+
+/**
+ * Sửa thông tin chuyến đã sinh (`PATCH /v1/operator/trips/{tripId}`). Chỉ gửi
+ * field thật sự đổi — BE nhận partial và bỏ qua field vắng mặt.
+ */
+export type UpdateOperatorTripRequest = {
+  baseFare?: number | null;
+  notes?: string | null;
+  vehicleId?: string | null;
+  routeId?: string | null;
+};
+
+/** Trạm đầu/cuối rút gọn trong chi tiết chuyến của nhà xe. */
+export type OperatorTripStationRef = {
+  id: string;
+  name: string | null;
+};
+
+export type OperatorTripDetail = {
+  tripId: string;
+  operatorId?: string;
+  routeId?: string;
+  vehicleId?: string;
+  status?: string | null;
+  departureDateTime?: string;
+  estimatedArrivalTime?: string;
+  destinationArrivedAt?: string | null;
+  baseFare?: number;
+  originStation?: OperatorTripStationRef | null;
+  destinationStation?: OperatorTripStationRef | null;
+  seatSummary?: { totalSeats: number; availableSeats: number } | null;
+  returnRouteId?: string | null;
+  alternativeRouteId?: string | null;
+  tripCode?: BusinessCode;
+  routeCode?: BusinessCode;
+  notes?: string | null;
+  plannedEtaQuality?: string | null;
+  surchargePercent?: number;
+  surchargeAmount?: number;
+  effectiveFare?: number;
+  surchargePeriodId?: string | null;
+  surchargePeriodName?: string | null;
+};
+
+/**
+ * Ước tính thiệt hại trước khi huỷ chuyến
+ * (`POST /v1/operator/trips/{tripId}/cancel/preview`). Endpoint này KHÔNG đổi
+ * dữ liệu — gọi trước để nhà xe thấy tổng tiền phải hoàn rồi mới quyết định.
+ */
+export type OperatorTripCancelPreview = {
+  tripId: string;
+  status?: string | null;
+  affectedBookingIds?: string[] | null;
+  refundTotalBooking?: number;
+  affectedParcelIds?: string[] | null;
+  refundTotalParcel?: number;
+  grandTotal?: number;
+};
+
+export type OperatorTripCancelResult = {
+  tripId: string;
+  status?: string | null;
+};
+
+export type AddRouteStopRequest = {
+  stopId: string;
+  orderIndex: number;
+  estimatedDurationFromOriginMinutes: number;
+  distanceFromOriginKm?: number | null;
+  allowPickup?: boolean | null;
+  allowDropoff?: boolean | null;
+};
+
+export type RouteStopLink = {
+  routeId: string;
+  stopId: string;
+  orderIndex: number;
+  estimatedDurationFromOriginMinutes: number;
+  distanceFromOriginKm?: number | null;
+  allowPickup?: boolean;
+  allowDropoff?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/** Một hành khách trong nhóm đón của chuyến trung chuyển. */
+export type ShuttleTripPassenger = {
+  passengerUserId?: string | null;
+  displayName?: string | null;
+  phone?: string | null;
+  ticketIds?: string[] | null;
+};
+
+/**
+ * Nhóm khách theo từng điểm đón của chuyến trung chuyển — mỗi nhóm là một
+ * booking, `pickupOrder` khớp với thứ tự điểm đón mà tài xế đi.
+ */
+export type ShuttleTripPassengerGroup = {
+  pickupOrder: number;
+  bookingId?: string | null;
+  bookingCode?: BusinessCode;
+  pickupAddress?: string | null;
+  passengerCount?: number;
+  passengers?: ShuttleTripPassenger[] | null;
+};
+
+export type ShuttleTripPassengerList = {
+  shuttleTripId: string;
+  groups?: ShuttleTripPassengerGroup[] | null;
 };
 
 export type PolicyAudience = "FOR_OPERATOR" | "FOR_USER";
@@ -3904,15 +4075,40 @@ export type OperatorDriverSchedulePatch = {
 
 export type DriverScheduleApplyTo = "FUTURE_ONLY" | "ALL_PENDING";
 
+/**
+ * Thay xe cho chuyến ĐANG CHẠY (handoff Vehicle Substitution B1-B7, 2026-08-25).
+ *
+ * - `reason` BẮT BUỘC: BE trim rồi kiểm không rỗng, tối đa 500 ký tự.
+ * - `estimatedRecoveryDepartureAt` phải là mốc tuyệt đối offset UTC = 0 (gửi
+ *   `toISOString()`, hậu tố `Z`) và phải SAU thời điểm gián đoạn.
+ * - `replacementCrew` optional; gửi thì `driverId` bắt buộc.
+ * - `acknowledgeInsufficientSeats`: BE nay CHẶN CỨNG khi xe thay thiếu ghế
+ *   (`409 REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`) thay vì cho qua như trước.
+ *   Chỉ gửi `true` sau khi người vận hành đã thấy con số thiếu ghế của BE và
+ *   xác nhận — và phải dùng Idempotency-Key MỚI vì body đã đổi.
+ * - BE từ chối field lạ (`422 VALIDATION_ERROR`), đừng gửi thừa.
+ */
 export type SubstituteVehicleRequest = {
   replacementVehicleId: string;
   estimatedRecoveryDepartureAt: string;
-  reason?: string | null;
-  notifyPassengers: boolean;
-  replacementCrew: {
+  reason: string;
+  notifyPassengers?: boolean;
+  replacementCrew?: {
     driverId: string;
     assistantId?: string | null;
-  };
+  } | null;
+  acknowledgeInsufficientSeats?: boolean;
+};
+
+/**
+ * Ba con số BE trả kèm `409 REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`, đọc từ
+ * `error.fields[]` (BE gửi dưới dạng CHUỖI). Đọc theo TÊN field, không theo thứ
+ * tự — handoff nói rõ thứ tự không phải hợp đồng.
+ */
+export type ReplacementSeatShortage = {
+  usableSeats: number | null;
+  passengersToTransfer: number | null;
+  missingSeats: number | null;
 };
 
 export type TripDisruptionRequest = {
@@ -4274,6 +4470,18 @@ export function unlockAdminUser(
 export function getAdminPlatformReport(params: AdminPlatformReportParams) {
   return apiRequest<AdminPlatformReport>(
     `/v1/admin/reports/platform${buildQuery(params)}`,
+  );
+}
+
+/**
+ * Nhật ký hoạt động toàn hệ thống cho SYSTEM_ADMIN.
+ *
+ * `data.items` có thể là `null` (BE trả null thay vì mảng rỗng cho trang trống)
+ * — mọi caller phải chịu được, xem cách màn Nhật ký chuẩn hoá về `[]`.
+ */
+export function getAdminActivityLogs(params: AdminActivityLogParams = {}) {
+  return apiRequest<PagedResult<AdminActivityLogItem>>(
+    `/v1/admin/activity-logs${buildQuery(params)}`,
   );
 }
 
@@ -6578,6 +6786,147 @@ export function getOperatorTrips(
   return apiRequest<PagedResult<OperatorTripListItem>>(
     `/v1/operator/trips${buildQuery(params)}`,
     { signal },
+  );
+}
+
+/**
+ * Sửa chuyến đã sinh: giá vé gốc, ghi chú, xe, tuyến.
+ *
+ * Gửi PARTIAL — chỉ đưa vào `request` những field thực sự đổi; field vắng mặt
+ * được BE giữ nguyên. Đổi `vehicleId`/`routeId` có thể bị chặn bằng `409` khi
+ * chuyến đã có vé hoặc xe trùng lịch, nên đừng coi 200 là chắc chắn.
+ */
+export function updateOperatorTrip(
+  tripId: string,
+  request: UpdateOperatorTripRequest,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<OperatorTripDetail>(`/v1/operator/trips/${tripId}`, {
+    method: "PATCH",
+    body: request,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+/**
+ * Xem trước hậu quả huỷ chuyến. KHÔNG đổi dữ liệu nên không cần idempotency,
+ * và BE cũng không yêu cầu body — gọi được nhiều lần thoải mái.
+ */
+export function previewOperatorTripCancel(tripId: string) {
+  return apiRequest<OperatorTripCancelPreview>(
+    `/v1/operator/trips/${tripId}/cancel/preview`,
+    { method: "POST" },
+  );
+}
+
+/**
+ * Huỷ chuyến. Nhận `idempotencyKey` từ caller để giữ NGUYÊN key khi retry sau
+ * timeout/5xx — huỷ hai lần bằng hai key khác nhau là hai lệnh khác nhau với BE.
+ */
+export function cancelOperatorTrip(
+  tripId: string,
+  reason?: string | null,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<OperatorTripCancelResult>(
+    `/v1/operator/trips/${tripId}/cancel`,
+    {
+      method: "POST",
+      body: { reason: reason ?? null },
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+/**
+ * Khoá một ghế của chuyến (hỏng ghế, để hàng, giữ cho nhân viên...).
+ *
+ * Trả về SƠ ĐỒ GHẾ mới của chuyến chứ không phải một ghế — dùng thẳng response
+ * để vẽ lại, đừng tự sửa ghế trong state rồi đoán phần còn lại.
+ *
+ * Ghế đang có khách trả `409 TRIP_SEAT_IN_USE`; ghế không thuộc sơ đồ trả
+ * `404 TRIP_SEAT_NOT_FOUND`.
+ */
+export function disableOperatorTripSeat(
+  tripId: string,
+  seatNumber: string,
+  reason?: string | null,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<TripSeatMap>(
+    `/v1/operator/trips/${tripId}/seats/${encodeURIComponent(seatNumber)}/disable`,
+    {
+      method: "POST",
+      body: { reason: reason ?? null },
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+/**
+ * Mở lại ghế đã khoá. Request BODYLESS — spec không khai body, nên không truyền
+ * `body` để `apiRequest` khỏi gắn `Content-Type`.
+ */
+export function enableOperatorTripSeat(
+  tripId: string,
+  seatNumber: string,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<TripSeatMap>(
+    `/v1/operator/trips/${tripId}/seats/${encodeURIComponent(seatNumber)}/enable`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+/**
+ * Thêm MỘT điểm dừng vào tuyến sẵn có.
+ *
+ * Khác `PUT /v1/operator/routes/{id}/full` (thay toàn bộ tuyến + danh sách điểm
+ * dừng, dùng cho màn thiết kế tuyến trên bản đồ): endpoint này chỉ chèn một
+ * điểm nên rẻ hơn và không đụng vào geometry đã nắn.
+ */
+export function addOperatorRouteStop(
+  routeId: string,
+  request: AddRouteStopRequest,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<RouteStopLink>(`/v1/operator/routes/${routeId}/stops`, {
+    method: "POST",
+    body: request,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+/** Gỡ một điểm dừng khỏi tuyến. BE trả `data: null`. */
+export function removeOperatorRouteStop(
+  routeId: string,
+  stopId: string,
+  idempotencyKey: string = createIdempotencyKey(),
+) {
+  return apiRequest<null>(
+    `/v1/operator/routes/${routeId}/stops/${stopId}`,
+    {
+      method: "DELETE",
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+/**
+ * Danh sách khách của chuyến trung chuyển, gom theo điểm đón.
+ *
+ * Đây là nguồn duy nhất có TÊN + SỐ ĐIỆN THOẠI từng khách; `GET
+ * /v1/operator/shuttle-requests` chỉ có yêu cầu chưa xếp xe, còn
+ * `operator-context` của Tracking chỉ có toạ độ điểm đón. Trả `503` khi Trip
+ * service không lấy được snapshot booking — coi như "chưa có dữ liệu", không
+ * phải lỗi cấu hình.
+ */
+export function getOperatorShuttleTripPassengers(shuttleTripId: string) {
+  return apiRequest<ShuttleTripPassengerList>(
+    `/v1/operator/shuttle-trips/${shuttleTripId}/passengers`,
   );
 }
 

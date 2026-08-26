@@ -48,7 +48,8 @@
     "reports": "Reports",
     "ragAudit": "RAG & audit",
     "outboxDlq": "Outbox DLQ",
-    "assistant": "Knowledge assistant"
+    "assistant": "Knowledge assistant",
+    "activityLogs": "Activity logs"
   },
   "layout": {
     "adminDashboard": "Admin dashboard",

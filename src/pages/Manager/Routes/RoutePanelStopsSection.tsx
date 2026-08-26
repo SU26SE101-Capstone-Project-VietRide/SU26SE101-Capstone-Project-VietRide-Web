@@ -23,6 +23,15 @@ type RoutePanelStopsSectionProps = {
   // Đang tải gợi ý Google Places dọc tuyến (kho nhà xe lọc tức thời, không cần
   // chờ) — hiện dòng loading nhỏ cạnh hint, optional để không gãy nơi gọi cũ
   isLoadingSuggestions?: boolean;
+  /**
+   * Số chấm gợi ý đang hiện trên bản đồ.
+   *
+   * Cần ở đây chỉ để phân biệt "tìm xong mà không có gì" với "đang tìm": trước
+   * đây hai trạng thái đó trông y hệt nhau (panel im lặng, bản đồ trống), nên
+   * lúc Goong chặn vì rate limit thì người dùng chỉ thấy gợi ý "tự nhiên biến
+   * mất" mà không có dấu hiệu nào.
+   */
+  suggestionCount?: number;
 };
 
 export default function RoutePanelStopsSection({
@@ -33,6 +42,7 @@ export default function RoutePanelStopsSection({
   stopEditor,
   onPickSearchResult,
   isLoadingSuggestions = false,
+  suggestionCount = 0,
 }: RoutePanelStopsSectionProps) {
   const { t } = useTranslation("manager");
   // Mặc định mở để thấy ngay danh sách stop của tuyến đang chọn
@@ -69,11 +79,15 @@ export default function RoutePanelStopsSection({
               <p className="text-xs text-gray-500">
                 {t("routes.suggestModeHint")}
               </p>
-              {isLoadingSuggestions && (
+              {isLoadingSuggestions ? (
                 <p className="text-xs text-gray-600">
                   {t("routes.suggestLoading")}
                 </p>
-              )}
+              ) : suggestionCount === 0 ? (
+                <p className="text-xs text-amber-700">
+                  {t("routes.suggestEmpty")}
+                </p>
+              ) : null}
               <StopSearchBox stops={stops} onPick={onPickSearchResult} />
             </div>
           )}

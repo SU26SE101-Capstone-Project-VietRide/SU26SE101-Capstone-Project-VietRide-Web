@@ -109,7 +109,13 @@
     "SHUTTLE_ASSIGNED": "đã xếp xe trung chuyển",
     "SHUTTLE_CANCELLED": "đã hủy chuyến trung chuyển",
     "SHUTTLE_WARNING": "còn khách chưa xếp xe trung chuyển",
-    "SHUTTLE_UNFULFILLED": "không bố trí được xe trung chuyển"
+    "SHUTTLE_UNFULFILLED": "không bố trí được xe trung chuyển",
+    "VEHICLE_SUBSTITUTION_SEAT_SHORTAGE": "xe thay thiếu ghế cho khách",
+    "BOOKING_TRANSFER_ESCALATED": "khách chưa được xác nhận chuyển sang xe thay",
+    "PENDING_CONFIRM": "chờ xác nhận",
+    "ESCALATED": "quá hạn xác nhận",
+    "CONFIRMED": "đã xác nhận",
+    "QUEUED": "đang xếp hàng xử lý"
   },
   "topbar": {
     "defaultUserName": "Quản lý nhà xe",

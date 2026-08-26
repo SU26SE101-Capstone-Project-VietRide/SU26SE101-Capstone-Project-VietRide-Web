@@ -1136,6 +1136,7 @@ export default function RoutesPage() {
                     isSuggestMode &&
                     (isLoadingPlaces || geometry.routePathPoints.length < 2)
                   }
+                  suggestionCount={suggestions.length}
                   routeStopFeedbackMessage={
                     messageScope === "routeStop" ? message : ""
                   }

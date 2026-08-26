@@ -11,6 +11,7 @@ import type { TripStatusChangedEvent } from "../../../lib/trackingSocket";
 import { EtaTimeline } from "./EtaTimeline";
 import type { RealtimeStatus, RouteGeometryStatus } from "./gpsHelpers";
 import { Button } from "../../../components/ui/Button";
+import { EtaQualityBadge } from "../../../components/EtaQualityBadge";
 
 type TripTrackingPanelProps = {
   tripId: string;
@@ -220,20 +221,27 @@ export default function TripTrackingPanel({
               {t("gps.etaToStop", { stopName: eta.eta.stopName })}
             </p>
           )}
-          {eta?.eta && eta.eta.delayStatus !== "UNKNOWN" && (
-            <p
-              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                eta.eta.delayStatus === "DELAYED"
-                  ? "bg-amber-50 text-amber-800 ring-1 ring-amber-100"
-                  : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
-              }`}
-            >
-              {eta.eta.delayStatus === "DELAYED"
-                ? eta.eta.delayMinutes != null
-                  ? t("gps.etaDelayed", { minutes: eta.eta.delayMinutes })
-                  : t("gps.etaDelayedNoMinutes")
-                : t("gps.etaOnTime")}
-            </p>
+          {/* Hai pill cùng hàng: trễ/đúng giờ là KẾT QUẢ, chất lượng ước tính
+              là ĐỘ TIN CẬY của chính con số ETA — đọc cạnh nhau mới đủ nghĩa. */}
+          {eta?.eta && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {eta.eta.delayStatus !== "UNKNOWN" && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    eta.eta.delayStatus === "DELAYED"
+                      ? "bg-amber-50 text-amber-800 ring-1 ring-amber-100"
+                      : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
+                  }`}
+                >
+                  {eta.eta.delayStatus === "DELAYED"
+                    ? eta.eta.delayMinutes != null
+                      ? t("gps.etaDelayed", { minutes: eta.eta.delayMinutes })
+                      : t("gps.etaDelayedNoMinutes")
+                    : t("gps.etaOnTime")}
+                </span>
+              )}
+              <EtaQualityBadge quality={eta.eta.estimateQuality} />
+            </div>
           )}
         </div>
       </div>

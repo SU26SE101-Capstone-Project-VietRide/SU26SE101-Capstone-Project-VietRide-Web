@@ -26,7 +26,7 @@ import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import Modal from "../../../components/Modal";
 import { formatCurrency } from "../../../utils/currency";
 import Pagination from "../../../components/Pagination";
-import TripSeatMapPanel from "./TripSeatMapPanel";
+import TripSeatMapPanel from "../../../components/TripSeatMapPanel";
 import { formatDateTime } from "../../../utils/date";
 import { inputClass } from "../../../components/form/formClasses";
 import { StatCard } from "../../../components/StatCard";
