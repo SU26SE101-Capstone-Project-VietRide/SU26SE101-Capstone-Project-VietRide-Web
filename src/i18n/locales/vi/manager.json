@@ -636,6 +636,8 @@
     "inactiveRoute": "Ngưng hoạt động",
     "createStationShortcut": "Tạo bến mới",
     "saveRoute": "Lưu tuyến",
+    "saveAlternative": "Lưu tuyến thay thế",
+    "savingAlternative": "Đang lưu tuyến thay thế...",
     "savingRoute": "Đang lưu tuyến...",
     "unsavedChanges": "Chưa lưu thay đổi",
     "stationsLockedHint": "Bến đi/bến đến không thể đổi sau khi tạo. Muốn đổi bến, hãy tạo tuyến mới.",

@@ -71,6 +71,13 @@ export default function CancellationPolicyTab() {
   const [loadError, setLoadError] = useState("");
   const [validationError, setValidationError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  // Bậc vừa được thêm. Danh sách bậc nằm dưới nút "Thêm bậc" và có thể dài hơn
+  // màn hình, nên bấm xong không thấy gì đổi — phải tự cuộn xuống mới biết đã
+  // thêm. Giữ id ở đây để vừa cuộn tới, vừa đánh dấu bằng viền sáng.
+  const [addedRuleId, setAddedRuleId] = useState("");
+  // Bậc đang chờ được cuộn tới + focus. Dùng ref (không phải state) vì việc này
+  // chỉ chạy đúng một lần lúc node gắn vào DOM, không cần render lại.
+  const pendingScrollIdRef = useRef("");
   const startRequest = useLatestRequest();
 
   const loadProfile = useCallback(async () => {
@@ -114,8 +121,29 @@ export default function CancellationPolicyTab() {
   };
 
   const addRule = () => {
-    setDrafts((prev) => [...prev, createCancellationPolicyDraft()]);
+    const draft = createCancellationPolicyDraft();
+    pendingScrollIdRef.current = draft.id;
+    setValidationError("");
+    setAddedRuleId(draft.id);
+    setDrafts((prev) => [...prev, draft]);
   };
+
+  /**
+   * Callback ref cho thẻ bậc vừa thêm: cuộn tới nơi rồi đặt con trỏ vào ô đầu.
+   *
+   * Chạy ngay lúc React gắn node nên không cần effect. `preventScroll` để việc
+   * focus không giật màn hình về vị trí khác, đè lên cú cuộn mượt vừa gọi.
+   * `scrollIntoView` được gọi tuỳ chọn vì jsdom không cài đặt hàm này.
+   */
+  const focusAddedRule = useCallback((node: HTMLDivElement | null) => {
+    if (!node || pendingScrollIdRef.current === "") {
+      return;
+    }
+
+    pendingScrollIdRef.current = "";
+    node.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    node.querySelector("input")?.focus({ preventScroll: true });
+  }, []);
 
   const removeRule = (id: string) => {
     setValidationError("");
@@ -176,6 +204,17 @@ export default function CancellationPolicyTab() {
       setIsSaving(false);
     }
   };
+
+  // Tắt viền sáng sau khi người dùng đã kịp nhìn thấy. setState nằm trong
+  // callback của timer (không phải thân effect) nên không vi phạm quy tắc hook.
+  useEffect(() => {
+    if (!addedRuleId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setAddedRuleId(""), 2_000);
+    return () => window.clearTimeout(timer);
+  }, [addedRuleId]);
 
   const parsed = parseCancellationPolicyDrafts(drafts);
   const windows = parsed.ok ? buildCancellationWindows(parsed.value) : [];
@@ -247,7 +286,12 @@ export default function CancellationPolicyTab() {
             return (
               <div
                 key={rule.id}
-                className="rounded-xl border border-gray-200 bg-white p-4"
+                ref={rule.id === addedRuleId ? focusAddedRule : undefined}
+                className={`rounded-xl border bg-white p-4 transition-shadow ${
+                  rule.id === addedRuleId
+                    ? "border-vr-300 ring-2 ring-vr-100"
+                    : "border-gray-200"
+                }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm font-medium text-gray-800">

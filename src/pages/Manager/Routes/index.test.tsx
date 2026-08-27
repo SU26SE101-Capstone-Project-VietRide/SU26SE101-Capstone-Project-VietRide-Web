@@ -3063,7 +3063,7 @@ describe("Manager route setup workflow", () => {
       fireEvent.change(screen.getByDisplayValue("Alt One"), {
         target: { value: "Alt One (sửa)" },
       });
-      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveAlternative/ }));
 
       await waitFor(() => expect(updateAlternativeRoute).toHaveBeenCalled());
       expect(updateAlternativeRoute).toHaveBeenCalledWith(
@@ -3266,7 +3266,7 @@ describe("Manager route setup workflow", () => {
       );
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
 
-      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveAlternative/ }));
 
       await waitFor(() => expect(createAlternativeRoute).toHaveBeenCalled());
       expect(createAlternativeRoute).toHaveBeenCalledWith(
@@ -3350,7 +3350,7 @@ describe("Manager route setup workflow", () => {
       fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
 
       // Lượt 1: create thành công (list → 2/2) nhưng geometry lỗi
-      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveAlternative/ }));
       await waitFor(() => expect(createAlternativeRoute).toHaveBeenCalledTimes(1));
       await waitFor(() =>
         expect(updateAlternativeRouteGeometry).toHaveBeenCalledTimes(1),
@@ -3366,7 +3366,7 @@ describe("Manager route setup workflow", () => {
       // Lượt 2 (retry): phải UPDATE đúng "alt-3" vừa tạo — không create lần 2,
       // không bị chặn bởi guard 0/2
       vi.mocked(updateAlternativeRouteGeometry).mockResolvedValueOnce(createdAlt);
-      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveAlternative/ }));
 
       await waitFor(() => expect(updateAlternativeRoute).toHaveBeenCalled());
       expect(updateAlternativeRoute).toHaveBeenCalledWith(
@@ -3503,7 +3503,7 @@ describe("Manager route setup workflow", () => {
       fireEvent.change(screen.getByDisplayValue("Alt One"), {
         target: { value: "Alt One (đang lưu)" },
       });
-      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveAlternative/ }));
       await waitFor(() => expect(updateAlternativeRoute).toHaveBeenCalled());
 
       // Đổi sang tuyến B NGAY TRONG LÚC save của tuyến A còn đang treo — đợi
@@ -3539,7 +3539,7 @@ describe("Manager route setup workflow", () => {
       fireEvent.change(screen.getByDisplayValue("Alt One"), {
         target: { value: "Alt One (sửa)" },
       });
-      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveAlternative/ }));
 
       await waitFor(() => expect(updateAlternativeRoute).toHaveBeenCalled());
       await waitFor(() =>
@@ -3559,7 +3559,7 @@ describe("Manager route setup workflow", () => {
       // Bấm Lưu LẦN NỮA (retry) — phải gọi UPDATE đúng bản ghi "alt-1", không
       // tạo trùng bản ghi mới (createAlternativeRoute không được gọi)
       vi.mocked(updateAlternativeRouteGeometry).mockResolvedValueOnce(altOne);
-      fireEvent.click(screen.getByRole("button", { name: /routes.saveRoute/ }));
+      fireEvent.click(screen.getByRole("button", { name: /routes.saveAlternative/ }));
       await waitFor(() =>
         expect(updateAlternativeRoute).toHaveBeenCalledTimes(2),
       );

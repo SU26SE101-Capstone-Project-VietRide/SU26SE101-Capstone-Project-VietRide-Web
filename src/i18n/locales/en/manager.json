@@ -636,6 +636,8 @@
     "inactiveRoute": "Inactive",
     "createStationShortcut": "Create new station",
     "saveRoute": "Save route",
+    "saveAlternative": "Save alternative route",
+    "savingAlternative": "Saving alternative route...",
     "savingRoute": "Saving route...",
     "unsavedChanges": "Unsaved changes",
     "stationsLockedHint": "Origin and destination stations cannot change after the route is created. Create a new route to use different stations.",

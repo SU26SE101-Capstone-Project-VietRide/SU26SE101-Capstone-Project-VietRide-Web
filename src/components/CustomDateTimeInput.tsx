@@ -1,6 +1,8 @@
 import { createPortal } from "react-dom";
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -8,6 +10,14 @@ import {
 } from "react";
 import { FiCalendar, FiChevronLeft, FiChevronRight, FiClock } from "react-icons/fi";
 import { useTranslation } from "react-i18next";
+
+// Khoảng hở tối thiểu giữa bảng lịch và mép màn hình
+const viewportPadding = 8;
+// Khoảng cách giữa ô nhập và bảng lịch
+const triggerGap = 4;
+// Dưới mức này thì bảng cuộn cũng không dùng được — thà để nó tràn nhẹ còn hơn
+// ép thành một khe nhìn không ra gì
+const minCalendarHeight = 220;
 
 type DateTimeChangeEvent = {
   target: {
@@ -112,7 +122,12 @@ export default function CustomDateTimeInput({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
-  const [calendarPosition, setCalendarPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [calendarPosition, setCalendarPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const monthDays = useMemo(() => getMonthDays(cursor), [cursor]);
   const weekDays = useMemo(
     () => ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map((day) => t(`dateTimePicker.weekdays.${day}`)),
@@ -178,15 +193,77 @@ export default function CustomDateTimeInput({
     commit(timeValue, true);
   }
 
-  function updateCalendarPosition() {
+  const updateCalendarPosition = useCallback(() => {
     const button = triggerRef.current;
     if (!button) return;
+
     const rect = button.getBoundingClientRect();
-    const width = !isTimeOnly && !isDateOnly ? Math.min(560, window.innerWidth - 16) : Math.min(352, window.innerWidth - 16);
-    const height = isTimeOnly ? 260 : isDateOnly ? 420 : 420;
-    const openAbove = window.innerHeight - rect.bottom < height + 16 && rect.top > height + 16;
-    setCalendarPosition({ top: openAbove ? rect.top - height : rect.bottom, left: Math.min(rect.left, window.innerWidth - width - 8), width });
-  }
+    const width =
+      !isTimeOnly && !isDateOnly
+        ? Math.min(560, window.innerWidth - 16)
+        : Math.min(352, window.innerWidth - 16);
+
+    // Đo bảng lịch THẬT khi nó đã render. Lần mở đầu tiên chưa có gì để đo nên
+    // đành ước lượng — nhưng chỉ ước lượng một nhịp, `useLayoutEffect` bên dưới
+    // đo lại ngay trước khi trình duyệt vẽ. `scrollHeight` là chiều cao NỘI
+    // DUNG (không bị `maxHeight` cắt), nếu không thì lần tính sau lại lấy chính
+    // chiều cao đã bị kẹp làm chuẩn và bảng không bao giờ bung lại được.
+    const measured = calendarRef.current?.scrollHeight ?? 0;
+    const height = measured > 0 ? measured : isTimeOnly ? 260 : 460;
+
+    const spaceBelow =
+      window.innerHeight - rect.bottom - triggerGap - viewportPadding;
+    const spaceAbove = rect.top - triggerGap - viewportPadding;
+    // Mở lên trên khi bên dưới không đủ mà bên trên rộng hơn. Bản cũ đòi bên
+    // trên phải chứa TRỌN bảng mới chịu mở lên; cả hai bên đều thiếu thì nó rơi
+    // vào nhánh mở xuống, tràn khỏi màn hình, và không có gì kẹp lại — mấy hàng
+    // ngày cuối cùng với nút Xong nằm ngoài tầm với, đúng như bảng giá cước
+    // hàng hoá với ô "Hiệu lực từ" nằm sát đáy hộp thoại.
+    const openAbove = height > spaceBelow && spaceAbove > spaceBelow;
+    // Không bên nào chứa nổi thì bảng tự cuộn trong phần chỗ nó có
+    const maxHeight = Math.max(
+      minCalendarHeight,
+      openAbove ? spaceAbove : spaceBelow,
+    );
+    const boxHeight = Math.min(height, maxHeight);
+    const top = openAbove
+      ? rect.top - triggerGap - boxHeight
+      : Math.min(
+          rect.bottom + triggerGap,
+          window.innerHeight - viewportPadding - boxHeight,
+        );
+
+    setCalendarPosition({
+      top: Math.max(viewportPadding, top),
+      left: Math.min(
+        Math.max(viewportPadding, rect.left),
+        window.innerWidth - width - viewportPadding,
+      ),
+      width,
+      maxHeight,
+    });
+  }, [isDateOnly, isTimeOnly]);
+
+  // Đặt lại vị trí NGAY SAU khi bảng render (đo được chiều cao thật), và bám
+  // theo khi cửa sổ đổi kích thước hay có gì đó cuộn — ô nhập nằm trong hộp
+  // thoại cuộn được, mà bảng lịch thì `fixed` nên nó không tự đi theo.
+  useLayoutEffect(() => {
+    if (!isOpen || disabled) {
+      return;
+    }
+
+    updateCalendarPosition();
+
+    const reposition = () => updateCalendarPosition();
+    window.addEventListener("resize", reposition);
+    // `true` để bắt cả cuộn bên trong hộp thoại, không riêng cuộn trang
+    window.addEventListener("scroll", reposition, true);
+
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [disabled, isOpen, updateCalendarPosition]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (event.key === "Escape") {
@@ -240,12 +317,24 @@ export default function CustomDateTimeInput({
       {isOpen && !disabled && createPortal(
         <div
           ref={calendarRef}
-          className={`fixed z-[100] max-w-full rounded-xl border border-vr-100 bg-white p-3 text-sm shadow-2xl shadow-vr-900/20 ${
+          data-testid="datetime-picker-panel"
+          // `overflow-y-auto`: khi màn hình quá thấp để chứa trọn bảng thì cuộn
+          // BÊN TRONG bảng, thay vì để phần dưới tràn ra ngoài màn hình
+          className={`fixed z-[100] max-w-full overflow-y-auto overscroll-contain rounded-xl border border-vr-100 bg-white p-3 text-sm shadow-2xl shadow-vr-900/20 ${
             !isTimeOnly && !isDateOnly
               ? "w-[min(35rem,calc(100vw-2rem))]"
               : "w-[min(22rem,calc(100vw-2rem))]"
           }`}
-          style={calendarPosition ? { top: calendarPosition.top, left: calendarPosition.left, width: calendarPosition.width } : undefined}
+          style={
+            calendarPosition
+              ? {
+                  top: calendarPosition.top,
+                  left: calendarPosition.left,
+                  width: calendarPosition.width,
+                  maxHeight: calendarPosition.maxHeight,
+                }
+              : undefined
+          }
         >
           <div
             className={!isTimeOnly && !isDateOnly ? "grid gap-5 md:grid-cols-[minmax(0,1fr)_220px]" : ""}

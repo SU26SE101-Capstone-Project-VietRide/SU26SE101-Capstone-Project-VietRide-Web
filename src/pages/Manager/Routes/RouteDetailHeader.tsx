@@ -21,6 +21,14 @@ type RouteDetailHeaderProps = {
   isDirty: boolean;
   isSaving: boolean;
   onSaveRoute: () => void;
+  /**
+   * Trạng thái lưu của tab "Tuyến thay thế". Tab đó lưu một BẢN GHI KHÁC (tuyến
+   * thay thế đang soạn), nhưng nút lưu vẫn phải đứng đúng chỗ như hai tab kia —
+   * người dùng không nên phải đi tìm nút lưu ở chỗ khác chỉ vì đổi tab.
+   */
+  isAlternativeDirty?: boolean;
+  isSavingAlternative?: boolean;
+  onSaveAlternative?: () => void;
 };
 
 export default function RouteDetailHeader({
@@ -32,16 +40,33 @@ export default function RouteDetailHeader({
   isDirty,
   isSaving,
   onSaveRoute,
+  isAlternativeDirty = false,
+  isSavingAlternative = false,
+  onSaveAlternative,
 }: RouteDetailHeaderProps) {
   const { t } = useTranslation("manager");
   // Sentinel 1px phía trên header: rời khỏi scrollport nghĩa là header đang "dính"
   // → bật shadow nhẹ để tách khỏi nội dung cuộn bên dưới. jsdom không có
   // IntersectionObserver nên guard lại (test không cần hiệu ứng này).
   const [isStuck, setIsStuck] = useState(false);
-  // Tab "Tuyến thay thế" có nút lưu riêng cho phương án đang dựng — hiện thêm
-  // nút lưu tuyến chính ở đây sẽ thành hai nút cùng nhãn cạnh nhau.
+  // Nút lưu đứng CÙNG MỘT CHỖ ở cả ba tab. Trước đây tab "Tuyến thay thế" bị
+  // loại khỏi đây và tự dựng nút riêng trong thanh công cụ bản đồ, nên đổi tab
+  // là nút lưu nhảy sang chỗ khác. Lý do loại trừ hồi đó là "hai nút cùng nhãn
+  // cạnh nhau" — nay không còn: mỗi tab chỉ hiện ĐÚNG MỘT nút, và nhãn nói rõ
+  // nó lưu cái gì (tuyến chính hay tuyến thay thế), vì hai thứ đó là hai bản
+  // ghi khác nhau.
+  const isAlternativeTab = activeTab === "alternatives";
   const canSaveRoute =
-    canManageRoutes && (activeTab === "info" || activeTab === "stops");
+    canManageRoutes && (!isAlternativeTab || onSaveAlternative !== undefined);
+  const saveDirty = isAlternativeTab ? isAlternativeDirty : isDirty;
+  const saveBusy = isAlternativeTab ? isSavingAlternative : isSaving;
+  const saveLabel = isAlternativeTab
+    ? saveBusy
+      ? t("routes.savingAlternative")
+      : t("routes.saveAlternative")
+    : saveBusy
+      ? t("routes.savingRoute")
+      : t("routes.saveRoute");
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -104,23 +129,23 @@ export default function RouteDetailHeader({
 
           {canSaveRoute && (
             <div className="flex items-center gap-2 pb-2">
-              {isDirty && (
+              {saveDirty && (
                 <Badge tone="warning" className="ring-1 ring-amber-200">
                   {t("routes.unsavedChanges")}
                 </Badge>
               )}
               <button
                 type="button"
-                onClick={onSaveRoute}
-                disabled={!isDirty || isSaving}
+                onClick={isAlternativeTab ? onSaveAlternative : onSaveRoute}
+                disabled={!saveDirty || saveBusy}
                 className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed ${
-                  isDirty
+                  saveDirty
                     ? "bg-vr-800 text-white shadow-sm hover:bg-vr-900 disabled:opacity-70"
                     : "border border-gray-200 bg-white text-gray-500"
                 }`}
               >
                 <FiSave size={16} />
-                {isSaving ? t("routes.savingRoute") : t("routes.saveRoute")}
+                {saveLabel}
               </button>
             </div>
           )}

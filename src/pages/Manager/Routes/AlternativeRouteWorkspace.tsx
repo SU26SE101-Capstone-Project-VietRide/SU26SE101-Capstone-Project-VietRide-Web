@@ -7,7 +7,6 @@
 // (tab Thông tin/Điểm dừng) không phải nhận thêm props không liên quan.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { FiSave } from "react-icons/fi";
 import type { OperatorStop } from "../../../api/vietride";
 import RouteDesignMap, { type RouteStopMarker } from "./RouteDesignMap";
 import {
@@ -21,7 +20,6 @@ import AlternativeRoutesSection from "./AlternativeRoutesSection";
 import type { RouteCoordinate } from "./polyline";
 import type { RouteStopDraft, StationOption, StopSuggestion } from "./types";
 import type { UseAlternativeRouteWorkspaceResult } from "./useAlternativeRouteWorkspace";
-import { Badge } from "../../../components/ui/Badge";
 
 // Hai màu nhận diện của tab này (routeColors.ts): tuyến chính teal (đứt nét,
 // chỉ xem) — tuyến thay thế đang soạn cam. Phương án đường chưa chọn = cùng
@@ -99,39 +97,13 @@ export default function AlternativeRouteWorkspace({
     [stops, workspace.altStopDrafts],
   );
 
-  const isDirty = workspace.isAltDirty || altGeometry.isGeometryDirty;
-
   return (
     <div>
+      {/* Nút lưu + badge "chưa lưu" của tab này nằm ở RouteDetailHeader, chung
+          chỗ với hai tab kia — đổi tab không làm nút lưu nhảy đi đâu cả. */}
       <GeometryToolbar
         canManageRoutes={canManageRoutes}
         geometry={altGeometry}
-        trailing={
-          canManageRoutes ? (
-            <>
-              {isDirty && (
-                <Badge tone="warning" className="ring-1 ring-amber-200">
-                  {t("routes.unsavedChanges")}
-                </Badge>
-              )}
-              <button
-                type="button"
-                onClick={() => void workspace.handleSaveAlternative()}
-                disabled={!isDirty || workspace.isSavingAlternative}
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed ${
-                  isDirty
-                    ? "bg-vr-800 text-white shadow-sm hover:bg-vr-900 disabled:opacity-70"
-                    : "border border-gray-200 bg-white text-gray-500"
-                }`}
-              >
-                <FiSave size={16} />
-                {workspace.isSavingAlternative
-                  ? t("routes.savingRoute")
-                  : t("routes.saveRoute")}
-              </button>
-            </>
-          ) : undefined
-        }
       />
 
       {/* Chú giải: không có nó thì đường teal đứt nét trên map chỉ là "một đường
