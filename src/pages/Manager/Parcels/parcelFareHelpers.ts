@@ -208,6 +208,46 @@ export function buildFareSelection(
   };
 }
 
+/**
+ * Selection khi bấm sửa từ một dòng bảng.
+ *
+ * BE giữ ĐÚNG MỘT bản ghi cho mỗi (tuyến, cỡ kiện) — `FindByRouteAndSizesAsync`
+ * tra theo cặp đó rồi `ToDictionary(SizeCategory)`, nên không thể có hai bản ghi
+ * cùng cỡ kiện trên một tuyến. Vì vậy giá luôn lấy theo TOÀN BỘ cỡ kiện của
+ * tuyến, không lọc theo khung hiệu lực: các cỡ có thể đã trôi sang mốc hiệu lực
+ * khác nhau (di sản của thời còn sửa lẻ từng cỡ), lọc theo khung sẽ để trống
+ * những mức đang hiển thị ngay trên bảng và bắt người dùng gõ lại.
+ *
+ * Mốc hiệu lực thì lấy theo ĐÚNG dòng được bấm — đó là con số người dùng đang
+ * nhìn thấy khi bấm bút chì.
+ */
+export function buildRouteFareSelection(
+  routeFares: ParcelRouteFare[],
+  target: ParcelRouteFare,
+): FareSelection {
+  const prices = createEmptyFarePrices();
+  let configuredSizeCount = 0;
+
+  routeFares.forEach((fare) => {
+    if (fare.routeId !== target.routeId || !isParcelSizeCategory(fare.sizeCategory)) {
+      return;
+    }
+
+    if (prices[fare.sizeCategory] === "") {
+      configuredSizeCount += 1;
+    }
+    prices[fare.sizeCategory] = String(fare.priceVnd);
+  });
+
+  return {
+    mode:
+      configuredSizeCount < parcelSizeCategories.length ? "COMPLETE" : "UPDATE",
+    prices,
+    effectiveFrom: target.effectiveFrom,
+    effectiveUntil: target.effectiveUntil ?? "",
+  };
+}
+
 export function buildNextFareSelection(
   summary: RouteFareSummary,
 ): FareSelection | null {
