@@ -54,6 +54,30 @@ function renderTable(routes: RouteOption[]) {
 }
 
 describe("ScheduleTable", () => {
+  // Cột Phân công rộng cố định nên dòng "biển số · loại xe" hay bị cắt giữa
+  // chừng — `title` cho xem đủ khi rê chuột.
+  it("gắn title đầy đủ cho hai dòng của cột Phân công", () => {
+    renderTable([
+      {
+        id: "route-1",
+        name: "Hồ Chí Minh - Đà Lạt",
+        origin: "Hồ Chí Minh",
+        destination: "Đà Lạt",
+        status: "active",
+        baseFare: 250_000,
+      },
+    ]);
+
+    // Tài xế: schedule không có driverName và danh sách drivers rỗng → fallback
+    expect(screen.getByText("vehicles.unassigned")).toHaveAttribute(
+      "title",
+      "vehicles.unassigned",
+    );
+
+    const vehicleLine = "51B-123.45 · SLEEPER";
+    expect(screen.getByText(vehicleLine)).toHaveAttribute("title", vehicleLine);
+  });
+
   it("shows the route fare when the schedule has no custom fare", () => {
     renderTable([
       {

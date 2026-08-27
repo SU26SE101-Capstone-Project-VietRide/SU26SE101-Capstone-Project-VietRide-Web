@@ -1,7 +1,7 @@
 // Hook cục bộ: gợi ý điểm dừng trên tuyến — kho nhà xe (lọc theo khoảng cách tới
 // đường, dedupe stop đã gắn) + địa điểm Goong dọc tuyến (cache theo routeKey,
 // dedupe với kho lẫn với place trùng vị trí kho).
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OperatorStop } from "../../../api/vietride";
 import { distanceKmBetween } from "./geometry";
 import {
@@ -14,6 +14,10 @@ import {
   projectPointOntoPolyline,
   type RouteCoordinate,
 } from "./polyline";
+import {
+  readSessionCache,
+  writeSessionCache,
+} from "../../../utils/sessionCache";
 import type { RouteStopDraft, StopSuggestion } from "./types";
 
 // Xe khách 40 chỗ chỉ rẽ được từ đường lớn — gợi ý (kho lẫn Goong) phải nằm
@@ -44,9 +48,102 @@ const blockedPlaceTypes = new Set([
 // googleSuggestions bên dưới) nên chỉ gọi 1 lần/tuyến vẫn cho kết quả đúng.
 const placesCache = new Map<string, PlaceAlongRoute[]>();
 
+// Cache còn được ĐỔ XUỐNG sessionStorage: Map module-level chết theo mỗi lần
+// F5, mà một lượt quét là ~84 request Goong. Địa điểm dọc tuyến không đổi theo
+// giờ nên hạn 24h là thoải mái; sessionStorage tự sạch khi đóng tab.
+const placesStorageKeyPrefix = "vietride.routeStopPlaces.";
+const placesCacheMaxAgeMs = 24 * 60 * 60 * 1_000;
+
+// Batch ĐANG BAY, theo cacheKey. Guard cũ chỉ nhìn `placesCache`, mà cache chỉ
+// có sau khi batch resolve — trong 1-3 giây đang chạy, rời tab Điểm dừng rồi
+// quay lại là bắn thêm nguyên một loạt 84 request nữa. Giữ promise ở đây để
+// lượt sau bám vào đúng loạt đang chạy thay vì mở loạt mới.
+const pendingPlaceBatches = new Map<string, Promise<PlaceAlongRoute[]>>();
+
+function placesStorageKey(cacheKey: string) {
+  return `${placesStorageKeyPrefix}${cacheKey}`;
+}
+
+/**
+ * Đọc gợi ý đã cache: bộ nhớ trước, rồi tới sessionStorage (nạp ngược lên bộ
+ * nhớ nếu có). Trả null khi chưa từng quét — caller dùng đúng tín hiệu đó để
+ * quyết định gọi API hay báo đang tải.
+ */
+function readCachedPlaces(cacheKey: string): PlaceAlongRoute[] | null {
+  const inMemory = placesCache.get(cacheKey);
+  if (inMemory) {
+    return inMemory;
+  }
+
+  const persisted = readSessionCache<PlaceAlongRoute[]>(
+    placesStorageKey(cacheKey),
+    placesCacheMaxAgeMs,
+  );
+  if (persisted) {
+    placesCache.set(cacheKey, persisted);
+    return persisted;
+  }
+
+  return null;
+}
+
+// Một loạt quét cho `cacheKey`. Gọi lại khi đang bay thì nhận đúng promise cũ.
+function loadPlaces(
+  cacheKey: string,
+  encodedPolyline: string,
+): Promise<PlaceAlongRoute[]> {
+  const pending = pendingPlaceBatches.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  // Mỗi danh mục (bến xe / trạm dừng chân) là một loạt request riêng — gọi
+  // song song rồi gộp + dedupe theo placeId ở đây.
+  const batch = Promise.all(
+    stopPlaceCategories.map((category) =>
+      searchPlacesAlongRoute(encodedPolyline, category),
+    ),
+  )
+    .then((resultsPerQuery) => {
+      // Gộp kết quả nhiều query + dedupe theo placeId (giữ bản ghi đầu tiên).
+      const seenPlaceIds = new Set<string>();
+      const mergedResult: PlaceAlongRoute[] = [];
+      for (const results of resultsPerQuery) {
+        for (const place of results) {
+          if (seenPlaceIds.has(place.placeId)) {
+            continue;
+          }
+          seenPlaceIds.add(place.placeId);
+          mergedResult.push(place);
+        }
+      }
+
+      placesCache.set(cacheKey, mergedResult);
+      writeSessionCache<PlaceAlongRoute[]>(
+        placesStorageKey(cacheKey),
+        mergedResult,
+      );
+      return mergedResult;
+    })
+    .finally(() => {
+      pendingPlaceBatches.delete(cacheKey);
+    });
+
+  pendingPlaceBatches.set(cacheKey, batch);
+  return batch;
+}
+
 // Chỉ dùng trong test để reset cache giữa các case — không export ra ngoài module hook.
 export function __clearPlacesCacheForTest() {
   placesCache.clear();
+  pendingPlaceBatches.clear();
+  try {
+    Object.keys(sessionStorage)
+      .filter((key) => key.startsWith(placesStorageKeyPrefix))
+      .forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    // sessionStorage bị chặn — không có gì để dọn.
+  }
 }
 
 type UseRouteStopSuggestionsParams = {
@@ -70,43 +167,37 @@ export function useRouteStopSuggestions({
   // Đếm số lần cache địa điểm thực sự thay đổi — dùng để buộc useMemo bên
   // dưới đọc lại `placesCache` (Map mutate không tự trigger re-render).
   const [placesVersion, setPlacesVersion] = useState(0);
+  // routeKey mà người dùng đã BẤM tìm gợi ý. Trước đây chỉ cần bước chân vào
+  // tab Điểm dừng là tự bắn ~84 request Goong, kể cả khi chỉ định xem lại danh
+  // sách điểm dừng đã gắn — phần lớn lượt quét đó không ai dùng tới. Giờ phải
+  // có chủ đích; tuyến đã quét rồi thì cache trả kết quả ngay, không bắt bấm lại.
+  const [requestedKey, setRequestedKey] = useState("");
 
   const hasValidPath = pathPoints.length >= 2;
   const cacheKey = routeKey;
 
   useEffect(() => {
-    // Không setState đồng bộ trong effect: khi disabled/path không hợp lệ hoặc đã
-    // có cache, đơn giản không làm gì — output cuối được derive/gate ở useMemo bên dưới.
-    if (!enabled || !hasValidPath || placesCache.has(cacheKey)) {
+    // Không setState đồng bộ trong effect: khi disabled/path không hợp lệ, chưa
+    // được yêu cầu, hoặc đã có cache thì đơn giản không làm gì — output cuối
+    // được derive/gate ở useMemo bên dưới.
+    if (
+      !enabled ||
+      !hasValidPath ||
+      requestedKey !== cacheKey ||
+      readCachedPlaces(cacheKey)
+    ) {
       return;
     }
 
     let cancelled = false;
     const encodedPolyline = encodeGooglePolyline(pathPoints);
 
-    // Mỗi danh mục (bến xe / trạm dừng chân) là một loạt request riêng — gọi
-    // song song rồi gộp + dedupe theo placeId ở đây.
-    Promise.all(
-      stopPlaceCategories.map((category) =>
-        searchPlacesAlongRoute(encodedPolyline, category),
-      ),
-    ).then((resultsPerQuery) => {
+    // Batch tự lo phần gộp + ghi cache; ở đây chỉ cần biết lúc nào xong để
+    // buộc useMemo bên dưới đọc lại. Bám vào loạt đang bay nếu có.
+    void loadPlaces(cacheKey, encodedPolyline).then(() => {
       if (cancelled) {
         return;
       }
-      // Gộp kết quả nhiều query + dedupe theo placeId (giữ bản ghi đầu tiên).
-      const seenPlaceIds = new Set<string>();
-      const mergedResult: PlaceAlongRoute[] = [];
-      for (const results of resultsPerQuery) {
-        for (const place of results) {
-          if (seenPlaceIds.has(place.placeId)) {
-            continue;
-          }
-          seenPlaceIds.add(place.placeId);
-          mergedResult.push(place);
-        }
-      }
-      placesCache.set(cacheKey, mergedResult);
       setPlacesVersion((version) => version + 1);
     });
 
@@ -114,12 +205,12 @@ export function useRouteStopSuggestions({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, hasValidPath, cacheKey]);
+  }, [enabled, hasValidPath, cacheKey, requestedKey]);
 
   // Đọc kết quả địa điểm hiện có trong cache cho cacheKey hiện tại (rỗng nếu
   // chưa fetch xong). `placesVersion` chỉ để buộc recompute sau khi cache thay đổi.
   const places = useMemo(
-    () => placesCache.get(cacheKey) ?? [],
+    () => readCachedPlaces(cacheKey) ?? [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cacheKey, placesVersion],
   );
@@ -213,6 +304,12 @@ export function useRouteStopSuggestions({
     return result;
   }, [enabled, hasValidPath, places, stops, pathPoints, operatorSuggestions]);
 
+  // Bấm "Tìm gợi ý quanh tuyến" — đánh dấu đúng routeKey đang mở, effect trên
+  // sẽ chạy loạt quét (hoặc bám vào loạt đang bay của cùng key).
+  const requestPlaces = useCallback(() => {
+    setRequestedKey(cacheKey);
+  }, [cacheKey]);
+
   const rawSuggestions = useMemo<StopSuggestion[]>(
     () =>
       [...operatorSuggestions, ...googleSuggestions].sort(
@@ -225,12 +322,33 @@ export function useRouteStopSuggestions({
   // để tránh setState đồng bộ trong effect — disabled/path rỗng thì trả rỗng ngay.
   return useMemo(() => {
     if (!enabled || !hasValidPath) {
-      return { suggestions: [] as StopSuggestion[], isLoadingPlaces: false };
+      return {
+        suggestions: [] as StopSuggestion[],
+        isLoadingPlaces: false,
+        canRequestPlaces: false,
+        requestPlaces,
+      };
     }
+
+    const hasPlaces = readCachedPlaces(cacheKey) !== null;
+    const isScanning = requestedKey === cacheKey && !hasPlaces;
+
     return {
       suggestions: rawSuggestions,
-      isLoadingPlaces: !placesCache.has(cacheKey),
+      // CHỈ true khi đang thực sự quét. Nếu để nguyên "chưa có cache = đang
+      // tải" thì panel sẽ báo "đang tìm..." vĩnh viễn cho tuyến chưa ai bấm.
+      isLoadingPlaces: isScanning,
+      // Còn quét được (chưa có kết quả, chưa bấm) → UI hiện nút cho bấm
+      canRequestPlaces: !hasPlaces && !isScanning,
+      requestPlaces,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, hasValidPath, rawSuggestions, cacheKey, placesVersion]);
+  }, [
+    enabled,
+    hasValidPath,
+    rawSuggestions,
+    cacheKey,
+    placesVersion,
+    requestedKey,
+  ]);
 }

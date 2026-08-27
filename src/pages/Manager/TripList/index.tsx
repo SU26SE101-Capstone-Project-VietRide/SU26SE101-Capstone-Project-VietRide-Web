@@ -598,7 +598,12 @@ export default function TripListPage() {
                     <span className="block truncate" title={routeLabel(trip)}>
                       {routeLabel(trip)}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs font-normal text-gray-500">
+                    {/* Cột hẹp nên dòng "mã tuyến · bến đi → bến đến" hay bị
+                        cắt giữa tên bến; `title` cho xem đủ khi rê chuột. */}
+                    <span
+                      className="mt-0.5 block truncate text-xs font-normal text-gray-500"
+                      title={`${trip.route.code ? `${trip.route.code} · ` : ""}${trip.route.originName} → ${trip.route.destinationName}`}
+                    >
                       {trip.route.code && (
                         <span className="font-mono tabular-nums">
                           {trip.route.code}

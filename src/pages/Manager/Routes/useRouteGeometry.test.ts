@@ -13,6 +13,7 @@ vi.mock("./geometry", async (importOriginal) => {
 });
 
 import { requestRoadGeometry, type RoadRouteOption } from "./geometry";
+import { __clearGeometryOptionsCacheForTest } from "./useRouteGeometry";
 import { useRouteGeometry } from "./useRouteGeometry";
 
 const mockedRequestRoadGeometry = vi.mocked(requestRoadGeometry);
@@ -63,6 +64,9 @@ function renderGeometry(excludedPathPoints?: RouteCoordinate[]) {
 describe("useRouteGeometry — excludedPathPoints", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Cache phương án nay ở module-level (+ sessionStorage) để không gọi lại
+    // Goong khi quay lại tuyến — test phải tự dọn giữa các case.
+    __clearGeometryOptionsCacheForTest();
   });
 
   it("drops fetched options matching the excluded path and keeps the rest", async () => {
@@ -107,6 +111,9 @@ describe("useRouteGeometry — excludedPathPoints", () => {
 describe("useRouteGeometry — preview khi kéo điểm nắn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Cache phương án nay ở module-level (+ sessionStorage) để không gọi lại
+    // Goong khi quay lại tuyến — test phải tự dọn giữa các case.
+    __clearGeometryOptionsCacheForTest();
   });
 
   // Đường bộ "đã áp" gồm 5 đỉnh; điểm dừng giữa tuyến nằm ở đỉnh thứ 4
@@ -244,6 +251,9 @@ describe("useRouteGeometry — preview khi kéo điểm nắn", () => {
 describe("useRouteGeometry — invalidateLocalGeometry({ keepViaPoints: true })", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Cache phương án nay ở module-level (+ sessionStorage) để không gọi lại
+    // Goong khi quay lại tuyến — test phải tự dọn giữa các case.
+    __clearGeometryOptionsCacheForTest();
   });
 
   it("keeps user-dragged via points and auto-applies the recomputed option after a stop-triggered invalidate", async () => {

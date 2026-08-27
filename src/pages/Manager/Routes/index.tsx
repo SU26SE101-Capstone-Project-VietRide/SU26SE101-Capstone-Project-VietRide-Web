@@ -272,8 +272,12 @@ export default function RoutesPage() {
   // xong, isLoadingRouteDetail và routePathPoints cùng cập nhật đúng trong CÙNG
   // một lần render (applySavedGeometry chạy trước setIsLoadingRouteDetail(false)
   // trong handleSelectRoute) nên hook luôn thấy dữ liệu khớp tuyến.
-  const { suggestions: nearbySuggestions, isLoadingPlaces } =
-    useRouteStopSuggestions({
+  const {
+    suggestions: nearbySuggestions,
+    isLoadingPlaces,
+    canRequestPlaces,
+    requestPlaces,
+  } = useRouteStopSuggestions({
       enabled: isSuggestMode,
       routeKey: activeRouteKey,
       pathPoints: isLoadingRouteDetail
@@ -1088,6 +1092,10 @@ export default function RoutesPage() {
               activeTab={activeTab}
               onSelectTab={selectTab}
               onOpenStationManagement={() => setIsStationModalOpen(true)}
+              canManageRoutes={canManageRoutes}
+              isDirty={isRouteDirty || geometry.isGeometryDirty}
+              isSaving={isSavingRoute}
+              onSaveRoute={() => runAction(handleSaveRoute)}
             />
 
             {/* Vùng nội dung tab: relative để overlay loading phủ lên khi đang
@@ -1137,12 +1145,13 @@ export default function RoutesPage() {
                     (isLoadingPlaces || geometry.routePathPoints.length < 2)
                   }
                   suggestionCount={suggestions.length}
+                  canRequestPlaces={
+                    canRequestPlaces && geometry.routePathPoints.length >= 2
+                  }
+                  onRequestPlaces={requestPlaces}
                   routeStopFeedbackMessage={
                     messageScope === "routeStop" ? message : ""
                   }
-                  isDirty={isRouteDirty || geometry.isGeometryDirty}
-                  isSaving={isSavingRoute}
-                  onSaveRoute={() => runAction(handleSaveRoute)}
                 />
               )}
 

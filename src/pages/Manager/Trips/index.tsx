@@ -79,6 +79,14 @@ function resourcesCacheKey(userId?: string) {
   return `vietride:tripResources:${userId || "anonymous"}`;
 }
 
+// Đọc đồng hồ phải nằm NGOÀI thân component: `Date.now()` gọi bên trong bị
+// rule react-hooks/purity chặn (kết quả đổi mỗi lần re-render). Hàm ở module
+// scope không nằm trên đường render nên vừa hợp lệ vừa giữ nguyên hành vi —
+// validateSchedule chỉ chạy từ handler bấm nút.
+function isDepartureInPast(departureAt: string) {
+  return new Date(departureAt).getTime() <= Date.now();
+}
+
 export default function TripsPage() {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -482,7 +490,7 @@ export default function TripsPage() {
 
     const departure = new Date(form.departureAt);
     const arrival = new Date(form.arrivalEstimate);
-    if (departure.getTime() <= Date.now()) {
+    if (isDepartureInPast(form.departureAt)) {
       return t("trips.validationFutureDeparture");
     }
     if (arrival.getTime() <= departure.getTime()) {
@@ -500,6 +508,13 @@ export default function TripsPage() {
       return t("trips.validationDayOfWeek");
     }
 
+    // Lịch một lần luôn lưu với ALL_PENDING, mà BE cấm ALL_PENDING đi kèm
+    // baseFare. Ô giá vé đã bị disable ở modal; nhánh này chỉ chặn trường hợp
+    // người dùng đổi giá rồi mới chuyển loại lịch về "một lần".
+    if (editingId && form.isOneTime && isScheduleBaseFareChanged()) {
+      return t("trips.validationBaseFareOnce");
+    }
+
     const hasConflict = schedules.some(
       (schedule) =>
         schedule.id !== editingId &&
@@ -512,6 +527,15 @@ export default function TripsPage() {
     }
 
     return "";
+  }
+
+  // So sánh giá vé của form với bản gốc đang sửa. Trả false khi đang tạo mới.
+  function isScheduleBaseFareChanged() {
+    const original = schedules.find((item) => item.id === editingId);
+    if (!original) return false;
+    const next = form.baseFare === "" ? null : Number(form.baseFare);
+    const before = original.baseFare === "" ? null : Number(original.baseFare);
+    return next !== before;
   }
 
   // Conflict tài nguyên: message chung không nói rõ vướng ở đâu, phải đọc
@@ -669,7 +693,13 @@ export default function TripsPage() {
       try {
         const updated = await updateOperatorDriverSchedule(
           editingId,
-          baseFareChanged ? "FUTURE_ONLY" : applyTo,
+          // Lịch một lần chỉ có đúng một chuyến nên FUTURE_ONLY là no-op —
+          // luôn gửi ALL_PENDING để thay đổi rơi vào đúng chuyến đó.
+          form.isOneTime
+            ? "ALL_PENDING"
+            : baseFareChanged
+              ? "FUTURE_ONLY"
+              : applyTo,
           patch,
         );
 
@@ -783,7 +813,7 @@ export default function TripsPage() {
       dayOfWeek: schedule.dayOfWeek,
     });
     setEditingId(schedule.id);
-    setApplyTo("FUTURE_ONLY");
+    setApplyTo(schedule.isOneTime ? "ALL_PENDING" : "FUTURE_ONLY");
     setFormError("");
     setFormModalOpen(true);
   }

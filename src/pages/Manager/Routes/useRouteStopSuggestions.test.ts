@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OperatorStop } from "../../../api/vietride";
 import type { PlaceAlongRoute } from "../../../lib/googlePlacesSearch";
@@ -64,6 +64,16 @@ const googlePlace: PlaceAlongRoute = {
 // ngoài ngưỡng mới (1km).
 const twoKmOffsetLatitude = 2 / 111.32;
 
+// Quét địa điểm Goong nay do người dùng bấm, không còn tự chạy khi vào tab —
+// một lượt quét là hàng chục request nên không được bắn khi chưa ai cần.
+async function scanPlaces(target: {
+  current: { requestPlaces: () => void };
+}) {
+  await act(async () => {
+    target.current.requestPlaces();
+  });
+}
+
 beforeEach(() => {
   __clearPlacesCacheForTest();
   mockedSearchPlacesAlongRoute.mockReset();
@@ -71,6 +81,105 @@ beforeEach(() => {
 });
 
 describe("useRouteStopSuggestions", () => {
+  // Map module-level chết theo mỗi lần F5, mà một lượt quét là ~84 request
+  // Goong. Kết quả được đổ xuống sessionStorage nên mở lại đúng tuyến không
+  // tốn thêm request nào.
+  it("dùng lại kết quả đã lưu ở sessionStorage, không gọi lại API", async () => {
+    sessionStorage.setItem(
+      "vietride.routeStopPlaces.route-cached",
+      JSON.stringify({ ts: Date.now(), data: [googlePlace] }),
+    );
+
+    const { result } = renderHook(() =>
+      useRouteStopSuggestions({
+        enabled: true,
+        routeKey: "route-cached",
+        pathPoints,
+        stops: [],
+        currentRouteStops: [],
+      }),
+    );
+
+    expect(mockedSearchPlacesAlongRoute).not.toHaveBeenCalled();
+    expect(result.current.isLoadingPlaces).toBe(false);
+    await waitFor(() => {
+      expect(result.current.suggestions.map((item) => item.id)).toEqual([
+        "google-place-1",
+      ]);
+    });
+  });
+
+  // Guard cũ nhìn cache, mà cache chỉ có SAU khi loạt quét resolve — rời tab
+  // Điểm dừng rồi quay lại trong 1-3 giây đó là bắn thêm nguyên một loạt nữa.
+  it("không bắn lại loạt quét khi loạt cũ cùng routeKey đang bay", async () => {
+    mockedSearchPlacesAlongRoute.mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    const first = renderHook(() =>
+      useRouteStopSuggestions({
+        enabled: true,
+        routeKey: "route-pending",
+        pathPoints,
+        stops: [],
+        currentRouteStops: [],
+      }),
+    );
+    await scanPlaces(first.result);
+    // 2 danh mục = 2 lời gọi cho loạt đầu tiên
+    await waitFor(() => {
+      expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(2);
+    });
+    first.unmount();
+
+    const second = renderHook(() =>
+      useRouteStopSuggestions({
+        enabled: true,
+        routeKey: "route-pending",
+        pathPoints,
+        stops: [],
+        currentRouteStops: [],
+      }),
+    );
+    await scanPlaces(second.result);
+
+    // Bám vào loạt đang bay, không mở loạt mới
+    expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(2);
+  });
+
+  // Trước đây chỉ cần bước chân vào tab Điểm dừng là tự bắn ~84 request Goong,
+  // kể cả khi người dùng chỉ định xem lại danh sách điểm dừng đã gắn.
+  it("không quét địa điểm cho tới khi người dùng bấm tìm", async () => {
+    mockedSearchPlacesAlongRoute.mockResolvedValue([googlePlace]);
+
+    const { result } = renderHook(() =>
+      useRouteStopSuggestions({
+        enabled: true,
+        routeKey: "route-manual",
+        pathPoints,
+        stops: [nearStop],
+        currentRouteStops: [],
+      }),
+    );
+
+    expect(mockedSearchPlacesAlongRoute).not.toHaveBeenCalled();
+    expect(result.current.isLoadingPlaces).toBe(false);
+    expect(result.current.canRequestPlaces).toBe(true);
+    // Gợi ý từ kho nhà xe KHÔNG tốn API nên vẫn hiện ngay, không phải bấm gì
+    expect(result.current.suggestions.map((item) => item.id)).toEqual([
+      "near-stop",
+    ]);
+
+    await scanPlaces(result);
+
+    await waitFor(() => {
+      expect(result.current.suggestions.length).toBe(2);
+    });
+    expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(2);
+    // Đã có kết quả → không mời quét lại nữa
+    expect(result.current.canRequestPlaces).toBe(false);
+  });
+
   it("không gọi Google và trả rỗng khi enabled=false", async () => {
     const { result } = renderHook(() =>
       useRouteStopSuggestions({
@@ -135,6 +244,8 @@ describe("useRouteStopSuggestions", () => {
       }),
     );
 
+    await scanPlaces(result);
+
     await waitFor(() => {
       expect(result.current.suggestions.length).toBe(2);
     });
@@ -186,6 +297,8 @@ describe("useRouteStopSuggestions", () => {
       }),
     );
 
+    await scanPlaces(result);
+
     await waitFor(() => {
       expect(result.current.isLoadingPlaces).toBe(false);
     });
@@ -212,6 +325,8 @@ describe("useRouteStopSuggestions", () => {
         currentRouteStops: [],
       }),
     );
+
+    await scanPlaces(first.result);
 
     await waitFor(() => {
       expect(first.result.current.suggestions.length).toBe(2);
@@ -252,6 +367,8 @@ describe("useRouteStopSuggestions", () => {
       { initialProps: { pathPoints } },
     );
 
+    await scanPlaces(result);
+
     await waitFor(() => {
       expect(result.current.suggestions.length).toBe(2);
     });
@@ -291,6 +408,8 @@ describe("useRouteStopSuggestions", () => {
       }),
     );
 
+    await scanPlaces(result);
+
     await waitFor(() => {
       expect(result.current.isLoadingPlaces).toBe(false);
     });
@@ -311,6 +430,8 @@ describe("useRouteStopSuggestions", () => {
         currentRouteStops: [],
       }),
     );
+
+    await scanPlaces(result);
 
     await waitFor(() => {
       expect(result.current.isLoadingPlaces).toBe(false);
@@ -339,6 +460,8 @@ describe("useRouteStopSuggestions", () => {
       }),
     );
 
+    await scanPlaces(result);
+
     await waitFor(() => {
       expect(result.current.isLoadingPlaces).toBe(false);
     });
@@ -364,6 +487,8 @@ describe("useRouteStopSuggestions", () => {
         currentRouteStops: [],
       }),
     );
+
+    await scanPlaces(result);
 
     await waitFor(() => {
       expect(result.current.suggestions.some((s) => s.id === "near-stop")).toBe(

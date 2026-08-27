@@ -336,8 +336,12 @@ export function useAlternativeRouteWorkspace({
   // cùng máy với tab Điểm dừng của tuyến chính (useRouteStopSuggestions), cache
   // riêng theo altGeometryKey nên không đụng cache của tuyến chính/tuyến thay
   // thế còn lại.
-  const { suggestions: altNearbySuggestions, isLoadingPlaces: isLoadingAltPlaces } =
-    useRouteStopSuggestions({
+  const {
+    suggestions: altNearbySuggestions,
+    isLoadingPlaces: isLoadingAltPlaces,
+    canRequestPlaces: canRequestAltPlaces,
+    requestPlaces: requestAltPlaces,
+  } = useRouteStopSuggestions({
       enabled: isWorkspaceActive && canManageRoutes,
       routeKey: altGeometryKey,
       pathPoints: altGeometry.routePathPoints,
@@ -368,6 +372,9 @@ export function useAlternativeRouteWorkspace({
     isWorkspaceActive &&
     canManageRoutes &&
     (isLoadingAltPlaces || altGeometry.routePathPoints.length < 2);
+  // Chỉ mời quét khi đã có polyline để quét dọc theo
+  const canScanAltPlaces =
+    canRequestAltPlaces && altGeometry.routePathPoints.length >= 2;
 
   // Kết quả chọn từ ô tìm gộp trong panel: tính lại distanceFromStartKm theo
   // polyline TUYẾN THAY THẾ đang hiển thị rồi mở popup xác nhận trên map —
@@ -843,6 +850,8 @@ export function useAlternativeRouteWorkspace({
     altGeometry,
     altSuggestions,
     isLoadingAltSuggestions,
+    canScanAltPlaces,
+    requestAltPlaces,
     pickedAltSuggestion,
     handlePickAltSearchResult,
     isAltDirty,

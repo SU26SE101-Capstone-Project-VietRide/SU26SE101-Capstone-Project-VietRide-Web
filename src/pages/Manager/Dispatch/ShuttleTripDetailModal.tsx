@@ -41,8 +41,8 @@ type ShuttleTripDetailModalProps = {
 
 const statusBadgeClass: Record<OperatorShuttleTripStatus, string> = {
   SCHEDULED: "bg-amber-50 text-amber-800 ring-1 ring-amber-100",
-  IN_PROGRESS: "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100",
-  COMPLETED: "bg-gray-100 text-gray-600 ring-1 ring-gray-200",
+  IN_PROGRESS: "bg-vr-50 text-vr-900 ring-1 ring-vr-100",
+  COMPLETED: "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100",
   CANCELLED: "bg-red-50 text-red-700 ring-1 ring-red-100",
 };
 

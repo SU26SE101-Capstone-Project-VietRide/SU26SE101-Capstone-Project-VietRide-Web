@@ -32,6 +32,10 @@ import {
   type RoadRouteOption,
   type RouteTravelMode,
 } from "./geometry";
+import {
+  readSessionCache,
+  writeSessionCache,
+} from "../../../utils/sessionCache";
 import type { TranslateFn } from "./types";
 
 // Không giới hạn số điểm nắn lộ trình phía FE. Trần thực tế là của Google Routes
@@ -90,6 +94,79 @@ type FetchedOptionsEntry = {
   options: RoadRouteOption[] | null;
   warning: TruckRouteWarning;
 } | null;
+
+/**
+ * Cache phương án Directions, dùng chung cho mọi lần mount.
+ *
+ * Trước đây nằm trong `useRef` nên rời trang Tuyến là mất, quay lại tốn 6-11
+ * request Goong cho đúng bộ dữ liệu vừa có. Giờ cache ở module-level (sống hết
+ * phiên SPA) và đổ thêm xuống sessionStorage (sống qua F5).
+ *
+ * Entry lưu là options THÔ — lọc theo `excludedPathPoints` diễn ra lúc ingest
+ * (xem `ingestFetchedEntry`), nên cùng một entry vẫn đúng khi đường loại trừ
+ * đổi. Giá trị `null` là kết quả hợp lệ ("đã hỏi, không có đường"), nên phải
+ * phân biệt với "chưa từng hỏi" — do đó bọc trong `{ entry }` khi lưu.
+ */
+const geometryOptionsCache = new Map<string, FetchedOptionsEntry>();
+const geometryStorageKeyPrefix = "vietride.routeGeometryOptions.";
+const geometryCacheMaxAgeMs = 24 * 60 * 60 * 1_000;
+// Chặn trên số đỉnh polyline được phép ghi xuống sessionStorage. Kho này dùng
+// CHUNG với cache danh sách tuyến/nguồn lực chuyến — một tuyến dài bất thường
+// làm tràn quota 5MB sẽ đá văng cả các cache kia.
+const maxPersistedPathPoints = 8_000;
+
+type PersistedGeometryEntry = { entry: FetchedOptionsEntry };
+
+function geometryStorageKey(key: string) {
+  return `${geometryStorageKeyPrefix}${key}`;
+}
+
+/**
+ * Nạp entry của `key` từ sessionStorage lên Map nếu Map chưa có.
+ *
+ * Tách riêng khỏi chỗ đọc để phần đọc trong effect giữ nguyên hình dạng cũ
+ * (`Map.get()` + so với `undefined`) — "chưa từng hỏi" là `undefined`, còn
+ * `null` là kết quả hợp lệ nghĩa là "đã hỏi, không có đường".
+ */
+function hydrateGeometryCache(key: string) {
+  if (geometryOptionsCache.has(key)) {
+    return;
+  }
+
+  const persisted = readSessionCache<PersistedGeometryEntry>(
+    geometryStorageKey(key),
+    geometryCacheMaxAgeMs,
+  );
+  if (persisted) {
+    geometryOptionsCache.set(key, persisted.entry);
+  }
+}
+
+function writeGeometryCache(key: string, entry: FetchedOptionsEntry) {
+  geometryOptionsCache.set(key, entry);
+
+  const pathPointCount = (entry?.options ?? []).reduce(
+    (total, option) => total + option.points.length,
+    0,
+  );
+  if (pathPointCount > maxPersistedPathPoints) {
+    return;
+  }
+
+  writeSessionCache<PersistedGeometryEntry>(geometryStorageKey(key), { entry });
+}
+
+/** Chỉ dùng trong test — cache module-level phải reset thủ công giữa các case. */
+export function __clearGeometryOptionsCacheForTest() {
+  geometryOptionsCache.clear();
+  try {
+    Object.keys(sessionStorage)
+      .filter((key) => key.startsWith(geometryStorageKeyPrefix))
+      .forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    // sessionStorage bị chặn — không có gì để dọn.
+  }
+}
 
 // Key cache/dedupe auto-fetch: tuyến + loại xe + điểm nắn + bộ waypoint
 function coordKey(point: RouteCoordinate) {
@@ -170,7 +247,9 @@ export function useRouteGeometry({
   const isDraggingViaRef = useRef(false);
   // Cache phương án theo phiên (không persist): chọn qua lại các tuyến không gọi
   // lại Google — kể cả lượt lỗi (entry null) cũng cache để không retry vô hạn
-  const optionsCacheRef = useRef(new Map<string, FetchedOptionsEntry>());
+  // Trỏ vào cache module-level (xem geometryOptionsCache) — giữ lại ref để
+  // cách đọc trong effect không đổi so với trước.
+  const optionsCacheRef = useRef(geometryOptionsCache);
   // Key của lượt auto-fetch gần nhất — chặn effect refetch trùng key
   const lastAutoFetchKeyRef = useRef("");
   // Snapshot đường + số liệu ĐÃ LƯU của tuyến đang mở — bấm lại phương án trùng
@@ -442,7 +521,7 @@ export function useRouteGeometry({
     }
 
     // User đã đổi tuyến/thao tác khác trong lúc chờ → bỏ kết quả (cache vẫn ghi)
-    optionsCacheRef.current.set(key, entry);
+    writeGeometryCache(key, entry);
     if (seq !== rerouteSeqRef.current) {
       return;
     }
@@ -480,6 +559,7 @@ export function useRouteGeometry({
       return;
     }
 
+    hydrateGeometryCache(key);
     const cached = optionsCacheRef.current.get(key);
     if (cached !== undefined) {
       // Cache hit → vẽ lại ngay, không request, không cần debounce
@@ -536,7 +616,7 @@ export function useRouteGeometry({
       // Reroute chủ động cũng ghi cache + key để effect auto-fetch không bắn
       // thêm một request trùng ngay sau khi viaPoints đổi
       const key = buildFetchKey(travelMode, nextViaPoints);
-      optionsCacheRef.current.set(key, { options: deduped, warning });
+      writeGeometryCache(key, { options: deduped, warning });
       lastAutoFetchKeyRef.current = key;
       savedOptionIndexRef.current = -1;
       setAutoRouteUnavailable(false);

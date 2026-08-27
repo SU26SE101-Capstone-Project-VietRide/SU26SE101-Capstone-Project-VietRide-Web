@@ -15,6 +15,7 @@ import {
   goongAutocomplete,
   goongPlaceDetail,
   type GoongLatLng,
+  type GoongPlaceDetail,
 } from "./goongApi";
 import { getGoongApiKey } from "./goongConfig";
 import { decodeGooglePolyline } from "./googlePolyline";
@@ -62,6 +63,41 @@ export type PlaceAlongRoute = {
   longitude: number;
   types: string[];
 };
+
+/**
+ * Cache Place Detail THÔ theo `place_id`, dùng chung cho MỌI người gọi.
+ *
+ * Trước đây `searchPlacesAlongRoute` gọi thẳng `goongPlaceDetail`, bỏ qua cache
+ * của `getPlaceDetails` ngay trong file này — nên cùng một "Bến xe Miền Đông"
+ * bị hỏi lại từ đầu cho từng tuyến đi ngang qua nó. Các tuyến của một nhà xe
+ * trùng bến rất nhiều, đây là phần lãng phí lớn nhất mà người dùng không hề
+ * thấy.
+ *
+ * Cache PROMISE chứ không cache kết quả: hai lời gọi cùng place_id chạy song
+ * song (chuyện thường trong một loạt quét) sẽ dùng chung đúng một request thay
+ * vì bắn hai. Promise hỏng thì gỡ khỏi cache để lần sau còn thử lại được —
+ * giữ lại một promise reject là biến lỗi mạng nhất thời thành lỗi vĩnh viễn.
+ */
+const rawPlaceDetailCache = new Map<
+  string,
+  Promise<GoongPlaceDetail | null>
+>();
+
+function cachedPlaceDetail(
+  placeId: string,
+): Promise<GoongPlaceDetail | null> {
+  const cached = rawPlaceDetailCache.get(placeId);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = goongPlaceDetail(placeId).catch((error: unknown) => {
+    rawPlaceDetailCache.delete(placeId);
+    throw error;
+  });
+  rawPlaceDetailCache.set(placeId, pending);
+  return pending;
+}
 
 const earthRadiusMeters = 6_371_000;
 
@@ -170,7 +206,7 @@ export async function searchPlacesAlongRoute(
     // Chỉ những gợi ý thiếu toạ độ mới phải gọi Place Detail, và có trần
     const details = await Promise.all(
       needDetail.slice(0, maxDetailLookups).map(async (entry) => {
-        const detail = await goongPlaceDetail(entry.prediction.placeId).catch(
+        const detail = await cachedPlaceDetail(entry.prediction.placeId).catch(
           () => null,
         );
         if (!detail) {
@@ -239,6 +275,7 @@ const placeDetailsCache = new Map<string, PlaceDetails | null>();
 // Chỉ dùng trong test để reset cache giữa các case — không export ra ngoài module hook.
 export function __clearPlaceDetailsCacheForTest() {
   placeDetailsCache.clear();
+  rawPlaceDetailCache.clear();
 }
 
 /**
@@ -259,7 +296,7 @@ export async function getPlaceDetails(
   }
 
   try {
-    const detail = await goongPlaceDetail(placeId);
+    const detail = await cachedPlaceDetail(placeId);
     if (!detail) {
       placeDetailsCache.set(placeId, null);
       return null;
