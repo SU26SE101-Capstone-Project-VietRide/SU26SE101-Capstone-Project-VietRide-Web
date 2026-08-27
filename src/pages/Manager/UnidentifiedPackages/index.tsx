@@ -19,7 +19,7 @@ import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { SearchInput } from "../../../components/ui/SearchInput";
-import { inputClass } from "../../../components/form/formClasses";
+import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatDateTime } from "../../../utils/date";
 import PackageDetailModal from "./PackageDetailModal";
@@ -205,30 +205,40 @@ export default function UnidentifiedPackagesPage() {
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-4">
+          {/* Cùng quy ước nhãn nổi với Báo cáo sự cố / Sự cố kiện hàng / Khiếu
+              nại. Màn này chỉ có một ô lọc nên giữ nguyên hàng ngang — không
+              tách ô tìm kiếm ra dòng riêng như các màn 4-5 bộ lọc. */}
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px]">
             <SearchInput
+              labelClassName={labelClass}
+              inputClassName={`${inputClass} min-h-11 pl-10`}
               label={t("unidentifiedPackages.searchLabel")}
               placeholder={t("unidentifiedPackages.searchPlaceholder")}
               value={search}
               maxLength={100}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <CustomSelect
-              aria-label={t("unidentifiedPackages.statusFilter")}
-              className={inputClass}
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">{t("unidentifiedPackages.statusFilter")}</option>
-              {UNIDENTIFIED_PACKAGE_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {t(`unidentifiedPackages.status.${value}`)}
-                </option>
-              ))}
-            </CustomSelect>
+            <label className="min-w-0">
+              <span className={labelClass}>
+                {t("unidentifiedPackages.statusFilter")}
+              </span>
+              <CustomSelect
+                aria-label={t("unidentifiedPackages.statusFilter")}
+                className={inputClass}
+                value={status}
+                onChange={(event) => {
+                  setStatus(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">{tc("all")}</option>
+                {UNIDENTIFIED_PACKAGE_STATUSES.map((value) => (
+                  <option key={value} value={value}>
+                    {t(`unidentifiedPackages.status.${value}`)}
+                  </option>
+                ))}
+              </CustomSelect>
+            </label>
           </div>
         </div>
 
