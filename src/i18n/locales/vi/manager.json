@@ -2879,7 +2879,7 @@
       "summaryTitle": "Khách sẽ được đền như thế nào",
       "summaryWithProof": "Khách có hoá đơn, chứng từ: nhà xe đền {{rate}}% chỗ thiệt hại chứng minh được, nhưng không vượt quá giá trị khách khai lúc gửi và không quá {{cap}}.",
       "summaryNoProof": "Khách không có chứng từ: nhà xe đền bằng tiền cước đã thu nhân {{multiplier}}, không quá {{cap}}.",
-      "summaryFreight": "Cả hai trường hợp, khách còn được trả lại phần tiền cước chưa hoàn.",
+      "summaryFreight": "Cả hai trường hợp khách đều được trả lại tiền cước",
       "belowDefaultWarning": "Bạn đang đặt mức thấp hơn mức chung của VietRide. Khách đi nhà xe của bạn sẽ được đền ít hơn so với các nhà xe khác.",
       "belowDefaultAck": "Tôi hiểu và vẫn muốn đền thấp hơn mức chung của VietRide.",
       "useDefaults": "Quay về mức chung của VietRide",

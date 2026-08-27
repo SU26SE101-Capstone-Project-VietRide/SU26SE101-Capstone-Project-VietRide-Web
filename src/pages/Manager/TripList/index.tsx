@@ -102,13 +102,18 @@ const columnClasses = {
   /**
    * Bản OPERATOR_ADMIN — có cột Thao tác. Ngân sách ở 1200px:
    *
-   * - `tripCode` 15% = 180px, padding 24 → 156px cho chuỗi 146px. Hạ xuống 14%
-   *   (168px → 144px lọt lòng) là mã bị cắt, phải hover mới đọc đủ để đọc cho
-   *   CSKH — mà đọc được mã chính là lý do cột này tồn tại. 15% là sàn.
+   * - `tripCode` 14% = 168px, padding 16 (`px-2`) → 152px cho chuỗi 146px. Ở
+   *   `px-3` thì 14% chỉ còn 144px lọt lòng và mã bị cắt — nên phần width nhả
+   *   ra cho cột Tài xế được bù lại bằng chính padding, không phải bằng chỗ
+   *   đọc mã. 14% + `px-2` là sàn thật sự của cột này.
    * - `route` 19%: không đủ cho dòng phụ nhưng là con số lớn nhất lấy được sau
    *   khi mọi cột khác đã ở mức tối thiểu.
    * - `vehicle` 8% = 96px, padding 24 → 72px cho biển số 70px. Sát, nhưng biển
    *   số Việt Nam không dài hơn được.
+   * - `driver` 12% = 144px, padding 24 (`px-2 sm:px-3`) → 120px, so với 100px
+   *   của bản 11% + `px-3 sm:px-4`. Tên tài xế đo được 89px là tên NGẮN; họ
+   *   tên đầy đủ kiểu "Nguyễn Công Thành" tràn qua 100px và bị cắt mất họ, nên
+   *   1% lấy từ `tripCode` cộng với padding hẹp hơn đều dồn vào đây.
    * - `actions` 16% = 192px, padding 24 → 168px cho nút 157px (chữ 113 + icon
    *   16 + gap 8 + padding trong 24). Hạ nữa là nút nong ô và bảng tràn ngang.
    * - `departure`/`arrival` 11% = 132px, padding 32 → 100px cho chuỗi 109px:
@@ -116,20 +121,20 @@ const columnClasses = {
    *   nội dung duy nhất xuống dòng vẫn đọc bình thường.
    */
   withActions: {
-    tripCode: "w-[15%] px-3",
+    tripCode: "w-[14%] px-2",
     route: "w-[19%] px-3 sm:px-4",
     vehicle: "w-[8%] px-3",
-    driver: "w-[11%] px-3 sm:px-4",
+    driver: "w-[12%] px-2 sm:px-3",
     departure: "w-[11%] px-3 sm:px-4",
     arrival: "w-[11%] px-3 sm:px-4",
     status: "w-[9%] px-2 sm:px-3",
     actions: "w-[16%] px-2 sm:px-3",
   },
   readOnly: {
-    tripCode: "w-[18%] px-3 sm:px-5",
+    tripCode: "w-[16%] px-2 sm:px-3",
     route: "w-[22%] px-3 sm:px-5",
     vehicle: "w-[12%] px-3 sm:px-5",
-    driver: "w-[15%] px-3 sm:px-5",
+    driver: "w-[17%] px-3 sm:px-4",
     departure: "w-[12%] px-3 sm:px-5",
     arrival: "w-[13%] px-3 sm:px-5",
     status: "w-[8%] px-3 sm:px-5",
