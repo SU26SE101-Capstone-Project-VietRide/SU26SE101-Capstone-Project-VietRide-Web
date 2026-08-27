@@ -148,7 +148,15 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
                         >
                           {item.icon}
                         </span>
-                        <span className="truncate">{t(item.labelKey)}</span>
+                        {/* Menu có mục dài hơn bề ngang sidebar ("Điều phối
+                            xe trung chuyển") nên `truncate` cắt mất đuôi. Tên
+                            đầy đủ chỉ còn ở `title` — trình duyệt hiện tooltip
+                            khi hover, không cần thư viện tooltip. Đặt trên
+                            chính `span` bị cắt chứ không phải trên `Link`, để
+                            vùng hover trùng đúng phần chữ bị cắt. */}
+                        <span className="truncate" title={t(item.labelKey)}>
+                          {t(item.labelKey)}
+                        </span>
                       </Link>
                     </li>
                   );

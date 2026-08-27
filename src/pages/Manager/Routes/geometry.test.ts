@@ -4,12 +4,15 @@
 // là chuẩn). Điểm dừng trung gian đi CHUNG tham số `destination`, ngăn bằng `;`.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  advisoryRouteWaypointDistanceKm,
   dedupeRouteOptions,
   excludeMatchingRouteOptions,
   findMatchingRouteOption,
   findPathAnchorWindow,
+  findRouteGeometryWaypointMismatches,
   findRouteLabelAnchor,
   isTruckDetour,
+  longestRetracedSpanKm,
   requestRoadGeometry,
   splicePathSegment,
   type RoadRouteOption,
@@ -195,6 +198,220 @@ describe("requestRoadGeometry", () => {
 
     expect(options).toHaveLength(1);
     expect(options[0].totalDistanceKm).toBe(308);
+  });
+
+  // Điểm thử lệch được gửi như ĐIỂM ĐẾN trung gian, nên rơi trúng hẻm cụt là xe
+  // phải chui vào rồi quay đầu ra. Ngưỡng tỉ lệ không bắt được: khúc quay đầu
+  // chỉ vài km trên tuyến 300km, tổng số km gần như không đổi.
+  it("drops synthesised detours that dive into a dead end and turn back", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    // Chạy dọc tuyến rồi rẽ vào một nhánh cụt ~1.5km và quay ra đúng lối cũ
+    const spur = Array.from({ length: 16 }, (_unused, step) => ({
+      latitude: 11.35 + step * 0.001,
+      longitude: 107.55 + step * 0.0009,
+    }));
+    const deadEndPath = [
+      { latitude: 10.77, longitude: 106.69 },
+      { latitude: 11.35, longitude: 107.55 },
+      ...spur,
+      ...[...spur].reverse(),
+      { latitude: 11.94, longitude: 108.44 },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const hasProbe = new URL(String(url)).searchParams
+          .get("destination")!
+          .includes(";");
+        return {
+          ok: true,
+          json: async () => ({
+            routes: [
+              hasProbe
+                ? {
+                    // Chỉ dài hơn tuyến chính 4km — lọt mọi ngưỡng tỉ lệ
+                    legs: [
+                      {
+                        distance: { value: 312_000 },
+                        duration: { value: 19_000 },
+                      },
+                    ],
+                    overview_polyline: {
+                      points: encodeGooglePolyline(deadEndPath),
+                    },
+                  }
+                : directionsRoute(308_000, 18_600),
+            ],
+          }),
+        };
+      }),
+    );
+
+    const options = await requestRoadGeometry(endpoints, "failed", {
+      alternatives: true,
+    });
+
+    expect(options).toHaveLength(1);
+    expect(options[0].totalDistanceKm).toBe(308);
+  });
+
+  // Goong tự khai báo `maneuver: "uturn"` cho bước "Quay đầu để vào X". Đo thật
+  // trên HCM–Đà Lạt: tuyến chính 0 cú, còn 3/4 bản tự chế bằng điểm thử lệch có
+  // đúng 1 — xe khách 45 chỗ không quay đầu giữa quốc lộ được.
+  it("drops synthesised detours that Goong marks with a u-turn", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    // Hành lang khác hẳn, dài hơn vừa phải — lọt mọi ngưỡng km/phút, chỉ hỏng
+    // vì cú quay đầu
+    const detourPath = [
+      endpoints[0],
+      { latitude: 11.4, longitude: 108.9 },
+      endpoints[1],
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const hasProbe = new URL(String(url)).searchParams
+          .get("destination")!
+          .includes(";");
+        return {
+          ok: true,
+          json: async () => ({
+            routes: [
+              hasProbe
+                ? {
+                    legs: [
+                      {
+                        distance: { value: 330_000 },
+                        duration: { value: 20_000 },
+                        steps: [
+                          { maneuver: "right" },
+                          { maneuver: "uturn" },
+                        ],
+                      },
+                    ],
+                    overview_polyline: {
+                      points: encodeGooglePolyline(detourPath),
+                    },
+                  }
+                : directionsRoute(308_000, 18_600),
+            ],
+          }),
+        };
+      }),
+    );
+
+    const options = await requestRoadGeometry(endpoints, "failed", {
+      alternatives: true,
+    });
+
+    expect(options).toHaveLength(1);
+    expect(options[0].totalDistanceKm).toBe(308);
+  });
+
+  // Chữa thay vì vứt: điểm neo lấy từ chính polyline vừa trả về nên chắc chắn
+  // nằm trên đường xe chạy được, khác hẳn điểm thử lệch đặt mù theo hình học.
+  it("repairs a u-turn candidate by re-routing through its divergence anchor", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    const detourPath = [
+      endpoints[0],
+      { latitude: 11.4, longitude: 108.9 },
+      endpoints[1],
+    ];
+    let probeCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const hasProbe = new URL(String(url)).searchParams
+          .get("destination")!
+          .includes(";");
+        if (!hasProbe) {
+          return {
+            ok: true,
+            json: async () => ({ routes: [directionsRoute(308_000, 18_600)] }),
+          };
+        }
+
+        probeCalls += 1;
+        // 4 lần đầu là điểm thử lệch (tầng 1) → bản dính quay đầu; từ lần thứ 5
+        // là tầng chữa qua điểm neo → bản sạch
+        const dirty = probeCalls <= 4;
+        return {
+          ok: true,
+          json: async () => ({
+            routes: [
+              {
+                legs: [
+                  {
+                    distance: { value: dirty ? 355_000 : 330_000 },
+                    duration: { value: dirty ? 22_000 : 20_000 },
+                    steps: dirty ? [{ maneuver: "uturn" }] : [{ maneuver: "right" }],
+                  },
+                ],
+                overview_polyline: {
+                  points: encodeGooglePolyline(detourPath),
+                },
+              },
+            ],
+          }),
+        };
+      }),
+    );
+
+    const options = await requestRoadGeometry(endpoints, "failed", {
+      alternatives: true,
+    });
+
+    expect(probeCalls).toBeGreaterThan(4);
+    expect(options).toHaveLength(2);
+    expect(options[1].totalDistanceKm).toBe(330);
+    expect(options[1].uTurnCount).toBe(0);
+  });
+
+  // "Phải đến được điểm cuối" — so với ĐIỂM CUỐI CỦA TUYẾN CHÍNH, không phải
+  // toạ độ bến do user nhập: Directions snap cả hai đầu, nên bến lệch trục 600m
+  // thì so với toạ độ gốc sẽ loại sạch cả phương án tốt.
+  it("drops a synthesised detour that stops short of the destination", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    const shortPath = [
+      endpoints[0],
+      { latitude: 11.4, longitude: 108.9 },
+      { latitude: 11.6, longitude: 108.1 },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const hasProbe = new URL(String(url)).searchParams
+          .get("destination")!
+          .includes(";");
+        return {
+          ok: true,
+          json: async () => ({
+            routes: [
+              hasProbe
+                ? {
+                    legs: [
+                      {
+                        distance: { value: 330_000 },
+                        duration: { value: 20_000 },
+                        steps: [{ maneuver: "right" }],
+                      },
+                    ],
+                    overview_polyline: {
+                      points: encodeGooglePolyline(shortPath),
+                    },
+                  }
+                : directionsRoute(308_000, 18_600),
+            ],
+          }),
+        };
+      }),
+    );
+
+    const options = await requestRoadGeometry(endpoints, "failed", {
+      alternatives: true,
+    });
+
+    expect(options).toHaveLength(1);
   });
 
   it("skips the synthesis when the route already has stops", async () => {
@@ -589,5 +806,104 @@ describe("findPathAnchorWindow + splicePathSegment", () => {
     expect(
       splicePathSegment(path, { previousIndex: 1, nextIndex: 4 }, []),
     ).toEqual(path);
+  });
+});
+
+describe("longestRetracedSpanKm", () => {
+  // ~1.1km mỗi bước dọc kinh tuyến
+  const straight = Array.from({ length: 40 }, (_unused, step) => ({
+    latitude: 10.77 + step * 0.01,
+    longitude: 106.69,
+  }));
+
+  it("reports no retracing for a route that never doubles back", () => {
+    expect(longestRetracedSpanKm(straight)).toBe(0);
+  });
+
+  it("measures the in-and-out length of a dead-end spur", () => {
+    const spur = Array.from({ length: 12 }, (_unused, step) => ({
+      latitude: 10.9,
+      longitude: 106.69 + step * 0.001,
+    }));
+    const withSpur = [
+      ...straight.slice(0, 14),
+      ...spur,
+      ...[...spur].reverse(),
+      ...straight.slice(14),
+    ];
+
+    // Nhánh cụt ~1.3km → vào và ra là ~2.6km đi lặp
+    expect(longestRetracedSpanKm(withSpur)).toBeGreaterThan(2);
+  });
+
+  it("ignores a hairpin too short to be a turnaround", () => {
+    const hairpin = Array.from({ length: 4 }, (_unused, step) => ({
+      latitude: 10.9,
+      longitude: 106.69 + step * 0.0005,
+    }));
+
+    expect(
+      longestRetracedSpanKm([
+        ...straight.slice(0, 14),
+        ...hairpin,
+        ...[...hairpin].reverse(),
+        ...straight.slice(14),
+      ]),
+    ).toBe(0);
+  });
+
+  it("handles paths too short to analyse", () => {
+    expect(longestRetracedSpanKm([])).toBe(0);
+    expect(longestRetracedSpanKm(straight.slice(0, 2))).toBe(0);
+  });
+});
+
+// Điểm lệch trục chính là thứ ép Directions bám một con đường khác để chạm tới
+// nơi — đo thật trên Phú Nhuận: gửi đi một toạ độ, bị snap sang trục khác cách
+// 660m, và đường trả về luồn qua ba con phố nhỏ kèm một cú quay đầu.
+describe("findRouteGeometryWaypointMismatches", () => {
+  // Đoạn thẳng dọc kinh tuyến, ~1.1km mỗi bước
+  const path = Array.from({ length: 10 }, (_unused, step) => ({
+    latitude: 10.77 + step * 0.01,
+    longitude: 106.69,
+  }));
+
+  // ~330m về phía đông của đường
+  const offCorridor = {
+    id: "stop-1",
+    name: "Bến A",
+    latitude: 10.8,
+    longitude: 106.693,
+  };
+  // ~55m — chỉ là bề ngang lòng đường
+  const onCorridor = {
+    id: "stop-2",
+    name: "Bến B",
+    latitude: 10.8,
+    longitude: 106.6905,
+  };
+
+  it("lets a point that is merely road-width off through the hard limit", () => {
+    expect(findRouteGeometryWaypointMismatches(path, [offCorridor])).toEqual([]);
+  });
+
+  it("flags the same point once the advisory threshold is used", () => {
+    const flagged = findRouteGeometryWaypointMismatches(
+      path,
+      [offCorridor, onCorridor],
+      advisoryRouteWaypointDistanceKm,
+    );
+
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].waypoint.name).toBe("Bến A");
+    expect(flagged[0].distanceToPathKm).toBeGreaterThan(
+      advisoryRouteWaypointDistanceKm,
+    );
+  });
+
+  it("keeps the hard limit as the default so saving is not newly blocked", () => {
+    expect(advisoryRouteWaypointDistanceKm).toBeLessThan(0.5);
+    // Không truyền ngưỡng → vẫn là 500m như BE, điểm lệch 330m không chặn lưu
+    expect(findRouteGeometryWaypointMismatches(path, [offCorridor])).toEqual([]);
   });
 });

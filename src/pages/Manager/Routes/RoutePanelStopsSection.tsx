@@ -4,7 +4,7 @@
 // còn nút bật/tắt riêng (chế độ thêm điểm dừng gắn thẳng vào việc mở tab này).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiChevronDown, FiChevronUp, FiMapPin } from "react-icons/fi";
+import { FiChevronDown, FiChevronUp, FiMapPin, FiSearch } from "react-icons/fi";
 import type { OperatorStop } from "../../../api/vietride";
 import RouteStopList from "./RouteStopList";
 import StopSearchBox from "./StopSearchBox";
@@ -32,6 +32,9 @@ type RoutePanelStopsSectionProps = {
    * mất" mà không có dấu hiệu nào.
    */
   suggestionCount?: number;
+  /** Còn quét được gợi ý Goong cho tuyến này (chưa có kết quả, chưa bấm). */
+  canRequestPlaces?: boolean;
+  onRequestPlaces?: () => void;
 };
 
 export default function RoutePanelStopsSection({
@@ -43,6 +46,8 @@ export default function RoutePanelStopsSection({
   onPickSearchResult,
   isLoadingSuggestions = false,
   suggestionCount = 0,
+  canRequestPlaces = false,
+  onRequestPlaces,
 }: RoutePanelStopsSectionProps) {
   const { t } = useTranslation("manager");
   // Mặc định mở để thấy ngay danh sách stop của tuyến đang chọn
@@ -83,6 +88,17 @@ export default function RoutePanelStopsSection({
                 <p className="text-xs text-gray-600">
                   {t("routes.suggestLoading")}
                 </p>
+              ) : canRequestPlaces && onRequestPlaces ? (
+                // Quét dọc tuyến là hàng chục lời gọi Goong nên phải do người
+                // dùng chủ động — gợi ý từ kho nhà xe vẫn hiện sẵn, miễn phí.
+                <button
+                  type="button"
+                  onClick={onRequestPlaces}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-vr-200 bg-white px-3 py-2 text-xs font-semibold text-vr-900 transition hover:bg-vr-50"
+                >
+                  <FiSearch size={14} />
+                  {t("routes.suggestScan")}
+                </button>
               ) : suggestionCount === 0 ? (
                 <p className="text-xs text-amber-700">
                   {t("routes.suggestEmpty")}

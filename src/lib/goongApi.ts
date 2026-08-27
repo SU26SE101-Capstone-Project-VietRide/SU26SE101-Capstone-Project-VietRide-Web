@@ -164,9 +164,37 @@ function toPlaceResult(value: unknown): GoongPlaceResult | null {
  * mà không đo lại bằng chính tuyến dài.
  */
 const maxConcurrentRequests = 4;
-// Số lần thử lại khi dính 429, giãn theo cấp số nhân (400ms, 800ms, 1600ms).
-const maxRateLimitRetries = 3;
+/**
+ * Số lần thử lại khi dính 429.
+ *
+ * Trước đây là 3, tức MỖI lời gọi có thể thành 4 request. Gợi ý điểm dừng bắn
+ * ~84 lời gọi một nhịp, nên khi đã chạm trần quota thì 84 biến thành 336 —
+ * càng 429 càng đổ thêm dầu. Giữ đúng 1 lần thử lại: đủ để vượt qua một nhịp
+ * dồn nhất thời, không đủ để nhân quota lên nhiều lần.
+ */
+const maxRateLimitRetries = 1;
 const rateLimitBaseDelayMs = 400;
+
+/**
+ * NGẮT MẠCH: 429 liên tiếp tới ngưỡng này thì ngừng bắn hẳn trong
+ * `circuitCooldownMs`, thay vì để từng request trong loạt tự thử lại.
+ *
+ * Khi Goong đã từ chối vì quota, mọi request sau đó gần như chắc chắn cũng bị
+ * từ chối — mà request bị 429 VẪN bị tính vào quota ngày. Thà dừng sớm: người
+ * dùng thấy gợi ý thiếu (y như hiện tại lúc bị 429), nhưng quota không bị đốt
+ * thêm cho những lần từ chối chắc chắn.
+ */
+const maxConsecutiveRateLimits = 3;
+const circuitCooldownMs = 60_000;
+
+let consecutiveRateLimits = 0;
+let circuitOpenUntil = 0;
+
+/** Chỉ dùng trong test để reset trạng thái ngắt mạch giữa các case. */
+export function __resetGoongCircuitForTest() {
+  consecutiveRateLimits = 0;
+  circuitOpenUntil = 0;
+}
 
 let activeRequests = 0;
 const pendingQueue: Array<() => void> = [];
@@ -202,16 +230,35 @@ const delay = (ms: number) =>
  * đặt ở tầng trên thì mỗi tính năng lại phải tự chống 429 một kiểu.
  */
 async function fetchGoongJson(url: string): Promise<unknown> {
+  // Mạch đang ngắt → hỏng ngay, không tốn thêm một request nào. Caller của mọi
+  // luồng Goong đều đã .catch() về rỗng/null nên UI xuống cấp y như lúc 429.
+  if (Date.now() < circuitOpenUntil) {
+    throw new Error("Goong đang tạm ngừng do vượt giới hạn request.");
+  }
+
   await acquireSlot();
   try {
     for (let attempt = 0; ; attempt += 1) {
       const response = await fetch(url);
       if (response.ok) {
+        // Có một lời gọi trót lọt = Goong còn phục vụ → đóng mạch lại.
+        consecutiveRateLimits = 0;
         return (await response.json()) as unknown;
       }
 
-      // 429 là tạm thời — chờ rồi thử lại. Các lỗi khác (sai key, place_id
-      // không tồn tại) thử lại chỉ tốn quota nên ném luôn.
+      if (response.status === 429) {
+        consecutiveRateLimits += 1;
+        if (consecutiveRateLimits >= maxConsecutiveRateLimits) {
+          circuitOpenUntil = Date.now() + circuitCooldownMs;
+          throw new Error("Goong đang tạm ngừng do vượt giới hạn request.");
+        }
+      } else {
+        // Lỗi khác (sai key, place_id không tồn tại) không phải chuyện quota
+        consecutiveRateLimits = 0;
+      }
+
+      // 429 lẻ tẻ là tạm thời — chờ rồi thử lại đúng một lần. Các lỗi khác thử
+      // lại chỉ tốn quota nên ném luôn.
       if (response.status !== 429 || attempt >= maxRateLimitRetries) {
         throw new Error(`Goong trả về HTTP ${response.status}.`);
       }
@@ -401,6 +448,13 @@ export type GoongRoute = {
   durationSeconds: number;
   encodedPolyline: string;
   summary: string;
+  /**
+   * Số lần lộ trình phải QUAY ĐẦU. Goong gắn `maneuver: "uturn"` cho từng bước
+   * kiểu "Quay đầu để vào X" — tín hiệu do chính bộ định tuyến khai báo, chắc
+   * hơn mọi cách suy ra từ hình đường. Đo thật: tuyến chính HCM–Đà Lạt có 0,
+   * còn phương án tự chế bằng điểm thử lệch thì 3/4 bản có đúng 1.
+   */
+  uTurnCount?: number;
 };
 
 function sumLegMetric(legs: unknown, field: "distance" | "duration") {
@@ -415,6 +469,29 @@ function sumLegMetric(legs: unknown, field: "distance" | "duration") {
 
     const { value } = leg[field];
     return typeof value === "number" ? total + value : total;
+  }, 0);
+}
+
+// Đếm bước có maneuver quay đầu trong mọi leg
+function countUTurns(legs: unknown) {
+  if (!Array.isArray(legs)) {
+    return 0;
+  }
+
+  return legs.reduce<number>((total, leg) => {
+    if (!isRecord(leg) || !Array.isArray(leg.steps)) {
+      return total;
+    }
+
+    return (
+      total +
+      leg.steps.filter(
+        (step) =>
+          isRecord(step) &&
+          typeof step.maneuver === "string" &&
+          step.maneuver.toLowerCase().includes("uturn"),
+      ).length
+    );
   }, 0);
 }
 
@@ -439,6 +516,7 @@ function toRoute(value: unknown): GoongRoute | null {
     durationSeconds,
     encodedPolyline,
     summary: readString(value.summary).trim(),
+    uTurnCount: countUTurns(value.legs),
   };
 }
 

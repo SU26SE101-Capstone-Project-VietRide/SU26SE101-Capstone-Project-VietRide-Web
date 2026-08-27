@@ -85,7 +85,10 @@ export default function RouteListSidebar({
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t("routes.searchRoutePlaceholder")}
             inputClassName={`${inputClass} pl-9`}
-            wrapperClassName="relative"
+            // `block` là bắt buộc: <label> mặc định là inline, mà `space-y-3`
+            // của khối cha dãn nhau bằng margin-top — margin dọc không ăn vào
+            // phần tử inline nên ô tìm kiếm dính sát vào tiêu đề phía trên.
+            wrapperClassName="relative block"
           />
           {canManageRoutes && (
             <Button variant="primary" className="w-full" onClick={onCreateRoute}>

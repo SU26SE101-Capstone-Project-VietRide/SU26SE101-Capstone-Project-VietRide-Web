@@ -1,14 +1,14 @@
 // Khung bản đồ dùng chung cho tab "Thông tin" và tab "Điểm dừng" (map-first):
 // thanh điều khiển hình học nằm NGOÀI bản đồ (thanh ngang mỏng ngay trên map —
-// không che logo/attribution Google, không đè thao tác kéo), gồm cả badge
-// "Chưa lưu thay đổi" + nút "Lưu tuyến" ở mép phải. Bản đồ full-bleed bên dưới,
+// không che logo/attribution Google, không đè thao tác kéo). Badge "Chưa lưu
+// thay đổi" + nút "Lưu tuyến" đã chuyển lên header sticky (RouteDetailHeader)
+// để không bị cuộn khuất khi đang sửa. Bản đồ full-bleed bên dưới,
 // chỉ còn panel nổi bên trái + bubble/marker. Nội dung panel nổi đổi theo
 // `panelMode`: "info" → form tuyến; "stops" → danh sách + tìm điểm dừng (chấm
 // gợi ý trên map chỉ bật ở mode này). Marker số thứ tự stop đã gắn (stopMarkers)
 // luôn hiện trên map ở CẢ hai mode.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { FiSave } from "react-icons/fi";
 import type {
   OperatorRoute,
   OperatorRouteRequest,
@@ -19,12 +19,15 @@ import RouteFloatingPanel from "./RouteFloatingPanel";
 import RouteFormSection from "./RouteFormSection";
 import RoutePanelStopsSection from "./RoutePanelStopsSection";
 import GeometryToolbar from "./GeometryToolbar";
+import {
+  advisoryRouteWaypointDistanceKm,
+  findRouteGeometryWaypointMismatches,
+} from "./geometry";
 import RouteMapLegend from "./RouteMapLegend";
 import type { RouteMapPoint, StationOption, StopSuggestion } from "./types";
 import type { UseRouteGeometryResult } from "./useRouteGeometry";
 import type { UseRouteStopEditorResult } from "./useRouteStopEditor";
 import type { RouteTab } from "./routeFormUtils";
-import { Badge } from "../../../components/ui/Badge";
 
 type RouteMapWorkspaceProps = {
   // Nội dung panel nổi hiện theo tab đang mở: "info" = form tuyến, "stops" =
@@ -67,10 +70,9 @@ type RouteMapWorkspaceProps = {
   // Đang tải gợi ý Google Places dọc tuyến — hiện dòng loading nhỏ trong panel
   isLoadingSuggestions: boolean;
   suggestionCount: number;
+  canRequestPlaces: boolean;
+  onRequestPlaces: () => void;
   routeStopFeedbackMessage: string;
-  isDirty: boolean;
-  isSaving: boolean;
-  onSaveRoute: () => void;
 };
 
 export default function RouteMapWorkspace({
@@ -99,10 +101,9 @@ export default function RouteMapWorkspace({
   onPickSearchResult,
   isLoadingSuggestions,
   suggestionCount,
+  canRequestPlaces,
+  onRequestPlaces,
   routeStopFeedbackMessage,
-  isDirty,
-  isSaving,
-  onSaveRoute,
 }: RouteMapWorkspaceProps) {
   const { t } = useTranslation("manager");
   // Có đường đi (tính/vẽ) → khóa 2 ô số liệu form (server bỏ qua manualMetrics)
@@ -134,6 +135,24 @@ export default function RouteMapWorkspace({
     [stopEditor.currentRouteStops, stops],
   );
 
+  // Bến/điểm dừng nằm lệch hẳn khỏi lộ trình đang vẽ. Directions phải bám một
+  // con đường KHÁC để chạm tới nơi, nên đường đi luồn qua ô phố nhỏ rồi vòng
+  // lại — nhìn trên bản đồ ra đúng hình zigzag. Ngưỡng cứng chỉ chặn lúc bấm
+  // Lưu và không nói điểm nào; ở đây báo sớm ngay lúc soạn, kèm tên điểm.
+  const offCorridorPoints = useMemo(
+    () =>
+      findRouteGeometryWaypointMismatches(
+        geometry.routePathPoints,
+        routeMapPoints,
+        advisoryRouteWaypointDistanceKm,
+      ).map(({ waypoint, distanceToPathKm }) => ({
+        id: waypoint.id ?? waypoint.name ?? "",
+        name: waypoint.name ?? "",
+        offsetMeters: Math.round(distanceToPathKm * 1000),
+      })),
+    [geometry.routePathPoints, routeMapPoints],
+  );
+
   return (
     <div>
       {/* Thanh điều khiển NGOÀI bản đồ, ngay trên map: trái = điều khiển hình
@@ -142,30 +161,7 @@ export default function RouteMapWorkspace({
       <GeometryToolbar
         canManageRoutes={canManageRoutes}
         geometry={geometry}
-        trailing={
-          canManageRoutes ? (
-            <>
-              {isDirty && (
-                <Badge tone="warning" className="ring-1 ring-amber-200">
-                  {t("routes.unsavedChanges")}
-                </Badge>
-              )}
-              <button
-                type="button"
-                onClick={onSaveRoute}
-                disabled={!isDirty || isSaving}
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed ${
-                  isDirty
-                    ? "bg-vr-800 text-white shadow-sm hover:bg-vr-900 disabled:opacity-70"
-                    : "border border-gray-200 bg-white text-gray-500"
-                }`}
-              >
-                <FiSave size={16} />
-                {isSaving ? t("routes.savingRoute") : t("routes.saveRoute")}
-              </button>
-            </>
-          ) : undefined
-        }
+        offCorridorPoints={offCorridorPoints}
       />
       <RouteMapLegend panelMode={panelMode} />
 
@@ -199,6 +195,8 @@ export default function RouteMapWorkspace({
             onPickSearchResult={onPickSearchResult}
             isLoadingSuggestions={isLoadingSuggestions}
             suggestionCount={suggestionCount}
+            canRequestPlaces={canRequestPlaces}
+            onRequestPlaces={onRequestPlaces}
             routeStopFeedbackMessage={routeStopFeedbackMessage}
           />
         )}

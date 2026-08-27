@@ -4,7 +4,7 @@
 // tay). Km/phút KHÔNG còn ô nhập — hiện dạng chỉ đọc, tự tính từ polyline đang
 // soạn trên bản đồ (xem useAlternativeRouteWorkspace).
 import { useTranslation } from "react-i18next";
-import { FiGitBranch, FiPlus, FiRotateCcw, FiSlash, FiTrash2 } from "react-icons/fi";
+import { FiGitBranch, FiPlus, FiRotateCcw, FiSearch, FiSlash, FiTrash2 } from "react-icons/fi";
 import {
   inputClass,
   labelClass,
@@ -25,6 +25,9 @@ type AlternativeRoutesSectionProps = {
   workspace: UseAlternativeRouteWorkspaceResult;
   onPickSearchResult: (result: StopSuggestion) => void;
   isLoadingSuggestions?: boolean;
+  /** Còn quét được gợi ý Goong cho phương án này (chưa có kết quả, chưa bấm). */
+  canRequestPlaces?: boolean;
+  onRequestPlaces?: () => void;
 };
 
 export default function AlternativeRoutesSection({
@@ -35,6 +38,8 @@ export default function AlternativeRoutesSection({
   workspace,
   onPickSearchResult,
   isLoadingSuggestions = false,
+  canRequestPlaces = false,
+  onRequestPlaces,
 }: AlternativeRoutesSectionProps) {
   const { t } = useTranslation("manager");
   const {
@@ -242,6 +247,17 @@ export default function AlternativeRoutesSection({
                   Goong trông như tính năng bị gỡ mất. */}
               {isLoadingSuggestions ? (
                 <p className="text-xs text-gray-600">{t("routes.suggestLoading")}</p>
+              ) : canRequestPlaces && onRequestPlaces ? (
+                // Quét dọc tuyến là hàng chục lời gọi Goong nên phải do người
+                // dùng chủ động — gợi ý từ kho nhà xe vẫn hiện sẵn, miễn phí.
+                <button
+                  type="button"
+                  onClick={onRequestPlaces}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-vr-200 bg-white px-3 py-2 text-xs font-semibold text-vr-900 transition hover:bg-vr-50"
+                >
+                  <FiSearch size={14} />
+                  {t("routes.suggestScan")}
+                </button>
               ) : altSuggestions.length === 0 ? (
                 <p className="text-xs text-amber-700">{t("routes.suggestEmpty")}</p>
               ) : null}

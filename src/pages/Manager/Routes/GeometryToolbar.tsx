@@ -9,9 +9,21 @@ import { FiCornerUpLeft, FiLoader, FiRotateCcw } from "react-icons/fi";
 import type { ReactNode } from "react";
 import type { UseRouteGeometryResult } from "./useRouteGeometry";
 
+export type OffCorridorPoint = {
+  id: string;
+  name: string;
+  offsetMeters: number;
+};
+
 type GeometryToolbarProps = {
   canManageRoutes: boolean;
   geometry: UseRouteGeometryResult;
+  /**
+   * Bến/điểm dừng nằm lệch khỏi lộ trình quá ngưỡng khuyến cáo — thủ phạm làm
+   * đường đi luồn hẻm. Do RouteMapWorkspace tính, vì chỉ nơi đó mới có TÊN điểm
+   * (hook hình học chỉ cầm toạ độ trần).
+   */
+  offCorridorPoints?: OffCorridorPoint[];
   // Cụm bên phải của thanh (badge chưa lưu + nút Lưu tuyến)
   trailing?: ReactNode;
 };
@@ -19,6 +31,7 @@ type GeometryToolbarProps = {
 export default function GeometryToolbar({
   canManageRoutes,
   geometry,
+  offCorridorPoints = [],
   trailing,
 }: GeometryToolbarProps) {
   const { t } = useTranslation("manager");
@@ -154,6 +167,24 @@ export default function GeometryToolbar({
           className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-700"
         >
           {t("routes.truckDetourWarning")}
+        </p>
+      )}
+      {/* Điểm lệch trục: nêu ĐÍCH DANH điểm để user biết kéo cái nào, kèm số mét
+          lệch. Liệt kê tối đa 2 tên cho khỏi tràn thanh, còn lại gộp thành số. */}
+      {offCorridorPoints.length > 0 && (
+        <p
+          data-testid="off-corridor-warning"
+          className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-700"
+        >
+          {t("routes.offCorridorWaypointWarning", {
+            // Liệt kê tối đa 3 tên rồi "…" — dấu ba chấm không phải dịch, nên
+            // phần tràn không cần thêm key cho từng ngôn ngữ
+            names:
+              offCorridorPoints
+                .slice(0, 3)
+                .map((point) => `${point.name} (${point.offsetMeters} m)`)
+                .join(", ") + (offCorridorPoints.length > 3 ? "…" : ""),
+          })}
         </p>
       )}
       {truckWarning === "unavailable" && (

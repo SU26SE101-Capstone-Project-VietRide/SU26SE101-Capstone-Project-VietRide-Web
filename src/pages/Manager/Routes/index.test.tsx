@@ -45,6 +45,7 @@ import { searchPlacesAlongRoute } from "../../../lib/googlePlacesSearch";
 import type { PlaceAlongRoute } from "../../../lib/googlePlacesSearch";
 import ToastProvider from "../../../components/toast/ToastProvider";
 import { __clearPlacesCacheForTest } from "./useRouteStopSuggestions";
+import { __clearGeometryOptionsCacheForTest } from "./useRouteGeometry";
 import RoutesPage from "./index";
 
 // Mock riêng requestRoadGeometry (gọi Google Routes) — các helper thuần giữ bản thật
@@ -328,6 +329,7 @@ describe("Manager route setup workflow", () => {
     // test (biến ngoài component) — dọn để routeKey của test này không dính
     // kết quả cache từ test trước
     __clearPlacesCacheForTest();
+    __clearGeometryOptionsCacheForTest();
   });
 
   it("shows skeletons instead of empty states while the initial load is pending", async () => {
@@ -555,6 +557,11 @@ describe("Manager route setup workflow", () => {
     await waitFor(() => expect(getOperatorRoute).toHaveBeenCalledWith("route-1"));
 
     fireEvent.click(screen.getByRole("button", { name: /Tuyến B/ }));
+
+    // Quét địa điểm Goong nay do người dùng bấm, không còn tự chạy khi vào tab
+    fireEvent.click(
+      await screen.findByRole("button", { name: "routes.suggestScan" }),
+    );
 
     // Gợi ý Google của tuyến B phải hiện — đúng polyline B được gọi tới Google
     expect(
@@ -2088,8 +2095,10 @@ describe("Manager route setup workflow", () => {
     });
 
     // Feedback owner: overlay đè bản đồ che logo/attribution Google (vi phạm
-    // TOS) — toolbar + cụm Lưu giờ là thanh ngang NGOÀI bản đồ, ngay trên map
-    it("renders geometry controls and the save button outside the map shell", async () => {
+    // TOS) — toolbar là thanh ngang NGOÀI bản đồ, ngay trên map. Cụm Lưu thì
+    // lên hẳn header sticky: để trên thanh toolbar thì cuộn xuống sửa điểm
+    // dừng là mất hút, sửa xong phải cuộn ngược lên mới bấm được.
+    it("renders geometry controls outside the map shell and the save button in the sticky header", async () => {
       renderRoutesPage();
       await waitForLoaded();
       expect(await screen.findByDisplayValue("Tuyến A")).toBeInTheDocument();
@@ -2101,8 +2110,14 @@ describe("Manager route setup workflow", () => {
       expect(
         screen.queryByRole("button", { name: "routes.clearGeometry" }),
       ).not.toBeInTheDocument();
-      expect(toolbar).toContainElement(
-        screen.getByRole("button", { name: /routes.saveRoute/ }),
+
+      const saveButton = screen.getByRole("button", {
+        name: /routes.saveRoute/,
+      });
+      expect(toolbar).not.toContainElement(saveButton);
+      expect(mapShell).not.toContainElement(saveButton);
+      expect(screen.getByTestId("route-detail-header")).toContainElement(
+        saveButton,
       );
     });
 
@@ -3412,6 +3427,12 @@ describe("Manager route setup workflow", () => {
           { timeout: 2000 },
         );
         fireEvent.click(screen.getByTestId("map-polyline-route-option-0"));
+
+        // Quét địa điểm Goong nay do người dùng bấm, không còn tự chạy khi mở
+        // panel — một lượt quét là hàng chục request.
+        fireEvent.click(
+          await screen.findByRole("button", { name: "routes.suggestScan" }),
+        );
       }
 
       renderRoutesPage();

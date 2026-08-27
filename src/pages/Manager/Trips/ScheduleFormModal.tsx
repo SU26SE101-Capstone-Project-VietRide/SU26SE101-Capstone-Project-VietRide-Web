@@ -85,6 +85,11 @@ export default function ScheduleFormModal({
   const selectedRoute = routes.find((route) => route.id === form.routeId);
   const baseFareChanged =
     Boolean(editingSchedule) && form.baseFare !== editingSchedule?.baseFare;
+  // Lịch một lần chỉ sinh đúng một chuyến, và chuyến đó thường đã được job tạo
+  // sẵn (cửa sổ sinh 30 ngày). FUTURE_ONLY khi đó không đụng tới chuyến nào —
+  // người dùng lưu xong tưởng đã đổi nhưng chuyến vẫn giữ dữ liệu cũ. Nên ẩn ô
+  // chọn phạm vi và luôn chạy ALL_PENDING (xem `saveSchedule` ở trang cha).
+  const isOneTimeEdit = Boolean(editingSchedule) && form.isOneTime;
 
   return (
     <Modal
@@ -142,11 +147,24 @@ export default function ScheduleFormModal({
             className="rounded-lg border border-vr-200 bg-vr-50 px-4 py-3 text-sm font-medium text-vr-900"
             role="status"
           >
-            {t("trips.editScheduleFocusNotice")}
+            {t(
+              isOneTimeEdit
+                ? "trips.editScheduleFocusNoticeOnce"
+                : "trips.editScheduleFocusNotice",
+            )}
           </div>
         ) : null}
 
-        {editingSchedule ? (
+        {isOneTimeEdit ? (
+          <p
+            className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600"
+            role="note"
+          >
+            {t("trips.applyToOnceNotice")}
+          </p>
+        ) : null}
+
+        {editingSchedule && !isOneTimeEdit ? (
           // Phạm vi áp dụng khi sửa — bắt buộc (contract 9.1), mặc định FUTURE_ONLY.
           <fieldset className="rounded-lg border border-gray-200 p-4">
             <legend className="px-1 text-sm font-semibold text-gray-800">
@@ -366,15 +384,20 @@ export default function ScheduleFormModal({
                   {t("trips.scheduleBaseFare")}
                 </label>
                 <CurrencyInput
-                  className={inputClass}
+                  className={`${inputClass} disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500`}
                   value={form.baseFare}
                   placeholder={t("trips.scheduleBaseFarePlaceholder")}
+                  disabled={isOneTimeEdit}
                   onChange={(event) =>
                     onFieldChange("baseFare", event.target.value)
                   }
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  {t("trips.scheduleBaseFareHint")}
+                  {t(
+                    isOneTimeEdit
+                      ? "trips.scheduleBaseFareOnceHint"
+                      : "trips.scheduleBaseFareHint",
+                  )}
                 </p>
                 {selectedRoute ? (
                   selectedRoute.baseFare !== undefined &&

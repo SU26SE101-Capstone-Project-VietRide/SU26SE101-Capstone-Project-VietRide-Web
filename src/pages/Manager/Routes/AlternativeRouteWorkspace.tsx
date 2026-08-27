@@ -179,6 +179,8 @@ export default function AlternativeRouteWorkspace({
             workspace={workspace}
             onPickSearchResult={workspace.handlePickAltSearchResult}
             isLoadingSuggestions={workspace.isLoadingAltSuggestions}
+            canRequestPlaces={workspace.canScanAltPlaces}
+            onRequestPlaces={workspace.requestAltPlaces}
           />
         </RouteFloatingPanel>
 

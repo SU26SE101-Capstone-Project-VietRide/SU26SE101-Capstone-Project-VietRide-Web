@@ -818,6 +818,130 @@ describe("TripsPage", () => {
   });
 
 
+  // Lịch một lần chỉ sinh đúng một chuyến và chuyến đó thường đã được job tạo
+  // sẵn, nên FUTURE_ONLY (mặc định cũ) không đụng tới chuyến nào — lưu xong
+  // trông như thành công nhưng chuyến vẫn giữ tài xế cũ.
+  function stubOneTimeSchedule() {
+    const nowSpy = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(new Date(2026, 7, 27, 12).getTime());
+    vi.mocked(getOperatorDriverSchedules).mockResolvedValue({
+      items: [
+        {
+          id: "schedule-12345678",
+          operatorId: "operator-1",
+          routeId: "route-1",
+          vehicleId: "vehicle-1",
+          driverUserId: "driver-active",
+          assistantUserId: null,
+          baseFare: null,
+          departureTime: "08:00:00",
+          effectiveFrom: "2026-09-04",
+          validFrom: "2026-09-04",
+          // Chặn hai đầu cùng ngày + đúng một thứ = lịch chạy một lần
+          validUntil: "2026-09-04",
+          dayOfWeek: [5],
+          isActive: true,
+          route: {
+            id: "route-1",
+            operatorId: "operator-1",
+            name: "Hồ Chí Minh - Đà Lạt",
+            originStationId: "origin-1",
+            destinationStationId: "destination-1",
+            totalDistanceKm: 300,
+            estimatedDurationMinutes: 420,
+            baseFare: 250_000,
+            isActive: true,
+          },
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    return () => nowSpy.mockRestore();
+  }
+
+  it("hides the apply-scope picker and forces ALL_PENDING for a one-off schedule", async () => {
+    const restore = stubOneTimeSchedule();
+    vi.mocked(updateOperatorDriverSchedule).mockResolvedValue({
+      id: "schedule-12345678",
+      operatorId: "operator-1",
+      routeId: "route-1",
+      vehicleId: "vehicle-1",
+      driverUserId: "driver-secondary",
+      assistantUserId: null,
+      baseFare: null,
+      departureTime: "08:00:00",
+      effectiveFrom: "2026-09-04",
+      validFrom: "2026-09-04",
+      validUntil: "2026-09-04",
+      dayOfWeek: [5],
+      isActive: true,
+    });
+
+    try {
+      const user = userEvent.setup();
+      renderPage();
+
+      await screen.findByText("Hồ Chí Minh - Đà Lạt");
+      await user.click(screen.getByRole("button", { name: "trips.edit" }));
+      const dialog = await screen.findByRole("dialog");
+
+      // Không còn ô chọn phạm vi — lựa chọn duy nhất có nghĩa đã được ép sẵn
+      expect(within(dialog).queryAllByRole("radio")).toHaveLength(0);
+      expect(
+        within(dialog).getByText("trips.applyToOnceNotice"),
+      ).toBeInTheDocument();
+
+      await user.click(
+        within(dialog).getByRole("button", { name: /Tài xế đang hoạt động/ }),
+      );
+      await user.click(
+        screen.getAllByRole("option", { name: /Tài xế dự phòng/ })[0],
+      );
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.openForOperation" }),
+      );
+
+      await waitFor(() => {
+        expect(updateOperatorDriverSchedule).toHaveBeenCalledWith(
+          "schedule-12345678",
+          "ALL_PENDING",
+          { driverUserId: "driver-secondary" },
+        );
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("locks the schedule fare when editing a one-off schedule", async () => {
+    const restore = stubOneTimeSchedule();
+
+    try {
+      const user = userEvent.setup();
+      renderPage();
+
+      await screen.findByText("Hồ Chí Minh - Đà Lạt");
+      await user.click(screen.getByRole("button", { name: "trips.edit" }));
+      const dialog = await screen.findByRole("dialog");
+
+      // BE cấm ALL_PENDING đi kèm baseFare, nên giá vé phải sửa ở màn Chuyến xe
+      expect(
+        within(dialog).getByPlaceholderText("trips.scheduleBaseFarePlaceholder"),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByText("trips.scheduleBaseFareOnceHint"),
+      ).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
   it("sends only the changed weekday chips in the patch", async () => {
     // Lịch gốc: chạy hằng tuần vào Thứ 2 (dayOfWeek [1]), không giới hạn ngày kết thúc
     vi.mocked(getOperatorDriverSchedules).mockResolvedValue({

@@ -59,10 +59,34 @@ function callsTo(fetchMock: ReturnType<typeof stubFetchByPath>, path: string) {
 describe("searchPlacesAlongRoute", () => {
   beforeEach(() => {
     vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    // Cache Place Detail nay dùng chung ở module-level — phải dọn giữa các case
+    __clearPlaceDetailsCacheForTest();
   });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+  });
+
+  // Trước đây quét dọc tuyến gọi thẳng goongPlaceDetail, bỏ qua cache của
+  // getPlaceDetails ngay trong cùng file — nên "Bến xe Miền Đông" bị hỏi lại
+  // từ đầu cho từng tuyến đi ngang qua nó.
+  it("dùng chung cache Place Detail giữa quét dọc tuyến và card chi tiết", async () => {
+    const fetchMock = stubFetchByPath((url) =>
+      url.pathname.endsWith("/Place/Detail")
+        ? detailResult(10.771, 106.691)
+        : { predictions: [prediction("place-1")], status: "OK" },
+    );
+
+    await searchPlacesAlongRoute(encodedRoute, restStopCategory);
+    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(1);
+
+    // Lượt quét khác gặp lại đúng địa điểm đó → không hỏi lại
+    await searchPlacesAlongRoute(encodedRoute, busStationCategory);
+    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(1);
+
+    // Card chi tiết cũng dùng lại đúng kết quả đó
+    await getPlaceDetails("place-1");
+    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(1);
   });
 
   it("hỏi AutoComplete quanh từng điểm mẫu rồi lấy toạ độ qua Place Detail", async () => {

@@ -45,6 +45,22 @@ export function calculatePathDistance(points: RouteCoordinate[]) {
 // Phải khớp với RouteGeometryValidator.MaximumWaypointDistanceMeters ở BE.
 export const maximumRouteWaypointDistanceKm = 0.5;
 
+// Ngưỡng KHUYẾN CÁO, tách hẳn khỏi ngưỡng cứng bên trên (không được hạ ngưỡng
+// cứng: nó phải khớp BE, hạ là FE chặn lưu những tuyến BE vẫn nhận).
+//
+// Directions snap mỗi điểm về đỉnh đường gần nhất trong đồ thị của nó. Đo thật
+// trên khu Phú Nhuận: điểm gửi đi 10.7880,106.6720 bị snap sang 10.79065,
+// 106.66662 — lệch 660m, rơi vào một trục khác hẳn, và lộ trình trả về luồn
+// Đặng Văn Ngữ → Hoàng Diệu → Trương Quốc Dụng kèm một cú quay đầu để chạm cho
+// được chỗ đó.
+//
+// Dưới ~150m thì lệch chỉ là bề ngang lòng đường, sai số geocode, hoặc toạ độ
+// POI trỏ vào giữa toà nhà thay vì mặt tiền — đường đi không đổi. Trên mức đó
+// thì bộ định tuyến buộc phải bám một con đường KHÁC để tới nơi, và trong ô phố
+// dày đặc thì "đường khác" đó là hẻm. 500m của ngưỡng cứng quá rộng để cảnh báo
+// sớm: lệch 400m vẫn lọt mà đã đủ ép đường vòng qua mấy dãy phố.
+export const advisoryRouteWaypointDistanceKm = 0.15;
+
 export type RouteGeometryWaypoint = RouteCoordinate & {
   id?: string;
   name?: string;
@@ -53,6 +69,10 @@ export type RouteGeometryWaypoint = RouteCoordinate & {
 export function findRouteGeometryWaypointMismatches(
   path: RouteCoordinate[],
   waypoints: RouteGeometryWaypoint[],
+  // Mặc định là ngưỡng CỨNG (chặn lưu). Truyền
+  // `advisoryRouteWaypointDistanceKm` để lấy danh sách cảnh báo sớm lúc đang
+  // soạn, trước khi user bấm Lưu rồi mới biết.
+  thresholdKm: number = maximumRouteWaypointDistanceKm,
 ) {
   if (path.length < 2) {
     return [];
@@ -63,7 +83,7 @@ export function findRouteGeometryWaypointMismatches(
       waypoint,
       distanceToPathKm: projectPointOntoPolyline(path, waypoint).distanceToPathKm,
     }))
-    .filter(({ distanceToPathKm }) => distanceToPathKm > maximumRouteWaypointDistanceKm);
+    .filter(({ distanceToPathKm }) => distanceToPathKm > thresholdKm);
 }
 
 // Một phương án đường nhà cung cấp trả về — points đã decode, số liệu đã quy
@@ -74,6 +94,9 @@ export type RoadRouteOption = {
   estimatedDurationMinutes: number;
   // Mô tả tuyến (vd "qua QL20") — có thể vắng
   description?: string;
+  // Số lần phải quay đầu, do Goong khai báo (xem GoongRoute.uTurnCount).
+  // Vắng = không có thông tin, coi như không quay đầu.
+  uTurnCount?: number;
 };
 
 // Tối đa số phương án hiển thị cho user chọn (thường trả 1-3)
@@ -94,6 +117,7 @@ function parseRouteOption(route: GoongRoute): RoadRouteOption | null {
       Math.round(route.durationSeconds / 60),
     ),
     description: route.summary || undefined,
+    uTurnCount: route.uTurnCount,
   };
 }
 
@@ -394,11 +418,147 @@ function buildDetourProbes(primary: RoadRouteOption): RouteCoordinate[] {
     .filter((point): point is RouteCoordinate => point !== null);
 }
 
-/** Loại phương án vòng quá đáng so với tuyến chính. */
-function isReasonableDetour(option: RoadRouteOption, primary: RoadRouteOption) {
+// ── Loại phương án đâm vào đường cụt ──────────────────────────────────────
+// Điểm thử lệch được gửi cho Goong như một ĐIỂM ĐẾN trung gian (API Direction
+// nối origin → waypoint → destination), KHÔNG phải điểm "đi ngang qua". Nên khi
+// nó rơi trúng hẻm cụt / đường nội bộ — mà nó rơi mù quáng theo hình học, không
+// ai bảo đảm chỗ đó có đường tử tế — xe buộc phải chui vào tới nơi rồi quay đầu
+// ra bằng đúng lối cũ.
+//
+// Ngưỡng tỉ lệ bên dưới không bắt được kiểu này: một cú chui hẻm 2km trên tuyến
+// 900km chỉ làm tổng quãng đường nhích 0.2%, lọt ngưỡng 1.5 lần quá dễ. Dấu
+// hiệu không nằm ở SỐ KM mà ở HÌNH đường — đoạn quay ra đi lại đúng chỗ vừa đi
+// qua. Tuyến A→B hợp lệ không lặp lại điểm nào trên mặt đường, nên chỉ cần tìm
+// hai điểm sát nhau về không gian mà cách nhau xa dọc theo đường.
+
+// Hai điểm cách nhau dưới ngưỡng này (~80m) coi như cùng một chỗ trên mặt
+// đường: đủ rộng để khớp hai chiều của một đường đôi, đủ hẹp để hai con đường
+// song song khác nhau không bị gộp làm một
+const revisitProximityKm = 0.08;
+// ...và phải cách nhau ít nhất chừng này DỌC THEO ĐƯỜNG mới tính là quay đầu;
+// dưới mức đó chỉ là khúc cua gấp, vòng xuyến hay nhánh lên cầu vượt
+const revisitMinPathGapKm = 0.5;
+// Đi lặp quá chừng này (tức hẻm sâu ~600m, vào và ra) thì chắc chắn là chui vào
+// rồi quay đầu chứ không phải một corridor thay thế
+const maxRetracedSpanKm = 1.2;
+// Ngoài tỉ lệ còn chặn theo số km tuyệt đối: trên tuyến liên tỉnh 900km thì
+// ngưỡng 1.5 lần cho phép dôi ra 450km — rộng tới mức không còn là hàng rào
+const maxDetourExtraKm = 120;
+// Trần số lần hỏi lại đường ở tầng chữa. Mỗi lần là một request Goong nữa, nên
+// tầng này chỉ chạy khi tầng 1 CHƯA đủ phương án — xem `stillNeeded` bên dưới.
+// Để 4 (chữa hết bản hỏng) vì đo thật cho thấy chặn ở 2 là mất trắng phương án:
+// HCM–Vũng Tàu có 4 bản thô hỏng cả 4, chữa 2 bản đầu vẫn ra 0, chữa hết mới ra
+// 2 phương án sạch (−1.5km và +3.0km, không quay đầu, không đi lại).
+const maxRefinedDetours = 4;
+
+/**
+ * Chiều dài khúc "đi vào rồi quay đầu ra" DÀI NHẤT của một đường, tính bằng km
+ * dọc theo đường — hẻm cụt sâu 600m cho ra ~1.2km vì tính cả lượt vào lẫn lượt
+ * ra. Trả 0 khi đường không lặp lại chỗ nào.
+ *
+ * Chia điểm vào lưới ô vuông cỡ `revisitProximityKm` rồi chỉ so với 8 ô kề:
+ * polyline có thể vài nghìn đỉnh nên so từng cặp (O(n²) haversine) là đủ chậm
+ * để thấy được khi bấm tính đường.
+ */
+export function longestRetracedSpanKm(points: RouteCoordinate[]) {
+  if (points.length < 3) {
+    return 0;
+  }
+
+  const cumulative: number[] = [0];
+  for (let index = 1; index < points.length; index += 1) {
+    cumulative.push(
+      cumulative[index - 1] +
+        distanceKmBetween(points[index - 1], points[index]),
+    );
+  }
+
+  const latCell = revisitProximityKm / kmPerLatitudeDegree;
+  // Kẹp sàn cho cos(lat) phòng vĩ độ cực — ô lưới phình ra còn hơn chia cho 0
+  const latScale = Math.max(0.1, Math.cos(toRadians(points[0].latitude)));
+  const lngCell = latCell / latScale;
+
+  const buckets = new Map<string, number[]>();
+  let longest = 0;
+
+  points.forEach((point, index) => {
+    const latBucket = Math.floor(point.latitude / latCell);
+    const lngBucket = Math.floor(point.longitude / lngCell);
+
+    for (let latStep = -1; latStep <= 1; latStep += 1) {
+      for (let lngStep = -1; lngStep <= 1; lngStep += 1) {
+        const neighbours = buckets.get(
+          `${latBucket + latStep}:${lngBucket + lngStep}`,
+        );
+        if (!neighbours) {
+          continue;
+        }
+
+        neighbours.forEach((other) => {
+          const gap = cumulative[index] - cumulative[other];
+          if (
+            gap > revisitMinPathGapKm &&
+            gap > longest &&
+            distanceKmBetween(points[other], point) <= revisitProximityKm
+          ) {
+            longest = gap;
+          }
+        });
+      }
+    }
+
+    const key = `${latBucket}:${lngBucket}`;
+    const bucket = buckets.get(key);
+    if (bucket) {
+      bucket.push(index);
+    } else {
+      buckets.set(key, [index]);
+    }
+  });
+
+  return longest;
+}
+
+// Phương án phải kết thúc ĐÚNG chỗ tuyến chính kết thúc. So với điểm cuối của
+// TUYẾN CHÍNH chứ không phải toạ độ bến do user nhập: Directions snap cả hai đầu
+// về đồ thị đường của nó, nên bến nằm lệch trục 600m thì MỌI phương án đều cách
+// toạ độ gốc 600m — so với toạ độ gốc là loại sạch cả những bản hoàn toàn tốt.
+const sameTerminusKm = 0.3;
+
+// Dưới mức tách này thì phương án chỉ là tuyến chính cộng vài khúc ngoằn ngoèo
+// vặt, không đáng gọi là "tuyến thay thế" để nhà xe chọn khi lộ trình chính kẹt
+const minCorridorDivergenceKm = 2;
+
+function reachesSameEnds(option: RoadRouteOption, primary: RoadRouteOption) {
+  const optionEnd = option.points[option.points.length - 1];
+  const primaryEnd = primary.points[primary.points.length - 1];
+
   return (
+    distanceKmBetween(option.points[0], primary.points[0]) <= sameTerminusKm &&
+    distanceKmBetween(optionEnd, primaryEnd) <= sameTerminusKm
+  );
+}
+
+/**
+ * Phương án có dùng được không. Bốn nhóm điều kiện, theo đúng thứ tự rẻ→đắt:
+ *
+ * 1. Về được đích — điều kiện tiên quyết, phương án không tới nơi thì vô nghĩa.
+ * 2. Không quay đầu — `uTurnCount` do chính Goong khai báo. Xe khách 45 chỗ
+ *    quay đầu giữa quốc lộ là chuyện không làm được, chưa nói tới trong hẻm.
+ * 3. Không đi lại chỗ vừa đi (`longestRetracedSpanKm`) — bắt nốt kiểu lộn lại
+ *    mà Goong không đánh dấu là maneuver quay đầu.
+ * 4. Vòng có chừng mực: theo tỉ lệ VÀ theo số km tuyệt đối.
+ *
+ * Đi vòng hay đi đường khác hẳn đều được — miễn là một lộ trình xe chạy được.
+ */
+function isUsableDetour(option: RoadRouteOption, primary: RoadRouteOption) {
+  return (
+    reachesSameEnds(option, primary) &&
+    (option.uTurnCount ?? 0) === 0 &&
+    longestRetracedSpanKm(option.points) <= maxRetracedSpanKm &&
     option.totalDistanceKm <=
       primary.totalDistanceKm * maxDetourDistanceRatio &&
+    option.totalDistanceKm - primary.totalDistanceKm <= maxDetourExtraKm &&
     option.estimatedDurationMinutes <=
       primary.estimatedDurationMinutes * maxDetourDurationRatio
   );
@@ -458,18 +618,62 @@ export async function requestRoadGeometry(
   }
 
   const primary = options[0];
-  const detours = await Promise.all(
-    buildDetourProbes(primary).map((probe) =>
-      goongDirections({ ...request, waypoints: [toLatLng(probe)] })
-        .then((detourRoutes) => detourRoutes.map(parseRouteOption))
-        .catch(() => []),
-    ),
-  );
 
-  const candidates = detours
-    .flat()
-    .filter((option): option is RoadRouteOption => option !== null)
-    .filter((option) => isReasonableDetour(option, primary));
+  const routeThrough = (probe: RouteCoordinate) =>
+    goongDirections({ ...request, waypoints: [toLatLng(probe)] })
+      .then((detourRoutes) =>
+        detourRoutes
+          .map(parseRouteOption)
+          .filter((option): option is RoadRouteOption => option !== null),
+      )
+      .catch(() => []);
+
+  // TẦNG 1 — điểm thử lệch đặt mù theo hình học. Điểm này rơi vào đâu thì không
+  // ai bảo đảm: ruộng, sườn núi, hay một con hẻm. Mà Directions coi nó là điểm
+  // ĐẾN bắt buộc, nên bản thô hay dính "chui vào rồi quay đầu ra".
+  const rough = (await Promise.all(buildDetourProbes(primary).map(routeThrough)))
+    .flat();
+
+  const usable = rough.filter((option) => isUsableDetour(option, primary));
+
+  // TẦNG 2 — chữa các bản hỏng thay vì vứt đi. Lấy điểm TÁCH XA tuyến chính
+  // nhất trên chính bản hỏng đó rồi hỏi lại đường qua nó: điểm ấy nằm trên một
+  // polyline Goong vừa trả về, tức chắc chắn là đường xe chạy được thật, chứ
+  // không phải toạ độ bịa ra. Đo trên HCM–Đà Lạt: bản +41km kèm 1 cú quay đầu
+  // chữa xong còn +16km, một bản khác hết sạch quay đầu.
+  // Đủ phương án rồi thì không chữa nữa — dãy bubble chỉ hiện được `maxRouteOptions`
+  // đường, chữa thêm là đốt quota Goong lấy thứ không ai nhìn thấy.
+  const stillNeeded = maxRouteOptions - options.length - usable.length;
+
+  const anchors: RouteCoordinate[] = [];
+  const needRefining = (stillNeeded <= 0 ? [] : rough)
+    .filter((option) => !usable.includes(option))
+    .map((option) => {
+      const anchor = findRouteLabelAnchor(option.points, primary.points, anchors);
+      if (anchor) {
+        anchors.push(anchor);
+      }
+
+      return anchor;
+    })
+    .filter((anchor): anchor is RouteCoordinate => anchor !== null)
+    .slice(0, maxRefinedDetours);
+
+  const refined = (await Promise.all(needRefining.map(routeThrough))).flat();
+
+  const candidates = [...usable, ...refined.filter((option) => isUsableDetour(option, primary))]
+    // Phải tách khỏi tuyến chính thành một HÀNH LANG khác, không phải vài khúc
+    // ngoằn ngoèo quanh chính nó
+    .filter((option) => {
+      const anchor = findRouteLabelAnchor(option.points, primary.points);
+      return (
+        anchor !== null &&
+        projectPointOntoPolyline(primary.points, anchor).distanceToPathKm >=
+          minCorridorDivergenceKm
+      );
+    })
+    // Vòng ít hơn thì xếp trước — nhà xe cần bản đỡ tốn dầu nhất trước tiên
+    .sort((first, second) => first.totalDistanceKm - second.totalDistanceKm);
 
   // Bỏ bản trùng tuyến chính, rồi bỏ các bản gần trùng nhau — cùng ngưỡng với
   // lúc Google trả nhiều phương án nên UI không phải phân biệt nguồn gốc.
