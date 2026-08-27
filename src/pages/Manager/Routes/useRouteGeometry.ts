@@ -108,7 +108,11 @@ type FetchedOptionsEntry = {
  * phân biệt với "chưa từng hỏi" — do đó bọc trong `{ entry }` khi lưu.
  */
 const geometryOptionsCache = new Map<string, FetchedOptionsEntry>();
-const geometryStorageKeyPrefix = "vietride.routeGeometryOptions.";
+// Đuôi `.v2` là một lần xả cache: bản trước ghi cả LỖI REQUEST vào cache (xem
+// `autoFetchOptions`), nên trình duyệt của người dùng có thể đang giữ những
+// entry "không tính được đường" sai sự thật, sống 24h và qua cả F5. Đổi tiền tố
+// là bỏ qua toàn bộ đám đó, khỏi bắt người dùng tự xoá dữ liệu trình duyệt.
+const geometryStorageKeyPrefix = "vietride.routeGeometryOptions.v2.";
 const geometryCacheMaxAgeMs = 24 * 60 * 60 * 1_000;
 // Chặn trên số đỉnh polyline được phép ghi xuống sessionStorage. Kho này dùng
 // CHUNG với cache danh sách tuyến/nguồn lực chuyến — một tuyến dài bất thường
@@ -139,6 +143,19 @@ function hydrateGeometryCache(key: string) {
   );
   if (persisted) {
     geometryOptionsCache.set(key, persisted.entry);
+  }
+}
+
+/**
+ * Xoá entry của `key` khỏi cả Map lẫn sessionStorage, đưa nó về trạng thái
+ * "chưa từng hỏi" để lượt sau hỏi lại thật.
+ */
+function dropGeometryCache(key: string) {
+  geometryOptionsCache.delete(key);
+  try {
+    sessionStorage.removeItem(geometryStorageKey(key));
+  } catch {
+    // Cache chỉ là tối ưu — không được làm vỡ luồng chính.
   }
 }
 
@@ -514,6 +531,7 @@ export function useRouteGeometry({
     setIsFetchingOptions(true);
 
     let entry: FetchedOptionsEntry;
+    let requestFailed = false;
     try {
       const { options, warning } = await requestGeometryWithWarning(
         travelMode,
@@ -525,10 +543,22 @@ export function useRouteGeometry({
       };
     } catch {
       entry = null;
+      requestFailed = true;
     }
 
-    // User đã đổi tuyến/thao tác khác trong lúc chờ → bỏ kết quả (cache vẫn ghi)
-    writeGeometryCache(key, entry);
+    // LỖI REQUEST KHÔNG ĐƯỢC VÀO CACHE. Cache cố tình phân biệt "chưa từng hỏi"
+    // (undefined) với "đã hỏi, không có đường" (null) — nhưng mất mạng, hết
+    // quota, API đổi endpoint hay Goong trả 5xx đều rơi vào cùng nhánh catch
+    // này. Ghi chúng xuống thì một cú lỗi thoáng qua khoá tuyến đó ở trạng thái
+    // "không tính được đường" suốt 24h, sống qua cả F5, kể cả khi API đã hoạt
+    // động lại — user không có cách nào thoát ngoài việc tự xoá sessionStorage.
+    // Bỏ luôn entry cũ để lượt sau hỏi lại thật.
+    if (requestFailed) {
+      dropGeometryCache(key);
+    } else {
+      // User đã đổi tuyến/thao tác khác trong lúc chờ → bỏ kết quả (cache vẫn ghi)
+      writeGeometryCache(key, entry);
+    }
     if (seq !== rerouteSeqRef.current) {
       return;
     }

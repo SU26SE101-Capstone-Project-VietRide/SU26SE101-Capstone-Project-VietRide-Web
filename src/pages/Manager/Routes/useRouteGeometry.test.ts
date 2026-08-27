@@ -392,3 +392,70 @@ describe("useRouteGeometry — invalidateLocalGeometry({ keepViaPoints: true })"
     );
   });
 });
+
+// Cache phương án sống 24h và qua cả F5. Nó cố tình phân biệt "chưa từng hỏi"
+// với "đã hỏi, không có đường" — nhưng mất mạng, hết quota hay Goong 5xx cũng
+// rơi vào cùng nhánh catch. Ghi lỗi xuống cache là khoá tuyến đó ở trạng thái
+// "không tính được đường" kể cả sau khi API sống lại, và user không có cách nào
+// thoát ngoài việc tự xoá sessionStorage.
+describe("useRouteGeometry — cache khi request lỗi", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __clearGeometryOptionsCacheForTest();
+  });
+
+  function renderForWaypoints() {
+    return renderHook(() =>
+      useRouteGeometry({
+        selectedRouteId: "route-cache",
+        routeWaypoints: waypoints,
+        isWorkspaceActive: true,
+        setRouteForm: vi.fn(),
+        setRoutes: vi.fn(),
+        setError: vi.fn(),
+        t: ((key: string) => key) as TranslateFn,
+      }),
+    );
+  }
+
+  it("hỏi lại sau một lượt lỗi thay vì nhớ mãi là không có đường", async () => {
+    mockedRequestRoadGeometry.mockRejectedValue(new Error("mạng chập chờn"));
+
+    const first = renderForWaypoints();
+    await waitFor(() => {
+      expect(first.result.current.autoRouteUnavailable).toBe(true);
+    });
+    const callsAfterFailure = mockedRequestRoadGeometry.mock.calls.length;
+    expect(callsAfterFailure).toBeGreaterThan(0);
+    first.unmount();
+
+    // API sống lại — lần vào sau phải hỏi lại thật và vẽ được đường
+    mockedRequestRoadGeometry.mockReset();
+    mockedRequestRoadGeometry.mockResolvedValue([northOption]);
+
+    const second = renderForWaypoints();
+    await waitFor(() => {
+      expect(second.result.current.routeOptions).toEqual([northOption]);
+    });
+    expect(second.result.current.autoRouteUnavailable).toBe(false);
+    expect(mockedRequestRoadGeometry.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it("vẫn cache kết quả THÀNH CÔNG để khỏi hỏi lại Goong", async () => {
+    mockedRequestRoadGeometry.mockResolvedValue([northOption]);
+
+    const first = renderForWaypoints();
+    await waitFor(() => {
+      expect(first.result.current.routeOptions).toEqual([northOption]);
+    });
+    const callsAfterSuccess = mockedRequestRoadGeometry.mock.calls.length;
+    first.unmount();
+
+    const second = renderForWaypoints();
+    await waitFor(() => {
+      expect(second.result.current.routeOptions).toEqual([northOption]);
+    });
+    // Không có request mới nào — entry cũ trong cache được dùng lại
+    expect(mockedRequestRoadGeometry.mock.calls.length).toBe(callsAfterSuccess);
+  });
+});
