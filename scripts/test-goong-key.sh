@@ -38,16 +38,16 @@ fi
 
 if [ -n "$API_KEY" ]; then
   echo "== 2) Place AutoComplete =="
-  curl -s "${REST}/Place/AutoComplete?api_key=${API_KEY}&input=ben%20xe%20mien%20dong&more_compound=true" \
+  curl -s "${REST}/v2/place/autocomplete?api_key=${API_KEY}&input=ben%20xe%20mien%20dong&more_compound=true" \
     | head -c 500
   echo; echo
 
   echo "== 3) Reverse Geocode =="
-  curl -s "${REST}/Geocode?latlng=10.8142,106.7108&api_key=${API_KEY}" | head -c 500
+  curl -s "${REST}/v2/geocode?latlng=10.8142,106.7108&api_key=${API_KEY}" | head -c 500
   echo; echo
 
   echo "== 4) Direction (vehicle=truck, alternatives=true) =="
-  curl -s "${REST}/Direction?origin=10.8142,106.7108&destination=10.7769,106.7009&vehicle=truck&alternatives=true&api_key=${API_KEY}" \
+  curl -s "${REST}/v2/direction?origin=10.8142,106.7108&destination=10.7769,106.7009&vehicle=truck&alternatives=true&api_key=${API_KEY}" \
     | head -c 500
   echo; echo
 fi

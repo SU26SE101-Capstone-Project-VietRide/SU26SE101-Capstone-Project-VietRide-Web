@@ -109,6 +109,18 @@ type GoogleMapCanvasProps = {
   className?: string;
   emptyState?: ReactNode;
   fitPoints?: GoogleMapCoordinate[];
+  /**
+   * Khoá camera. Có `fitKey` thì camera CHỈ đồng bộ lại theo props (setCenter/
+   * setZoom/fitBounds) khi key này ĐỔI — đổi tuyến đang xem, mở lại màn — chứ
+   * không đồng bộ theo từng thay đổi hình học.
+   *
+   * Không có nó thì màn thiết kế tuyến bay về ôm trọn tuyến sau MỖI lần nắn
+   * đường: `center` là trung bình các đỉnh và `fitPoints` chứa cả polyline, nên
+   * đường vừa đổi là hai effect camera cùng chạy, kéo người dùng ra khỏi đúng
+   * chỗ họ đang phóng to để sửa. Bỏ trống = giữ nguyên hành vi cũ cho các màn
+   * khác (FleetMap, PlacePicker, theo dõi chuyến...).
+   */
+  fitKey?: string;
   focusCenter?: GoogleMapCoordinate | null;
   // Mức zoom khoá vào lúc bắt đầu bám focusCenter. Chỉ áp một lần cho mỗi lượt
   // bám (xem effect bên dưới) để người dùng vẫn tự zoom được trong lúc theo dõi.
@@ -282,6 +294,7 @@ export default function GoogleMapCanvas({
   center,
   className = defaultClassName,
   emptyState,
+  fitKey,
   fitPoints = [],
   focusCenter,
   focusZoom = 14,
@@ -436,14 +449,21 @@ export default function GoogleMapCanvas({
     };
   }, [scrollWheelZoom]);
 
+  // Key của lượt fit đã áp — null = chưa fit lần nào cho key hiện tại
+  const appliedFitKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!readyMap || suspendViewportSync) {
       return;
     }
 
+    if (fitKey !== undefined && appliedFitKeyRef.current === fitKey) {
+      return;
+    }
+
     readyMap.instance.setCenter(center);
     readyMap.instance.setZoom(zoom);
-  }, [center, readyMap, suspendViewportSync, zoom]);
+  }, [center, fitKey, readyMap, suspendViewportSync, zoom]);
 
   // Bám theo focusCenter: PAN mỗi lần toạ độ đổi, nhưng chỉ SET ZOOM ở lần khoá
   // đầu tiên (hoặc khi caller đổi mức zoom yêu cầu). Trước đây setZoom chạy mỗi
@@ -468,12 +488,23 @@ export default function GoogleMapCanvas({
       return;
     }
 
+    if (fitKey !== undefined && appliedFitKeyRef.current === fitKey) {
+      return;
+    }
+
     const bounds = new readyMap.library.LatLngBounds();
     fitPoints.forEach((point) => bounds.extend(point));
-    if (!bounds.isEmpty()) {
-      readyMap.instance.fitBounds(bounds, 32);
+    if (bounds.isEmpty()) {
+      return;
     }
-  }, [fitPoints, fitSignature, readyMap, suspendViewportSync]);
+
+    readyMap.instance.fitBounds(bounds, 32);
+    // Ghi nhận SAU khi fit thật. Đánh dấu sớm (lúc chưa đủ 2 điểm để fit) thì
+    // đường về sau mới tải xong sẽ không bao giờ được ôm vào khung.
+    if (fitKey !== undefined) {
+      appliedFitKeyRef.current = fitKey;
+    }
+  }, [fitKey, fitPoints, fitSignature, readyMap, suspendViewportSync]);
 
   useEffect(() => {
     mapClickListenerRef.current?.remove();

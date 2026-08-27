@@ -72,26 +72,26 @@ describe("searchPlacesAlongRoute", () => {
   // từ đầu cho từng tuyến đi ngang qua nó.
   it("dùng chung cache Place Detail giữa quét dọc tuyến và card chi tiết", async () => {
     const fetchMock = stubFetchByPath((url) =>
-      url.pathname.endsWith("/Place/Detail")
+      url.pathname.endsWith("/place/detail")
         ? detailResult(10.771, 106.691)
         : { predictions: [prediction("place-1")], status: "OK" },
     );
 
     await searchPlacesAlongRoute(encodedRoute, restStopCategory);
-    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/place/detail")).toHaveLength(1);
 
     // Lượt quét khác gặp lại đúng địa điểm đó → không hỏi lại
     await searchPlacesAlongRoute(encodedRoute, busStationCategory);
-    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/place/detail")).toHaveLength(1);
 
     // Card chi tiết cũng dùng lại đúng kết quả đó
     await getPlaceDetails("place-1");
-    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/place/detail")).toHaveLength(1);
   });
 
   it("hỏi AutoComplete quanh từng điểm mẫu rồi lấy toạ độ qua Place Detail", async () => {
     const fetchMock = stubFetchByPath((url) =>
-      url.pathname.endsWith("/Place/Detail")
+      url.pathname.endsWith("/place/detail")
         ? detailResult(10.771, 106.691)
         : { predictions: [prediction("place-1")], status: "OK" },
     );
@@ -99,14 +99,14 @@ describe("searchPlacesAlongRoute", () => {
     const places = await searchPlacesAlongRoute(encodedRoute, restStopCategory);
 
     // 2 điểm mẫu → 2 AutoComplete; trùng place_id nên chỉ 1 Place Detail
-    expect(callsTo(fetchMock, "/Place/AutoComplete")).toHaveLength(2);
-    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/place/autocomplete")).toHaveLength(2);
+    expect(callsTo(fetchMock, "/place/detail")).toHaveLength(1);
 
     const autocompleteUrl = new URL(
-      String(callsTo(fetchMock, "/Place/AutoComplete")[0][0]),
+      String(callsTo(fetchMock, "/place/autocomplete")[0][0]),
     );
     expect(autocompleteUrl.origin + autocompleteUrl.pathname).toBe(
-      "https://rsapi.goong.io/Place/AutoComplete",
+      "https://rsapi.goong.io/v2/place/autocomplete",
     );
     expect(autocompleteUrl.searchParams.get("input")).toBe("trạm dừng chân");
     expect(autocompleteUrl.searchParams.get("location")).toBe("10.77,106.69");
@@ -142,7 +142,7 @@ describe("searchPlacesAlongRoute", () => {
       busStationCategory,
     );
 
-    expect(callsTo(fetchMock, "/Place/Detail")).toHaveLength(0);
+    expect(callsTo(fetchMock, "/place/detail")).toHaveLength(0);
     expect(places).toHaveLength(1);
     expect(places[0]).toMatchObject({
       placeId: "place-2",
@@ -156,7 +156,7 @@ describe("searchPlacesAlongRoute", () => {
     // lý thật là "cách tuyến <= 1km" ở useRouteStopSuggestions — siết theo
     // khoảng cách tới ĐIỂM MẪU sẽ cắt nhầm chỗ nằm giữa hai điểm mẫu.
     stubFetchByPath((url) =>
-      url.pathname.endsWith("/Place/Detail")
+      url.pathname.endsWith("/place/detail")
         ? detailResult(21.02, 105.83)
         : { predictions: [prediction("far-away")], status: "OK" },
     );
@@ -222,7 +222,7 @@ describe("getPlaceDetails", () => {
 
     const url = new URL(String(fetchMock.mock.calls[0][0]));
     expect(url.origin + url.pathname).toBe(
-      "https://rsapi.goong.io/Place/Detail",
+      "https://rsapi.goong.io/v2/place/detail",
     );
     expect(url.searchParams.get("place_id")).toBe("place-1");
 

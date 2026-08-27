@@ -293,7 +293,7 @@ function sumLegMetric(legs, field) {
 // lần lượt toàn bộ waypoint. Dùng Direction của Goong — response theo đúng
 // format Google (routes[].legs[].distance.value, overview_polyline.points).
 export async function computeRoadPolyline(waypoints, apiKey, travelMode) {
-  const url = new URL(`${GOONG_REST_BASE_URL}/Direction`);
+  const url = new URL(`${GOONG_REST_BASE_URL}/v2/direction`);
   url.searchParams.set("origin", toRouteCoordinate(waypoints[0]));
   // Goong không có tham số waypoints riêng: điểm dừng đi chung `destination`,
   // ngăn bằng `;`, phần tử cuối là bến đến.

@@ -61,12 +61,15 @@ describe("loadGooglePlacesLibrary", () => {
 
     const url = requestedUrl(fetchMock);
     expect(url.origin + url.pathname).toBe(
-      "https://rsapi.goong.io/Place/AutoComplete",
+      "https://rsapi.goong.io/v2/place/autocomplete",
     );
     expect(url.searchParams.get("input")).toBe("ben xe");
     expect(url.searchParams.get("api_key")).toBe("test-key");
     // Goong CÓ session token thật — phải gửi kèm để gộp cước autocomplete+detail
     expect(url.searchParams.get("sessiontoken")).toBeTruthy();
+    // v2 mặc định trả 5 gợi ý còn v1 là 10 — gửi limit tường minh để danh sách
+    // gợi ý không âm thầm ngắn đi một nửa sau khi chuyển version.
+    expect(url.searchParams.get("limit")).toBe("10");
 
     // Bản ghi thiếu place_id bị loại, bản hợp lệ giữ đúng hình dáng cũ
     expect(suggestions).toHaveLength(1);
@@ -116,7 +119,7 @@ describe("loadGooglePlacesLibrary", () => {
 
     const detailUrl = requestedUrl(fetchMock, 1);
     expect(detailUrl.origin + detailUrl.pathname).toBe(
-      "https://rsapi.goong.io/Place/Detail",
+      "https://rsapi.goong.io/v2/place/detail",
     );
     expect(detailUrl.searchParams.get("place_id")).toBe("place-1");
     // Cùng một phiên với autocomplete
@@ -181,7 +184,7 @@ describe("loadGoogleGeocodingLibrary", () => {
     });
 
     const url = requestedUrl(fetchMock);
-    expect(url.origin + url.pathname).toBe("https://rsapi.goong.io/Geocode");
+    expect(url.origin + url.pathname).toBe("https://rsapi.goong.io/v2/geocode");
     expect(url.searchParams.get("latlng")).toBe("10.8142,106.7108");
 
     expect(results).toHaveLength(1);

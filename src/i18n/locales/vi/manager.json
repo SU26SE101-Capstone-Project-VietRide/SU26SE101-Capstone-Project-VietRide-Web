@@ -1849,8 +1849,12 @@
     "stationLabel": "Bến",
     "viewTripDetail": "Xem chi tiết chuyến",
     "tripDetailTitle": "Chi tiết chuyến trung chuyển",
-    "tripDetailStops": "Lộ trình điểm đón",
+    "tripDetailStops": "Lộ trình chuyến",
     "tripDetailNoStops": "Chuyến này chưa có điểm đón nào.",
+    "stationRole": {
+      "INBOUND_TO_STATION": "Điểm trả khách",
+      "OUTBOUND_FROM_STATION": "Điểm đón khách"
+    },
     "stopStatus": {
       "PENDING": "Chờ đón",
       "PICKED_UP": "Đã đón",

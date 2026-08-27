@@ -1849,8 +1849,12 @@
     "stationLabel": "Station",
     "viewTripDetail": "View trip details",
     "tripDetailTitle": "Shuttle trip details",
-    "tripDetailStops": "Pickup route",
+    "tripDetailStops": "Trip route",
     "tripDetailNoStops": "This trip has no pickup stops yet.",
+    "stationRole": {
+      "INBOUND_TO_STATION": "Drop-off point",
+      "OUTBOUND_FROM_STATION": "Pickup point"
+    },
     "stopStatus": {
       "PENDING": "Waiting",
       "PICKED_UP": "Picked up",
