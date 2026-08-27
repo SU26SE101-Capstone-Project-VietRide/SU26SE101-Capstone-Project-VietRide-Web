@@ -3,7 +3,7 @@
 // Goong dùng HAI key khác nhau, lấy ở https://account.goong.io:
 //  - Maptiles key → vẽ bản đồ (tiles.goong.io). SDK tự nối `api_key=` vào URL
 //    style/sprite/glyph/tile thông qua `goongjs.accessToken`.
-//  - API key      → REST (rsapi.goong.io): Place, Geocode, Direction.
+//  - API key      → REST v2 (rsapi.goong.io): v2/place/*, v2/geocode, v2/direction.
 // Điền nhầm chỗ là một trong hai mảng chết im lặng, nên tách hẳn hai biến .env.
 
 const defaultRestBaseUrl = "https://rsapi.goong.io";

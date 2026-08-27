@@ -228,13 +228,29 @@ export default function ShuttleTripDetailModal({
                         )}
                       </div>
                     </div>
-                    <span
-                      className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${stopStatusClass(stop.status)}`}
-                    >
-                      {t(`dispatch.stopStatus.${stop.status}`, {
-                        defaultValue: stop.status,
-                      })}
-                    </span>
+                    {/* Bến KHÔNG phải một điểm đón: `bookingId` của nó là null,
+                        nên `status` (vốn là trạng thái đón/trả của MỘT khách)
+                        không có nghĩa gì ở đây — BE để mặc định `PENDING` và
+                        dán nguyên vào thì bến hiện "Chờ đón" ngay cả khi mọi
+                        khách đã trả xong, tự mâu thuẫn với chính danh sách bên
+                        trên. Bến chỉ có VAI TRÒ, và vai trò đó tuỳ chiều chạy:
+                        đón khách về bến thì bến là nơi trả, trả khách từ bến
+                        thì bến là nơi đón. */}
+                    {stop.isStation ? (
+                      <span className="inline-flex shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-gray-600 ring-1 ring-gray-200">
+                        {t(`dispatch.stationRole.${trip.direction}`, {
+                          defaultValue: "",
+                        })}
+                      </span>
+                    ) : (
+                      <span
+                        className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${stopStatusClass(stop.status)}`}
+                      >
+                        {t(`dispatch.stopStatus.${stop.status}`, {
+                          defaultValue: stop.status,
+                        })}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ol>

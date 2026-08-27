@@ -40,6 +40,7 @@ const { canvasProps } = vi.hoisted(() => ({
     polylines?: GoogleMapPolyline[];
     markers?: unknown[];
     fitPoints?: unknown[];
+    fitKey?: string;
     pointMarkers?: GoogleMapPointMarker[];
     onMapClick?: (position: { lat: number; lng: number }) => void;
   }>,
@@ -463,6 +464,140 @@ describe("RouteDesignMap", () => {
         ?.polylines?.find((polyline) => polyline.id === "route-geometry")?.path,
     ).toEqual(
       path.map((point) => ({ lat: point.latitude, lng: point.longitude })),
+    );
+  });
+
+  // Mỗi đường tương tác có kèm một bản sao trong suốt rộng hơn mang CÙNG bộ
+  // handler, lại thêm click "trễ" Google bắn sau mouseup — một nhịp bấm gọi
+  // thêm điểm nhiều lần và mọc ra 2–3 chấm. Cờ dùng-một-lần chỉ chặn được đúng
+  // một lần gọi, nên phải chặn theo thời gian + vị trí.
+  it("adds a single via point when one press reaches several overlapping lines", () => {
+    canvasProps.length = 0;
+    const onAddViaPoint = vi.fn();
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        viaPoints={[]}
+        onAddViaPoint={onAddViaPoint}
+        onBeginViaDrag={vi.fn()}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
+    const { polylines = [] } = canvasProps.at(-1) ?? {};
+    const line = polylines.find((item) => item.id === "route-option-0");
+    const hitLayer = polylines.find((item) => item.id === "route-option-0-hit");
+    const spot = { lat: 10.9, lng: 106.9 };
+
+    act(() => {
+      // Cùng một cú bấm: bản sao bắt sự kiện, nét thật, rồi click "trễ"
+      hitLayer?.onClick?.(spot);
+      line?.onClick?.(spot);
+      line?.onClick?.(spot);
+    });
+
+    expect(onAddViaPoint).toHaveBeenCalledTimes(1);
+  });
+
+  // Chặn theo cú bấm, KHÔNG phải khoá vĩnh viễn: bấm chỗ khác vẫn phải cắm được
+  it("still adds a via point when the next press lands somewhere else", () => {
+    canvasProps.length = 0;
+    const onAddViaPoint = vi.fn();
+    render(
+      <RouteDesignMap
+        {...buildProps()}
+        viaPoints={[]}
+        onAddViaPoint={onAddViaPoint}
+        onBeginViaDrag={vi.fn()}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
+    const line = canvasProps
+      .at(-1)
+      ?.polylines?.find((item) => item.id === "route-option-0");
+
+    act(() => {
+      line?.onClick?.({ lat: 10.9, lng: 106.9 });
+      line?.onClick?.({ lat: 11.2, lng: 107.4 });
+    });
+
+    expect(onAddViaPoint).toHaveBeenCalledTimes(2);
+  });
+
+  // Toạ độ lưu là chỗ con trỏ buông, nhưng Directions nắn điểm về đỉnh đường
+  // gần nhất rồi mới tính lộ trình. Vẽ chấm ở toạ độ thô là nó lơ lửng cạnh
+  // đường, lệch khỏi chỗ đường thực sự bẻ.
+  it("draws the via handle on the road, not at the raw dropped coordinate", () => {
+    canvasProps.length = 0;
+    const path = [
+      { latitude: 10.0, longitude: 106.0 },
+      { latitude: 10.0, longitude: 106.1 },
+      { latitude: 10.0, longitude: 106.2 },
+    ];
+
+    render(
+      <RouteDesignMap
+        emptyText="empty"
+        points={[]}
+        pathPoints={path}
+        // Buông lệch hẳn khỏi đường
+        viaPoints={[{ latitude: 10.05, longitude: 106.104 }]}
+        onAddViaPoint={vi.fn()}
+        onBeginViaDrag={vi.fn()}
+        onDragViaPoint={vi.fn()}
+        onMoveViaPoint={vi.fn()}
+        onRemoveViaPoint={vi.fn()}
+      />,
+    );
+
+    const handle = canvasProps
+      .at(-1)
+      ?.pointMarkers?.find((marker) => marker.id === "via-point-0");
+
+    expect(handle?.position).toEqual({ lat: 10.0, lng: 106.1 });
+  });
+
+  // Nắn đường làm `center`/`fitPoints` đổi liên tục; nếu camera đồng bộ theo
+  // chúng thì mỗi nhịp vẽ là bản đồ bay về ôm trọn tuyến, mất đúng chỗ đang
+  // phóng to để sửa. `fitKey` chỉ đổi khi đổi tuyến đang xem.
+  it("keeps the camera key stable while the geometry changes", () => {
+    canvasProps.length = 0;
+    const { rerender } = render(
+      <RouteDesignMap
+        emptyText="empty"
+        points={[]}
+        pathPoints={[
+          { latitude: 10.0, longitude: 106.0 },
+          { latitude: 10.0, longitude: 106.2 },
+        ]}
+        viewportKey="route-1"
+      />,
+    );
+    const before = canvasProps.at(-1)?.fitKey;
+
+    rerender(
+      <RouteDesignMap
+        emptyText="empty"
+        points={[]}
+        pathPoints={[
+          { latitude: 10.0, longitude: 106.0 },
+          { latitude: 10.4, longitude: 106.9 },
+          { latitude: 10.0, longitude: 106.2 },
+        ]}
+        viewportKey="route-1"
+      />,
+    );
+
+    expect(before).toBe("route-1");
+    expect(canvasProps.at(-1)?.fitKey).toBe("route-1");
+    // Hình đường ĐÃ đổi — chốt rằng test không vô tình so hai lần render giống nhau
+    expect(canvasProps.at(-1)?.fitPoints).not.toEqual(
+      canvasProps.at(0)?.fitPoints,
     );
   });
 

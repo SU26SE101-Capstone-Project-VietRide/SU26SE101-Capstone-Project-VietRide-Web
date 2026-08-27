@@ -1,4 +1,4 @@
-// Wrapper REST Goong (Place / Geocode / Direction) — thay các API Google
+// Wrapper REST Goong v2 (Place / Geocode / Direction) — thay các API Google
 // tương ứng. Goong trả JSON gần format Google (`status` + `results`/
 // `predictions`/`routes`, `geometry.location.lat|lng`, `overview_polyline`),
 // nên phần map sang type nội bộ giữ nguyên cách đọc field như hồi còn Google.
@@ -303,9 +303,18 @@ function toPrediction(value: unknown): GoongPrediction | null {
   };
 }
 
+/**
+ * Số gợi ý xin mặc định.
+ *
+ * v1 mặc định trả 10, v2 mặc định chỉ 5. Ô tìm địa điểm trước giờ không truyền
+ * `limit` nên đang hưởng mức 10 — gửi tường minh để đổi sang v2 không âm thầm
+ * cắt một nửa danh sách gợi ý người dùng đang thấy.
+ */
+const defaultAutocompleteLimit = 10;
+
 export type GoongAutocompleteRequest = {
   input: string;
-  // Số gợi ý tối đa (Goong mặc định 10)
+  // Số gợi ý tối đa (v2 mặc định 5 — xem defaultAutocompleteLimit)
   limit?: number;
   // Ưu tiên kết quả quanh toạ độ này
   location?: GoongLatLng;
@@ -322,9 +331,9 @@ export async function goongAutocomplete({
   radiusKm,
   sessionToken,
 }: GoongAutocompleteRequest): Promise<GoongPrediction[]> {
-  const url = buildGoongUrl("Place/AutoComplete", {
+  const url = buildGoongUrl("v2/place/autocomplete", {
     input,
-    limit,
+    limit: limit ?? defaultAutocompleteLimit,
     location: location ? `${location.lat},${location.lng}` : undefined,
     // Kèm tỉnh/huyện/xã để dựng lại address_components khi cần
     more_compound: true,
@@ -399,7 +408,7 @@ export async function goongPlaceDetail(
   placeId: string,
   sessionToken?: string,
 ): Promise<GoongPlaceDetail | null> {
-  const url = buildGoongUrl("Place/Detail", {
+  const url = buildGoongUrl("v2/place/detail", {
     place_id: placeId,
     sessiontoken: sessionToken,
   });
@@ -423,7 +432,7 @@ export async function goongPlaceDetail(
 export async function goongReverseGeocode(
   location: GoongLatLng,
 ): Promise<GoongPlaceResult[]> {
-  const url = buildGoongUrl("Geocode", {
+  const url = buildGoongUrl("v2/geocode", {
     latlng: `${location.lat},${location.lng}`,
   });
   const payload = await fetchGoongJson(url);
@@ -548,7 +557,7 @@ export async function goongDirections({
   vehicle = "truck",
   waypoints = [],
 }: GoongDirectionsRequest): Promise<GoongRoute[]> {
-  const url = buildGoongUrl("Direction", {
+  const url = buildGoongUrl("v2/direction", {
     alternatives,
     destination: [...waypoints, destination].map(toCoordinateParam).join(";"),
     origin: toCoordinateParam(origin),

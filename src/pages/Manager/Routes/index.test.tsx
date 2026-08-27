@@ -2170,6 +2170,9 @@ describe("Manager route setup workflow", () => {
           {
             travelMode: "TRUCK",
             intermediates: [{ latitude: 11.05, longitude: 107.4 }],
+            // Đường đang hiển thị đi kèm để điểm nắn được chèn vào đúng khe
+            // giữa các điểm dừng, thay vì bị dồn xuống sau tất cả
+            referencePath: expect.any(Array),
             alternatives: true,
           },
         ),
@@ -2193,6 +2196,7 @@ describe("Manager route setup workflow", () => {
           {
             travelMode: "TRUCK",
             intermediates: [{ latitude: 11.31, longitude: 107.61 }],
+            referencePath: expect.any(Array),
             alternatives: true,
           },
         ),

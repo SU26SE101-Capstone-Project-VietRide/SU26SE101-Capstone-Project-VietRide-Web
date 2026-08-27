@@ -209,6 +209,9 @@ export default function RouteMapWorkspace({
           className="relative h-105 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:h-[calc(100vh-16rem)] lg:min-h-140"
         >
           <RouteDesignMap
+            // Camera chỉ canh lại khung khi ĐỔI TUYẾN, không canh theo từng
+            // nhịp nắn đường (xem `fitKey` của GoogleMapCanvas)
+            viewportKey={selectedRouteId}
             points={routeMapPoints}
             pathPoints={geometry.routePathPoints}
             stopMarkers={stopMarkers}

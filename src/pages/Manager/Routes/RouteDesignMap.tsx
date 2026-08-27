@@ -29,7 +29,11 @@ import {
   routeEndpointPinPath,
   stopNumberPath,
 } from "../../../components/mapMarkerPaths";
-import { findRouteLabelAnchor, type RoadRouteOption } from "./geometry";
+import {
+  findNearestPathIndex,
+  findRouteLabelAnchor,
+  type RoadRouteOption,
+} from "./geometry";
 import { dimRouteColor, mainRouteColor } from "./routeColors";
 import { estimateCoachDurationMinutes, type RouteCoordinate } from "./polyline";
 import StopDetailCard from "./StopDetailCard";
@@ -49,6 +53,12 @@ const durationBubblePath =
 const viaPointPath = "M 0 -9 a 9 9 0 1 1 0 18 a 9 9 0 1 1 0 -18 Z";
 // Cùng hình nhưng nhỏ hơn: "tay nắm ma" bám con trỏ khi rê dọc đường đang chọn
 const hoverHandlePath = "M 0 -6 a 6 6 0 1 1 0 12 a 6 6 0 1 1 0 -12 Z";
+
+// Cửa sổ gộp các lần cắm điểm trùng của cùng một cú bấm
+const duplicateAddWindowMs = 400;
+// ~11m: bấm hai lần THẬT vào hai chỗ cách nhau dưới chừng này là chuyện không
+// ai làm khi nắn tuyến liên tỉnh, còn các lần gọi trùng thì cùng hệt một toạ độ
+const duplicateAddDegrees = 0.0001;
 
 // Bề rộng vùng bắt chuột vô hình đè lên mỗi đường tương tác. Nét vẽ chỉ 4–6px,
 // bắt user trỏ trúng đúng vệt đó mới túm/bấm được là lý do lớn khiến thao tác
@@ -137,6 +147,12 @@ type RouteDesignMapProps = {
   selectedPathDurationMinutes?: number;
   // Điểm nắn lộ trình đang có + các thao tác cắm/kéo/xoá (undefined = chỉ xem)
   viaPoints?: RouteCoordinate[];
+  /**
+   * Đổi giá trị này = cho phép camera canh lại khung một lần (đổi tuyến đang
+   * xem). Giữ nguyên = camera đứng yên dù hình đường đổi bao nhiêu lần, để nắn
+   * đường không bị bay về zoom ôm trọn tuyến sau mỗi nhịp.
+   */
+  viewportKey?: string;
   onAddViaPoint?: (point: RouteCoordinate) => void;
   // Bắt đầu gesture túm thân đường: cắm điểm nắn tại point (không reroute),
   // trả về index điểm mới (index âm = không cắm được, bỏ gesture) — kéo stream
@@ -205,6 +221,7 @@ export default function RouteDesignMap({
   onSelectOption,
   selectedPathDurationMinutes = 0,
   viaPoints = [],
+  viewportKey,
   onAddViaPoint,
   onBeginViaDrag,
   onMoveViaPoint,
@@ -365,11 +382,37 @@ export default function RouteDesignMap({
   // Sau mouseup của gesture, Google còn bắn thêm "click" trên polyline — chặn
   // click đó để không cắm thêm một điểm nắn thứ hai
   const suppressLineClickRef = useRef(false);
+  // Nhịp cắm điểm gần nhất (thời điểm + vị trí), để bỏ những lần gọi trùng của
+  // CÙNG một cú bấm. Mỗi đường tương tác có kèm một bản sao trong suốt rộng hơn
+  // mang cùng bộ handler (xem `-hit` trong mapPolylines), lại thêm click "trễ"
+  // Google bắn sau mouseup — nên một nhịp bấm có thể gọi thêm điểm 2–3 lần và
+  // user thấy mọc ra 2–3 chấm. Chặn theo cả thời gian lẫn khoảng cách: cùng một
+  // chỗ trong vòng vài trăm ms thì chắc chắn là một cú bấm, không phải hai.
+  const lastAddRef = useRef<{ at: number; position: GoogleMapCoordinate } | null>(
+    null,
+  );
 
   useEffect(() => {
     return () => {
       grabCleanupRef.current?.();
     };
+  }, []);
+
+  // true = lần cắm điểm này là bản trùng của cú bấm vừa rồi, phải bỏ qua
+  const isDuplicateAdd = useCallback((position: GoogleMapCoordinate) => {
+    const now = Date.now();
+    const last = lastAddRef.current;
+    const duplicate =
+      last !== null &&
+      now - last.at < duplicateAddWindowMs &&
+      Math.abs(last.position.lat - position.lat) < duplicateAddDegrees &&
+      Math.abs(last.position.lng - position.lng) < duplicateAddDegrees;
+
+    if (!duplicate) {
+      lastAddRef.current = { at: now, position };
+    }
+
+    return duplicate;
   }, []);
 
   const clearHoverHandle = useCallback(() => {
@@ -412,6 +455,10 @@ export default function RouteDesignMap({
       // Không đủ khả năng chạy gesture (map chưa sẵn sàng / mock không hỗ trợ)
       // → bỏ qua, click fallback trên đường vẫn cắm điểm nắn được
       if (!map?.setOptions || !begin) {
+        return;
+      }
+
+      if (isDuplicateAdd(position)) {
         return;
       }
 
@@ -483,7 +530,7 @@ export default function RouteDesignMap({
       window.addEventListener("mouseup", handleWindowMouseUp);
       grabCleanupRef.current = finish;
     },
-    [clearHoverHandle],
+    [clearHoverHandle, isDuplicateAdd],
   );
 
   const displayedPath = pathPoints.length > 0 ? pathPoints : points;
@@ -569,12 +616,17 @@ export default function RouteDesignMap({
     // gesture túm đường không chạy được; bị chặn ngay sau một gesture vừa chốt)
     const addViaPoint = canAddViaPoint
       ? (position?: GoogleMapCoordinate) => {
+          // KHÔNG hạ cờ ở đây. Một nhịp bấm sinh ra click "trễ" trên MỌI
+          // polyline nằm dưới con trỏ (đường đang chọn + các phương án chồng
+          // lên nhau), nên cờ dùng-một-lần bị click đầu tiên tiêu thụ và những
+          // click còn lại lọt qua — đó chính là chuyện bấm một cái ra hai, ba
+          // chấm. Cờ do timeout trong `finish()` hạ, tức chặn theo THỜI GIAN,
+          // bao nhiêu click trễ cũng chặn hết.
           if (suppressLineClickRef.current) {
-            suppressLineClickRef.current = false;
             return;
           }
 
-          if (position) {
+          if (position && !isDuplicateAdd(position)) {
             callbacksRef.current.onAddViaPoint?.({
               latitude: position.lat,
               longitude: position.lng,
@@ -710,6 +762,7 @@ export default function RouteDesignMap({
     clearHoverHandle,
     dimmedColor,
     hasSavedOrDraftPath,
+    isDuplicateAdd,
     linePositions,
     routeOptions,
     selectedOptionIndex,
@@ -874,6 +927,23 @@ export default function RouteDesignMap({
     t,
   ]);
 
+  // Chấm điểm nắn phải nằm ĐÚNG trên đường đang vẽ. Toạ độ lưu trong `viaPoints`
+  // là chỗ con trỏ buông, còn Directions nắn điểm đó về đỉnh đường gần nhất rồi
+  // mới tính lộ trình — vẽ chấm ở toạ độ thô thì nó lơ lửng cạnh đường, lệch
+  // hẳn so với chỗ đường thực sự bẻ, và người dùng thấy "buông ra nó nhảy đi
+  // chỗ khác". Chiếu về đỉnh gần nhất của đường ĐANG hiển thị là khớp lại.
+  const snappedViaPositions: GoogleMapCoordinate[] = useMemo(
+    () =>
+      viaPoints.map((point) => {
+        const index =
+          displayedPath.length > 1 ? findNearestPathIndex(displayedPath, point) : -1;
+        const snapped = index >= 0 ? displayedPath[index] : point;
+
+        return { lat: snapped.latitude, lng: snapped.longitude };
+      }),
+    [displayedPath, viaPoints],
+  );
+
   const viaPointMarkers: GoogleMapPointMarker[] = useMemo(() => {
     if (viaPoints.length === 0 && !activeGrab) {
       return noPointMarkers;
@@ -936,9 +1006,17 @@ export default function RouteDesignMap({
               });
             }
           : undefined,
+        // Chấm phải nằm ĐÚNG trên đường đang vẽ. Toạ độ lưu trong `viaPoints`
+        // là chỗ con trỏ buông, còn Directions thì nắn điểm đó về đỉnh đường
+        // gần nhất rồi mới tính lộ trình — vẽ chấm ở toạ độ thô là nó lơ lửng
+        // cạnh đường, lệch hẳn so với chỗ đường thực sự bẻ. Trong lúc kéo thì
+        // vẫn bám tay, chưa có đường thì đành lấy toạ độ thô.
         position: grabbing
           ? activeGrab.position
-          : { lat: point.latitude, lng: point.longitude },
+          : (snappedViaPositions[index] ?? {
+              lat: point.latitude,
+              lng: point.longitude,
+            }),
         title: t("routes.viaPointHint"),
         zIndex: 5,
       };
@@ -949,6 +1027,7 @@ export default function RouteDesignMap({
     canDragViaPoint,
     canMoveViaPoint,
     canRemoveViaPoint,
+    snappedViaPositions,
     t,
     viaPoints,
   ]);
@@ -1317,6 +1396,7 @@ export default function RouteDesignMap({
         anchorPosition={activeCardAnchor}
         ariaLabel={t("routes.designMapAria")}
         center={center}
+        fitKey={viewportKey}
         fitPoints={fitPoints}
         onMapClick={handleMapClick}
         onMapReady={handleMapReady}

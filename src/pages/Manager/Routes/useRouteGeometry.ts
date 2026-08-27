@@ -388,8 +388,15 @@ export function useRouteGeometry({
     mode: RouteTravelMode,
     viaList: RouteCoordinate[],
   ): RoadGeometryOptions {
+    // `referencePath` cho requestRoadGeometry biết chèn điểm nắn vào khe nào
+    // giữa các điểm dừng — thiếu nó thì điểm nắn bị dồn xuống sau mọi điểm dừng
+    // và lộ trình chốt khác hẳn cái vừa xem trước lúc kéo.
     return viaList.length > 0
-      ? { travelMode: mode, intermediates: viaList }
+      ? {
+          intermediates: viaList,
+          referencePath: routePathPointsRef.current,
+          travelMode: mode,
+        }
       : { travelMode: mode };
   }
 
@@ -726,8 +733,24 @@ export function useRouteGeometry({
 
     try {
       const { basePath, window: legWindow } = leg;
+      // Khi chặng đang nắn CHẠM mép đường thì đầu chặng phải là đúng bến của
+      // tuyến, không phải đỉnh polyline ở đó. Đỉnh polyline đã được Directions
+      // nắn về mặt đường rồi, còn toạ độ bến thì chưa — mà lúc thả chuột, phép
+      // tính chốt lại hỏi từ chính toạ độ bến. Hỏi bằng hai bộ điểm khác nhau
+      // là nhận về hai hình đường khác nhau, và người dùng thấy đường nhảy sang
+      // lộ trình khác ngay khi buông tay.
+      const lastWaypoint = routeWaypoints[routeWaypoints.length - 1];
+      const legOrigin =
+        legWindow.previousIndex === 0 && routeWaypoints.length > 1
+          ? routeWaypoints[0]
+          : basePath[legWindow.previousIndex];
+      const legDestination =
+        legWindow.nextIndex === basePath.length - 1 && routeWaypoints.length > 1
+          ? lastWaypoint
+          : basePath[legWindow.nextIndex];
+
       const options = await requestRoadGeometry(
-        [basePath[legWindow.previousIndex], basePath[legWindow.nextIndex]],
+        [legOrigin, legDestination],
         tRef.current("routes.routingFailed"),
         { travelMode, intermediates: [point] },
       );

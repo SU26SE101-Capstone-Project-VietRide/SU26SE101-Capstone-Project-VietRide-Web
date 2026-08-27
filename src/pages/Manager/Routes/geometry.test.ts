@@ -11,6 +11,7 @@ import {
   findPathAnchorWindow,
   findRouteGeometryWaypointMismatches,
   findRouteLabelAnchor,
+  interleaveViaWaypoints,
   isTruckDetour,
   longestRetracedSpanKm,
   requestRoadGeometry,
@@ -90,7 +91,7 @@ describe("requestRoadGeometry", () => {
     expect(options[0].points).toHaveLength(endpoints.length);
 
     const url = requestedUrl(fetchMock);
-    expect(url.origin + url.pathname).toBe("https://rsapi.goong.io/Direction");
+    expect(url.origin + url.pathname).toBe("https://rsapi.goong.io/v2/direction");
     expect(url.searchParams.get("alternatives")).toBe("true");
     // Không truyền travelMode → mặc định truck (xe khách lớn)
     expect(url.searchParams.get("vehicle")).toBe("truck");
@@ -905,5 +906,80 @@ describe("findRouteGeometryWaypointMismatches", () => {
     expect(advisoryRouteWaypointDistanceKm).toBeLessThan(0.5);
     // Không truyền ngưỡng → vẫn là 500m như BE, điểm lệch 330m không chặn lưu
     expect(findRouteGeometryWaypointMismatches(path, [offCorridor])).toEqual([]);
+  });
+});
+
+// Goong đi waypoint theo ĐÚNG thứ tự mảng. Nối điểm nắn vào sau toàn bộ điểm
+// dừng là bắt xe chạy hết mọi điểm dừng rồi mới vòng ngược lại chỗ vừa kéo —
+// lộ trình chốt lúc buông chuột khác hẳn cái vừa xem trước lúc kéo (lúc kéo chỉ
+// tính lại chặng giữa hai điểm dừng kề nên nó đúng thứ tự).
+describe("interleaveViaWaypoints", () => {
+  const reference = [
+    { latitude: 10.0, longitude: 106.0 },
+    { latitude: 10.0, longitude: 106.1 },
+    { latitude: 10.0, longitude: 106.2 },
+    { latitude: 10.0, longitude: 106.3 },
+    { latitude: 10.0, longitude: 106.4 },
+  ];
+  const stops = [
+    { latitude: 10.0, longitude: 106.1 },
+    { latitude: 10.0, longitude: 106.3 },
+  ];
+
+  it("slots a via point into the gap it was actually dropped in", () => {
+    const via = { latitude: 10.001, longitude: 106.2 };
+
+    expect(interleaveViaWaypoints(stops, [via], reference)).toEqual([
+      stops[0],
+      via,
+      stops[1],
+    ]);
+  });
+
+  it("puts a via point dropped before every stop at the front", () => {
+    const via = { latitude: 10.001, longitude: 106.05 };
+
+    expect(interleaveViaWaypoints(stops, [via], reference)).toEqual([
+      via,
+      ...stops,
+    ]);
+  });
+
+  it("keeps a via point dropped after the last stop at the end", () => {
+    const via = { latitude: 10.001, longitude: 106.35 };
+
+    expect(interleaveViaWaypoints(stops, [via], reference)).toEqual([
+      ...stops,
+      via,
+    ]);
+  });
+
+  it("orders several via points among the stops by position along the route", () => {
+    const early = { latitude: 10.001, longitude: 106.05 };
+    const middle = { latitude: 10.001, longitude: 106.2 };
+
+    // Truyền ngược thứ tự để chốt rằng kết quả do vị trí quyết định, không phải
+    // do thứ tự mảng đầu vào
+    expect(interleaveViaWaypoints(stops, [middle, early], reference)).toEqual([
+      early,
+      stops[0],
+      middle,
+      stops[1],
+    ]);
+  });
+
+  it("never reorders the stops themselves", () => {
+    const via = { latitude: 10.001, longitude: 106.2 };
+    const result = interleaveViaWaypoints(stops, [via], reference);
+
+    expect(result.indexOf(stops[0])).toBeLessThan(result.indexOf(stops[1]));
+  });
+
+  it("falls back to appending when there is nothing to order against", () => {
+    const via = { latitude: 10.001, longitude: 106.2 };
+
+    expect(interleaveViaWaypoints(stops, [via], [])).toEqual([...stops, via]);
+    expect(interleaveViaWaypoints([], [via], reference)).toEqual([via]);
+    expect(interleaveViaWaypoints(stops, [], reference)).toEqual(stops);
   });
 });

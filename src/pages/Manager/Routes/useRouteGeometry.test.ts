@@ -150,6 +150,63 @@ describe("useRouteGeometry — preview khi kéo điểm nắn", () => {
     return view;
   }
 
+  // Toạ độ bến hiếm khi nằm đúng trên mặt đường (Directions nắn nó về đỉnh
+  // đường gần nhất — đo thật trên Phú Nhuận là lệch tới 660m). Preview lấy đỉnh
+  // polyline làm đầu chặng, còn phép tính lúc thả chuột lại hỏi từ chính toạ độ
+  // bến: hai bộ điểm khác nhau cho hai hình đường khác nhau, và người dùng thấy
+  // đường nhảy ngay khi buông tay.
+  it("previews from the route terminus, not the snapped polyline vertex", async () => {
+    // Bến đi nằm LỆCH khỏi đỉnh đầu của đường đã áp
+    const offRoadOrigin = { latitude: 10.02, longitude: 105.98 };
+    const view = renderHook(() =>
+      useRouteGeometry({
+        selectedRouteId: "route-1",
+        routeWaypoints: [offRoadOrigin, { latitude: 10.0, longitude: 106.4 }],
+        isWorkspaceActive: true,
+        setRouteForm: vi.fn(),
+        setRoutes: vi.fn(),
+        setError: vi.fn(),
+        t: ((key: string) => key) as TranslateFn,
+      }),
+    );
+
+    act(() => {
+      view.result.current.applyComputedGeometry(roadPath);
+    });
+    mockedRequestRoadGeometry.mockClear();
+    mockedRequestRoadGeometry.mockResolvedValue([
+      {
+        points: roadPath,
+        totalDistanceKm: 42,
+        estimatedDurationMinutes: 55,
+      },
+    ]);
+
+    act(() => {
+      const index = view.result.current.handleBeginViaPointDrag({
+        latitude: 10.0,
+        longitude: 106.15,
+      });
+      view.result.current.handleDragViaPoint(index, {
+        latitude: 10.2,
+        longitude: 106.15,
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockedRequestRoadGeometry).toHaveBeenCalledTimes(1);
+    });
+
+    // Không có điểm dừng giữa tuyến → chặng nắn trải hết đường, nên hai đầu
+    // phải là ĐÚNG hai bến, y như phép tính lúc thả chuột
+    const [points] = mockedRequestRoadGeometry.mock.calls[0];
+    expect(points[0]).toEqual(offRoadOrigin);
+    expect(points[points.length - 1]).toEqual({
+      latitude: 10.0,
+      longitude: 106.4,
+    });
+  });
+
   it("only recomputes the dragged leg and splices the road geometry back in", async () => {
     const { result } = renderWithAppliedPath();
     mockedRequestRoadGeometry.mockClear();

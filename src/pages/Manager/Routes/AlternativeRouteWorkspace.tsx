@@ -189,6 +189,9 @@ export default function AlternativeRouteWorkspace({
           className="relative h-105 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:h-[calc(100vh-16rem)] lg:min-h-140"
         >
           <RouteDesignMap
+            // Camera chỉ canh khung khi đổi tuyến thay thế đang soạn, không
+            // canh theo từng nhịp nắn (xem `fitKey` của GoogleMapCanvas)
+            viewportKey={`alt:${workspace.selectedAlternativeRouteId}`}
             points={workspace.altMapPoints}
             pathPoints={altGeometry.routePathPoints}
             stopMarkers={altStopMarkers}

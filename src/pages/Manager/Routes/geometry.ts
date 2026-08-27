@@ -137,7 +137,60 @@ export type RoadGeometryOptions = {
   intermediates?: RouteCoordinate[];
   // Mặc định TRUCK — app nhà xe khách, xe lớn là chuẩn
   travelMode?: RouteTravelMode;
+  /**
+   * Đường ĐANG hiển thị, dùng để xếp `intermediates` vào đúng chỗ giữa các điểm
+   * dừng (xem `interleaveViaWaypoints`). Vắng thì lấy tạm đường gấp khúc nối
+   * các điểm dừng — kém chính xác hơn nhưng vẫn hơn hẳn việc dồn hết xuống cuối.
+   */
+  referencePath?: RouteCoordinate[];
 };
+
+/**
+ * Trộn điểm nắn vào danh sách điểm dừng theo ĐÚNG THỨ TỰ CHẠY.
+ *
+ * Trước đây điểm nắn bị nối thẳng vào sau toàn bộ điểm dừng. Với tuyến chưa có
+ * điểm dừng thì vô hại, nhưng tuyến đã có điểm dừng thì thành ra bắt xe chạy hết
+ * mọi điểm dừng rồi mới vòng ngược lại chỗ vừa kéo — lộ trình chốt khác hẳn cái
+ * người dùng vừa thấy lúc kéo (lúc kéo chỉ tính lại chặng giữa hai điểm dừng kề
+ * nên nó đúng thứ tự).
+ *
+ * Thứ tự các điểm DỪNG giữ nguyên như user khai báo — chỉ chèn điểm nắn vào khe
+ * giữa chúng, dựa trên quãng đường từ đầu tuyến tới hình chiếu của từng điểm.
+ */
+export function interleaveViaWaypoints(
+  stops: RouteCoordinate[],
+  vias: RouteCoordinate[],
+  reference: RouteCoordinate[],
+): RouteCoordinate[] {
+  if (vias.length === 0) {
+    return stops;
+  }
+
+  if (stops.length === 0 || reference.length < 2) {
+    return [...stops, ...vias];
+  }
+
+  const markOf = (point: RouteCoordinate) =>
+    projectPointOntoPolyline(reference, point).distanceFromStartKm;
+  const stopMarks = stops.map(markOf);
+  const placed = vias
+    .map((point) => ({ mark: markOf(point), point }))
+    .sort((first, second) => first.mark - second.mark);
+
+  const ordered: RouteCoordinate[] = [];
+  let cursor = 0;
+
+  stops.forEach((stop, index) => {
+    while (cursor < placed.length && placed[cursor].mark <= stopMarks[index]) {
+      ordered.push(placed[cursor].point);
+      cursor += 1;
+    }
+
+    ordered.push(stop);
+  });
+
+  return [...ordered, ...placed.slice(cursor).map((entry) => entry.point)];
+}
 
 // Ngưỡng coi lộ trình TRUCK "đi vòng đáng kể" so với DRIVE cùng cặp điểm —
 // vượt một trong hai là hiện cảnh báo đường hạn chế xe lớn
@@ -577,8 +630,10 @@ export async function requestRoadGeometry(
     lat: point.latitude,
     lng: point.longitude,
   });
-  const stopWaypoints = points.slice(1, -1).map(toLatLng);
-  const viaWaypoints = (opts?.intermediates ?? []).map(toLatLng);
+  const stopPoints = points.slice(1, -1);
+  const viaPoints = opts?.intermediates ?? [];
+  const stopWaypoints = stopPoints.map(toLatLng);
+  const viaWaypoints = viaPoints.map(toLatLng);
   const request: GoongDirectionsRequest = {
     // Vẫn gửi cờ cho Goong: hiện họ luôn trả 1 đường, nhưng nếu sau này bật thì
     // ta nhận phương án THẬT và bỏ qua hẳn phần tự sinh bên dưới.
@@ -586,10 +641,13 @@ export async function requestRoadGeometry(
     destination: toLatLng(points[points.length - 1]),
     origin: toLatLng(points[0]),
     vehicle: opts?.travelMode === "DRIVE" ? "car" : "truck",
-    // Điểm dừng của tuyến đứng trước, rồi tới điểm nắn lộ trình — Goong đi
-    // waypoint theo đúng thứ tự mảng (flow nắn đường thực tế chỉ dùng khi
-    // tuyến chưa có điểm dừng nên hai nhóm không chen nhau)
-    waypoints: [...stopWaypoints, ...viaWaypoints],
+    // Goong đi waypoint theo ĐÚNG thứ tự mảng, nên điểm nắn phải được chèn vào
+    // đúng khe giữa các điểm dừng chứ không dồn xuống cuối
+    waypoints: interleaveViaWaypoints(
+      stopPoints,
+      viaPoints,
+      opts?.referencePath ?? points,
+    ).map(toLatLng),
   };
 
   let routes: GoongRoute[];
