@@ -7,6 +7,7 @@ import {
   getOperatorParcelRouteFares,
   getOperatorParcelRouteFareSummary,
   getOperatorRoutes,
+  updateOperatorParcelRouteFare,
   type OperatorRoute,
   type ParcelRouteFare,
 } from "../../../api/vietride";
@@ -187,6 +188,92 @@ describe("parcel route fare workflow", () => {
     ).toBe(editButtons[0]);
   });
 
+
+  // Tạo thì đặt được cả 4 mức trong một lần; trước đây sửa lại phải mở bút chì
+  // bốn lần cho cùng một tuyến. Bút chì nay mở đúng trình soạn 4 cỡ kiện đó.
+  it("bút chì mở trình sửa cả bốn cỡ kiện và lưu bằng một lần gọi batch", async () => {
+    const user = userEvent.setup();
+    render(<ParcelsList />);
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "parcels.editFare" }))[0],
+    );
+
+    // Đủ bốn ô giá, điền sẵn theo đúng kỳ giá của dòng vừa bấm
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "parcels.sizeCategories.SMALL" }),
+      ).toHaveValue("10000"),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "parcels.sizeCategories.EXTRA_LARGE" }),
+    ).toHaveValue("40000");
+
+    // Đổi đúng một mức rồi lưu — vẫn chỉ một lần gọi cho cả bảng giá
+    const mediumInput = screen.getByRole("textbox", {
+      name: "parcels.sizeCategories.MEDIUM",
+    });
+    await user.clear(mediumInput);
+    await user.type(mediumInput, "25000");
+
+    await user.click(
+      screen.getByRole("button", { name: "parcels.fareBatchActions.UPDATE" }),
+    );
+
+    await waitFor(() =>
+      expect(batchUpdateOperatorParcelRouteFares).toHaveBeenCalledWith(
+        route.id,
+        {
+          effectiveFrom: "2026-08-01T00:00:00.000Z",
+          effectiveUntil: "2026-08-31T23:59:59.000Z",
+          items: [
+            { sizeCategory: "SMALL", priceVnd: 10_000 },
+            { sizeCategory: "MEDIUM", priceVnd: 25_000 },
+            { sizeCategory: "LARGE", priceVnd: 30_000 },
+            { sizeCategory: "EXTRA_LARGE", priceVnd: 40_000 },
+          ],
+        },
+      ),
+    );
+    // Không còn đường gọi API sửa từng cỡ kiện
+    expect(updateOperatorParcelRouteFare).not.toHaveBeenCalled();
+  });
+
+  // Mốc hiệu lực phải sửa được: gia hạn kỳ giá hay chữa ngày gõ nhầm đều cần nó.
+  it("cho sửa mốc hiệu lực và gửi đúng ngày mới", async () => {
+    const user = userEvent.setup();
+    render(<ParcelsList />);
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "parcels.editFare" }))[0],
+    );
+
+    const fromInput = await screen.findByLabelText("parcels.effectiveFrom");
+    const untilInput = screen.getByLabelText("parcels.effectiveUntil");
+    expect(fromInput).toBeEnabled();
+    expect(untilInput).toBeEnabled();
+
+    const nextUntil = "2026-09-30T10:00";
+    await user.clear(untilInput);
+    await user.type(untilInput, nextUntil);
+
+    await user.click(
+      screen.getByRole("button", { name: "parcels.fareBatchActions.UPDATE" }),
+    );
+
+    await waitFor(() =>
+      expect(batchUpdateOperatorParcelRouteFares).toHaveBeenCalledWith(
+        route.id,
+        expect.objectContaining({
+          // Ô không đụng tới giữ nguyên chuỗi gốc (còn cả giây), ô vừa sửa lấy
+          // giá trị mới. `toISOString` tính theo múi giờ máy chạy test nên dựng
+          // kỳ vọng bằng chính Date, không hard-code chuỗi UTC.
+          effectiveFrom: "2026-08-01T00:00:00.000Z",
+          effectiveUntil: new Date(nextUntil).toISOString(),
+        }),
+      ),
+    );
+  });
 
   it("prefills and safely updates an existing active fare window", async () => {
     const user = userEvent.setup();

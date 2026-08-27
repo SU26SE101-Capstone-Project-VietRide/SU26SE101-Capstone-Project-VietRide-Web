@@ -3,6 +3,7 @@ import type { ParcelRouteFare } from "../../../api/vietride";
 import {
   buildFareSelection,
   buildNextFareSelection,
+  buildRouteFareSelection,
   getRouteFareSummary,
   parcelSizeCategories,
   stripDiacritics,
@@ -126,5 +127,43 @@ describe("parcel fare route summaries", () => {
       expect(stripDiacritics("ĐÀ NẴNG")).toBe("da nang");
       expect(stripDiacritics("đà nẵng")).toBe("da nang");
     });
+  });
+});
+
+// BE giữ đúng một bản ghi cho mỗi (tuyến, cỡ kiện), nên bấm bút chì phải gom
+// được cả 4 mức của tuyến — kể cả khi các cỡ đã trôi sang mốc hiệu lực khác
+// nhau. Ngày thì lấy theo đúng dòng được bấm.
+describe("buildRouteFareSelection", () => {
+  it("gom đủ bốn mức của tuyến dù các cỡ lệch mốc hiệu lực", () => {
+    const drifted: ParcelRouteFare[] = [
+      fare("SMALL", { effectiveUntil: "2026-12-01T09:00:00Z", priceVnd: 10_000 }),
+      fare("MEDIUM", { effectiveUntil: null, priceVnd: 20_000 }),
+      fare("LARGE", { effectiveUntil: null, priceVnd: 30_000 }),
+      fare("EXTRA_LARGE", { effectiveUntil: null, priceVnd: 40_000 }),
+      // Tuyến khác — không được lẫn vào
+      fare("SMALL", { routeId: "route-2", priceVnd: 999_000 }),
+    ];
+
+    const selection = buildRouteFareSelection(drifted, drifted[0]);
+
+    expect(selection.mode).toBe("UPDATE");
+    expect(selection.prices.SMALL).toBe("10000");
+    expect(selection.prices.MEDIUM).toBe("20000");
+    expect(selection.prices.EXTRA_LARGE).toBe("40000");
+    // Ngày lấy theo dòng được bấm, không phải theo cỡ kiện khác
+    expect(selection.effectiveUntil).toBe("2026-12-01T09:00:00Z");
+  });
+
+  it("báo COMPLETE khi tuyến chưa đủ bốn cỡ kiện", () => {
+    const partial: ParcelRouteFare[] = [
+      fare("SMALL", { priceVnd: 10_000 }),
+      fare("MEDIUM", { priceVnd: 20_000 }),
+    ];
+
+    const selection = buildRouteFareSelection(partial, partial[0]);
+
+    expect(selection.mode).toBe("COMPLETE");
+    expect(selection.prices.SMALL).toBe("10000");
+    expect(selection.prices.LARGE).toBe("");
   });
 });

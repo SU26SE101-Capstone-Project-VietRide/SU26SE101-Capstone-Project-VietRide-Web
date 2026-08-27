@@ -32,7 +32,6 @@ import {
   type ParcelSizeCategory,
   type ParcelRouteFareStatus,
   type ParcelRouteFareSummaryItem,
-  updateOperatorParcelRouteFare,
 } from "../../../api/vietride";
 import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
@@ -52,6 +51,7 @@ import {
 import { RouteFarePicker, type RouteFarePickerOption } from "./RouteFarePicker";
 import {
   buildFareSelection,
+  buildRouteFareSelection,
   buildNextFareSelection,
   createEmptyFarePrices,
   getRouteFareSummary,
@@ -123,8 +123,6 @@ export default function ParcelsList() {
   const [fareSummaries, setFareSummaries] = useState<ParcelRouteFareSummaryItem[]>([]);
   const [selectedRouteFares, setSelectedRouteFares] = useState<ParcelRouteFare[]>([]);
   const [fareRouteId, setFareRouteId] = useState("");
-  const [fareSizeCategory, setFareSizeCategory] = useState<ParcelSizeCategory>("SMALL");
-  const [farePrice, setFarePrice] = useState("");
   const [farePrices, setFarePrices] = useState(createEmptyFarePrices);
   const [fareEffectiveFrom, setFareEffectiveFrom] = useState(currentLocalDateTime);
   const [fareEffectiveUntil, setFareEffectiveUntil] = useState("");
@@ -280,7 +278,15 @@ export default function ParcelsList() {
           applyFareSelection(
             buildFareSelection(getRouteFareSummary(fareRouteId, result.items)),
           );
+          return;
         }
+
+        // Đang sửa: bảng chỉ là MỘT trang nên có thể thiếu cỡ kiện của tuyến.
+        // Điền nốt phần thiếu từ dữ liệu đầy đủ, nhưng không đụng vào ngày —
+        // đó là ô người dùng đang sửa.
+        const selection = buildRouteFareSelection(result.items, editingFare);
+        setFareEditorMode(selection.mode);
+        setFarePrices(selection.prices);
       })
       .catch(() => {
         if (!ignore) setSelectedRouteFares([]);
@@ -385,8 +391,6 @@ export default function ParcelsList() {
   function resetFareForm() {
     setEditingFare(null);
     setFareRouteId("");
-    setFareSizeCategory("SMALL");
-    setFarePrice("");
     setFarePrices(createEmptyFarePrices());
     setFareEffectiveFrom(currentLocalDateTime());
     setFareEffectiveUntil("");
@@ -403,14 +407,19 @@ export default function ParcelsList() {
     setIsFareModalOpen(false);
   }
 
+  /**
+   * Sửa từ một dòng bảng: mở ĐÚNG trình soạn 4 cỡ kiện như lúc tạo.
+   *
+   * Trước đây bút chì mở form một cỡ kiện, nên tạo thì đặt được cả 4 mức trong
+   * một lần mà sửa thì phải mở lại bốn lần cho cùng một tuyến. Khung giá lấy
+   * theo dòng được bấm (không phải khung "đang chọn" của tuyến) để không sửa
+   * nhầm kỳ giá khác; tuyến và khung thời gian đều bị khoá — đổi hai thứ đó là
+   * tạo kỳ giá mới, đã có luồng riêng.
+   */
   function handleEditFare(fare: ParcelRouteFare) {
     setEditingFare(fare);
     setFareRouteId(fare.routeId);
-    setFareSizeCategory(fare.sizeCategory);
-    setFarePrice(String(fare.priceVnd));
-    setFareEffectiveFrom(toLocalDateTime(fare.effectiveFrom));
-    setFareEffectiveUntil(toLocalDateTime(fare.effectiveUntil));
-    setFareEditorMode("UPDATE");
+    applyFareSelection(buildRouteFareSelection(routeFares, fare));
     setFareError("");
     setFareMessage("");
     setIsFareModalOpen(true);
@@ -425,24 +434,34 @@ export default function ParcelsList() {
       (item) => !Number.isFinite(item.priceVnd) || item.priceVnd <= 0,
     );
 
-    if (
-      !fareRouteId ||
-      !fareEffectiveFrom ||
-      (editingFare
-        ? !farePrice || Number(farePrice) <= 0
-        : hasInvalidBatchPrice)
-    ) {
-      setFareError(t(editingFare ? "parcels.fareRequired" : "parcels.batchFareRequired"));
+    if (!fareRouteId || !fareEffectiveFrom || hasInvalidBatchPrice) {
+      setFareError(t("parcels.batchFareRequired"));
       return;
     }
 
     const lockedFareWindow = locksBatchFareWindow
       ? selectedRouteFareSummary?.window
       : null;
-    const effectiveFromValue = lockedFareWindow?.effectiveFrom ?? fareEffectiveFrom;
+    // Ô `datetime-local` chỉ có độ chính xác tới PHÚT. Mốc do BE sinh thường
+    // có cả giây (vd 23:59:59), nên nếu cứ lấy thẳng giá trị form thì mỗi lần
+    // lưu lại xén mất giây — kỳ giá âm thầm ngắn đi mà không ai đụng vào ô đó.
+    // Người dùng KHÔNG sửa ô nào thì giữ nguyên chuỗi gốc của bản ghi.
+    const keepOriginal = (
+      formValue: string,
+      original: string | null | undefined,
+    ) =>
+      editingFare && original && toLocalDateTime(original) === formValue
+        ? original
+        : null;
+
+    const effectiveFromValue =
+      lockedFareWindow?.effectiveFrom ??
+      keepOriginal(fareEffectiveFrom, editingFare?.effectiveFrom) ??
+      fareEffectiveFrom;
     const effectiveUntilValue = lockedFareWindow
       ? lockedFareWindow.effectiveUntil
-      : fareEffectiveUntil || null;
+      : keepOriginal(fareEffectiveUntil, editingFare?.effectiveUntil) ??
+        (fareEffectiveUntil || null);
     const effectiveFromDate = new Date(effectiveFromValue);
     const effectiveUntilDate = effectiveUntilValue
       ? new Date(effectiveUntilValue)
@@ -466,23 +485,11 @@ export default function ParcelsList() {
         : null;
       const effectiveFrom = effectiveFromDate.toISOString();
 
-      if (editingFare) {
-        await updateOperatorParcelRouteFare(
-          editingFare.routeId,
-          editingFare.sizeCategory,
-          {
-            priceVnd: Number(farePrice),
-            effectiveFrom,
-            effectiveUntil,
-          },
-        );
-      } else {
-        await batchUpdateOperatorParcelRouteFares(fareRouteId, {
-          effectiveFrom,
-          effectiveUntil,
-          items: batchItems,
-        });
-      }
+      await batchUpdateOperatorParcelRouteFares(fareRouteId, {
+        effectiveFrom,
+        effectiveUntil,
+        items: batchItems,
+      });
 
       const fareItems = await fetchAllPages((params) =>
         getOperatorParcelRouteFares(params),
@@ -494,13 +501,10 @@ export default function ParcelsList() {
         COMPLETE: "parcels.batchFareCompleted",
         RENEW: "parcels.batchFareRenewed",
       };
-      setFareMessage(
-        t(editingFare ? "parcels.fareUpdated" : batchMessageKey[fareEditorMode]),
-      );
+      setFareMessage(t(batchMessageKey[fareEditorMode]));
       setEditingFare(null);
       setIsFareModalOpen(false);
       setFareRouteId("");
-      setFarePrice("");
       setFarePrices(createEmptyFarePrices());
       setFareEffectiveUntil("");
       setFareEffectiveFrom(currentLocalDateTime());
@@ -530,6 +534,14 @@ export default function ParcelsList() {
     COMPLETE: "parcels.fareBatchTitles.COMPLETE",
     RENEW: "parcels.fareBatchTitles.RENEW",
   };
+  // KHÔNG khoá khi đang sửa một dòng: mốc hiệu lực là thứ người dùng cần sửa
+  // (gia hạn, chữa ngày gõ nhầm). Khoá chỉ áp cho luồng TẠO khi đã chọn tuyến
+  // có sẵn bảng giá — lúc đó khung giá do tuyến quyết định, không phải form.
+  //
+  // Việc này còn chữa một lỗi lưu: nhánh khoá lấy `selectedRouteFareSummary
+  // .window` (khung "đang chọn" của tuyến) làm mốc ghi xuống, nên bấm sửa ở
+  // dòng thuộc kỳ khác sẽ ghi đè nhầm kỳ. Không khoá thì save dùng đúng ngày
+  // đang hiển thị trên form.
   const locksBatchFareWindow =
     !editingFare &&
     (fareEditorMode === "UPDATE" || fareEditorMode === "COMPLETE");
@@ -583,6 +595,8 @@ export default function ParcelsList() {
               onClose={resetFareForm}
               title={
                 editingFare
+                  // Nhãn batch nói "bảng giá hiện tại" — sai khi sửa một kỳ giá
+                  // đã hết hạn hoặc sắp hiệu lực, nên giữ nhãn trung tính.
                   ? t("parcels.editFare")
                   : t(batchTitleKey[fareEditorMode])
               }
@@ -593,9 +607,7 @@ export default function ParcelsList() {
                 <Button variant="secondary" onClick={resetFareForm}>{t("parcels.cancelEdit")}</Button>
                 <Button variant="primary" disabled={isFareSaving} onClick={() => void handleSaveFare()}>
                   {editingFare ? <FiSave /> : <FiPlus />}
-                  {editingFare
-                    ? t("parcels.updateFare")
-                    : t(batchActionKey[fareEditorMode])}
+                  {t(batchActionKey[fareEditorMode])}
                 </Button>
               </>}
             >
@@ -618,9 +630,6 @@ export default function ParcelsList() {
                       }
                     />
                   </div>
-                  {editingFare && <><label><span className={labelClass}>{t("parcels.sizeCategory")}</span><CustomSelect value={fareSizeCategory} disabled onChange={(event) => setFareSizeCategory(event.target.value as ParcelSizeCategory)} className={inputClass}>
-                    {parcelSizeCategories.map((size) => <option key={size} value={size}>{t(`parcels.sizeCategories.${size}`)}</option>)}
-                  </CustomSelect></label><label><span className={labelClass}>{t("parcels.fee")}</span><CurrencyInput value={farePrice} onChange={(event) => setFarePrice(event.target.value)} className={inputClass} placeholder="50.000" /></label></>}
                   <label><span className={labelClass}>{t("parcels.effectiveFrom")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveFrom} disabled={locksBatchFareWindow} onChange={(event) => setFareEffectiveFrom(event.target.value)} className={inputClass} /></label>
                   <label><span className={labelClass}>{t("parcels.effectiveUntil")}</span><CustomDateTimeInput type="datetime-local" value={fareEffectiveUntil} disabled={locksBatchFareWindow} onChange={(event) => setFareEffectiveUntil(event.target.value)} className={inputClass} /></label>
                 </div>
@@ -664,7 +673,7 @@ export default function ParcelsList() {
                       </div>
                     </div>
                   )}
-                {!editingFare && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{parcelSizeCategories.map((sizeCategory) => <label key={sizeCategory}><span className={labelClass}>{t(`parcels.sizeCategories.${sizeCategory}`)}</span><CurrencyInput value={farePrices[sizeCategory]} onChange={(event) => setFarePrices((current) => ({ ...current, [sizeCategory]: event.target.value }))} className={inputClass} placeholder="0" /></label>)}</div>}
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{parcelSizeCategories.map((sizeCategory) => <label key={sizeCategory}><span className={labelClass}>{t(`parcels.sizeCategories.${sizeCategory}`)}</span><CurrencyInput value={farePrices[sizeCategory]} onChange={(event) => setFarePrices((current) => ({ ...current, [sizeCategory]: event.target.value }))} className={inputClass} placeholder="0" /></label>)}</div>
               </div>
             </Modal>
             <div className="border-b border-gray-100 bg-white p-4">

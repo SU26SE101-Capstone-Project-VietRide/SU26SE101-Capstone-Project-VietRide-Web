@@ -74,6 +74,22 @@ describe("CancellationPolicyTab", () => {
     expect(screen.getByText("settings.cancellation.empty")).toBeTruthy();
   });
 
+  // Danh sách bậc nằm dưới nút và dài hơn màn hình — bấm "Thêm bậc" mà không có
+  // dấu hiệu gì thì người dùng tưởng nút không ăn, phải tự cuộn xuống mới biết.
+  it("đưa con trỏ vào bậc vừa thêm để thấy ngay là đã thêm", async () => {
+    const user = userEvent.setup();
+    await renderLoadedTab();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "settings.cancellation.addTier",
+      }),
+    );
+
+    const hoursInput = screen.getByLabelText("settings.cancellation.hours 1");
+    expect(hoursInput).toHaveFocus();
+  });
+
   it("lưu bậc hoàn vé qua PATCH hồ sơ, giữ nguyên các trường khác", async () => {
     const user = userEvent.setup();
     saveProfileMock.mockResolvedValue({

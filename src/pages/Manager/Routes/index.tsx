@@ -1096,6 +1096,16 @@ export default function RoutesPage() {
               isDirty={isRouteDirty || geometry.isGeometryDirty}
               isSaving={isSavingRoute}
               onSaveRoute={() => runAction(handleSaveRoute)}
+              // Tab "Tuyến thay thế" lưu một bản ghi khác, nhưng nút lưu phải
+              // đứng cùng chỗ với hai tab kia
+              isAlternativeDirty={
+                alternatives.isAltDirty ||
+                alternatives.altGeometry.isGeometryDirty
+              }
+              isSavingAlternative={alternatives.isSavingAlternative}
+              onSaveAlternative={() =>
+                void alternatives.handleSaveAlternative()
+              }
             />
 
             {/* Vùng nội dung tab: relative để overlay loading phủ lên khi đang
