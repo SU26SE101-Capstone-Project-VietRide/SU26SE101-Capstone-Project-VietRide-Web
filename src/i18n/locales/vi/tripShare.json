@@ -15,6 +15,7 @@
     "liveTitle": "Chuyến xe đang chia sẻ",
     "origin": "Điểm khởi hành",
     "destination": "Điểm đến",
+    "intermediateStops": "{{count}} điểm dừng trên tuyến",
     "unknown": "Chuyến xe VietRide",
     "unavailable": "Thông tin hành trình sẽ hiện khi liên kết hợp lệ."
   },
@@ -24,14 +25,18 @@
     "inMinutes": "Còn ~{{count}} phút"
   },
   "metrics": {
+    "sectionLabel": "Thông tin trực tiếp của chuyến xe",
     "speed": "Tốc độ",
     "speedValue": "{{value}} km/h",
     "notReported": "Chưa ghi nhận",
+    "gpsAvailable": "GPS đang cập nhật",
     "waitingGps": "Đang chờ GPS",
-    "tripStatus": "Trạng thái chuyến"
+    "tripStatus": "Trạng thái chuyến",
+    "lastUpdated": "Cập nhật gần nhất"
   },
   "link": {
-    "expires": "Link hết hạn: {{time}}",
+    "label": "Liên kết chia sẻ",
+    "expires": "Hết hạn {{time}}",
     "unknownExpiry": "Link có thời hạn"
   },
   "privacy": {
