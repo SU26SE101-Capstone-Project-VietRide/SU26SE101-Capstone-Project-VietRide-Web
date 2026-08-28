@@ -58,7 +58,8 @@
     "legendNote": "Drawn along the operator's registered route"
   },
   "actions": {
-    "retry": "Try again"
+    "retry": "Try again",
+    "skipToContent": "Skip to main content"
   },
   "errors": {
     "title": "Journey unavailable",
