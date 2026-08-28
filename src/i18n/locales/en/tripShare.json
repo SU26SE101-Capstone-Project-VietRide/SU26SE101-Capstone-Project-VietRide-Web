@@ -15,6 +15,7 @@
     "liveTitle": "Shared vehicle journey",
     "origin": "Departure",
     "destination": "Destination",
+    "intermediateStops": "{{count}} stops on this route",
     "unknown": "VietRide journey",
     "unavailable": "Journey details appear after a valid link opens."
   },
@@ -24,14 +25,18 @@
     "inMinutes": "~{{count}} min left"
   },
   "metrics": {
+    "sectionLabel": "Live trip information",
     "speed": "Speed",
     "speedValue": "{{value}} km/h",
     "notReported": "Not reported",
+    "gpsAvailable": "GPS is updating",
     "waitingGps": "Waiting for GPS",
-    "tripStatus": "Trip status"
+    "tripStatus": "Trip status",
+    "lastUpdated": "Last updated"
   },
   "link": {
-    "expires": "Link expires: {{time}}",
+    "label": "Shared link",
+    "expires": "Expires {{time}}",
     "unknownExpiry": "Expiring link"
   },
   "privacy": {
@@ -53,7 +58,8 @@
     "legendNote": "Drawn along the operator's registered route"
   },
   "actions": {
-    "retry": "Try again"
+    "retry": "Try again",
+    "skipToContent": "Skip to main content"
   },
   "errors": {
     "title": "Journey unavailable",

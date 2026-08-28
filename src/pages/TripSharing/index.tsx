@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertCircle,
-  FiArrowRight,
+  FiChevronDown,
   FiClock,
   FiMapPin,
   FiNavigation,
@@ -18,13 +18,13 @@ import {
   destinationStopColor,
   originStopColor,
 } from "../../components/mapRouteStyle";
+import { Button } from "../../components/ui/Button";
 import SharedTripMap from "./SharedTripMap";
 import { captureTripShareTokenFromWindow } from "./tripShareToken";
 import {
   useSharedTripTracking,
   type SharedConnectionState,
 } from "./useSharedTripTracking";
-import { Button } from "../../components/ui/Button";
 
 function formatDateTime(iso: string | null | undefined, locale: string): string {
   if (!iso) return "—";
@@ -97,13 +97,13 @@ function connectionTone(state: SharedConnectionState): {
 
 function TrackingSkeleton() {
   return (
-    <div className="absolute inset-0 overflow-hidden bg-gray-100" aria-hidden>
-      <div className="absolute -left-16 top-[42%] h-20 w-[75%] rotate-[-8deg] rounded-[50%] border-t-[5px] border-vr-300" />
-      <div className="absolute right-[22%] top-[28%] h-4 w-4 animate-pulse rounded-full bg-vr-400 ring-4 ring-white/80" />
-      <div className="absolute bottom-5 left-5 right-5 rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm backdrop-blur-sm">
-        <div className="h-3 w-24 animate-pulse rounded bg-gray-200" />
-        <div className="mt-3 h-4 w-3/4 animate-pulse rounded bg-gray-300" />
-        <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-gray-200" />
+    <div className="absolute inset-0 overflow-hidden bg-slate-100" aria-hidden>
+      <div className="absolute -left-16 top-[42%] h-20 w-[75%] rotate-[-8deg] rounded-[50%] border-t-4 border-vr-300" />
+      <div className="absolute right-[22%] top-[28%] h-4 w-4 rounded-full bg-vr-700 ring-4 ring-white motion-safe:animate-pulse" />
+      <div className="absolute bottom-4 left-4 right-4 max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="h-3 w-24 rounded bg-slate-200 motion-safe:animate-pulse" />
+        <div className="mt-3 h-4 w-3/4 rounded bg-slate-300 motion-safe:animate-pulse" />
+        <div className="mt-2 h-3 w-1/2 rounded bg-slate-200 motion-safe:animate-pulse" />
       </div>
     </div>
   );
@@ -157,12 +157,12 @@ export default function TripSharingPage() {
   const tone = connectionTone(tracking.connection);
   const StatusIcon = tone.Icon;
   const locale = i18n.language?.startsWith("en") ? "en-US" : "vi-VN";
-
-  const speedLabel = useMemo(() => {
-    const speed = tracking.location?.speedKph;
-    if (speed === null || speed === undefined) return t("metrics.notReported");
-    return t("metrics.speedValue", { value: Math.max(0, Math.round(speed)) });
-  }, [t, tracking.location?.speedKph]);
+  const speed = tracking.location?.speedKph;
+  const speedLabel =
+    speed === null || speed === undefined
+      ? t("metrics.notReported")
+      : t("metrics.speedValue", { value: Math.max(0, Math.round(speed)) });
+  const latestUpdate = tracking.location?.recordedAt ?? tracking.context?.lastUpdatedAt;
 
   const errorCopy = useMemo(() => {
     switch (tracking.errorCode) {
@@ -197,215 +197,303 @@ export default function TripSharingPage() {
   const showMap = Boolean(tracking.context) && tracking.connection !== "error";
   const showLoading = tracking.connection === "loading";
   const showEnded = tracking.connection === "ended" && !tracking.context;
-  const canRetry = Boolean(token) &&
+  const canRetry =
+    Boolean(token) &&
     tracking.errorCode !== "TRACKING_SHARE_TOKEN_INVALID" &&
     tracking.errorCode !== "TRACKING_SHARE_LINK_UNAVAILABLE";
+  const route = tracking.context?.route;
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-vr-500 text-slate-900">
-      <header className="relative z-10 mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-[max(0.9rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center gap-3">
-          <img
-            src={logo}
-            alt={tc("brand")}
-            className="h-11 w-11 shrink-0 rounded-[1rem] bg-white/85 object-contain p-1"
-          />
-          <div className="min-w-0">
-            <p className="truncate text-base font-extrabold tracking-[-0.02em] text-white">
-              {t("brand")}
-            </p>
-            <p className="truncate text-xs font-medium text-white/85">
-              {t("subtitle")}
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span
-            aria-live="polite"
-            className={`inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${tone.chip}`}
-          >
-            <StatusIcon
-              className={`h-3.5 w-3.5 ${tone.spin ? "animate-spin" : ""}`}
-              aria-hidden
+    <div className="min-h-dvh bg-slate-100 text-slate-900">
+      <a
+        href="#trip-sharing-content"
+        className="sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:not-sr-only focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-900 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-vr-700"
+      >
+        {t("actions.skipToContent")}
+      </a>
+
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              src={logo}
+              alt={tc("brand")}
+              width={40}
+              height={40}
+              className="h-10 w-10 shrink-0 rounded-xl bg-vr-50 object-contain p-1"
             />
-            <span className="hidden sm:inline">{t(tone.labelKey)}</span>
-          </span>
+            <div className="min-w-0">
+              <p
+                className="truncate text-sm font-extrabold tracking-[-0.02em] text-slate-900 sm:text-base"
+                translate="no"
+              >
+                {t("brand")}
+              </p>
+              <p className="truncate text-xs font-medium text-slate-500">
+                {t("subtitle")}
+              </p>
+            </div>
+          </div>
           <LanguageSwitcher />
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto w-full max-w-[1440px] px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:px-5 lg:px-8">
-        <article className="grid min-h-[calc(100dvh-5.6rem)] overflow-hidden rounded-[1.75rem] bg-slate-50 shadow-xl lg:grid-cols-[minmax(0,1.65fr)_minmax(21rem,0.75fr)]">
-          <section className="relative min-h-[46dvh] overflow-hidden bg-gray-100 lg:min-h-0" aria-label={t("map.sectionLabel")}>
-            {showMap ? (
-              <SharedTripMap context={tracking.context} location={tracking.location} />
-            ) : showLoading ? (
-              <TrackingSkeleton />
-            ) : (
-              <div className="flex h-full min-h-[46dvh] flex-col items-center justify-center px-7 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-vr-100 text-vr-900">
-                  {showEnded ? (
-                    <FiClock className="h-7 w-7" aria-hidden />
-                  ) : (
-                    <FiAlertCircle className="h-7 w-7" aria-hidden />
-                  )}
-                </div>
-                <h1 className="mt-4 text-balance text-2xl font-bold text-slate-900">
-                  {showEnded ? t("revoked.title") : t("errors.title")}
-                </h1>
-                <p className="mt-3 max-w-md text-pretty text-sm leading-6 text-slate-600">
-                  {showEnded ? revokedCopy ?? t("revoked.tripEnded") : errorCopy}
-                </p>
-                {canRetry && tracking.connection === "error" ? (
-                  <Button variant="primary" className="mt-6" onClick={tracking.retry}>
-                    <FiRefreshCw className="h-4 w-4" aria-hidden />
-                    {t("actions.retry")}
-                  </Button>
-                ) : null}
-              </div>
-            )}
-
-            {showMap ? (
-              <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-center lg:inset-x-5 lg:top-5">
-                <div className="max-w-full rounded-xl border border-gray-200 bg-white/95 px-3.5 py-2 shadow-sm backdrop-blur-md">
-                  <p className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                    <FiNavigation className="h-4 w-4 shrink-0 text-vr-900" aria-hidden />
-                    <span className="truncate">
-                      {tracking.context?.route.originName} → {tracking.context?.route.destinationName}
+      <main
+        id="trip-sharing-content"
+        className="mx-auto w-full max-w-[1440px] px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-5 lg:px-8"
+      >
+        <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between lg:px-6">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-vr-800">
+                {t("route.label")}
+              </p>
+              <h1 className="mt-1 break-words text-balance text-lg font-bold tracking-[-0.02em] text-slate-950 sm:text-xl">
+                {route ? (
+                  <>
+                    {route.originName}
+                    <span className="mx-2 text-slate-400" aria-hidden>
+                      →
                     </span>
-                  </p>
-                </div>
-              </div>
-            ) : null}
-          </section>
-
-          <aside className="flex flex-col border-t border-gray-200 bg-white p-4 sm:p-5 lg:border-l lg:border-t-0 lg:p-6">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-vr-100 text-vr-900">
-                <FiNavigation className="h-5 w-5" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-vr-800">{t("route.label")}</p>
-                <h2 className="mt-0.5 text-lg font-bold text-slate-900">
-                  {tracking.context ? t("route.liveTitle") : t("route.unknown")}
-                </h2>
-              </div>
+                    {route.destinationName}
+                  </>
+                ) : (
+                  t("route.unknown")
+                )}
+              </h1>
             </div>
 
-            {tracking.context ? (
-              // Chấm bến đi/bến đến dùng ĐÚNG màu pin trên bản đồ (mapRouteStyle)
-              // để panel và bản đồ đọc ra cùng một thứ.
-              <div className="mt-5 rounded-xl border border-vr-200 bg-vr-50 p-4">
-                <div className="flex items-center gap-3">
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-white"
-                    style={{ backgroundColor: originStopColor }}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-gray-500">{t("route.origin")}</p>
-                    <p className="truncate text-sm font-bold text-slate-900">{tracking.context.route.originName}</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:justify-end">
+              <span
+                role="status"
+                aria-live="polite"
+                className={`inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${tone.chip}`}
+              >
+                <StatusIcon
+                  className={`h-3.5 w-3.5 ${tone.spin ? "motion-safe:animate-spin" : ""}`}
+                  aria-hidden
+                />
+                {t(tone.labelKey)}
+              </span>
+              <div className="text-xs leading-5 text-slate-500">
+                <span className="font-semibold text-slate-700">{t("metrics.lastUpdated")}</span>{" "}
+                <span className="tabular-nums">{formatDateTime(latestUpdate, locale)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-[minmax(0,1.65fr)_minmax(21rem,0.75fr)]">
+            <section
+              className="relative h-[52dvh] min-h-[22rem] overflow-hidden bg-slate-100 lg:h-[calc(100dvh-10.5rem)] lg:min-h-[34rem]"
+              aria-label={t("map.sectionLabel")}
+              aria-busy={showLoading}
+            >
+              {showMap ? (
+                <SharedTripMap context={tracking.context} location={tracking.location} />
+              ) : showLoading ? (
+                <TrackingSkeleton />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center px-7 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-vr-100 text-vr-900">
+                    {showEnded ? (
+                      <FiClock className="h-6 w-6" aria-hidden />
+                    ) : (
+                      <FiAlertCircle className="h-6 w-6" aria-hidden />
+                    )}
+                  </div>
+                  <h2 className="mt-4 text-balance text-2xl font-bold text-slate-900">
+                    {showEnded ? t("revoked.title") : t("errors.title")}
+                  </h2>
+                  <p className="mt-3 max-w-md text-pretty text-sm leading-6 text-slate-600">
+                    {showEnded ? revokedCopy ?? t("revoked.tripEnded") : errorCopy}
+                  </p>
+                  {canRetry && tracking.connection === "error" ? (
+                    <Button
+                      variant="primary"
+                      className="mt-6"
+                      onClick={tracking.retry}
+                      leadingIcon={<FiRefreshCw className="h-4 w-4" aria-hidden />}
+                    >
+                      {t("actions.retry")}
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+            </section>
+
+            <aside className="flex flex-col border-t border-slate-200 p-4 sm:p-5 lg:h-[calc(100dvh-10.5rem)] lg:min-h-[34rem] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:p-6">
+              <section aria-labelledby="shared-trip-route-heading">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-vr-100 text-vr-900">
+                    <FiNavigation className="h-5 w-5" aria-hidden />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-vr-800">{t("route.label")}</p>
+                    <h2
+                      id="shared-trip-route-heading"
+                      className="mt-0.5 text-base font-bold text-slate-950"
+                    >
+                      {tracking.context ? t("route.liveTitle") : t("route.unknown")}
+                    </h2>
                   </div>
                 </div>
 
-                {/* Điểm dừng giữa tuyến — đánh số trùng với đĩa số trên bản đồ */}
-                {tracking.context.route.stops.map((stop, index) => (
-                  <div key={`${stop.sequence}-${stop.name}`}>
-                    <div className="ml-[0.28rem] h-4 border-l border-dashed border-vr-300" />
-                    <div className="flex items-center gap-3">
+                {route ? (
+                  <div className="mt-4">
+                    <div className="flex items-start gap-3">
                       <span
-                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 bg-white text-[9px] font-bold"
-                        style={{ borderColor: originStopColor, color: originStopColor }}
-                      >
-                        {index + 1}
-                      </span>
-                      <p className="min-w-0 truncate text-sm text-slate-700">{stop.name}</p>
+                        className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: originStopColor }}
+                        aria-hidden
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-500">{t("route.origin")}</p>
+                        <p className="mt-0.5 break-words text-sm font-semibold text-slate-900">
+                          {route.originName}
+                        </p>
+                      </div>
+                    </div>
+
+                    {route.stops.length > 0 ? (
+                      <details className="group ml-1.5 border-l border-slate-200 pl-5">
+                        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm font-semibold text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-vr-700 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                          <span>{t("route.intermediateStops", { count: route.stops.length })}</span>
+                          <FiChevronDown
+                            className="h-4 w-4 shrink-0 text-slate-500 group-open:rotate-180 motion-safe:transition-transform"
+                            aria-hidden
+                          />
+                        </summary>
+                        <ol className="space-y-2 pb-3">
+                          {route.stops.map((stop, index) => (
+                            <li
+                              key={`${stop.sequence}-${stop.name}`}
+                              className="flex items-start gap-2.5 text-sm text-slate-600"
+                            >
+                              <span
+                                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border bg-white text-[10px] font-bold"
+                                style={{ borderColor: originStopColor, color: originStopColor }}
+                                aria-hidden
+                              >
+                                {index + 1}
+                              </span>
+                              <span className="min-w-0 break-words leading-5">{stop.name}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    ) : (
+                      <div className="ml-1.5 h-5 border-l border-slate-200" aria-hidden />
+                    )}
+
+                    <div className="flex items-start gap-3">
+                      <span
+                        className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: destinationStopColor }}
+                        aria-hidden
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-500">
+                          {t("route.destination")}
+                        </p>
+                        <p className="mt-0.5 break-words text-sm font-semibold text-slate-900">
+                          {route.destinationName}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <p className="mt-4 text-sm leading-6 text-slate-600">
+                    {showLoading ? t("status.loading") : t("route.unavailable")}
+                  </p>
+                )}
+              </section>
 
-                <div className="ml-[0.28rem] h-5 border-l border-dashed border-vr-300" />
-                <div className="flex items-center gap-3">
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-white"
-                    style={{ backgroundColor: destinationStopColor }}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-gray-500">{t("route.destination")}</p>
-                    <p className="truncate text-sm font-bold text-slate-900">{tracking.context.route.destinationName}</p>
+              <section
+                className="mt-5 border-t border-slate-200 pt-5"
+                aria-label={t("metrics.sectionLabel")}
+              >
+                <div className="grid grid-cols-2 divide-x divide-slate-200">
+                  <div className="pr-4">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                      <FiClock className="h-3.5 w-3.5 text-vr-800" aria-hidden />
+                      {t("eta.label")}
+                    </p>
+                    <p className="mt-1.5 text-xl font-extrabold tracking-[-0.02em] text-slate-950 tabular-nums">
+                      {formatRelativeMinutes(
+                        tracking.context?.eta?.remainingSeconds ?? null,
+                        t("eta.unknown"),
+                        (count) => t("eta.inMinutes", { count }),
+                      )}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 tabular-nums">
+                      {formatDateTime(tracking.context?.eta?.estimatedArrivalAt, locale)}
+                    </p>
+                  </div>
+
+                  <div className="pl-4">
+                    <p className="text-xs font-semibold text-slate-500">{t("metrics.speed")}</p>
+                    <p className="mt-1.5 text-xl font-extrabold tracking-[-0.02em] text-slate-950 tabular-nums">
+                      {speedLabel}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {tracking.location?.recordedAt
+                        ? t("metrics.gpsAvailable")
+                        : t("metrics.waitingGps")}
+                    </p>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="mt-5 flex items-center gap-2 rounded-xl border border-vr-200 bg-vr-50 px-4 py-3 text-sm text-slate-600">
-                <FiArrowRight className="h-4 w-4 shrink-0 text-vr-800" aria-hidden />
-                <span>{showLoading ? t("status.loading") : t("route.unavailable")}</span>
-              </div>
-            )}
 
-            <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <div className="rounded-xl border border-gray-200 bg-slate-50 px-3.5 py-3">
-                <p className="text-xs font-semibold text-gray-500">{t("eta.label")}</p>
-                <p className="mt-1 text-sm font-extrabold tabular-nums">
-                  {formatRelativeMinutes(
-                    tracking.context?.eta?.remainingSeconds ?? null,
-                    t("eta.unknown"),
-                    (count) => t("eta.inMinutes", { count }),
-                  )}
-                </p>
-                <p className="mt-1 text-xs text-slate-600 tabular-nums">
-                  {formatDateTime(tracking.context?.eta?.estimatedArrivalAt, locale)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-slate-50 px-3.5 py-3">
-                <p className="text-xs font-semibold text-gray-500">{t("metrics.speed")}</p>
-                <p className="mt-1 text-sm font-extrabold tabular-nums">{speedLabel}</p>
-                <p className="mt-1 text-xs text-slate-600 tabular-nums">
-                  {tracking.location?.recordedAt
-                    ? formatDateTime(tracking.location.recordedAt, locale)
-                    : t("metrics.waitingGps")}
-                </p>
-              </div>
-              <div className="col-span-2 rounded-xl border border-gray-200 bg-slate-50 px-3.5 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500">{t("metrics.tripStatus")}</p>
-                    <p className="mt-1 text-sm font-extrabold">
+                <dl className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-slate-500">{t("metrics.tripStatus")}</dt>
+                    <dd className="text-right font-semibold text-slate-900">
                       {tracking.context?.status
                         ? t(`tripStatus.${tracking.context.status}`, {
                             defaultValue: tracking.context.status,
                           })
                         : "—"}
-                    </p>
+                    </dd>
                   </div>
-                  <FiClock className="mt-0.5 h-4 w-4 shrink-0 text-vr-900" aria-hidden />
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-slate-500">{t("metrics.lastUpdated")}</dt>
+                    <dd className="text-right font-semibold text-slate-900 tabular-nums">
+                      {formatDateTime(latestUpdate, locale)}
+                    </dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-slate-500">{t("link.label")}</dt>
+                    <dd className="text-right text-xs leading-5 text-slate-600 tabular-nums">
+                      {tracking.context?.expiresAt
+                        ? t("link.expires", {
+                            time: formatDateTime(tracking.context.expiresAt, locale),
+                          })
+                        : t("link.unknownExpiry")}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+
+              {revokedCopy && tracking.context ? (
+                <div
+                  className="mt-4 border-l-2 border-amber-500 bg-amber-50 px-3 py-2.5 text-sm leading-5 text-amber-950"
+                  role="status"
+                >
+                  {revokedCopy}
                 </div>
-                <p className="mt-1.5 text-xs text-slate-600 tabular-nums">
-                  {tracking.context?.expiresAt
-                    ? t("link.expires", {
-                        time: formatDateTime(tracking.context.expiresAt, locale),
-                      })
-                    : t("link.unknownExpiry")}
+              ) : null}
+
+              <div className="mt-auto border-t border-slate-200 pt-4">
+                <div className="flex items-start gap-2.5 text-xs leading-5 text-slate-600">
+                  <FiShield className="mt-0.5 h-4 w-4 shrink-0 text-vr-800" aria-hidden />
+                  <p>{t("privacy.note")}</p>
+                </div>
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                  <FiMapPin className="h-3.5 w-3.5" aria-hidden />
+                  {t("privacy.noLogin")}
                 </p>
               </div>
-            </div>
-
-            {revokedCopy && tracking.context ? (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900" role="status">
-                {revokedCopy}
-              </div>
-            ) : null}
-
-            <div className="mt-auto pt-4">
-              <div className="flex items-start gap-2.5 rounded-xl border border-vr-200 bg-vr-50 px-4 py-3 text-xs leading-5 text-slate-600">
-                <FiShield className="mt-0.5 h-4 w-4 shrink-0 text-vr-800" aria-hidden />
-                <p>{t("privacy.note")}</p>
-              </div>
-              <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
-                <FiMapPin className="h-3.5 w-3.5" aria-hidden />
-                {t("privacy.noLogin")}
-              </p>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </article>
       </main>
     </div>
