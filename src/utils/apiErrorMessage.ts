@@ -136,6 +136,21 @@ const vietnameseMessages: Record<string, string> = {
   INVALID_SIZE_CATEGORY: "Nhóm kích thước kiện hàng không hợp lệ.",
   PARCEL_REVIEW_TIMEOUT: "Đã quá thời hạn kiểm tra kiện hàng.",
 
+  // Sự cố kiện hàng / duyệt báo cáo custody exception
+  // (FE-Operator-Web-Parcel-Custody-Exception-Integration-Guide §9)
+  PARCEL_INCIDENT_NOT_FOUND: "Không tìm thấy sự cố kiện hàng này.",
+  PARCEL_INCIDENT_INVALID_STATUS:
+    "Sự cố không còn ở trạng thái cho phép thao tác này.",
+  PARCEL_SEARCH_TASK_NOT_FOUND: "Không tìm thấy nhiệm vụ tìm kiếm.",
+  PARCEL_SEARCH_TASK_MISMATCH: "Nhiệm vụ tìm kiếm không thuộc sự cố này.",
+  PARCEL_CUSTODY_EXCEPTION_REQUEST_NOT_FOUND:
+    "Không tìm thấy báo cáo chờ duyệt cho sự cố này.",
+  PARCEL_CUSTODY_EXCEPTION_ALREADY_DECIDED:
+    "Báo cáo này đã được người khác duyệt hoặc từ chối.",
+  PARCEL_CUSTODY_EXCEPTION_APPROVAL_REQUIRED:
+    "Phải duyệt báo cáo sự cố trước khi thực hiện thao tác này.",
+  PARCEL_CUSTODY_LOCATION_REQUIRED: "Cần chọn mã vị trí cho loại địa điểm này.",
+
   // Thanh toán / ví
   PAYMENT_ALREADY_PROCESSED: "Giao dịch này đã được xử lý trước đó.",
   PAYMENT_ALREADY_STARTED: "Giao dịch thanh toán đã được khởi tạo trước đó.",

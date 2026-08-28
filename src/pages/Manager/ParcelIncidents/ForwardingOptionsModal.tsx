@@ -18,12 +18,21 @@ import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { formatDateTime } from "../../../utils/date";
 import { locationLabel } from "../../../utils/parcelReliability";
+import {
+  classifyIncidentError,
+  type IncidentErrorOutcome,
+} from "./incidentHelpers";
 
 type ForwardingOptionsModalProps = {
   open: boolean;
   incidentId: string;
   onClose: () => void;
   onDone: (detail: ParcelIncidentDetail, successMessage: string) => void;
+  /**
+   * Lỗi phải xử lý ở tầng chi tiết: sự cố biến mất, báo cáo chưa duyệt, hoặc
+   * state ở BE đã đổi (§9 của guide custody exception).
+   */
+  onRecoverableError: (outcome: IncidentErrorOutcome, message: string) => void;
 };
 
 const OPTION_LIMIT = 20;
@@ -33,6 +42,7 @@ export default function ForwardingOptionsModal({
   incidentId,
   onClose,
   onDone,
+  onRecoverableError,
 }: ForwardingOptionsModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
@@ -96,9 +106,18 @@ export default function ForwardingOptionsModal({
       });
       onDone(detail, t("parcelIncidents.forwardSuccess"));
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t("parcelIncidents.actionFailed"),
-      );
+      const message =
+        err instanceof Error ? err.message : t("parcelIncidents.actionFailed");
+      const outcome = classifyIncidentError(err);
+
+      // Chưa duyệt báo cáo thì không có chặng chuyển tiếp nào được tạo; sự cố
+      // đã đóng cũng vậy. Cả hai đều phải nạp lại ở tầng chi tiết (§9).
+      if (outcome !== "SHOW") {
+        onRecoverableError(outcome, message);
+        return;
+      }
+
+      setError(message);
     } finally {
       setSubmittingTripId("");
     }

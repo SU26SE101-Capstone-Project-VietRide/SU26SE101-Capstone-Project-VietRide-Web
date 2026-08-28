@@ -426,7 +426,6 @@ export default function CustomDateTimeInput({
                   label={t("dateTimePicker.minute")}
                   value={selectedTime.minute}
                   max={59}
-                  step={5}
                   onChange={(minute) => commitTime(selectedTime.hour, minute)}
                 />
               </div>
@@ -466,6 +465,15 @@ function TimeColumn({
     { length: Math.floor(max / step) + 1 },
     (_, index) => index * step,
   );
+  const selectedRef = useRef<HTMLButtonElement | null>(null);
+
+  // Cột phút có 60 dòng mà khung chỉ cao ~5 dòng, nên giá trị đang chọn gần như
+  // luôn nằm ngoài tầm nhìn khi mở bảng chọn — không kéo nó vào thì đổi từ bước
+  // 5 phút sang từng phút lại thành khó dùng hơn trước. `block: "nearest"` để
+  // chỉ cuộn trong khung này, không kéo cả trang.
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [value]);
 
   return (
     <div>
@@ -474,6 +482,7 @@ function TimeColumn({
         {values.map((item) => (
           <button
             key={item}
+            ref={item === value ? selectedRef : undefined}
             type="button"
             onClick={() => onChange(item)}
             className={`block w-full rounded-md px-2 py-1.5 text-center ${

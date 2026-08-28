@@ -4,6 +4,7 @@ import {
   reassignOperatorShuttleTrip,
   assignOperatorParcelIncident,
   declareOperatorParcelIncidentLost,
+  decideOperatorParcelIncidentCustodyException,
   forwardOperatorParcelIncident,
   getOperatorParcelIncident,
   getOperatorParcelIncidentForwardingOptions,
@@ -90,6 +91,7 @@ import {
   getOperatorIncident,
   getOperatorIncidents,
   getOperatorShuttleRequests,
+  getOperatorShuttleAssignmentHistory,
   getOperatorShuttleTrips,
   cancelOperatorShuttleRequest,
   cancelOperatorShuttleTrip,
@@ -3655,6 +3657,51 @@ describe("UI gaps API contracts", () => {
     );
   });
 
+  // Lịch sử điều phối nằm dưới prefix GET của shuttle-trips nên Gateway đã proxy
+  // sẵn; chỉ cần đúng path + query phân trang.
+  it("reads the shuttle assignment history with paging", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [],
+            page: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorShuttleAssignmentHistory("shuttle-1", {
+      page: 2,
+      pageSize: 20,
+    });
+    await getOperatorShuttleAssignmentHistory("shuttle-1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.vietride.online/v1/operator/shuttle-trips/shuttle-1/assignment-history?page=2&pageSize=20",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer operator-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.vietride.online/v1/operator/shuttle-trips/shuttle-1/assignment-history",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("reads pending shuttle requests as a full PagedResult", async () => {
     setOperatorAdminSession();
     const fetchMock = vi.fn(async () => {
@@ -4349,6 +4396,65 @@ describe("operator parcel incidents", () => {
       ).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
       );
+    });
+  });
+
+  it("gửi ĐÚNG hai field decision/note cho endpoint duyệt custody exception", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await decideOperatorParcelIncidentCustodyException("incident-1", {
+      decision: "APPROVE",
+      note: "Đã đối chiếu ảnh và manifest",
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.vietride.online/v1/operator/parcel-incidents/incident-1/custody-exception-decision",
+    );
+
+    const init = fetchMock.mock.calls[0][1];
+    expect(init?.method).toBe("POST");
+    // Body strict: người duyệt lấy từ JWT, KHÔNG có reviewer UUID nào ở đây
+    expect(JSON.parse(String(init?.body))).toEqual({
+      decision: "APPROVE",
+      note: "Đã đối chiếu ảnh và manifest",
+    });
+    expect(
+      (init?.headers as Record<string, string>)["Idempotency-Key"],
+    ).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+  });
+
+  it("dùng lại đúng idempotency key khi caller retry cùng một quyết định", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    // §10: retry do timeout/mất mạng phải là CÙNG một key, sinh key mới là
+    // rủi ro gửi trùng nghiệp vụ.
+    const idempotencyKey = "0f3a6f5a-9f5f-4a2e-9a1a-0b2f0a1c3d4e";
+    await decideOperatorParcelIncidentCustodyException(
+      "incident-1",
+      { decision: "REJECT", note: null },
+      idempotencyKey,
+    );
+    await decideOperatorParcelIncidentCustodyException(
+      "incident-1",
+      { decision: "REJECT", note: null },
+      idempotencyKey,
+    );
+
+    const keys = fetchMock.mock.calls.map(
+      (call) => (call[1]?.headers as Record<string, string>)["Idempotency-Key"],
+    );
+    expect(keys).toEqual([idempotencyKey, idempotencyKey]);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      decision: "REJECT",
+      note: null,
     });
   });
 

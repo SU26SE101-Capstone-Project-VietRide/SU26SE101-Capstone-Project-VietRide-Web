@@ -131,6 +131,50 @@ describe("api client", () => {
     );
   });
 
+  it("giữ meta.traceId của envelope lỗi để màn gửi cho support", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          statusCode: 503,
+          error: {
+            code: "UPSTREAM_UNAVAILABLE",
+            message: "Trip service unavailable.",
+          },
+          meta: { traceId: "trace-9f2a", timestamp: "2026-08-28T10:00:00+00:00" },
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      apiRequest("/v1/operator/parcel-incidents/incident-1"),
+    ).rejects.toMatchObject({
+      code: "UPSTREAM_UNAVAILABLE",
+      traceId: "trace-9f2a",
+    });
+  });
+
+  it("không có meta thì traceId là undefined chứ không phải chuỗi rỗng", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          statusCode: 404,
+          error: { code: "ROUTE_NOT_FOUND", message: "Route not found." },
+        }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const error = await apiRequest("/v1/operator/routes/missing").catch(
+      (err: unknown) => err,
+    );
+    expect((error as ApiRequestError).traceId).toBeUndefined();
+  });
+
   it("builds query strings without empty values", () => {
     expect(
       buildQuery({

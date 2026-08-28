@@ -38,6 +38,9 @@ export class ApiRequestError extends Error {
   // Chi tiết lỗi theo field từ envelope `error.fields` (vd ROUTE_DUPLICATED
   // trả `existingRouteId` để FE dẫn tới tuyến có sẵn)
   readonly fields: ApiRequestErrorField[];
+  // `meta.traceId` của envelope. Màn KHÔNG hiện nó như một phần thông báo lỗi;
+  // nó chỉ dành cho khu vực kỹ thuật/gửi support khi lỗi đến từ upstream.
+  readonly traceId?: string;
 
   constructor(
     message: string,
@@ -45,12 +48,14 @@ export class ApiRequestError extends Error {
     code?: string,
     fields: ApiRequestErrorField[] = [],
     displayMessage = message,
+    traceId?: string,
   ) {
     super(displayMessage);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
     this.fields = fields;
+    this.traceId = traceId;
   }
 }
 type RequestOptions = {
@@ -115,6 +120,14 @@ function parseErrorFields(payload: unknown): ApiRequestErrorField[] | undefined 
   return fields.length > 0 ? fields : undefined;
 }
 
+function parseTraceId(payload: unknown): string | undefined {
+  if (!isRecord(payload) || !isRecord(payload.meta)) {
+    return undefined;
+  }
+
+  return asString(payload.meta.traceId) || undefined;
+}
+
 function createApiRequestError(payload: unknown, status: number): ApiRequestError {
   const code = parseErrorCode(payload);
   const message = parseErrorMessage(payload, `Request failed: ${status}`);
@@ -132,7 +145,14 @@ function createApiRequestError(payload: unknown, status: number): ApiRequestErro
     isValidationCode && fields.length > 0
       ? fields.map((field) => field.message).filter(Boolean).join(" ")
       : translateApiErrorMessage(code, message, status);
-  return new ApiRequestError(message, status, code, fields, displayMessage);
+  return new ApiRequestError(
+    message,
+    status,
+    code,
+    fields,
+    displayMessage,
+    parseTraceId(payload),
+  );
 }
 async function parseResponse(response: Response): Promise<unknown> {
   const text = await response.text();

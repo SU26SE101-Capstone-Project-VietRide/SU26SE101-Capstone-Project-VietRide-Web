@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { ParcelRouteFare } from "../../../api/vietride";
+import type {
+  ParcelRouteFare,
+  ParcelRouteFareEntry,
+} from "../../../api/vietride";
 import {
   buildFareSelection,
+  buildGroupFareSelection,
   buildNextFareSelection,
-  buildRouteFareSelection,
+  commonEffectiveWindow,
+  configuredSizeCount,
+  hasMixedEffectiveWindows,
   getRouteFareSummary,
   parcelSizeCategories,
   stripDiacritics,
@@ -130,40 +136,62 @@ describe("parcel fare route summaries", () => {
   });
 });
 
-// BE giữ đúng một bản ghi cho mỗi (tuyến, cỡ kiện), nên bấm bút chì phải gom
-// được cả 4 mức của tuyến — kể cả khi các cỡ đã trôi sang mốc hiệu lực khác
-// nhau. Ngày thì lấy theo đúng dòng được bấm.
-describe("buildRouteFareSelection", () => {
-  it("gom đủ bốn mức của tuyến dù các cỡ lệch mốc hiệu lực", () => {
-    const drifted: ParcelRouteFare[] = [
-      fare("SMALL", { effectiveUntil: "2026-12-01T09:00:00Z", priceVnd: 10_000 }),
-      fare("MEDIUM", { effectiveUntil: null, priceVnd: 20_000 }),
-      fare("LARGE", { effectiveUntil: null, priceVnd: 30_000 }),
-      fare("EXTRA_LARGE", { effectiveUntil: null, priceVnd: 40_000 }),
-      // Tuyến khác — không được lẫn vào
-      fare("SMALL", { routeId: "route-2", priceVnd: 999_000 }),
+// API list gom theo tuyến: cảnh báo khi các mức lệch khoảng hiệu lực, và tuyệt
+// đối không tự lấy mốc của SMALL hay của phần tử đầu tiên làm mốc chung.
+describe("nhóm cước theo tuyến", () => {
+  const uniform: ParcelRouteFareEntry[] = parcelSizeCategories.map(
+    (sizeCategory, index) => ({
+      sizeCategory,
+      priceVnd: (index + 1) * 10_000,
+      effectiveFrom: "2026-08-01T00:00:00Z",
+      effectiveUntil: null,
+    }),
+  );
+
+  it("coi hai chuỗi lệch offset nhưng cùng thời điểm là đồng nhất", () => {
+    const sameInstant: ParcelRouteFareEntry[] = [
+      { ...uniform[0], effectiveFrom: "2026-08-27T16:30:00Z" },
+      { ...uniform[1], effectiveFrom: "2026-08-27T23:30:00+07:00" },
     ];
 
-    const selection = buildRouteFareSelection(drifted, drifted[0]);
-
-    expect(selection.mode).toBe("UPDATE");
-    expect(selection.prices.SMALL).toBe("10000");
-    expect(selection.prices.MEDIUM).toBe("20000");
-    expect(selection.prices.EXTRA_LARGE).toBe("40000");
-    // Ngày lấy theo dòng được bấm, không phải theo cỡ kiện khác
-    expect(selection.effectiveUntil).toBe("2026-12-01T09:00:00Z");
+    expect(hasMixedEffectiveWindows(sameInstant)).toBe(false);
+    expect(commonEffectiveWindow(sameInstant)?.effectiveFrom).toBe(
+      "2026-08-27T16:30:00Z",
+    );
   });
 
-  it("báo COMPLETE khi tuyến chưa đủ bốn cỡ kiện", () => {
-    const partial: ParcelRouteFare[] = [
-      fare("SMALL", { priceVnd: 10_000 }),
-      fare("MEDIUM", { priceVnd: 20_000 }),
+  it("báo lệch và KHÔNG trả mốc chung khi hiệu lực khác nhau", () => {
+    const mixed: ParcelRouteFareEntry[] = [
+      uniform[0],
+      { ...uniform[1], effectiveUntil: "2026-12-01T09:00:00Z" },
     ];
 
-    const selection = buildRouteFareSelection(partial, partial[0]);
+    expect(hasMixedEffectiveWindows(mixed)).toBe(true);
+    expect(commonEffectiveWindow(mixed)).toBeNull();
+
+    const selection = buildGroupFareSelection({ routeId: "route-1", fares: mixed });
+    expect(selection.hasMixedWindows).toBe(true);
+    // Form phải để trống phần hiệu lực, không mượn mốc của mức đầu tiên
+    expect(selection.effectiveFrom).toBe("");
+    expect(selection.effectiveUntil).toBe("");
+  });
+
+  it("gom đủ bốn mức và báo COMPLETE khi tuyến còn thiếu cỡ kiện", () => {
+    const partial = uniform.slice(0, 2);
+
+    const selection = buildGroupFareSelection({ routeId: "route-1", fares: partial });
 
     expect(selection.mode).toBe("COMPLETE");
     expect(selection.prices.SMALL).toBe("10000");
     expect(selection.prices.LARGE).toBe("");
+    expect(configuredSizeCount(partial)).toBe(2);
+  });
+
+  it("giữ UPDATE khi tuyến đã đủ bốn mức đồng nhất", () => {
+    const selection = buildGroupFareSelection({ routeId: "route-1", fares: uniform });
+
+    expect(selection.mode).toBe("UPDATE");
+    expect(selection.hasMixedWindows).toBe(false);
+    expect(selection.effectiveFrom).toBe("2026-08-01T00:00:00Z");
   });
 });

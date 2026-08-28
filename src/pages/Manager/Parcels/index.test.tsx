@@ -9,7 +9,7 @@ import {
   getOperatorRoutes,
   updateOperatorParcelRouteFare,
   type OperatorRoute,
-  type ParcelRouteFare,
+  type ParcelRouteFareGroup,
 } from "../../../api/vietride";
 import ParcelsList from "./index";
 
@@ -106,14 +106,18 @@ const route = {
 } satisfies OperatorRoute;
 
 const categories = ["SMALL", "MEDIUM", "LARGE", "EXTRA_LARGE"] as const;
-const fares: ParcelRouteFare[] = categories.map((sizeCategory, index) => ({
-  routeId: route.id,
-  operatorId: route.operatorId,
-  sizeCategory,
-  priceVnd: (index + 1) * 10_000,
-  effectiveFrom: "2026-08-01T00:00:00Z",
-  effectiveUntil: "2026-08-31T23:59:59Z",
-}));
+// API list nay gom theo tuyến: mỗi tuyến MỘT item, các mức nằm trong `fares[]`
+const fareGroups: ParcelRouteFareGroup[] = [
+  {
+    routeId: route.id,
+    fares: categories.map((sizeCategory, index) => ({
+      sizeCategory,
+      priceVnd: (index + 1) * 10_000,
+      effectiveFrom: "2026-08-01T00:00:00Z",
+      effectiveUntil: "2026-08-31T23:59:59Z",
+    })),
+  },
+];
 
 describe("parcel route fare workflow", () => {
   beforeEach(() => {
@@ -129,10 +133,10 @@ describe("parcel route fare workflow", () => {
       parcelRefundsVnd: 0,
     });
     vi.mocked(getOperatorParcelRouteFares).mockResolvedValue({
-      items: fares,
+      items: fareGroups,
       page: 1,
       pageSize: 100,
-      totalItems: fares.length,
+      totalItems: fareGroups.length,
       totalPages: 1,
       hasNextPage: false,
       hasPreviousPage: false,
@@ -156,7 +160,7 @@ describe("parcel route fare workflow", () => {
     });
     vi.mocked(batchUpdateOperatorParcelRouteFares).mockResolvedValue({
       routeId: route.id,
-      items: fares.map((fare) => ({
+      items: fareGroups[0].fares.map((fare) => ({
         sizeCategory: fare.sizeCategory,
         priceVnd: fare.priceVnd,
         effectiveFrom: fare.effectiveFrom,
@@ -178,14 +182,17 @@ describe("parcel route fare workflow", () => {
     const row = editButtons[0].closest("tr");
     expect(row).not.toBeNull();
 
+    // Bảng gom theo tuyến: Tuyến | Bảng giá | Hiệu lực | Thao tác
     const cells = within(row as HTMLTableRowElement).getAllByRole("cell");
-    expect(cells).toHaveLength(6);
+    expect(cells).toHaveLength(4);
     expect(
       within(cells[0]).queryByRole("button", { name: "parcels.editFare" }),
     ).not.toBeInTheDocument();
     expect(
-      within(cells[5]).getByRole("button", { name: "parcels.editFare" }),
+      within(cells[3]).getByRole("button", { name: "parcels.editFare" }),
     ).toBe(editButtons[0]);
+    // Một tuyến chỉ chiếm MỘT dòng dù có bốn mức giá
+    expect(editButtons).toHaveLength(1);
   });
 
 

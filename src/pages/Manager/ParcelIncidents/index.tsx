@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FiAlertOctagon,
   FiAlertTriangle,
   FiEye,
   FiPackage,
@@ -27,6 +28,7 @@ import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
 import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
 import { Badge } from "../../../components/ui/Badge";
+import { Button } from "../../../components/ui/Button";
 import { SearchInput } from "../../../components/ui/SearchInput";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
@@ -37,7 +39,7 @@ import {
   slaTone,
   splitRemainingMinutes,
 } from "../../../utils/parcelReliability";
-import { incidentStatusTone } from "./incidentHelpers";
+import { incidentStatusTone, isPendingCustodyApproval } from "./incidentHelpers";
 
 const PAGE_SIZE = 20;
 
@@ -67,6 +69,11 @@ export default function ParcelIncidentsPage() {
   const [slaState, setSlaState] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  // Lọc "chờ duyệt báo cáo". Backend CHƯA có query param `approvalStatus` (§5
+  // của guide custody exception) nên bộ lọc này chạy trên trang hiện tại: request
+  // vẫn siết được về `status=OPEN` — pending approval luôn là OPEN — còn việc
+  // nhận diện thì bắt buộc dựa vào `availableActions` của từng dòng.
+  const [pendingApprovalOnly, setPendingApprovalOnly] = useState(false);
 
   const [detail, setDetail] = useState<ParcelIncidentDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -108,9 +115,17 @@ export default function ParcelIncidentsPage() {
       const params: ParcelIncidentListParams = {
         page,
         pageSize: PAGE_SIZE,
-        ...(status ? { status: status as ParcelIncidentStatus } : {}),
+        // Pending approval luôn mang `status = OPEN`; siết ở server để trang
+        // hiện tại chứa nhiều dòng chờ duyệt nhất có thể.
+        ...(pendingApprovalOnly
+          ? { status: "OPEN" as ParcelIncidentStatus }
+          : status
+            ? { status: status as ParcelIncidentStatus }
+            : {}),
         ...(type ? { type: type as ParcelIncidentType } : {}),
-        ...(slaState ? { slaState } : {}),
+        // §5: pending approval bị BE loại khỏi mọi filter SLA — gửi kèm
+        // `slaState` là bảo đảm trả về rỗng.
+        ...(slaState && !pendingApprovalOnly ? { slaState } : {}),
         ...(debouncedSearch ? { search: debouncedSearch } : {}),
         ...(from ? { from } : {}),
         ...(to ? { to } : {}),
@@ -152,7 +167,17 @@ export default function ParcelIncidentsPage() {
     return () => {
       ignore = true;
     };
-  }, [debouncedSearch, from, page, refreshVersion, slaState, status, to, type]);
+  }, [
+    debouncedSearch,
+    from,
+    page,
+    pendingApprovalOnly,
+    refreshVersion,
+    slaState,
+    status,
+    to,
+    type,
+  ]);
 
   const openDetail = useCallback(async (incidentId: string) => {
     detailRequestRef.current = incidentId;
@@ -188,8 +213,29 @@ export default function ParcelIncidentsPage() {
   const activeFilterCount = useMemo(
     () =>
       [status, type, slaState, from, to].filter((value) => Boolean(value))
-        .length,
-    [from, slaState, status, to, type],
+        .length + (pendingApprovalOnly ? 1 : 0),
+    [from, pendingApprovalOnly, slaState, status, to, type],
+  );
+
+  // Lọc client-side vì backend chưa có tham số riêng. Chỉ áp cho trang đang
+  // hiển thị — tổng số ở phân trang vẫn là con số của BE, không được sửa lại
+  // theo mảng đã lọc.
+  const visibleItems = useMemo(
+    () =>
+      pendingApprovalOnly
+        ? items.filter((incident) =>
+            isPendingCustodyApproval(incident.availableActions),
+          )
+        : items,
+    [items, pendingApprovalOnly],
+  );
+
+  const pendingApprovalCount = useMemo(
+    () =>
+      items.filter((incident) =>
+        isPendingCustodyApproval(incident.availableActions),
+      ).length,
+    [items],
   );
 
   function clearFilters() {
@@ -198,6 +244,7 @@ export default function ParcelIncidentsPage() {
     setSlaState("");
     setFrom("");
     setTo("");
+    setPendingApprovalOnly(false);
     setPage(1);
   }
 
@@ -238,6 +285,36 @@ export default function ParcelIncidentsPage() {
             mất ngay khi chọn giá trị nên nhìn một select đang là "Đang tìm"
             không biết nó lọc theo trạng thái hay theo loại. */}
         <div className="border-b border-gray-100 p-4">
+          {/* Tab "chờ duyệt" là một CHIP chứ không phải một option của ô lọc
+              trạng thái: nó không phải một incident status, và nó thay đổi cả
+              cách hai ô lọc còn lại hoạt động. */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              aria-pressed={pendingApprovalOnly}
+              onClick={() => {
+                setPendingApprovalOnly((current) => !current);
+                setPage(1);
+              }}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                pendingApprovalOnly
+                  ? "border-amber-300 bg-amber-50 text-amber-900"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <FiAlertOctagon size={16} aria-hidden="true" />
+              {t("parcelIncidents.approval.pendingFilter")}
+              {pendingApprovalCount > 0 && (
+                <Badge tone="warning">{pendingApprovalCount}</Badge>
+              )}
+            </button>
+            {pendingApprovalOnly && (
+              <p className="text-xs text-gray-500">
+                {t("parcelIncidents.approval.pendingFilterHint")}
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <SearchInput
               wrapperClassName="min-w-0 sm:col-span-2 lg:col-span-6"
@@ -255,7 +332,10 @@ export default function ParcelIncidentsPage() {
               <CustomSelect
                 aria-label={t("parcelIncidents.statusFilter")}
                 className={inputClass}
-                value={status}
+                // Chờ duyệt luôn là OPEN — để người dùng chọn trạng thái khác
+                // chỉ tạo ra một hàng đợi chắc chắn rỗng.
+                disabled={pendingApprovalOnly}
+                value={pendingApprovalOnly ? "OPEN" : status}
                 onChange={(event) => {
                   setStatus(event.target.value);
                   setPage(1);
@@ -293,7 +373,9 @@ export default function ParcelIncidentsPage() {
               <CustomSelect
                 aria-label={t("parcelIncidents.slaFilter")}
                 className={inputClass}
-                value={slaState}
+                // §5: pending approval bị loại khỏi mọi filter SLA
+                disabled={pendingApprovalOnly}
+                value={pendingApprovalOnly ? "" : slaState}
                 onChange={(event) => {
                   setSlaState(event.target.value);
                   setPage(1);
@@ -390,7 +472,7 @@ export default function ParcelIncidentsPage() {
                   cellClassName="px-5 py-4"
                 />
               )}
-              {!isLoading && items.length === 0 && (
+              {!isLoading && visibleItems.length === 0 && (
                 <tr>
                   <td
                     colSpan={COLUMN_COUNT}
@@ -401,14 +483,18 @@ export default function ParcelIncidentsPage() {
                       size={28}
                       aria-hidden="true"
                     />
-                    {/* Rỗng vì lọc khác hẳn rỗng vì không có sự cố nào */}
-                    {activeFilterCount > 0 || debouncedSearch
-                      ? t("parcelIncidents.filteredEmpty")
-                      : t("parcelIncidents.empty")}
+                    {/* Rỗng vì lọc khác hẳn rỗng vì không có sự cố nào. Lọc
+                        chờ duyệt còn có nghĩa thứ ba: trang này không có dòng
+                        nào chờ duyệt, trang khác thì chưa chắc. */}
+                    {pendingApprovalOnly
+                      ? t("parcelIncidents.approval.pendingEmpty")
+                      : activeFilterCount > 0 || debouncedSearch
+                        ? t("parcelIncidents.filteredEmpty")
+                        : t("parcelIncidents.empty")}
                   </td>
                 </tr>
               )}
-              {items.map((incident) => (
+              {visibleItems.map((incident) => (
                 <IncidentRow
                   key={incident.incidentId}
                   incident={incident}
@@ -444,6 +530,13 @@ export default function ParcelIncidentsPage() {
           setRefreshVersion((current) => current + 1);
         }}
         onMessage={setMessage}
+        onIncidentGone={(incidentGoneMessage) => {
+          // Sự cố không còn tồn tại: đóng chi tiết rồi nạp lại hàng đợi thay vì
+          // để người dùng nhìn một bản chụp đã chết (§9).
+          closeDetail();
+          setError(incidentGoneMessage);
+          setRefreshVersion((current) => current + 1);
+        }}
       />
     </div>
   );
@@ -463,6 +556,10 @@ function IncidentRow({
     sla?.remainingMinutes == null
       ? null
       : splitRemainingMinutes(sla.remainingMinutes);
+  // §5: dòng chờ duyệt vẫn mang `status = OPEN`, chỉ `availableActions` phân
+  // biệt được. `sla` và `searchDeadline` đều `null` vì SLA chưa bắt đầu chạy.
+  const isPendingApproval = isPendingCustodyApproval(incident.availableActions);
+  const taskSummary = incident.taskSummary;
 
   return (
     <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60">
@@ -495,6 +592,13 @@ function IncidentRow({
             })}
           </Badge>
         </div>
+        {isPendingApproval && (
+          <div className="mt-1.5">
+            <Badge tone="warning">
+              {t("parcelIncidents.approval.pendingBadge")}
+            </Badge>
+          </div>
+        )}
       </td>
       <td className="px-5 py-4 text-gray-600">
         <p className="font-medium text-gray-800">
@@ -534,44 +638,64 @@ function IncidentRow({
         )}
       </td>
       <td className="px-5 py-4 text-center tabular-nums text-gray-700">
-        {incident.taskSummary
+        {/* `total = 0` nghĩa là backend CHƯA tạo nhiệm vụ nào (chờ duyệt), chứ
+            không phải "0/0 chưa hoàn thành" — hiện số ở đây đọc như một lỗi. */}
+        {taskSummary && taskSummary.total > 0
           ? t("parcelIncidents.taskProgress", {
-              completed: incident.taskSummary.completed,
-              total: incident.taskSummary.total,
+              completed: taskSummary.completed,
+              total: taskSummary.total,
             })
           : "-"}
       </td>
       <td className="whitespace-nowrap px-5 py-4 text-center">
-        <Badge tone={slaTone(sla?.state)}>
-          {t(`parcelIncidents.sla.${sla?.state ?? "UNKNOWN"}`, {
-            defaultValue: sla?.state ?? "-",
-          })}
-        </Badge>
-        {remaining && (
-          <p className="mt-1 text-xs text-gray-600">
-            {remaining.overdue
-              ? t("parcelIncidents.slaOverdue", {
-                  hours: remaining.hours,
-                  minutes: remaining.minutes,
-                })
-              : t("parcelIncidents.slaRemaining", {
-                  hours: remaining.hours,
-                  minutes: remaining.minutes,
-                })}
+        {/* Chờ duyệt thì KHÔNG có countdown và không tự tính SLA (§5): đồng hồ
+            chỉ bắt đầu chạy sau khi báo cáo được duyệt. */}
+        {isPendingApproval ? (
+          <p className="text-xs text-gray-500">
+            {t("parcelIncidents.approval.slaNotStarted")}
           </p>
+        ) : (
+          <>
+            <Badge tone={slaTone(sla?.state)}>
+              {t(`parcelIncidents.sla.${sla?.state ?? "UNKNOWN"}`, {
+                defaultValue: sla?.state ?? "-",
+              })}
+            </Badge>
+            {remaining && (
+              <p className="mt-1 text-xs text-gray-600">
+                {remaining.overdue
+                  ? t("parcelIncidents.slaOverdue", {
+                      hours: remaining.hours,
+                      minutes: remaining.minutes,
+                    })
+                  : t("parcelIncidents.slaRemaining", {
+                      hours: remaining.hours,
+                      minutes: remaining.minutes,
+                    })}
+              </p>
+            )}
+          </>
         )}
       </td>
       <td className="px-5 py-4 text-center">
         <div className="flex items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenDetail}
-            title={tc("details")}
-            aria-label={tc("details")}
-            className="rounded-lg p-1.5 text-vr-900 transition hover:bg-vr-50"
-          >
-            <FiEye size={16} />
-          </button>
+          {/* CTA của dòng chờ duyệt vẫn là "mở chi tiết" — quyết định chỉ được
+              đưa ra sau khi xem bằng chứng, không bao giờ ngay tại hàng đợi. */}
+          {isPendingApproval ? (
+            <Button size="sm" variant="primary" onClick={onOpenDetail}>
+              {t("parcelIncidents.approval.reviewCta")}
+            </Button>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenDetail}
+              title={tc("details")}
+              aria-label={tc("details")}
+              className="rounded-lg p-1.5 text-vr-900 transition hover:bg-vr-50"
+            >
+              <FiEye size={16} />
+            </button>
+          )}
           {incident.claimSummary && (
             <span
               title={t("parcelIncidents.hasClaim")}

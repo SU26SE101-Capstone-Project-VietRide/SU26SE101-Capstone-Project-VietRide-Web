@@ -2002,6 +2002,10 @@ export type OperatorParcelStatusRequest = {
   reason: string;
 };
 
+/**
+ * Bản ghi cước phẳng — vẫn là shape của create/patch response.
+ * API LIST không còn trả shape này, xem `ParcelRouteFareGroup`.
+ */
 export type ParcelRouteFare = {
   routeId: string;
   sizeCategory: string;
@@ -2011,6 +2015,30 @@ export type ParcelRouteFare = {
   effectiveUntil?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+/** Một mức giá bên trong `fares[]` của API list gom theo tuyến. */
+export type ParcelRouteFareEntry = {
+  sizeCategory: ParcelSizeCategory;
+  priceVnd: number;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+};
+
+/**
+ * Item của `GET /v1/operator/parcel-route-fares` sau khi BE gom theo tuyến
+ * (commit BE `9e1488a2`): mỗi tuyến MỘT item, các mức giá nằm trong `fares[]`
+ * theo thứ tự SMALL → MEDIUM → LARGE → EXTRA_LARGE.
+ *
+ * `fares[]` chỉ chứa cỡ ĐÃ lưu trong DB — BE không sinh mức giả, nên tuyến mới
+ * cấu hình 2/4 cỡ sẽ chỉ có 2 phần tử. `totalItems` đếm số TUYẾN, không phải số
+ * bản ghi cước. BE không tách các mức của cùng một tuyến sang hai trang.
+ *
+ * List KHÔNG trả tên tuyến — vẫn phải map `routeId` sang tên như trước.
+ */
+export type ParcelRouteFareGroup = {
+  routeId: string;
+  fares: ParcelRouteFareEntry[];
 };
 
 /**
@@ -2716,6 +2744,29 @@ export type OperatorShuttleTripStatus =
   | "COMPLETED"
   | "CANCELLED";
 
+/** Chỉ có hai giá trị; BE không sinh action nào khác. */
+export type ShuttleAssignmentAction = "INITIAL_ASSIGNED" | "REASSIGNED";
+
+export type ShuttleAssignmentActor = {
+  userId: string;
+  displayName: string | null;
+  role: string | null;
+};
+
+/**
+ * Lần gán/đổi xe-tài xế GẦN NHẤT của chuyến trung chuyển.
+ *
+ * `null` với chuyến cũ chưa có bản ghi audit. Khi đó phải hiện "Chưa có dữ liệu
+ * người gán" — TUYỆT ĐỐI không lấy `createdBy` thay thế: đó là người tạo chuyến,
+ * không chứng minh được ai đã gán xe/tài xế hiện tại.
+ */
+export type ShuttleLatestAssignment = {
+  action: ShuttleAssignmentAction;
+  assignedAt: string;
+  assignedBy: ShuttleAssignmentActor;
+  reason: string | null;
+};
+
 export type OperatorShuttleTripListItem = {
   shuttleTripId: string;
   mainTripId: string;
@@ -2725,10 +2776,31 @@ export type OperatorShuttleTripListItem = {
   scheduledEndTime: string;
   actualDepartureTime: string | null;
   completedAt: string | null;
+  createdBy?: string | null;
   vehicle: { id: string; licensePlate: string };
   driver: { id: string; displayName: string | null; phone: string | null };
   passengerCount: number;
   stopCount: number;
+  latestAssignment?: ShuttleLatestAssignment | null;
+};
+
+/**
+ * Một dòng lịch sử điều phối. Snapshot before/after là dữ liệu CỐ ĐỊNH tại thời
+ * điểm thao tác — BE không lookup lại, nên lịch sử không bị sửa ngược.
+ *
+ * `INITIAL_ASSIGNED`: `previousDriver`/`previousVehicle` là `null`, `reason`
+ * thường `null`. `REASSIGNED`: `reason` luôn có giá trị.
+ */
+export type ShuttleAssignmentHistoryItem = {
+  id: string;
+  action: ShuttleAssignmentAction;
+  assignedAt: string;
+  assignedBy: ShuttleAssignmentActor;
+  reason: string | null;
+  previousDriver: { id: string; displayName: string | null } | null;
+  currentDriver: { id: string; displayName: string | null } | null;
+  previousVehicle: { id: string; licensePlate: string } | null;
+  currentVehicle: { id: string; licensePlate: string } | null;
 };
 
 // `status` nhận nhiều giá trị ngăn cách bởi dấu phẩy (BE tự split).
@@ -5579,7 +5651,7 @@ export function getOperatorParcelRouteFareSummary() {
 export function getOperatorParcelRouteFares(
   params: ParcelRouteFareParams = {},
 ) {
-  return apiRequest<PagedResult<ParcelRouteFare>>(
+  return apiRequest<PagedResult<ParcelRouteFareGroup>>(
     `/v1/operator/parcel-route-fares${buildQuery(params)}`,
   );
 }
@@ -6609,6 +6681,20 @@ export function cancelOperatorShuttleTrip(
  * - Gửi đúng xe/tài xế cũ vẫn trả 200 nhưng BE KHÔNG phát thông báo — không có
  *   thông báo giả cho hành khách.
  */
+/**
+ * Lịch sử điều phối của một chuyến trung chuyển, mới nhất trước
+ * (`assignedAt DESC`). `pageSize` tối đa 100. Chuyến không tồn tại hoặc khác
+ * tenant đều trả `404 SHUTTLE_TRIP_NOT_FOUND`.
+ */
+export function getOperatorShuttleAssignmentHistory(
+  shuttleTripId: string,
+  params: PageParams = {},
+) {
+  return apiRequest<PagedResult<ShuttleAssignmentHistoryItem>>(
+    `/v1/operator/shuttle-trips/${shuttleTripId}/assignment-history${buildQuery(params)}`,
+  );
+}
+
 export function reassignOperatorShuttleTrip(
   shuttleTripId: string,
   request: ReassignShuttleTripRequest,
@@ -7099,6 +7185,15 @@ export type ParcelIncidentAction =
   | "FORWARD"
   | "RESOLVE"
   | "DECLARE_LOST"
+  // Báo cáo sự cố của phụ xe chờ duyệt (FE-Operator-Web-Parcel-Custody-Exception
+  // §2): khi có APPROVE/REJECT thì đây là hai hành động DUY NHẤT được phép —
+  // chưa duyệt thì search/mark-found/forward/declare-lost đều bị BE chặn.
+  | "APPROVE"
+  | "REJECT"
+  // Sau khi duyệt, BE trả action này thay cho danh sách thao tác tìm kiếm ở
+  // response của endpoint decision. Nó chỉ nói "mở tiếp workflow" — danh sách
+  // thao tác thật lấy từ detail refetch.
+  | "CONTINUE_SEARCH"
   | (string & {});
 
 export type ReliabilityParcelSummary = {
@@ -7295,6 +7390,78 @@ export type ParcelForwardingOperation = {
   nextHandoffAction?: string | null;
 };
 
+export const CUSTODY_EXCEPTION_APPROVAL_STATUSES = [
+  "PENDING_APPROVAL",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+] as const;
+
+export type CustodyExceptionApprovalStatus =
+  (typeof CUSTODY_EXCEPTION_APPROVAL_STATUSES)[number];
+
+/**
+ * Báo cáo sự cố kiện hàng do phụ xe/tài xế gửi lên, đang chờ Operator duyệt
+ * (`FE-Operator-Web-Parcel-Custody-Exception-Integration-Guide.md` §6, §11).
+ *
+ * ĐÂY là nguồn dữ liệu DUY NHẤT của panel duyệt: dòng trong hàng đợi không
+ * kèm evidence/lý do/vị trí báo cáo, chỉ có `availableActions`.
+ *
+ * `actualLocationId` là UUID ĐỊA ĐIỂM. Không bao giờ dùng nó làm id người báo
+ * hay người duyệt (§6) — người duyệt do BE lấy từ JWT.
+ */
+export type ParcelCustodyExceptionApproval = {
+  requestId: string;
+  parcelId: string;
+  incidentId: string;
+  incidentType: ParcelIncidentType | (string & {});
+  incidentStatus: ParcelIncidentStatus | (string & {});
+  status: CustodyExceptionApprovalStatus | (string & {});
+  actualLocationType: ParcelCustodyLocationType | (string & {});
+  actualLocationId?: string | null;
+  locationSnapshot?: string | null;
+  temporaryExceptionTag?: string | null;
+  description?: string | null;
+  observedWeightKg?: number | null;
+  evidenceReferences: string[];
+  reason: string;
+  reportedByUserId: string;
+  reportedByRole: string;
+  reportedAt: string;
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+  reviewedByRole?: string | null;
+  reviewNote?: string | null;
+  approvedCustodyEventId?: string | null;
+  searchDeadline?: string | null;
+  availableActions: ParcelIncidentAction[];
+};
+
+/**
+ * Response của endpoint decision — KHÔNG phải detail đầy đủ và cũng không phải
+ * bản `ParcelCustodyExceptionApproval` đủ field (§7): BE chỉ trả phần quyết
+ * định. Vì thế mọi field nhận diện báo cáo được khai optional, và màn phải
+ * refetch detail sau khi duyệt để lấy hai search task backend vừa tạo.
+ */
+export type ParcelCustodyExceptionDecisionResult = Partial<
+  Omit<ParcelCustodyExceptionApproval, "status" | "availableActions">
+> & {
+  status: CustodyExceptionApprovalStatus | (string & {});
+  incidentStatus: ParcelIncidentStatus | (string & {});
+  availableActions: ParcelIncidentAction[];
+};
+
+/**
+ * Body strict — field lạ bị BE từ chối (§7). TUYỆT ĐỐI không thêm
+ * `reviewerUserId` / `reviewedByUserId` / `supervisorApprovalUserId` /
+ * `operatorId` / `requestId`: người duyệt được lấy từ JWT.
+ */
+export type DecideCustodyExceptionBody = {
+  decision: "APPROVE" | "REJECT";
+  /** Tối đa 2000 ký tự; `null` là hợp lệ */
+  note: string | null;
+};
+
 export type ParcelIncidentDetail = {
   incident: ParcelIncidentListItem;
   searchTasks: ParcelIncidentSearchTask[];
@@ -7315,6 +7482,8 @@ export type ParcelIncidentDetail = {
   forwardingSummary?: unknown;
   availableActions: ParcelIncidentAction[];
   forwardingOperation?: ParcelForwardingOperation | null;
+  /** `null` khi sự cố không đến từ báo cáo cần duyệt (§6) */
+  custodyExceptionApproval?: ParcelCustodyExceptionApproval | null;
 };
 
 export type ParcelForwardingOption = {
@@ -7404,6 +7573,33 @@ export function getOperatorParcelIncident(
 ) {
   return apiRequest<ParcelIncidentDetail>(
     `/v1/operator/parcel-incidents/${incidentId}${buildQuery(params)}`,
+  );
+}
+
+/**
+ * Duyệt hoặc từ chối báo cáo sự cố của phụ xe (§7 của guide custody exception).
+ *
+ * NGOẠI LỆ so với các mutation bên dưới: endpoint này KHÔNG trả detail đầy đủ —
+ * chỉ trả phần quyết định. Sau khi gọi, màn phải refetch detail để lấy hai
+ * search task backend vừa tạo (`MANIFEST_RECONCILIATION`, `VEHICLE_SWEEP`).
+ *
+ * `idempotencyKey` nhận từ ngoài vì §10 quy định: retry cùng một thao tác do
+ * timeout/mất mạng phải DÙNG LẠI key cũ, đổi APPROVE↔REJECT mới sinh key mới.
+ * Để `addIdempotencyHeader` tự sinh thì mỗi lần retry là một key khác, đúng
+ * thứ FE bị cấm làm.
+ */
+export function decideOperatorParcelIncidentCustodyException(
+  incidentId: string,
+  request: DecideCustodyExceptionBody,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelCustodyExceptionDecisionResult>(
+    `/v1/operator/parcel-incidents/${incidentId}/custody-exception-decision`,
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
   );
 }
 
