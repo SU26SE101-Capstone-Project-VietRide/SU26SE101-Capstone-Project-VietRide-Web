@@ -1,5 +1,7 @@
 import type {
   ParcelRouteFare,
+  ParcelRouteFareEntry,
+  ParcelRouteFareGroup,
   ParcelSizeCategory,
 } from "../../../api/vietride";
 
@@ -208,46 +210,6 @@ export function buildFareSelection(
   };
 }
 
-/**
- * Selection khi bấm sửa từ một dòng bảng.
- *
- * BE giữ ĐÚNG MỘT bản ghi cho mỗi (tuyến, cỡ kiện) — `FindByRouteAndSizesAsync`
- * tra theo cặp đó rồi `ToDictionary(SizeCategory)`, nên không thể có hai bản ghi
- * cùng cỡ kiện trên một tuyến. Vì vậy giá luôn lấy theo TOÀN BỘ cỡ kiện của
- * tuyến, không lọc theo khung hiệu lực: các cỡ có thể đã trôi sang mốc hiệu lực
- * khác nhau (di sản của thời còn sửa lẻ từng cỡ), lọc theo khung sẽ để trống
- * những mức đang hiển thị ngay trên bảng và bắt người dùng gõ lại.
- *
- * Mốc hiệu lực thì lấy theo ĐÚNG dòng được bấm — đó là con số người dùng đang
- * nhìn thấy khi bấm bút chì.
- */
-export function buildRouteFareSelection(
-  routeFares: ParcelRouteFare[],
-  target: ParcelRouteFare,
-): FareSelection {
-  const prices = createEmptyFarePrices();
-  let configuredSizeCount = 0;
-
-  routeFares.forEach((fare) => {
-    if (fare.routeId !== target.routeId || !isParcelSizeCategory(fare.sizeCategory)) {
-      return;
-    }
-
-    if (prices[fare.sizeCategory] === "") {
-      configuredSizeCount += 1;
-    }
-    prices[fare.sizeCategory] = String(fare.priceVnd);
-  });
-
-  return {
-    mode:
-      configuredSizeCount < parcelSizeCategories.length ? "COMPLETE" : "UPDATE",
-    prices,
-    effectiveFrom: target.effectiveFrom,
-    effectiveUntil: target.effectiveUntil ?? "",
-  };
-}
-
 export function buildNextFareSelection(
   summary: RouteFareSummary,
 ): FareSelection | null {
@@ -266,4 +228,115 @@ export function buildNextFareSelection(
     effectiveFrom: new Date(untilTimestamp + 60_000).toISOString(),
     effectiveUntil: "",
   };
+}
+
+// ── API list gom theo tuyến (BE commit 9e1488a2) ───────────────────────────
+
+/**
+ * Khoá so sánh khoảng hiệu lực, ĐÃ chuẩn hoá về mốc thời gian thật.
+ *
+ * Không so chuỗi thô: hai chuỗi lệch offset timezone (`...T16:30:00Z` và
+ * `...T23:30:00+07:00`) là cùng một thời điểm nhưng khác ký tự, so thô sẽ báo
+ * "không đồng nhất" oan.
+ */
+export function fareWindowKey(fare: ParcelRouteFareEntry): string {
+  const from = new Date(fare.effectiveFrom).getTime();
+  const until = fare.effectiveUntil
+    ? new Date(fare.effectiveUntil).getTime()
+    : null;
+
+  return `${from}|${until ?? "NO_LIMIT"}`;
+}
+
+/** Các mức giá của tuyến đang dùng nhiều khoảng hiệu lực khác nhau. */
+export function hasMixedEffectiveWindows(
+  fares: readonly ParcelRouteFareEntry[],
+): boolean {
+  return new Set(fares.map(fareWindowKey)).size > 1;
+}
+
+/**
+ * Khoảng hiệu lực dùng chung của tuyến, hoặc `null` khi mỗi mức một kiểu.
+ *
+ * Trả `null` là tín hiệu để form ĐỂ TRỐNG phần hiệu lực: theo handoff BE, khi
+ * không đồng nhất thì tuyệt đối không tự lấy mốc của `SMALL` hay của phần tử
+ * đầu tiên — người điều hành phải tự chọn một khoảng chung.
+ */
+export function commonEffectiveWindow(
+  fares: readonly ParcelRouteFareEntry[],
+): { effectiveFrom: string; effectiveUntil: string | null } | null {
+  if (fares.length === 0 || hasMixedEffectiveWindows(fares)) {
+    return null;
+  }
+
+  return {
+    effectiveFrom: fares[0].effectiveFrom,
+    effectiveUntil: fares[0].effectiveUntil,
+  };
+}
+
+/** Giá theo từng cỡ kiện; cỡ chưa cấu hình để chuỗi rỗng. */
+export function pricesFromFareEntries(
+  fares: readonly ParcelRouteFareEntry[],
+): Record<ParcelSizeCategory, string> {
+  const prices = createEmptyFarePrices();
+  fares.forEach((fare) => {
+    if (isParcelSizeCategory(fare.sizeCategory)) {
+      prices[fare.sizeCategory] = String(fare.priceVnd);
+    }
+  });
+
+  return prices;
+}
+
+/** Số cỡ kiện đã cấu hình thật của tuyến (BE không sinh mức giả). */
+export function configuredSizeCount(
+  fares: readonly ParcelRouteFareEntry[],
+): number {
+  return new Set(
+    fares
+      .map((fare) => fare.sizeCategory)
+      .filter((size): size is ParcelSizeCategory => isParcelSizeCategory(size)),
+  ).size;
+}
+
+/** Selection để mở form sửa từ một dòng tuyến trong bảng. */
+export function buildGroupFareSelection(
+  group: ParcelRouteFareGroup,
+): FareSelection & { hasMixedWindows: boolean } {
+  const window = commonEffectiveWindow(group.fares);
+
+  return {
+    mode:
+      configuredSizeCount(group.fares) < parcelSizeCategories.length
+        ? "COMPLETE"
+        : "UPDATE",
+    prices: pricesFromFareEntries(group.fares),
+    // Không đồng nhất → để trống, bắt người dùng chọn khoảng chung
+    effectiveFrom: window?.effectiveFrom ?? "",
+    effectiveUntil: window?.effectiveUntil ?? "",
+    hasMixedWindows: hasMixedEffectiveWindows(group.fares),
+  };
+}
+
+/**
+ * Trải item gom nhóm về mảng phẳng cho các helper cũ (`getRouteFareSummary`,
+ * `buildFareSelection`, `buildNextFareSelection`) dùng lại nguyên vẹn.
+ *
+ * `operatorId` để rỗng: API list mới không trả field này nữa và không helper
+ * nào ở đây đọc tới nó.
+ */
+export function flattenFareGroup(
+  group: ParcelRouteFareGroup | null | undefined,
+): ParcelRouteFare[] {
+  if (!group) return [];
+
+  return group.fares.map((fare) => ({
+    routeId: group.routeId,
+    operatorId: "",
+    sizeCategory: fare.sizeCategory,
+    priceVnd: fare.priceVnd,
+    effectiveFrom: fare.effectiveFrom,
+    effectiveUntil: fare.effectiveUntil,
+  }));
 }

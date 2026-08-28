@@ -3,7 +3,7 @@
 // khi cả trên lẫn dưới đều không đủ chỗ thì rơi vào nhánh mở xuống rồi tràn
 // khỏi màn hình, không có gì kẹp lại. Ô "Hiệu lực từ" nằm sát đáy hộp thoại là
 // dính đúng ca đó: mấy hàng ngày cuối và nút Xong nằm ngoài tầm với.
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import CustomDateTimeInput from "./CustomDateTimeInput";
 
@@ -110,5 +110,39 @@ describe("CustomDateTimeInput — vị trí bảng lịch", () => {
 
     expect(maxHeight).toBeLessThan(calendarContentHeight);
     expect(panel.className).toContain("overflow-y-auto");
+  });
+});
+
+// Cột phút trước đây nhảy 5 phút một nấc nên không đặt được giờ khởi hành lẻ.
+describe("CustomDateTimeInput — cột phút", () => {
+  it("cho chọn từng phút, không nhảy nấc 5 phút", () => {
+    const onChange = vi.fn();
+    render(
+      <CustomDateTimeInput
+        type="datetime-local"
+        value="2026-08-16T07:00"
+        aria-label="gio-khoi-hanh"
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("gio-khoi-hanh"));
+
+    const panel = screen.getByTestId("datetime-picker-panel");
+    // Giới hạn trong cột phút: "07" cũng là một giờ và một ngày trên lịch
+    const minuteColumn = within(panel).getByText("dateTimePicker.minute")
+      .parentElement as HTMLElement;
+
+    // Phút lẻ như 07/53 chỉ tồn tại khi bước nhảy là 1
+    expect(
+      within(minuteColumn).getByRole("button", { name: "07" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(minuteColumn).getByRole("button", { name: "53" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: expect.objectContaining({ value: "2026-08-16T07:53" }),
+      }),
+    );
   });
 });

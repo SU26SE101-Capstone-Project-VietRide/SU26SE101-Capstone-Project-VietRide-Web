@@ -117,6 +117,24 @@ export default function ShuttleTrackingCard({
               ? ` · ${formatVietnamPhoneForDisplay(trip.driver.phone)}`
               : ""}
           </p>
+          {/* Ai gán/đổi xe-tài xế lần gần nhất. Chuyến cũ chưa có bản ghi audit
+              thì nói thẳng là chưa có dữ liệu — không mượn `createdBy`, vì đó
+              là người TẠO chuyến chứ không chứng minh được ai đã gán. */}
+          <p className="mt-1 truncate text-xs text-gray-500">
+            {trip.latestAssignment
+              ? t(
+                  trip.latestAssignment.action === "INITIAL_ASSIGNED"
+                    ? "dispatch.assignedByInitial"
+                    : "dispatch.assignedByReassigned",
+                  {
+                    name:
+                      trip.latestAssignment.assignedBy.displayName?.trim() ||
+                      trip.latestAssignment.assignedBy.userId,
+                    time: formatTime(trip.latestAssignment.assignedAt),
+                  },
+                )
+              : t("dispatch.assignedByUnknown")}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {hasPosition && (

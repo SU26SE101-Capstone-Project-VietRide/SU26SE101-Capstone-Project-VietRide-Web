@@ -26,16 +26,20 @@ import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { formatDateTime } from "../../../utils/date";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
+import CustodyApprovalPanel from "./CustodyApprovalPanel";
+import CustodyDecisionModal from "./CustodyDecisionModal";
 import ForwardingOptionsModal from "./ForwardingOptionsModal";
 import IncidentActionModal, {
   type IncidentActionKind,
 } from "./IncidentActionModal";
 import { locationLabel, slaTone } from "../../../utils/parcelReliability";
 import {
+  getCustodyApprovalUi,
   hasIncidentAction,
   incidentStatusTone,
   mergeCustodyEvents,
   oldestSequence,
+  type IncidentErrorOutcome,
 } from "./incidentHelpers";
 
 type IncidentDetailModalProps = {
@@ -46,6 +50,8 @@ type IncidentDetailModalProps = {
   onClose: () => void;
   onDetailChange: (detail: ParcelIncidentDetail) => void;
   onMessage: (message: string) => void;
+  /** Sự cố không còn tồn tại/không thuộc tenant → đóng chi tiết, làm mới queue */
+  onIncidentGone: (message: string) => void;
 };
 
 // BE cho tối đa 100 event mỗi lượt; 50 là default của endpoint.
@@ -61,14 +67,22 @@ export default function IncidentDetailModal({
   onClose,
   onDetailChange,
   onMessage,
+  onIncidentGone,
 }: IncidentDetailModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
 
   const [action, setAction] = useState<IncidentActionKind | null>(null);
-  const [actionTask, setActionTask] =
-    useState<ParcelIncidentSearchTask | null>(null);
+  const [actionTask, setActionTask] = useState<ParcelIncidentSearchTask | null>(
+    null,
+  );
   const [isForwardingOpen, setIsForwardingOpen] = useState(false);
+  const [custodyDecision, setCustodyDecision] = useState<
+    "APPROVE" | "REJECT" | null
+  >(null);
+  // Thao tác bị BE chặn vì báo cáo chưa được duyệt (§9). Hiện một lần ngay
+  // trên panel duyệt để người dùng biết phải làm gì trước.
+  const [approvalRequiredNotice, setApprovalRequiredNotice] = useState("");
 
   // Lịch sử tải thêm buộc phải đi kèm id của sự cố đã tải nó.
   //
@@ -99,10 +113,13 @@ export default function IncidentDetailModal({
   // item của list) và ở cấp detail. Handler luôn dựng bản ở cấp detail (§5.3)
   // nên nó mới là bản phản ánh trạng thái sau mutation — bản trong `incident`
   // có thể là ảnh chụp cũ.
-  const availableActions = detail?.availableActions ?? incident?.availableActions;
+  const availableActions =
+    detail?.availableActions ?? incident?.availableActions;
   const timelineItems = detail
     ? mergeCustodyEvents(detail.custodyTimeline.items, olderEvents)
     : [];
+  const approvalUi = getCustodyApprovalUi(detail);
+  const isAwaitingApproval = approvalUi.kind === "REVIEW_REQUIRED";
 
   async function loadOlderHistory() {
     if (!detail || isLoadingHistory) return;
@@ -160,6 +177,42 @@ export default function IncidentDetailModal({
     setAction(null);
     setActionTask(null);
     setIsForwardingOpen(false);
+    setCustodyDecision(null);
+    setApprovalRequiredNotice("");
+  }
+
+  /**
+   * Lỗi cho biết `availableActions` trên tay đã cũ (§9): báo cáo chưa duyệt,
+   * sự cố đã đóng, hoặc sự cố không còn tồn tại. Đóng form thao tác rồi nạp
+   * lại detail để bộ nút được dựng lại đúng — không bao giờ tự gửi lại request.
+   */
+  async function handleRecoverableError(
+    outcome: IncidentErrorOutcome,
+    message: string,
+  ) {
+    if (outcome === "SHOW" || !incidentId) return;
+
+    setAction(null);
+    setActionTask(null);
+    setIsForwardingOpen(false);
+
+    // Sự cố biến mất khỏi tenant: nạp lại chi tiết cũng vô nghĩa.
+    if (outcome === "GONE") {
+      onIncidentGone(message);
+      return;
+    }
+
+    setApprovalRequiredNotice(
+      outcome === "NEEDS_APPROVAL"
+        ? t("parcelIncidents.approval.approvalRequired")
+        : t("parcelIncidents.approval.stateChanged"),
+    );
+
+    try {
+      onDetailChange(await getOperatorParcelIncident(incidentId));
+    } catch {
+      // Nạp lại hỏng thì vẫn giữ nguyên detail cũ kèm cảnh báo phía trên
+    }
   }
 
   return (
@@ -173,14 +226,21 @@ export default function IncidentDetailModal({
         subtitle={incident?.parcel?.parcelCode}
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            {/* Chỉ những hành động BE cho phép mới hiện — không suy từ status */}
+            {/* Chỉ những hành động BE cho phép mới hiện — không suy từ status.
+                Khi báo cáo còn chờ duyệt, `availableActions` chỉ có
+                APPROVE/REJECT nên toàn bộ nhóm nút bên dưới tự tắt: đó đúng là
+                luật "không cho search/mark-found/forward/declare-lost trước
+                approval" (§2 mục 7), FE không cần thêm điều kiện riêng. */}
             {hasIncidentAction(availableActions, "ASSIGN") && (
               <Button variant="secondary" onClick={() => setAction("ASSIGN")}>
                 {t("parcelIncidents.actions.ASSIGN")}
               </Button>
             )}
             {hasIncidentAction(availableActions, "MARK_FOUND") && (
-              <Button variant="secondary" onClick={() => setAction("MARK_FOUND")}>
+              <Button
+                variant="secondary"
+                onClick={() => setAction("MARK_FOUND")}
+              >
                 {t("parcelIncidents.actions.MARK_FOUND")}
               </Button>
             )}
@@ -194,7 +254,10 @@ export default function IncidentDetailModal({
               </Button>
             )}
             {hasIncidentAction(availableActions, "DECLARE_LOST") && (
-              <Button variant="danger" onClick={() => setAction("DECLARE_LOST")}>
+              <Button
+                variant="danger"
+                onClick={() => setAction("DECLARE_LOST")}
+              >
                 {t("parcelIncidents.actions.DECLARE_LOST")}
               </Button>
             )}
@@ -222,6 +285,26 @@ export default function IncidentDetailModal({
           </p>
         ) : (
           <div className="space-y-5">
+            {approvalRequiredNotice && (
+              <p
+                role="alert"
+                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              >
+                {approvalRequiredNotice}
+              </p>
+            )}
+
+            {/* Panel duyệt đứng ĐẦU chi tiết: khi còn chờ duyệt thì đây là việc
+                duy nhất làm được, mọi phần bên dưới chỉ là dữ liệu đối chiếu. */}
+            {approvalUi.kind !== "NONE" && (
+              <CustodyApprovalPanel
+                ui={approvalUi}
+                detail={detail}
+                disabled={custodyDecision !== null}
+                onDecide={setCustodyDecision}
+              />
+            )}
+
             <section className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -261,12 +344,17 @@ export default function IncidentDetailModal({
                   label={t("parcelIncidents.createdAt")}
                   value={formatDateTime(incident.createdAt)}
                 />
+                {/* Chờ duyệt thì SLA tìm kiếm CHƯA chạy: `searchDeadline` là
+                    `null` và chỉ bắt đầu sau khi approve (§2 mục 7, §5). Hiện
+                    "-" ở đây làm người dùng tưởng dữ liệu lỗi. */}
                 <DetailItem
                   label={t("parcelIncidents.searchDeadline")}
                   value={
-                    incident.searchDeadline
-                      ? formatDateTime(incident.searchDeadline)
-                      : "-"
+                    isAwaitingApproval
+                      ? t("parcelIncidents.approval.slaNotStarted")
+                      : incident.searchDeadline
+                        ? formatDateTime(incident.searchDeadline)
+                        : "-"
                   }
                 />
                 <DetailItem
@@ -352,7 +440,9 @@ export default function IncidentDetailModal({
                     label={t("parcelIncidents.trackingConfidence")}
                     value={t(
                       `parcelIncidents.trackingConfidences.${detail.currentCustody.trackingConfidence}`,
-                      { defaultValue: detail.currentCustody.trackingConfidence },
+                      {
+                        defaultValue: detail.currentCustody.trackingConfidence,
+                      },
                     )}
                   />
                 </dl>
@@ -401,84 +491,89 @@ export default function IncidentDetailModal({
               </section>
             )}
 
-            <section className="rounded-xl border border-gray-200 bg-white p-4">
-              <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
-                <FiSearch aria-hidden="true" />
-                {t("parcelIncidents.searchTasksTitle")}
-              </h3>
+            {/* Chưa duyệt thì backend chưa tạo task nào — hiện khối rỗng
+                "chưa có nhiệm vụ" đọc như một lỗi dữ liệu (§5). Hai task mặc
+                định chỉ xuất hiện sau khi approve. */}
+            {!isAwaitingApproval && (
+              <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                  <FiSearch aria-hidden="true" />
+                  {t("parcelIncidents.searchTasksTitle")}
+                </h3>
 
-              {detail.searchTasks.length === 0 ? (
-                <p className="mt-3 rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                  {t("parcelIncidents.searchTasksEmpty")}
-                </p>
-              ) : (
-                <ul className="mt-3 space-y-2">
-                  {detail.searchTasks.map((task) => (
-                    <li
-                      key={task.taskId}
-                      className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {t(`parcelIncidents.taskTypes.${task.taskType}`, {
-                            defaultValue: task.taskType,
-                          })}
-                        </p>
-                        <p className="mt-0.5 text-xs text-gray-600">
-                          {task.location?.trim() ||
-                            t("parcelIncidents.unknownLocation")}
-                        </p>
-                        {task.assignee?.displayName && (
-                          <p className="mt-0.5 text-xs text-gray-500">
-                            {t("parcelIncidents.assignedTo", {
-                              name: task.assignee.displayName,
+                {detail.searchTasks.length === 0 ? (
+                  <p className="mt-3 rounded-lg bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                    {t("parcelIncidents.searchTasksEmpty")}
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {detail.searchTasks.map((task) => (
+                      <li
+                        key={task.taskId}
+                        className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {t(`parcelIncidents.taskTypes.${task.taskType}`, {
+                              defaultValue: task.taskType,
                             })}
                           </p>
-                        )}
-                        {task.result?.trim() && (
-                          <p className="mt-1 text-xs text-gray-700">
-                            {task.result}
+                          <p className="mt-0.5 text-xs text-gray-600">
+                            {task.location?.trim() ||
+                              t("parcelIncidents.unknownLocation")}
                           </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Badge
-                          tone={
-                            task.status === "COMPLETED"
-                              ? "success"
-                              : task.status === "FAILED"
-                                ? "warning"
-                                : "neutral"
-                          }
-                        >
-                          {t(`parcelIncidents.taskStatuses.${task.status}`, {
-                            defaultValue: task.status,
-                          })}
-                        </Badge>
-                        {/* Task đã đóng mà ghi lại là 500 ở BE (§6.4) — chỉ mở
-                            nút cho task còn đang mở. */}
-                        {hasIncidentAction(
-                          availableActions,
-                          "RECORD_SEARCH",
-                        ) &&
-                          TASK_ACTIONABLE_STATUSES.includes(task.status) && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                setActionTask(task);
-                                setAction("RECORD_SEARCH");
-                              }}
-                            >
-                              {t("parcelIncidents.recordSearchShort")}
-                            </Button>
+                          {task.assignee?.displayName && (
+                            <p className="mt-0.5 text-xs text-gray-500">
+                              {t("parcelIncidents.assignedTo", {
+                                name: task.assignee.displayName,
+                              })}
+                            </p>
                           )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+                          {task.result?.trim() && (
+                            <p className="mt-1 text-xs text-gray-700">
+                              {task.result}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge
+                            tone={
+                              task.status === "COMPLETED"
+                                ? "success"
+                                : task.status === "FAILED"
+                                  ? "warning"
+                                  : "neutral"
+                            }
+                          >
+                            {t(`parcelIncidents.taskStatuses.${task.status}`, {
+                              defaultValue: task.status,
+                            })}
+                          </Badge>
+                          {/* Task đã đóng mà ghi lại là 500 ở BE (§6.4) — chỉ mở
+                            nút cho task còn đang mở. */}
+                          {hasIncidentAction(
+                            availableActions,
+                            "RECORD_SEARCH",
+                          ) &&
+                            TASK_ACTIONABLE_STATUSES.includes(task.status) && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setActionTask(task);
+                                  setAction("RECORD_SEARCH");
+                                }}
+                              >
+                                {t("parcelIncidents.recordSearchShort")}
+                              </Button>
+                            )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
 
             <section className="rounded-xl border border-gray-200 bg-white p-4">
               <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
@@ -499,9 +594,12 @@ export default function IncidentDetailModal({
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-gray-900">
-                          {t(`parcelIncidents.custodyEvents.${event.eventType}`, {
-                            defaultValue: event.eventType,
-                          })}
+                          {t(
+                            `parcelIncidents.custodyEvents.${event.eventType}`,
+                            {
+                              defaultValue: event.eventType,
+                            },
+                          )}
                         </p>
                         <p className="text-xs text-gray-500">
                           {formatDateTime(event.occurredAt)}
@@ -517,7 +615,10 @@ export default function IncidentDetailModal({
                             `parcelIncidents.actorRoles.${event.actorRole}`,
                             { defaultValue: event.actorRole },
                           ),
-                          source: event.source,
+                          source: t(
+                            `parcelIncidents.custodySources.${event.source}`,
+                            { defaultValue: event.source },
+                          ),
                         })}
                       </p>
                       {event.reason?.trim() && (
@@ -593,6 +694,9 @@ export default function IncidentDetailModal({
           setActionTask(null);
         }}
         onDone={applyMutation}
+        onRecoverableError={(outcome, message) =>
+          void handleRecoverableError(outcome, message)
+        }
       />
 
       <ForwardingOptionsModal
@@ -600,6 +704,24 @@ export default function IncidentDetailModal({
         incidentId={incidentId}
         onClose={() => setIsForwardingOpen(false)}
         onDone={applyMutation}
+        onRecoverableError={(outcome, message) =>
+          void handleRecoverableError(outcome, message)
+        }
+      />
+
+      {/* `key` theo quyết định: đổi APPROVE↔REJECT là thao tác nghiệp vụ KHÁC
+          (§10) nên form được dựng lại cùng một idempotency key mới. */}
+      <CustodyDecisionModal
+        key={`${incidentId}-${custodyDecision ?? ""}`}
+        decision={custodyDecision}
+        incidentId={incidentId}
+        approval={detail?.custodyExceptionApproval ?? null}
+        onClose={() => setCustodyDecision(null)}
+        onDecided={applyMutation}
+        onIncidentGone={(message) => {
+          setCustodyDecision(null);
+          onIncidentGone(message);
+        }}
       />
     </>
   );

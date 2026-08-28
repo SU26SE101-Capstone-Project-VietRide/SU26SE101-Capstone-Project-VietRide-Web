@@ -20,6 +20,7 @@ import type {
 } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
 import ShuttleTripPassengersSection from "./ShuttleTripPassengersSection";
+import ShuttleAssignmentHistorySection from "./ShuttleAssignmentHistorySection";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { formatDistance, formatTime } from "./dispatchHelpers";
 import { Button } from "../../../components/ui/Button";
@@ -258,6 +259,14 @@ export default function ShuttleTripDetailModal({
           </section>
 
           <ShuttleTripPassengersSection shuttleTripId={trip.shuttleTripId} />
+
+          {/* Key kèm mốc gán gần nhất: sau khi đổi xe/tài xế, danh sách được
+              nạp lại nên `assignedAt` đổi → component remount và lịch sử được
+              tải lại, không giữ bản cũ đã cũ. */}
+          <ShuttleAssignmentHistorySection
+            key={`${trip.shuttleTripId}:${trip.latestAssignment?.assignedAt ?? ""}`}
+            shuttleTripId={trip.shuttleTripId}
+          />
         </div>
       )}
     </Modal>
