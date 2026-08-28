@@ -99,11 +99,11 @@ function TrackingSkeleton() {
   return (
     <div className="absolute inset-0 overflow-hidden bg-slate-100" aria-hidden>
       <div className="absolute -left-16 top-[42%] h-20 w-[75%] rotate-[-8deg] rounded-[50%] border-t-4 border-vr-300" />
-      <div className="absolute right-[22%] top-[28%] h-4 w-4 animate-pulse rounded-full bg-vr-700 ring-4 ring-white" />
+      <div className="absolute right-[22%] top-[28%] h-4 w-4 rounded-full bg-vr-700 ring-4 ring-white motion-safe:animate-pulse" />
       <div className="absolute bottom-4 left-4 right-4 max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="h-3 w-24 animate-pulse rounded bg-slate-200" />
-        <div className="mt-3 h-4 w-3/4 animate-pulse rounded bg-slate-300" />
-        <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-200" />
+        <div className="h-3 w-24 rounded bg-slate-200 motion-safe:animate-pulse" />
+        <div className="mt-3 h-4 w-3/4 rounded bg-slate-300 motion-safe:animate-pulse" />
+        <div className="mt-2 h-3 w-1/2 rounded bg-slate-200 motion-safe:animate-pulse" />
       </div>
     </div>
   );
@@ -205,16 +205,28 @@ export default function TripSharingPage() {
 
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-900">
+      <a
+        href="#trip-sharing-content"
+        className="sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:not-sr-only focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-900 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-vr-700"
+      >
+        {t("actions.skipToContent")}
+      </a>
+
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <img
               src={logo}
               alt={tc("brand")}
+              width={40}
+              height={40}
               className="h-10 w-10 shrink-0 rounded-xl bg-vr-50 object-contain p-1"
             />
             <div className="min-w-0">
-              <p className="truncate text-sm font-extrabold tracking-[-0.02em] text-slate-900 sm:text-base">
+              <p
+                className="truncate text-sm font-extrabold tracking-[-0.02em] text-slate-900 sm:text-base"
+                translate="no"
+              >
                 {t("brand")}
               </p>
               <p className="truncate text-xs font-medium text-slate-500">
@@ -226,14 +238,17 @@ export default function TripSharingPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1440px] px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-5 lg:px-8">
+      <main
+        id="trip-sharing-content"
+        className="mx-auto w-full max-w-[1440px] px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-5 lg:px-8"
+      >
         <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between lg:px-6">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-vr-800">
                 {t("route.label")}
               </p>
-              <h1 className="mt-1 truncate text-lg font-bold tracking-[-0.02em] text-slate-950 sm:text-xl">
+              <h1 className="mt-1 break-words text-balance text-lg font-bold tracking-[-0.02em] text-slate-950 sm:text-xl">
                 {route ? (
                   <>
                     {route.originName}
@@ -333,7 +348,7 @@ export default function TripSharingPage() {
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-slate-500">{t("route.origin")}</p>
-                        <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                        <p className="mt-0.5 break-words text-sm font-semibold text-slate-900">
                           {route.originName}
                         </p>
                       </div>
@@ -344,7 +359,7 @@ export default function TripSharingPage() {
                         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm font-semibold text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-vr-700 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
                           <span>{t("route.intermediateStops", { count: route.stops.length })}</span>
                           <FiChevronDown
-                            className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180"
+                            className="h-4 w-4 shrink-0 text-slate-500 group-open:rotate-180 motion-safe:transition-transform"
                             aria-hidden
                           />
                         </summary>
@@ -361,7 +376,7 @@ export default function TripSharingPage() {
                               >
                                 {index + 1}
                               </span>
-                              <span className="min-w-0 leading-5">{stop.name}</span>
+                              <span className="min-w-0 break-words leading-5">{stop.name}</span>
                             </li>
                           ))}
                         </ol>
@@ -380,7 +395,7 @@ export default function TripSharingPage() {
                         <p className="text-xs font-semibold text-slate-500">
                           {t("route.destination")}
                         </p>
-                        <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                        <p className="mt-0.5 break-words text-sm font-semibold text-slate-900">
                           {route.destinationName}
                         </p>
                       </div>
@@ -393,7 +408,10 @@ export default function TripSharingPage() {
                 )}
               </section>
 
-              <section className="mt-5 border-t border-slate-200 pt-5" aria-label={t("metrics.sectionLabel")}>
+              <section
+                className="mt-5 border-t border-slate-200 pt-5"
+                aria-label={t("metrics.sectionLabel")}
+              >
                 <div className="grid grid-cols-2 divide-x divide-slate-200">
                   <div className="pr-4">
                     <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
