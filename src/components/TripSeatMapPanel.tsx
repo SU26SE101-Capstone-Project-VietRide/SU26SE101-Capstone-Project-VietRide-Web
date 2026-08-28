@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FiRefreshCw } from "react-icons/fi";
+import { FiMail, FiPhone, FiRefreshCw, FiTag, FiUser } from "react-icons/fi";
 import { PiBus, PiPath } from "react-icons/pi";
+import { useToastFeedback } from "../hooks/useToastFeedback";
+import { formatVietnamPhoneForDisplay } from "../utils/phone";
 import {
   disableOperatorTripSeat,
   enableOperatorTripSeat,
+  getOperatorBooking,
+  getOperatorBookings,
   getPublicTripSeatMap,
+  type OperatorBookingDetail,
   type TripSeatMap,
   type TripSeatMapSeat,
 } from "../api/vietride";
+import Modal from "./Modal";
 
 /**
  * Sơ đồ ghế của MỘT chuyến — khác hẳn sơ đồ ghế ở màn Phương tiện (đó là mẫu ghế
@@ -22,8 +28,8 @@ import {
  * Hai chế độ:
  * - Mặc định (màn Lượt đặt vé): chỉ đọc, ghế là `<span>`.
  * - `manageable` (màn Chuyến xe): ghế AVAILABLE/UNAVAILABLE thành nút để nhà xe
- *   khoá/mở ghế. Ghế HELD/BOOKED vẫn không bấm được — BE trả `409
- *   TRIP_SEAT_IN_USE` cho chúng, chặn sẵn ở đây để khỏi bắt người dùng ăn lỗi.
+ *   khoá/mở ghế. Ghế HELD không bấm được — BE trả `409 TRIP_SEAT_IN_USE`; ghế
+ *   BOOKED có thể bấm để xem thông tin người mua.
  *
  * Khoá/mở ghế trả về SƠ ĐỒ MỚI nguyên vẹn, nên panel thay cả `seatMap` bằng
  * response thay vì sửa một ghế trong state — BE có thể đổi kèm thứ khác.
@@ -38,12 +44,7 @@ const seatStatusClass: Record<string, string> = {
   UNAVAILABLE: "border-gray-200 bg-gray-100 text-gray-500 line-through",
 };
 
-const LEGEND_STATUSES = [
-  "AVAILABLE",
-  "HELD",
-  "BOOKED",
-  "UNAVAILABLE",
-] as const;
+const LEGEND_STATUSES = ["AVAILABLE", "HELD", "BOOKED", "UNAVAILABLE"] as const;
 
 type SeatGridColumn =
   | { kind: "seat"; col: number }
@@ -111,6 +112,11 @@ type TripSeatMapPanelProps = {
   onSeatsChanged?: (seatMap: TripSeatMap) => void;
 };
 
+type BookedSeatSelection = {
+  seatNumber: string;
+  booking: OperatorBookingDetail;
+};
+
 export default function TripSeatMapPanel({
   tripId,
   manageable = false,
@@ -120,7 +126,13 @@ export default function TripSeatMapPanel({
   const [seatMap, setSeatMap] = useState<TripSeatMap | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [busySeatNumber, setBusySeatNumber] = useState("");
+  const [bookedSeat, setBookedSeat] = useState<BookedSeatSelection | null>(
+    null,
+  );
+  const [isBookedSeatLoading, setIsBookedSeatLoading] = useState(false);
+  useToastFeedback({ message: success, error });
 
   // `t` đổi identity mỗi lần đổi ngôn ngữ; để nó trong deps của `load` là effect
   // bên dưới bắn lại và gọi API thừa. Giữ qua ref theo đúng pattern các màn khác.
@@ -157,30 +169,74 @@ export default function TripSeatMapPanel({
   /**
    * Khoá ghế trống / mở lại ghế đã khoá.
    *
-   * KHÔNG hỏi lý do: đây là thao tác đảo được ngay bằng chính nút đó, bắt gõ lý
-   * do cho mỗi ghế trong lúc đang xếp xe là cản trở chứ không phải kiểm soát.
-   * BE khai `reason` là optional nên bỏ trống hợp lệ.
+   * BE yêu cầu `reason` khi khóa ghế; dùng nhãn mặc định đã dịch để thao tác
+   * nhanh vẫn không gửi payload rỗng.
    */
   async function toggleSeat(seat: TripSeatMapSeat) {
     if (!manageable || LOCKED_SEAT_STATUSES.has(seat.status)) return;
 
     setBusySeatNumber(seat.seatNumber);
     setError("");
+    setSuccess("");
     try {
       const updated =
         seat.status === "UNAVAILABLE"
           ? await enableOperatorTripSeat(tripId, seat.seatNumber)
-          : await disableOperatorTripSeat(tripId, seat.seatNumber);
+          : await disableOperatorTripSeat(
+              tripId,
+              seat.seatNumber,
+              tRef.current("bookings.seatDisableReason"),
+            );
       setSeatMap(updated);
       onSeatsChanged?.(updated);
+      setSuccess(
+        tRef.current(
+          seat.status === "UNAVAILABLE"
+            ? "bookings.seatEnabledSuccess"
+            : "bookings.seatDisabledSuccess",
+        ),
+      );
+    } catch (err) {
+      setSuccess("");
+      setError(
+        err instanceof Error ? err.message : t("bookings.seatToggleFailed"),
+      );
+    } finally {
+      setBusySeatNumber("");
+    }
+  }
+
+  async function showBookedSeat(seat: TripSeatMapSeat) {
+    if (seat.status !== "BOOKED" || isBookedSeatLoading) return;
+
+    setIsBookedSeatLoading(true);
+    setError("");
+    try {
+      const bookings = await getOperatorBookings({
+        tripId,
+        page: 1,
+        pageSize: 100,
+      });
+      const details = await Promise.all(
+        bookings.items.map((booking) => getOperatorBooking(booking.id)),
+      );
+      const booking = details.find((item) =>
+        item.seats?.some((ticket) => ticket.seatNumber === seat.seatNumber),
+      );
+
+      if (booking) {
+        setBookedSeat({ seatNumber: seat.seatNumber, booking });
+      } else {
+        setError(tRef.current("bookings.bookedSeatNotFound"));
+      }
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : t("bookings.seatToggleFailed"),
+          : tRef.current("bookings.bookedSeatLoadFailed"),
       );
     } finally {
-      setBusySeatNumber("");
+      setIsBookedSeatLoading(false);
     }
   }
 
@@ -189,7 +245,7 @@ export default function TripSeatMapPanel({
     ? buildGridColumns(seatMap.seats, seatMap.aisles)
     : [];
   const gridTemplateColumns = `2.5rem ${gridColumns
-    .map((column) => column.kind === "aisle" ? "2.25rem" : "3.25rem")
+    .map((column) => (column.kind === "aisle" ? "2.25rem" : "3.25rem"))
     .join(" ")}`;
   const counts = (seatMap?.seats ?? []).reduce<Record<string, number>>(
     (acc, seat) => {
@@ -251,11 +307,15 @@ export default function TripSeatMapPanel({
         </p>
       )}
       {isLoading && !seatMap ? (
-        <p className="p-5 text-sm text-gray-500">{t("bookings.seatMapLoading")}</p>
+        <p className="p-5 text-sm text-gray-500">
+          {t("bookings.seatMapLoading")}
+        </p>
       ) : decks.length === 0 ? (
         // Lỗi tải đã nói rõ lý do rồi, thêm "chưa có dữ liệu ghế" là mâu thuẫn.
         error ? null : (
-          <p className="p-5 text-sm text-gray-500">{t("bookings.seatMapEmpty")}</p>
+          <p className="p-5 text-sm text-gray-500">
+            {t("bookings.seatMapEmpty")}
+          </p>
         )
       ) : (
         <div className="flex flex-wrap items-start justify-center gap-8 bg-slate-50/60 p-5 sm:p-8">
@@ -266,13 +326,21 @@ export default function TripSeatMapPanel({
                   {t("bookings.seatMapDeck", { deck })}
                 </p>
               )}
-              <div className="overflow-x-auto rounded-[2rem] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)] sm:p-5">
+              <div className="overflow-x-auto rounded-4xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)] sm:p-5">
                 <div className="mb-4 flex items-center justify-between rounded-2xl bg-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   <span className="inline-flex items-center gap-1.5">
-                    <PiBus aria-hidden="true" className="text-vr-800" size={17} />
+                    <PiBus
+                      aria-hidden="true"
+                      className="text-vr-800"
+                      size={17}
+                    />
                     {t("vehicles.frontOfVehicle", { defaultValue: "Đầu xe" })}
                   </span>
-                  <PiPath aria-hidden="true" className="text-slate-400" size={16} />
+                  <PiPath
+                    aria-hidden="true"
+                    className="text-slate-400"
+                    size={16}
+                  />
                 </div>
                 <div
                   role="grid"
@@ -311,7 +379,9 @@ export default function TripSeatMapPanel({
                           );
                         }
 
-                        const seat = seats.find((item) => item.col === column.col);
+                        const seat = seats.find(
+                          (item) => item.col === column.col,
+                        );
                         if (!seat) {
                           return (
                             <span
@@ -330,7 +400,26 @@ export default function TripSeatMapPanel({
                         const seatKey = `${seat.deck}-${seat.row}-${seat.col}-${seat.seatNumber}`;
                         const seatLabel = `${seat.seatNumber} · ${t(`bookings.seatStatus.${seat.status}`, { defaultValue: seat.status })}`;
                         const seatClass = `inline-flex h-12 min-w-[3.25rem] items-center justify-center rounded-xl border px-2 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${seatStatusClass[seat.status] ?? seatStatusClass.UNAVAILABLE}`;
-                        const isSeatLocked = LOCKED_SEAT_STATUSES.has(seat.status);
+                        const isSeatLocked = LOCKED_SEAT_STATUSES.has(
+                          seat.status,
+                        );
+
+                        if (seat.status === "BOOKED") {
+                          return (
+                            <button
+                              key={seatKey}
+                              type="button"
+                              role="gridcell"
+                              disabled={isBookedSeatLoading}
+                              onClick={() => void showBookedSeat(seat)}
+                              aria-label={`${seatLabel} — ${t("bookings.viewBookedSeat")}`}
+                              title={t("bookings.viewBookedSeat")}
+                              className={`${seatClass} cursor-pointer focus:outline-none focus:ring-2 focus:ring-vr-300 disabled:cursor-not-allowed disabled:opacity-50`}
+                            >
+                              {seat.seatNumber}
+                            </button>
+                          );
+                        }
 
                         if (!manageable || isSeatLocked) {
                           return (
@@ -374,6 +463,93 @@ export default function TripSeatMapPanel({
           ))}
         </div>
       )}
+      <Modal
+        open={Boolean(bookedSeat)}
+        onClose={() => setBookedSeat(null)}
+        title={t("bookings.bookedSeatInfoTitle")}
+        subtitle={
+          bookedSeat
+            ? t("bookings.bookedSeatInfoSubtitle", {
+                seat: bookedSeat.seatNumber,
+              })
+            : undefined
+        }
+        icon={<FiUser />}
+        footer={
+          <button
+            type="button"
+            onClick={() => setBookedSeat(null)}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {t("close", { ns: "common" })}
+          </button>
+        }
+      >
+        {bookedSeat && (
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-vr-100 bg-linear-to-br from-vr-50 via-white to-cyan-50 p-4 sm:p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-vr-800 text-xl font-bold text-white shadow-sm ring-4 ring-vr-100">
+                  {bookedSeat.seatNumber}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-vr-900">
+                    {t("bookings.bookedSeatLabel")}
+                  </p>
+                  <p className="mt-1 truncate text-lg font-bold text-slate-950">
+                    {bookedSeat.booking.buyer?.displayName || "-"}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1.5 font-semibold text-vr-900 shadow-sm ring-1 ring-vr-100">
+                  <FiTag aria-hidden="true" />
+                  {bookedSeat.booking.bookingCode || "-"}
+                </span>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1.5 font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                  {t("bookings.seatStatus.BOOKED")}
+                </span>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="mb-3 text-sm font-bold tracking-tight text-slate-900">
+                {t("bookings.buyerInfo")}
+              </h3>
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+                  <dt className="text-xs font-medium text-slate-500">
+                    {t("bookings.fullNameLabel")}
+                  </dt>
+                  <dd className="mt-1.5 wrap-break-word text-sm font-semibold text-slate-900">
+                    {bookedSeat.booking.buyer?.displayName || "-"}
+                  </dd>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                    <FiPhone aria-hidden="true" />
+                    {t("bookings.phoneLabel")}
+                  </dt>
+                  <dd className="mt-1.5 wrap-break-word text-sm font-semibold text-slate-900">
+                    {formatVietnamPhoneForDisplay(
+                      bookedSeat.booking.buyer?.phone,
+                    )}
+                  </dd>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:col-span-2">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                    <FiMail aria-hidden="true" />
+                    {t("bookings.emailLabel")}
+                  </dt>
+                  <dd className="mt-1.5 break-all text-sm font-semibold text-slate-900">
+                    {bookedSeat.booking.buyer?.email || "-"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        )}
+      </Modal>
     </section>
   );
 }

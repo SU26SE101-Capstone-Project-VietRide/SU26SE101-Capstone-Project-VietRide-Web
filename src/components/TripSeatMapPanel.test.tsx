@@ -4,18 +4,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   disableOperatorTripSeat,
   enableOperatorTripSeat,
+  getOperatorBooking,
+  getOperatorBookings,
   getPublicTripSeatMap,
 } from "../api/vietride";
+import { useToastFeedback } from "../hooks/useToastFeedback";
 import TripSeatMapPanel from "./TripSeatMapPanel";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock("../hooks/useToastFeedback", () => ({
+  useToastFeedback: vi.fn(),
+}));
+
 vi.mock("../api/vietride", () => ({
   getPublicTripSeatMap: vi.fn(),
   disableOperatorTripSeat: vi.fn(),
   enableOperatorTripSeat: vi.fn(),
+  getOperatorBooking: vi.fn(),
+  getOperatorBookings: vi.fn(),
 }));
 
 const seatMap = {
@@ -23,10 +32,31 @@ const seatMap = {
   vehicleType: "SLEEPER_BUS",
   aisles: [{ afterCol: 2 }],
   seats: [
-    { seatNumber: "A01", status: "BOOKED", type: "BED", row: 1, col: 1, deck: 1 },
+    {
+      seatNumber: "A01",
+      status: "BOOKED",
+      type: "BED",
+      row: 1,
+      col: 1,
+      deck: 1,
+    },
     { seatNumber: "A02", status: "HELD", type: "BED", row: 1, col: 2, deck: 1 },
-    { seatNumber: "A03", status: "AVAILABLE", type: "BED", row: 2, col: 4, deck: 1 },
-    { seatNumber: "B01", status: "UNAVAILABLE", type: "BED", row: 1, col: 1, deck: 2 },
+    {
+      seatNumber: "A03",
+      status: "AVAILABLE",
+      type: "BED",
+      row: 2,
+      col: 4,
+      deck: 1,
+    },
+    {
+      seatNumber: "B01",
+      status: "UNAVAILABLE",
+      type: "BED",
+      row: 1,
+      col: 1,
+      deck: 2,
+    },
   ],
 };
 
@@ -51,8 +81,12 @@ describe("TripSeatMapPanel", () => {
     render(<TripSeatMapPanel tripId="trip-1" />);
 
     await screen.findByText("A01");
-    expect(screen.getAllByLabelText("vehicles.aisleAfterColumn")).toHaveLength(3);
-    expect(screen.getAllByLabelText("vehicles.emptyPosition").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("vehicles.aisleAfterColumn")).toHaveLength(
+      3,
+    );
+    expect(
+      screen.getAllByLabelText("vehicles.emptyPosition").length,
+    ).toBeGreaterThan(0);
   });
 
   // HELD là trạng thái quan trọng nhất với nhà xe: ghế khách đang giữ chờ trả
@@ -61,8 +95,12 @@ describe("TripSeatMapPanel", () => {
     render(<TripSeatMapPanel tripId="trip-1" />);
 
     await screen.findByText("A01");
-    expect(screen.getByText(/bookings\.seatStatus\.HELD \(1\)/)).toBeInTheDocument();
-    expect(screen.getByText(/bookings\.seatStatus\.BOOKED \(1\)/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/bookings\.seatStatus\.HELD \(1\)/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/bookings\.seatStatus\.BOOKED \(1\)/),
+    ).toBeInTheDocument();
   });
 
   it("bấm tải lại thì gọi lại API", async () => {
@@ -98,20 +136,89 @@ describe("TripSeatMapPanel — chế độ quản lý ghế", () => {
     vi.mocked(getPublicTripSeatMap).mockResolvedValue(seatMap);
   });
 
-  it("chỉ ghế trống và ghế đã khóa mới bấm được", async () => {
+  it("cho phép xem ghế đã bán và chỉ khóa/mở được ghế phù hợp", async () => {
     render(<TripSeatMapPanel tripId="trip-1" manageable />);
 
     await screen.findByText("A01");
-    // AVAILABLE + UNAVAILABLE => nút; BOOKED + HELD => không phải nút, vì BE
-    // trả `409 TRIP_SEAT_IN_USE` cho chúng.
-    expect(screen.getByRole("gridcell", { name: /A03/ }).tagName).toBe("BUTTON");
-    expect(screen.getByRole("gridcell", { name: /B01/ }).tagName).toBe("BUTTON");
-    expect(screen.getByRole("gridcell", { name: /A01/ }).tagName).not.toBe(
+    // AVAILABLE + UNAVAILABLE dùng để khóa/mở; BOOKED dùng để xem người mua.
+    expect(screen.getByRole("gridcell", { name: /A03/ }).tagName).toBe(
+      "BUTTON",
+    );
+    expect(screen.getByRole("gridcell", { name: /B01/ }).tagName).toBe(
+      "BUTTON",
+    );
+    expect(screen.getByRole("gridcell", { name: /A01/ }).tagName).toBe(
       "BUTTON",
     );
     expect(screen.getByRole("gridcell", { name: /A02/ }).tagName).not.toBe(
       "BUTTON",
     );
+  });
+
+  it("tải và hiển thị người mua khi bấm ghế đã bán", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorBookings).mockResolvedValue({
+      items: [
+        {
+          id: "booking-1",
+          tripId: "trip-1",
+          seatCount: 1,
+          totalAmount: 100000,
+          createdAt: "2026-08-28T10:00:00Z",
+          buyer: null,
+          trip: {},
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    vi.mocked(getOperatorBooking).mockResolvedValue({
+      id: "booking-1",
+      bookingCode: "VR-BOOK-001",
+      buyerUserId: "buyer-1",
+      tripId: "trip-1",
+      trip: {},
+      seatCount: 1,
+      baseFare: 100000,
+      discountAmount: 0,
+      totalAmount: 100000,
+      createdAt: "2026-08-28T10:00:00Z",
+      buyer: {
+        userId: "buyer-1",
+        displayName: "Nguyen Van An",
+        phone: "0901234567",
+        email: "an@example.com",
+        avatarUrl: null,
+      },
+      seats: [
+        {
+          passengerRecordId: "passenger-1",
+          ticketId: "ticket-1",
+          seatNumber: "A01",
+          ticketStatus: "PAID",
+          boardingStatus: "PENDING",
+        },
+      ],
+    });
+    render(<TripSeatMapPanel tripId="trip-1" manageable />);
+
+    await screen.findByText("A01");
+    await user.click(screen.getByRole("gridcell", { name: /A01/ }));
+
+    expect(await screen.findAllByText("Nguyen Van An")).toHaveLength(2);
+    expect(screen.getByText("0901234567")).toBeInTheDocument();
+    expect(screen.getByText("an@example.com")).toBeInTheDocument();
+    expect(screen.getByText("VR-BOOK-001")).toBeInTheDocument();
+    expect(getOperatorBookings).toHaveBeenCalledWith({
+      tripId: "trip-1",
+      page: 1,
+      pageSize: 100,
+    });
+    expect(getOperatorBooking).toHaveBeenCalledWith("booking-1");
   });
 
   it("không dựng nút khi không bật chế độ quản lý", async () => {
@@ -144,9 +251,17 @@ describe("TripSeatMapPanel — chế độ quản lý ghế", () => {
     await user.click(screen.getByRole("gridcell", { name: /A03/ }));
 
     await waitFor(() =>
-      expect(disableOperatorTripSeat).toHaveBeenCalledWith("trip-1", "A03"),
+      expect(disableOperatorTripSeat).toHaveBeenCalledWith(
+        "trip-1",
+        "A03",
+        "bookings.seatDisableReason",
+      ),
     );
     expect(onSeatsChanged).toHaveBeenCalled();
+    expect(useToastFeedback).toHaveBeenLastCalledWith({
+      message: "bookings.seatDisabledSuccess",
+      error: "",
+    });
     // Sơ đồ mới có 2 ghế UNAVAILABLE nên chú giải phải đếm lại, không giữ số cũ.
     expect(
       await screen.findByText(/bookings\.seatStatus\.UNAVAILABLE \(2\)/),
@@ -164,6 +279,10 @@ describe("TripSeatMapPanel — chế độ quản lý ghế", () => {
     await waitFor(() =>
       expect(enableOperatorTripSeat).toHaveBeenCalledWith("trip-1", "B01"),
     );
+    expect(useToastFeedback).toHaveBeenLastCalledWith({
+      message: "bookings.seatEnabledSuccess",
+      error: "",
+    });
     expect(disableOperatorTripSeat).not.toHaveBeenCalled();
   });
 
