@@ -58,7 +58,8 @@
     "legendNote": "Bản đồ vẽ theo tuyến nhà xe đã đăng ký"
   },
   "actions": {
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "skipToContent": "Bỏ qua đến nội dung chính"
   },
   "errors": {
     "title": "Không thể mở hành trình",
