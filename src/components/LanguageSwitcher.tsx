@@ -21,24 +21,22 @@ export default function LanguageSwitcher({ compact = false }: LanguageSwitcherPr
 
   return (
     <div
-      className={`flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 ${
-        compact ? "" : ""
-      }`}
+      className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"
       role="group"
       aria-label={t("language.label")}
     >
-      {!compact && (
+      {!compact ? (
         <span className="hidden items-center gap-1 px-2 text-xs text-gray-500 lg:flex">
-          <FiGlobe size={14} />
+          <FiGlobe size={14} aria-hidden="true" />
           {t("language.label")}
         </span>
-      )}
+      ) : null}
       {SUPPORTED_LANGUAGES.map((lang) => (
         <button
           key={lang}
           type="button"
           onClick={() => switchLanguage(lang)}
-          className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+          className={`min-h-11 min-w-11 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors sm:min-h-0 sm:min-w-0 ${
             current === lang
               ? "bg-white text-vr-900 shadow-sm"
               : "text-gray-600 hover:text-gray-900"
