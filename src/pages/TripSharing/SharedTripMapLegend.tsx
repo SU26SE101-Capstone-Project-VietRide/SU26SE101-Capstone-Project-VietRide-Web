@@ -1,6 +1,6 @@
-// Chú giải bản đồ cho trang chia sẻ hành trình — cùng kiểu THANH NGANG như chú
-// giải màn Tuyến & điểm dừng và Trung tâm vận hành, chỉ giữ những mục khách
-// nhận link thực sự thấy trên bản đồ (không có trạng thái đội xe).
+// Chú giải bản đồ cho trang chia sẻ hành trình — cùng ngôn ngữ màu với bản đồ
+// tuyến trong hệ thống, nhưng giữ dạng một hàng ngang để không che quá nhiều
+// không gian bản đồ trên điện thoại.
 import { useTranslation } from "react-i18next";
 import { FiMapPin } from "react-icons/fi";
 
@@ -13,25 +13,16 @@ import {
 } from "../../components/mapRouteStyle";
 
 type SharedTripMapLegendProps = {
-  /** Có vẽ đường tuyến (polyline) không */
   showRoute: boolean;
-  /**
-   * Có pin bến đi/bến đến không. Tách khỏi `showRoute` vì tuyến chưa lưu
-   * polyline vẫn chấm được hai bến — gộp chung thì bản đồ có pin mà chú giải
-   * lại không giải thích pin đó là gì.
-   */
   showEndpoints: boolean;
-  /** Có điểm dừng giữa tuyến (đĩa đánh số) không */
   showStops: boolean;
-  /** Có đoạn tuyến xe đã đi qua không */
   showTraveled: boolean;
-  /** Có marker xe trên bản đồ không */
   showVehicle: boolean;
 };
 
 function LineLegendItem({ color, label }: { color: string; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
       <span
         aria-hidden="true"
         className="h-1.5 w-6 shrink-0 rounded-full"
@@ -55,22 +46,32 @@ export default function SharedTripMapLegend({
     <aside
       aria-label={t("map.legend")}
       data-testid="shared-trip-map-legend"
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm"
+      className="flex w-max min-w-full flex-nowrap items-center gap-4 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-sm"
     >
-      {showEndpoints && (
+      {showVehicle ? (
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-700">
+          <span
+            aria-hidden="true"
+            className="h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: vehicleMovingColor }}
+          />
+          {t("map.legendVehicle")}
+        </span>
+      ) : null}
+      {showEndpoints ? (
         <>
-          <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
             <FiMapPin aria-hidden="true" color={originStopColor} size={15} />
             {t("map.legendOrigin")}
           </span>
-          <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
             <FiMapPin aria-hidden="true" color={destinationStopColor} size={15} />
             {t("map.legendDestination")}
           </span>
         </>
-      )}
-      {showStops && (
-        <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+      ) : null}
+      {showStops ? (
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
           <span
             aria-hidden="true"
             className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 bg-white text-[9px] font-bold"
@@ -80,30 +81,16 @@ export default function SharedTripMapLegend({
           </span>
           {t("map.legendStop")}
         </span>
-      )}
-      {showTraveled && (
-        <LineLegendItem
-          color={routeTraveledColor}
-          label={t("map.legendTraveled")}
-        />
-      )}
-      {showRoute && (
-        <LineLegendItem
-          color={routeRemainingColor}
-          label={t("map.legendRemaining")}
-        />
-      )}
-      {showVehicle && (
-        <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
-          <span
-            aria-hidden="true"
-            className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: vehicleMovingColor }}
-          />
-          {t("map.legendVehicle")}
-        </span>
-      )}
-      <span className="ml-auto text-xs text-gray-600">{t("map.legendNote")}</span>
+      ) : null}
+      {showTraveled ? (
+        <LineLegendItem color={routeTraveledColor} label={t("map.legendTraveled")} />
+      ) : null}
+      {showRoute ? (
+        <LineLegendItem color={routeRemainingColor} label={t("map.legendRemaining")} />
+      ) : null}
+      <span className="hidden shrink-0 text-xs text-slate-500 md:inline">
+        {t("map.legendNote")}
+      </span>
     </aside>
   );
 }
