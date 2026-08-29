@@ -258,11 +258,11 @@ export default function Vouchers() {
         label={t("vouchers.searchPlaceholder")}
         value={search}
         onChange={(event) => {
-            setSearch(event.target.value);
-            setVoucherPage(1);
-          }}
+          setSearch(event.target.value);
+          setVoucherPage(1);
+        }}
         placeholder={t("vouchers.searchPlaceholder")}
-        inputClassName="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-vr-500 focus:bg-white"
+        inputClassName="w-full min-h-[50px] rounded-[9999px] border border-slate-300 bg-white py-3 pl-11 pr-4 text-[15px] text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
         wrapperClassName="relative min-w-0 flex-1"
       />
       <CustomSelect
@@ -271,7 +271,7 @@ export default function Vouchers() {
           setStatusFilter(event.target.value);
           setVoucherPage(1);
         }}
-        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[190px]"
+        className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition lg:w-[190px]"
         aria-label={t("vouchers.filterStatus")}
       >
         <option value="">{t("vouchers.allStatuses")}</option>
@@ -284,7 +284,7 @@ export default function Vouchers() {
           setServiceFilter(event.target.value);
           setVoucherPage(1);
         }}
-        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm lg:w-[210px]"
+        className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition lg:w-[210px]"
         aria-label={t("vouchers.filterService")}
       >
         <option value="">{t("vouchers.allServices")}</option>
@@ -323,7 +323,6 @@ export default function Vouchers() {
         </div>
       </div>
 
-
       <div className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
@@ -357,35 +356,35 @@ export default function Vouchers() {
             kết quả là ô tìm kiếm biến mất, không còn chỗ nào sửa từ khoá. Ô tìm
             kiếm cũng chớp tắt mỗi lần tải lại vì `isLoading` dùng chung nhánh. */}
         <VoucherTable
-            toolbar={voucherToolbar}
-            isLoading={isLoading}
-            emptyState={
-              <EmptyState
-                tone="plain"
-                icon={<FiTag size={26} />}
-                title={t("vouchers.emptyType", {
-                  type: t("vouchers.emptyTypeBooking"),
-                })}
-                description={t("vouchers.emptyHint")}
-                action={
-                  <Button variant="primary" onClick={openCreateModal}>
-                    <FiPlus size={16} />
-                    {t("vouchers.create")}
-                  </Button>
-                }
-              />
-            }
-            vouchers={vouchers}
-            page={voucherPage}
-            pageSize={pageSize}
-            totalItems={totalVouchers}
-            onPageChange={setVoucherPage}
-            getFundingLabel={getFundingLabel}
-            getOperatorScopeLabel={getOperatorScopeLabel}
-            onView={setDetailVoucher}
-            onEdit={openEditModal}
-            onDelete={setDeletingVoucher}
-          />
+          toolbar={voucherToolbar}
+          isLoading={isLoading}
+          emptyState={
+            <EmptyState
+              tone="plain"
+              icon={<FiTag size={26} />}
+              title={t("vouchers.emptyType", {
+                type: t("vouchers.emptyTypeBooking"),
+              })}
+              description={t("vouchers.emptyHint")}
+              action={
+                <Button variant="primary" onClick={openCreateModal}>
+                  <FiPlus size={16} />
+                  {t("vouchers.create")}
+                </Button>
+              }
+            />
+          }
+          vouchers={vouchers}
+          page={voucherPage}
+          pageSize={pageSize}
+          totalItems={totalVouchers}
+          onPageChange={setVoucherPage}
+          getFundingLabel={getFundingLabel}
+          getOperatorScopeLabel={getOperatorScopeLabel}
+          onView={setDetailVoucher}
+          onEdit={openEditModal}
+          onDelete={setDeletingVoucher}
+        />
       </div>
 
       <Modal
@@ -500,7 +499,11 @@ export default function Vouchers() {
       <Modal
         open={Boolean(deletingVoucher)}
         onClose={() => setDeletingVoucher(null)}
-        icon={<span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600"><FiTrash2 size={20} /></span>}
+        icon={
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
+            <FiTrash2 size={20} />
+          </span>
+        }
         title={t("vouchers.deleteConfirm")}
         subtitle={deletingVoucher?.code}
         footer={
@@ -523,15 +526,23 @@ export default function Vouchers() {
         }
       >
         <div className="space-y-4">
-  <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
-    <p className="text-sm font-semibold text-red-900">{t("vouchers.deleteConfirm")}</p>
-    <div className="mt-3 rounded-xl border border-red-100 bg-white px-4 py-3">
-      <p className="font-mono text-sm font-bold text-slate-900">{deletingVoucher?.code}</p>
-      <p className="mt-1 text-sm text-slate-600">{deletingVoucher?.name}</p>
-    </div>
-  </div>
-  <p className="text-sm leading-6 text-slate-500">{t("vouchers.deleteWarning")}</p>
-</div>
+          <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+            <p className="text-sm font-semibold text-red-900">
+              {t("vouchers.deleteConfirm")}
+            </p>
+            <div className="mt-3 rounded-xl border border-red-100 bg-white px-4 py-3">
+              <p className="font-mono text-sm font-bold text-slate-900">
+                {deletingVoucher?.code}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {deletingVoucher?.name}
+              </p>
+            </div>
+          </div>
+          <p className="text-sm leading-6 text-slate-500">
+            {t("vouchers.deleteWarning")}
+          </p>
+        </div>
       </Modal>
     </div>
   );

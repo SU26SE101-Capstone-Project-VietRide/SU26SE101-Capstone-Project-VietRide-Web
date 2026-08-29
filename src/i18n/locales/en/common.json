@@ -249,7 +249,8 @@
     "DELIVERY_REJECTED": "Delivery rejected",
     "RETURN_INITIATED": "Return initiated",
     "RETURNED": "Returned",
-    "PENDING_OPERATOR_ACTION": "Pending operator action"
+    "PENDING_OPERATOR_ACTION": "Pending operator action",
+    "QUEUED": "Queued"
   },
   "dateTimePicker": {
     "selectDate": "Select date",
@@ -282,7 +283,6 @@
     "roleLabel": "Role",
     "systemRole": "System administrator",
     "operatorAdminRole": "Operator admin",
-    "securityTitle": "Account security",
     "changePasswordTitle": "Change password",
     "changePasswordHint": "After changing your password, you will need to sign in again on your devices.",
     "currentPassword": "Current password",
@@ -295,7 +295,6 @@
     "passwordMismatch": "Password confirmation does not match.",
     "passwordChanged": "Password changed successfully. Please sign in again.",
     "passwordChangeFailed": "Unable to change password. Please try again.",
-    "securityHint": "System administrator accounts are managed by the platform security controls.",
     "home": "Home",
     "userProfile": "User profile",
     "myProfile": "My profile",

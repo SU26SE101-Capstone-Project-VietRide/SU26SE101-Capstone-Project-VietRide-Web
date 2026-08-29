@@ -14,6 +14,19 @@ export function SettlementsTable({ items, t, tc }: { items: TripSettlement[]; t:
   return (
     <div className="overflow-x-auto p-4" tabIndex={0}>
       <table className="w-full min-w-[1020px] table-fixed text-center text-sm">
+        {/* `table-fixed` mà không khai bề rộng thì 6 cột chia đều: cột mũi tên
+            bung/thu chỉ cần chỗ cho một icon 16px lại chiếm trọn 1/6 bảng, và
+            vì preflight của Tailwind đặt `svg { display: block }` nên icon nằm
+            sát mép trái ô — nhìn như một cột dữ liệu bị lệch khỏi tiêu đề. Khai
+            width để phần dư trả lại cho hai cột mã (21–22 ký tự). */}
+        <colgroup>
+          <col className="w-[20%]" />
+          <col className="w-[22%]" />
+          <col className="w-[17%]" />
+          <col className="w-[16%]" />
+          <col className="w-[20%]" />
+          <col className="w-[5%]" />
+        </colgroup>
         <thead>
           <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
             <th className="px-4 py-3">{t("wallet.settlementCode")}</th>
@@ -21,7 +34,7 @@ export function SettlementsTable({ items, t, tc }: { items: TripSettlement[]; t:
             <th className="px-4 py-3">{t("wallet.statusLabel")}</th>
             <th className="px-4 py-3">{t("wallet.receivedAmount")}</th>
             <th className="px-4 py-3">{t("wallet.form")}</th>
-            <th className="px-4 py-3" />
+            <th className="px-2 py-3" />
           </tr>
         </thead>
         <tbody>
@@ -90,7 +103,9 @@ function SettlementRowGroup({
         <td className="px-4 py-3">
           {item.settlementMethod ? t(`wallet.methods.${item.settlementMethod}`) : "-"}
         </td>
-        <td className="px-4 py-3 text-gray-500">{expanded ? <FiChevronUp /> : <FiChevronDown />}</td>
+        <td className="px-2 py-3 text-gray-500">
+          {expanded ? <FiChevronUp className="mx-auto" /> : <FiChevronDown className="mx-auto" />}
+        </td>
       </tr>
       {expanded && <SettlementDetailRow item={item} t={t} tc={tc} />}
     </>

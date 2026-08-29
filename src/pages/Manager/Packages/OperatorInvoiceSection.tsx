@@ -40,7 +40,8 @@ export default function OperatorInvoiceSection() {
   // mỗi render — giữ qua ref thay vì đưa vào deps, nếu không effect chạy lại
   // liên tục và mở lại modal. `setSearchParams` dùng dạng updater để không phải
   // phụ thuộc `searchParams`.
-  const openInvoiceDetailRef = useRef<(invoiceId: string) => Promise<void>>(null);
+  const openInvoiceDetailRef =
+    useRef<(invoiceId: string) => Promise<void>>(null);
   useEffect(() => {
     openInvoiceDetailRef.current = openInvoiceDetail;
   });
@@ -169,18 +170,24 @@ export default function OperatorInvoiceSection() {
           placeholder={t("packages.invoiceSearchPlaceholder")}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="mt-3 w-full max-w-md rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+          className="mt-3 h-12 w-full max-w-[760px] rounded-[9999px] border border-[#9edfe5] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(158,223,229,0.18)] outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
         />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 text-center text-xs font-semibold uppercase text-gray-600">
-              <th className="px-4 py-3 text-center">{t("packages.invoiceNumber")}</th>
+              <th className="px-4 py-3 text-center">
+                {t("packages.invoiceNumber")}
+              </th>
               <th className="px-4 py-3 text-center">{t("packages.period")}</th>
               <th className="px-4 py-3 text-center">{t("packages.amount")}</th>
-              <th className="px-4 py-3 text-center">{t("packages.invoiceStatus")}</th>
-              <th className="px-4 py-3 text-center">{t("packages.invoiceFile")}</th>
+              <th className="px-4 py-3 text-center">
+                {t("packages.invoiceStatus")}
+              </th>
+              <th className="px-4 py-3 text-center">
+                {t("packages.invoiceFile")}
+              </th>
               <th className="px-4 py-3 text-center">{t("packages.action")}</th>
             </tr>
           </thead>
@@ -211,7 +218,9 @@ export default function OperatorInvoiceSection() {
                     {formatNumber(invoice.amount)} đ
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <Badge tone={invoice.status === "ISSUED" ? "success" : "neutral"}>
+                    <Badge
+                      tone={invoice.status === "ISSUED" ? "success" : "neutral"}
+                    >
                       {tc(`enumLabels.${invoice.status}`, {
                         defaultValue: invoice.status,
                       })}

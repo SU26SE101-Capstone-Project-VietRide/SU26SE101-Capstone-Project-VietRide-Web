@@ -493,7 +493,6 @@ export default function TripListPage() {
                   setFromDate(event.target.value);
                   setPage(1);
                 }}
-                className={filterControlClass}
               />
             </div>
             <div>
@@ -507,7 +506,6 @@ export default function TripListPage() {
                   setToDate(event.target.value);
                   setPage(1);
                 }}
-                className={filterControlClass}
               />
             </div>
           </div>

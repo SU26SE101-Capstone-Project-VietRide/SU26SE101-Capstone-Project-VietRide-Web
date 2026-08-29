@@ -267,6 +267,9 @@ export default function Profile() {
   const currentUser = getAuthUser();
   const isOperator = isOperatorRole(currentUser?.role);
   const isSystemAdmin = currentUser?.role === "SYSTEM_ADMIN";
+  // Tài khoản quản trị hệ thống thường không có số điện thoại; khi đó khối
+  // "Thông tin tài khoản" chỉ còn mỗi dấu gạch nên ẩn hẳn cho đỡ trống.
+  const systemAdminPhone = currentUser?.phone?.trim() ?? "";
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     currentUser?.avatarUrl ?? null,
   );
@@ -833,32 +836,22 @@ export default function Profile() {
         </div>
       )}
 
-      {isSystemAdmin && (
-        <div className="space-y-5">
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-bold tracking-tight text-gray-900">
-              {t("profilePage.accountInfo")}
-            </h2>
-            <div className="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2">
-              <div className="border-b border-gray-100 py-3 sm:col-span-2">
-                <p className="text-xs font-medium text-gray-500">
-                  {t("profilePage.phone")}
-                </p>
-                <p className="mt-1 font-semibold text-gray-900">
-                  {formatVietnamPhoneForDisplay(currentUser?.phone ?? "") || "-"}
-                </p>
-              </div>
+      {isSystemAdmin && systemAdminPhone && (
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-bold tracking-tight text-gray-900">
+            {t("profilePage.accountInfo")}
+          </h2>
+          <div className="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2">
+            <div className="py-3 sm:col-span-2">
+              <p className="text-xs font-medium text-gray-500">
+                {t("profilePage.phone")}
+              </p>
+              <p className="mt-1 font-semibold text-gray-900">
+                {formatVietnamPhoneForDisplay(systemAdminPhone)}
+              </p>
             </div>
-          </section>
-          <section className="rounded-2xl border border-vr-100 bg-vr-50/50 p-5">
-            <h2 className="text-base font-bold tracking-tight text-gray-900">
-              {t("profilePage.securityTitle")}
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-gray-600">
-              {t("profilePage.securityHint")}
-            </p>
-          </section>
-        </div>
+          </div>
+        </section>
       )}
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">

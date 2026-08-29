@@ -377,7 +377,8 @@ const vietnameseMessages: Record<string, string> = {
   TRIP_NOT_EDITABLE: "Chuyến đi này hiện không thể chỉnh sửa.",
   TRIP_NOT_FOUND: "Không tìm thấy chuyến đi.",
   TRIP_NOT_IN_PROGRESS: "Chuyến đi hiện chưa bắt đầu.",
-  TRIP_NOT_SUBSTITUTABLE: "Không thể thay thế xe/tài xế cho chuyến này.",
+  TRIP_NOT_SUBSTITUTABLE:
+    "Chuyến này không còn được phép đổi xe. Vui lòng tải lại trạng thái chuyến.",
   TRIP_ROUTE_CHANGE_BOOKINGS_EXIST:
     "Không thể đổi tuyến vì chuyến đã có vé đặt.",
   TRIP_SEAT_IN_USE: "Ghế đang được sử dụng.",
@@ -394,6 +395,13 @@ const vietnameseMessages: Record<string, string> = {
   // Precheck exact-time cũ của substitute-vehicle, tách khỏi engine interval
   // (handoff API-driver-resource-availability mục 9.3).
   TRIP_CREW_CONFLICT: "Tài xế hoặc phụ xe đã có lịch bị trùng.",
+  // Đổi xe do sự cố: BE chặn việc chọn lại đúng tài nguyên của chuyến cũ
+  // (handoff 2026-08-30). FE đã lọc sẵn ở bộ chọn nên hai code này chỉ tới khi
+  // danh sách phía FE đã cũ — kèm theo đó là phải tải lại danh sách.
+  TRIP_VEHICLE_SAME_AS_OLD:
+    "Xe thay thế trùng với xe của chuyến cũ. Vui lòng chọn xe khác.",
+  TRIP_CREW_SAME_AS_OLD:
+    "Tài xế hoặc phụ xe mới trùng với kíp của chuyến cũ. Vui lòng chọn người khác.",
   TRIP_VEHICLE_SWAP_HELD_SEAT_CONFLICT:
     "Không thể đổi xe vì có ghế đang được giữ.",
   TRIP_VEHICLE_SWAP_TOO_LATE: "Đã quá thời hạn đổi xe cho chuyến này.",
@@ -436,6 +444,8 @@ const vietnameseFieldMessages: Record<string, string> = {
   "Status is not supported.": "Trạng thái không được hỗ trợ.",
   "Phone number must be a Vietnamese number in +84xxxxxxxxx or 0xxxxxxxxx format.":
     "Số điện thoại phải là số Việt Nam, dạng +84xxxxxxxxx hoặc 0xxxxxxxxx.",
+  "Destination arrived without confirmed terminal unload.":
+    "Đã đến điểm đến nhưng chưa xác nhận dỡ hàng tại bến cuối.",
   "value must be greater than 0.": "Giá trị phải lớn hơn 0.",
   "validUntil must be after validFrom.": "Ngày kết thúc phải sau ngày bắt đầu.",
   "totalUsageLimit must be greater than 0 when supplied.":

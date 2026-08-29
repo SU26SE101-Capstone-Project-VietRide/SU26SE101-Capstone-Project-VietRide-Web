@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -243,9 +237,9 @@ export default function DispatchPanel() {
   // Danh sách chuyến trung chuyển lấy thẳng từ BE (GET /v1/operator/shuttle-trips).
   // Trước đây màn chỉ nhớ các chuyến do chính trình duyệt này tạo qua localStorage,
   // nên đổi máy/đổi trình duyệt là mất sạch và điều độ viên khác không thấy gì.
-  const [shuttleTrips, setShuttleTrips] = useState<OperatorShuttleTripListItem[]>(
-    [],
-  );
+  const [shuttleTrips, setShuttleTrips] = useState<
+    OperatorShuttleTripListItem[]
+  >([]);
   const [isLoadingShuttleTrips, setIsLoadingShuttleTrips] = useState(true);
   const [shuttleTripsError, setShuttleTripsError] = useState("");
   const [shuttleTripsVersion, setShuttleTripsVersion] = useState(0);
@@ -431,9 +425,7 @@ export default function DispatchPanel() {
           )
             ? current.vehicleId
             : nextVehicles[0]?.id || "",
-          driverId: nextDrivers.some(
-            (driver) => driver.id === current.driverId,
-          )
+          driverId: nextDrivers.some((driver) => driver.id === current.driverId)
             ? current.driverId
             : nextDrivers[0]?.id || "",
         }));
@@ -932,7 +924,9 @@ export default function DispatchPanel() {
 
   function getSubmitError(error: unknown) {
     if (!(error instanceof ApiRequestError)) {
-      return error instanceof Error ? error.message : t("dispatch.assignFailed");
+      return error instanceof Error
+        ? error.message
+        : t("dispatch.assignFailed");
     }
 
     // Conflict tài nguyên: message chung không nói rõ vướng ở đâu, phải đọc
@@ -956,7 +950,8 @@ export default function DispatchPanel() {
         defaultValue: "Tài xế đã có chuyến trùng thời gian.",
       }),
       SHUTTLE_VEHICLE_CONFLICT: t("dispatch.vehicleConflict", {
-        defaultValue: "Xe đã có chuyến trùng thời gian hoặc không còn hoạt động.",
+        defaultValue:
+          "Xe đã có chuyến trùng thời gian hoặc không còn hoạt động.",
       }),
       SHUTTLE_REQUEST_SET_CHANGED: t("dispatch.requestSetChanged", {
         defaultValue:
@@ -1050,8 +1045,7 @@ export default function DispatchPanel() {
     const selectedVehicle = vehicles.find(
       (vehicle) => vehicle.id === assignForm.vehicleId,
     );
-    const idempotencyKey =
-      idempotencyKeyRef.current ?? createIdempotencyKey();
+    const idempotencyKey = idempotencyKeyRef.current ?? createIdempotencyKey();
     idempotencyKeyRef.current = idempotencyKey;
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -1132,7 +1126,8 @@ export default function DispatchPanel() {
 
     // Chỉ gửi field thật sự đổi — BE hiểu field vắng mặt là "giữ nguyên".
     const vehicleId =
-      reassignForm.vehicleId && reassignForm.vehicleId !== reassignTrip.vehicle.id
+      reassignForm.vehicleId &&
+      reassignForm.vehicleId !== reassignTrip.vehicle.id
         ? reassignForm.vehicleId
         : undefined;
     const driverUserId =
@@ -1214,8 +1209,7 @@ export default function DispatchPanel() {
     setCancelTarget({
       kind: "trip",
       shuttleTripId: trip.shuttleTripId,
-      label:
-        trip.vehicle.licensePlate.trim() || t("dispatch.unknownVehicle"),
+      label: trip.vehicle.licensePlate.trim() || t("dispatch.unknownVehicle"),
     });
   }
 
@@ -1291,10 +1285,7 @@ export default function DispatchPanel() {
 
   const passengersOnPage = useMemo(
     () =>
-      groups.reduce(
-        (total, group) => total + group.pendingPassengerCount,
-        0,
-      ),
+      groups.reduce((total, group) => total + group.pendingPassengerCount, 0),
     [groups],
   );
 
@@ -1319,7 +1310,7 @@ export default function DispatchPanel() {
             setRefreshVersion((current) => current + 1);
           }}
           disabled={isLoading}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[9999px] border border-[#9edfe5] bg-white px-4 py-2 font-medium text-slate-700 shadow-[0_0_0_1px_rgba(158,223,229,0.18)] transition hover:border-[#7dc5cf] hover:bg-[#f3fffe] hover:text-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <FiRefreshCw
             size={18}
@@ -1379,7 +1370,7 @@ export default function DispatchPanel() {
             placeholder={t("dispatch.requestSearchPlaceholder")}
             value={requestSearch}
             onChange={(event) => setRequestSearch(event.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
+            className="h-12 w-full rounded-[9999px] border border-slate-300 bg-white px-4 py-3 text-[15px] text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
           />
           <label className="min-w-0">
             <span className="sr-only">{t("dispatch.requestFromLabel")}</span>
@@ -1393,7 +1384,6 @@ export default function DispatchPanel() {
                 setRequestFrom(event.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
             />
           </label>
           <label className="min-w-0">
@@ -1408,7 +1398,6 @@ export default function DispatchPanel() {
                 setRequestTo(event.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100"
             />
           </label>
         </div>
@@ -1469,7 +1458,9 @@ export default function DispatchPanel() {
             {/* `from`/`to` là ngày Asia/Ho_Chi_Minh, `to` tính trọn ngày. */}
             <div className="w-40">
               <label className="min-w-0">
-                <span className="sr-only">{t("dispatch.shuttleFromLabel")}</span>
+                <span className="sr-only">
+                  {t("dispatch.shuttleFromLabel")}
+                </span>
                 <CustomDateTimeInput
                   type="date"
                   value={shuttleFrom}
@@ -1480,7 +1471,6 @@ export default function DispatchPanel() {
                     setShuttleFrom(event.target.value);
                     setShuttleTripPage(1);
                   }}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-1 focus:ring-vr-500/35"
                 />
               </label>
             </div>
@@ -1497,7 +1487,6 @@ export default function DispatchPanel() {
                     setShuttleTo(event.target.value);
                     setShuttleTripPage(1);
                   }}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-1 focus:ring-vr-500/35"
                 />
               </label>
             </div>
@@ -1524,7 +1513,7 @@ export default function DispatchPanel() {
               type="button"
               onClick={() => setShuttleTripsVersion((current) => current + 1)}
               disabled={isLoadingShuttleTrips}
-              className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-[9999px] border border-[#9edfe5] bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-[0_0_0_1px_rgba(158,223,229,0.18)] transition hover:border-[#7dc5cf] hover:bg-[#f3fffe] hover:text-vr-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <FiRefreshCw
                 size={15}

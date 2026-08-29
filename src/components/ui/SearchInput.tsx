@@ -1,8 +1,10 @@
 import type { InputHTMLAttributes } from "react";
 import { FiSearch } from "react-icons/fi";
-import { inputClass } from "../form/formClasses";
 
-type SearchInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className"> & {
+type SearchInputProps = Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "className"
+> & {
   /**
    * Tên khả truy cập. Placeholder KHÔNG thay được nhãn: nó biến mất ngay khi
    * người dùng gõ, và trình đọc màn hình không phải lúc nào cũng đọc ra.
@@ -31,6 +33,31 @@ type SearchInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className">
  * Trước đây pattern này được chép tay ở 23 chỗ, và đúng một màn (Ví nhà xe)
  * quên mất icon kính lúp nên nhìn không ra là ô tìm kiếm.
  */
+function normalizeLegacyInputClasses(input = "") {
+  return input
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => {
+      const stripped = token.replace(/^focus:/, "");
+      return !(
+        /^rounded(?:-|$)/.test(stripped) ||
+        /^border(?:-|$)/.test(stripped) ||
+        /^bg(?:-|$)/.test(stripped) ||
+        /^text(?:-|$)/.test(stripped) ||
+        /^pl(?:-|$)/.test(stripped) ||
+        /^pr(?:-|$)/.test(stripped) ||
+        /^py(?:-|$)/.test(stripped) ||
+        /^min-h(?:-|$)/.test(stripped) ||
+        /^shadow(?:-|$)/.test(stripped) ||
+        /^outline(?:-|$)/.test(stripped) ||
+        /^ring(?:-|$)/.test(stripped) ||
+        /^focus:(?:border|ring|bg|outline)/.test(token) ||
+        /^placeholder:text/.test(token)
+      );
+    })
+    .join(" ");
+}
+
 export function SearchInput({
   label,
   wrapperClassName = "relative min-w-0",
@@ -43,6 +70,13 @@ export function SearchInput({
   type = "search",
   ...rest
 }: SearchInputProps) {
+  const mergedInputClassName = [
+    "h-12 w-full rounded-[9999px] border border-[#bfe1ec] bg-white pl-11 pr-4 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] outline-none transition placeholder:text-slate-400 focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5]",
+    normalizeLegacyInputClasses(inputClassName ?? ""),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <label className={wrapperClassName}>
       <span className={labelClassName ?? "sr-only"}>{label}</span>
@@ -52,13 +86,14 @@ export function SearchInput({
           nên các màn cũ giữ nguyên vị trí icon. */}
       <span className="relative block">
         <FiSearch
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
           aria-hidden="true"
+          size={18}
         />
         <input
           type={type}
           aria-label={label}
-          className={inputClassName ?? `${inputClass} pl-10`}
+          className={mergedInputClassName}
           {...rest}
         />
       </span>

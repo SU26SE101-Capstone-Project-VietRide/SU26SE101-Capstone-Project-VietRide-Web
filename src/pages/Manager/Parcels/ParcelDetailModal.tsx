@@ -37,17 +37,21 @@ import {
   parcelStatusTone,
   type ManualCancelRefundChoice,
 } from "./parcelQueueHelpers";
-import {
-  ActionBox,
-  ActionButton,
+import { ActionBox, ActionButton, Field, TextArea } from "./queueControls";
 
-  Field,
-  TextArea,
-} from "./queueControls";
-
-function HighlightItem({ label, value, className = "" }: { label: string; value: string; className?: string }) {
+function HighlightItem({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
   return (
-    <div className={`rounded-xl border border-vr-200 bg-vr-50/60 p-4 ${className}`}>
+    <div
+      className={`rounded-xl border border-vr-200 bg-vr-50/60 p-4 ${className}`}
+    >
       <p className="text-xs font-semibold text-vr-800">{label}</p>
       <p className="mt-2 text-xl font-bold text-slate-900">{value}</p>
     </div>
@@ -93,7 +97,8 @@ export default function ParcelDetailModal({
   const [refundChoice, setRefundChoice] =
     useState<ManualCancelRefundChoice>("POLICY_REFUND");
 
-  const sizeCategoryLabel = (value?: string | null) => value ? t(`parcels.sizeCategories.${value}`, { defaultValue: value }) : "-";
+  const sizeCategoryLabel = (value?: string | null) =>
+    value ? t(`parcels.sizeCategories.${value}`, { defaultValue: value }) : "-";
 
   const actionKind = useMemo(() => {
     if (!selected) return "NONE";
@@ -115,284 +120,467 @@ export default function ParcelDetailModal({
 
   const canCancel = isPreLoadParcelStatus(selected?.status);
 
+  const getStatusReasonLabel = (reason?: string | null) => {
+    if (!reason) return "";
+
+    const normalizedReason =
+      reason === "Destination arrived without confirmed terminal unload."
+        ? "DESTINATION_ARRIVED_WITHOUT_CONFIRMED_TERMINAL_UNLOAD"
+        : reason;
+
+    return t(`parcels.statusHistoryReasons.${normalizedReason}`, {
+      defaultValue: reason,
+    });
+  };
+
   return (
     <>
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={
-        selected
-          ? t("parcels.queue.detailModalTitleWithCode", {
-              code: selected.parcelCode,
-            })
-          : t("parcels.queue.detailModalTitleFallback")
-      }
-      subtitle={t("parcels.queue.detailModalSubtitle")}
-      icon={<FiPackage />}
-      wide
-      footer={
-        <div className="flex w-full flex-wrap items-center justify-end gap-2">
-          {canOperate && selected && (
-            <Button variant="secondary" onClick={() => setIsHandoffOpen(true)}>
-              {t("parcels.handoff.action")}
-            </Button>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={actionLoading}
-            className="rounded-lg border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700"
-          >
-            {tc("close")}
-          </button>
-        </div>
-      }
-    >
-      {loading ? (
-        <p className="py-12 text-center text-sm text-gray-500">
-          {t("parcels.queue.loadingDetail")}
-        </p>
-      ) : (
-        selected && (
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <DetailSection title={t("parcels.queue.overviewSection")} columns="three">
-                <DetailItem label={t("parcels.queue.statusLabel")} value={tc(`enumLabels.${selected.status}`, { defaultValue: selected.status.replaceAll("_", " ") })} />
-                <DetailItem label={t("parcels.queue.pendingActionLabel")} value={selected.pendingActionType ? t(`parcels.pendingActions.${selected.pendingActionType}`, { defaultValue: selected.pendingActionType.replaceAll("_", " ") }) : "-"} />
-                <DetailItem label={t("parcels.queue.createdAtLabel")} value={formatDateTime(selected.createdAt)} />
-              </DetailSection>
-              <DetailSection title={t("parcels.queue.routeSection")} columns="three">
-                <DetailItem label={t("parcels.queue.routeNameLabel")} value={selected.route?.routeName || selected.routeName || `${selected.originStationName || "-"} → ${selected.destinationStationName || "-"}`} />
-                <DetailItem label={t("parcels.queue.originLabel")} value={selected.route?.originStationName || selected.originStationName} />
-                <DetailItem label={t("parcels.queue.destinationLabel")} value={selected.route?.destinationStationName || selected.destinationStationName} />
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={
+          selected
+            ? t("parcels.queue.detailModalTitleWithCode", {
+                code: selected.parcelCode,
+              })
+            : t("parcels.queue.detailModalTitleFallback")
+        }
+        subtitle={t("parcels.queue.detailModalSubtitle")}
+        icon={<FiPackage />}
+        wide
+        footer={
+          <div className="flex w-full flex-wrap items-center justify-end gap-2">
+            {canOperate && selected && (
+              <Button
+                variant="secondary"
+                onClick={() => setIsHandoffOpen(true)}
+              >
+                {t("parcels.handoff.action")}
+              </Button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={actionLoading}
+              className="rounded-lg border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700"
+            >
+              {tc("close")}
+            </button>
+          </div>
+        }
+      >
+        {loading ? (
+          <p className="py-12 text-center text-sm text-gray-500">
+            {t("parcels.queue.loadingDetail")}
+          </p>
+        ) : (
+          selected && (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <DetailSection
+                  title={t("parcels.queue.overviewSection")}
+                  columns="three"
+                >
+                  <DetailItem
+                    label={t("parcels.queue.statusLabel")}
+                    value={tc(`enumLabels.${selected.status}`, {
+                      defaultValue: selected.status.replaceAll("_", " "),
+                    })}
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.pendingActionLabel")}
+                    value={
+                      selected.pendingActionType
+                        ? t(
+                            `parcels.pendingActions.${selected.pendingActionType}`,
+                            {
+                              defaultValue:
+                                selected.pendingActionType.replaceAll("_", " "),
+                            },
+                          )
+                        : "-"
+                    }
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.createdAtLabel")}
+                    value={formatDateTime(selected.createdAt)}
+                  />
+                </DetailSection>
+                <DetailSection
+                  title={t("parcels.queue.routeSection")}
+                  columns="three"
+                >
+                  <DetailItem
+                    label={t("parcels.queue.routeNameLabel")}
+                    value={
+                      selected.route?.routeName ||
+                      selected.routeName ||
+                      `${selected.originStationName || "-"} → ${selected.destinationStationName || "-"}`
+                    }
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.originLabel")}
+                    value={
+                      selected.route?.originStationName ||
+                      selected.originStationName
+                    }
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.destinationLabel")}
+                    value={
+                      selected.route?.destinationStationName ||
+                      selected.destinationStationName
+                    }
+                  />
 
-                <DetailItem label={t("parcels.queue.tripStatusLabel")} value={selected.trip?.status ? tc(`enumLabels.${selected.trip.status}`, { defaultValue: selected.trip.status }) : "-"} />
-                <DetailItem label={t("parcels.queue.vehicleLabel")} value={selected.trip?.vehicle?.licensePlate} />
-                <DetailItem label={t("parcels.queue.departureLabel")} value={selected.trip?.departureAt ? formatDateTime(selected.trip.departureAt) : "-"} />
-                <DetailItem label={t("parcels.queue.arrivalLabel")} value={selected.trip?.arrivalEstimate ? formatDateTime(selected.trip.arrivalEstimate) : "-"} />
-              </DetailSection>
-              <DetailSection title={t("parcels.queue.peopleSection")} columns="two">
-                <DetailItem label={t("parcels.queue.senderLabel")} value={`${selected.sender?.displayName || selected.senderName || "-"} · ${formatVietnamPhoneForDisplay(selected.sender?.phone || selected.senderPhone)}`} />
-                <DetailItem label={t("parcels.recipient")} value={`${selected.recipient?.displayName || selected.recipientName || "-"} · ${formatVietnamPhoneForDisplay(selected.recipient?.phone || selected.recipientPhone)}`} />
-                <DetailItem label={t("parcels.queue.descriptionLabel")} value={selected.description} />
-              </DetailSection>
-              <DetailSection title={t("parcels.queue.packageSection")} columns="four">
-                <HighlightItem label={t("parcels.queue.actualSizeLabel")} value={sizeCategoryLabel(selected.actualSizeCategory || selected.estimatedSizeCategory || selected.sizeCategory)} />
-                <HighlightItem label={t("parcels.queue.actualWeightLabel")} value={selected.actualWeightKg == null ? "-" : `${selected.actualWeightKg} kg`} />
-                <HighlightItem label={t("parcels.queue.actualChargeableLabel")} value={selected.actualChargeableWeightKg == null ? "-" : `${selected.actualChargeableWeightKg} kg`} />
-                <HighlightItem label={t("parcels.queue.actualVolumeLabel")} value={selected.actualVolumeM3 == null ? "-" : `${selected.actualVolumeM3} m³`} />
-              </DetailSection>
-              <DetailSection title={t("parcels.queue.paymentSection")} columns="four">
-                <HighlightItem label={t("parcels.queue.finalTotalLabel")} value={money(selected.finalTotalPriceVnd ?? selected.estimatedTotalPriceVnd)} />
-                <HighlightItem label={t("parcels.queue.depositPaidLabel")} value={money(selected.depositPaidVnd ?? selected.depositAmount)} />
-                <HighlightItem label={t("parcels.queue.balanceRequiredLabel")} value={money(selected.balanceRequiredVnd)} />
-                {(selected.refundDueVnd ?? selected.refundAmount ?? 0) > 0 && <DetailItem label={t("parcels.queue.refundDueLabel")} value={money(selected.refundDueVnd ?? selected.refundAmount)} />}
-                {(selected.discountAmount ?? 0) > 0 && <DetailItem label={t("parcels.queue.discountLabel")} value={money(selected.discountAmount)} />}
-                {(selected.forfeitedDepositVnd ?? 0) > 0 && <DetailItem label={t("parcels.queue.forfeitedLabel")} value={money(selected.forfeitedDepositVnd)} />}
-              </DetailSection>
-              <DetailSection title={t("parcels.queue.timelineSection")} columns="four">
-                <DetailItem label={t("parcels.queue.finalPaymentDeadlineLabel")} value={selected.finalPaymentDeadline ? formatDateTime(selected.finalPaymentDeadline) : "-"} />
-                <DetailItem label={t("parcels.queue.latestCheckInLabel")} value={selected.latestCheckInAt ? formatDateTime(selected.latestCheckInAt) : "-"} />
-                <DetailItem label={t("parcels.queue.loadCutoffLabel")} value={selected.loadCutoffAt ? formatDateTime(selected.loadCutoffAt) : "-"} />
-                <DetailItem label={t("parcels.queue.updatedAtLabel")} value={selected.updatedAt ? formatDateTime(selected.updatedAt) : "-"} />
-              </DetailSection>
-              {selected.photoUrl && <DetailSection title={t("parcels.queue.photoSection")} columns="two"><img src={selected.photoUrl} alt={t("parcels.queue.photoAlt")} loading="lazy" className="max-h-64 rounded-lg border border-gray-200 object-contain" /></DetailSection>}
-              {selected.pendingActionReason && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><span className="font-semibold">{t("parcels.queue.pendingReasonLabel")}:</span> {selected.pendingActionReason}</p>}
-              {statusHistory.length > 0 && (
-                <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                  <h3 className="text-base font-semibold text-gray-900">
-                    {t("parcels.queue.statusHistorySection")}
-                  </h3>
-                  {/* Cùng kiểu timeline với lịch sử trạng thái vé (màn Đặt vé):
+                  <DetailItem
+                    label={t("parcels.queue.tripStatusLabel")}
+                    value={
+                      selected.trip?.status
+                        ? tc(`enumLabels.${selected.trip.status}`, {
+                            defaultValue: selected.trip.status,
+                          })
+                        : "-"
+                    }
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.vehicleLabel")}
+                    value={selected.trip?.vehicle?.licensePlate}
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.departureLabel")}
+                    value={
+                      selected.trip?.departureAt
+                        ? formatDateTime(selected.trip.departureAt)
+                        : "-"
+                    }
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.arrivalLabel")}
+                    value={
+                      selected.trip?.arrivalEstimate
+                        ? formatDateTime(selected.trip.arrivalEstimate)
+                        : "-"
+                    }
+                  />
+                </DetailSection>
+                <DetailSection
+                  title={t("parcels.queue.peopleSection")}
+                  columns="two"
+                >
+                  <DetailItem
+                    label={t("parcels.queue.senderLabel")}
+                    value={`${selected.sender?.displayName || selected.senderName || "-"} · ${formatVietnamPhoneForDisplay(selected.sender?.phone || selected.senderPhone)}`}
+                  />
+                  <DetailItem
+                    label={t("parcels.recipient")}
+                    value={`${selected.recipient?.displayName || selected.recipientName || "-"} · ${formatVietnamPhoneForDisplay(selected.recipient?.phone || selected.recipientPhone)}`}
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.descriptionLabel")}
+                    value={selected.description}
+                  />
+                </DetailSection>
+                <DetailSection
+                  title={t("parcels.queue.packageSection")}
+                  columns="four"
+                >
+                  <HighlightItem
+                    label={t("parcels.queue.actualSizeLabel")}
+                    value={sizeCategoryLabel(
+                      selected.actualSizeCategory ||
+                        selected.estimatedSizeCategory ||
+                        selected.sizeCategory,
+                    )}
+                  />
+                  <HighlightItem
+                    label={t("parcels.queue.actualWeightLabel")}
+                    value={
+                      selected.actualWeightKg == null
+                        ? "-"
+                        : `${selected.actualWeightKg} kg`
+                    }
+                  />
+                  <HighlightItem
+                    label={t("parcels.queue.actualChargeableLabel")}
+                    value={
+                      selected.actualChargeableWeightKg == null
+                        ? "-"
+                        : `${selected.actualChargeableWeightKg} kg`
+                    }
+                  />
+                  <HighlightItem
+                    label={t("parcels.queue.actualVolumeLabel")}
+                    value={
+                      selected.actualVolumeM3 == null
+                        ? "-"
+                        : `${selected.actualVolumeM3} m³`
+                    }
+                  />
+                </DetailSection>
+                <DetailSection
+                  title={t("parcels.queue.paymentSection")}
+                  columns="four"
+                >
+                  <HighlightItem
+                    label={t("parcels.queue.finalTotalLabel")}
+                    value={money(
+                      selected.finalTotalPriceVnd ??
+                        selected.estimatedTotalPriceVnd,
+                    )}
+                  />
+                  <HighlightItem
+                    label={t("parcels.queue.depositPaidLabel")}
+                    value={money(
+                      selected.depositPaidVnd ?? selected.depositAmount,
+                    )}
+                  />
+                  <HighlightItem
+                    label={t("parcels.queue.balanceRequiredLabel")}
+                    value={money(selected.balanceRequiredVnd)}
+                  />
+                  {(selected.refundDueVnd ?? selected.refundAmount ?? 0) >
+                    0 && (
+                    <DetailItem
+                      label={t("parcels.queue.refundDueLabel")}
+                      value={money(
+                        selected.refundDueVnd ?? selected.refundAmount,
+                      )}
+                    />
+                  )}
+                  {(selected.discountAmount ?? 0) > 0 && (
+                    <DetailItem
+                      label={t("parcels.queue.discountLabel")}
+                      value={money(selected.discountAmount)}
+                    />
+                  )}
+                  {(selected.forfeitedDepositVnd ?? 0) > 0 && (
+                    <DetailItem
+                      label={t("parcels.queue.forfeitedLabel")}
+                      value={money(selected.forfeitedDepositVnd)}
+                    />
+                  )}
+                </DetailSection>
+                <DetailSection
+                  title={t("parcels.queue.timelineSection")}
+                  columns="four"
+                >
+                  <DetailItem
+                    label={t("parcels.queue.finalPaymentDeadlineLabel")}
+                    value={
+                      selected.finalPaymentDeadline
+                        ? formatDateTime(selected.finalPaymentDeadline)
+                        : "-"
+                    }
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.latestCheckInLabel")}
+                    value={
+                      selected.latestCheckInAt
+                        ? formatDateTime(selected.latestCheckInAt)
+                        : "-"
+                    }
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.loadCutoffLabel")}
+                    value={
+                      selected.loadCutoffAt
+                        ? formatDateTime(selected.loadCutoffAt)
+                        : "-"
+                    }
+                  />
+                  <DetailItem
+                    label={t("parcels.queue.updatedAtLabel")}
+                    value={
+                      selected.updatedAt
+                        ? formatDateTime(selected.updatedAt)
+                        : "-"
+                    }
+                  />
+                </DetailSection>
+                {selected.photoUrl && (
+                  <DetailSection
+                    title={t("parcels.queue.photoSection")}
+                    columns="two"
+                  >
+                    <img
+                      src={selected.photoUrl}
+                      alt={t("parcels.queue.photoAlt")}
+                      loading="lazy"
+                      className="max-h-64 rounded-lg border border-gray-200 object-contain"
+                    />
+                  </DetailSection>
+                )}
+                {selected.pendingActionReason && (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <span className="font-semibold">
+                      {t("parcels.queue.pendingReasonLabel")}:
+                    </span>{" "}
+                    {selected.pendingActionReason}
+                  </p>
+                )}
+                {statusHistory.length > 0 && (
+                  <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <h3 className="text-base font-semibold text-gray-900">
+                      {t("parcels.queue.statusHistorySection")}
+                    </h3>
+                    {/* Cùng kiểu timeline với lịch sử trạng thái vé (màn Đặt vé):
                       một đường dọc, mỗi mốc là một chấm + thẻ có chip trạng thái.
                       Giữ nguyên thứ tự BE trả (occurredAt tăng dần). */}
-                  <ol className="relative mt-4 space-y-4 pl-5 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-gray-200">
-                    {statusHistory.map((entry, index) => (
-                      <li
-                        key={`${entry.status}-${entry.occurredAt}-${index}`}
-                        className="relative flex gap-3"
-                      >
-                        <span className="absolute -left-5 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-vr-500 shadow-sm" />
-                        <div className="min-w-0 flex-1 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span
-                              className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${parcelStatusTone(entry.status)}`}
-                            >
-                              {tc(`enumLabels.${entry.status}`, {
-                                defaultValue: entry.status.replaceAll("_", " "),
-                              })}
-                            </span>
-                            <time className="text-xs text-gray-500">
-                              {formatDateTime(entry.occurredAt)}
-                            </time>
-                          </div>
-                          <p className="mt-2 text-xs text-gray-500">
-                            {t("parcels.queue.statusHistoryActor", {
-                              actorType: t(
-                                `parcels.queue.historyActors.${entry.actorType}`,
-                                {
-                                  defaultValue: entry.actorType.replaceAll("_", " "),
-                                },
-                              ),
-                              source: t(
-                                `parcels.queue.historySources.${entry.source}`,
-                                {
-                                  defaultValue: entry.source.replaceAll("_", " "),
-                                },
-                              ),
-                            })}
-                          </p>
-                          {entry.reason && (
-                            // `reason` là hỗn hợp: mã enum khi chuyển sang
-                            // PENDING_OPERATOR_ACTION, còn lại là ghi chú nhân
-                            // viên tự nhập — defaultValue cho chữ tự nhập đi qua
-                            // nguyên vẹn.
-                            <p className="mt-1 text-sm text-gray-600">
-                              {t(`parcels.statusHistoryReasons.${entry.reason}`, {
-                                defaultValue: entry.reason,
+                    <ol className="relative mt-4 space-y-4 pl-5 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-gray-200">
+                      {statusHistory.map((entry, index) => (
+                        <li
+                          key={`${entry.status}-${entry.occurredAt}-${index}`}
+                          className="relative flex gap-3"
+                        >
+                          <span className="absolute -left-5 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-vr-500 shadow-sm" />
+                          <div className="min-w-0 flex-1 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span
+                                className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${parcelStatusTone(entry.status)}`}
+                              >
+                                {tc(`enumLabels.${entry.status}`, {
+                                  defaultValue: entry.status.replaceAll(
+                                    "_",
+                                    " ",
+                                  ),
+                                })}
+                              </span>
+                              <time className="text-xs text-gray-500">
+                                {formatDateTime(entry.occurredAt)}
+                              </time>
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500">
+                              {t("parcels.queue.statusHistoryActor", {
+                                actorType: t(
+                                  `parcels.queue.historyActors.${entry.actorType}`,
+                                  {
+                                    defaultValue: entry.actorType.replaceAll(
+                                      "_",
+                                      " ",
+                                    ),
+                                  },
+                                ),
+                                source: t(
+                                  `parcels.queue.historySources.${entry.source}`,
+                                  {
+                                    defaultValue: entry.source.replaceAll(
+                                      "_",
+                                      " ",
+                                    ),
+                                  },
+                                ),
                               })}
                             </p>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-              )}
-            {actionKind === "REVIEW" && (
-              <ActionBox title={t("parcels.queue.reviewTitle")}>
-                <p className="text-sm text-gray-600">
-                  {t("parcels.queue.reviewDescription")}
-                </p>
-                <TextArea
-                  label={t("parcels.queue.reviewReasonLabel")}
-                  value={reason}
-                  onChange={onReasonChange}
-                />
-                <div className="flex flex-wrap gap-3">
-                  <ActionButton
-                    tone="success"
-                    disabled={actionLoading || !canOperate}
-                    icon={<FiCheck />}
-                    onClick={() =>
-                      askConfirmation(
-                        t("parcels.queue.approveQuestion"),
-                        () =>
-                          finishAction(
-                            t("parcels.queue.approvedMsg"),
-                            async () => {
-                              await reviewOperatorParcel(selected.parcelId, {
-                                decision: "APPROVED",
-                                ...(reason.trim()
-                                  ? { reason: reason.trim() }
-                                  : {}),
-                              });
-                            },
-                          ),
-                      )
-                    }
-                  >
-                    {t("parcels.queue.approveButton")}
-                  </ActionButton>
-                  <ActionButton
-                    tone="danger"
-                    disabled={actionLoading || !canOperate}
-                    icon={<FiX />}
-                    onClick={() =>
-                      askConfirmation(
-                        t("parcels.queue.rejectQuestion"),
-                        () =>
-                          finishAction(
-                            t("parcels.queue.rejectedMsg"),
-                            async () => {
-                              // BE bắt buộc lý do khi từ chối, thiếu là 422.
-                              if (!reason.trim())
-                                throw new Error(
-                                  t("parcels.queue.rejectReasonRequired"),
-                                );
-                              await reviewOperatorParcel(selected.parcelId, {
-                                decision: "REJECTED",
-                                reason: reason.trim(),
-                              });
-                            },
-                          ),
-                      )
-                    }
-                  >
-                    {t("parcels.queue.rejectButton")}
-                  </ActionButton>
-                </div>
-              </ActionBox>
-            )}
-            {actionKind === "REFUND_CONFIRMATION" && (
-              <ActionBox title={t("parcels.confirmRefund")}>
-                <TextArea
-                  label={t("parcels.queue.confirmReasonLabel")}
-                  value={reason}
-                  onChange={onReasonChange}
-                />
-                <ActionButton
-                  disabled={actionLoading || !canOperate}
-                  tone="success"
-                  icon={<FiCheckCircle />}
-                  onClick={() =>
-                    askConfirmation(
-                      t("parcels.queue.confirmRefundQuestion"),
-                      () =>
-                        finishAction(
-                          t("parcels.queue.refundConfirmedMsg"),
-                          async () => {
-                            if (!reason.trim())
-                              throw new Error(
-                                t("parcels.queue.reasonRequired"),
-                              );
-                            await confirmOperatorParcelRefund(
-                              selected.parcelId,
-                              { reason: reason.trim() },
-                            );
-                          },
-                        ),
-                    )
-                  }
-                >
-                  {t("parcels.confirmRefund")}
-                </ActionButton>
-              </ActionBox>
-            )}
-            {(actionKind === "CAPACITY_EXCEEDED" ||
-              actionKind === "RESERVE_FAILED" ||
-              actionKind === "TRANSFER") && (
-              <ActionBox title={t("parcels.queue.incidentTitle")}>
-                <p className="text-sm text-gray-600">
-                  {t("parcels.queue.incidentDescription")}
-                </p>
-                <Field
-                  label={t("parcels.queue.targetTripLabel")}
-                  value={targetTripId}
-                  onChange={onTargetTripIdChange}
-                />
-                <TextArea
-                  label={t("parcels.queue.resolutionReasonLabel")}
-                  value={reason}
-                  onChange={onReasonChange}
-                />
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {actionKind !== "TRANSFER" && (
+                            {entry.reason && (
+                              // `reason` là hỗn hợp: mã enum khi chuyển sang
+                              // PENDING_OPERATOR_ACTION, còn lại là ghi chú nhân
+                              // viên tự nhập — defaultValue cho chữ tự nhập đi qua
+                              // nguyên vẹn.
+                              <p className="mt-1 text-sm text-gray-600">
+                                {getStatusReasonLabel(entry.reason)}
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                )}
+                {actionKind === "REVIEW" && (
+                  <ActionBox title={t("parcels.queue.reviewTitle")}>
+                    <p className="text-sm text-gray-600">
+                      {t("parcels.queue.reviewDescription")}
+                    </p>
+                    <TextArea
+                      label={t("parcels.queue.reviewReasonLabel")}
+                      value={reason}
+                      onChange={onReasonChange}
+                    />
+                    <div className="flex flex-wrap gap-3">
+                      <ActionButton
+                        tone="success"
+                        disabled={actionLoading || !canOperate}
+                        icon={<FiCheck />}
+                        onClick={() =>
+                          askConfirmation(
+                            t("parcels.queue.approveQuestion"),
+                            () =>
+                              finishAction(
+                                t("parcels.queue.approvedMsg"),
+                                async () => {
+                                  await reviewOperatorParcel(
+                                    selected.parcelId,
+                                    {
+                                      decision: "APPROVED",
+                                      ...(reason.trim()
+                                        ? { reason: reason.trim() }
+                                        : {}),
+                                    },
+                                  );
+                                },
+                              ),
+                          )
+                        }
+                      >
+                        {t("parcels.queue.approveButton")}
+                      </ActionButton>
+                      <ActionButton
+                        tone="danger"
+                        disabled={actionLoading || !canOperate}
+                        icon={<FiX />}
+                        onClick={() =>
+                          askConfirmation(
+                            t("parcels.queue.rejectQuestion"),
+                            () =>
+                              finishAction(
+                                t("parcels.queue.rejectedMsg"),
+                                async () => {
+                                  // BE bắt buộc lý do khi từ chối, thiếu là 422.
+                                  if (!reason.trim())
+                                    throw new Error(
+                                      t("parcels.queue.rejectReasonRequired"),
+                                    );
+                                  await reviewOperatorParcel(
+                                    selected.parcelId,
+                                    {
+                                      decision: "REJECTED",
+                                      reason: reason.trim(),
+                                    },
+                                  );
+                                },
+                              ),
+                          )
+                        }
+                      >
+                        {t("parcels.queue.rejectButton")}
+                      </ActionButton>
+                    </div>
+                  </ActionBox>
+                )}
+                {actionKind === "REFUND_CONFIRMATION" && (
+                  <ActionBox title={t("parcels.confirmRefund")}>
+                    <TextArea
+                      label={t("parcels.queue.confirmReasonLabel")}
+                      value={reason}
+                      onChange={onReasonChange}
+                    />
                     <ActionButton
                       disabled={actionLoading || !canOperate}
-                      icon={<FiTruck />}
+                      tone="success"
+                      icon={<FiCheckCircle />}
                       onClick={() =>
                         askConfirmation(
-                          t("parcels.queue.allowCapacityQuestion"),
+                          t("parcels.queue.confirmRefundQuestion"),
                           () =>
                             finishAction(
-                              t("parcels.queue.capacityAllowedMsg"),
+                              t("parcels.queue.refundConfirmedMsg"),
                               async () => {
                                 if (!reason.trim())
                                   throw new Error(
                                     t("parcels.queue.reasonRequired"),
                                   );
-                                await overrideOperatorParcelCapacity(
+                                await confirmOperatorParcelRefund(
                                   selected.parcelId,
                                   { reason: reason.trim() },
                                 );
@@ -401,258 +589,302 @@ export default function ParcelDetailModal({
                         )
                       }
                     >
-                      {t("parcels.queue.allowControlledLabel")}
+                      {t("parcels.confirmRefund")}
                     </ActionButton>
-                  )}
-                  <ActionButton
-                    disabled={actionLoading || !canOperate}
-                    icon={<FiTruck />}
-                    onClick={() =>
-                      askConfirmation(
-                        t("parcels.queue.transferRequestQuestion"),
-                        () =>
-                          finishAction(
-                            t("parcels.queue.transferRequestSentMsg"),
-                            async () => {
-                              if (!targetTripId.trim() || !reason.trim())
-                                throw new Error(
-                                  t("parcels.queue.transferFieldsRequired"),
-                                );
-                              await requestOperatorParcelTransfer(
-                                selected.parcelId,
-                                {
-                                  targetTripId: targetTripId.trim(),
-                                  reason: reason.trim(),
+                  </ActionBox>
+                )}
+                {(actionKind === "CAPACITY_EXCEEDED" ||
+                  actionKind === "RESERVE_FAILED" ||
+                  actionKind === "TRANSFER") && (
+                  <ActionBox title={t("parcels.queue.incidentTitle")}>
+                    <p className="text-sm text-gray-600">
+                      {t("parcels.queue.incidentDescription")}
+                    </p>
+                    <Field
+                      label={t("parcels.queue.targetTripLabel")}
+                      value={targetTripId}
+                      onChange={onTargetTripIdChange}
+                    />
+                    <TextArea
+                      label={t("parcels.queue.resolutionReasonLabel")}
+                      value={reason}
+                      onChange={onReasonChange}
+                    />
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {actionKind !== "TRANSFER" && (
+                        <ActionButton
+                          disabled={actionLoading || !canOperate}
+                          icon={<FiTruck />}
+                          onClick={() =>
+                            askConfirmation(
+                              t("parcels.queue.allowCapacityQuestion"),
+                              () =>
+                                finishAction(
+                                  t("parcels.queue.capacityAllowedMsg"),
+                                  async () => {
+                                    if (!reason.trim())
+                                      throw new Error(
+                                        t("parcels.queue.reasonRequired"),
+                                      );
+                                    await overrideOperatorParcelCapacity(
+                                      selected.parcelId,
+                                      { reason: reason.trim() },
+                                    );
+                                  },
+                                ),
+                            )
+                          }
+                        >
+                          {t("parcels.queue.allowControlledLabel")}
+                        </ActionButton>
+                      )}
+                      <ActionButton
+                        disabled={actionLoading || !canOperate}
+                        icon={<FiTruck />}
+                        onClick={() =>
+                          askConfirmation(
+                            t("parcels.queue.transferRequestQuestion"),
+                            () =>
+                              finishAction(
+                                t("parcels.queue.transferRequestSentMsg"),
+                                async () => {
+                                  if (!targetTripId.trim() || !reason.trim())
+                                    throw new Error(
+                                      t("parcels.queue.transferFieldsRequired"),
+                                    );
+                                  await requestOperatorParcelTransfer(
+                                    selected.parcelId,
+                                    {
+                                      targetTripId: targetTripId.trim(),
+                                      reason: reason.trim(),
+                                    },
+                                  );
                                 },
-                              );
-                            },
-                          ),
-                      )
-                    }
-                  >
-                    {t("parcels.queue.transferToOtherTrip")}
-                  </ActionButton>
-                </div>
-              </ActionBox>
-            )}
-            {actionKind === "RETURN" && (
-              <ActionBox title={t("parcels.queue.initReturnTitle")}>
-                <TextArea
-                  label={t("parcels.queue.returnReasonLabel")}
-                  value={reason}
-                  onChange={onReasonChange}
-                />
-                <ActionButton
-                  disabled={actionLoading || !canOperate}
-                  tone="danger"
-                  icon={<FiPackage />}
-                  onClick={() =>
-                    askConfirmation(
-                      t("parcels.queue.returnConfirmQuestion"),
-                      () =>
-                        finishAction(
-                          t("parcels.queue.returnInitiatedMsg"),
-                          async () => {
-                            if (!reason.trim())
-                              throw new Error(
-                                t("parcels.queue.reasonRequired"),
-                              );
-                            await returnOperatorParcel(selected.parcelId, {
-                              returnReason: reason.trim(),
-                            });
-                          },
-                        ),
-                    )
-                  }
-                >
-                  {t("parcels.queue.returnButtonLabel")}
-                </ActionButton>
-              </ActionBox>
-            )}
-            {actionKind === "MARK_RETURNED" && (
-              <ActionBox title={t("parcels.queue.completeReturnTitle")}>
-                <TextArea
-                  label={t("parcels.queue.noteLabel")}
-                  value={reason}
-                  onChange={onReasonChange}
-                />
-                <ActionButton
-                  disabled={actionLoading || !canOperate}
-                  tone="success"
-                  icon={<FiCheckCircle />}
-                  onClick={() =>
-                    askConfirmation(
-                      t("parcels.queue.markReturnedQuestion"),
-                      () =>
-                        finishAction(
-                          t("parcels.queue.markReturnedMsg"),
-                          async () => {
-                            if (!reason.trim())
-                              throw new Error(
-                                t("parcels.queue.noteRequired"),
-                              );
-                            await updateOperatorParcelStatus(
-                              selected.parcelId,
-                              {
-                                targetStatus: "RETURNED",
-                                reason: reason.trim(),
+                              ),
+                          )
+                        }
+                      >
+                        {t("parcels.queue.transferToOtherTrip")}
+                      </ActionButton>
+                    </div>
+                  </ActionBox>
+                )}
+                {actionKind === "RETURN" && (
+                  <ActionBox title={t("parcels.queue.initReturnTitle")}>
+                    <TextArea
+                      label={t("parcels.queue.returnReasonLabel")}
+                      value={reason}
+                      onChange={onReasonChange}
+                    />
+                    <ActionButton
+                      disabled={actionLoading || !canOperate}
+                      tone="danger"
+                      icon={<FiPackage />}
+                      onClick={() =>
+                        askConfirmation(
+                          t("parcels.queue.returnConfirmQuestion"),
+                          () =>
+                            finishAction(
+                              t("parcels.queue.returnInitiatedMsg"),
+                              async () => {
+                                if (!reason.trim())
+                                  throw new Error(
+                                    t("parcels.queue.reasonRequired"),
+                                  );
+                                await returnOperatorParcel(selected.parcelId, {
+                                  returnReason: reason.trim(),
+                                });
                               },
-                            );
-                          },
-                        ),
-                    )
-                  }
-                >
-                  {t("parcels.queue.markReturnedButton")}
-                </ActionButton>
-              </ActionBox>
-            )}
-            {actionKind === "RESEND_EMAIL" && (
-              <ActionBox title={t("parcels.queue.resendEmailTitle")}>
-                <p className="text-sm text-gray-600">
-                  {t("parcels.queue.resendEmailDescription")}
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <ActionButton
-                    disabled={actionLoading || !canOperate}
-                    icon={<FiMail />}
-                    onClick={() =>
-                      askConfirmation(
-                        t("parcels.queue.resendEmailQuestion"),
-                        () =>
-                          finishAction(
-                            t("parcels.queue.resendEmailSentMsg"),
-                            async () => {
-                              await resendOperatorParcelDeliveryEmail(
-                                selected.parcelId,
-                              );
-                            },
-                          ),
-                      )
-                    }
-                  >
-                    {t("parcels.queue.resendEmailButton")}
-                  </ActionButton>
-                  {/* Đường lùi khi phụ xe không đóng được đơn từ app: đã tan
+                            ),
+                        )
+                      }
+                    >
+                      {t("parcels.queue.returnButtonLabel")}
+                    </ActionButton>
+                  </ActionBox>
+                )}
+                {actionKind === "MARK_RETURNED" && (
+                  <ActionBox title={t("parcels.queue.completeReturnTitle")}>
+                    <TextArea
+                      label={t("parcels.queue.noteLabel")}
+                      value={reason}
+                      onChange={onReasonChange}
+                    />
+                    <ActionButton
+                      disabled={actionLoading || !canOperate}
+                      tone="success"
+                      icon={<FiCheckCircle />}
+                      onClick={() =>
+                        askConfirmation(
+                          t("parcels.queue.markReturnedQuestion"),
+                          () =>
+                            finishAction(
+                              t("parcels.queue.markReturnedMsg"),
+                              async () => {
+                                if (!reason.trim())
+                                  throw new Error(
+                                    t("parcels.queue.noteRequired"),
+                                  );
+                                await updateOperatorParcelStatus(
+                                  selected.parcelId,
+                                  {
+                                    targetStatus: "RETURNED",
+                                    reason: reason.trim(),
+                                  },
+                                );
+                              },
+                            ),
+                        )
+                      }
+                    >
+                      {t("parcels.queue.markReturnedButton")}
+                    </ActionButton>
+                  </ActionBox>
+                )}
+                {actionKind === "RESEND_EMAIL" && (
+                  <ActionBox title={t("parcels.queue.resendEmailTitle")}>
+                    <p className="text-sm text-gray-600">
+                      {t("parcels.queue.resendEmailDescription")}
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      <ActionButton
+                        disabled={actionLoading || !canOperate}
+                        icon={<FiMail />}
+                        onClick={() =>
+                          askConfirmation(
+                            t("parcels.queue.resendEmailQuestion"),
+                            () =>
+                              finishAction(
+                                t("parcels.queue.resendEmailSentMsg"),
+                                async () => {
+                                  await resendOperatorParcelDeliveryEmail(
+                                    selected.parcelId,
+                                  );
+                                },
+                              ),
+                          )
+                        }
+                      >
+                        {t("parcels.queue.resendEmailButton")}
+                      </ActionButton>
+                      {/* Đường lùi khi phụ xe không đóng được đơn từ app: đã tan
                       ca, phân công sai chuyến, hoặc có tranh chấp. */}
-                  <ActionButton
-                    tone="success"
-                    disabled={actionLoading || !canOperate}
-                    icon={<FiCheckCircle />}
-                    onClick={() =>
-                      askConfirmation(
-                        t("parcels.queue.confirmDeliveryQuestion"),
-                        () =>
+                      <ActionButton
+                        tone="success"
+                        disabled={actionLoading || !canOperate}
+                        icon={<FiCheckCircle />}
+                        onClick={() =>
+                          askConfirmation(
+                            t("parcels.queue.confirmDeliveryQuestion"),
+                            () =>
+                              finishAction(
+                                t("parcels.queue.confirmDeliveryMsg"),
+                                async () => {
+                                  await confirmOperatorParcelDelivery(
+                                    selected.parcelId,
+                                    { note: reason.trim() },
+                                  );
+                                },
+                              ),
+                          )
+                        }
+                      >
+                        {t("parcels.queue.confirmDeliveryButton")}
+                      </ActionButton>
+                    </div>
+                    <TextArea
+                      label={t("parcels.queue.confirmDeliveryNoteLabel")}
+                      value={reason}
+                      onChange={onReasonChange}
+                    />
+                  </ActionBox>
+                )}
+                {actionKind === "NONE" && !canCancel && (
+                  <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                    {t("parcels.queue.noActionText")}
+                  </p>
+                )}
+
+                {/* Huỷ tay cắt ngang nhiều actionKind (đơn chờ duyệt, chờ trả tiền,
+                đã giữ chỗ...) nên đứng riêng thay vì nhét vào một nhánh. */}
+                {canCancel && (
+                  <ActionBox title={t("parcels.queue.cancelTitle")}>
+                    <p className="text-sm text-gray-600">
+                      {t("parcels.queue.cancelDescription")}
+                    </p>
+                    <TextArea
+                      label={t("parcels.queue.cancelReasonLabel")}
+                      value={reason}
+                      onChange={onReasonChange}
+                    />
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-600">
+                        {t("parcels.queue.refundChoiceLabel")}
+                      </span>
+                      <CustomSelect
+                        aria-label={t("parcels.queue.refundChoiceLabel")}
+                        className={inputClass}
+                        value={refundChoice}
+                        onChange={(event) =>
+                          setRefundChoice(
+                            event.target.value as ManualCancelRefundChoice,
+                          )
+                        }
+                      >
+                        {manualCancelRefundChoices.map((value) => (
+                          <option key={value} value={value}>
+                            {t(`parcels.queue.refundChoices.${value}`)}
+                          </option>
+                        ))}
+                      </CustomSelect>
+                    </label>
+                    <ActionButton
+                      tone="danger"
+                      disabled={actionLoading || !canOperate}
+                      icon={<FiSlash />}
+                      onClick={() =>
+                        askConfirmation(t("parcels.queue.cancelQuestion"), () =>
                           finishAction(
-                            t("parcels.queue.confirmDeliveryMsg"),
+                            t("parcels.queue.cancelledMsg"),
                             async () => {
-                              await confirmOperatorParcelDelivery(
-                                selected.parcelId,
-                                { note: reason.trim() },
-                              );
+                              // BE đòi lý do 1–500 ký tự, thiếu là 422.
+                              if (!reason.trim())
+                                throw new Error(
+                                  t("parcels.queue.cancelReasonRequired"),
+                                );
+                              await cancelOperatorParcel(selected.parcelId, {
+                                reason: reason.trim(),
+                                refundChoice,
+                              });
                             },
                           ),
-                      )
-                    }
-                  >
-                    {t("parcels.queue.confirmDeliveryButton")}
-                  </ActionButton>
-                </div>
-                <TextArea
-                  label={t("parcels.queue.confirmDeliveryNoteLabel")}
-                  value={reason}
-                  onChange={onReasonChange}
-                />
-              </ActionBox>
-            )}
-            {actionKind === "NONE" && !canCancel && (
-              <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                {t("parcels.queue.noActionText")}
-              </p>
-            )}
+                        )
+                      }
+                    >
+                      {t("parcels.queue.cancelButton")}
+                    </ActionButton>
+                  </ActionBox>
+                )}
+              </div>
+            </div>
+          )
+        )}
+      </Modal>
 
-            {/* Huỷ tay cắt ngang nhiều actionKind (đơn chờ duyệt, chờ trả tiền,
-                đã giữ chỗ...) nên đứng riêng thay vì nhét vào một nhánh. */}
-            {canCancel && (
-              <ActionBox title={t("parcels.queue.cancelTitle")}>
-                <p className="text-sm text-gray-600">
-                  {t("parcels.queue.cancelDescription")}
-                </p>
-                <TextArea
-                  label={t("parcels.queue.cancelReasonLabel")}
-                  value={reason}
-                  onChange={onReasonChange}
-                />
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-gray-600">
-                    {t("parcels.queue.refundChoiceLabel")}
-                  </span>
-                  <CustomSelect
-                    aria-label={t("parcels.queue.refundChoiceLabel")}
-                    className={inputClass}
-                    value={refundChoice}
-                    onChange={(event) =>
-                      setRefundChoice(
-                        event.target.value as ManualCancelRefundChoice,
-                      )
-                    }
-                  >
-                    {manualCancelRefundChoices.map((value) => (
-                      <option key={value} value={value}>
-                        {t(`parcels.queue.refundChoices.${value}`)}
-                      </option>
-                    ))}
-                  </CustomSelect>
-                </label>
-                <ActionButton
-                  tone="danger"
-                  disabled={actionLoading || !canOperate}
-                  icon={<FiSlash />}
-                  onClick={() =>
-                    askConfirmation(
-                      t("parcels.queue.cancelQuestion"),
-                      () =>
-                        finishAction(
-                          t("parcels.queue.cancelledMsg"),
-                          async () => {
-                            // BE đòi lý do 1–500 ký tự, thiếu là 422.
-                            if (!reason.trim())
-                              throw new Error(
-                                t("parcels.queue.cancelReasonRequired"),
-                              );
-                            await cancelOperatorParcel(selected.parcelId, {
-                              reason: reason.trim(),
-                              refundChoice,
-                            });
-                          },
-                        ),
-                    )
-                  }
-                >
-                  {t("parcels.queue.cancelButton")}
-                </ActionButton>
-              </ActionBox>
-            )}
-          </div>
-          </div>
-        )
+      {selected && (
+        <StationHandoffModal
+          open={isHandoffOpen}
+          parcelId={selected.parcelId}
+          parcelCode={selected.parcelCode}
+          onClose={() => setIsHandoffOpen(false)}
+          onRecorded={(successMessage) => {
+            setIsHandoffOpen(false);
+            // Custody event không đổi trạng thái Parcel nên không cần tải lại
+            // chi tiết; chỉ cần báo cho người dùng biết đã ghi nhận.
+            void finishAction(successMessage, async () => {});
+          }}
+        />
       )}
-    </Modal>
-
-    {selected && (
-      <StationHandoffModal
-        open={isHandoffOpen}
-        parcelId={selected.parcelId}
-        parcelCode={selected.parcelCode}
-        onClose={() => setIsHandoffOpen(false)}
-        onRecorded={(successMessage) => {
-          setIsHandoffOpen(false);
-          // Custody event không đổi trạng thái Parcel nên không cần tải lại
-          // chi tiết; chỉ cần báo cho người dùng biết đã ghi nhận.
-          void finishAction(successMessage, async () => {});
-        }}
-      />
-    )}
     </>
   );
 }

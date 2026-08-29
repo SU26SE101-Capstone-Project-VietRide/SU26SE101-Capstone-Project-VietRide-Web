@@ -4,7 +4,7 @@ import { FiTag } from "react-icons/fi";
 import type { AdminOperator, AdminVoucher } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { inputClass, labelClass, textareaClass } from "../../../components/form/formClasses";
 import { Field } from "./formControls";
 import OperatorSelector from "./OperatorSelector";
 import type { VoucherForm } from "./types";
@@ -127,7 +127,7 @@ export default function VoucherModal({
           <div className="mt-4">
             <label className={labelClass}>{tc("description")}</label>
             <textarea
-              className={`${inputClass} min-h-[88px] resize-y`}
+              className={`${textareaClass} min-h-[88px] resize-y`}
               value={form.description}
               onChange={(event) => updateForm("description", event.target.value)}
               placeholder={t("vouchers.bookingDescPlaceholder")}

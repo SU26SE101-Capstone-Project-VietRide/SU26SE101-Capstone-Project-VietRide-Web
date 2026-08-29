@@ -249,7 +249,8 @@
     "DELIVERY_REJECTED": "Người nhận từ chối",
     "RETURN_INITIATED": "Đang hoàn hàng",
     "RETURNED": "Đã hoàn hàng",
-    "PENDING_OPERATOR_ACTION": "Chờ nhà xe xử lý"
+    "PENDING_OPERATOR_ACTION": "Chờ nhà xe xử lý",
+    "QUEUED": "Đang chờ xử lý"
   },
   "dateTimePicker": {
     "selectDate": "Chọn ngày",
@@ -282,7 +283,6 @@
     "roleLabel": "Vai trò",
     "systemRole": "Quản trị viên hệ thống",
     "operatorAdminRole": "Quản trị viên nhà xe",
-    "securityTitle": "Bảo mật tài khoản",
     "changePasswordTitle": "Đổi mật khẩu",
     "changePasswordHint": "Sau khi đổi mật khẩu, bạn sẽ cần đăng nhập lại trên các thiết bị.",
     "currentPassword": "Mật khẩu hiện tại",
@@ -295,7 +295,6 @@
     "passwordMismatch": "Xác nhận mật khẩu không khớp.",
     "passwordChanged": "Đổi mật khẩu thành công, vui lòng đăng nhập lại.",
     "passwordChangeFailed": "Không thể đổi mật khẩu. Vui lòng thử lại.",
-    "securityHint": "Tài khoản quản trị hệ thống được quản lý bởi cơ chế bảo mật của hệ thống.",
     "home": "Trang chủ",
     "userProfile": "Hồ sơ người dùng",
     "myProfile": "Hồ sơ của tôi",

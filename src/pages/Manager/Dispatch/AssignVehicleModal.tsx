@@ -377,7 +377,6 @@ export default function AssignVehicleModal({
                   })
                 }
                 disabled={isSubmitting}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500 disabled:bg-gray-100"
               />
             </label>
             <label className="block">
@@ -394,7 +393,6 @@ export default function AssignVehicleModal({
                   })
                 }
                 disabled={isSubmitting}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-vr-500 disabled:bg-gray-100"
               />
             </label>
           </div>

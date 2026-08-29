@@ -9,7 +9,7 @@ import { FiAlertTriangle, FiSend } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import { Button } from "../../../components/ui/Button";
 import Checkbox from "../../../components/form/Checkbox";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { inputClass, labelClass, textareaClass } from "../../../components/form/formClasses";
 import { toNumber } from "../../../utils/number";
 import type {
   CreateCustomPlanRequestPayload,
@@ -195,7 +195,7 @@ export default function CustomRequestModal({
           <textarea
             id="custom-request-note"
             data-testid="custom-request-note"
-            className={inputClass + " min-h-[90px] resize-y"}
+            className={textareaClass + " min-h-[90px] resize-y"}
             value={form.note ?? ""}
             placeholder={t("packages.customRequestNotePlaceholder")}
             onChange={(event) => update("note", event.target.value)}

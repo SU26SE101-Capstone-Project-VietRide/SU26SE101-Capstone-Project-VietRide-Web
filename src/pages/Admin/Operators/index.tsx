@@ -54,11 +54,11 @@ import { SearchInput } from "../../../components/ui/SearchInput";
 // Mọi ô lọc dùng chung một class để cao bằng nhau (min-h-11 khớp CustomSelect /
 // CustomDateTimeInput) — trước đây ô search py-3 còn select py-2 nên so le.
 const filterControlClass =
-  "min-h-11 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
+  "min-h-[50px] w-full rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] outline-none transition focus:border-vr-500 focus:ring-4 focus:ring-vr-100";
 const searchInputClass =
-  "min-h-11 w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-vr-500 focus:bg-white focus:ring-2 focus:ring-vr-100";
+  "min-h-[50px] w-full rounded-[9999px] border border-slate-300 bg-white py-3 pl-11 pr-4 text-[15px] text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100";
 const toolbarButtonClass =
-  "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white";
+  "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[9999px] border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white";
 
 export default function Operators() {
   const { t } = useTranslation("admin");
@@ -85,7 +85,8 @@ export default function Operators() {
   const [openApprove, setOpenApprove] = useState(false);
   const [openReject, setOpenReject] = useState(false);
   const [openSuspend, setOpenSuspend] = useState(false);
-  const [pendingReactivate, setPendingReactivate] = useState<AdminOperator | null>(null);
+  const [pendingReactivate, setPendingReactivate] =
+    useState<AdminOperator | null>(null);
   const [selectedOperator, setSelectedOperator] =
     useState<AdminOperator | null>(null);
   const [operatorForm, setOperatorForm] =
@@ -124,7 +125,11 @@ export default function Operators() {
 
   // `dateField` không tính là filter: nó chỉ chọn mốc thời gian, tự nó không lọc gì.
   const hasActiveFilters = Boolean(
-    searchTerm || filterStatus !== "ALL" || activationFilter || dateFrom || dateTo,
+    searchTerm ||
+    filterStatus !== "ALL" ||
+    activationFilter ||
+    dateFrom ||
+    dateTo,
   );
   const advancedFilterCount =
     Number(Boolean(dateFrom)) + Number(Boolean(dateTo));
@@ -241,7 +246,9 @@ export default function Operators() {
       setSummaryReloadKey((current) => current + 1);
       setSelectedOperator(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("operators.approveFailed"));
+      setError(
+        err instanceof Error ? err.message : t("operators.approveFailed"),
+      );
     } finally {
       setIsActing(false);
     }
@@ -255,15 +262,25 @@ export default function Operators() {
     }
     setIsActing(true);
     try {
-      await rejectAdminOperator(selectedOperator.operatorId, rejectReason.trim());
+      await rejectAdminOperator(
+        selectedOperator.operatorId,
+        rejectReason.trim(),
+      );
       await loadOperators();
-      setMessage(t("operators.rejectedAlert", { name: selectedOperator.name, reason: rejectReason.trim() }));
+      setMessage(
+        t("operators.rejectedAlert", {
+          name: selectedOperator.name,
+          reason: rejectReason.trim(),
+        }),
+      );
       setSummaryReloadKey((current) => current + 1);
       setOpenReject(false);
       setRejectReason("");
       setSelectedOperator(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("operators.rejectFailed"));
+      setError(
+        err instanceof Error ? err.message : t("operators.rejectFailed"),
+      );
     } finally {
       setIsActing(false);
     }
@@ -288,7 +305,10 @@ export default function Operators() {
 
     setIsActing(true);
     try {
-      await suspendAdminOperator(selectedOperator.operatorId, suspendReason.trim());
+      await suspendAdminOperator(
+        selectedOperator.operatorId,
+        suspendReason.trim(),
+      );
       await loadOperators();
       setMessage(
         t("operators.suspendedAlert", { name: selectedOperator.name }),
@@ -315,7 +335,9 @@ export default function Operators() {
       setSummaryReloadKey((current) => current + 1);
       setPendingReactivate(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("operators.reactivateFailed"));
+      setError(
+        err instanceof Error ? err.message : t("operators.reactivateFailed"),
+      );
     } finally {
       setIsActing(false);
     }
@@ -329,11 +351,15 @@ export default function Operators() {
     try {
       await createAdminOperator(operatorForm);
       await loadOperators();
-      setMessage(t("operators.createdPendingMessage", { name: operatorForm.name }));
+      setMessage(
+        t("operators.createdPendingMessage", { name: operatorForm.name }),
+      );
       setOperatorForm(emptyOperatorForm);
       setOpenOnboard(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("operators.createFailed"));
+      setError(
+        err instanceof Error ? err.message : t("operators.createFailed"),
+      );
     } finally {
       setIsCreating(false);
     }
@@ -389,7 +415,6 @@ export default function Operators() {
         </div>
       )}
 
-
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={<FiUsers size={20} />}
@@ -425,9 +450,9 @@ export default function Operators() {
             label={t("operators.searchPlaceholder")}
             value={searchTerm}
             onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setPage(1);
-              }}
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
             placeholder={t("operators.searchPlaceholder")}
             inputClassName={searchInputClass}
             wrapperClassName="relative min-w-0 md:col-span-2 xl:col-span-1"
@@ -538,7 +563,6 @@ export default function Operators() {
                 }}
                 placeholder={t("operators.dateFromLabel")}
                 aria-label={t("operators.dateFromLabel")}
-                className={filterControlClass}
               />
             </label>
 
@@ -556,7 +580,6 @@ export default function Operators() {
                 }}
                 placeholder={t("operators.dateToLabel")}
                 aria-label={t("operators.dateToLabel")}
-                className={filterControlClass}
               />
             </label>
           </div>
@@ -572,7 +595,6 @@ export default function Operators() {
             {t("operators.clearFilters")}
           </button>
         )}
-
 
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
@@ -629,11 +651,17 @@ export default function Operators() {
                         <button
                           onClick={async () => {
                             try {
-                              const detail = await getAdminOperatorDetail(operator.operatorId);
+                              const detail = await getAdminOperatorDetail(
+                                operator.operatorId,
+                              );
                               setSelectedOperator(detail);
                               setOpenDetail(true);
                             } catch (err) {
-                              setError(err instanceof Error ? err.message : t("operators.loadFailed"));
+                              setError(
+                                err instanceof Error
+                                  ? err.message
+                                  : t("operators.loadFailed"),
+                              );
                             }
                           }}
                           className="p-1.5 text-vr-900 hover:bg-vr-50 rounded-lg transition"
@@ -689,7 +717,10 @@ export default function Operators() {
                 );
               })}
               {isLoading && (
-                <TableSkeletonRows columns={8} testId="operators-table-skeleton" />
+                <TableSkeletonRows
+                  columns={8}
+                  testId="operators-table-skeleton"
+                />
               )}
               {!isLoading && operators.length === 0 && (
                 <tr>
@@ -704,8 +735,6 @@ export default function Operators() {
             </tbody>
           </table>
         </div>
-
-
 
         <Pagination
           page={page}
@@ -760,9 +789,17 @@ export default function Operators() {
       <ConfirmModal
         open={Boolean(pendingReactivate)}
         onClose={() => setPendingReactivate(null)}
-        onConfirm={() => pendingReactivate && void handleReactivate(pendingReactivate)}
+        onConfirm={() =>
+          pendingReactivate && void handleReactivate(pendingReactivate)
+        }
         title={t("operators.reactivate")}
-        message={pendingReactivate ? t("operators.reactivateConfirmMsg", { name: pendingReactivate.name }) : ""}
+        message={
+          pendingReactivate
+            ? t("operators.reactivateConfirmMsg", {
+                name: pendingReactivate.name,
+              })
+            : ""
+        }
         confirmLabel={tc("confirm")}
         cancelLabel={tc("cancel")}
         tone="success"

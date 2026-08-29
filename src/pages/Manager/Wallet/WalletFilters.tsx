@@ -5,7 +5,7 @@ import type { Translate } from "./walletTableShared";
 import { SearchInput } from "../../../components/ui/SearchInput";
 
 const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
+  "h-12 w-full rounded-[9999px] border border-[#bfe1ec] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] outline-none transition placeholder:text-slate-400 focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5]";
 
 export type DateFieldOption = { value: string; label: string };
 
@@ -71,7 +71,6 @@ export function WalletFilters({
           type="date"
           value={dateFrom}
           onChange={(event) => onDateFromChange(event.target.value)}
-          className={inputClass}
           placeholder={t("wallet.dateFrom")}
         />
         <span className="text-sm text-gray-500">-</span>
@@ -79,7 +78,6 @@ export function WalletFilters({
           type="date"
           value={dateTo}
           onChange={(event) => onDateToChange(event.target.value)}
-          className={inputClass}
           placeholder={t("wallet.dateTo")}
         />
       </div>

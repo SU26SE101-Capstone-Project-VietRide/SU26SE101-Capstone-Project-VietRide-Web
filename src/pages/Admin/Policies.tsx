@@ -27,7 +27,7 @@ import {
   updateAdminPolicy,
   type PolicyItem,
 } from "../../api/vietride";
-import { inputClass, labelClass } from "../../components/form/formClasses";
+import { inputClass, labelClass, textareaClass } from "../../components/form/formClasses";
 import { TableSkeletonRows } from "../../components/TableSkeletonRows";
 import { Button } from "../../components/ui/Button";
 import { SearchInput } from "../../components/ui/SearchInput";
@@ -598,7 +598,7 @@ export default function AdminPolicies() {
             </label>
             <textarea
               placeholder={t("policies.contentPlaceholder")}
-              className={`${inputClass} resize-none font-mono text-xs`}
+              className={`${textareaClass} resize-none font-mono text-xs`}
               rows={8}
               value={formData.content}
               onChange={(e) =>

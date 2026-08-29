@@ -52,6 +52,9 @@ export default function ChatComposer({
           }}
           rows={1}
           maxLength={MESSAGE_MAX_LENGTH}
+          // Khung bọc đã đổi viền + ring khi focus-within, nên tắt outline
+          // chung của App.css để không có thêm hình chữ nhật vuông góc bên trong.
+          data-focus-outline="none"
           className="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent py-1.5 text-sm leading-6 text-slate-900 outline-none placeholder:text-gray-500"
           placeholder={t("assistant.placeholder")}
         />

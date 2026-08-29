@@ -17,7 +17,7 @@ import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import InlineAlert from "../../../components/InlineAlert";
 import { Button } from "../../../components/ui/Button";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { inputClass, labelClass, textareaClass } from "../../../components/form/formClasses";
 import { requiresLocationId } from "../../../utils/parcelReliability";
 import EvidenceUploader from "../../../components/EvidenceUploader";
 
@@ -306,12 +306,15 @@ export default function StationHandoffModal({
           <label className={labelClass} htmlFor="handoff-reason">
             {t("parcels.handoff.reasonLabel")}
           </label>
-          <input
+          {/* Cột `reason` của ParcelCustodyEvent giới hạn 1000 ký tự — chặn
+              ngay ở form thay vì để BE trả 422 sau khi người dùng gõ xong. */}
+          <textarea
             id="handoff-reason"
-            type="text"
+            rows={3}
+            maxLength={1000}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className={inputClass}
+            className={`${textareaClass} resize-y`}
           />
         </div>
 

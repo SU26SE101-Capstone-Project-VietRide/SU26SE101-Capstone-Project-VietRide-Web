@@ -4148,27 +4148,39 @@ export type OperatorDriverSchedulePatch = {
 export type DriverScheduleApplyTo = "FUTURE_ONLY" | "ALL_PENDING";
 
 /**
- * Thay xe cho chuyến ĐANG CHẠY (handoff Vehicle Substitution B1-B7, 2026-08-25).
+ * Thay xe cho chuyến ĐANG CHẠY (handoff Web Operator "đổi xe do sự cố",
+ * 2026-08-30 — bản này THAY THẾ handoff B1-B7 ngày 2026-08-25).
  *
+ * Chỉ `OPERATOR_ADMIN` gọi được; `OPERATOR_STAFF` nhận `403 FORBIDDEN`.
+ *
+ * - `incidentId` BẮT BUỘC và phải là sự cố thuộc đúng chuyến/operator; sai
+ *   chuyến là `422 VALIDATION_ERROR`.
+ * - `replacementCrew` BẮT BUỘC, và cả `driverId` lẫn `assistantId` đều bắt
+ *   buộc. Handoff nói rõ KHÔNG được gửi `null` cho ba field này — nên type
+ *   không còn cho phép `null` nữa (khác bản 2026-08-25 cho phụ xe optional).
+ * - Xe/tài xế/phụ xe mới không được trùng của chuyến cũ (`409
+ *   TRIP_VEHICLE_SAME_AS_OLD` / `409 TRIP_CREW_SAME_AS_OLD`).
  * - `reason` BẮT BUỘC: BE trim rồi kiểm không rỗng, tối đa 500 ký tự.
  * - `estimatedRecoveryDepartureAt` phải là mốc tuyệt đối offset UTC = 0 (gửi
  *   `toISOString()`, hậu tố `Z`) và phải SAU thời điểm gián đoạn.
- * - `replacementCrew` optional; gửi thì `driverId` bắt buộc.
- * - `acknowledgeInsufficientSeats`: BE nay CHẶN CỨNG khi xe thay thiếu ghế
- *   (`409 REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`) thay vì cho qua như trước.
- *   Chỉ gửi `true` sau khi người vận hành đã thấy con số thiếu ghế của BE và
- *   xác nhận — và phải dùng Idempotency-Key MỚI vì body đã đổi.
+ * - `acknowledgeInsufficientSeats`: BE CHẶN CỨNG khi xe thay thiếu ghế
+ *   (`409 REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`). Chỉ gửi `true` sau khi
+ *   người vận hành đã thấy con số thiếu ghế của BE và xác nhận — và phải dùng
+ *   Idempotency-Key MỚI vì body đã đổi.
  * - BE từ chối field lạ (`422 VALIDATION_ERROR`), đừng gửi thừa.
  */
 export type SubstituteVehicleRequest = {
   replacementVehicleId: string;
+  /** Sự cố của CHÍNH chuyến này — không có thì BE trả `422 VALIDATION_ERROR`. */
+  incidentId: string;
   estimatedRecoveryDepartureAt: string;
   reason: string;
   notifyPassengers?: boolean;
-  replacementCrew?: {
+  /** Không optional và không nhận `null`: cả kíp mới phải chọn đủ. */
+  replacementCrew: {
     driverId: string;
-    assistantId?: string | null;
-  } | null;
+    assistantId: string;
+  };
   acknowledgeInsufficientSeats?: boolean;
 };
 
@@ -4191,10 +4203,17 @@ export type TripOperationResult = {
   tripId?: string;
   substitutionId?: string;
   oldTripId?: string;
+  /** Sau khi thay xe thành công: `DISRUPTED`. */
   oldTripStatus?: string | null;
   newTripId?: string;
+  /** Sau khi thay xe thành công: `BOARDING`. */
   newTripStatus?: string | null;
   newTripDepartureDateTime?: string;
+  /**
+   * `QUEUED` = luồng chuyển hàng ĐANG CHỜ crew xác nhận. Tuyệt đối KHÔNG hiển
+   * thị là hàng đã sang xe mới cho tới khi có confirm thành công (handoff
+   * 2026-08-30 mục "API đổi xe").
+   */
   transferStatus?: string | null;
   affectedBookingCount?: number;
   affectedPassengerCount?: number;

@@ -68,6 +68,7 @@ const parcelReasonCodes = [
   "TRIP_CANCELLED",
   "TRIP_DISRUPTED",
   "TRIP_CARGO_CAPACITY_EXCEEDED",
+  "DESTINATION_ARRIVED_WITHOUT_CONFIRMED_TERMINAL_UNLOAD",
 ] as const;
 
 describe("lý do đổi trạng thái bưu kiện", () => {
@@ -85,4 +86,35 @@ describe("lý do đổi trạng thái bưu kiện", () => {
     expect(vi).not.toBe(code);
     expect(en).not.toBe(code);
   });
+});
+
+/**
+ * Lý do huỷ đối soát in ra ở tab "Doanh thu hàng tuần" của ví nhà xe. Thiếu key
+ * là nhà xe đọc thẳng mã enum
+ * ("Lý do hủy: VEHICLE_SUBSTITUTION_REVENUE_RETAINED_ON_ORIGINAL_TRIP").
+ *
+ * Danh sách lấy từ `cancel_reason` của OperatorTripSettlement ở BE.
+ */
+const settlementCancelReasonCodes = [
+  "NON_POSITIVE_NET_ENTITLEMENT",
+  "VEHICLE_SUBSTITUTION_REVENUE_RETAINED_ON_ORIGINAL_TRIP",
+] as const;
+
+describe("lý do huỷ đối soát", () => {
+  it.each(settlementCancelReasonCodes)(
+    "dịch được mã %s ở cả vi và en",
+    (code) => {
+      const vi = (viManager.wallet.cancelReasons as Record<string, string>)[
+        code
+      ];
+      const en = (enManager.wallet.cancelReasons as Record<string, string>)[
+        code
+      ];
+
+      expect(vi, `thiếu bản dịch tiếng Việt cho ${code}`).toBeTruthy();
+      expect(en, `thiếu bản dịch tiếng Anh cho ${code}`).toBeTruthy();
+      expect(vi).not.toBe(code);
+      expect(en).not.toBe(code);
+    },
+  );
 });

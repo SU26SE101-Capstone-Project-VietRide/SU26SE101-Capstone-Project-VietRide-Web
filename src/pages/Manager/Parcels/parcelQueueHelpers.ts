@@ -2,10 +2,19 @@
 import type { OperatorParcelListItem } from "../../../api/vietride";
 
 export const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/20";
+  "h-12 w-full rounded-[9999px] border border-[#a8dfe6] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(168,223,230,0.16)] outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100";
+// Bản bo góc chữ nhật của `inputClass`, dùng cho ô nhập nhiều dòng — xem
+// components/form/formClasses.ts.
+export const textareaClass = inputClass.replace(
+  "rounded-[9999px]",
+  "rounded-xl",
+);
 export const pageSize = 10;
 
-export type Translate = (key: string, options?: Record<string, unknown>) => string;
+export type Translate = (
+  key: string,
+  options?: Record<string, unknown>,
+) => string;
 
 export type ParcelFilter = {
   value: string;

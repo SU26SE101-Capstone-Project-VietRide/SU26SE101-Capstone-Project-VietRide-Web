@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import Checkbox from "../../../components/form/Checkbox";
 import CustomDateTimeInput from "../../../components/CustomDateTimeInput";
 import {
-  inputClass,
   operatingDayKeys,
   type OperatingDayKey,
   type OperatingDaySchedule,
@@ -56,7 +55,6 @@ export default function StationScheduleFields({
                     open: event.target.value,
                   })
                 }
-                className={inputClass}
               />
               <span className="text-center text-gray-500">–</span>
               <CustomDateTimeInput
@@ -68,7 +66,6 @@ export default function StationScheduleFields({
                     close: event.target.value,
                   })
                 }
-                className={inputClass}
               />
             </div>
           );

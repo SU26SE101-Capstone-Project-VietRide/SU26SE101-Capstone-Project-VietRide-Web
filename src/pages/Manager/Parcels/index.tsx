@@ -6,9 +6,13 @@ import { useTranslation } from "react-i18next";
 import {
   FiCheckCircle,
   FiAlertTriangle,
+  FiArchive,
   FiArrowDown,
   FiArrowUp,
+  FiBox,
   FiEdit2,
+  FiLayers,
+  FiMapPin,
   FiPackage,
   FiPlus,
   FiRefreshCw,
@@ -217,13 +221,6 @@ export default function ParcelsList() {
   // là một trang kết quả đã lọc và sắp xếp sẵn.
   const paginatedFareGroups = fareGroups;
 
-  function toggleFareSort() {
-    setFareSort((current) =>
-      current === "priceAsc" ? "priceDesc" : "priceAsc",
-    );
-    setFarePage(1);
-  }
-
   function toggleEffectiveSort() {
     setFareSort((current) =>
       current === "effectiveDesc" ? "effectiveAsc" : "effectiveDesc",
@@ -237,6 +234,16 @@ export default function ParcelsList() {
   const mixedWindowNotice = Boolean(
     editingGroup && hasMixedEffectiveWindows(editingGroup.fares),
   );
+
+  const sizeHeaderMeta: Record<
+    ParcelSizeCategory,
+    { icon: typeof FiBox; colorClass: string }
+  > = {
+    SMALL: { icon: FiBox, colorClass: "bg-emerald-50 text-emerald-600" },
+    MEDIUM: { icon: FiPackage, colorClass: "bg-cyan-50 text-cyan-600" },
+    LARGE: { icon: FiArchive, colorClass: "bg-violet-50 text-violet-600" },
+    EXTRA_LARGE: { icon: FiLayers, colorClass: "bg-amber-50 text-amber-600" },
+  };
 
   function sortIcon(ascending: boolean) {
     return ascending ? (
@@ -696,29 +703,17 @@ export default function ParcelsList() {
       {/* <div> chứ không phải <main>: layout đã có <main> bao ngoài, lồng
           thêm <main> nữa là hai landmark `main` trên cùng một trang. */}
       <div className="space-y-6">
-        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 p-5">
-            <h2 className="text-lg font-bold text-gray-900">
-              {t("parcels.routeFares")}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {t("parcels.routeFaresHint")}
-            </p>
-          </div>
-          {canManageRouteFares && (
-            <div className="flex justify-end border-b border-gray-100 bg-gray-50/60 p-4">
-              <Button
-                variant="primary"
-                onClick={() => {
-                  resetFareForm();
-                  setIsFareModalOpen(true);
-                }}
-              >
-                <FiPlus size={16} />
-                {t("parcels.createFare")}
-              </Button>
+        <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-5">
+            <div>
+              <h2 className="text-[2rem] font-bold leading-tight tracking-[-0.04em] text-slate-900">
+                {t("parcels.routeFares")}
+              </h2>
+              <p className="mt-1 text-[15px] text-slate-500">
+                {t("parcels.routeFaresHint")}
+              </p>
             </div>
-          )}
+          </div>
           <Modal
             open={isFareModalOpen}
             onClose={resetFareForm}
@@ -778,7 +773,6 @@ export default function ParcelsList() {
                     onChange={(event) =>
                       setFareEffectiveFrom(event.target.value)
                     }
-                    className={inputClass}
                   />
                 </label>
                 {/* Checkbox để NGOÀI <label> của ô ngày: lồng vào trong thì
@@ -796,7 +790,6 @@ export default function ParcelsList() {
                       onChange={(event) =>
                         setFareEffectiveUntil(event.target.value)
                       }
-                      className={inputClass}
                     />
                   </label>
                   {/* Handoff BE: "không giới hạn" phải chọn được RÕ RÀNG. Khi
@@ -938,94 +931,123 @@ export default function ParcelsList() {
               {t("parcels.mixedEffectiveWindowsConfirm")}
             </p>
           </Modal>
-          <div className="border-b border-gray-100 bg-white p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <SearchInput
-                label={t("parcels.fareSearchPlaceholder")}
-                value={fareSearch}
-                onChange={(event) => {
-                  setFareSearch(event.target.value);
-                  setFarePage(1);
-                }}
-                placeholder={t("parcels.fareSearchPlaceholder")}
-                inputClassName="w-full rounded-lg border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
-                wrapperClassName="relative min-w-0 flex-1"
-              />
-              <CustomSelect
-                value={fareSizeFilter}
-                onChange={(event) => {
-                  setFareSizeFilter(
-                    event.target.value as "" | ParcelSizeCategory,
-                  );
-                  setFarePage(1);
-                }}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100 lg:w-48"
-              >
-                <option value="">{t("parcels.allSizeCategories")}</option>
-                {parcelSizeCategories.map((size) => (
-                  <option key={size} value={size}>
-                    {t("parcels.sizeCategories." + size)}
+          <div className="border-b border-slate-200 bg-white p-4">
+            <div className="rounded-[28px] border border-[#bfe7ee] bg-[#f7fbfc] p-3 shadow-[inset_0_0_0_1px_rgba(191,231,238,0.2)]">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.8fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto] lg:items-center">
+                <SearchInput
+                  label={t("parcels.fareSearchPlaceholder")}
+                  value={fareSearch}
+                  onChange={(event) => {
+                    setFareSearch(event.target.value);
+                    setFarePage(1);
+                  }}
+                  placeholder={t("parcels.fareSearchPlaceholder")}
+                  inputClassName="h-12 w-full rounded-[9999px] border border-[#a8dfe6] bg-white pl-11 pr-4 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(168,223,230,0.16)] outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
+                  wrapperClassName="relative min-w-0"
+                />
+                <CustomSelect
+                  value={fareSizeFilter}
+                  onChange={(event) => {
+                    setFareSizeFilter(
+                      event.target.value as "" | ParcelSizeCategory,
+                    );
+                    setFarePage(1);
+                  }}
+                  className="h-12 w-full rounded-[9999px] border border-[#a8dfe6] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(168,223,230,0.16)] outline-none transition focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
+                >
+                  <option value="">{t("parcels.allSizeCategories")}</option>
+                  {parcelSizeCategories.map((size) => (
+                    <option key={size} value={size}>
+                      {t("parcels.sizeCategories." + size)}
+                    </option>
+                  ))}
+                </CustomSelect>
+                {/* BE phân loại hiệu lực theo ngày neo; window không có ngày kết thúc không bao giờ là EXPIRED */}
+                <CustomSelect
+                  value={fareStatusFilter}
+                  onChange={(event) => {
+                    setFareStatusFilter(
+                      event.target.value as "" | ParcelRouteFareStatus,
+                    );
+                    setFarePage(1);
+                  }}
+                  aria-label={t("parcels.fareStatusFilterLabel")}
+                  className="h-12 w-full rounded-[9999px] border border-[#a8dfe6] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(168,223,230,0.16)] outline-none transition focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
+                >
+                  <option value="">{t("parcels.allFareStatuses")}</option>
+                  <option value="ACTIVE">
+                    {t("parcels.routeFareStatus.ACTIVE")}
                   </option>
-                ))}
-              </CustomSelect>
-              {/* BE phân loại hiệu lực theo ngày neo; window không có ngày kết thúc không bao giờ là EXPIRED */}
-              <CustomSelect
-                value={fareStatusFilter}
-                onChange={(event) => {
-                  setFareStatusFilter(
-                    event.target.value as "" | ParcelRouteFareStatus,
-                  );
-                  setFarePage(1);
-                }}
-                aria-label={t("parcels.fareStatusFilterLabel")}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100 lg:w-48"
-              >
-                <option value="">{t("parcels.allFareStatuses")}</option>
-                <option value="ACTIVE">
-                  {t("parcels.routeFareStatus.ACTIVE")}
-                </option>
-                <option value="SCHEDULED">
-                  {t("parcels.routeFareStatus.SCHEDULED")}
-                </option>
-                <option value="EXPIRED">
-                  {t("parcels.routeFareStatus.EXPIRED")}
-                </option>
-              </CustomSelect>
+                  <option value="SCHEDULED">
+                    {t("parcels.routeFareStatus.SCHEDULED")}
+                  </option>
+                  <option value="EXPIRED">
+                    {t("parcels.routeFareStatus.EXPIRED")}
+                  </option>
+                </CustomSelect>
+                <button
+                  type="button"
+                  className="ml-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-teal-600 to-teal-500 text-white shadow-sm transition hover:brightness-105"
+                  aria-label={t("parcels.createFare")}
+                  title={t("parcels.createFare")}
+                  onClick={() => {
+                    resetFareForm();
+                    setIsFareModalOpen(true);
+                  }}
+                >
+                  <FiPlus size={18} />
+                </button>
+              </div>
             </div>
           </div>
           <div className="w-full overflow-x-auto" tabIndex={0}>
-            <table className="w-full min-w-[900px] table-fixed">
+            <table
+              className="w-full table-fixed border-separate border-spacing-0"
+              style={{ minWidth: "900px" }}
+            >
               <colgroup>
-                <col className="w-[22%]" />
-                <col className="w-[48%]" />
-                <col className="w-[20%]" />
-                <col className="w-[10%]" />
+                <col className="w-[28%]" />
+                <col className="w-[40%]" />
+                <col className="w-[24%]" />
+                <col className="w-[8%]" />
               </colgroup>
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  <th className="whitespace-nowrap px-4 py-3">
+                <tr className="bg-slate-100 text-left text-[11px] font-semibold text-slate-900">
+                  <th className="border-b border-slate-200 px-4 py-3 text-left text-[13px] font-bold tracking-[0.02em] text-slate-950">
                     {t("parcels.route")}
                   </th>
-                  <th className="whitespace-nowrap px-4 py-3 text-center">
-                    <button
-                      type="button"
-                      onClick={toggleFareSort}
-                      className="inline-flex items-center justify-center gap-1.5 font-semibold transition hover:text-vr-900"
-                      title={
-                        fareSort === "priceAsc"
-                          ? t("parcels.priceHighToLow")
-                          : t("parcels.priceLowToHigh")
-                      }
-                    >
-                      {t("parcels.fareTable")}
-                      {isPriceSort ? sortIcon(fareSort === "priceAsc") : null}
-                    </button>
+                  <th className="border-b border-slate-200 px-4 py-3 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="text-[13px] font-bold tracking-[0.02em] text-slate-950">
+                        {t("parcels.fareTable")}
+                      </div>
+                      <div className="flex w-full items-center justify-center gap-3 text-[11px] font-semibold text-slate-800">
+                        {parcelSizeCategories.map((size) => {
+                          const meta = sizeHeaderMeta[size];
+                          const Icon = meta.icon;
+
+                          return (
+                            <div
+                              key={size}
+                              className="flex min-w-[90px] items-center justify-center gap-1.5 text-center text-[13px] font-semibold text-slate-800"
+                            >
+                              <span
+                                className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 ${meta.colorClass}`}
+                              >
+                                <Icon aria-hidden="true" size={12} />
+                              </span>
+                              <span>{t(`parcels.sizeCategories.${size}`)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </th>
-                  <th className="whitespace-nowrap px-4 py-3 text-center">
+                  <th className="border-b border-slate-200 px-2 py-3 text-center">
                     <button
                       type="button"
                       onClick={toggleEffectiveSort}
-                      className="inline-flex items-center justify-center gap-1.5 font-semibold transition hover:text-vr-900"
+                      className="inline-flex items-center justify-center gap-1.5 text-[13px] font-bold tracking-[0.02em] text-slate-950 transition hover:text-vr-900"
                       title={t("parcels.effectiveWindow")}
                     >
                       {t("parcels.effectiveWindow")}
@@ -1034,7 +1056,7 @@ export default function ParcelsList() {
                         : sortIcon(fareSort === "effectiveAsc")}
                     </button>
                   </th>
-                  <th className="whitespace-nowrap px-4 py-3 text-center">
+                  <th className="border-b border-slate-200 px-2 py-3 text-center text-[13px] font-bold tracking-[0.02em] text-slate-950">
                     {tc("actions")}
                   </th>
                 </tr>
@@ -1053,78 +1075,97 @@ export default function ParcelsList() {
                   return (
                     <tr
                       key={group.routeId}
-                      className="border-b border-gray-100 last:border-0"
+                      className="transition-colors hover:bg-slate-50/80"
                     >
-                      <td className="min-w-0 px-4 py-3 text-sm font-medium text-gray-900">
-                        <span className="block truncate" title={routeName}>
-                          {routeName}
-                        </span>
-                        {missingCount > 0 && (
-                          <span className="mt-1 block text-xs font-normal text-amber-700">
-                            {t("parcels.routeFareStatus.INCOMPLETE", {
-                              count: configuredSizeCount(group.fares),
-                            })}
+                      <td className="border-b border-slate-200 px-4 py-3 align-middle">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-500">
+                            <FiMapPin className="h-3.5 w-3.5" />
                           </span>
-                        )}
+                          <div className="min-w-0">
+                            <div
+                              className="truncate text-sm font-semibold text-slate-900"
+                              title={routeName}
+                            >
+                              {routeName}
+                            </div>
+                            {missingCount > 0 && (
+                              <div className="mt-1 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                {t("parcels.routeFareStatus.INCOMPLETE", {
+                                  count: configuredSizeCount(group.fares),
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </td>
-                      {/* Bốn mức giá trên một dòng, luôn đủ bốn cỡ theo thứ tự
-                          canonical; cỡ chưa cấu hình hiện gạch ngang thay vì bị
-                          giấu đi, để nhìn ra ngay tuyến nào còn thiếu mức. */}
-                      <td className="px-4 py-3 text-center text-sm text-gray-700">
-                        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+                      <td className="border-b border-slate-200 px-4 py-3 align-middle">
+                        <div className="flex items-center justify-center gap-3">
                           {parcelSizeCategories.map((size) => {
                             const entry = group.fares.find(
                               (fare) => fare.sizeCategory === size,
                             );
+                            const colorClass =
+                              size === "SMALL"
+                                ? "text-emerald-600"
+                                : size === "MEDIUM"
+                                  ? "text-cyan-600"
+                                  : size === "LARGE"
+                                    ? "text-violet-600"
+                                    : "text-amber-600";
                             return (
-                              <span key={size} className="whitespace-nowrap">
-                                <span className="text-gray-500">
-                                  {t(`parcels.sizeCategories.${size}`)}
-                                </span>{" "}
-                                <span
-                                  className={
-                                    entry
-                                      ? "font-semibold text-gray-900"
-                                      : "text-gray-400"
-                                  }
+                              <div
+                                key={size}
+                                className="flex min-w-[94px] items-center justify-center rounded-md text-center"
+                              >
+                                <div
+                                  className={`text-[15px] font-bold tracking-[-0.04em] ${colorClass}`}
+                                  style={{
+                                    fontFeatureSettings: '"tnum" 1',
+                                    fontVariantNumeric: "tabular-nums",
+                                  }}
                                 >
                                   {entry ? formatMoney(entry.priceVnd) : "-"}
-                                </span>
-                              </span>
+                                </div>
+                              </div>
                             );
                           })}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-700">
+                      <td className="border-b border-slate-200 px-4 py-3 align-middle">
                         {isMixed ? (
-                          <Badge tone="warning">
-                            {t("parcels.mixedEffectiveWindows")}
-                          </Badge>
+                          <div className="flex justify-start">
+                            <Badge tone="warning">
+                              {t("parcels.mixedEffectiveWindows")}
+                            </Badge>
+                          </div>
                         ) : window ? (
-                          <span className="whitespace-nowrap">
-                            {formatDate(window.effectiveFrom)}
-                            {" → "}
-                            {window.effectiveUntil
-                              ? formatDate(window.effectiveUntil)
-                              : t("parcels.noEndLimit")}
-                          </span>
+                          <div className="flex flex-col items-start gap-1 text-sm text-slate-700">
+                            <span className="whitespace-nowrap font-medium text-slate-800">
+                              {formatDate(window.effectiveFrom)}
+                              {" → "}
+                              {window.effectiveUntil
+                                ? formatDate(window.effectiveUntil)
+                                : t("parcels.noEndLimit")}
+                            </span>
+                          </div>
                         ) : (
-                          "-"
+                          <span className="text-sm text-slate-400">-</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-center">
+                      <td className="border-b border-slate-200 whitespace-nowrap px-4 py-3.5 text-center align-middle">
                         {canManageRouteFares ? (
                           <button
                             type="button"
                             onClick={() => handleEditFareGroup(group)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:border-vr-300 hover:bg-vr-50 hover:text-vr-900"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-vr-300 hover:bg-vr-50 hover:text-vr-900"
                             aria-label={t("parcels.editFare")}
                             title={t("parcels.editFare")}
                           >
                             <FiEdit2 size={16} />
                           </button>
                         ) : (
-                          <span className="text-gray-500">-</span>
+                          <span className="text-sm text-slate-400">-</span>
                         )}
                       </td>
                     </tr>

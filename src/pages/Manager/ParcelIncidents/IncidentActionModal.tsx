@@ -27,7 +27,7 @@ import {
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import { Button } from "../../../components/ui/Button";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { inputClass, labelClass, textareaClass } from "../../../components/form/formClasses";
 import EvidenceUploader from "../../../components/EvidenceUploader";
 import {
   isUsableUuid,
@@ -428,7 +428,7 @@ export default function IncidentActionModal({
                 maxLength={1000}
                 disabled={isSubmitting}
                 placeholder={t("parcelIncidents.resultPlaceholder")}
-                className={inputClass}
+                className={textareaClass}
               />
             </label>
             <EvidenceField
@@ -636,7 +636,7 @@ function NoteField({
         maxLength={1000}
         disabled={disabled}
         placeholder={t("parcelIncidents.notePlaceholder")}
-        className={inputClass}
+        className={textareaClass}
       />
     </label>
   );

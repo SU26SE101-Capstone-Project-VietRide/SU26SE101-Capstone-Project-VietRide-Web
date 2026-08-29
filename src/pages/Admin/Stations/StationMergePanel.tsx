@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FiGitMerge } from "react-icons/fi";
 import { type AdminStation } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import { SearchInput } from "../../../components/ui/SearchInput";
 import { inputClass, labelClass } from "./stationHelpers";
 
 type StationMergePanelProps = {
@@ -54,16 +55,14 @@ export default function StationMergePanel({
         bảng chính đã phân trang server-side nên không còn giữ đủ dữ liệu để
         dựng dropdown này.
       */}
-      <label className="mt-4 block">
-        <span className={labelClass}>{t("stations.mergeSearchLabel")}</span>
-        <input
-          type="search"
-          className={inputClass}
-          value={mergeSearch}
-          onChange={(event) => onMergeSearchChange(event.target.value)}
-          placeholder={t("stations.mergeSearchPlaceholder")}
-        />
-      </label>
+      <SearchInput
+        wrapperClassName="mt-4 block min-w-0"
+        label={t("stations.mergeSearchLabel")}
+        labelClassName={labelClass}
+        value={mergeSearch}
+        onChange={(event) => onMergeSearchChange(event.target.value)}
+        placeholder={t("stations.mergeSearchPlaceholder")}
+      />
       <label className="mt-4 block">
         <span className={labelClass}>{t("stations.mergeTarget")}</span>
         <CustomSelect

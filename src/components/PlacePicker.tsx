@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiMapPin, FiSearch } from "react-icons/fi";
 import GoogleMapCanvas from "./GoogleMapCanvas";
@@ -20,7 +14,6 @@ import {
   type GooglePlacesLibrary,
 } from "../lib/googleMaps";
 import { extractGoogleAddressParts } from "../lib/googlePlaces";
-import { Button } from "./ui/Button";
 
 export type PlaceSelection = {
   placeId: string;
@@ -120,8 +113,7 @@ function geocoderResultToSelection(
 function toSuggestion(prediction: GooglePlacePrediction): PlaceSuggestion {
   return {
     label: prediction.text.toString(),
-    mainText:
-      prediction.mainText?.toString() ?? prediction.text.toString(),
+    mainText: prediction.mainText?.toString() ?? prediction.text.toString(),
     placeId: prediction.placeId,
     prediction,
     secondaryText: prediction.secondaryText?.toString() ?? "",
@@ -147,8 +139,7 @@ export default function PlacePicker({
   const [isSearching, setIsSearching] = useState(false);
   const [message, setMessage] = useState("");
   const requestSequenceRef = useRef(0);
-  const sessionTokenRef =
-    useRef<GoogleAutocompleteSessionToken | null>(null);
+  const sessionTokenRef = useRef<GoogleAutocompleteSessionToken | null>(null);
   const geocoderRef = useRef<GoogleGeocoderInstance | null>(null);
   const query =
     queryDraft.ownerPlaceId === selectedPlaceId
@@ -223,8 +214,7 @@ export default function PlacePicker({
       }
 
       const requestId = ++requestSequenceRef.current;
-      sessionTokenRef.current ??=
-        new placesLibrary.AutocompleteSessionToken();
+      sessionTokenRef.current ??= new placesLibrary.AutocompleteSessionToken();
       setIsSearching(true);
       setMessage("");
 
@@ -252,11 +242,7 @@ export default function PlacePicker({
           )
           .map(toSuggestion);
         setSuggestions(nextSuggestions);
-        setMessage(
-          nextSuggestions.length
-            ? ""
-            : t("placePicker.noResults"),
-        );
+        setMessage(nextSuggestions.length ? "" : t("placePicker.noResults"));
       } catch (error) {
         if (requestId === requestSequenceRef.current) {
           setSuggestions([]);
@@ -277,11 +263,7 @@ export default function PlacePicker({
 
   useEffect(() => {
     const input = query.trim();
-    if (
-      input.length < 2 ||
-      input === selectedPlaceName ||
-      !placesLibrary
-    ) {
+    if (input.length < 2 || input === selectedPlaceName || !placesLibrary) {
       return;
     }
 
@@ -323,9 +305,7 @@ export default function PlacePicker({
       setSuggestions([]);
     } catch (error) {
       setMessage(
-        error instanceof Error
-          ? error.message
-          : t("placePicker.detailsFailed"),
+        error instanceof Error ? error.message : t("placePicker.detailsFailed"),
       );
     } finally {
       if (requestId === requestSequenceRef.current) {
@@ -399,9 +379,9 @@ export default function PlacePicker({
         </span>
         <div className="flex gap-2">
           <div className="relative min-w-0 flex-1">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <FiSearch className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
-              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35"
+              className="h-12 w-full rounded-[9999px] border border-[#bfe1ec] bg-white pl-11 pr-4 text-[15px] text-slate-700 placeholder:text-slate-400 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] outline-none transition focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5]"
               value={query}
               onChange={(event) => handleQueryChange(event.target.value)}
               onKeyDown={(event) => {
@@ -414,12 +394,22 @@ export default function PlacePicker({
               autoComplete="off"
             />
           </div>
-          <Button variant="secondary" onClick={handleManualSearch} disabled={isSearching || !placesLibrary}>
-            <FiSearch size={16} />
+          {/* Nút này không dùng <Button> chung: `rounded-lg` + `border-gray-200`
+              trong class nền của nó thắng phần ghi đè ở `className` (Tailwind xếp
+              theo thứ tự trong file CSS chứ không theo thứ tự chuỗi class), nên nút
+              ra góc vuông viền xám trong khi ô tìm kiếm bên cạnh bo tròn viền xanh.
+              Cùng cách xử lý với `toolbarButtonClass` ở màn Admin/Operators. */}
+          <button
+            type="button"
+            className="flex h-12 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-[9999px] border border-[#bfe1ec] bg-white px-5 text-[15px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={handleManualSearch}
+            disabled={isSearching || !placesLibrary}
+          >
+            <FiSearch size={16} aria-hidden="true" />
             {isSearching
               ? t("placePicker.searching")
               : t("placePicker.searchButton")}
-          </Button>
+          </button>
         </div>
       </label>
 

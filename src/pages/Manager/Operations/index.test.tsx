@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorFleetLatest,
+  getOperatorIncidents,
   getOperatorShuttleTrips,
   getOperatorShuttleContext,
   getOperatorRouteChangeProposals,
@@ -85,6 +86,8 @@ vi.mock("../../../lib/trackingSocket", () => ({
 vi.mock("../../../api/vietride", () => ({
   approveOperatorRouteChangeProposal: vi.fn(),
   getOperatorFleetLatest: vi.fn(),
+  // TripActionsPanel tự tải sự cố của chuyến khi được chọn
+  getOperatorIncidents: vi.fn(),
   getOperatorShuttleTrips: vi.fn(),
   getOperatorShuttleContext: vi.fn(),
   getOperatorRouteChangeProposal: vi.fn(),
@@ -168,6 +171,16 @@ describe("Manager Operations Center", () => {
       tripId: "trip-1",
       vehicleType: "SEAT_40",
       seats: [],
+    });
+    // Panel cũng tải sự cố của chuyến để chọn khi thay xe — cùng lý do như trên.
+    vi.mocked(getOperatorIncidents).mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 50,
+      totalItems: 0,
+      totalPages: 0,
+      hasPreviousPage: false,
+      hasNextPage: false,
     });
     trackingSocketHandlers.clear();
     canvasProps.length = 0;

@@ -58,7 +58,10 @@ import { StatCard } from "../../../components/StatCard";
 import FleetVehicleList from "./FleetVehicleList";
 import ProposalsPanel from "./ProposalsPanel";
 import ShuttleVehiclePanel from "./ShuttleVehiclePanel";
-import { SubstitutionResultCard } from "./SubstitutionResultCard";
+import {
+  SubstitutionResultCard,
+  type SubstitutionSummary,
+} from "./SubstitutionResultCard";
 import TripActionsPanel, {
   type TripActionsContext,
 } from "./TripActionsPanel";
@@ -144,6 +147,9 @@ export default function OperationsPage() {
   // Kết quả thay xe gần nhất — xem ghi chú tại chỗ render.
   const [substitutionResult, setSubstitutionResult] =
     useState<TripOperationResult | null>(null);
+  // Biển số + tên kíp mới không có trong response, panel gửi kèm lên đây
+  const [substitutionSummary, setSubstitutionSummary] =
+    useState<SubstitutionSummary | null>(null);
   const [fleetVehicles, setFleetVehicles] = useState<FleetVehicleMapPoint[]>([]);
   // Kết quả tải lộ trình luôn mang theo chuyến + lượt tải mà nó thuộc về, nên
   // response của chuyến trước không thể bị hiểu nhầm là lộ trình của chuyến
@@ -225,6 +231,20 @@ export default function OperationsPage() {
     [setSearchParams],
   );
 
+  /**
+   * Nạp lại xe + nhân sự cho form thay xe. Cần khi BE trả `422
+   * VEHICLE_NOT_ACTIVE` (xe thay vừa rời `ACTIVE`) và sau mỗi lần thay xe thành
+   * công (xe cũ chuyển sang `MAINTENANCE`) — handoff "đổi xe do sự cố",
+   * 2026-08-30. Dùng khoá tải lại thay vì gọi thẳng hàm trong effect: gọi thẳng
+   * là setState đồng bộ trong effect, đúng cái `react-hooks/set-state-in-effect`
+   * chặn.
+   */
+  const [resourcesReloadKey, setResourcesReloadKey] = useState(0);
+  const reloadOperatorResources = useCallback(
+    () => setResourcesReloadKey((current) => current + 1),
+    [],
+  );
+
   useEffect(() => {
     let ignore = false;
     void Promise.all([
@@ -242,7 +262,7 @@ export default function OperationsPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [resourcesReloadKey]);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setMapReady(true));
@@ -313,6 +333,15 @@ export default function OperationsPage() {
         routeId: selectedTrip.route.routeId,
         vehicleId: selectedTrip.vehicle.vehicleId,
         canSubstituteVehicle: selectedTrip.canSubstituteVehicle,
+        // Kíp cũ: panel loại họ khỏi bộ chọn thay vì đợi `409
+        // TRIP_CREW_SAME_AS_OLD` (handoff 2026-08-30).
+        driverUserId: selectedTrip.driver?.userId ?? null,
+        assistantUserId: selectedTrip.assistant?.userId ?? null,
+        tripCode: selectedTrip.tripCode ?? null,
+        vehiclePlate: selectedTrip.vehicle.licensePlate,
+        vehicleStatus: selectedTrip.vehicle.status,
+        driverName: selectedTrip.driver?.displayName ?? null,
+        assistantName: selectedTrip.assistant?.displayName ?? null,
       },
     [selectedTrip],
   );
@@ -1127,7 +1156,12 @@ export default function OperationsPage() {
                 bên dưới, nên state trong nó biến mất đúng lúc nhà xe cần đọc
                 xem có bao nhiêu khách chưa có ghế. */}
             {substitutionResult && (
-              <SubstitutionResultCard result={substitutionResult} t={t} />
+              <SubstitutionResultCard
+                result={substitutionResult}
+                summary={substitutionSummary}
+                t={t}
+                tc={tc}
+              />
             )}
             <TripActionsPanel
               // key theo tripId: đổi chuyến thì remount, xoá sạch form/kết quả của chuyến trước
@@ -1137,12 +1171,22 @@ export default function OperationsPage() {
               vehicles={operatorVehicles}
               staff={operatorStaff}
               canMutate={canMutate}
-              onSubstituted={setSubstitutionResult}
+              onSubstituted={(result, summary) => {
+                setSubstitutionResult(result);
+                setSubstitutionSummary(summary);
+              }}
+              // `422 VEHICLE_NOT_ACTIVE`: danh sách xe FE đang giữ đã cũ
+              onVehiclesStale={reloadOperatorResources}
+              // `409 TRIP_NOT_SUBSTITUTABLE`: tải lại trạng thái chuyến
+              onTripStale={() => void loadFleet()}
               onTripReplaced={(newTripId) => {
                 // Chuyển selection + URL sang chuyến mới, rồi tải lại fleet để list có chuyến đó.
                 // Đổi lộ trình giữ nguyên tripId — selectTrip vẫn tải lại geometry lộ trình mới.
                 selectTrip(newTripId);
                 void loadFleet();
+                // Xe cũ vừa chuyển sang `MAINTENANCE` — danh sách xe phải tải
+                // lại, nếu không nó vẫn nằm trong ô chọn xe thay thế lần sau.
+                reloadOperatorResources();
                 // Đổi lộ trình trực tiếp có thể supersede đề xuất PENDING — cập nhật badge
                 refreshPendingProposalCount();
               }}

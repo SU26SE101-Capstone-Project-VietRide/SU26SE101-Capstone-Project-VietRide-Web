@@ -140,7 +140,6 @@ export function Input({
       <FieldLabel label={label} required={required} />
       {isCustomDateTime ? (
         <CustomDateTimeInput
-          className={inputClass}
           value={value}
           type={type}
           disabled={disabled}
