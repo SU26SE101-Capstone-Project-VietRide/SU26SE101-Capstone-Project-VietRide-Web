@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -18,6 +18,7 @@ import {
   getOperatorTripCargoCapacity,
   getPublicTrip,
   getPublicTripSeatMap,
+  previewSubstituteOperatorTripVehicle,
   substituteOperatorTripVehicle,
   type AlternativeRoute,
   type CargoCapacity,
@@ -25,6 +26,7 @@ import {
   type OperatorUser,
   type OperatorVehicle,
   type ReplacementSeatShortage,
+  type SubstituteVehiclePreviewResult,
   type TripOperationResult,
 } from "../../../api/vietride";
 import { parseReplacementSeatShortage } from "../../../utils/resourceConflict";
@@ -46,6 +48,14 @@ import {
   SubstitutionResultCard,
   type SubstitutionSummary,
 } from "./SubstitutionResultCard";
+import SeatReassignmentPanel from "./SeatReassignmentPanel";
+import {
+  buildSeatAssignments,
+  isSeatSelectionComplete,
+  missingSeatSelections,
+  pruneSeatSelections,
+  type SeatSelectionMap,
+} from "../../../utils/seatReassignment";
 
 /**
  * Trạng thái chuyến còn đổi lộ trình được. Ngoài tập này BE chặn bằng
@@ -82,8 +92,32 @@ function usableSeats(vehicle: OperatorVehicle) {
   return vehicle.usablePassengerCapacity ?? vehicle.totalSeats ?? 0;
 }
 
+/**
+ * Xe thay có ĐÚNG số ghế với xe bị sự cố hay không. Không phải "đủ ghế": chuyến
+ * thay thế dựng lại sơ đồ ghế theo xe mới, nên chỉ khi hai xe cùng số ghế dùng
+ * được thì mọi khách mới giữ nguyên được chỗ đã đặt.
+ *
+ * `requiredSeats === null` = CHƯA BIẾT số ghế xe cũ — không kết luận được, coi
+ * như hợp lệ và để BE quyết định.
+ */
+function matchesRequiredSeats(
+  vehicle: OperatorVehicle,
+  requiredSeats: number | null,
+) {
+  return requiredSeats === null || usableSeats(vehicle) === requiredSeats;
+}
+
 function userId(user: OperatorUser) {
   return user.userId || user.id || "";
+}
+
+/**
+ * `Date.now()` phải nằm NGOÀI thân component: React Compiler coi nó là hàm
+ * không thuần và bỏ qua tối ưu cả component nếu bắt gặp trong đó
+ * (`react-hooks/purity`). Ở module scope thì nó chỉ là một helper bình thường.
+ */
+function isFutureInstant(value: Date) {
+  return !Number.isNaN(value.getTime()) && value.getTime() > Date.now();
 }
 
 function getDefaultRecoveryDeparture() {
@@ -242,16 +276,9 @@ export default function TripActionsPanel({
   const [pendingAction, setPendingAction] = useState<
     "substitute" | "disrupt" | "route" | null
   >(null);
-  /**
-   * Con số thiếu ghế do CHÍNH BE trả về kèm `409
-   * REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`. Khác hẳn `missingSeats` đoán từ sơ
-   * đồ ghế phía dưới: BE đếm theo `usableSeats` thật của xe thay và số khách
-   * thật phải chuyển, nên khi có nó thì phải hiện nó, không hiện số của FE.
-   *
-   * Khác `null` = đang chờ người vận hành trả lời "vẫn thay dù thiếu ghế?".
-   */
-  const [seatShortage, setSeatShortage] =
-    useState<ReplacementSeatShortage | null>(null);
+  // Con số thiếu ghế do BE trả về nay sống ở `seatPreviewShortage` (đặt ở
+  // bước preview, và đặt lại nếu confirm vẫn còn dính `409`). Không còn state
+  // riêng cho hộp thoại "vẫn đổi xe" vì thao tác đó đã bị gỡ.
   /**
    * Số khách phải chuyển sang xe thay, đếm từ ghế `BOOKED` của sơ đồ ghế.
    * `null` = chưa tải hoặc tải hỏng — lúc đó KHÔNG cảnh báo thiếu ghế, vì đoán
@@ -261,7 +288,38 @@ export default function TripActionsPanel({
    * phải booking đã xác nhận, và BE cũng không đưa họ vào `impact` để chuyển.
    */
   const [occupiedSeats, setOccupiedSeats] = useState<number | null>(null);
-  const [acknowledgeSeatShortage, setAcknowledgeSeatShortage] = useState(false);
+  /**
+   * Preview gán ghế cho xe thay thế (handoff "đồng bộ ghế sau khi thay xe").
+   *
+   * Gắn kèm `vehicleId` để suy ra trạng thái "đang tải" lúc render — chưa có
+   * kết quả của xe đang chọn nghĩa là đang chờ. Cách này tránh `setState` ngay
+   * trong thân effect (bị `react-hooks/set-state-in-effect` chặn) và tránh cả
+   * việc bảng ghế của xe vừa bỏ chọn còn nằm lại một frame.
+   *
+   * `result === null` = preview hỏng; câu lỗi nằm ở `seatPreviewError`.
+   */
+  const [seatPreviewState, setSeatPreviewState] = useState<{
+    vehicleId: string;
+    result: SubstituteVehiclePreviewResult | null;
+  } | null>(null);
+  const [seatPreviewError, setSeatPreviewError] = useState("");
+  /** Ghế Admin chọn cho khách mất ghế cũ: `passengerId` → số ghế */
+  const [seatSelections, setSeatSelections] = useState<SeatSelectionMap>({});
+  /** Tăng để ép preview chạy lại với cùng một xe (bấm "Tải lại", lỗi ghế) */
+  const [seatPreviewVersion, setSeatPreviewVersion] = useState(0);
+  /**
+   * Thiếu ghế do CHÍNH BE kết luận ngay ở bước preview (§5 handoff đồng bộ
+   * ghế). Biết trước lúc chọn xe thì hơn hẳn biết sau khi đã bấm xác nhận: ba
+   * con số này là của BE, không phải số FE đếm từ sơ đồ ghế.
+   */
+  const [seatPreviewShortage, setSeatPreviewShortage] =
+    useState<ReplacementSeatShortage | null>(null);
+  // `t` không được đưa vào deps của effect preview: đổi ngôn ngữ giữa chừng sẽ
+  // bắn lại một request chỉ để đổi câu fallback.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   // Kết quả lần đổi xe gần nhất — giữ trên màn thay vì chỉ bắn toast, vì
   // `pendingSeatAssignmentCount` là việc nhà xe phải xử lý tiếp, không phải một
   // thông báo đọc xong rồi bỏ.
@@ -291,9 +349,14 @@ export default function TripActionsPanel({
    * làm tài xế mới" vẫn là dùng lại kíp cũ và BE trả `409 TRIP_CREW_SAME_AS_OLD`.
    */
   const previousCrewIds = useMemo(() => {
+    // Đọc ra biến trước rồi mới dùng: truy cập thẳng `trip.driverUserId` sau
+    // guard làm React Compiler suy ra dependency là cả `trip`, rộng hơn deps
+    // khai ở dưới, và nó bỏ qua tối ưu cả component vì hai bên không khớp.
+    const driverUserId = trip?.driverUserId;
+    const assistantUserId = trip?.assistantUserId;
     const ids = new Set<string>();
-    if (trip?.driverUserId) ids.add(trip.driverUserId);
-    if (trip?.assistantUserId) ids.add(trip.assistantUserId);
+    if (driverUserId) ids.add(driverUserId);
+    if (assistantUserId) ids.add(assistantUserId);
     return ids;
   }, [trip?.assistantUserId, trip?.driverUserId]);
 
@@ -321,10 +384,35 @@ export default function TripActionsPanel({
     [newDriverUserId, previousCrewIds, staff],
   );
   /**
-   * Lọc MỀM chứ không loại xe thiếu ghế khỏi danh sách: đây là tình huống sự cố
-   * giữa đường, chở được 29/40 khách vẫn hơn bỏ cả 40 người lại. Xe đủ ghế xếp
-   * lên trước, xe thiếu xếp sau theo mức thiếu tăng dần, và nhãn nói thẳng
-   * thiếu bao nhiêu để nhà xe cân nhắc chứ không phải mò.
+   * Chiếc xe đang gặp sự cố, tra từ fleet đã tải. Payload chuyến chỉ có biển số
+   * + trạng thái xe chứ không có số ghế, nên đây là nguồn duy nhất biết được xe
+   * cũ bao nhiêu ghế.
+   *
+   * `null` = CHƯA BIẾT (chuyến không nói xe nào, hoặc xe đó không nằm trong
+   * fleet đã tải) — cùng cách xử lý với `occupiedSeats === null`: không chặn,
+   * để BE quyết định.
+   */
+  const incidentVehicle = useMemo(() => {
+    if (!trip?.vehicleId) return null;
+    return (
+      vehicles.find((vehicle) => vehicleId(vehicle) === trip.vehicleId) ?? null
+    );
+  }, [trip, vehicles]);
+
+  /** Số ghế mà xe thay BẮT BUỘC phải có. `0` cũng coi là chưa biết. */
+  const requiredSeats = useMemo(() => {
+    if (!incidentVehicle) return null;
+    const seats = usableSeats(incidentVehicle);
+    return seats > 0 ? seats : null;
+  }, [incidentVehicle]);
+
+  /**
+   * Xe lệch số ghế vẫn NẰM TRONG danh sách nhưng bị khoá, thay vì bị lọc mất:
+   * giữa lúc xe hỏng, người vận hành cần thấy chiếc mình định chọn và lý do
+   * không chọn được, chứ không phải một danh sách ngắn đi không rõ vì sao.
+   *
+   * Xe đúng ghế xếp lên trước; trong cùng nhóm thì xe thiếu ghế so với số khách
+   * xếp sau theo mức thiếu tăng dần (`sort` ổn định nên thứ tự gốc được giữ).
    */
   const replacementVehicles = useMemo(() => {
     // CHỈ `ACTIVE` (handoff 2026-08-30 mục "Quy tắc bắt buộc"). Trước đây danh
@@ -335,14 +423,20 @@ export default function TripActionsPanel({
         vehicle.status === "ACTIVE" && vehicleId(vehicle) !== trip?.vehicleId,
     );
 
-    if (occupiedSeats === null) return eligible;
+    if (occupiedSeats === null && requiredSeats === null) return eligible;
 
-    return [...eligible].sort(
-      (left, right) =>
+    const seatMatchRank = (vehicle: OperatorVehicle) =>
+      matchesRequiredSeats(vehicle, requiredSeats) ? 0 : 1;
+
+    return [...eligible].sort((left, right) => {
+      const byMatch = seatMatchRank(left) - seatMatchRank(right);
+      if (byMatch !== 0 || occupiedSeats === null) return byMatch;
+      return (
         Math.max(0, occupiedSeats - usableSeats(left)) -
-        Math.max(0, occupiedSeats - usableSeats(right)),
-    );
-  }, [occupiedSeats, trip, vehicles]);
+        Math.max(0, occupiedSeats - usableSeats(right))
+      );
+    });
+  }, [occupiedSeats, requiredSeats, trip, vehicles]);
 
   const selectedVehicle = useMemo(
     () =>
@@ -366,6 +460,39 @@ export default function TripActionsPanel({
     occupiedSeats !== null && selectedVehicle
       ? Math.max(0, occupiedSeats - usableSeats(selectedVehicle))
       : 0;
+
+  // Kết quả preview của CHÍNH xe đang chọn. Của xe khác = chưa có, coi như đang tải.
+  const hasSeatPreviewForVehicle =
+    Boolean(newVehicleId) && seatPreviewState?.vehicleId === newVehicleId;
+  const seatPreview = hasSeatPreviewForVehicle
+    ? seatPreviewState.result
+    : null;
+  const isSeatPreviewLoading =
+    canMutate && Boolean(newVehicleId) && !hasSeatPreviewForVehicle;
+  const seatPreviewErrorText = hasSeatPreviewForVehicle
+    ? seatPreviewError
+    : "";
+  const pendingSeatSelections = missingSeatSelections(
+    seatPreview,
+    seatSelections,
+  );
+  const isSeatSelectionReady = isSeatSelectionComplete(
+    seatPreview,
+    seatSelections,
+  );
+
+  /** Xe đang chọn lệch số ghế với xe bị sự cố — chặn cứng, không có ô tick bỏ qua. */
+  const seatCountMismatch = Boolean(
+    selectedVehicle && !matchesRequiredSeats(selectedVehicle, requiredSeats),
+  );
+
+  /** Biết số ghế cần nhưng cả fleet không còn chiếc nào cùng số ghế. */
+  const noSeatMatchedVehicle =
+    requiredSeats !== null &&
+    replacementVehicles.length > 0 &&
+    !replacementVehicles.some((vehicle) =>
+      matchesRequiredSeats(vehicle, requiredSeats),
+    );
 
   /**
    * Sự cố của CHÍNH chuyến này. `incidentId` bắt buộc và BE kiểm sự cố có
@@ -492,6 +619,55 @@ export default function TripActionsPanel({
     };
   }, [canMutate, tripId]);
 
+  /**
+   * Preview ghế mỗi khi đổi xe thay thế.
+   *
+   * Đây là POST CHỈ ĐỌC (BE gắn `SkipIdempotency`) nên gọi lại thoải mái. Chạy
+   * ngay lúc chọn xe chứ không đợi bấm xác nhận: người vận hành phải THẤY ai
+   * mất ghế và chọn ghế mới TRƯỚC khi chuyến thay thế được tạo — sau khi tạo
+   * thì không có API xếp ghế bổ sung nào để sửa.
+   */
+  useEffect(() => {
+    const normalizedTripId = tripId.trim();
+    if (!normalizedTripId || !canMutate || !newVehicleId) return;
+
+    let ignore = false;
+
+    async function loadPreview(vehicle: string) {
+      try {
+        const result = await previewSubstituteOperatorTripVehicle(
+          normalizedTripId,
+          { replacementVehicleId: vehicle },
+        );
+        if (ignore) return;
+        setSeatPreviewState({ vehicleId: vehicle, result });
+        setSeatPreviewError("");
+        setSeatPreviewShortage(null);
+        // Preview mới = tập khách/ghế mới. Giữ lại đúng lựa chọn còn hợp lệ,
+        // phần còn lại phải chọn lại chứ không được trôi theo.
+        setSeatSelections((current) => pruneSeatSelections(result, current));
+      } catch (previewError) {
+        if (ignore) return;
+        setSeatPreviewState({ vehicleId: vehicle, result: null });
+        setSeatSelections({});
+        setSeatPreviewShortage(parseReplacementSeatShortage(previewError));
+        // Thiếu ghế tổng thể cũng rơi vào đây (`409
+        // REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`): con số thật của BE được
+        // đọc riêng bên dưới, ở đây chỉ giữ câu lỗi đã dịch.
+        setSeatPreviewError(
+          previewError instanceof Error
+            ? previewError.message
+            : tRef.current("tripOperations.seatPreviewFailed"),
+        );
+      }
+    }
+
+    void loadPreview(newVehicleId);
+    return () => {
+      ignore = true;
+    };
+  }, [canMutate, newVehicleId, seatPreviewVersion, tripId]);
+
   async function loadCapacity() {
     const normalizedTripId = tripId.trim();
     if (!normalizedTripId) {
@@ -533,11 +709,23 @@ export default function TripActionsPanel({
       return;
     }
 
+    // Xe thay phải ĐÚNG số ghế với xe bị sự cố, không phải "đủ ghế": chuyến thay
+    // thế dựng lại sơ đồ ghế theo xe mới, lệch một ghế là đã có khách mất đúng
+    // chỗ đã đặt. Bộ chọn đã khoá xe lệch ghế; chặn thêm ở đây vì fleet có thể
+    // được tải lại sau khi chọn và làm lựa chọn cũ hết hợp lệ.
+    if (seatCountMismatch) {
+      markFields(["vehicle"], "tripOperations.seatCountMismatchHint");
+      setError(
+        t("tripOperations.seatCountMismatchBlocked", {
+          required: requiredSeats ?? 0,
+          seats: selectedVehicle ? usableSeats(selectedVehicle) : 0,
+        }),
+      );
+      return;
+    }
+
     const recoveryDeparture = new Date(estimatedRecoveryDepartureAt);
-    if (
-      Number.isNaN(recoveryDeparture.getTime()) ||
-      recoveryDeparture.getTime() <= Date.now()
-    ) {
+    if (!isFutureInstant(recoveryDeparture)) {
       markFields(["recoveryDeparture"], null);
       setError(t("tripOperations.recoveryDepartureFuture"));
       return;
@@ -545,12 +733,36 @@ export default function TripActionsPanel({
 
     clearFieldErrors();
 
-    // Cảnh báo thiếu ghế ĐOÁN TỪ SƠ ĐỒ GHẾ: chặn ở đây chỉ để khỏi bắn một
-    // request chắc chắn bị BE từ chối. Nơi quyết định thật là `409
-    // REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS` phía dưới — số của FE có thể
-    // đếm dư (xem `usableSeats`) nên không được coi là kết luận.
-    if (missingSeats > 0 && !acknowledgeSeatShortage) {
-      setError(t("tripOperations.seatShortageBlocked"));
+    // Thiếu ghế là ĐƯỜNG CỤT, không phải cảnh báo bỏ qua được: BE chặn cứng
+    // `missingSeats > 0` và chỉ ghi cờ `acknowledgeInsufficientSeats` vào audit
+    // chứ không dùng nó để bỏ qua guard, nên "vẫn đổi xe" là một request chắc
+    // chắn trả `409`. Kết luận lấy từ preview (số của BE), không lấy số FE tự
+    // đếm — số đó có thể đếm dư (xem `usableSeats`).
+    if (seatPreviewShortage) {
+      markFields(["vehicle"], "tripOperations.seatShortagePickAnotherVehicle");
+      setError(
+        t("tripOperations.seatShortageServerBody", {
+          seats: formatShortageNumber(seatPreviewShortage.usableSeats, t),
+          passengers: formatShortageNumber(
+            seatPreviewShortage.passengersToTransfer,
+            t,
+          ),
+          missing: formatShortageNumber(seatPreviewShortage.missingSeats, t),
+        }),
+      );
+      return;
+    }
+
+    // Handoff "đồng bộ ghế": khách nào mất ghế cũ thì PHẢI có ghế Admin chọn
+    // trước khi gửi. Thiếu là `409 REPLACEMENT_SEAT_ASSIGNMENT_REQUIRED`, và
+    // lúc đó chuyến thay thế vẫn chưa được tạo nên chặn ở đây không mất gì.
+    if (!isSeatSelectionReady) {
+      markFields(["seats"], null);
+      setError(
+        t("tripOperations.seatSelectionRequired", {
+          count: pendingSeatSelections.length,
+        }),
+      );
       return;
     }
 
@@ -559,25 +771,24 @@ export default function TripActionsPanel({
       return;
     }
 
-    await sendSubstitution(recoveryDeparture, acknowledgeSeatShortage);
+    await sendSubstitution(recoveryDeparture);
   }
 
   /**
    * Một lần gửi `substitute-vehicle`.
    *
-   * `acknowledgeInsufficientSeats` là hai lượt gọi RIÊNG BIỆT theo handoff B1-B7:
-   * lượt đầu gửi `false`, nếu BE trả `409` thì hỏi lại người vận hành rồi gửi
-   * lượt hai với `true`. Body đổi nên BẮT BUỘC dùng Idempotency-Key mới — key
-   * mặc định của `substituteOperatorTripVehicle` sinh mới mỗi lần gọi, nên gọi
-   * lại hàm này là đủ; đừng tái sử dụng một key đã bắt.
+   * KHÔNG gửi `acknowledgeInsufficientSeats`: BE chỉ ghi cờ đó vào audit payload
+   * và vẫn ném `409 REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS` khi thiếu ghế, nên
+   * nó không phải một đường đi được — thiếu ghế thì phải đổi sang xe khác.
    */
-  async function sendSubstitution(
-    recoveryDeparture: Date,
-    acknowledgeInsufficientSeats: boolean,
-  ) {
+  async function sendSubstitution(recoveryDeparture: Date) {
     setIsMutating(true);
     setError("");
     setMessage("");
+    // CHỈ gửi ghế cho khách BE không giữ được ghế cũ; khách còn lại đã được BE
+    // tự gán từ chính lượt preview này. Không có ai phải chọn thì bỏ hẳn hai
+    // field khỏi body thay vì gửi mảng rỗng + token thừa.
+    const seatAssignments = buildSeatAssignments(seatPreview, seatSelections);
     try {
       const result = await substituteOperatorTripVehicle(tripId.trim(), {
         replacementVehicleId: newVehicleId,
@@ -591,7 +802,12 @@ export default function TripActionsPanel({
           driverId: newDriverUserId,
           assistantId: newAssistantUserId,
         },
-        acknowledgeInsufficientSeats,
+        ...(seatAssignments.length > 0
+          ? {
+              previewToken: seatPreview?.previewToken,
+              seatAssignments,
+            }
+          : {}),
       });
       const newTripId = result.newTripId ?? result.tripId;
       let tripLabel = newTripId ?? "";
@@ -627,8 +843,13 @@ export default function TripActionsPanel({
       setMessage(successMessage);
       setSubstitutionResult(result);
       setSubstitutionSummary(summary);
-      setAcknowledgeSeatShortage(false);
-      setSeatShortage(null);
+      setSeatPreviewShortage(null);
+      // Chuyến cũ đã bị thay: preview và các ghế vừa gán thuộc về nó, giữ lại
+      // là bày dữ liệu chết. Ghế hiện tại của khách phải đọc lại từ API của
+      // chuyến mới (handoff mục "Refresh và cache").
+      setSeatPreviewState(null);
+      setSeatPreviewError("");
+      setSeatSelections({});
       clearFieldErrors();
       onSubstituted?.(result, summary);
       // Trang cha chuyển selection + URL sang chuyến mới
@@ -637,22 +858,36 @@ export default function TripActionsPanel({
       }
       onActionCompleted?.(successMessage);
     } catch (mutationError) {
+      // Preview đã chặn phần lớn trường hợp thiếu ghế, nhưng vẫn có kẽ hở:
+      // khách đặt thêm giữa lúc chọn xe và lúc xác nhận, hoặc ghế bị vô hiệu
+      // hoá. Lúc đó BE là bên kết luận — giữ ba con số của nó và bắt chọn xe
+      // khác, KHÔNG gửi lại lần hai vì lần nào cũng sẽ `409`.
       const shortage = parseReplacementSeatShortage(mutationError);
-      if (shortage && !acknowledgeInsufficientSeats) {
-        // BE KHÔNG tạo chuyến mới và không giữ resource nào khi trả lỗi này,
-        // nên mở hộp xác nhận rồi gửi lại là an toàn — không phải dọn dẹp gì.
-        setSeatShortage(shortage);
-        return;
+      if (shortage) {
+        setSeatPreviewShortage(shortage);
       }
 
       // Bảng lỗi của handoff 2026-08-30: mỗi mã ứng với một việc phải làm, không
       // chỉ là một câu thông báo.
       const plan = planSubstitutionError(mutationError);
       markFields(plan.fields, plan.hintKey);
+      // Token cũ đã vô nghĩa (`REPLACEMENT_SEAT_PREVIEW_STALE`) hoặc xe đã đổi:
+      // bỏ hẳn lựa chọn thay vì để người vận hành bấm gửi lại đúng body vừa bị
+      // từ chối.
+      if (plan.clearSeatSelection) {
+        setSeatSelections({});
+      }
+      if (plan.refreshPreview) {
+        setSeatPreviewState(null);
+        setSeatPreviewError("");
+        setSeatPreviewVersion((current) => current + 1);
+      }
       if (plan.refreshVehicles) {
         // Xe vừa rời `ACTIVE` — bỏ lựa chọn cũ và xin trang cha tải lại danh sách
         setNewVehicleId("");
-        setAcknowledgeSeatShortage(false);
+        setSeatPreviewShortage(null);
+        setSeatPreviewState(null);
+        setSeatPreviewError("");
         onVehiclesStale?.();
       }
       if (plan.closeForm) {
@@ -669,19 +904,6 @@ export default function TripActionsPanel({
       setIsMutating(false);
       setPendingAction(null);
     }
-  }
-
-  /** Người vận hành bấm "vẫn thay" trong hộp cảnh báo thiếu ghế của BE. */
-  async function confirmSubstitutionDespiteShortage() {
-    const recoveryDeparture = new Date(estimatedRecoveryDepartureAt);
-    if (Number.isNaN(recoveryDeparture.getTime())) {
-      setSeatShortage(null);
-      setError(t("tripOperations.recoveryDepartureFuture"));
-      return;
-    }
-
-    setSeatShortage(null);
-    await sendSubstitution(recoveryDeparture, true);
   }
 
   async function disruptTrip() {
@@ -1018,9 +1240,15 @@ export default function TripActionsPanel({
                   value={newVehicleId}
                   onChange={(event) => {
                     setNewVehicleId(event.target.value);
-                    setAcknowledgeSeatShortage(false);
+                    // Ghế đã chọn thuộc về xe cũ — preview của xe mới sẽ có
+                    // danh sách ghế khác hẳn.
+                    setSeatSelections({});
+                    setSeatPreviewError("");
+                    setSeatPreviewShortage(null);
                     setFieldErrors((current) =>
-                      current.filter((field) => field !== "vehicle"),
+                      current.filter(
+                        (field) => field !== "vehicle" && field !== "seats",
+                      ),
                     );
                   }}
                   invalid={hasFieldError("vehicle")}
@@ -1033,25 +1261,46 @@ export default function TripActionsPanel({
                       occupiedSeats === null
                         ? 0
                         : Math.max(0, occupiedSeats - seats);
+                    // Lệch ghế thì KHOÁ hẳn: đây là điều kiện bắt buộc, không
+                    // phải cảnh báo có thể bỏ qua như thiếu ghế so với số khách.
+                    const seatsMatch = matchesRequiredSeats(
+                      vehicle,
+                      requiredSeats,
+                    );
                     return (
                       <option
                         key={vehicleId(vehicle)}
                         value={vehicleId(vehicle)}
+                        disabled={!seatsMatch}
                       >
-                        {missing > 0
-                          ? t("tripOperations.vehicleSeatsShortOption", {
+                        {!seatsMatch
+                          ? t("tripOperations.vehicleSeatsMismatchOption", {
                               plate: vehicle.licensePlate,
                               seats,
-                              missing,
+                              required: requiredSeats ?? 0,
                             })
-                          : t("tripOperations.vehicleSeatsOption", {
-                              plate: vehicle.licensePlate,
-                              seats,
-                            })}
+                          : missing > 0
+                            ? t("tripOperations.vehicleSeatsShortOption", {
+                                plate: vehicle.licensePlate,
+                                seats,
+                                missing,
+                              })
+                            : t("tripOperations.vehicleSeatsOption", {
+                                plate: vehicle.licensePlate,
+                                seats,
+                              })}
                       </option>
                     );
                   })}
                 </CustomSelect>
+                {requiredSeats !== null && (
+                  <span className="mt-1 block text-xs text-gray-600">
+                    {t("tripOperations.seatCountRequired", {
+                      required: requiredSeats,
+                      plate: trip?.vehiclePlate ?? incidentVehicle?.licensePlate ?? "",
+                    })}
+                  </span>
+                )}
               </label>
               <label>
                 <span className="mb-1.5 block text-sm font-semibold text-gray-700">
@@ -1171,6 +1420,27 @@ export default function TripActionsPanel({
                 </span>
               </span>
             </label>
+            {noSeatMatchedVehicle && (
+              <p
+                className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                role="alert"
+              >
+                {t("tripOperations.seatCountNoMatch", {
+                  required: requiredSeats ?? 0,
+                })}
+              </p>
+            )}
+            {seatCountMismatch && (
+              <p
+                className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                role="alert"
+              >
+                {t("tripOperations.seatCountMismatchBlocked", {
+                  required: requiredSeats ?? 0,
+                  seats: selectedVehicle ? usableSeats(selectedVehicle) : 0,
+                })}
+              </p>
+            )}
             {occupiedSeats === null && (
               <p className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
                 {t("tripOperations.seatCountUnknown")}
@@ -1191,19 +1461,74 @@ export default function TripActionsPanel({
                     missing: missingSeats,
                   })}
                 </p>
-                <label className="mt-3 flex cursor-pointer items-start gap-3">
-                  <Checkbox
-                    className="mt-0.5"
-                    checked={acknowledgeSeatShortage}
-                    onChange={setAcknowledgeSeatShortage}
-                  />
-                  <span className="text-sm font-medium">
-                    {t("tripOperations.seatShortageAck", {
-                      missing: missingSeats,
-                    })}
-                  </span>
-                </label>
+                {/* Không còn ô tick "vẫn đổi": BE chặn cứng thiếu ghế nên
+                    không có đường nào đi tiếp ngoài việc chọn xe khác. */}
+                <p className="mt-1 text-xs">
+                  {t("tripOperations.seatShortagePickAnotherVehicle")}
+                </p>
               </div>
+            )}
+            {/* BE kết luận xe thay thiếu ghế NGAY Ở BƯỚC PREVIEW (§5 handoff
+                đồng bộ ghế): hiện ba con số của BE và bảo chọn xe khác, thay vì
+                để người vận hành điền hết form rồi mới biết. Số ở đây khác hẳn
+                cảnh báo phía trên — cái kia là FE đếm từ sơ đồ ghế. */}
+            {seatPreviewShortage && (
+              <div
+                className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900"
+                role="alert"
+              >
+                <p className="font-semibold">
+                  {t("tripOperations.seatShortageTitle")}
+                </p>
+                <p className="mt-1">
+                  {t("tripOperations.seatShortageServerBody", {
+                    seats: formatShortageNumber(
+                      seatPreviewShortage.usableSeats,
+                      t,
+                    ),
+                    passengers: formatShortageNumber(
+                      seatPreviewShortage.passengersToTransfer,
+                      t,
+                    ),
+                    missing: formatShortageNumber(
+                      seatPreviewShortage.missingSeats,
+                      t,
+                    ),
+                  })}
+                </p>
+                <p className="mt-1 text-xs">
+                  {t("tripOperations.seatShortagePickAnotherVehicle")}
+                </p>
+              </div>
+            )}
+            {/* Bảng đối chiếu ghế cũ → ghế mới. Chỉ có nghĩa khi đã chọn xe
+                thay thế: `previewToken` và danh sách ghế đều gắn với đúng xe đó. */}
+            {newVehicleId && (
+              <SeatReassignmentPanel
+                preview={seatPreview}
+                selections={seatSelections}
+                isLoading={isSeatPreviewLoading}
+                error={seatPreviewErrorText}
+                invalid={hasFieldError("seats")}
+                disabled={isMutating}
+                onSelect={(passengerId, seatNumber) => {
+                  setSeatSelections((current) => {
+                    const next = { ...current };
+                    if (seatNumber) next[passengerId] = seatNumber;
+                    else delete next[passengerId];
+                    return next;
+                  });
+                  setFieldErrors((current) =>
+                    current.filter((field) => field !== "seats"),
+                  );
+                }}
+                onRetry={() => {
+                  setSeatPreviewState(null);
+                  setSeatPreviewError("");
+                  setSeatPreviewVersion((current) => current + 1);
+                }}
+                t={t}
+              />
             )}
             {trip?.canSubstituteVehicle === false && (
               <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -1238,7 +1563,12 @@ export default function TripActionsPanel({
                   trip?.canSubstituteVehicle === false ||
                   // Không có sự cố nào của chuyến = thiếu field bắt buộc, gửi
                   // lên chỉ ăn 422
-                  (hasNoIncident && !isIncidentLocked)
+                  (hasNoIncident && !isIncidentLocked) ||
+                  // Preview chưa xong: chưa biết ai mất ghế nên chưa gửi được
+                  isSeatPreviewLoading ||
+                  // Còn khách chưa có ghế mới — BE sẽ trả
+                  // `409 REPLACEMENT_SEAT_ASSIGNMENT_REQUIRED`
+                  !isSeatSelectionReady
                 }
                 onClick={() => void substituteVehicle()}
                 className="inline-flex items-center gap-2 rounded-lg bg-vr-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
@@ -1375,30 +1705,6 @@ export default function TripActionsPanel({
             })}
           </p>
         )}
-      </ConfirmModal>
-      {/* Cảnh báo thiếu ghế do BE trả về — tách khỏi ConfirmModal chung vì nó
-          mang số liệu riêng và chỉ mở SAU khi request đầu đã bị từ chối. */}
-      <ConfirmModal
-        open={Boolean(seatShortage)}
-        onClose={() => setSeatShortage(null)}
-        onConfirm={() => void confirmSubstitutionDespiteShortage()}
-        title={t("tripOperations.seatShortageTitle")}
-        message={t("tripOperations.seatShortageServerBody", {
-          seats: formatShortageNumber(seatShortage?.usableSeats, t),
-          passengers: formatShortageNumber(
-            seatShortage?.passengersToTransfer,
-            t,
-          ),
-          missing: formatShortageNumber(seatShortage?.missingSeats, t),
-        })}
-        confirmLabel={t("tripOperations.seatShortageProceed")}
-        cancelLabel={tc("cancel")}
-        tone="warning"
-        busy={isMutating}
-      >
-        <p className="text-xs text-gray-500">
-          {t("tripOperations.seatShortageServerHint")}
-        </p>
       </ConfirmModal>
     </section>
   );

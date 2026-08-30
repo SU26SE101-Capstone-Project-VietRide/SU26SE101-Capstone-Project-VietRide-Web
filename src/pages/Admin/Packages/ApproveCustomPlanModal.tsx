@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiCheck } from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import { Button } from "../../../components/ui/Button";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { labelClass, textareaClass } from "../../../components/form/formClasses";
 import type {
   ApproveCustomPlanRequestPayload,
   SubscriptionPlan,
@@ -152,7 +152,7 @@ export default function ApproveCustomPlanModal({
             <div>
               <label className={labelClass}>{tc("description")}</label>
               <textarea
-                className={inputClass + " min-h-[80px] resize-y"}
+                className={textareaClass + " min-h-[80px] resize-y"}
                 value={form.description ?? ""}
                 onChange={(event) => update("description", event.target.value)}
                 rows={2}

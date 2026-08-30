@@ -1416,12 +1416,15 @@
       "EXPECTED_STOP_DEPARTED_WITH_UNRESOLVED_HANDOFF_RECONCILIATION": "Xe đã rời điểm dừng khi việc đối soát bàn giao còn dang dở.",
       "EXPECTED_STOP_DEPARTED_WITHOUT_CONFIRMED_PARCEL_UNLOAD": "Xe đã rời điểm dừng mà chưa xác nhận dỡ hàng.",
       "PARCEL_UNRESOLVED_DURING_DESTINATION_RECONCILIATION": "Đối soát tại điểm đến kết thúc mà vẫn chưa xác định được kiện hàng.",
-      "PARCEL_UNRESOLVED_DURING_STOP_CLOSE_RECONCILIATION": "Đối soát khi đóng điểm dừng kết thúc mà vẫn chưa xác định được kiện hàng."
+      "PARCEL_UNRESOLVED_DURING_STOP_CLOSE_RECONCILIATION": "Đối soát khi đóng điểm dừng kết thúc mà vẫn chưa xác định được kiện hàng.",
+      "PARCEL_UNRESOLVED_DURING_DESTINATION_CLOSE_RECONCILIATION": "Đối soát khi đóng bến đến kết thúc mà vẫn chưa xác định được kiện hàng.",
+      "PARCEL_INCIDENT_REPORTED": "Đã có báo cáo sự cố cho kiện hàng này."
     },
     "pendingActions": {
       "REFUND_CONFIRMATION": "Chờ xác nhận hoàn tiền",
       "CAPACITY_EXCEEDED": "Vượt sức chứa",
-      "RESERVE_FAILED": "Giữ chỗ hàng thất bại"
+      "RESERVE_FAILED": "Giữ chỗ hàng thất bại",
+      "CUSTODY_EXCEPTION": "Ngoại lệ bàn giao"
     },
     "queue": {
       "title": "Danh sách hàng hóa",
@@ -3009,13 +3012,14 @@
     "changeRouteFailed": "Không thể đổi lộ trình cho chuyến.",
     "vehicleSeatsOption": "{{plate}} · {{seats}} ghế",
     "vehicleSeatsShortOption": "{{plate}} · {{seats}} ghế — thiếu {{missing}} ghế",
+    "vehicleSeatsMismatchOption": "{{plate}} · {{seats}} ghế — khác số ghế xe hỏng ({{required}} ghế)",
+    "seatCountRequired": "Xe thay phải đúng {{required}} ghế như xe đang gặp sự cố. Xe khác số ghế bị khoá trong danh sách.",
+    "seatCountMismatchBlocked": "Xe thay phải đúng {{required}} ghế như xe bị sự cố. Xe bạn chọn có {{seats}} ghế.",
+    "seatCountMismatchHint": "Chọn một xe có đúng số ghế với xe đang gặp sự cố rồi thử lại.",
+    "seatCountNoMatch": "Không còn xe ACTIVE nào đúng {{required}} ghế như xe bị sự cố. Hãy đưa thêm xe cùng loại về trạng thái hoạt động, hoặc ghi nhận gián đoạn thay vì đổi xe.",
     "seatShortageTitle": "Xe thay không đủ ghế",
     "seatShortageBody": "Xe này có {{seats}} ghế, chuyến đang chở {{passengers}} khách. {{missing}} khách sẽ không có ghế trên xe thay.",
-    "seatShortageAck": "Tôi vẫn đổi xe và tự sắp xếp cho {{missing}} khách không có ghế",
-    "seatShortageBlocked": "Bạn phải tick xác nhận trước khi đổi sang xe không đủ ghế.",
     "seatShortageServerBody": "Hệ thống đã kiểm lại: xe thay có {{seats}} ghế dùng được, cần chuyển {{passengers}} khách, thiếu {{missing}} ghế. Vẫn đổi xe?",
-    "seatShortageServerHint": "Chuyến cũ chưa bị đổi gì. Nếu bạn đồng ý, những khách không có ghế vẫn được thông báo và nhà xe phải tự sắp xếp cho họ.",
-    "seatShortageProceed": "Vẫn đổi xe",
     "seatShortageUnknownValue": "không rõ",
     "seatCountUnknown": "Chưa lấy được số khách của chuyến nên không kiểm tra được xe thay có đủ ghế hay không.",
     "substitutionResultTitle": "Đã đổi xe xong",
@@ -3057,7 +3061,29 @@
     "errorResourceConflictHint": "Xe hoặc kíp đã có lịch bị trùng. Vui lòng chọn tài nguyên khác.",
     "errorNotSubstitutableHint": "Chuyến không còn được phép đổi xe. Form đã đóng và trạng thái chuyến đang được tải lại.",
     "errorValidationHint": "Dữ liệu ở các trường được đánh dấu chưa hợp lệ. Vui lòng kiểm tra lại rồi gửi lần nữa.",
-    "errorForbiddenHint": "Chỉ tài khoản Quản trị nhà xe mới được đổi xe. Nhân viên chỉ xem và điều phối dữ liệu."
+    "errorForbiddenHint": "Chỉ tài khoản Quản trị nhà xe mới được đổi xe. Nhân viên chỉ xem và điều phối dữ liệu.",
+    "seatPreviewTitle": "Ghế của khách trên xe thay",
+    "seatPreviewSummary": "{{kept}}/{{total}} khách giữ nguyên ghế cũ · {{pending}} khách cần chọn ghế mới",
+    "seatPreviewPending": "Còn {{count}} khách chưa có ghế trên xe thay. Chọn ghế cho họ trước khi xác nhận đổi xe.",
+    "seatPreviewPassengerColumn": "Khách",
+    "seatPreviewOldSeatColumn": "Ghế cũ",
+    "seatPreviewNewSeatColumn": "Ghế trên xe thay",
+    "seatPreviewBookingRef": "Đơn #{{ref}}",
+    "seatPreviewSelectLabel": "Chọn ghế mới cho khách ghế {{seat}}",
+    "seatPreviewSelectPlaceholder": "Chọn ghế",
+    "seatPreviewNoOption": "Không còn ghế trống cho khách này. Hãy chọn xe thay khác.",
+    "seatPreviewKept": "Giữ nguyên",
+    "seatPreviewNotice": "Khách không phải duyệt việc đổi ghế. Sau khi bạn xác nhận đổi xe, khách chỉ nhận thông báo về ghế mới.",
+    "seatPreviewNoPassengers": "Chuyến chưa có khách nào phải chuyển sang xe thay.",
+    "seatPreviewLoading": "Đang xếp ghế cho khách trên xe thay...",
+    "seatPreviewFailed": "Không xếp được ghế cho xe thay này.",
+    "seatPreviewRetry": "Thử lại",
+    "seatPreviewRefresh": "Xếp lại ghế",
+    "seatSelectionRequired": "Còn {{count}} khách chưa được chọn ghế trên xe thay. Chọn đủ rồi mới xác nhận được.",
+    "errorSeatAssignmentRequiredHint": "Hệ thống cần ghế cho mọi khách không giữ được ghế cũ. Chọn nốt ghế còn thiếu trong bảng bên trên rồi gửi lại.",
+    "errorSeatNotAvailableHint": "Ghế vừa chọn không còn hợp lệ. Bảng ghế đã được xếp lại, vui lòng chọn ghế khác rồi gửi lại.",
+    "errorSeatPreviewStaleHint": "Chuyến hoặc xe đã thay đổi kể từ lúc xếp ghế. Bảng ghế đã được làm mới, vui lòng chọn lại ghế rồi gửi lần nữa.",
+    "seatShortagePickAnotherVehicle": "Hãy chọn một xe thay khác đủ ghế cho toàn bộ khách của chuyến."
   },
   "incidents": {
     "title": "Báo cáo sự cố",
@@ -3355,7 +3381,10 @@
     "resolutionCodes": {
       "DELIVERED_TO_CORRECT_LOCATION": "Đã giao đúng điểm trả",
       "RETURNED_TO_SENDER": "Đã trả lại người gửi",
-      "HANDED_TO_RECIPIENT": "Đã giao tận tay người nhận"
+      "HANDED_TO_RECIPIENT": "Đã giao tận tay người nhận",
+      "CREW_CONFIRMED_ON_VEHICLE": "Tổ xe xác nhận kiện vẫn trên xe",
+      "LOST_CONFIRMED": "Xác nhận kiện đã thất lạc",
+      "SUPERVISOR_REJECTED": "Quản lý từ chối đề nghị"
     },
     "taskStatuses": {
       "OPEN": "Chưa làm",
@@ -3370,7 +3399,12 @@
       "STOP_SEARCH": "Tìm tại điểm dừng",
       "WAREHOUSE_SEARCH": "Tìm trong kho",
       "MANIFEST_RECONCILIATION": "Đối chiếu manifest",
-      "VEHICLE_SWEEP": "Rà soát toàn xe"
+      "VEHICLE_SWEEP": "Rà soát toàn xe",
+      "STATION_INVENTORY": "Kiểm kho tại bến",
+      "CREW_CONFIRMATION": "Tổ xe xác nhận",
+      "LOST_AND_FOUND_CHECK": "Kiểm tra khu đồ thất lạc",
+      "NEXT_TRIP_CHECK": "Kiểm tra chuyến kế tiếp",
+      "MANUAL_IDENTIFICATION": "Định danh thủ công"
     },
     "custodyEvents": {
       "HANDOFF": "Bàn giao",
@@ -3398,21 +3432,25 @@
       "INCIDENT_FOUND": "Xác nhận tìm thấy",
       "CREW_FOUND_ON_VEHICLE": "Tổ xe tìm thấy trên xe",
       "APPROVED_CUSTODY_EXCEPTION": "Ngoại lệ bàn giao đã duyệt",
-      "UNIDENTIFIED_PACKAGE_MATCH": "Khớp kiện chưa xác định"
+      "UNIDENTIFIED_PACKAGE_MATCH": "Khớp kiện chưa xác định",
+      "UNLOAD": "Dỡ hàng khỏi xe",
+      "DELIVERY_HANDOFF": "Bàn giao cho người nhận",
+      "DELIVERY_CONFIRMATION": "Người nhận xác nhận đã nhận",
+      "TRANSFER_CONFIRMATION": "Xác nhận chuyển tiếp sang chuyến khác"
     },
     "trackingConfidences": {
       "CONFIRMED_SCAN": "Có scan xác nhận",
-      "INFERRED": "Suy đoán",
-      "UNKNOWN": "Chưa rõ"
+      "UNKNOWN": "Chưa rõ",
+      "MANUAL_EXCEPTION": "Ghi nhận thủ công theo ngoại lệ",
+      "INFERRED_FROM_MANIFEST": "Suy ra từ bảng kê hàng"
     },
     "cargoTransferStatuses": {
-      "PENDING": "Chờ bàn giao",
-      "CONFIRMED": "Đã xác nhận",
-      "ESCALATED": "Đã leo thang"
+      "AWAITING_CREW_CONFIRMATION": "Chờ tổ xe nhận hàng",
+      "TRANSFERRED": "Đã chuyển sang chuyến mới"
     },
     "handoffActions": {
-      "AWAIT_CREW_CONFIRM": "Chờ tài xế xác nhận nhận hàng",
-      "NONE": "Không còn bước nào"
+      "CREW_CONFIRM_TRANSFER": "Tổ xe chuyến mới xác nhận đã nhận kiện",
+      "DELIVER_AT_EXPECTED_DROPOFF": "Giao kiện tại điểm trả dự kiến"
     },
     "actorRoles": {
       "DRIVER": "Tài xế",
@@ -3543,7 +3581,6 @@
     "title": "Khiếu nại lại",
     "subtitle": "Khách không đồng ý với quyết định bồi thường và xin xem xét lại. Giữ nguyên quyết định cũ hoặc điều chỉnh tăng mức đền; đơn khiếu nại gốc vẫn giữ trạng thái của nó.",
     "statusFilter": "Trạng thái",
-    "clearFilters": "Xóa {{count}} bộ lọc",
     "appealColumn": "Đơn khiếu nại lại",
     "reasonColumn": "Lý do khách nêu",
     "statusColumn": "Trạng thái",

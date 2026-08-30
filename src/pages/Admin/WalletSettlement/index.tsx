@@ -441,36 +441,40 @@ export default function WalletSettlement() {
             </CustomSelect>
             </div>
 
+            {/* Bề rộng thật của bảy cột với `px-3` là ~1138px, vừa trong
+                vùng nội dung ~1183px cạnh sidebar nên không phải cuộn ngang;
+                `px-4` như trước là 1194px, tràn đúng 11px. min-w để dưới mức
+                đó, chỉ còn là mốc cuộn cho màn hẹp. Mọi ô đều `whitespace-nowrap`
+                nên không có gì xuống dòng. */}
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[1300px] text-sm">
+              <table className="w-full min-w-[1120px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold whitespace-nowrap text-gray-600">
-                    <th className="px-4 py-3 text-left">
+                    <th className="px-3 py-3 text-left">
                       {t("walletSettlement.settlementCode")}
                     </th>
-                    <th className="px-4 py-3 text-left">
+                    <th className="px-3 py-3 text-left">
                       {t("walletSettlement.operator")}
                     </th>
-                    <th className="px-4 py-3 text-center">
+                    <th className="px-3 py-3 text-center">
                       {t("walletSettlement.settlementAmount")}
                     </th>
-                    <th className="px-4 py-3 text-center">
+                    <th className="px-3 py-3 text-center">
                       {t("walletSettlement.eligibleAt")}
                     </th>
-                    <th className="px-4 py-3 text-center">{tc("status")}</th>
-                    <th className="px-4 py-3 text-center">
+                    <th className="px-3 py-3 text-center">{tc("status")}</th>
+                    <th className="px-3 py-3 text-center">
                       {t("walletSettlement.method")}
                     </th>
-                    <th className="px-4 py-3 text-center">{t("walletSettlement.issue")}</th>
-                    <th className="sticky right-0 z-10 bg-gray-50 px-4 py-3 text-center">{tc("actions")}</th>
+                    <th className="sticky right-0 z-10 bg-gray-50 px-3 py-3 text-center">{tc("actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!loading && filteredRecords.length === 0 && (
                     <tr>
                       <td
-                        colSpan={8}
-                        className="px-4 py-10 text-center text-gray-500"
+                        colSpan={7}
+                        className="px-3 py-10 text-center text-gray-500"
                       >
                         {t("walletSettlement.empty")}
                       </td>
@@ -483,7 +487,7 @@ export default function WalletSettlement() {
                     >
                       {/* Bản admin có top-level `tripCode`; `pickSettlementTripCode`
                           vẫn dùng chung để nếu BE đổi sang snapshot thì không vỡ. */}
-                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                      <td className="whitespace-nowrap px-3 py-3 text-left">
                         <p className="font-mono text-xs tabular-nums font-semibold text-gray-900">
                           {displayBusinessCode(record.settlementCode)}
                         </p>
@@ -491,29 +495,46 @@ export default function WalletSettlement() {
                           {displayBusinessCode(pickSettlementTripCode(record))}
                         </p>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-left">
+                      <td className="whitespace-nowrap px-3 py-3 text-left">
                         <p className="font-semibold text-gray-900">
                           {record.operator?.name ?? record.operatorId ?? "-"}
                         </p>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center font-semibold">
+                      <td className="whitespace-nowrap px-3 py-3 text-center font-semibold">
                         {formatMoney(record.netAmount)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
+                      <td className="whitespace-nowrap px-3 py-3 text-center">
                         {formatDate(
                           record.settlementMethod === "ADMIN_MANUAL" && record.settledAt
                             ? record.settledAt
                             : record.eligibleAt,
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
+                      <td className="whitespace-nowrap px-3 py-3 text-center">
                         <span
                           className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[record.status]}`}
                         >
                           {t(`walletSettlement.status.${record.status}`)}
                         </span>
+                        {/* Mã lỗi chi trả trước đây chiếm hẳn một cột "Ghi chú"
+                            trống ở gần như mọi dòng. Gắn xuống dưới chip trạng
+                            thái để thẻ "Cần xử lý" trên đầu trang vẫn tra được
+                            lý do ngay trên dòng bị kẹt. */}
+                        {record.activeFailureCode ? (
+                          <p className="mx-auto mt-1 flex max-w-[220px] items-center justify-center gap-1.5 whitespace-normal text-xs text-amber-700">
+                            <FiAlertTriangle className="shrink-0" />
+                            <span>
+                              {t(
+                                `walletSettlement.failureCodes.${record.activeFailureCode}`,
+                                { defaultValue: record.activeFailureCode },
+                              )}
+                              {(record.failureCount ?? 0) > 0 &&
+                                ` (${record.failureCount})`}
+                            </span>
+                          </p>
+                        ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
+                      <td className="whitespace-nowrap px-3 py-3 text-center">
                         <p>
                           {record.settlementMethod
                             ? t(
@@ -528,26 +549,9 @@ export default function WalletSettlement() {
                           </p>
                         ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
-                        {record.activeFailureCode ? (
-                          <div className="flex items-center justify-center gap-2 text-amber-700">
-                            <FiAlertTriangle className="shrink-0" />
-                            <span>
-                              {t(
-                                `walletSettlement.failureCodes.${record.activeFailureCode}`,
-                                { defaultValue: record.activeFailureCode },
-                              )}
-                              {(record.failureCount ?? 0) > 0 &&
-                                ` (${record.failureCount})`}
-                            </span>
-                          </div>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
                       {/* Ghim cột Thao tác — bảng min-w-[1120px] nên ở laptop
                           cột này luôn nằm ngoài khung nếu không ghim. */}
-                      <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-4 py-3 text-center">
+                      <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-3 py-3 text-center">
                         <button
                           type="button"
                           disabled={

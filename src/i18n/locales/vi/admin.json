@@ -684,7 +684,6 @@
     "flowHint": "Doanh thu được giữ 7 ngày; các bản ghi đủ điều kiện sẽ tự động đối soát vào 09:00 thứ Hai.",
     "openNeedsAttention": "Mở danh sách cần xử lý",
     "method": "Hình thức",
-    "issue": "Ghi chú",
     "operatorId": "Mã nhà xe",
     "methods": {
       "AUTO_WEEKLY": "Tự động hàng tuần",

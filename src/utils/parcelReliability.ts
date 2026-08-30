@@ -40,6 +40,28 @@ export function splitRemainingMinutes(minutes: number) {
 }
 
 /**
+ * Vài chỗ BE ghi địa điểm thành CHUỖI `"<LOẠI>:<uuid>"` (`ParcelSearchTask.Location`,
+ * `ParcelCustodyEvent.LocationSnapshot`) chứ không phải object `{type,name}` như
+ * `locationLabel` nhận. Dựng lại nhãn từ phần loại và VỨT uuid đi — điều độ viên
+ * không đối chiếu được bằng uuid, xem `locationLabel` cùng file.
+ *
+ * Không khớp dạng đó (BE có nơi ghi thẳng tên bến) thì trả nguyên văn.
+ */
+export function locationRefLabel(
+  raw: string | null | undefined,
+  typeLabel: (type: string) => string,
+  fallback: string,
+) {
+  const trimmed = raw?.trim();
+  if (!trimmed) return fallback;
+
+  const match = /^([A-Z][A-Z0-9_]*):(.+)$/.exec(trimmed);
+  if (!match) return trimmed;
+
+  return typeLabel(match[1]);
+}
+
+/**
  * Nhãn địa điểm: ưu tiên tên do upstream trả, thiếu thì lùi về loại địa điểm,
  * cuối cùng mới tới nhãn chung. KHÔNG bao giờ hiện UUID cho điều độ viên.
  */

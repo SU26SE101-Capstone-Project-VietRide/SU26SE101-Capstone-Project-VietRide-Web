@@ -18,6 +18,52 @@ describe("planSubstitutionError", () => {
     expect(plan.closeForm).toBe(false);
   });
 
+  // Ba mã của handoff "FE đồng bộ ghế sau khi thay xe" — cả ba đều 409 và đều
+  // KHÔNG tạo chuyến thay thế, nên form phải ở lại chứ không đóng.
+  it("thiếu ghế đã chọn thì giữ nguyên bảng ghế, KHÔNG preview lại", () => {
+    const plan = planSubstitutionError(
+      new ApiRequestError(
+        "Passenger requires an Admin-selected replacement seat.",
+        409,
+        "REPLACEMENT_SEAT_ASSIGNMENT_REQUIRED",
+      ),
+    );
+
+    expect(plan.fields).toEqual(["seats"]);
+    // Preview lại sẽ xoá luôn những ghế Admin đã chọn đúng — token còn hiệu lực
+    expect(plan.refreshPreview).toBe(false);
+    expect(plan.clearSeatSelection).toBe(false);
+    expect(plan.closeForm).toBe(false);
+  });
+
+  it("ghế vừa chọn không còn hợp lệ thì preview lại nhưng giữ lựa chọn", () => {
+    const plan = planSubstitutionError(
+      new ApiRequestError(
+        "Replacement seat 'A5' is not available.",
+        409,
+        "REPLACEMENT_SEAT_NOT_AVAILABLE",
+      ),
+    );
+
+    expect(plan.fields).toEqual(["seats"]);
+    expect(plan.refreshPreview).toBe(true);
+    expect(plan.clearSeatSelection).toBe(false);
+  });
+
+  it("token preview cũ thì bỏ cả token lẫn lựa chọn rồi preview lại", () => {
+    const plan = planSubstitutionError(
+      new ApiRequestError(
+        "Seat preview is stale.",
+        409,
+        "REPLACEMENT_SEAT_PREVIEW_STALE",
+      ),
+    );
+
+    expect(plan.fields).toEqual(["seats"]);
+    expect(plan.refreshPreview).toBe(true);
+    expect(plan.clearSeatSelection).toBe(true);
+  });
+
   it("chọn lại xe cũ thì chỉ đánh dấu ô xe, không tải lại danh sách", () => {
     const plan = planSubstitutionError(
       new ApiRequestError(
@@ -110,6 +156,8 @@ describe("planSubstitutionError", () => {
       fields: [],
       refreshVehicles: false,
       closeForm: false,
+      refreshPreview: false,
+      clearSeatSelection: false,
       hintKey: null,
     });
   });

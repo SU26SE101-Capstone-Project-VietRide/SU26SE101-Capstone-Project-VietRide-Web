@@ -15,7 +15,9 @@ export type SubstitutionFormField =
   | "driver"
   | "assistant"
   | "reason"
-  | "recoveryDeparture";
+  | "recoveryDeparture"
+  /** Bảng gán ghế của bước preview (handoff "đồng bộ ghế sau khi thay xe") */
+  | "seats";
 
 export type SubstitutionErrorPlan = {
   code: string | null;
@@ -25,6 +27,17 @@ export type SubstitutionErrorPlan = {
   refreshVehicles: boolean;
   /** Chuyến hết quyền đổi xe — đóng form, bắt trang cha tải lại trạng thái chuyến */
   closeForm: boolean;
+  /**
+   * Bảng gán ghế FE đang giữ đã cũ — gọi lại `substitute-vehicle/preview` để
+   * lấy `previewToken` và danh sách ghế mới.
+   */
+  refreshPreview: boolean;
+  /**
+   * Bỏ HẲN token và các ghế Admin đã chọn trước khi preview lại. Chỉ đúng với
+   * `REPLACEMENT_SEAT_PREVIEW_STALE`: token cũ đã vô nghĩa, và giữ lại lựa chọn
+   * cũ chỉ khiến người dùng bấm gửi lại đúng một body đã bị từ chối.
+   */
+  clearSeatSelection: boolean;
   /** Câu hướng dẫn bước tiếp theo (namespace `manager`), null = chỉ hiện message của BE */
   hintKey: string | null;
 };
@@ -62,6 +75,8 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
     fields: [],
     refreshVehicles: false,
     closeForm: false,
+    refreshPreview: false,
+    clearSeatSelection: false,
     hintKey: null,
   };
 
@@ -77,6 +92,8 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
         fields: ["vehicle"],
         refreshVehicles: true,
         closeForm: false,
+        refreshPreview: false,
+        clearSeatSelection: true,
         hintKey: "tripOperations.errorVehicleNotActiveHint",
       };
     // 409 — chọn lại đúng xe của chuyến cũ.
@@ -86,6 +103,8 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
         fields: ["vehicle"],
         refreshVehicles: false,
         closeForm: false,
+        refreshPreview: false,
+        clearSeatSelection: true,
         hintKey: "tripOperations.errorVehicleSameAsOldHint",
       };
     // 409 — chọn lại tài xế hoặc phụ xe của chuyến cũ.
@@ -95,6 +114,8 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
         fields: CREW_FIELDS,
         refreshVehicles: false,
         closeForm: false,
+        refreshPreview: false,
+        clearSeatSelection: false,
         hintKey: "tripOperations.errorCrewSameAsOldHint",
       };
     // 409 — trùng lịch, phải chọn tài nguyên khác.
@@ -104,6 +125,8 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
         fields: ["vehicle"],
         refreshVehicles: false,
         closeForm: false,
+        refreshPreview: false,
+        clearSeatSelection: false,
         hintKey: "tripOperations.errorResourceConflictHint",
       };
     case "TRIP_CREW_CONFLICT":
@@ -113,7 +136,46 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
         fields: CREW_FIELDS,
         refreshVehicles: false,
         closeForm: false,
+        refreshPreview: false,
+        clearSeatSelection: false,
         hintKey: "tripOperations.errorResourceConflictHint",
+      };
+    // 409 — Admin chưa chọn đủ ghế cho khách mất ghế cũ. Bảng preview vẫn dùng
+    // được, chỉ cần chọn nốt; KHÔNG gọi lại preview vì token còn hiệu lực và
+    // preview lại sẽ xoá luôn các ghế đã chọn đúng.
+    case "REPLACEMENT_SEAT_ASSIGNMENT_REQUIRED":
+      return {
+        code,
+        fields: ["seats"],
+        refreshVehicles: false,
+        closeForm: false,
+        refreshPreview: false,
+        clearSeatSelection: false,
+        hintKey: "tripOperations.errorSeatAssignmentRequiredHint",
+      };
+    // 409 — ghế vừa chọn không còn hợp lệ (người khác vừa chiếm, hoặc ghế bị
+    // vô hiệu hoá). Danh sách ghế trên tay đã cũ → preview lại.
+    case "REPLACEMENT_SEAT_NOT_AVAILABLE":
+      return {
+        code,
+        fields: ["seats"],
+        refreshVehicles: false,
+        closeForm: false,
+        refreshPreview: true,
+        clearSeatSelection: false,
+        hintKey: "tripOperations.errorSeatNotAvailableHint",
+      };
+    // 409 — chuyến/xe/danh sách khách đã đổi kể từ lượt preview. Token cũ vô
+    // nghĩa: bỏ cả token lẫn lựa chọn rồi preview lại.
+    case "REPLACEMENT_SEAT_PREVIEW_STALE":
+      return {
+        code,
+        fields: ["seats"],
+        refreshVehicles: false,
+        closeForm: false,
+        refreshPreview: true,
+        clearSeatSelection: true,
+        hintKey: "tripOperations.errorSeatPreviewStaleHint",
       };
     // 409 — chuyến không còn được phép đổi xe: đóng form, tải lại trạng thái.
     case "TRIP_NOT_SUBSTITUTABLE":
@@ -124,6 +186,8 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
         fields: [],
         refreshVehicles: false,
         closeForm: true,
+        refreshPreview: false,
+        clearSeatSelection: true,
         hintKey: "tripOperations.errorNotSubstitutableHint",
       };
     default:
@@ -137,6 +201,8 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
       fields: [],
       refreshVehicles: false,
       closeForm: false,
+      refreshPreview: false,
+      clearSeatSelection: false,
       hintKey: "tripOperations.errorForbiddenHint",
     };
   }
@@ -151,6 +217,8 @@ export function planSubstitutionError(error: unknown): SubstitutionErrorPlan {
       fields,
       refreshVehicles: false,
       closeForm: false,
+      refreshPreview: false,
+      clearSeatSelection: false,
       hintKey: fields.length ? "tripOperations.errorValidationHint" : null,
     };
   }

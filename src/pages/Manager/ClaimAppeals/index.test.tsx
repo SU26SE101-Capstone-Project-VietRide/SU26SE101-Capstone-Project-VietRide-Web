@@ -103,9 +103,8 @@ describe("ClaimAppealsPage", () => {
     render(<ClaimAppealsPage />);
     await screen.findByText("claimAppeals.appealRef 36000000");
 
-    await user.click(screen.getByLabelText("claimAppeals.statusFilter"));
     await user.click(
-      screen.getByRole("option", { name: "claimAppeals.status.PAID" }),
+      screen.getByRole("button", { name: "claimAppeals.status.PAID" }),
     );
 
     await waitFor(() => {

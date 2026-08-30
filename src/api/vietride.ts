@@ -4163,10 +4163,11 @@ export type DriverScheduleApplyTo = "FUTURE_ONLY" | "ALL_PENDING";
  * - `reason` BẮT BUỘC: BE trim rồi kiểm không rỗng, tối đa 500 ký tự.
  * - `estimatedRecoveryDepartureAt` phải là mốc tuyệt đối offset UTC = 0 (gửi
  *   `toISOString()`, hậu tố `Z`) và phải SAU thời điểm gián đoạn.
- * - `acknowledgeInsufficientSeats`: BE CHẶN CỨNG khi xe thay thiếu ghế
- *   (`409 REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`). Chỉ gửi `true` sau khi
- *   người vận hành đã thấy con số thiếu ghế của BE và xác nhận — và phải dùng
- *   Idempotency-Key MỚI vì body đã đổi.
+ * - `acknowledgeInsufficientSeats`: KHÔNG dùng được như một đường đi tiếp.
+ *   `SubstituteVehicleCommandHandler` chỉ ghi cờ này vào audit payload rồi vẫn
+ *   ném `409 REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS` khi `missingSeats > 0`,
+ *   nên gửi `true` cũng hỏng y hệt. Thiếu ghế thì phải chọn xe khác; FE không
+ *   gửi field này nữa, giữ lại trong type chỉ để không phá caller cũ.
  * - BE từ chối field lạ (`422 VALIDATION_ERROR`), đừng gửi thừa.
  */
 export type SubstituteVehicleRequest = {
@@ -4182,6 +4183,64 @@ export type SubstituteVehicleRequest = {
     assistantId: string;
   };
   acknowledgeInsufficientSeats?: boolean;
+  /**
+   * Token của lượt preview ghế gần nhất (handoff "đồng bộ ghế sau khi thay xe").
+   *
+   * BẮT BUỘC khi có ít nhất một khách không giữ được ghế cũ — thiếu là
+   * `409 REPLACEMENT_SEAT_ASSIGNMENT_REQUIRED`, sai/cũ là
+   * `409 REPLACEMENT_SEAT_PREVIEW_STALE`. Giữ được toàn bộ ghế thì BE trả kết
+   * quả trước khi đọc tới token nên gửi kèm cũng không sao.
+   */
+  previewToken?: string;
+  /**
+   * Ghế Admin chọn cho những khách có `requiresAdminSelection = true`.
+   *
+   * CHỈ gửi cho đúng nhóm đó: khách giữ được ghế cũ đã được BE tự gán, gửi thêm
+   * là thừa. Mỗi `passengerId` xuất hiện tối đa một lần và không hai khách nào
+   * được trùng ghế — cả hai đều là `409 REPLACEMENT_SEAT_NOT_AVAILABLE`.
+   */
+  seatAssignments?: SubstituteVehicleSeatAssignment[];
+};
+
+export type SubstituteVehicleSeatAssignment = {
+  passengerId: string;
+  /** BE normalize trim + UPPERCASE; độ dài 1–20 ký tự. */
+  newSeatNumber: string;
+};
+
+/**
+ * Preview ghế cho xe thay thế: `POST /v1/operator/trips/{tripId}/substitute-vehicle/preview`.
+ *
+ * Đây là POST CHỈ ĐỌC (`[SkipIdempotency]` ở BE) — không tạo chuyến, không giữ
+ * chỗ, gọi lại bao nhiêu lần cũng được. Nó là nơi DUY NHẤT sinh ra
+ * `previewToken` và danh sách ghế thay thế hợp lệ; FE không được tự dựng danh
+ * sách ghế từ sơ đồ xe.
+ */
+export type PreviewSubstituteVehicleRequest = {
+  replacementVehicleId: string;
+};
+
+export type SubstituteVehicleSeatPreview = {
+  bookingId: string;
+  passengerId: string;
+  /** Ghế vận hành trên chuyến CŨ (`Passenger.SeatNumber`), không phải ghế in trên vé */
+  originalSeatNumber?: string | null;
+  /** BE giữ được đúng ghế cũ → có giá trị; `null` khi cần Admin chọn */
+  proposedSeatNumber?: string | null;
+  /** `true` = xe mới không có ghế cũ (hoặc ghế đó bị vô hiệu hoá) */
+  requiresAdminSelection: boolean;
+  /** Ghế còn trống để Admin chọn; rỗng khi `requiresAdminSelection = false` */
+  alternativeSeatNumbers: string[];
+};
+
+export type SubstituteVehiclePreviewResult = {
+  tripId: string;
+  replacementVehicleId: string;
+  /** 64 ký tự hex; gửi lại NGUYÊN VĂN ở bước confirm */
+  previewToken: string;
+  passengers: SubstituteVehicleSeatPreview[];
+  /** Toàn bộ ghế dùng được của xe thay thế (đã bỏ ghế disabled và khu tài xế) */
+  availableSeatNumbers: string[];
 };
 
 /**
@@ -6760,6 +6819,26 @@ export function getOperatorShuttleContext(shuttleTripId: string) {
 export function getOperatorTripCargoCapacity(tripId: string) {
   return apiRequest<CargoCapacity>(
     `/v1/operator/trips/${tripId}/cargo-capacity`,
+  );
+}
+
+/**
+ * Xem trước việc gán ghế khi thay xe. KHÔNG có tác dụng phụ: BE đánh dấu
+ * `SkipIdempotency` vì đây là read-only, nên gọi lại thoải mái khi người vận
+ * hành đổi xe hoặc khi confirm trả về lỗi ghế.
+ *
+ * Ném luôn `409 REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS` (kèm ba con số trong
+ * `error.fields[]`), `409 TRIP_NOT_SUBSTITUTABLE`, `409 TRIP_VEHICLE_SAME_AS_OLD`
+ * và `422 VEHICLE_NOT_ACTIVE` — cùng bộ mã với confirm, nên biết trước ở bước
+ * này thay vì đợi tới lúc bấm xác nhận.
+ */
+export function previewSubstituteOperatorTripVehicle(
+  tripId: string,
+  request: PreviewSubstituteVehicleRequest,
+) {
+  return apiRequest<SubstituteVehiclePreviewResult>(
+    `/v1/operator/trips/${tripId}/substitute-vehicle/preview`,
+    { method: "POST", body: request },
   );
 }
 

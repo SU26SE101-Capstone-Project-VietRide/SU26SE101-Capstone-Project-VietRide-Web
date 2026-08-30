@@ -177,6 +177,7 @@ import {
   updateOperatorRouteFull,
   updateOperatorRouteGeometry,
   retryAdminInvoice,
+  previewSubstituteOperatorTripVehicle,
   substituteOperatorTripVehicle,
   retryOperatorSubscriptionPayment,
   upgradeOperatorSubscription,
@@ -5170,6 +5171,74 @@ describe("endpoint bổ sung theo spec BE 2026-08-25", () => {
       expect.objectContaining({ method: "GET" }),
     );
     expect(result.groups).toBeNull();
+  });
+
+  // Handoff "FE đồng bộ ghế sau khi thay xe": preview là POST CHỈ ĐỌC nên BE
+  // gắn `SkipIdempotency` — FE cũng không được sinh key rác cho nó.
+  it("preview ghế không gắn Idempotency-Key", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(
+        {
+          success: true,
+          data: {
+            tripId: "trip-1",
+            replacementVehicleId: "vehicle-2",
+            previewToken: "a".repeat(64),
+            passengers: [],
+            availableSeatNumbers: ["A1"],
+          },
+        },
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await previewSubstituteOperatorTripVehicle("trip-1", {
+      replacementVehicleId: "vehicle-2",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://api.vietride.online/v1/operator/trips/trip-1/substitute-vehicle/preview",
+    );
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      replacementVehicleId: "vehicle-2",
+    });
+    expect(init?.headers).not.toHaveProperty("Idempotency-Key");
+  });
+
+  it("thay xe gửi kèm previewToken và seatAssignments khi có khách đổi ghế", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json(
+        { success: true, data: { substitutionId: "sub-1", newTripId: "trip-2" } },
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const body = {
+      replacementVehicleId: "vehicle-2",
+      incidentId: "incident-1",
+      estimatedRecoveryDepartureAt: "2026-08-26T04:30:00.000Z",
+      reason: "Vehicle breakdown",
+      notifyPassengers: true,
+      replacementCrew: { driverId: "driver-2", assistantId: "assistant-2" },
+      previewToken: "b".repeat(64),
+      seatAssignments: [
+        { passengerId: "passenger-2", newSeatNumber: "A5" },
+      ],
+    };
+    await substituteOperatorTripVehicle("trip-1", body, "key-seats");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/trips/trip-1/substitute-vehicle",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: expect.objectContaining({ "Idempotency-Key": "key-seats" }),
+      }),
+    );
   });
 
   it("thay xe gửi acknowledgeInsufficientSeats theo đúng lượt gọi", async () => {

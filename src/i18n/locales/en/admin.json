@@ -684,7 +684,6 @@
     "flowHint": "Revenue is held for seven days; eligible records settle automatically at 09:00 every Monday.",
     "openNeedsAttention": "Open records needing attention",
     "method": "Method",
-    "issue": "Issue",
     "operatorId": "Operator ID",
     "methods": {
       "AUTO_WEEKLY": "Automatic weekly",
