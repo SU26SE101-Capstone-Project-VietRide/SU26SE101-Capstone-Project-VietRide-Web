@@ -55,7 +55,9 @@
     "legendTraveled": "Đoạn đã đi",
     "legendRemaining": "Đoạn còn lại",
     "legendVehicle": "Xe đang chạy",
-    "legendNote": "Bản đồ vẽ theo tuyến nhà xe đã đăng ký"
+    "legendNote": "Bản đồ vẽ theo tuyến nhà xe đã đăng ký",
+    "focusVehicle": "Vị trí xe",
+    "viewWholeRoute": "Xem toàn tuyến"
   },
   "actions": {
     "retry": "Thử lại",

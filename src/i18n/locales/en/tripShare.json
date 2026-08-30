@@ -55,7 +55,9 @@
     "legendTraveled": "Travelled so far",
     "legendRemaining": "Remaining",
     "legendVehicle": "Vehicle en route",
-    "legendNote": "Drawn along the operator's registered route"
+    "legendNote": "Drawn along the operator's registered route",
+    "focusVehicle": "Focus vehicle",
+    "viewWholeRoute": "View whole route"
   },
   "actions": {
     "retry": "Try again",
