@@ -66,7 +66,9 @@ export default function ManagerIncidents() {
   // back về là mất sạch ngữ cảnh: lọc lại từ đầu, tụt về trang 1, modal đóng và
   // phải tự mò lại đúng sự cố vừa xử lý.
   const linkedTripId = searchParams.get("tripId") ?? "";
-  const category = (searchParams.get("category") ?? "") as IncidentCategory | "";
+  const category = (searchParams.get("category") ?? "") as
+    | IncidentCategory
+    | "";
   const status = (searchParams.get("status") ?? "") as IncidentStatus | "";
   const from = searchParams.get("from") ?? "";
   const to = searchParams.get("to") ?? "";
@@ -117,7 +119,9 @@ export default function ManagerIncidents() {
 
   // Xe + nhân sự cho form thay xe trong modal. Gắn với sự cố nào thì lưu kèm id
   // đó để đổi sang sự cố khác là gợi ý ghi chú cũ tự hết hiệu lực.
-  const [operatorVehicles, setOperatorVehicles] = useState<OperatorVehicle[]>([]);
+  const [operatorVehicles, setOperatorVehicles] = useState<OperatorVehicle[]>(
+    [],
+  );
   const [operatorStaff, setOperatorStaff] = useState<OperatorUser[]>([]);
   const [fleetFailed, setFleetFailed] = useState(false);
   const [tripActionNote, setTripActionNote] = useState<{
@@ -205,7 +209,16 @@ export default function ManagerIncidents() {
     return () => {
       ignore = true;
     };
-  }, [category, debouncedSearch, from, linkedTripId, page, reloadKey, status, to]);
+  }, [
+    category,
+    debouncedSearch,
+    from,
+    linkedTripId,
+    page,
+    reloadKey,
+    status,
+    to,
+  ]);
 
   // Chỉ hiện ngay bản ghi của danh sách rồi đẩy id lên URL; effect bên dưới lo
   // phần tải chi tiết cho cả trường hợp vào thẳng bằng `?incidentId=`.
@@ -260,30 +273,33 @@ export default function ManagerIncidents() {
   // rồi dùng lại cho mọi sự cố mở sau đó.
   const needsFleet = canResolve && detailIncident?.status === "OPEN";
   const hasRequestedFleet = useRef(false);
+
+  /**
+   * Nạp xe + nhân sự cho form thay xe. Gọi lại được vì BE trả `422
+   * VEHICLE_NOT_ACTIVE` khi xe thay vừa rời `ACTIVE` — handoff 2026-08-30 bắt
+   * Web tải lại danh sách rồi yêu cầu chọn xe khác.
+   */
+  const loadFleetResources = useCallback(async () => {
+    try {
+      const [vehicleItems, userItems] = await Promise.all([
+        fetchAllPages((params) => getOperatorVehicles(params)),
+        fetchAllPages((params) => getOperatorUsers(params)),
+      ]);
+      setOperatorVehicles(vehicleItems);
+      setOperatorStaff(userItems);
+      setFleetFailed(false);
+    } catch {
+      // Chỉ hỏng form thay xe — đổi lộ trình và ghi nhận gián đoạn vẫn chạy,
+      // nên báo tại chỗ trong modal chứ không chặn cả màn.
+      setFleetFailed(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (!needsFleet || hasRequestedFleet.current) return;
     hasRequestedFleet.current = true;
-
-    let ignore = false;
-    void Promise.all([
-      fetchAllPages((params) => getOperatorVehicles(params)),
-      fetchAllPages((params) => getOperatorUsers(params)),
-    ])
-      .then(([vehicleItems, userItems]) => {
-        if (ignore) return;
-        setOperatorVehicles(vehicleItems);
-        setOperatorStaff(userItems);
-      })
-      .catch(() => {
-        // Chỉ hỏng form thay xe — đổi lộ trình và ghi nhận gián đoạn vẫn chạy,
-        // nên báo tại chỗ trong modal chứ không chặn cả màn.
-        if (!ignore) setFleetFailed(true);
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, [needsFleet]);
+    void loadFleetResources();
+  }, [loadFleetResources, needsFleet]);
 
   // Thay xe tạo CHUYẾN MỚI và sự cố vẫn gắn chuyến cũ; đổi lộ trình thì giữ
   // nguyên tripId. Không hành động nào tự đóng sự cố — chỉ điền sẵn câu tổng kết
@@ -354,7 +370,11 @@ export default function ManagerIncidents() {
             {t("incidents.subtitle")}
           </p>
         </div>
-        <Button variant="secondary" onClick={() => setReloadKey((current) => current + 1)} disabled={isLoading}>
+        <Button
+          variant="secondary"
+          onClick={() => setReloadKey((current) => current + 1)}
+          disabled={isLoading}
+        >
           <FiRefreshCw
             size={16}
             className={isLoading ? "animate-spin" : ""}
@@ -450,7 +470,6 @@ export default function ManagerIncidents() {
               onChange={(event) => {
                 updateParams({ from: event.target.value || null, page: null });
               }}
-              className={inputClass}
             />
           </label>
 
@@ -464,19 +483,25 @@ export default function ManagerIncidents() {
                 if (from && event.target.value < from) return;
                 updateParams({ to: event.target.value || null, page: null });
               }}
-              className={inputClass}
             />
           </label>
 
           <div className="flex items-end">
-            <Button variant="secondary" className="w-full" onClick={resetFilters}>
+            <Button
+              variant="secondary"
+              className="!h-12 !w-full !rounded-[9999px] !border-[#bfe1ec] !bg-white !text-[15px] !text-slate-700 !shadow-[0_0_0_1px_rgba(175,219,234,0.18)] hover:bg-gray-50"
+              onClick={resetFilters}
+            >
               {tc("reset")}
             </Button>
           </div>
         </div>
 
         {isLoading && items.length === 0 ? (
-          <p className="px-5 py-12 text-center text-sm text-gray-500" role="status">
+          <p
+            className="px-5 py-12 text-center text-sm text-gray-500"
+            role="status"
+          >
             {tc("loading")}
           </p>
         ) : items.length === 0 ? (
@@ -541,7 +566,11 @@ export default function ManagerIncidents() {
                     </p>
                   </div>
 
-                  <Button variant="secondary" className="shrink-0" onClick={() => openDetail(incident)}>
+                  <Button
+                    variant="secondary"
+                    className="shrink-0"
+                    onClick={() => openDetail(incident)}
+                  >
                     <FiEye aria-hidden="true" /> {tc("details")}
                   </Button>
                 </div>
@@ -573,6 +602,7 @@ export default function ManagerIncidents() {
         vehicles={operatorVehicles}
         staff={operatorStaff}
         fleetFailed={fleetFailed}
+        onResourcesStale={() => void loadFleetResources()}
         suggestedNote={suggestedNote}
         onTripActionCompleted={handleTripActionCompleted}
       />

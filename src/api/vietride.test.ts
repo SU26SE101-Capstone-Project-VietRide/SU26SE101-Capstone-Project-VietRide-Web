@@ -2907,11 +2907,12 @@ describe("vietride API", () => {
       "trip-1",
       {
         replacementVehicleId: "vehicle-2",
+        incidentId: "incident-1",
         estimatedRecoveryDepartureAt: "2026-08-02T04:30:00.000Z",
         notifyPassengers: true,
         replacementCrew: {
           driverId: "driver-2",
-          assistantId: null,
+          assistantId: "assistant-2",
         },
         reason: "Vehicle breakdown",
       },
@@ -2930,11 +2931,12 @@ describe("vietride API", () => {
         method: "POST",
         body: JSON.stringify({
           replacementVehicleId: "vehicle-2",
+          incidentId: "incident-1",
           estimatedRecoveryDepartureAt: "2026-08-02T04:30:00.000Z",
           notifyPassengers: true,
           replacementCrew: {
             driverId: "driver-2",
-            assistantId: null,
+            assistantId: "assistant-2",
           },
           reason: "Vehicle breakdown",
         }),
@@ -5007,9 +5009,11 @@ describe("endpoint bổ sung theo spec BE 2026-08-25", () => {
 
     const body = {
       replacementVehicleId: "vehicle-2",
+      incidentId: "incident-1",
       estimatedRecoveryDepartureAt: "2026-08-26T04:30:00.000Z",
       reason: "Vehicle breakdown",
       notifyPassengers: true,
+      replacementCrew: { driverId: "driver-2", assistantId: "assistant-2" },
       acknowledgeInsufficientSeats: true,
     };
     await substituteOperatorTripVehicle("trip-1", body, "key-ack");

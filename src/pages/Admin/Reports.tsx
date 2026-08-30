@@ -257,15 +257,15 @@ export default function AdminReports() {
 
       <form
         onSubmit={applyFilters}
-        className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
+        className="overflow-hidden rounded-[22px] border border-gray-200 bg-white shadow-sm"
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-4 border-b border-gray-200 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
           <div className="flex items-start gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-vr-50 text-vr-900">
               <FiCalendar size={20} />
             </span>
             <div>
-              <h2 className="font-bold text-gray-900">
+              <h2 className="text-[2rem] font-bold leading-tight text-gray-900">
                 {t("reports.dateRangeTitle")}
               </h2>
               <p className="mt-1 text-sm text-gray-500">
@@ -275,79 +275,84 @@ export default function AdminReports() {
           </div>
           <p
             aria-live="polite"
-            className="w-fit rounded-full bg-vr-50 px-3 py-1.5 text-xs font-semibold text-vr-900"
+            className="inline-flex w-fit items-center rounded-full border border-[#bfe1ec] bg-[#e9f8f7] px-3 py-1.5 text-[13px] font-medium text-[#0e6d6b]"
           >
             {appliedPeriodLabel}
           </p>
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] lg:items-end">
-          <label>
-            <span className="mb-1.5 block text-xs font-semibold text-gray-600">
-              {tc("from")}
+        <div className="px-5 pb-5 pt-4 sm:px-6">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] lg:items-end">
+            <label>
+              <span className="mb-2 block text-sm font-medium text-gray-700">
+                {tc("from")}
+              </span>
+              <CustomDateTimeInput
+                type="date"
+                value={draftFilters.from}
+                onChange={(event) =>
+                  updateDraftFilter("from", event.target.value)
+                }
+              />
+            </label>
+            <span className="hidden h-12 items-center justify-center text-gray-500 lg:flex">
+              <FiArrowRight size={18} />
             </span>
-            <CustomDateTimeInput
-              type="date"
-              value={draftFilters.from}
-              onChange={(event) =>
-                updateDraftFilter("from", event.target.value)
-              }
-              className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2.5 text-sm hover:border-gray-300 hover:bg-white"
-            />
-          </label>
-          <span className="hidden h-11 items-center text-gray-500 lg:flex">
-            <FiArrowRight size={18} />
-          </span>
-          <label>
-            <span className="mb-1.5 block text-xs font-semibold text-gray-600">
-              {tc("to")}
+            <label>
+              <span className="mb-2 block text-sm font-medium text-gray-700">
+                {tc("to")}
+              </span>
+              <CustomDateTimeInput
+                type="date"
+                value={draftFilters.to}
+                onChange={(event) =>
+                  updateDraftFilter("to", event.target.value)
+                }
+              />
+            </label>
+            <button
+              type="submit"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-[18px] border border-[#2bb7b0] bg-[#2bb7b0] px-5 text-base font-semibold text-white shadow-sm transition hover:bg-[#1fa8a0]"
+            >
+              <FiFilter size={16} />
+              {t("reports.applyFilters")}
+            </button>
+          </div>
+
+          {filterError && (
+            <p role="alert" className="mt-3 text-sm font-medium text-red-600">
+              {filterError}
+            </p>
+          )}
+
+          <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+            <span className="mr-1 text-[13px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+              {t("reports.quickRanges")}
             </span>
-            <CustomDateTimeInput
-              type="date"
-              value={draftFilters.to}
-              onChange={(event) => updateDraftFilter("to", event.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2.5 text-sm hover:border-gray-300 hover:bg-white"
-            />
-          </label>
-          <Button variant="primary" type="submit">
-            <FiFilter />
-            {t("reports.applyFilters")}
-          </Button>
-        </div>
+            {REPORT_PRESETS.map((preset) => {
+              const presetFilters = createPresetFilters(preset);
+              const isActive =
+                draftFilters.from === presetFilters.from &&
+                draftFilters.to === presetFilters.to;
 
-        {filterError && (
-          <p role="alert" className="mt-3 text-sm font-medium text-red-600">
-            {filterError}
-          </p>
-        )}
-
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
-          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            {t("reports.quickRanges")}
-          </span>
-          {REPORT_PRESETS.map((preset) => {
-            const presetFilters = createPresetFilters(preset);
-            const isActive =
-              draftFilters.from === presetFilters.from &&
-              draftFilters.to === presetFilters.to;
-
-            return (
-              <button
-                key={preset}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => applyPreset(preset)}
-                className={[
-                  "cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
-                  isActive
-                    ? "border-vr-200 bg-vr-50 text-vr-800"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-800",
-                ].join(" ")}
-              >
-                {t("reports." + preset)}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => applyPreset(preset)}
+                  className={[
+                    "cursor-pointer rounded-[18px] border px-4 py-2 text-sm font-medium transition",
+                    isActive
+                      ? "border-[#2bb7b0] bg-[#ebfffd] text-[#0c6f68] shadow-[0_0_0_1px_rgba(43,183,176,0.18)]"
+                      : "border-[#cfe7ee] bg-white text-gray-700 hover:border-[#9ad7d8] hover:bg-[#f5fffe]",
+                  ].join(" ")}
+                >
+                  {t("reports." + preset)}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </form>
 
@@ -459,6 +464,3 @@ export default function AdminReports() {
     </div>
   );
 }
-
-
-

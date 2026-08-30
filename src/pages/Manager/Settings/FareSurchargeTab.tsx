@@ -488,7 +488,6 @@ export default function FareSurchargeTab() {
               <label className={labelClass}>{t("settings.fromDate")}</label>
               <CustomDateTimeInput
                 type="date"
-                className={inputClass}
                 value={periodForm.startDate}
                 onChange={(e) =>
                   setPeriodForm({ ...periodForm, startDate: e.target.value })
@@ -499,7 +498,6 @@ export default function FareSurchargeTab() {
               <label className={labelClass}>{t("settings.toDate")}</label>
               <CustomDateTimeInput
                 type="date"
-                className={inputClass}
                 value={periodForm.endDate}
                 onChange={(e) =>
                   setPeriodForm({ ...periodForm, endDate: e.target.value })

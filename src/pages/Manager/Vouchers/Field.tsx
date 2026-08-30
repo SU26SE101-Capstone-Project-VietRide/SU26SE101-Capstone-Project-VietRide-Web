@@ -28,6 +28,8 @@ export default function Field({
   maxLength,
 }: FieldProps) {
   const { t } = useTranslation("manager");
+  // Chỉ nhánh <input> mới nhận `maxLength`, nên viền hổ phách phải gắn ở đó —
+  // trước đây nó gắn nhầm vào ô ngày (nơi không bao giờ có `maxLength`).
   const isAtCharacterLimit = Boolean(maxLength && value.length >= maxLength);
   const fieldClassName = isAtCharacterLimit ? inputClass + " border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-500/30" : inputClass;
 
@@ -43,7 +45,6 @@ export default function Field({
       <label className={labelClass}>{label}</label>
       {isCustomDateTime ? (
         <CustomDateTimeInput
-          className={fieldClassName}
           type={type}
           value={value}
           disabled={disabled}
@@ -60,7 +61,7 @@ export default function Field({
         />
       ) : (
         <input
-          className={inputClass}
+          className={fieldClassName}
           type={type}
           value={value}
           disabled={disabled}

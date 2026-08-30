@@ -46,7 +46,11 @@ const trip: OperatorTripListItem = {
     originName: "Sài Gòn",
     destinationName: "Đà Lạt",
   },
-  vehicle: { vehicleId: "vehicle-1", licensePlate: "51B-123.45", status: "ACTIVE" },
+  vehicle: {
+    vehicleId: "vehicle-1",
+    licensePlate: "51B-123.45",
+    status: "ACTIVE",
+  },
   driver: null,
   assistant: null,
   departureAt: "2026-08-27T07:00:00+07:00",
@@ -137,10 +141,7 @@ describe("TripManageModal", () => {
     const fare = screen.getByLabelText("tripList.manage.baseFare");
     await user.type(fare, "250000");
     await user.clear(fare);
-    await user.type(
-      screen.getByLabelText("tripList.manage.notes"),
-      "Xe mới",
-    );
+    await user.type(screen.getByLabelText("tripList.manage.notes"), "Xe mới");
     await user.click(screen.getByRole("button", { name: "save" }));
 
     await waitFor(() =>
@@ -150,11 +151,33 @@ describe("TripManageModal", () => {
     );
   });
 
+  it("hiển thị tài xế và phụ xe trong phần thông tin chuyến", () => {
+    renderModal({
+      driver: {
+        userId: "driver-1",
+        displayName: "Nguyễn Văn A",
+        phone: "0901234567",
+      },
+      assistant: {
+        userId: "assistant-1",
+        displayName: "Trần Thị B",
+        phone: "0907654321",
+      },
+    });
+
+    expect(screen.getByText("tripList.manage.driver")).toBeInTheDocument();
+    expect(screen.getByText("Nguyễn Văn A")).toBeInTheDocument();
+    expect(screen.getByText("tripList.manage.assistant")).toBeInTheDocument();
+    expect(screen.getByText("Trần Thị B")).toBeInTheDocument();
+  });
+
   it("chuyến đã chạy thì khoá form và ẩn mục huỷ chuyến", () => {
     renderModal({ status: "IN_PROGRESS" });
 
     expect(screen.getByLabelText("tripList.manage.baseFare")).toBeDisabled();
-    expect(screen.getByText("tripList.manage.detailsLocked")).toBeInTheDocument();
+    expect(
+      screen.getByText("tripList.manage.detailsLocked"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("tripList.manage.cancelTitle"),
     ).not.toBeInTheDocument();
@@ -164,7 +187,9 @@ describe("TripManageModal", () => {
     renderModal({}, false);
 
     expect(screen.getByLabelText("tripList.manage.baseFare")).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "save" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "save" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText("tripList.manage.cancelTitle"),
     ).not.toBeInTheDocument();

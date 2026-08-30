@@ -4,8 +4,10 @@ import {
   FiAlertOctagon,
   FiEdit3,
   FiGrid,
+  FiPhone,
   FiSave,
   FiSettings,
+  FiUser,
 } from "react-icons/fi";
 import {
   cancelOperatorTrip,
@@ -25,9 +27,10 @@ import CustomSelect from "../../../components/CustomSelect";
 import InlineAlert from "../../../components/InlineAlert";
 import Modal from "../../../components/Modal";
 import TripSeatMapPanel from "../../../components/TripSeatMapPanel";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { inputClass, labelClass, textareaClass } from "../../../components/form/formClasses";
 import { displayBusinessCode } from "../../../utils/businessCode";
 import { formatCurrency } from "../../../utils/currency";
+import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 
 /**
  * Chuyến đã chạy hoặc đã kết thúc thì không sửa/huỷ được nữa — BE trả `409
@@ -118,7 +121,9 @@ export default function TripManageModal({
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState<OperatorTripCancelPreview | null>(null);
+  const [preview, setPreview] = useState<OperatorTripCancelPreview | null>(
+    null,
+  );
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -151,7 +156,11 @@ export default function TripManageModal({
     let ignore = false;
     void (async () => {
       const [vehicleResult, routeResult] = await Promise.allSettled([
-        getOperatorVehicles({ page: 1, pageSize: 100 }),
+        // Chỉ xe đang hoạt động: xe vừa bị đổi do sự cố nằm ở `MAINTENANCE` và
+        // không được phân phối cho chuyến nào nữa (handoff "đổi xe do sự cố",
+        // 2026-08-30). Xe hiện tại của chuyến vẫn luôn có mặt trong ô chọn —
+        // nó được render riêng bên dưới, không lấy từ danh sách này.
+        getOperatorVehicles({ page: 1, pageSize: 100, status: "ACTIVE" }),
         getOperatorRoutes({ page: 1, pageSize: 100 }),
       ]);
       if (ignore) return;
@@ -276,6 +285,49 @@ export default function TripManageModal({
               </p>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                      <FiUser aria-hidden="true" className="text-vr-700" />
+                      {t("tripList.manage.driver")}
+                    </div>
+                    <div className="mt-2 flex items-start gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {trip.driver?.displayName || t("tripList.noDriver")}
+                        </p>
+                        {trip.driver?.phone && (
+                          <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-600">
+                            <FiPhone aria-hidden="true" size={12} />
+                            {formatVietnamPhoneForDisplay(trip.driver.phone)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                      <FiUser aria-hidden="true" className="text-vr-700" />
+                      {t("tripList.manage.assistant")}
+                    </div>
+                    <div className="mt-2 flex items-start gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {trip.assistant?.displayName ||
+                            t("tripList.manage.noAssistant")}
+                        </p>
+                        {trip.assistant?.phone && (
+                          <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-600">
+                            <FiPhone aria-hidden="true" size={12} />
+                            {formatVietnamPhoneForDisplay(trip.assistant.phone)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <label>
                   <span className={labelClass}>
                     {t("tripList.manage.baseFare")}
@@ -375,7 +427,7 @@ export default function TripManageModal({
                         notes: event.target.value,
                       }))
                     }
-                    className={`${inputClass} disabled:bg-gray-50 disabled:text-gray-500`}
+                    className={`${textareaClass} disabled:bg-gray-50 disabled:text-gray-500`}
                   />
                 </label>
               </div>
@@ -454,7 +506,9 @@ export default function TripManageModal({
                       <input
                         value={cancelReason}
                         maxLength={500}
-                        onChange={(event) => setCancelReason(event.target.value)}
+                        onChange={(event) =>
+                          setCancelReason(event.target.value)
+                        }
                         placeholder={t(
                           "tripList.manage.cancelReasonPlaceholder",
                         )}

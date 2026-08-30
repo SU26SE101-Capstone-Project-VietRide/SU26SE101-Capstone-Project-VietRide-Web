@@ -79,6 +79,21 @@ export default function ScheduleFormModal({
   const selectedVehicle = vehicles.find(
     (vehicle) => vehicle.id === form.vehicleId,
   );
+  /**
+   * Chỉ xe đang hoạt động mới gán được cho lịch chạy. Xe bị đổi do sự cố rơi
+   * sang `MAINTENANCE` (handoff "đổi xe do sự cố", 2026-08-30 mục "Audit và màn
+   * hình phương tiện") và không được dùng lại cho tới khi nhà xe đưa nó về
+   * `ACTIVE` bằng nghiệp vụ phương tiện.
+   *
+   * Xe đang được chọn vẫn hiện ra — nhưng KHOÁ: giấu nó đi thì mở lịch cũ ra là
+   * ô xe rỗng, người dùng không hiểu vì sao và cũng không biết phải đổi xe.
+   */
+  const assignableVehicles = vehicles.filter(
+    (vehicle) => vehicle.status === "available",
+  );
+  const isSelectedVehicleUnavailable = Boolean(
+    selectedVehicle && selectedVehicle.status !== "available",
+  );
   const canSkipAssistant = Boolean(
     selectedVehicle && isShuttle16SeatVehicle(selectedVehicle),
   );
@@ -246,15 +261,36 @@ export default function ScheduleFormModal({
               value={form.vehicleId}
               onChange={(value) => onFieldChange("vehicleId", value)}
             >
-              {vehicles.map((vehicle) => (
+              {/* Xe đang gán mà không còn hoạt động: hiện nhưng khoá, kèm cảnh
+                  báo bên dưới để người dùng biết phải chọn xe khác. */}
+              {isSelectedVehicleUnavailable && selectedVehicle && (
+                <option value={selectedVehicle.id} disabled>
+                  {selectedVehicle.plate} ·{" "}
+                  {selectedVehicle.vehicleTypeName ||
+                    selectedVehicle.vehicleType}{" "}
+                  · {selectedVehicle.seats} {t("trips.seats")} ·{" "}
+                  {t(`trips.resourceStatus.${selectedVehicle.status}`)}
+                </option>
+              )}
+              {assignableVehicles.map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.plate} · {vehicle.vehicleTypeName || vehicle.vehicleType} ·{" "}
-                  {vehicle.seats}{" "}
-                  {t("trips.seats")} ·{" "}
+                  {vehicle.plate} ·{" "}
+                  {vehicle.vehicleTypeName || vehicle.vehicleType} ·{" "}
+                  {vehicle.seats} {t("trips.seats")} ·{" "}
                   {t(`trips.resourceStatus.${vehicle.status}`)}
                 </option>
               ))}
             </Select>
+            {isSelectedVehicleUnavailable && (
+              <p
+                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 lg:col-span-2"
+                role="alert"
+              >
+                {t("trips.vehicleNotAssignable", {
+                  plate: selectedVehicle?.plate ?? "",
+                })}
+              </p>
+            )}
             <Select
               label={t("trips.driver")}
               required
@@ -290,7 +326,6 @@ export default function ScheduleFormModal({
                   validFrom (ngày bắt đầu lịch), phần giờ thành departureTime. */}
               <FieldLabel label={t("trips.departureDateTimeLabel")} required />
               <CustomDateTimeInput
-                className={inputClass}
                 value={form.departureAt}
                 type="datetime-local"
                 placeholder={t("trips.departureDateTimePlaceholder")}
@@ -324,7 +359,7 @@ export default function ScheduleFormModal({
                 và làm người dùng tưởng đặt được giờ đến. */}
             <div>
               <FieldLabel label={t("trips.arrivalEstimate")} />
-              <p className="flex min-h-11 items-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
+              <p className="flex min-h-[50px] items-center rounded-[9999px] border border-dashed border-[#bfe1ec] bg-gray-50 px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)]">
                 {/* Cùng thứ tự yyyy-MM-dd HH:mm với ô "Ngày & giờ khởi hành"
                     ngay trên — hai giá trị này luôn được đọc cạnh nhau để đối
                     chiếu chênh lệch thời gian. */}

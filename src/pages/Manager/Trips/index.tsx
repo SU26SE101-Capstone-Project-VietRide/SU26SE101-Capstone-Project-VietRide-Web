@@ -824,6 +824,22 @@ export default function TripsPage() {
       return;
     }
 
+    // Kích hoạt lại một lịch đang gán xe không còn hoạt động là đưa xe đó trở
+    // lại luồng sinh chuyến. Xe bị đổi do sự cố nằm ở `MAINTENANCE` và chỉ được
+    // dùng lại sau khi nhà xe đưa về `ACTIVE` (handoff "đổi xe do sự cố",
+    // 2026-08-30 mục "Audit và màn hình phương tiện").
+    if (schedule.status !== "open") {
+      const scheduleVehicle = vehicles.find(
+        (vehicle) => vehicle.id === schedule.vehicleId,
+      );
+      if (scheduleVehicle && scheduleVehicle.status !== "available") {
+        toast.error(
+          t("trips.vehicleNotAssignable", { plate: scheduleVehicle.plate }),
+        );
+        return;
+      }
+    }
+
     try {
       const updated =
         schedule.status === "open"

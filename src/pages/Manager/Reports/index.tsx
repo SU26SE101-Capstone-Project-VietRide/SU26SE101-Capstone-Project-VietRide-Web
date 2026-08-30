@@ -314,7 +314,7 @@ export default function ManagerReports() {
                     from: event.target.value,
                   }))
                 }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm sm:w-44"
+                className="sm:w-44"
               />
             </label>
             <label>
@@ -330,7 +330,7 @@ export default function ManagerReports() {
                     to: event.target.value,
                   }))
                 }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm sm:w-44"
+                className="sm:w-44"
               />
             </label>
           </div>

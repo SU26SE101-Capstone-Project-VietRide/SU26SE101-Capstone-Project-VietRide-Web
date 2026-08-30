@@ -2,7 +2,10 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { createIdempotencyKey } from "../../../api/idempotency";
 import { getAuthUser } from "../../../auth";
-import { lockOperatorUser, unlockOperatorUser } from "../../../api/operatorUserActions";
+import {
+  lockOperatorUser,
+  unlockOperatorUser,
+} from "../../../api/operatorUserActions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -170,7 +173,11 @@ export default function StaffPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [lockTarget, setLockTarget] = useState<OperatorUser | null>(null);
   const [isLockingUser, setIsLockingUser] = useState(false);
-  const lockAttemptRef = useRef<{ userId: string; action: "lock" | "unlock"; key: string } | null>(null);
+  const lockAttemptRef = useRef<{
+    userId: string;
+    action: "lock" | "unlock";
+    key: string;
+  } | null>(null);
   const pageSize = 10;
 
   // Debounce ô tìm kiếm để tránh mỗi ký tự bắn một request (pattern giống Bookings)
@@ -224,7 +231,11 @@ export default function StaffPage() {
       getOperatorUsers({ page: 1, pageSize: 1 }),
       getOperatorUsers({ page: 1, pageSize: 1, status: "ACTIVE" }),
       getOperatorUsers({ page: 1, pageSize: 1, role: "DRIVER" }),
-      getOperatorUsers({ page: 1, pageSize: 1, status: "PENDING_INITIAL_PASSWORD" }),
+      getOperatorUsers({
+        page: 1,
+        pageSize: 1,
+        status: "PENDING_INITIAL_PASSWORD",
+      }),
     ])
       .then(([all, active, drivers, pendingInitialPassword]) => {
         if (ignore) return;
@@ -343,7 +354,9 @@ export default function StaffPage() {
 
   function openLockConfirmation(user: OperatorUser) {
     const manageable = user.role === "DRIVER" || user.role === "ASSISTANT";
-    const canAct = getAuthUser()?.role === "OPERATOR_ADMIN" && manageable &&
+    const canAct =
+      getAuthUser()?.role === "OPERATOR_ADMIN" &&
+      manageable &&
       (user.status === "ACTIVE" || user.status === "LOCKED");
     if (!canAct) return;
     setLockTarget(user);
@@ -361,23 +374,29 @@ export default function StaffPage() {
     }
 
     const previousAttempt = lockAttemptRef.current;
-    const key = previousAttempt?.userId === userId && previousAttempt.action === action
-      ? previousAttempt.key
-      : createIdempotencyKey();
+    const key =
+      previousAttempt?.userId === userId && previousAttempt.action === action
+        ? previousAttempt.key
+        : createIdempotencyKey();
     lockAttemptRef.current = { userId, action, key };
     setIsLockingUser(true);
     setError("");
     setMessage("");
 
     try {
-      const result = action === "lock"
-        ? await lockOperatorUser(userId, key)
-        : await unlockOperatorUser(userId, key);
+      const result =
+        action === "lock"
+          ? await lockOperatorUser(userId, key)
+          : await unlockOperatorUser(userId, key);
       lockAttemptRef.current = null;
       setLockTarget(null);
       await loadUsers();
       setStatsVersion((current) => current + 1);
-      window.dispatchEvent(new CustomEvent("vietride:operator-user-status-changed", { detail: { userId, status: result.status } }));
+      window.dispatchEvent(
+        new CustomEvent("vietride:operator-user-status-changed", {
+          detail: { userId, status: result.status },
+        }),
+      );
       setMessage(
         result.status === "LOCKED"
           ? t("staff.lockSuccess")
@@ -398,14 +417,22 @@ export default function StaffPage() {
   }
 
   function toggleNameSort() {
-    setSort((current) => (current === "displayName:asc" ? "displayName:desc" : "displayName:asc"));
+    setSort((current) =>
+      current === "displayName:asc" ? "displayName:desc" : "displayName:asc",
+    );
     setPage(1);
   }
 
   function nameSortIcon() {
-    if (sort === "displayName:asc") return <FiArrowUp aria-hidden="true" size={14} />;
-    if (sort === "displayName:desc") return <FiArrowDown aria-hidden="true" size={14} />;
-    return <span aria-hidden="true" className="text-base leading-none text-gray-500">↕</span>;
+    if (sort === "displayName:asc")
+      return <FiArrowUp aria-hidden="true" size={14} />;
+    if (sort === "displayName:desc")
+      return <FiArrowDown aria-hidden="true" size={14} />;
+    return (
+      <span aria-hidden="true" className="text-base leading-none text-gray-500">
+        ↕
+      </span>
+    );
   }
 
   useToastFeedback({ message, error });
@@ -457,29 +484,202 @@ export default function StaffPage() {
         />
       </div>
       <PersonnelTable
-        toolbar={<div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_300px] lg:items-center"><SearchInput
-  label={t("staff.searchPlaceholder")}
-  value={search}
-  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-  placeholder={t("staff.searchPlaceholder")}
-/><div className="contents"><CustomSelect className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 lg:w-[220px]" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allRoles")}</option>{roleOptions.map((role) => <option key={role.value} value={role.value}>{t(role.labelKey)}</option>)}</CustomSelect><CustomSelect className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 lg:w-[300px]" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">{t("staff.allStatuses")}</option>{["ACTIVE", "LOCKED", "PENDING_EMAIL_VERIFICATION", "PENDING_INITIAL_PASSWORD", "DELETED"].map((status) => <option key={status} value={status}>{tc(`enumLabels.${status}`, { defaultValue: status })}</option>)}</CustomSelect>{/* sortBy/sortDir BE đã nhận sẵn, màn chỉ thiếu ô chọn */}</div></div>}
+        toolbar={
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_300px] lg:items-center">
+            <SearchInput
+              label={t("staff.searchPlaceholder")}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder={t("staff.searchPlaceholder")}
+            />
+            <div className="contents">
+              <CustomSelect
+                className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition lg:w-[220px]"
+                value={roleFilter}
+                onChange={(event) => {
+                  setRoleFilter(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">{t("staff.allRoles")}</option>
+                {roleOptions.map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {t(role.labelKey)}
+                  </option>
+                ))}
+              </CustomSelect>
+              <CustomSelect
+                className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition lg:w-[300px]"
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">{t("staff.allStatuses")}</option>
+                {[
+                  "ACTIVE",
+                  "LOCKED",
+                  "PENDING_EMAIL_VERIFICATION",
+                  "PENDING_INITIAL_PASSWORD",
+                  "DELETED",
+                ].map((status) => (
+                  <option key={status} value={status}>
+                    {tc(`enumLabels.${status}`, { defaultValue: status })}
+                  </option>
+                ))}
+              </CustomSelect>
+              {/* sortBy/sortDir BE đã nhận sẵn, màn chỉ thiếu ô chọn */}
+            </div>
+          </div>
+        }
         columns={[
-          { key: "name", header: <button type="button" onClick={toggleNameSort} className="inline-flex items-center gap-1.5 font-semibold transition hover:text-vr-900" aria-label={t("staff.sortNameAsc")}>{t("staff.fullName")}{nameSortIcon()}</button>, headerClassName: "w-[20%] px-3 py-3 text-left", cellClassName: "w-[20%] px-3 py-4 text-left", render: (user) => <div className="flex min-w-0 items-center justify-start gap-3">{user.avatarUrl ? ( <img src={user.avatarUrl} alt={user.displayName || user.email} width={40} height={40} loading="lazy" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover" /> ) : ( <RoleAvatar role={user.role} name={user.displayName || user.email} /> )}<span className="min-w-0 truncate text-sm font-semibold text-gray-900" title={user.displayName || "-"}>{user.displayName || "-"}</span></div> },
-          { key: "email", header: tc("email"), headerClassName: "w-[24%] px-3 py-3 text-center", cellClassName: "w-[24%] px-3 py-4 text-center text-sm text-gray-600", render: (user) => <span className="block truncate" title={user.email}>{user.email}</span> },
-          { key: "phone", header: tc("phone"), headerClassName: "w-[10%] px-3 py-3 text-center", cellClassName: "w-[10%] px-3 py-4 text-center text-sm whitespace-nowrap text-gray-600", render: (user) => formatVietnamPhoneForDisplay(user.phone) },
-          { key: "role", header: t("staff.role"), headerClassName: "w-[13%] px-3 py-3 text-center", cellClassName: "w-[13%] px-3 py-4 text-center text-sm text-gray-700", render: (user) => roleLabel(user.role) },
-          { key: "status", header: tc("status"), headerClassName: "w-[18%] px-3 py-3 text-center", cellClassName: "w-[18%] px-3 py-4 text-center", render: (user) => <Badge tone={isActiveStatus(user.status) ? "success" : "neutral"}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</Badge> },
-          { key: "actions", header: tc("actions"), headerClassName: "w-[15%] px-2 py-3 text-center", cellClassName: "w-[15%] px-2 py-4 text-center text-sm", render: (user) => {
-            const canResend = user.status === "PENDING_INITIAL_PASSWORD";
-            const canLock = getAuthUser()?.role === "OPERATOR_ADMIN" &&
-              (user.role === "DRIVER" || user.role === "ASSISTANT") &&
-              (user.status === "ACTIVE" || user.status === "LOCKED");
-            return <div className="flex items-center justify-center gap-2">
-              <button type="button" onClick={() => handleOpenDetail(user)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900" title={t("staff.viewDetail")} aria-label={t("staff.viewDetail")}><FiEye size={16} /></button>
-              <button type="button" onClick={() => handleResendInitialPassword(user)} disabled={!canResend} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:bg-transparent disabled:hover:text-gray-600" title={canResend ? t("staff.resendInitialPassword") : t("staff.resendInitialPasswordDisabledHint")} aria-label={t("staff.resendInitialPassword")}><FiMail size={16} /></button>
-              {canLock && <button type="button" onClick={() => openLockConfirmation(user)} className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border ${user.status === "ACTIVE" ? "border-amber-200 text-amber-700 hover:bg-amber-50" : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"}`} title={user.status === "ACTIVE" ? t("staff.lockUser") : t("staff.unlockUser")} aria-label={user.status === "ACTIVE" ? t("staff.lockUser") : t("staff.unlockUser")}>{user.status === "ACTIVE" ? <FiLock size={16} /> : <FiUnlock size={16} />}</button>}
-            </div>;
-          } },
+          {
+            key: "name",
+            header: (
+              <button
+                type="button"
+                onClick={toggleNameSort}
+                className="inline-flex items-center gap-1.5 font-semibold transition hover:text-vr-900"
+                aria-label={t("staff.sortNameAsc")}
+              >
+                {t("staff.fullName")}
+                {nameSortIcon()}
+              </button>
+            ),
+            headerClassName: "w-[20%] px-3 py-3 text-left",
+            cellClassName: "w-[20%] px-3 py-4 text-left",
+            render: (user) => (
+              <div className="flex min-w-0 items-center justify-start gap-3">
+                {user.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.displayName || user.email}
+                    width={40}
+                    height={40}
+                    loading="lazy"
+                    className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-white object-cover"
+                  />
+                ) : (
+                  <RoleAvatar
+                    role={user.role}
+                    name={user.displayName || user.email}
+                  />
+                )}
+                <span
+                  className="min-w-0 truncate text-sm font-semibold text-gray-900"
+                  title={user.displayName || "-"}
+                >
+                  {user.displayName || "-"}
+                </span>
+              </div>
+            ),
+          },
+          {
+            key: "email",
+            header: tc("email"),
+            headerClassName: "w-[24%] px-3 py-3 text-center",
+            cellClassName:
+              "w-[24%] px-3 py-4 text-center text-sm text-gray-600",
+            render: (user) => (
+              <span className="block truncate" title={user.email}>
+                {user.email}
+              </span>
+            ),
+          },
+          {
+            key: "phone",
+            header: tc("phone"),
+            headerClassName: "w-[10%] px-3 py-3 text-center",
+            cellClassName:
+              "w-[10%] px-3 py-4 text-center text-sm whitespace-nowrap text-gray-600",
+            render: (user) => formatVietnamPhoneForDisplay(user.phone),
+          },
+          {
+            key: "role",
+            header: t("staff.role"),
+            headerClassName: "w-[13%] px-3 py-3 text-center",
+            cellClassName:
+              "w-[13%] px-3 py-4 text-center text-sm text-gray-700",
+            render: (user) => roleLabel(user.role),
+          },
+          {
+            key: "status",
+            header: tc("status"),
+            headerClassName: "w-[18%] px-3 py-3 text-center",
+            cellClassName: "w-[18%] px-3 py-4 text-center",
+            render: (user) => (
+              <Badge tone={isActiveStatus(user.status) ? "success" : "neutral"}>
+                {tc(`enumLabels.${user.status}`, { defaultValue: user.status })}
+              </Badge>
+            ),
+          },
+          {
+            key: "actions",
+            header: tc("actions"),
+            headerClassName: "w-[15%] px-2 py-3 text-center",
+            cellClassName: "w-[15%] px-2 py-4 text-center text-sm",
+            render: (user) => {
+              const canResend = user.status === "PENDING_INITIAL_PASSWORD";
+              const canLock =
+                getAuthUser()?.role === "OPERATOR_ADMIN" &&
+                (user.role === "DRIVER" || user.role === "ASSISTANT") &&
+                (user.status === "ACTIVE" || user.status === "LOCKED");
+              return (
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDetail(user)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900"
+                    title={t("staff.viewDetail")}
+                    aria-label={t("staff.viewDetail")}
+                  >
+                    <FiEye size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleResendInitialPassword(user)}
+                    disabled={!canResend}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:bg-transparent disabled:hover:text-gray-600"
+                    title={
+                      canResend
+                        ? t("staff.resendInitialPassword")
+                        : t("staff.resendInitialPasswordDisabledHint")
+                    }
+                    aria-label={t("staff.resendInitialPassword")}
+                  >
+                    <FiMail size={16} />
+                  </button>
+                  {canLock && (
+                    <button
+                      type="button"
+                      onClick={() => openLockConfirmation(user)}
+                      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border ${user.status === "ACTIVE" ? "border-amber-200 text-amber-700 hover:bg-amber-50" : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"}`}
+                      title={
+                        user.status === "ACTIVE"
+                          ? t("staff.lockUser")
+                          : t("staff.unlockUser")
+                      }
+                      aria-label={
+                        user.status === "ACTIVE"
+                          ? t("staff.lockUser")
+                          : t("staff.unlockUser")
+                      }
+                    >
+                      {user.status === "ACTIVE" ? (
+                        <FiLock size={16} />
+                      ) : (
+                        <FiUnlock size={16} />
+                      )}
+                    </button>
+                  )}
+                </div>
+              );
+            },
+          },
         ]}
         rows={users}
         getRowKey={(user) => getUserId(user)}
@@ -491,7 +691,8 @@ export default function StaffPage() {
         onPageChange={setPage}
       />
 
-      <Modal        open={openAdd}
+      <Modal
+        open={openAdd}
         onClose={() => setOpenAdd(false)}
         wide
         icon={<FiUser size={20} />}
@@ -585,20 +786,40 @@ export default function StaffPage() {
         <Modal
           open
           onClose={() => !isLockingUser && setLockTarget(null)}
-          title={lockTarget.status === "ACTIVE" ? t("staff.lockConfirmTitle") : t("staff.unlockConfirmTitle")}
+          title={
+            lockTarget.status === "ACTIVE"
+              ? t("staff.lockConfirmTitle")
+              : t("staff.unlockConfirmTitle")
+          }
           subtitle={lockTarget.displayName || lockTarget.email}
           icon={lockTarget.status === "ACTIVE" ? <FiLock /> : <FiUnlock />}
           footer={
             <>
-              <Button variant="secondary" disabled={isLockingUser} onClick={() => setLockTarget(null)}>{tc("cancel")}</Button>
-              <Button variant="primary" disabled={isLockingUser} onClick={() => void confirmLockAction()}>
-                {isLockingUser ? tc("loading") : lockTarget.status === "ACTIVE" ? t("staff.lockUser") : t("staff.unlockUser")}
+              <Button
+                variant="secondary"
+                disabled={isLockingUser}
+                onClick={() => setLockTarget(null)}
+              >
+                {tc("cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isLockingUser}
+                onClick={() => void confirmLockAction()}
+              >
+                {isLockingUser
+                  ? tc("loading")
+                  : lockTarget.status === "ACTIVE"
+                    ? t("staff.lockUser")
+                    : t("staff.unlockUser")}
               </Button>
             </>
           }
         >
           <p className="text-sm leading-6 text-gray-600">
-            {lockTarget.status === "ACTIVE" ? t("staff.lockConfirmMessage") : t("staff.unlockConfirmMessage")}
+            {lockTarget.status === "ACTIVE"
+              ? t("staff.lockConfirmMessage")
+              : t("staff.unlockConfirmMessage")}
           </p>
         </Modal>
       )}
@@ -647,18 +868,24 @@ function StaffDetailModal({
       {user && (
         <div className="space-y-5">
           <div className="flex flex-col gap-4 rounded-2xl border border-vr-100 bg-gradient-to-r from-vr-50 via-white to-cyan-50 p-5 shadow-sm sm:flex-row sm:items-center">
-            <>{user.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={user.displayName || user.email}
-                width={72}
-                height={72}
-                loading="lazy"
-                className="h-[72px] w-[72px] shrink-0 rounded-2xl border-4 border-white bg-white object-cover shadow-md"
-              />
-            ) : (
-              <RoleAvatar role={user.role} name={user.displayName || user.email} sizeClassName="h-[72px] w-[72px] text-xl ring-4" />
-            )}</>
+            <>
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.displayName || user.email}
+                  width={72}
+                  height={72}
+                  loading="lazy"
+                  className="h-[72px] w-[72px] shrink-0 rounded-2xl border-4 border-white bg-white object-cover shadow-md"
+                />
+              ) : (
+                <RoleAvatar
+                  role={user.role}
+                  name={user.displayName || user.email}
+                  sizeClassName="h-[72px] w-[72px] text-xl ring-4"
+                />
+              )}
+            </>
             <div className="min-w-0">
               <p className="text-2xl font-bold tracking-tight text-gray-950">
                 {user.displayName || "-"}
@@ -666,7 +893,16 @@ function StaffDetailModal({
               <p className="mt-1 truncate text-sm text-gray-600">
                 {user.email || "-"}
               </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2"><Badge tone="brand">{roleLabel(user.role)}</Badge><Badge tone={isActiveStatus(user.status) ? "success" : "neutral"}>{tc(`enumLabels.${user.status}`, { defaultValue: user.status })}</Badge></div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Badge tone="brand">{roleLabel(user.role)}</Badge>
+                <Badge
+                  tone={isActiveStatus(user.status) ? "success" : "neutral"}
+                >
+                  {tc(`enumLabels.${user.status}`, {
+                    defaultValue: user.status,
+                  })}
+                </Badge>
+              </div>
             </div>
           </div>
 
@@ -725,7 +961,3 @@ function StaffDetailModal({
     </Modal>
   );
 }
-
-
-
-

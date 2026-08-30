@@ -6,8 +6,8 @@
 import { useTranslation } from "react-i18next";
 import { FiGitBranch, FiPlus, FiRotateCcw, FiSearch, FiSlash, FiTrash2 } from "react-icons/fi";
 import {
-  inputClass,
   labelClass,
+  textareaClass,
 } from "../../../components/form/formClasses";
 import SectionHeader from "./SectionHeader";
 import StopSearchBox from "./StopSearchBox";
@@ -178,7 +178,7 @@ export default function AlternativeRoutesSection({
             <div>
               <label className={labelClass}>{t("routes.alternativeDescription")}</label>
               <textarea
-                className={inputClass + " min-h-16 resize-y"}
+                className={textareaClass + " min-h-16 resize-y"}
                 value={altForm.description}
                 onChange={(event) =>
                   updateAltField("description", event.target.value)

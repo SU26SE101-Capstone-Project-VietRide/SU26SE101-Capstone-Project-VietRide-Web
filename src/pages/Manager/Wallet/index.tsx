@@ -31,7 +31,7 @@ type WalletTab = "transactions" | "settlements" | "ledger";
 
 const pageSize = 10;
 const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 lg:w-64";
+  "h-12 w-full rounded-[9999px] border border-[#bfe1ec] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] transition placeholder:text-slate-400 focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5] lg:w-64";
 
 const DATE_FIELD_OPTIONS: Record<WalletTab, string[]> = {
   transactions: ["createdAt"],
@@ -57,8 +57,12 @@ export default function ManagerWallet() {
   const [dateField, setDateField] = useState("createdAt");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [transactionType, setTransactionType] = useState<WalletTransactionType | "">("");
-  const [settlementStatus, setSettlementStatus] = useState<TripSettlementStatus | "">("");
+  const [transactionType, setTransactionType] = useState<
+    WalletTransactionType | ""
+  >("");
+  const [settlementStatus, setSettlementStatus] = useState<
+    TripSettlementStatus | ""
+  >("");
   const startRequest = useLatestRequest();
 
   // Chỉ gọi API khi search rỗng hoặc đã trim >= 2 ký tự (§10) — 1 ký tự thì
@@ -148,7 +152,18 @@ export default function ManagerWallet() {
     } finally {
       if (isLatest()) setLoading(false);
     }
-  }, [dateField, dateFrom, dateTo, debouncedSearch, page, settlementStatus, startRequest, t, tab, transactionType]);
+  }, [
+    dateField,
+    dateFrom,
+    dateTo,
+    debouncedSearch,
+    page,
+    settlementStatus,
+    startRequest,
+    t,
+    tab,
+    transactionType,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,17 +191,21 @@ export default function ManagerWallet() {
     { value: "settlements", label: t("wallet.tabs.settlements") },
     { value: "ledger", label: t("wallet.tabs.ledger") },
   ];
-  const dateFieldOptions: DateFieldOption[] = DATE_FIELD_OPTIONS[tab].map((value) => ({
-    value,
-    label: t(`wallet.dateFieldOption.${value}`),
-  }));
+  const dateFieldOptions: DateFieldOption[] = DATE_FIELD_OPTIONS[tab].map(
+    (value) => ({
+      value,
+      label: t(`wallet.dateFieldOption.${value}`),
+    }),
+  );
 
   useToastFeedback({ error });
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t("wallet.title")}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {t("wallet.title")}
+          </h1>
           <p className="mt-1 text-gray-600">{t("wallet.apiSubtitle")}</p>
         </div>
         <button
@@ -200,7 +219,11 @@ export default function ManagerWallet() {
         </button>
       </div>
 
-      <WalletOverviewCards wallet={wallet} isLoading={loading && !wallet} t={t} />
+      <WalletOverviewCards
+        wallet={wallet}
+        isLoading={loading && !wallet}
+        t={t}
+      />
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="flex border-b border-gray-200 px-4">
@@ -246,7 +269,9 @@ export default function ManagerWallet() {
               <CustomSelect
                 value={transactionType}
                 onChange={(event) => {
-                  setTransactionType(event.target.value as WalletTransactionType | "");
+                  setTransactionType(
+                    event.target.value as WalletTransactionType | "",
+                  );
                   setPage(1);
                 }}
                 aria-label={t("wallet.allTransactionTypes")}
@@ -260,14 +285,23 @@ export default function ManagerWallet() {
               <CustomSelect
                 value={settlementStatus}
                 onChange={(event) => {
-                  setSettlementStatus(event.target.value as TripSettlementStatus | "");
+                  setSettlementStatus(
+                    event.target.value as TripSettlementStatus | "",
+                  );
                   setPage(1);
                 }}
                 aria-label={t("wallet.allSettlementStatuses")}
                 className={inputClass}
               >
                 <option value="">{t("wallet.allSettlementStatuses")}</option>
-                {(["PENDING_HOLD", "ELIGIBLE", "SETTLED", "CANCELLED"] as TripSettlementStatus[]).map((status) => (
+                {(
+                  [
+                    "PENDING_HOLD",
+                    "ELIGIBLE",
+                    "SETTLED",
+                    "CANCELLED",
+                  ] as TripSettlementStatus[]
+                ).map((status) => (
                   <option key={status} value={status}>
                     {t(`wallet.status.${status}`)}
                   </option>
@@ -279,7 +313,9 @@ export default function ManagerWallet() {
 
         <div className="overflow-x-auto">
           {loading ? (
-            <p className="p-8 text-center text-sm text-gray-500">{tc("loading")}</p>
+            <p className="p-8 text-center text-sm text-gray-500">
+              {tc("loading")}
+            </p>
           ) : tab === "transactions" ? (
             <TransactionsTable items={transactions} t={t} tc={tc} />
           ) : tab === "settlements" ? (
@@ -289,7 +325,12 @@ export default function ManagerWallet() {
           )}
         </div>
 
-        <Pagination page={page} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          onPageChange={setPage}
+        />
       </section>
     </div>
   );

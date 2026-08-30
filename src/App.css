@@ -359,13 +359,19 @@ tbody td button[title]:not(.info-hint-button):focus-visible {
   outline nằm sát ngay ngoài border nên hai nét gộp thành MỘT nét teal nhạt dày
   2px, thay vì "viền ô + khoảng trắng + vòng đậm" như bản trước. Đổi sang màu
   đậm hơn hoặc thêm offset là vòng focus tách đôi trở lại.
+
+  `data-focus-outline="none"` là lối thoát cho ô nào đã có sẵn dấu hiệu focus
+  của riêng nó — ví dụ khung bọc dùng `focus-within:ring-*` (ChatComposer). Ở
+  những chỗ đó, outline này chỉ vẽ thêm một hình chữ nhật vuông góc nằm lọt
+  trong khung bo tròn. Chỉ dùng khi khung bọc THẬT SỰ đổi hình khi focus, vì
+  bỏ outline mà không có gì thay thế là mất dấu hiệu focus.
 */
 :where(
   select,
   textarea,
   input:not([type="checkbox"], [type="radio"]),
   button[aria-haspopup="listbox"]
-):focus {
+):focus:not([data-focus-outline="none"]) {
   outline: 1px solid var(--color-vr-500);
   outline-offset: 0;
 }

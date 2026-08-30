@@ -143,6 +143,8 @@ type IncidentDetailModalProps = {
   vehicles: OperatorVehicle[];
   staff: OperatorUser[];
   fleetFailed: boolean;
+  /** `422 VEHICLE_NOT_ACTIVE`: nạp lại xe/nhân sự cho form thay xe */
+  onResourcesStale?: () => void;
   /** Câu tổng kết của hành động xử lý chuyến vừa thực hiện (nếu có) */
   suggestedNote: string;
   onTripActionCompleted: (message: string) => void;
@@ -158,6 +160,7 @@ export default function IncidentDetailModal({
   vehicles,
   staff,
   fleetFailed,
+  onResourcesStale,
   suggestedNote,
   onTripActionCompleted,
 }: IncidentDetailModalProps) {
@@ -316,6 +319,7 @@ export default function IncidentDetailModal({
                       vehicles={vehicles}
                       staff={staff}
                       fleetFailed={fleetFailed}
+                      onResourcesStale={onResourcesStale}
                       onActionCompleted={onTripActionCompleted}
                     />
                     <IncidentResolveForm

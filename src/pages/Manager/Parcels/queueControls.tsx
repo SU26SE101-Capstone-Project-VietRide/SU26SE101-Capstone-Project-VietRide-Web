@@ -1,7 +1,7 @@
 // Nhóm primitive UI nhỏ dùng riêng cho màn hàng đợi bưu kiện
 // (ngoại lệ named export theo CODE_CONVENTIONS.md §3 — file nhóm component siêu nhỏ liên quan chặt)
 import type { ReactNode } from "react";
-import { inputClass } from "./parcelQueueHelpers";
+import { inputClass, textareaClass } from "./parcelQueueHelpers";
 
 export function ActionBox({
   title,
@@ -56,7 +56,7 @@ export function TextArea({
         {label}
       </span>
       <textarea
-        className={`${inputClass} min-h-24`}
+        className={`${textareaClass} min-h-24`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

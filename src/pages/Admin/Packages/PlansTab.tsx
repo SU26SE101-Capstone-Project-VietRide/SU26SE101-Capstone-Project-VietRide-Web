@@ -12,7 +12,7 @@ import {
 } from "../../../api/vietride";
 import { formatCurrency } from "../../../utils/currency";
 import { isCustomPlan } from "../../../utils/subscription";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { labelClass, textareaClass } from "../../../components/form/formClasses";
 import {
   CurrencyField,
   NumberField,
@@ -376,7 +376,7 @@ export default function PlansTab() {
         <div className="space-y-5">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4"><h3 className="text-base font-bold tracking-tight text-slate-900">{t("packages.packageInfoTitle")}</h3><p className="mt-1 text-sm text-slate-500">{t("packages.packageInfoHint")}</p></div>
-            <div className="space-y-4"><TextInput label={t("packages.packageName")} value={form.name} onChange={(value) => updateForm("name", value)} /><div><label className={labelClass}>{tc("description")}</label><textarea className={inputClass + " min-h-[96px] resize-y"} value={form.description} placeholder={t("packages.descriptionPlaceholder")} onChange={(event) => updateForm("description", event.target.value)} rows={3} /></div></div>
+            <div className="space-y-4"><TextInput label={t("packages.packageName")} value={form.name} onChange={(value) => updateForm("name", value)} /><div><label className={labelClass}>{tc("description")}</label><textarea className={textareaClass + " min-h-[96px] resize-y"} value={form.description} placeholder={t("packages.descriptionPlaceholder")} onChange={(event) => updateForm("description", event.target.value)} rows={3} /></div></div>
           </section>
           <section className="rounded-2xl border border-vr-100 bg-vr-50/50 p-5">
             <div className="mb-4"><h3 className="text-base font-bold tracking-tight text-slate-900">{t("packages.pricingTitle")}</h3><p className="mt-1 text-sm text-slate-500">{t("packages.pricingHint")}</p></div>

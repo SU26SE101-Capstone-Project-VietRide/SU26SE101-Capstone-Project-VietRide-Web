@@ -290,7 +290,6 @@ export default function ClaimsPage() {
                   setFrom(event.target.value);
                   setPage(1);
                 }}
-                className={inputClass}
               />
             </label>
             <label className="min-w-0">
@@ -306,7 +305,6 @@ export default function ClaimsPage() {
                   setTo(event.target.value);
                   setPage(1);
                 }}
-                className={inputClass}
               />
             </label>
 

@@ -33,7 +33,6 @@ export function Field({
       </label>
       {type === "datetime-local" || type === "date" ? (
         <CustomDateTimeInput
-          className={inputClass}
           type={type}
           value={value}
           placeholder={placeholder}

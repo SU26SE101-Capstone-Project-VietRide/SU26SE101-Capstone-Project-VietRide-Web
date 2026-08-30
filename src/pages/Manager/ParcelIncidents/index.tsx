@@ -2,7 +2,14 @@
 //
 // Danh sách là screen-ready: BE đã enrich Parcel/trip/custody/reporter/SLA và
 // `availableActions` cho từng dòng, nên màn KHÔNG gọi detail cho mỗi row (§11.4).
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertOctagon,
@@ -285,36 +292,6 @@ export default function ParcelIncidentsPage() {
             mất ngay khi chọn giá trị nên nhìn một select đang là "Đang tìm"
             không biết nó lọc theo trạng thái hay theo loại. */}
         <div className="border-b border-gray-100 p-4">
-          {/* Tab "chờ duyệt" là một CHIP chứ không phải một option của ô lọc
-              trạng thái: nó không phải một incident status, và nó thay đổi cả
-              cách hai ô lọc còn lại hoạt động. */}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              aria-pressed={pendingApprovalOnly}
-              onClick={() => {
-                setPendingApprovalOnly((current) => !current);
-                setPage(1);
-              }}
-              className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                pendingApprovalOnly
-                  ? "border-amber-300 bg-amber-50 text-amber-900"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <FiAlertOctagon size={16} aria-hidden="true" />
-              {t("parcelIncidents.approval.pendingFilter")}
-              {pendingApprovalCount > 0 && (
-                <Badge tone="warning">{pendingApprovalCount}</Badge>
-              )}
-            </button>
-            {pendingApprovalOnly && (
-              <p className="text-xs text-gray-500">
-                {t("parcelIncidents.approval.pendingFilterHint")}
-              </p>
-            )}
-          </div>
-
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <SearchInput
               wrapperClassName="min-w-0 sm:col-span-2 lg:col-span-6"
@@ -405,7 +382,6 @@ export default function ParcelIncidentsPage() {
                   setFrom(event.target.value);
                   setPage(1);
                 }}
-                className={inputClass}
               />
             </label>
             <label className="min-w-0">
@@ -421,7 +397,6 @@ export default function ParcelIncidentsPage() {
                   setTo(event.target.value);
                   setPage(1);
                 }}
-                className={inputClass}
               />
             </label>
 
@@ -437,6 +412,53 @@ export default function ParcelIncidentsPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* "Chờ duyệt" KHÔNG phải một ô lọc nữa mà là một bộ chuyển phạm vi:
+            bật nó lên là khoá luôn ô trạng thái và ô hạn xử lý (§5), nên để nó
+            đứng lẫn trong khối lọc thì vừa đọc sai nghĩa vừa chiếm trọn một
+            hàng. Đặt ngay trên bảng, dạng segmented, thì nó nói đúng việc nó
+            làm: đang xem danh sách nào. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-100 px-4 py-3">
+          <div
+            role="group"
+            aria-label={t("parcelIncidents.scopeLabel")}
+            className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1"
+          >
+            <ScopeTab
+              active={!pendingApprovalOnly}
+              onClick={() => {
+                if (!pendingApprovalOnly) return;
+                setPendingApprovalOnly(false);
+                setPage(1);
+              }}
+            >
+              {t("parcelIncidents.allScope")}
+            </ScopeTab>
+            <ScopeTab
+              active={pendingApprovalOnly}
+              onClick={() => {
+                if (pendingApprovalOnly) return;
+                setPendingApprovalOnly(true);
+                setPage(1);
+              }}
+            >
+              <FiAlertOctagon
+                size={16}
+                className={pendingApprovalCount > 0 ? "text-amber-600" : undefined}
+                aria-hidden="true"
+              />
+              {t("parcelIncidents.approval.pendingFilter")}
+              {pendingApprovalCount > 0 && (
+                <Badge tone="warning">{pendingApprovalCount}</Badge>
+              )}
+            </ScopeTab>
+          </div>
+          {pendingApprovalOnly && (
+            <p className="min-w-0 text-xs text-gray-500">
+              {t("parcelIncidents.approval.pendingFilterHint")}
+            </p>
+          )}
         </div>
 
         <div className="overflow-x-auto" aria-busy={isLoading}>
@@ -539,6 +561,38 @@ export default function ParcelIncidentsPage() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * Một nút trong bộ chuyển phạm vi danh sách.
+ *
+ * Dùng `aria-pressed` chứ không phải `role="tab"`: cặp nút này không lái hai
+ * tabpanel riêng mà chỉ đổi tập dòng của cùng một bảng, và role tab còn kéo
+ * theo cả hợp đồng điều hướng bằng phím mũi tên mà ở đây không có.
+ */
+function ScopeTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+        active
+          ? "bg-white text-gray-900 shadow-sm"
+          : "text-gray-600 hover:bg-white/70 hover:text-gray-900"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
