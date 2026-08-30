@@ -1416,12 +1416,15 @@
       "EXPECTED_STOP_DEPARTED_WITH_UNRESOLVED_HANDOFF_RECONCILIATION": "The vehicle left the stop while the handoff reconciliation was still unresolved.",
       "EXPECTED_STOP_DEPARTED_WITHOUT_CONFIRMED_PARCEL_UNLOAD": "The vehicle left the stop without a confirmed parcel unload.",
       "PARCEL_UNRESOLVED_DURING_DESTINATION_RECONCILIATION": "Destination reconciliation finished without locating the parcel.",
-      "PARCEL_UNRESOLVED_DURING_STOP_CLOSE_RECONCILIATION": "Stop-close reconciliation finished without locating the parcel."
+      "PARCEL_UNRESOLVED_DURING_STOP_CLOSE_RECONCILIATION": "Stop-close reconciliation finished without locating the parcel.",
+      "PARCEL_UNRESOLVED_DURING_DESTINATION_CLOSE_RECONCILIATION": "The parcel was still unresolved when the destination was closed.",
+      "PARCEL_INCIDENT_REPORTED": "An incident was reported for this parcel."
     },
     "pendingActions": {
       "REFUND_CONFIRMATION": "Pending refund confirmation",
       "CAPACITY_EXCEEDED": "Capacity exceeded",
-      "RESERVE_FAILED": "Cargo reservation failed"
+      "RESERVE_FAILED": "Cargo reservation failed",
+      "CUSTODY_EXCEPTION": "Custody exception"
     },
     "queue": {
       "title": "Parcel queue",
@@ -3009,13 +3012,14 @@
     "changeRouteFailed": "Unable to change the route for this trip.",
     "vehicleSeatsOption": "{{plate}} · {{seats}} seats",
     "vehicleSeatsShortOption": "{{plate}} · {{seats}} seats — {{missing}} short",
+    "vehicleSeatsMismatchOption": "{{plate}} · {{seats}} seats — seat count differs from the broken vehicle ({{required}} seats)",
+    "seatCountRequired": "The replacement vehicle must have exactly {{required}} seats, same as the vehicle with the incident. Vehicles with a different seat count are locked in the list.",
+    "seatCountMismatchBlocked": "The replacement vehicle must have exactly {{required}} seats, same as the vehicle with the incident. The one you picked has {{seats}}.",
+    "seatCountMismatchHint": "Pick a vehicle with the same seat count as the vehicle with the incident, then try again.",
+    "seatCountNoMatch": "No ACTIVE vehicle has exactly {{required}} seats like the vehicle with the incident. Bring another vehicle of the same type back to active, or record a disruption instead of substituting.",
     "seatShortageTitle": "Replacement vehicle is short on seats",
     "seatShortageBody": "This vehicle has {{seats}} seats and the trip is carrying {{passengers}} passengers. {{missing}} passengers will have no seat.",
-    "seatShortageAck": "Substitute anyway — I will arrange for the {{missing}} passengers left without a seat",
-    "seatShortageBlocked": "Tick the confirmation before substituting to a vehicle with too few seats.",
     "seatShortageServerBody": "The server re-checked: the replacement vehicle has {{seats}} usable seats, {{passengers}} passengers need transferring, {{missing}} seats short. Substitute anyway?",
-    "seatShortageServerHint": "Nothing has changed on the original trip yet. If you proceed, passengers left without a seat are still notified and your team must arrange for them.",
-    "seatShortageProceed": "Substitute anyway",
     "seatShortageUnknownValue": "unknown",
     "seatCountUnknown": "Could not read the trip's passenger count, so the seat check did not run.",
     "substitutionResultTitle": "Vehicle substituted",
@@ -3057,7 +3061,29 @@
     "errorResourceConflictHint": "The vehicle or crew already has a conflicting assignment. Please pick different resources.",
     "errorNotSubstitutableHint": "This trip can no longer be substituted. The form is closed and the trip status is being refreshed.",
     "errorValidationHint": "The highlighted fields are not valid. Please review them and submit again.",
-    "errorForbiddenHint": "Only an operator admin can substitute a vehicle. Staff accounts can only view and dispatch."
+    "errorForbiddenHint": "Only an operator admin can substitute a vehicle. Staff accounts can only view and dispatch.",
+    "seatPreviewTitle": "Passenger seats on the replacement vehicle",
+    "seatPreviewSummary": "{{kept}}/{{total}} passengers keep their seat · {{pending}} need a new one",
+    "seatPreviewPending": "{{count}} passengers still have no seat on the replacement vehicle. Pick one for each before confirming.",
+    "seatPreviewPassengerColumn": "Passenger",
+    "seatPreviewOldSeatColumn": "Old seat",
+    "seatPreviewNewSeatColumn": "Seat on replacement",
+    "seatPreviewBookingRef": "Booking #{{ref}}",
+    "seatPreviewSelectLabel": "Pick a new seat for the passenger in seat {{seat}}",
+    "seatPreviewSelectPlaceholder": "Pick a seat",
+    "seatPreviewNoOption": "No seat left for this passenger. Choose a different replacement vehicle.",
+    "seatPreviewKept": "Kept",
+    "seatPreviewNotice": "Passengers do not approve the seat change. Once you confirm the substitution they are simply notified of their new seat.",
+    "seatPreviewNoPassengers": "This trip has no passengers to move to the replacement vehicle.",
+    "seatPreviewLoading": "Assigning seats on the replacement vehicle...",
+    "seatPreviewFailed": "Could not assign seats on this replacement vehicle.",
+    "seatPreviewRetry": "Try again",
+    "seatPreviewRefresh": "Reassign seats",
+    "seatSelectionRequired": "{{count}} passengers still need a seat on the replacement vehicle. Assign them all before confirming.",
+    "errorSeatAssignmentRequiredHint": "Every passenger who lost their original seat needs a new one. Fill in the remaining seats in the table above and submit again.",
+    "errorSeatNotAvailableHint": "The seat you picked is no longer valid. The seat table has been refreshed — pick another seat and submit again.",
+    "errorSeatPreviewStaleHint": "The trip or the vehicle changed since the seats were assigned. The seat table has been refreshed — pick the seats again and submit.",
+    "seatShortagePickAnotherVehicle": "Pick a different replacement vehicle with enough seats for every passenger."
   },
   "incidents": {
     "title": "Incident reports",
@@ -3355,7 +3381,10 @@
     "resolutionCodes": {
       "DELIVERED_TO_CORRECT_LOCATION": "Delivered to the correct location",
       "RETURNED_TO_SENDER": "Returned to sender",
-      "HANDED_TO_RECIPIENT": "Handed to the recipient"
+      "HANDED_TO_RECIPIENT": "Handed to the recipient",
+      "CREW_CONFIRMED_ON_VEHICLE": "Crew confirmed the parcel is on the vehicle",
+      "LOST_CONFIRMED": "Confirmed lost",
+      "SUPERVISOR_REJECTED": "Supervisor rejected the request"
     },
     "taskStatuses": {
       "OPEN": "Open",
@@ -3370,7 +3399,12 @@
       "STOP_SEARCH": "Search the stop",
       "WAREHOUSE_SEARCH": "Search the warehouse",
       "MANIFEST_RECONCILIATION": "Manifest reconciliation",
-      "VEHICLE_SWEEP": "Full vehicle sweep"
+      "VEHICLE_SWEEP": "Full vehicle sweep",
+      "STATION_INVENTORY": "Station inventory check",
+      "CREW_CONFIRMATION": "Crew confirmation",
+      "LOST_AND_FOUND_CHECK": "Lost and found check",
+      "NEXT_TRIP_CHECK": "Next trip check",
+      "MANUAL_IDENTIFICATION": "Manual identification"
     },
     "custodyEvents": {
       "HANDOFF": "Handoff",
@@ -3398,21 +3432,25 @@
       "INCIDENT_FOUND": "Found confirmation",
       "CREW_FOUND_ON_VEHICLE": "Crew found it on the vehicle",
       "APPROVED_CUSTODY_EXCEPTION": "Approved custody exception",
-      "UNIDENTIFIED_PACKAGE_MATCH": "Unidentified package match"
+      "UNIDENTIFIED_PACKAGE_MATCH": "Unidentified package match",
+      "UNLOAD": "Unloaded from vehicle",
+      "DELIVERY_HANDOFF": "Handed to recipient",
+      "DELIVERY_CONFIRMATION": "Recipient confirmed delivery",
+      "TRANSFER_CONFIRMATION": "Transfer to another trip confirmed"
     },
     "trackingConfidences": {
       "CONFIRMED_SCAN": "Confirmed by scan",
-      "INFERRED": "Inferred",
-      "UNKNOWN": "Unknown"
+      "UNKNOWN": "Unknown",
+      "MANUAL_EXCEPTION": "Recorded manually as an exception",
+      "INFERRED_FROM_MANIFEST": "Inferred from the manifest"
     },
     "cargoTransferStatuses": {
-      "PENDING": "Awaiting handoff",
-      "CONFIRMED": "Confirmed",
-      "ESCALATED": "Escalated"
+      "AWAITING_CREW_CONFIRMATION": "Awaiting crew handover",
+      "TRANSFERRED": "Transferred to the new trip"
     },
     "handoffActions": {
-      "AWAIT_CREW_CONFIRM": "Waiting for the crew to confirm receipt",
-      "NONE": "Nothing left to do"
+      "CREW_CONFIRM_TRANSFER": "New trip's crew confirms receipt",
+      "DELIVER_AT_EXPECTED_DROPOFF": "Deliver at the expected drop-off"
     },
     "actorRoles": {
       "DRIVER": "Driver",
@@ -3543,7 +3581,6 @@
     "title": "Claim appeals",
     "subtitle": "Customers who disagree with a compensation decision can ask for a review. Uphold the original decision or approve a higher award; the original claim keeps its own status.",
     "statusFilter": "Status",
-    "clearFilters": "Clear {{count}} filter",
     "appealColumn": "Appeal",
     "reasonColumn": "Customer reason",
     "statusColumn": "Status",

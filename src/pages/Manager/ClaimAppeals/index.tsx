@@ -18,11 +18,10 @@ import {
   type ParcelClaimAppealStatus,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
-import CustomSelect from "../../../components/CustomSelect";
 import Pagination from "../../../components/Pagination";
 import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
 import { Badge } from "../../../components/ui/Badge";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { labelClass } from "../../../components/form/formClasses";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatCurrency } from "../../../utils/currency";
 import { formatDateTime } from "../../../utils/date";
@@ -32,6 +31,9 @@ import { appealStatusTone } from "./appealHelpers";
 const PAGE_SIZE = 20;
 
 const COLUMN_COUNT = 6;
+
+// "" = tất cả, đứng đầu dãy chip.
+const statusFilters = ["", ...PARCEL_CLAIM_APPEAL_STATUSES] as const;
 
 export default function ClaimAppealsPage() {
   const { t } = useTranslation("manager");
@@ -186,44 +188,39 @@ export default function ClaimAppealsPage() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="min-w-0">
-              <span className={labelClass}>
-                {t("claimAppeals.statusFilter")}
-              </span>
-              <CustomSelect
-                aria-label={t("claimAppeals.statusFilter")}
-                className={inputClass}
-                value={status}
-                onChange={(event) => {
-                  setStatus(event.target.value);
+        {/* Allow-list của endpoint chỉ có `status` nên màn này mãi mãi chỉ có
+            một chiều lọc. Một ô chọn đứng lẻ trong lưới bốn cột làm trang trông
+            như đang làm dở, nên bày thẳng bảy trạng thái thành dãy chip (cùng
+            kiểu với thanh lọc đội xe ở Trung tâm vận hành): thấy hết lựa chọn,
+            bấm một nhát là xong, và "Tất cả" thay luôn nút xoá lọc — nút đó
+            hiện/ẩn theo bộ lọc nên mỗi lần chọn là layout nhảy một cái. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-gray-100 p-4">
+          <span className={`${labelClass} mb-0`}>
+            {t("claimAppeals.statusFilter")}
+          </span>
+          <div
+            className="flex flex-wrap items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"
+            role="group"
+            aria-label={t("claimAppeals.statusFilter")}
+          >
+            {statusFilters.map((value) => (
+              <button
+                key={value || "ALL"}
+                type="button"
+                onClick={() => {
+                  setStatus(value);
                   setPage(1);
                 }}
+                aria-pressed={status === value}
+                className={`cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                  status === value
+                    ? "bg-white text-vr-800 shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
               >
-                <option value="">{tc("all")}</option>
-                {PARCEL_CLAIM_APPEAL_STATUSES.map((value) => (
-                  <option key={value} value={value}>
-                    {t(`claimAppeals.status.${value}`)}
-                  </option>
-                ))}
-              </CustomSelect>
-            </label>
-
-            {status && (
-              <div className="flex min-w-0 items-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatus("");
-                    setPage(1);
-                  }}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                >
-                  {t("claimAppeals.clearFilters", { count: 1 })}
-                </button>
-              </div>
-            )}
+                {value ? t(`claimAppeals.status.${value}`) : tc("all")}
+              </button>
+            ))}
           </div>
         </div>
 

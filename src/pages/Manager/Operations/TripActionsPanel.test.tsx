@@ -10,11 +10,13 @@ import {
   getOperatorTripCargoCapacity,
   getPublicTrip,
   getPublicTripSeatMap,
+  previewSubstituteOperatorTripVehicle,
   substituteOperatorTripVehicle,
   type AlternativeRoute,
   type OperatorIncident,
   type OperatorUser,
   type OperatorVehicle,
+  type SubstituteVehiclePreviewResult,
 } from "../../../api/vietride";
 import { ApiRequestError } from "../../../api/client";
 import TripActionsPanel, { type TripActionsContext } from "./TripActionsPanel";
@@ -48,8 +50,60 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorTripCargoCapacity: vi.fn(),
   getPublicTrip: vi.fn(),
   getPublicTripSeatMap: vi.fn(),
+  previewSubstituteOperatorTripVehicle: vi.fn(),
   substituteOperatorTripVehicle: vi.fn(),
 }));
+
+const PREVIEW_TOKEN = "a".repeat(64);
+const KEPT_PASSENGER = "passenger-1";
+const MOVED_PASSENGER = "passenger-2";
+
+/** Preview mặc định: cả hai khách giữ nguyên ghế (ví dụ 1 của handoff). */
+function allSeatsKeptPreview(): SubstituteVehiclePreviewResult {
+  return {
+    tripId: "trip-1",
+    replacementVehicleId: "vehicle-2",
+    previewToken: PREVIEW_TOKEN,
+    passengers: [
+      {
+        bookingId: "booking-1",
+        passengerId: KEPT_PASSENGER,
+        originalSeatNumber: "A1",
+        proposedSeatNumber: "A1",
+        requiresAdminSelection: false,
+        alternativeSeatNumbers: [],
+      },
+      {
+        bookingId: "booking-1",
+        passengerId: MOVED_PASSENGER,
+        originalSeatNumber: "A2",
+        proposedSeatNumber: "A2",
+        requiresAdminSelection: false,
+        alternativeSeatNumbers: [],
+      },
+    ],
+    availableSeatNumbers: ["A1", "A2", "A3"],
+  };
+}
+
+/** Xe mới thiếu A2 — đúng ví dụ 2 của handoff. */
+function missingSeatPreview(): SubstituteVehiclePreviewResult {
+  return {
+    ...allSeatsKeptPreview(),
+    passengers: [
+      allSeatsKeptPreview().passengers[0],
+      {
+        bookingId: "booking-1",
+        passengerId: MOVED_PASSENGER,
+        originalSeatNumber: "A2",
+        proposedSeatNumber: null,
+        requiresAdminSelection: true,
+        alternativeSeatNumbers: ["A5", "A10"],
+      },
+    ],
+    availableSeatNumbers: ["A1", "A5", "A10"],
+  };
+}
 
 /** Sơ đồ ghế giả: `booked` ghế BOOKED + phần còn lại AVAILABLE. */
 function seatMap(booked: number, total = 40) {
@@ -105,6 +159,21 @@ const smallVehicle: OperatorVehicle = {
   maxCargoWeightKg: 200,
   maxCargoVolumeM3: 2,
   status: "ACTIVE",
+};
+
+// Chiếc xe đang gặp sự cố. Phải NẰM TRONG fleet thì panel mới biết nó bao nhiêu
+// ghế — payload chuyến chỉ có biển số + trạng thái. Trạng thái không còn ACTIVE
+// vẫn phải tra ra được, vì xe hỏng thường đã bị chuyển sang bảo dưỡng.
+const incidentVehicle: OperatorVehicle = {
+  id: "vehicle-1",
+  operatorId: "operator-1",
+  licensePlate: "51B-000.00",
+  vehicleTypeId: "type-1",
+  totalSeats: 40,
+  usablePassengerCapacity: 40,
+  maxCargoWeightKg: 500,
+  maxCargoVolumeM3: 5,
+  status: "MAINTENANCE",
 };
 
 // Handoff 2026-08-30: kíp mới phải đủ CẢ tài xế lẫn phụ xe, nên fixture phải có
@@ -251,6 +320,10 @@ describe("TripActionsPanel", () => {
       loadedWeightKg: 50,
       percentFull: 30,
     });
+    // Mặc định: xe thay giữ được toàn bộ ghế nên không có bước chọn ghế nào.
+    vi.mocked(previewSubstituteOperatorTripVehicle).mockResolvedValue(
+      allSeatsKeptPreview(),
+    );
     vi.mocked(substituteOperatorTripVehicle).mockResolvedValue({
       tripId: "trip-2",
       oldTripId: "trip-1",
@@ -319,6 +392,242 @@ describe("TripActionsPanel", () => {
     );
     // Trang cha được báo để chuyển selection + URL sang chuyến mới
     expect(onTripReplaced).toHaveBeenCalledWith("trip-2");
+  });
+
+  // ── Đồng bộ ghế sau khi thay xe (handoff riêng) ────────────────────────
+  //
+  // Checklist regression của handoff được dịch thẳng thành các test dưới đây.
+
+  it("giữ được A1/A2 thì không hiện bộ chọn ghế và không gửi seatAssignments", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByLabelText("tripOperations.vehicle"));
+    await user.click(
+      screen.getByRole("option", { name: /plate=51B-999\.99 seats=40/ }),
+    );
+
+    await waitFor(() => {
+      expect(previewSubstituteOperatorTripVehicle).toHaveBeenCalledWith(
+        "trip-1",
+        { replacementVehicleId: "vehicle-2" },
+      );
+    });
+    // Cả hai khách giữ ghế → không có select nào, không có A10 nào để chọn
+    expect(
+      await screen.findByText(/tripOperations\.seatPreviewSummary/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/tripOperations\.seatPreviewSelectLabel/),
+    ).toBeNull();
+
+    await chooseIncidentAndCrew(user);
+    await user.type(screen.getByLabelText("tripOperations.reason"), "Breakdown");
+    await user.click(
+      screen.getByRole("button", { name: "tripOperations.substitute" }),
+    );
+    await user.click(screen.getByRole("button", { name: "confirm" }));
+
+    const body = vi.mocked(substituteOperatorTripVehicle).mock.calls[0][1];
+    expect(body).not.toHaveProperty("seatAssignments");
+    expect(body).not.toHaveProperty("previewToken");
+  });
+
+  it("thiếu A2 thì chỉ khách đó có bộ chọn, và gửi kèm previewToken", async () => {
+    vi.mocked(previewSubstituteOperatorTripVehicle).mockResolvedValue(
+      missingSeatPreview(),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByLabelText("tripOperations.vehicle"));
+    await user.click(
+      screen.getByRole("option", { name: /plate=51B-999\.99 seats=40/ }),
+    );
+
+    // Đúng MỘT bộ chọn — khách giữ được A1 không được đụng tới
+    const selects = await screen.findAllByLabelText(
+      /tripOperations\.seatPreviewSelectLabel/,
+    );
+    expect(selects).toHaveLength(1);
+
+    await user.click(selects[0]);
+    await user.click(screen.getByRole("option", { name: "A5" }));
+
+    await chooseIncidentAndCrew(user);
+    await user.type(screen.getByLabelText("tripOperations.reason"), "Breakdown");
+    await user.click(
+      screen.getByRole("button", { name: "tripOperations.substitute" }),
+    );
+    await user.click(screen.getByRole("button", { name: "confirm" }));
+
+    await waitFor(() => {
+      expect(substituteOperatorTripVehicle).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({
+          previewToken: PREVIEW_TOKEN,
+          seatAssignments: [
+            { passengerId: MOVED_PASSENGER, newSeatNumber: "A5" },
+          ],
+        }),
+      );
+    });
+  });
+
+  it("chưa chọn đủ ghế thì KHÔNG gọi API đổi xe", async () => {
+    vi.mocked(previewSubstituteOperatorTripVehicle).mockResolvedValue(
+      missingSeatPreview(),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByLabelText("tripOperations.vehicle"));
+    await user.click(
+      screen.getByRole("option", { name: /plate=51B-999\.99 seats=40/ }),
+    );
+    await screen.findAllByLabelText(/tripOperations\.seatPreviewSelectLabel/);
+    await chooseIncidentAndCrew(user);
+    await user.type(screen.getByLabelText("tripOperations.reason"), "Breakdown");
+
+    // Nút bị khoá hẳn: gửi lên chỉ ăn `409 REPLACEMENT_SEAT_ASSIGNMENT_REQUIRED`
+    expect(
+      screen.getByRole("button", { name: "tripOperations.substitute" }),
+    ).toBeDisabled();
+    expect(substituteOperatorTripVehicle).not.toHaveBeenCalled();
+  });
+
+  it("không cho hai khách chọn cùng một ghế", async () => {
+    const twoMoved = missingSeatPreview();
+    twoMoved.passengers = [
+      {
+        bookingId: "booking-1",
+        passengerId: KEPT_PASSENGER,
+        originalSeatNumber: "A1",
+        proposedSeatNumber: null,
+        requiresAdminSelection: true,
+        alternativeSeatNumbers: ["A5", "A10"],
+      },
+      twoMoved.passengers[1],
+    ];
+    vi.mocked(previewSubstituteOperatorTripVehicle).mockResolvedValue(twoMoved);
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByLabelText("tripOperations.vehicle"));
+    await user.click(
+      screen.getByRole("option", { name: /plate=51B-999\.99 seats=40/ }),
+    );
+
+    const selects = await screen.findAllByLabelText(
+      /tripOperations\.seatPreviewSelectLabel/,
+    );
+    await user.click(selects[0]);
+    await user.click(screen.getByRole("option", { name: "A5" }));
+
+    // Khách thứ hai không còn thấy A5 trong danh sách
+    await user.click(selects[1]);
+    expect(screen.queryByRole("option", { name: "A5" })).toBeNull();
+    expect(screen.getByRole("option", { name: "A10" })).toBeInTheDocument();
+  });
+
+  it("token preview cũ thì xếp lại ghế thay vì gửi lại body cũ", async () => {
+    vi.mocked(previewSubstituteOperatorTripVehicle).mockResolvedValue(
+      missingSeatPreview(),
+    );
+    vi.mocked(substituteOperatorTripVehicle).mockRejectedValue(
+      new ApiRequestError(
+        "Seat preview is stale.",
+        409,
+        "REPLACEMENT_SEAT_PREVIEW_STALE",
+      ),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByLabelText("tripOperations.vehicle"));
+    await user.click(
+      screen.getByRole("option", { name: /plate=51B-999\.99 seats=40/ }),
+    );
+    const selects = await screen.findAllByLabelText(
+      /tripOperations\.seatPreviewSelectLabel/,
+    );
+    await user.click(selects[0]);
+    await user.click(screen.getByRole("option", { name: "A5" }));
+    await chooseIncidentAndCrew(user);
+    await user.type(screen.getByLabelText("tripOperations.reason"), "Breakdown");
+    await user.click(
+      screen.getByRole("button", { name: "tripOperations.substitute" }),
+    );
+    await user.click(screen.getByRole("button", { name: "confirm" }));
+
+    // Lượt preview thứ hai là do lỗi stale kích hoạt, không phải do đổi xe
+    await waitFor(() => {
+      expect(previewSubstituteOperatorTripVehicle).toHaveBeenCalledTimes(2);
+    });
+    expect(
+      await screen.findByText("tripOperations.errorSeatPreviewStaleHint"),
+    ).toBeInTheDocument();
+  });
+
+  it("BE báo thiếu ghế ngay ở bước preview thì hiện ba con số của BE", async () => {
+    vi.mocked(previewSubstituteOperatorTripVehicle).mockRejectedValue(
+      new ApiRequestError(
+        "Replacement vehicle does not have enough usable seats.",
+        409,
+        "REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS",
+        [
+          // Đảo thứ tự: FE phải đọc `error.fields[]` theo TÊN
+          { field: "missingSeats", message: "1" },
+          { field: "usableSeats", message: "2" },
+          { field: "passengersToTransfer", message: "3" },
+        ],
+      ),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByLabelText("tripOperations.vehicle"));
+    await user.click(
+      screen.getByRole("option", { name: /plate=51B-999\.99 seats=40/ }),
+    );
+
+    // Mặc định của test là 10 khách / xe 40 chỗ nên FE không tự cảnh báo gì —
+    // mọi con số ở đây đều đến từ BE, và đến TRƯỚC khi bấm xác nhận.
+    expect(
+      await screen.findByText(
+        "tripOperations.seatShortageServerBody seats=2 passengers=3 missing=1",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("tripOperations.seatShortagePickAnotherVehicle"),
+    ).toBeInTheDocument();
+    expect(substituteOperatorTripVehicle).not.toHaveBeenCalled();
+  });
+
+  it("preview hỏng thì báo lỗi và cho thử lại, không khoá luôn màn", async () => {
+    vi.mocked(previewSubstituteOperatorTripVehicle).mockRejectedValue(
+      new ApiRequestError(
+        "Replacement vehicle does not have enough usable seats.",
+        409,
+        "REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS",
+      ),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByLabelText("tripOperations.vehicle"));
+    await user.click(
+      screen.getByRole("option", { name: /plate=51B-999\.99 seats=40/ }),
+    );
+
+    const retry = await screen.findByRole("button", {
+      name: "tripOperations.seatPreviewRetry",
+    });
+    await user.click(retry);
+
+    await waitFor(() => {
+      expect(previewSubstituteOperatorTripVehicle).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("hiện nhãn chuyến thay thế thay vì UUID thô sau khi đổi xe", async () => {
@@ -411,75 +720,25 @@ describe("TripActionsPanel", () => {
       expect(labels[2]).toContain("missing=14");
     });
 
-    it("chặn thay xe khi thiếu ghế mà chưa tick xác nhận", async () => {
+    // Cảnh báo này ĐOÁN từ sơ đồ ghế nên chỉ để báo sớm, không phải chốt chặn:
+    // nó có thể đếm dư (xem `usableSeats`) và khoá nhầm một chiếc xe thật ra
+    // vẫn chở đủ. Chốt chặn là preview của BE (test ở dưới).
+    it("cảnh báo thiếu ghế và chỉ đường chọn xe khác, không còn ô tick bỏ qua", async () => {
       const user = userEvent.setup();
       renderWithSeats(30);
 
       await chooseVehicle(user, /plate=51B-111\.11/);
-      await chooseIncidentAndCrew(user);
-      await user.type(
-        screen.getByLabelText("tripOperations.reason"),
-        "Breakdown",
-      );
 
       expect(
         screen.getByText(/tripOperations\.seatShortageBody/),
       ).toBeInTheDocument();
-
-      await user.click(
-        screen.getByRole("button", { name: "tripOperations.substitute" }),
-      );
-
-      // Không mở cả modal xác nhận, tức là chưa hề gọi API
       expect(
-        screen.queryByRole("button", { name: "confirm" }),
+        screen.getByText("tripOperations.seatShortagePickAnotherVehicle"),
+      ).toBeInTheDocument();
+      // BE chặn cứng thiếu ghế nên không còn đường "vẫn đổi xe" nào để tick
+      expect(
+        screen.queryByRole("checkbox", { name: /seatShortageAck/ }),
       ).not.toBeInTheDocument();
-      expect(substituteOperatorTripVehicle).not.toHaveBeenCalled();
-    });
-
-    it("cho thay xe thiếu ghế sau khi tick xác nhận", async () => {
-      const user = userEvent.setup();
-      renderWithSeats(30);
-
-      await chooseVehicle(user, /plate=51B-111\.11/);
-      await chooseIncidentAndCrew(user);
-      await user.type(
-        screen.getByLabelText("tripOperations.reason"),
-        "Breakdown",
-      );
-      await user.click(
-        screen.getByRole("checkbox", { name: /seatShortageAck/ }),
-      );
-      await user.click(
-        screen.getByRole("button", { name: "tripOperations.substitute" }),
-      );
-      await user.click(screen.getByRole("button", { name: "confirm" }));
-
-      expect(substituteOperatorTripVehicle).toHaveBeenCalledWith(
-        "trip-1",
-        expect.objectContaining({ replacementVehicleId: "vehicle-3" }),
-      );
-    });
-
-    // Tick cho xe 16 chỗ không được tính sang xe khác — đổi xe là phải cân nhắc lại
-    it("xoá tick xác nhận khi đổi sang xe khác", async () => {
-      const user = userEvent.setup();
-      renderWithSeats(30);
-
-      await chooseVehicle(user, /plate=51B-111\.11/);
-      await user.click(
-        screen.getByRole("checkbox", { name: /seatShortageAck/ }),
-      );
-      expect(
-        screen.getByRole("checkbox", { name: /seatShortageAck/ }),
-      ).toBeChecked();
-
-      await chooseVehicle(user, /plate=51B-999\.99/);
-      await chooseVehicle(user, /plate=51B-111\.11/);
-
-      expect(
-        screen.getByRole("checkbox", { name: /seatShortageAck/ }),
-      ).not.toBeChecked();
     });
 
     it("không cảnh báo khi không đọc được sơ đồ ghế", async () => {
@@ -527,9 +786,6 @@ describe("TripActionsPanel", () => {
         "Breakdown",
       );
       await user.click(
-        screen.getByRole("checkbox", { name: /seatShortageAck/ }),
-      );
-      await user.click(
         screen.getByRole("button", { name: "tripOperations.substitute" }),
       );
       await user.click(screen.getByRole("button", { name: "confirm" }));
@@ -554,11 +810,135 @@ describe("TripActionsPanel", () => {
   });
 
   /**
-   * BE nay CHẶN CỨNG việc thay sang xe thiếu ghế bằng `409
-   * REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS` (handoff Vehicle Substitution
-   * B1-B7). Số của FE đếm từ sơ đồ ghế chỉ là cảnh báo sớm — ba con số trong
-   * `error.fields[]` mới là kết luận, và phải hỏi lại người vận hành trước khi
-   * gửi lại với `acknowledgeInsufficientSeats: true`.
+   * Xe thay phải ĐÚNG số ghế với xe bị sự cố — khác hẳn quy tắc "đủ ghế cho số
+   * khách" ở trên: chuyến thay thế dựng lại sơ đồ ghế theo xe mới, nên chỉ khi
+   * hai xe cùng số ghế thì khách mới giữ được đúng chỗ đã đặt. Đây là điều kiện
+   * BẮT BUỘC, không có ô tick bỏ qua như cảnh báo thiếu ghế.
+   */
+  describe("xe thay phải đúng số ghế với xe bị sự cố", () => {
+    function renderWithIncidentVehicle(fleet: OperatorVehicle[]) {
+      const onSubstituted = vi.fn();
+      render(
+        <MemoryRouter>
+          <TripActionsPanel
+            tripId="trip-1"
+            trip={tripProp}
+            vehicles={fleet}
+            staff={staffProp}
+            canMutate
+            onSubstituted={onSubstituted}
+          />
+        </MemoryRouter>,
+      );
+      return onSubstituted;
+    }
+
+    async function openVehicleSelect(
+      user: ReturnType<typeof userEvent.setup>,
+    ) {
+      await user.click(screen.getByLabelText("tripOperations.vehicle"));
+      return screen.findAllByRole("option");
+    }
+
+    it("khoá xe khác số ghế và xếp xe đúng ghế lên trước", async () => {
+      const user = userEvent.setup();
+      // Xe hỏng 40 ghế; fleet để xe 16 chỗ đứng TRƯỚC xe 40 chỗ để thấy rõ
+      // panel sắp lại chứ không giữ nguyên thứ tự nhận được.
+      renderWithIncidentVehicle([incidentVehicle, smallVehicle, vehiclesProp[0]]);
+
+      const options = await openVehicleSelect(user);
+      const labels = options.map((option) => option.textContent ?? "");
+
+      // Xe hỏng không nằm trong danh sách xe thay
+      expect(labels.join(" ")).not.toContain("51B-000.00");
+      expect(labels[1]).toContain("vehicleSeatsOption");
+      expect(labels[1]).toContain("plate=51B-999.99");
+      expect(options[1]).toBeEnabled();
+      expect(labels[2]).toContain("vehicleSeatsMismatchOption");
+      expect(labels[2]).toContain("required=40");
+      expect(options[2]).toBeDisabled();
+
+      // Dòng nhắc nói thẳng con số bắt buộc, không bắt người dùng tự suy
+      expect(
+        screen.getByText(/seatCountRequired.*required=40/),
+      ).toBeInTheDocument();
+    });
+
+    it("không cho chọn xe khác số ghế", async () => {
+      const user = userEvent.setup();
+      renderWithIncidentVehicle([incidentVehicle, vehiclesProp[0], smallVehicle]);
+
+      const options = await openVehicleSelect(user);
+      await user.click(options[2]);
+
+      // Bấm vào option bị khoá không chọn được gì: ô chọn vẫn ở placeholder.
+      // Danh sách đang mở nên nhãn này khớp cả nút chọn lẫn listbox — phần tử
+      // đầu theo thứ tự DOM là nút chọn.
+      expect(
+        screen.getAllByLabelText("tripOperations.vehicle")[0],
+      ).toHaveTextContent("tripOperations.selectVehicle");
+      // Và không có cảnh báo lệch ghế, vì có chọn được đâu mà lệch
+      expect(
+        screen.queryByText(/seatCountMismatchBlocked/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("vẫn thay được xe đúng số ghế", async () => {
+      const user = userEvent.setup();
+      renderWithIncidentVehicle([incidentVehicle, vehiclesProp[0], smallVehicle]);
+
+      await user.click(screen.getByLabelText("tripOperations.vehicle"));
+      await user.click(
+        await screen.findByRole("option", { name: /plate=51B-999\.99/ }),
+      );
+      await chooseIncidentAndCrew(user);
+      await user.type(
+        screen.getByLabelText("tripOperations.reason"),
+        "Breakdown",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "tripOperations.substitute" }),
+      );
+      await user.click(screen.getByRole("button", { name: "confirm" }));
+
+      await waitFor(() =>
+        expect(substituteOperatorTripVehicle).toHaveBeenCalledWith(
+          "trip-1",
+          expect.objectContaining({ replacementVehicleId: "vehicle-2" }),
+        ),
+      );
+    });
+
+    it("báo khi cả fleet không còn xe nào đúng số ghế", async () => {
+      renderWithIncidentVehicle([incidentVehicle, smallVehicle]);
+
+      expect(
+        await screen.findByText(/seatCountNoMatch.*required=40/),
+      ).toBeInTheDocument();
+    });
+
+    it("không chặn khi không tra được xe bị sự cố trong fleet", async () => {
+      const user = userEvent.setup();
+      // Fleet thiếu `vehicle-1` = CHƯA BIẾT số ghế xe cũ. Không đoán bừa, để BE
+      // quyết định — xe 16 chỗ vẫn chọn được như trước.
+      renderWithIncidentVehicle([vehiclesProp[0], smallVehicle]);
+
+      const options = await openVehicleSelect(user);
+      expect(options[1]).toBeEnabled();
+      expect(options[2]).toBeEnabled();
+      expect(
+        screen.queryByText(/tripOperations\.seatCountRequired/),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  /**
+   * BE CHẶN CỨNG việc thay sang xe thiếu ghế bằng `409
+   * REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS`, và `acknowledgeInsufficientSeats`
+   * chỉ được ghi vào audit payload chứ KHÔNG bỏ qua guard
+   * (`SubstituteVehicleCommandHandler`). Vì vậy không còn thao tác "vẫn đổi
+   * xe": ba con số trong `error.fields[]` là kết luận, và việc phải làm là
+   * chọn xe khác.
    */
   describe("BE từ chối vì xe thay thiếu ghế", () => {
     function seatShortageError() {
@@ -611,52 +991,44 @@ describe("TripActionsPanel", () => {
       ).toBeInTheDocument();
     });
 
-    it("gửi lại với acknowledgeInsufficientSeats sau khi người dùng đồng ý", async () => {
+    it("KHÔNG gửi lại lần hai — thiếu ghế là đường cụt, phải chọn xe khác", async () => {
       const user = userEvent.setup();
-      vi.mocked(substituteOperatorTripVehicle).mockRejectedValueOnce(
-        seatShortageError(),
-      );
-      const onTripReplaced = renderPanel();
-
-      await submitSubstitution(user);
-      await user.click(
-        await screen.findByRole("button", {
-          name: "tripOperations.seatShortageProceed",
-        }),
-      );
-
-      await waitFor(() =>
-        expect(substituteOperatorTripVehicle).toHaveBeenCalledTimes(2),
-      );
-      expect(substituteOperatorTripVehicle).toHaveBeenNthCalledWith(
-        1,
-        "trip-1",
-        expect.objectContaining({ acknowledgeInsufficientSeats: false }),
-      );
-      expect(substituteOperatorTripVehicle).toHaveBeenNthCalledWith(
-        2,
-        "trip-1",
-        expect.objectContaining({ acknowledgeInsufficientSeats: true }),
-      );
-      // Lượt hai không truyền idempotencyKey -> hàm API tự sinh key mới, đúng
-      // yêu cầu "body đổi thì phải đổi key".
-      expect(
-        vi.mocked(substituteOperatorTripVehicle).mock.calls[1][2],
-      ).toBeUndefined();
-      expect(onTripReplaced).toHaveBeenCalledWith("trip-2");
-    });
-
-    it("không gửi lại khi người dùng bỏ qua cảnh báo", async () => {
-      const user = userEvent.setup();
-      vi.mocked(substituteOperatorTripVehicle).mockRejectedValueOnce(
+      // `mockRejectedValue` (không phải `Once`): nếu FE lỡ gửi lại thì lượt hai
+      // cũng hỏng đúng như BE thật, test không vô tình xanh.
+      vi.mocked(substituteOperatorTripVehicle).mockRejectedValue(
         seatShortageError(),
       );
       renderPanel();
 
       await submitSubstitution(user);
-      await user.click(await screen.findByRole("button", { name: "cancel" }));
 
-      expect(substituteOperatorTripVehicle).toHaveBeenCalledTimes(1);
+      await waitFor(() =>
+        expect(substituteOperatorTripVehicle).toHaveBeenCalledTimes(1),
+      );
+      // Không còn hộp "vẫn đổi xe" — BE chỉ ghi cờ ack vào audit chứ không dùng
+      // nó để bỏ qua guard, nên gửi lại lần nào cũng `409`.
+      expect(
+        screen.queryByRole("button", {
+          name: "tripOperations.seatShortageProceed",
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        await screen.findByText("tripOperations.seatShortagePickAnotherVehicle"),
+      ).toBeInTheDocument();
+    });
+
+    it("không gửi kèm acknowledgeInsufficientSeats nữa", async () => {
+      const user = userEvent.setup();
+      renderPanel();
+
+      await submitSubstitution(user);
+
+      await waitFor(() =>
+        expect(substituteOperatorTripVehicle).toHaveBeenCalled(),
+      );
+      expect(
+        vi.mocked(substituteOperatorTripVehicle).mock.calls[0][1],
+      ).not.toHaveProperty("acknowledgeInsufficientSeats");
     });
   });
 

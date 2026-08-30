@@ -36,6 +36,13 @@ const IDEMPOTENCY_EXEMPT_PATTERNS: ReadonlyArray<{
     method: "PATCH",
     pattern: /^\/v1\/operator\/driver-schedules\/[^/]+\/(?:activate|deactivate)$/,
   },
+  // Preview ghế khi thay xe: POST nhưng CHỈ ĐỌC — BE gắn `[SkipIdempotency]`
+  // ("This POST is a read-only vehicle substitution seat preview"). Gửi key
+  // vẫn được BE bỏ qua, nhưng sinh key cho một request đọc là rác.
+  {
+    method: "POST",
+    pattern: /^\/v1\/operator\/trips\/[^/]+\/substitute-vehicle\/preview$/,
+  },
 ];
 
 function normalizePath(path: string): string {

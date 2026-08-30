@@ -16,6 +16,9 @@ const backendReasonCodes: Record<string, string> = {
     "PARCEL_UNRESOLVED_DURING_DESTINATION_RECONCILIATION",
   "Parcel was unresolved during stop close reconciliation.":
     "PARCEL_UNRESOLVED_DURING_STOP_CLOSE_RECONCILIATION",
+  "Parcel was unresolved during destination close reconciliation.":
+    "PARCEL_UNRESOLVED_DURING_DESTINATION_CLOSE_RECONCILIATION",
+  "Parcel incident reported.": "PARCEL_INCIDENT_REPORTED",
 };
 
 type TranslateReason = (

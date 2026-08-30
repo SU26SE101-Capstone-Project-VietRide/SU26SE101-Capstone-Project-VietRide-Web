@@ -36,6 +36,7 @@ import {
   manualCancelRefundChoices,
   money,
   parcelStatusTone,
+  pendingActionLabel,
   type ManualCancelRefundChoice,
 } from "./parcelQueueHelpers";
 import { ActionBox, ActionButton, Field, TextArea } from "./queueControls";
@@ -181,15 +182,7 @@ export default function ParcelDetailModal({
                   <DetailItem
                     label={t("parcels.queue.pendingActionLabel")}
                     value={
-                      selected.pendingActionType
-                        ? t(
-                            `parcels.pendingActions.${selected.pendingActionType}`,
-                            {
-                              defaultValue:
-                                selected.pendingActionType.replaceAll("_", " "),
-                            },
-                          )
-                        : "-"
+                      pendingActionLabel(selected.pendingActionType, t) || "-"
                     }
                   />
                   <DetailItem
@@ -407,7 +400,7 @@ export default function ParcelDetailModal({
                     <span className="font-semibold">
                       {t("parcels.queue.pendingReasonLabel")}:
                     </span>{" "}
-                    {selected.pendingActionReason}
+                    {getStatusReasonLabel(selected.pendingActionReason)}
                   </p>
                 )}
                 {statusHistory.length > 0 && (

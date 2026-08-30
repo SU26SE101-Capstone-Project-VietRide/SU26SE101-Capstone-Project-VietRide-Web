@@ -35,7 +35,11 @@ import ForwardingOptionsModal from "./ForwardingOptionsModal";
 import IncidentActionModal, {
   type IncidentActionKind,
 } from "./IncidentActionModal";
-import { locationLabel, slaTone } from "../../../utils/parcelReliability";
+import {
+  locationLabel,
+  locationRefLabel,
+  slaTone,
+} from "../../../utils/parcelReliability";
 import {
   getCustodyApprovalUi,
   hasIncidentAction,
@@ -73,6 +77,11 @@ export default function IncidentDetailModal({
   onIncidentGone,
 }: IncidentDetailModalProps) {
   const { t } = useTranslation("manager");
+  // Loại địa điểm dùng chung cho ba chỗ BE ghi dạng `"<LOẠI>:<uuid>"`
+  const locationTypeLabel = (type: string) =>
+    t(`parcelIncidents.locationTypes.${type}`, {
+      defaultValue: type.replaceAll("_", " "),
+    });
   const { t: tc } = useTranslation("common");
 
   const [action, setAction] = useState<IncidentActionKind | null>(null);
@@ -386,7 +395,11 @@ export default function IncidentDetailModal({
                 {detail.expectedLocation?.trim() && (
                   <DetailItem
                     label={t("parcelIncidents.expectedLocationLabel")}
-                    value={detail.expectedLocation}
+                    value={locationRefLabel(
+                      detail.expectedLocation,
+                      locationTypeLabel,
+                      t("parcelIncidents.unknownLocation"),
+                    )}
                   />
                 )}
                 <DetailItem
@@ -580,8 +593,11 @@ export default function IncidentDetailModal({
                             })}
                           </p>
                           <p className="mt-0.5 text-xs text-gray-600">
-                            {task.location?.trim() ||
-                              t("parcelIncidents.unknownLocation")}
+                            {locationRefLabel(
+                              task.location,
+                              locationTypeLabel,
+                              t("parcelIncidents.unknownLocation"),
+                            )}
                           </p>
                           {task.assignee?.displayName && (
                             <p className="mt-0.5 text-xs text-gray-500">
@@ -667,8 +683,11 @@ export default function IncidentDetailModal({
                         </p>
                       </div>
                       <p className="mt-0.5 text-xs text-gray-600">
-                        {event.locationSnapshot?.trim() ||
-                          t("parcelIncidents.unknownLocation")}
+                        {locationRefLabel(
+                          event.locationSnapshot,
+                          locationTypeLabel,
+                          t("parcelIncidents.unknownLocation"),
+                        )}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500">
                         {t("parcelIncidents.recordedBy", {

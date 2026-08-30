@@ -412,6 +412,14 @@ const vietnameseMessages: Record<string, string> = {
   // `parseReplacementSeatShortage`) — câu này chỉ là fallback khi không parse được.
   REPLACEMENT_VEHICLE_INSUFFICIENT_SEATS:
     "Xe thay thế không đủ ghế cho số khách phải chuyển.",
+  // Đồng bộ ghế sau khi thay xe: ba mã dưới đây đều là 409 và đều KHÔNG tạo
+  // chuyến thay thế, nên form giữ nguyên và chỉ cần xếp lại ghế.
+  REPLACEMENT_SEAT_ASSIGNMENT_REQUIRED:
+    "Còn khách chưa được chọn ghế trên xe thay.",
+  REPLACEMENT_SEAT_NOT_AVAILABLE:
+    "Ghế vừa chọn không còn dùng được trên xe thay.",
+  REPLACEMENT_SEAT_PREVIEW_STALE:
+    "Danh sách ghế đã cũ. Vui lòng xếp lại ghế cho xe thay rồi thử lại.",
   VEHICLE_NOT_ACTIVE: "Phương tiện hiện không hoạt động.",
   VEHICLE_NOT_FOUND: "Không tìm thấy phương tiện.",
   VEHICLE_TYPE_NOT_FOUND: "Không tìm thấy loại phương tiện.",

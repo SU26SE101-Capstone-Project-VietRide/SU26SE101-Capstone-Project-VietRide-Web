@@ -84,6 +84,26 @@ const needsActionStatuses = new Set([
   "TRANSFER_ESCALATED",
 ]);
 
+/** Đủ 4 giá trị của `PendingActionType` phía BE — thiếu cái nào là màn hiện ra
+ *  đúng tên enum thô (đã từng xảy ra với `CUSTODY_EXCEPTION`). */
+const PENDING_ACTION_TYPES = new Set([
+  "REFUND_CONFIRMATION",
+  "CAPACITY_EXCEEDED",
+  "RESERVE_FAILED",
+  "CUSTODY_EXCEPTION",
+]);
+
+/** Nhãn "Việc cần làm" của một kiện đang chờ nhà xe xử lý. */
+export function pendingActionLabel(
+  pendingActionType: string | null | undefined,
+  t: Translate,
+) {
+  if (!pendingActionType) return "";
+  return PENDING_ACTION_TYPES.has(pendingActionType)
+    ? t(`parcels.pendingActions.${pendingActionType}`)
+    : pendingActionType.replaceAll("_", " ");
+}
+
 export function actionLabel(
   item: OperatorParcelListItem,
   t: Translate,
@@ -91,13 +111,12 @@ export function actionLabel(
 ) {
   if (item.status === "PENDING_OPERATOR_REVIEW")
     return t("parcels.queue.pendingReview");
-  if (item.status === "PENDING_OPERATOR_ACTION") {
-    if (item.pendingActionType === "REFUND_CONFIRMATION")
-      return t("parcels.pendingActions.REFUND_CONFIRMATION");
-    if (item.pendingActionType === "CAPACITY_EXCEEDED")
-      return t("parcels.pendingActions.CAPACITY_EXCEEDED");
-    if (item.pendingActionType === "RESERVE_FAILED")
-      return t("parcels.pendingActions.RESERVE_FAILED");
+  if (
+    item.status === "PENDING_OPERATOR_ACTION" &&
+    item.pendingActionType &&
+    PENDING_ACTION_TYPES.has(item.pendingActionType)
+  ) {
+    return pendingActionLabel(item.pendingActionType, t);
   }
   return tc(`enumLabels.${item.status}`, {
     defaultValue: item.status.replaceAll("_", " "),

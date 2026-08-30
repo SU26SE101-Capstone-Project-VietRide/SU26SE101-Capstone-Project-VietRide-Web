@@ -8,6 +8,12 @@ type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> & 
   size?: ButtonSize;
   /** Nút chỉ có icon — ép thành hình vuông và BẮT BUỘC có `aria-label`. */
   iconOnly?: boolean;
+  /**
+   * Bo tròn hết cỡ thay cho `rounded-lg` mặc định. Chỉ dùng khi nút đứng sát
+   * một ô nhập bo dạng viên thuốc (hàng "ô tìm + nút tra cứu") — để lệch bo góc
+   * ở đó nhìn ra ngay. Không dùng để làm nút nổi bật hơn.
+   */
+  pill?: boolean;
   /** Icon đặt trước nhãn. */
   leadingIcon?: ReactNode;
   children?: ReactNode;
@@ -49,6 +55,7 @@ export function Button({
   variant = "secondary",
   size = "md",
   iconOnly = false,
+  pill = false,
   leadingIcon,
   children,
   type = "button",
@@ -59,7 +66,8 @@ export function Button({
     <button
       type={type}
       className={[
-        "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg font-semibold transition-colors",
+        "inline-flex shrink-0 cursor-pointer items-center justify-center font-semibold transition-colors",
+        pill ? "rounded-full" : "rounded-lg",
         "max-sm:min-h-11 max-sm:min-w-11",
         "disabled:cursor-not-allowed disabled:opacity-60",
         iconOnly ? iconOnlySizeClasses[size] : sizeClasses[size],

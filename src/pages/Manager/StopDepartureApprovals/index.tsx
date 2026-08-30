@@ -191,7 +191,10 @@ export default function StopDepartureApprovalsPage() {
             {t("stopDepartureApprovals.requestIdLabel")}
           </span>
         </label>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        {/* `sm:items-center` + nút bậc `lg`: ô nhập cao 50px còn nút mặc định
+            `md` chỉ 40px và bị canh mép trên, để thừa 10px hụt ở đáy. `pill`
+            cho khớp bo góc viên thuốc của ô nhập đứng ngay cạnh. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             id="departure-request-id"
             value={requestIdInput}
@@ -207,6 +210,8 @@ export default function StopDepartureApprovalsPage() {
           />
           <Button
             variant="primary"
+            size="lg"
+            pill
             leadingIcon={<FiSearch size={15} />}
             onClick={handleLookup}
             disabled={isLoading}
