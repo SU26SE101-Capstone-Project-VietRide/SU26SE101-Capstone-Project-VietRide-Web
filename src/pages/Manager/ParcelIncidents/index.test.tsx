@@ -40,6 +40,14 @@ vi.mock("../../../api/vietride", () => ({
   PARCEL_INCIDENT_TYPES: ["MISSING", "WRONG_STOP"],
   PARCEL_CUSTODY_LOCATION_TYPES: ["WAREHOUSE", "VEHICLE"],
   SLA_STATES: ["ON_TRACK", "DUE_SOON", "BREACHED", "CLOSED"],
+  // Bộ lọc sự cố kiện nhận thêm NOT_STARTED so với SLA_STATES
+  INCIDENT_SLA_STATES: [
+    "NOT_STARTED",
+    "ON_TRACK",
+    "DUE_SOON",
+    "BREACHED",
+    "CLOSED",
+  ],
 }));
 
 vi.mock("../../../hooks/useToastFeedback", () => ({
@@ -360,6 +368,48 @@ describe("duyệt báo cáo custody exception", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     usePendingQueue();
+  });
+
+  // §3 playbook Reliability v2: hàng đợi chờ duyệt được siết Ở SERVER bằng
+  // `approvalStatus`, không lọc `availableActions` trên trang đang mở nữa —
+  // lọc client chỉ thấy 20 dòng và làm sai cả phân trang lẫn số đếm.
+  it("lọc chờ duyệt bằng approvalStatus của BE, không kèm status", async () => {
+    const user = userEvent.setup();
+    render(<ParcelIncidentsPage />);
+    await screen.findByText("parcelIncidents.approval.pendingBadge");
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /parcelIncidents\.approval\.pendingFilter/,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(getOperatorParcelIncidents).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          approvalStatus: "PENDING_APPROVAL",
+          page: 1,
+        }),
+      );
+    });
+    expect(
+      vi.mocked(getOperatorParcelIncidents).mock.calls.at(-1)?.[0],
+    ).not.toHaveProperty("status");
+  });
+
+  // Badge phải đếm CẢ hàng đợi nên có một request riêng `pageSize: 1`; số hiện
+  // ra là `totalItems` của BE chứ không phải số dòng đang thấy.
+  it("đếm badge chờ duyệt bằng một request riêng theo approvalStatus", async () => {
+    render(<ParcelIncidentsPage />);
+    await screen.findByText("parcelIncidents.approval.pendingBadge");
+
+    await waitFor(() => {
+      expect(getOperatorParcelIncidents).toHaveBeenCalledWith({
+        page: 1,
+        pageSize: 1,
+        approvalStatus: "PENDING_APPROVAL",
+      });
+    });
   });
 
   it("nhận diện dòng chờ duyệt bằng availableActions, không bằng status OPEN", async () => {

@@ -1,8 +1,19 @@
 import { useTranslation } from "react-i18next";
-import { FiHome } from "react-icons/fi";
+import {
+  FiFileText,
+  FiHash,
+  FiHome,
+  FiMail,
+  FiMap,
+  FiMapPin,
+  FiPhone,
+  FiTruck,
+  FiUser,
+} from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import { type CreateAdminOperatorRequest } from "../../../api/vietride";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { IconInput } from "../../../components/form/IconInput";
+import { labelClass } from "../../../components/form/formClasses";
 import { Button } from "../../../components/ui/Button";
 
 type OperatorOnboardModalProps = {
@@ -63,31 +74,56 @@ export default function OperatorOnboardModal({
           <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className={labelClass}>{t("operators.brandName")} <span className="text-red-500">*</span></label>
-              <input className={inputClass} {...field("name")} placeholder={t("operators.brandPlaceholder")} />
+              <IconInput
+                icon={<FiTruck size={18} />}
+                {...field("name")}
+                placeholder={t("operators.brandPlaceholder")}
+              />
             </div>
             <div>
               <label className={labelClass}>{t("operators.businessRegistrationNumber")} <span className="text-red-500">*</span></label>
-              <input className={inputClass} {...field("businessRegistrationNumber")} placeholder={t("operators.businessRegPlaceholder")} />
+              <IconInput
+                icon={<FiFileText size={18} />}
+                {...field("businessRegistrationNumber")}
+                placeholder={t("operators.businessRegPlaceholder")}
+              />
             </div>
             <div>
               <label className={labelClass}>{t("operators.taxId")} <span className="text-red-500">*</span></label>
-              <input className={inputClass} {...field("taxCode")} placeholder={t("operators.taxCodePlaceholder")} />
+              <IconInput
+                icon={<FiHash size={18} />}
+                {...field("taxCode")}
+                placeholder={t("operators.taxCodePlaceholder")}
+              />
             </div>
             <div className="sm:col-span-2">
               <label className={labelClass}>{t("operators.headquartersAddress")}</label>
-              <input className={inputClass} {...field("addressStreet")} placeholder={t("operators.addressPlaceholder")} />
+              <IconInput
+                icon={<FiMapPin size={18} />}
+                {...field("addressStreet")}
+                placeholder={t("operators.addressPlaceholder")}
+              />
             </div>
             <div>
               <label className={labelClass}>{t("operators.ward")}</label>
-              <input className={inputClass} {...field("addressWard")} />
+              <IconInput
+                icon={<FiMap size={18} />}
+                {...field("addressWard")}
+              />
             </div>
             <div>
               <label className={labelClass}>{t("operators.province")}</label>
-              <input className={inputClass} {...field("addressProvince")} />
+              <IconInput
+                icon={<FiMap size={18} />}
+                {...field("addressProvince")}
+              />
             </div>
             <div>
               <label className={labelClass}>{tc("phone")}</label>
-              <input className={inputClass} {...field("contactPhone")} />
+              <IconInput
+                icon={<FiPhone size={18} />}
+                {...field("contactPhone")}
+              />
             </div>
           </div>
         </section>
@@ -100,15 +136,27 @@ export default function OperatorOnboardModal({
           <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
             <div>
               <label className={labelClass}>{t("operators.representative")} <span className="text-red-500">*</span></label>
-              <input className={inputClass} {...field("representativeName")} placeholder={t("operators.representativePlaceholder")} />
+              <IconInput
+                icon={<FiUser size={18} />}
+                {...field("representativeName")}
+                placeholder={t("operators.representativePlaceholder")}
+              />
             </div>
             <div>
               <label className={labelClass}>{tc("email")} <span className="text-red-500">*</span></label>
-              <input className={inputClass} {...field("contactEmail")} placeholder={t("operators.contactEmailPlaceholder")} />
+              <IconInput
+                icon={<FiMail size={18} />}
+                {...field("contactEmail")}
+                placeholder={t("operators.contactEmailPlaceholder")}
+              />
             </div>
             <div>
               <label className={labelClass}>{tc("phone")} <span className="text-red-500">*</span></label>
-              <input className={inputClass} {...field("representativePhone")} placeholder={t("operators.contactPhonePlaceholder")} />
+              <IconInput
+                icon={<FiPhone size={18} />}
+                {...field("representativePhone")}
+                placeholder={t("operators.contactPhonePlaceholder")}
+              />
             </div>
           </div>
         </section>

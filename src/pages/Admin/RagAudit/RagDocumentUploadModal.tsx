@@ -10,6 +10,8 @@ import {
   type RagDocumentType,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
+import { IconInput } from "../../../components/form/IconInput";
+import { textareaClass } from "../../../components/form/formClasses";
 import Checkbox from "../../../components/form/Checkbox";
 import Modal from "../../../components/Modal";
 import { Button } from "../../../components/ui/Button";
@@ -38,9 +40,6 @@ type Props = {
   onClose: () => void;
   onUploaded: (document: RagDocument) => void;
 };
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-vr-500";
 
 export function RagDocumentUploadModal({
   open,
@@ -153,16 +152,16 @@ export function RagDocumentUploadModal({
 
         <section className="space-y-4">
           <div><h3 className="text-sm font-bold text-gray-900">{t("ragAudit.infoSection")}</h3><p className="mt-1 text-xs text-gray-500">{t("ragAudit.infoSectionHint")}</p></div>
-          <label className="block"><span className="mb-1.5 block text-xs font-semibold text-gray-600">{tc("title")}</span><input value={title} onChange={(event) => setTitle(event.target.value)} className={`${inputClass} rounded-xl transition focus:ring-4 focus:ring-vr-500/10`} required /></label>
-          <label className="block"><span className="mb-1.5 block text-xs font-semibold text-gray-600">{tc("description")}</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} className={`${inputClass} min-h-24 resize-y rounded-xl transition focus:ring-4 focus:ring-vr-500/10`} /></label>
+          <label className="block"><span className="mb-1.5 block text-xs font-semibold text-gray-600">{tc("title")}</span><IconInput icon={<FiFileText size={18} />} value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
+          <label className="block"><span className="mb-1.5 block text-xs font-semibold text-gray-600">{tc("description")}</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} className={`${textareaClass} min-h-24 resize-y`} /></label>
         </section>
 
         <section className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50/70 p-5">
           <div><h3 className="text-sm font-bold text-gray-900">{t("ragAudit.accessSection")}</h3><p className="mt-1 text-xs text-gray-500">{t("ragAudit.accessSectionHint")}</p></div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">{t("ragAudit.accessLevel")}</span><CustomSelect value={accessLevel} onChange={(event) => setAccessLevel(event.target.value as RagDocumentAccessLevel)} className={`${inputClass} rounded-xl`}><option value="PUBLIC">{tc("enumLabels.PUBLIC")}</option><option value="OPERATOR">{tc("enumLabels.OPERATOR")}</option><option value="ADMIN">{tc("enumLabels.ADMIN")}</option></CustomSelect></label>
-            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">{t("ragAudit.category")}</span><CustomSelect value={category} onChange={(event) => setCategory(event.target.value as RagDocumentCategory)} className={`${inputClass} rounded-xl`}><option value="CUSTOMER_SUPPORT">{t("ragAudit.categories.CUSTOMER_SUPPORT")}</option><option value="OPERATOR_POLICY">{t("ragAudit.categories.OPERATOR_POLICY")}</option><option value="PLATFORM_ADMIN">{t("ragAudit.categories.PLATFORM_ADMIN")}</option></CustomSelect></label>
-            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">{t("ragAudit.documentType")}</span><CustomSelect value={documentType} onChange={(event) => setDocumentType(event.target.value as RagDocumentType)} className={`${inputClass} rounded-xl`}><option value="FAQ">{t("ragAudit.documentTypes.FAQ")}</option><option value="POLICY">{t("ragAudit.documentTypes.POLICY")}</option><option value="SOP">{t("ragAudit.documentTypes.SOP")}</option><option value="GUIDE">{t("ragAudit.documentTypes.GUIDE")}</option><option value="TERMS">{t("ragAudit.documentTypes.TERMS")}</option></CustomSelect></label>
+            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">{t("ragAudit.accessLevel")}</span><CustomSelect value={accessLevel} onChange={(event) => setAccessLevel(event.target.value as RagDocumentAccessLevel)}><option value="PUBLIC">{tc("enumLabels.PUBLIC")}</option><option value="OPERATOR">{tc("enumLabels.OPERATOR")}</option><option value="ADMIN">{tc("enumLabels.ADMIN")}</option></CustomSelect></label>
+            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">{t("ragAudit.category")}</span><CustomSelect value={category} onChange={(event) => setCategory(event.target.value as RagDocumentCategory)}><option value="CUSTOMER_SUPPORT">{t("ragAudit.categories.CUSTOMER_SUPPORT")}</option><option value="OPERATOR_POLICY">{t("ragAudit.categories.OPERATOR_POLICY")}</option><option value="PLATFORM_ADMIN">{t("ragAudit.categories.PLATFORM_ADMIN")}</option></CustomSelect></label>
+            <label><span className="mb-1.5 block text-xs font-semibold text-gray-600">{t("ragAudit.documentType")}</span><CustomSelect value={documentType} onChange={(event) => setDocumentType(event.target.value as RagDocumentType)}><option value="FAQ">{t("ragAudit.documentTypes.FAQ")}</option><option value="POLICY">{t("ragAudit.documentTypes.POLICY")}</option><option value="SOP">{t("ragAudit.documentTypes.SOP")}</option><option value="GUIDE">{t("ragAudit.documentTypes.GUIDE")}</option><option value="TERMS">{t("ragAudit.documentTypes.TERMS")}</option></CustomSelect></label>
             <fieldset className="sm:col-span-2">
               <legend className="mb-1.5 block text-xs font-semibold text-gray-600">
                 {t("ragAudit.audienceRoles")}

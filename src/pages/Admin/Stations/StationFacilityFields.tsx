@@ -1,8 +1,9 @@
 // Khối tiện ích (facilities) của form trạm: checkbox chuẩn + tag tuỳ chỉnh
 import { useTranslation } from "react-i18next";
-import { FiPlus, FiX } from "react-icons/fi";
-import { facilityOptions, inputClass } from "./stationHelpers";
+import { FiPlus, FiPlusCircle, FiX } from "react-icons/fi";
+import { facilityOptions } from "./stationHelpers";
 import Checkbox from "../../../components/form/Checkbox";
+import { IconInput } from "../../../components/form/IconInput";
 
 type StationFacilityFieldsProps = {
   facilities: string[];
@@ -75,8 +76,9 @@ export default function StationFacilityFields({
         ))}
 
       <div className="mt-4 flex gap-2">
-        <input
-          className={inputClass}
+        <IconInput
+          icon={<FiPlusCircle size={18} />}
+          wrapperClassName="min-w-0 flex-1"
           value={customFacility}
           onChange={(event) => onCustomFacilityChange(event.target.value)}
           onKeyDown={(event) => {

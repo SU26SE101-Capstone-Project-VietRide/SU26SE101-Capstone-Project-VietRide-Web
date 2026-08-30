@@ -7180,6 +7180,16 @@ export const SLA_STATES = [
   "CLOSED",
 ] as const;
 
+/**
+ * Hàng đợi sự cố nhận THÊM `NOT_STARTED` — sự cố chưa được duyệt thì
+ * `searchDeadline = null` và SLA chưa chạy (§3 playbook Reliability v2).
+ *
+ * KHÔNG dùng danh sách này cho filter khiếu nại: handler claims chỉ nhận
+ * ON_TRACK/DUE_SOON/BREACHED/CLOSED, gửi `NOT_STARTED` sang đó là
+ * `422 VALIDATION_ERROR`.
+ */
+export const INCIDENT_SLA_STATES = ["NOT_STARTED", ...SLA_STATES] as const;
+
 export type SlaState = (typeof SLA_STATES)[number] | (string & {});
 
 export const PARCEL_CUSTODY_LOCATION_TYPES = [
@@ -7484,21 +7494,27 @@ export type DecideCustodyExceptionBody = {
 export type ParcelIncidentDetail = {
   incident: ParcelIncidentListItem;
   searchTasks: ParcelIncidentSearchTask[];
-  expectedLocation?: ReliabilityLocation | null;
+  /**
+   * Chuỗi mô tả nơi ĐÁNG LẼ kiện phải ở, không phải object địa điểm — BE trả
+   * `string?` (`ParcelIncidentDetailResponse.ExpectedLocation`). Object địa
+   * điểm là `expectedDropoff`.
+   */
+  expectedLocation?: string | null;
   resolutionCode?: string | null;
   resolutionNote?: string | null;
   resolvedAt?: string | null;
   currentCustody?: ParcelIncidentCurrentCustody | null;
   custodyTimeline: ParcelCustodyTimeline;
-  /** Shape đầy đủ khai ở module Khiếu nại (§7) — chưa dựng nên để `unknown` */
-  claim?: unknown;
+  /** Khiếu nại đã mở cho kiện này (nếu có) — shape khai ở module Khiếu nại */
+  claim?: ParcelClaim | null;
   parcel?: ReliabilityParcelSummary | null;
   sender?: OperatorUserSummary | null;
   recipient?: OperatorUserSummary | null;
   trip?: ReliabilityTrip | null;
   expectedDropoff?: ReliabilityLocation | null;
   reporter?: OperatorUserSummary | null;
-  forwardingSummary?: unknown;
+  /** Chuyến đang gánh kiện sau khi chuyển tiếp — BE trả nguyên `ReliabilityTrip` */
+  forwardingSummary?: ReliabilityTrip | null;
   availableActions: ParcelIncidentAction[];
   forwardingOperation?: ParcelForwardingOperation | null;
   /** `null` khi sự cố không đến từ báo cáo cần duyệt (§6) */
@@ -7518,8 +7534,9 @@ export type ParcelForwardingOption = {
 };
 
 /**
- * Allow-list BE: status, type, search, tripId, assigneeId, slaState, from, to,
- * page, pageSize. `from`/`to` là datetime (không phải date như list Parcel).
+ * Allow-list BE: status, type, search, tripId, assigneeId, slaState,
+ * approvalStatus, from, to, page, pageSize. `from`/`to` là datetime (không phải
+ * date như list Parcel).
  */
 export type ParcelIncidentListParams = {
   page?: number;
@@ -7530,7 +7547,15 @@ export type ParcelIncidentListParams = {
   search?: string;
   tripId?: string;
   assigneeId?: string;
+  /** Nhận thêm `NOT_STARTED` (xem `INCIDENT_SLA_STATES`) */
   slaState?: SlaState;
+  /**
+   * Lọc theo trạng thái BÁO CÁO custody exception gắn với sự cố (§3 playbook
+   * Reliability v2). `PENDING_APPROVAL` chính là hàng đợi "chờ duyệt" — dùng
+   * tham số này thay vì lọc `availableActions` ở client, vì lọc client chỉ
+   * thấy được trang đang mở.
+   */
+  approvalStatus?: CustodyExceptionApprovalStatus;
   from?: string;
   to?: string;
 };
@@ -7573,10 +7598,19 @@ export type ResolveParcelIncidentRequest = {
   resolutionCode?: string;
 };
 
-/** `declare-lost` dùng chung request record nhưng handler chỉ đọc `note` */
+/**
+ * `declare-lost` dùng chung request record với `resolve` nhưng handler chỉ đọc
+ * `note`. Vẫn gửi `resolutionCode: "LOST_CONFIRMED"` theo §8 playbook: DTO có
+ * giá trị mặc định là `DELIVERED_TO_CORRECT_LOCATION`, để trống là ghi vào hồ
+ * sơ một mã sai nghĩa nếu BE bắt đầu đọc field này.
+ */
 export type DeclareParcelIncidentLostRequest = {
   note?: string | null;
+  resolutionCode?: string;
 };
+
+/** Mã kết luận cho `declare-lost` (§8) — không có `ParcelStatus = LOST`. */
+export const PARCEL_INCIDENT_LOST_RESOLUTION_CODE = "LOST_CONFIRMED";
 
 export function getOperatorParcelIncidents(
   params: ParcelIncidentListParams = {},
@@ -7838,6 +7872,12 @@ export type ParcelClaim = {
   appealReason?: string | null;
   appealedByUserId?: string | null;
   appealedAt?: string | null;
+  /**
+   * Aggregate khiếu nại lại — trạng thái/tiền của nó ĐỘC LẬP với claim gốc
+   * (§12). Claim gốc vẫn giữ `PAID`/`REJECTED`, đừng đổi nó thành `APPEALED`
+   * ở client.
+   */
+  appeal?: ParcelClaimAppeal | null;
   evidence: ParcelClaimEvidence[];
   parcelSummary?: ReliabilityParcelSummary | null;
   incidentSummary?: ReliabilityIncidentSummary | null;
@@ -7922,6 +7962,192 @@ export function decideOperatorParcelClaim(
   return apiRequest<ParcelClaimDetail>(
     `/v1/operator/claims/${claimId}/decision`,
     { method: "POST", body: request },
+  );
+}
+
+/* ── Khiếu nại lại (appeal) — §12 playbook Parcel Reliability v2 ───────────
+ *
+ * Appeal là AGGREGATE RIÊNG, có vòng đời và tiền riêng:
+ *
+ *   SUBMITTED → UNDER_REVIEW → UPHELD
+ *   SUBMITTED → UNDER_REVIEW → ADJUSTMENT_APPROVED → FUNDING_PENDING → PAID
+ *
+ * Claim gốc KHÔNG đổi trạng thái theo appeal — nó vẫn `PAID` hoặc `REJECTED`.
+ */
+
+export const PARCEL_CLAIM_APPEAL_STATUSES = [
+  "SUBMITTED",
+  /**
+   * Enum/filter hợp lệ, nhưng handler decision bắt đầu review và chốt kết quả
+   * trong CÙNG một transaction — UI gần như không bao giờ quan sát được trạng
+   * thái này (§12).
+   */
+  "UNDER_REVIEW",
+  "UPHELD",
+  "ADJUSTMENT_APPROVED",
+  "FUNDING_PENDING",
+  "PAID",
+] as const;
+
+export type ParcelClaimAppealStatus =
+  (typeof PARCEL_CLAIM_APPEAL_STATUSES)[number];
+
+/** Chỉ `DECIDE_APPEAL`, và BE chỉ gắn khi appeal còn `SUBMITTED`. */
+export type ParcelClaimAppealAction = "DECIDE_APPEAL" | (string & {});
+
+export type ParcelClaimAppeal = {
+  appealId: string;
+  claimId: string;
+  /** Trạng thái claim gốc lúc khách nộp appeal — chỉ để đối chiếu, không đổi */
+  originalClaimStatus: ParcelClaimStatus | (string & {});
+  originalTotalAwardVnd: number;
+  status: ParcelClaimAppealStatus | (string & {});
+  /** Lý do khách nộp appeal */
+  reason: string;
+  submittedByUserId: string;
+  submittedAt: string;
+  revisedProvenDirectLossVnd?: number | null;
+  revisedCargoAwardVnd: number;
+  revisedFreightRefundVnd: number;
+  revisedTotalAwardVnd: number;
+  /**
+   * `revisedTotalAwardVnd - originalTotalAwardVnd`. ĐÂY là khoản duy nhất được
+   * đẩy sang Payment; không trả lại toàn bộ award gốc (§12).
+   */
+  supplementaryAwardVnd: number;
+  /** Lý do quyết định của Operator Admin */
+  decisionReason?: string | null;
+  decidedByUserId?: string | null;
+  decidedAt?: string | null;
+  /** Payment dùng `appealId` làm compensation reference, không dùng lại claimId */
+  payoutReferenceId?: string | null;
+  paidAt?: string | null;
+  availableActions: ParcelClaimAppealAction[];
+};
+
+/** Allow-list BE: status, page, pageSize. Không có search/slaState/from/to. */
+export type ParcelClaimAppealListParams = {
+  page?: number;
+  pageSize?: number;
+  status?: ParcelClaimAppealStatus;
+};
+
+/**
+ * Body quyết định appeal (§12).
+ *
+ * - `decision` chỉ `UPHOLD` hoặc `APPROVE_ADJUSTMENT`.
+ * - `revisedProvenDirectLossVnd` nếu gửi phải `>= 0`.
+ * - `reason` bắt buộc nonblank, tối đa 2000 ký tự.
+ * - `APPROVE_ADJUSTMENT` phải làm `revisedTotalAwardVnd > originalTotalAwardVnd`,
+ *   nếu không BE trả validation error — FE KHÔNG tự tính số tiền, chỉ cảnh báo.
+ */
+export type DecideParcelClaimAppealRequest = {
+  decision: "UPHOLD" | "APPROVE_ADJUSTMENT";
+  revisedProvenDirectLossVnd?: number | null;
+  reason: string;
+};
+
+export function getOperatorParcelClaimAppeals(
+  params: ParcelClaimAppealListParams = {},
+) {
+  return apiRequest<PagedResult<ParcelClaimAppeal>>(
+    `/v1/operator/claim-appeals${buildQuery(params)}`,
+  );
+}
+
+export function getOperatorParcelClaimAppeal(appealId: string) {
+  return apiRequest<ParcelClaimAppeal>(
+    `/v1/operator/claim-appeals/${appealId}`,
+  );
+}
+
+/**
+ * Chỉ `OPERATOR_ADMIN` (controller `[Authorize(Roles = "OPERATOR_ADMIN")]`).
+ * Trả về chính object appeal đã cập nhật — thay thẳng vào row/detail.
+ *
+ * `idempotencyKey` nhận từ ngoài để retry vì timeout DÙNG LẠI key cũ; đổi
+ * UPHOLD↔APPROVE_ADJUSTMENT hoặc sửa số tiền mới sinh key mới (§17).
+ */
+export function decideOperatorParcelClaimAppeal(
+  appealId: string,
+  request: DecideParcelClaimAppealRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelClaimAppeal>(
+    `/v1/operator/claim-appeals/${appealId}/decision`,
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
+  );
+}
+
+/* ── Duyệt cho chuyến rời điểm dừng còn kiện chưa đối soát (§9) ────────────
+ *
+ * KHÔNG có endpoint list/queue. `requestId` chỉ đến từ:
+ * - `departureOverrideRequest.requestId` của luồng reconcile (app phụ xe), hoặc
+ * - `error.fields.approvalRequestId` khi Trip depart bị
+ *   `409 PARCEL_STOP_RECONCILIATION_REQUIRED`.
+ *
+ * Duyệt ở đây CHỈ cho chuyến rời bến; nó KHÔNG có nghĩa kiện đã mất và không
+ * được dùng để mở claim.
+ */
+
+export const PARCEL_STOP_DEPARTURE_APPROVAL_STATUSES = [
+  "PENDING_APPROVAL",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+] as const;
+
+export type ParcelStopDepartureApprovalStatus =
+  (typeof PARCEL_STOP_DEPARTURE_APPROVAL_STATUSES)[number];
+
+export type ParcelStopDepartureApproval = {
+  requestId: string;
+  tripId: string;
+  stopId: string;
+  operatorId: string;
+  /** Danh sách Parcel chưa đối soát tại điểm dừng — chỉ có ID, không enrich */
+  unresolvedParcelIds: string[];
+  departureOverrideReason: string;
+  status: ParcelStopDepartureApprovalStatus | (string & {});
+  requestedByUserId: string;
+  requestedByRole: string;
+  requestedAt: string;
+  reviewedByUserId?: string | null;
+  reviewedByRole?: string | null;
+  reviewedAt?: string | null;
+  reviewNote?: string | null;
+  /** `["APPROVE","REJECT"]` khi còn `PENDING_APPROVAL`, ngược lại rỗng */
+  availableActions: ParcelIncidentAction[];
+};
+
+/** Body strict: đúng hai field. Người duyệt lấy từ JWT, không có reviewer ID. */
+export type DecideParcelStopDepartureApprovalRequest = {
+  decision: "APPROVE" | "REJECT";
+  note?: string | null;
+};
+
+export function getParcelStopDepartureApproval(requestId: string) {
+  return apiRequest<ParcelStopDepartureApproval>(
+    `/v1/operator/parcel-stop-departure-approvals/${requestId}`,
+  );
+}
+
+export function decideParcelStopDepartureApproval(
+  requestId: string,
+  request: DecideParcelStopDepartureApprovalRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<ParcelStopDepartureApproval>(
+    `/v1/operator/parcel-stop-departure-approvals/${requestId}/decision`,
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
   );
 }
 

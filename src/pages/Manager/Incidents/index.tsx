@@ -489,7 +489,7 @@ export default function ManagerIncidents() {
           <div className="flex items-end">
             <Button
               variant="secondary"
-              className="!h-12 !w-full !rounded-[9999px] !border-[#bfe1ec] !bg-white !text-[15px] !text-slate-700 !shadow-[0_0_0_1px_rgba(175,219,234,0.18)] hover:bg-gray-50"
+              className="!h-12 !w-full !rounded-[9999px] !border-gray-300 !bg-white !text-[15px] !text-slate-700 !shadow-[0_0_0_1px_rgba(15,23,42,0.04)] hover:bg-gray-50"
               onClick={resetFilters}
             >
               {tc("reset")}

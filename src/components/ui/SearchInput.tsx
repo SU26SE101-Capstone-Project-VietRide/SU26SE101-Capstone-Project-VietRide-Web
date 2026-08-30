@@ -71,7 +71,7 @@ export function SearchInput({
   ...rest
 }: SearchInputProps) {
   const mergedInputClassName = [
-    "h-12 w-full rounded-[9999px] border border-[#bfe1ec] bg-white pl-11 pr-4 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] outline-none transition placeholder:text-slate-400 focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5]",
+    "h-12 w-full rounded-[9999px] border border-gray-300 bg-white pl-11 pr-4 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.04)] outline-none transition placeholder:text-slate-400 focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5]",
     normalizeLegacyInputClasses(inputClassName ?? ""),
   ]
     .filter(Boolean)

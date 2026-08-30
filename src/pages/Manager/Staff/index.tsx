@@ -16,10 +16,12 @@ import {
   FiKey,
   FiLock,
   FiMail,
+  FiPhone,
   FiPlus,
   FiTruck,
   FiUnlock,
   FiUser,
+  FiUserCheck,
   FiUsers,
 } from "react-icons/fi";
 import Modal from "../../../components/Modal";
@@ -39,14 +41,12 @@ import {
 } from "../../../utils/phone";
 import CustomSelect from "../../../components/CustomSelect";
 import { PersonnelTable } from "../../../components/PersonnelTable";
+import { IconInput } from "../../../components/form/IconInput";
 import { labelClass } from "../../../components/form/formClasses";
 import { StatCard } from "../../../components/StatCard";
 import { Button } from "../../../components/ui/Button";
 import { SearchInput } from "../../../components/ui/SearchInput";
 import { Badge } from "../../../components/ui/Badge";
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
 
 function getAvatarInitials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -497,7 +497,7 @@ export default function StaffPage() {
             />
             <div className="contents">
               <CustomSelect
-                className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition lg:w-[220px]"
+        className="lg:w-[220px]"
                 value={roleFilter}
                 onChange={(event) => {
                   setRoleFilter(event.target.value);
@@ -512,7 +512,7 @@ export default function StaffPage() {
                 ))}
               </CustomSelect>
               <CustomSelect
-                className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition lg:w-[300px]"
+        className="lg:w-[300px]"
                 value={statusFilter}
                 onChange={(event) => {
                   setStatusFilter(event.target.value);
@@ -725,8 +725,8 @@ export default function StaffPage() {
                   {t("staff.fullNameLabel")}{" "}
                   <span className="text-red-500">*</span>
                 </label>
-                <input
-                  className={inputClass}
+                <IconInput
+                  icon={<FiUser size={18} />}
                   value={userForm.displayName}
                   onChange={(e) =>
                     updateUserForm("displayName", e.target.value)
@@ -738,8 +738,8 @@ export default function StaffPage() {
                 <label className={labelClass}>
                   {tc("email")} <span className="text-red-500">*</span>
                 </label>
-                <input
-                  className={inputClass}
+                <IconInput
+                  icon={<FiMail size={18} />}
                   type="email"
                   value={userForm.email}
                   onChange={(e) => updateUserForm("email", e.target.value)}
@@ -750,8 +750,8 @@ export default function StaffPage() {
                 <label className={labelClass}>
                   {tc("phone")} <span className="text-red-500">*</span>
                 </label>
-                <input
-                  className={inputClass}
+                <IconInput
+                  icon={<FiPhone size={18} />}
                   type="tel"
                   value={userForm.phone}
                   onChange={(e) => updateUserForm("phone", e.target.value)}
@@ -766,7 +766,7 @@ export default function StaffPage() {
                   {t("staff.role")} <span className="text-red-500">*</span>
                 </label>
                 <CustomSelect
-                  className={inputClass}
+                  icon={<FiUserCheck size={18} />}
                   value={userForm.role}
                   onChange={(e) => updateUserForm("role", e.target.value)}
                 >

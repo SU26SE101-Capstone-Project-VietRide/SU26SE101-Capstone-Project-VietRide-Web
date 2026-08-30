@@ -13,6 +13,11 @@ import {
   getOperatorParcelClaims,
   getOperatorParcelClaim,
   decideOperatorParcelClaim,
+  getOperatorParcelClaimAppeals,
+  getOperatorParcelClaimAppeal,
+  decideOperatorParcelClaimAppeal,
+  getParcelStopDepartureApproval,
+  decideParcelStopDepartureApproval,
   getUnidentifiedPackages,
   getUnidentifiedPackage,
   getUnidentifiedPackageMatchCandidates,
@@ -4317,12 +4322,13 @@ describe("operator parcel incidents", () => {
       tripId: "trip-1",
       assigneeId: "user-9",
       slaState: "BREACHED",
+      approvalStatus: "PENDING_APPROVAL",
       from: "2026-08-20T00:00:00+07:00",
       to: "2026-08-21T23:59:59+07:00",
     });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://api.vietride.online/v1/operator/parcel-incidents?page=2&pageSize=50&status=SEARCHING&type=WRONG_STOP&search=VR-PCL&tripId=trip-1&assigneeId=user-9&slaState=BREACHED&from=2026-08-20T00%3A00%3A00%2B07%3A00&to=2026-08-21T23%3A59%3A59%2B07%3A00",
+      "https://api.vietride.online/v1/operator/parcel-incidents?page=2&pageSize=50&status=SEARCHING&type=WRONG_STOP&search=VR-PCL&tripId=trip-1&assigneeId=user-9&slaState=BREACHED&approvalStatus=PENDING_APPROVAL&from=2026-08-20T00%3A00%3A00%2B07%3A00&to=2026-08-21T23%3A59%3A59%2B07%3A00",
     );
   });
 
@@ -4375,6 +4381,7 @@ describe("operator parcel incidents", () => {
       resolutionCode: "DELIVERED_TO_CORRECT_LOCATION",
     });
     await declareOperatorParcelIncidentLost("incident-1", {
+      resolutionCode: "LOST_CONFIRMED",
       note: "Hết hạn tìm kiếm",
     });
 
@@ -4631,6 +4638,173 @@ describe("parcel claims", () => {
       decision: "APPROVE",
       provenDirectLossVnd: 12_000_000,
       reason: "Chung tu hop le",
+    });
+  });
+});
+
+describe("parcel claim appeals", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "ops@operator.vn",
+          displayName: "Ops",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+  });
+
+  it("chỉ gửi status/page/pageSize cho hàng đợi appeal", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: { items: [] } }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorParcelClaimAppeals({
+      page: 2,
+      pageSize: 50,
+      status: "SUBMITTED",
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.vietride.online/v1/operator/claim-appeals?page=2&pageSize=50&status=SUBMITTED",
+    );
+  });
+
+  it("đọc một appeal không kèm query", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOperatorParcelClaimAppeal("appeal-1");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.vietride.online/v1/operator/claim-appeals/appeal-1",
+    );
+  });
+
+  it("gửi quyết định appeal kèm Idempotency-Key và đúng ba field", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await decideOperatorParcelClaimAppeal("appeal-1", {
+      decision: "APPROVE_ADJUSTMENT",
+      revisedProvenDirectLossVnd: 15_000_000,
+      reason: "Chung tu bo sung hop le",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://api.vietride.online/v1/operator/claim-appeals/appeal-1/decision",
+    );
+    expect(init?.method).toBe("POST");
+    expect(
+      (init?.headers as Record<string, string>)["Idempotency-Key"],
+    ).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    // KHÔNG có reviewer/supervisor UUID trong body — người quyết định lấy từ JWT
+    expect(JSON.parse(String(init?.body))).toEqual({
+      decision: "APPROVE_ADJUSTMENT",
+      revisedProvenDirectLossVnd: 15_000_000,
+      reason: "Chung tu bo sung hop le",
+    });
+  });
+
+  it("dùng lại đúng Idempotency-Key được truyền vào khi retry", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const key = "11111111-2222-4333-8444-555555555555";
+    await decideOperatorParcelClaimAppeal(
+      "appeal-1",
+      { decision: "UPHOLD", reason: "Giu nguyen quyet dinh" },
+      key,
+    );
+    await decideOperatorParcelClaimAppeal(
+      "appeal-1",
+      { decision: "UPHOLD", reason: "Giu nguyen quyet dinh" },
+      key,
+    );
+
+    fetchMock.mock.calls.forEach((call) => {
+      expect(
+        (call[1]?.headers as Record<string, string>)["Idempotency-Key"],
+      ).toBe(key);
+    });
+  });
+});
+
+describe("parcel stop departure approvals", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "user-1",
+          email: "ops@operator.vn",
+          displayName: "Ops",
+          role: "OPERATOR_ADMIN",
+        },
+      }),
+    );
+  });
+
+  it("đọc yêu cầu theo requestId", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getParcelStopDepartureApproval("request-1");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.vietride.online/v1/operator/parcel-stop-departure-approvals/request-1",
+    );
+  });
+
+  it("gửi đúng decision/note kèm Idempotency-Key", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await decideParcelStopDepartureApproval("request-1", {
+      decision: "APPROVE",
+      note: "Da mo nhiem vu tim kiem",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://api.vietride.online/v1/operator/parcel-stop-departure-approvals/request-1/decision",
+    );
+    expect(init?.method).toBe("POST");
+    expect(
+      (init?.headers as Record<string, string>)["Idempotency-Key"],
+    ).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(JSON.parse(String(init?.body))).toEqual({
+      decision: "APPROVE",
+      note: "Da mo nhiem vu tim kiem",
     });
   });
 });

@@ -51,12 +51,9 @@ import {
 import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
 import { SearchInput } from "../../../components/ui/SearchInput";
 
-// Mọi ô lọc dùng chung một class để cao bằng nhau (min-h-11 khớp CustomSelect /
-// CustomDateTimeInput) — trước đây ô search py-3 còn select py-2 nên so le.
-const filterControlClass =
-  "min-h-[50px] w-full rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] outline-none transition focus:border-vr-500 focus:ring-4 focus:ring-vr-100";
-const searchInputClass =
-  "min-h-[50px] w-full rounded-[9999px] border border-slate-300 bg-white py-3 pl-11 pr-4 text-[15px] text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100";
+// `CustomSelect` và `SearchInput` tự dựng skin và LỌC BỎ class ngoại hình nhận
+// từ call site, nên hai hằng cũ ở đây (viền xanh #9cc3ee) chưa bao giờ render ra
+// — bỏ hẳn thay vì đổi màu theo. Xem components/ui/controlClasses.ts.
 const toolbarButtonClass =
   "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[9999px] border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white";
 
@@ -454,7 +451,6 @@ export default function Operators() {
               setPage(1);
             }}
             placeholder={t("operators.searchPlaceholder")}
-            inputClassName={searchInputClass}
             wrapperClassName="relative min-w-0 md:col-span-2 xl:col-span-1"
           />
 
@@ -471,7 +467,6 @@ export default function Operators() {
               setFilterStatus(e.target.value as typeof filterStatus);
               setPage(1);
             }}
-            className={filterControlClass}
           >
             <option value="ALL">{t("operators.allStatus")}</option>
             <option value="PENDING">{tc("pending")}</option>
@@ -488,7 +483,6 @@ export default function Operators() {
               setPage(1);
             }}
             aria-label={t("operators.filterActivation")}
-            className={filterControlClass}
           >
             <option value="">{t("operators.allActivation")}</option>
             <option value="ACTIVE">{tc("active")}</option>
@@ -535,8 +529,7 @@ export default function Operators() {
                   setPage(1);
                 }}
                 aria-label={t("operators.dateFieldLabel")}
-                className={filterControlClass}
-              >
+                  >
                 <option value="createdAt">
                   {t("operators.dateFieldCreatedAt")}
                 </option>

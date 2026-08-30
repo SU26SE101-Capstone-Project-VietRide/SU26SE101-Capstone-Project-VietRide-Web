@@ -21,9 +21,9 @@ import {
 import {
   getOperatorParcelIncident,
   getOperatorParcelIncidents,
+  INCIDENT_SLA_STATES,
   PARCEL_INCIDENT_STATUSES,
   PARCEL_INCIDENT_TYPES,
-  SLA_STATES,
   type ParcelIncidentDetail,
   type ParcelIncidentListItem,
   type ParcelIncidentListParams,
@@ -76,11 +76,14 @@ export default function ParcelIncidentsPage() {
   const [slaState, setSlaState] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  // Lọc "chờ duyệt báo cáo". Backend CHƯA có query param `approvalStatus` (§5
-  // của guide custody exception) nên bộ lọc này chạy trên trang hiện tại: request
-  // vẫn siết được về `status=OPEN` — pending approval luôn là OPEN — còn việc
-  // nhận diện thì bắt buộc dựa vào `availableActions` của từng dòng.
+  // Lọc "chờ duyệt báo cáo" chạy Ở SERVER qua `approvalStatus=PENDING_APPROVAL`
+  // (§3 playbook Reliability v2). Trước đây bộ lọc này chạy trên trang đang mở
+  // nên số đếm và bảng chỉ đúng trong phạm vi 20 dòng — giờ phân trang và tổng
+  // số đều là con số thật của BE.
   const [pendingApprovalOnly, setPendingApprovalOnly] = useState(false);
+  // Tổng số báo cáo chờ duyệt của TOÀN hàng đợi, không phải của trang hiện tại.
+  // Đếm bằng một request pageSize=1 vì BE không trả badge count riêng.
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   const [detail, setDetail] = useState<ParcelIncidentDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -122,16 +125,17 @@ export default function ParcelIncidentsPage() {
       const params: ParcelIncidentListParams = {
         page,
         pageSize: PAGE_SIZE,
-        // Pending approval luôn mang `status = OPEN`; siết ở server để trang
-        // hiện tại chứa nhiều dòng chờ duyệt nhất có thể.
+        // Hàng đợi chờ duyệt được siết Ở SERVER. Không kèm `status` nữa:
+        // ràng buộc "pending approval luôn là OPEN" là luật của BE, lặp lại ở
+        // đây là dựng lại state machine lần hai.
         ...(pendingApprovalOnly
-          ? { status: "OPEN" as ParcelIncidentStatus }
+          ? { approvalStatus: "PENDING_APPROVAL" as const }
           : status
             ? { status: status as ParcelIncidentStatus }
             : {}),
         ...(type ? { type: type as ParcelIncidentType } : {}),
-        // §5: pending approval bị BE loại khỏi mọi filter SLA — gửi kèm
-        // `slaState` là bảo đảm trả về rỗng.
+        // §3: sự cố chờ duyệt có `searchDeadline = null` nên mọi filter SLA
+        // khác `NOT_STARTED` đều loại nó ra — gửi kèm là bảo đảm bảng rỗng.
         ...(slaState && !pendingApprovalOnly ? { slaState } : {}),
         ...(debouncedSearch ? { search: debouncedSearch } : {}),
         ...(from ? { from } : {}),
@@ -186,6 +190,31 @@ export default function ParcelIncidentsPage() {
     type,
   ]);
 
+  // Badge "chờ duyệt" phải là tổng của cả hàng đợi, nên đếm bằng một request
+  // riêng `pageSize=1` và chỉ đọc `totalItems`. Lỗi ở đây KHÔNG được đẩy lên
+  // `error` của bảng: badge sai số là chuyện nhỏ, che mất danh sách mới là to.
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadPendingCount() {
+      try {
+        const result = await getOperatorParcelIncidents({
+          page: 1,
+          pageSize: 1,
+          approvalStatus: "PENDING_APPROVAL",
+        });
+        if (!ignore) setPendingApprovalCount(result.totalItems);
+      } catch {
+        if (!ignore) setPendingApprovalCount(0);
+      }
+    }
+
+    void loadPendingCount();
+    return () => {
+      ignore = true;
+    };
+  }, [refreshVersion]);
+
   const openDetail = useCallback(async (incidentId: string) => {
     detailRequestRef.current = incidentId;
     setIsLoadingDetail(true);
@@ -224,26 +253,6 @@ export default function ParcelIncidentsPage() {
     [from, pendingApprovalOnly, slaState, status, to, type],
   );
 
-  // Lọc client-side vì backend chưa có tham số riêng. Chỉ áp cho trang đang
-  // hiển thị — tổng số ở phân trang vẫn là con số của BE, không được sửa lại
-  // theo mảng đã lọc.
-  const visibleItems = useMemo(
-    () =>
-      pendingApprovalOnly
-        ? items.filter((incident) =>
-            isPendingCustodyApproval(incident.availableActions),
-          )
-        : items,
-    [items, pendingApprovalOnly],
-  );
-
-  const pendingApprovalCount = useMemo(
-    () =>
-      items.filter((incident) =>
-        isPendingCustodyApproval(incident.availableActions),
-      ).length,
-    [items],
-  );
 
   function clearFilters() {
     setStatus("");
@@ -359,7 +368,7 @@ export default function ParcelIncidentsPage() {
                 }}
               >
                 <option value="">{tc("all")}</option>
-                {SLA_STATES.map((value) => (
+                {INCIDENT_SLA_STATES.map((value) => (
                   <option key={value} value={value}>
                     {t(`parcelIncidents.sla.${value}`)}
                   </option>
@@ -494,7 +503,7 @@ export default function ParcelIncidentsPage() {
                   cellClassName="px-5 py-4"
                 />
               )}
-              {!isLoading && visibleItems.length === 0 && (
+              {!isLoading && items.length === 0 && (
                 <tr>
                   <td
                     colSpan={COLUMN_COUNT}
@@ -505,9 +514,9 @@ export default function ParcelIncidentsPage() {
                       size={28}
                       aria-hidden="true"
                     />
-                    {/* Rỗng vì lọc khác hẳn rỗng vì không có sự cố nào. Lọc
-                        chờ duyệt còn có nghĩa thứ ba: trang này không có dòng
-                        nào chờ duyệt, trang khác thì chưa chắc. */}
+                    {/* Rỗng vì lọc khác hẳn rỗng vì không có sự cố nào. Từ khi
+                        lọc chờ duyệt chạy ở server, "rỗng" ở phạm vi chờ duyệt
+                        nghĩa là CẢ hàng đợi không còn báo cáo nào phải duyệt. */}
                     {pendingApprovalOnly
                       ? t("parcelIncidents.approval.pendingEmpty")
                       : activeFilterCount > 0 || debouncedSearch
@@ -516,7 +525,7 @@ export default function ParcelIncidentsPage() {
                   </td>
                 </tr>
               )}
-              {visibleItems.map((incident) => (
+              {items.map((incident) => (
                 <IncidentRow
                   key={incident.incidentId}
                   incident={incident}

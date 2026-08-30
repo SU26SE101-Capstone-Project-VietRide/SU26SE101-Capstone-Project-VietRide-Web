@@ -22,8 +22,7 @@ import { SearchInput } from "../../../components/ui/SearchInput";
 import { Badge } from "../../../components/ui/Badge";
 
 const PAGE_SIZE = 10;
-const inputClass =
-  "w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition focus:border-vr-500 focus:outline-none focus:ring-4 focus:ring-vr-100";
+
 
 export default function ManagerRouteManagementPage() {
   const { t, i18n } = useTranslation("manager");
@@ -211,7 +210,6 @@ export default function ManagerRouteManagementPage() {
               setPage(1);
             }}
             placeholder={t("routeManagement.searchPlaceholder")}
-            inputClassName={`${inputClass} pl-9`}
             wrapperClassName="relative"
           />
           <CustomSelect
@@ -221,7 +219,6 @@ export default function ManagerRouteManagementPage() {
               setStatus(event.target.value);
               setPage(1);
             }}
-            className={`${inputClass} min-h-11`}
           >
             <option value="">{tc("all")}</option>
             <option value="ACTIVE">{tc("active")}</option>
@@ -234,7 +231,6 @@ export default function ManagerRouteManagementPage() {
               setOriginStationId(event.target.value);
               setPage(1);
             }}
-            className={`${inputClass} min-h-11`}
           >
             <option value="">{t("routeManagement.allOrigins")}</option>
             {stations.map((station) => (
@@ -252,7 +248,6 @@ export default function ManagerRouteManagementPage() {
               setDestinationStationId(event.target.value);
               setPage(1);
             }}
-            className={`${inputClass} min-h-11`}
           >
             <option value="">{t("routeManagement.allDestinations")}</option>
             {stations.map((station) => (

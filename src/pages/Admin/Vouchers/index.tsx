@@ -271,7 +271,7 @@ export default function Vouchers() {
           setStatusFilter(event.target.value);
           setVoucherPage(1);
         }}
-        className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition lg:w-[190px]"
+        className="lg:w-[190px]"
         aria-label={t("vouchers.filterStatus")}
       >
         <option value="">{t("vouchers.allStatuses")}</option>
@@ -284,7 +284,7 @@ export default function Vouchers() {
           setServiceFilter(event.target.value);
           setVoucherPage(1);
         }}
-        className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition lg:w-[210px]"
+        className="lg:w-[210px]"
         aria-label={t("vouchers.filterService")}
       >
         <option value="">{t("vouchers.allServices")}</option>

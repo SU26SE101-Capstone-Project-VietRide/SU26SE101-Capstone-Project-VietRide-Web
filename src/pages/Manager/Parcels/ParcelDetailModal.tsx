@@ -28,6 +28,7 @@ import { Button } from "../../../components/ui/Button";
 import { DetailItem, DetailSection } from "../../../components/DetailLayout";
 import StationHandoffModal from "./StationHandoffModal";
 import { formatDateTime } from "../../../utils/date";
+import { parcelReasonLabel } from "../../../utils/parcelReason";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
   inputClass,
@@ -120,18 +121,8 @@ export default function ParcelDetailModal({
 
   const canCancel = isPreLoadParcelStatus(selected?.status);
 
-  const getStatusReasonLabel = (reason?: string | null) => {
-    if (!reason) return "";
-
-    const normalizedReason =
-      reason === "Destination arrived without confirmed terminal unload."
-        ? "DESTINATION_ARRIVED_WITHOUT_CONFIRMED_TERMINAL_UNLOAD"
-        : reason;
-
-    return t(`parcels.statusHistoryReasons.${normalizedReason}`, {
-      defaultValue: reason,
-    });
-  };
+  const getStatusReasonLabel = (reason?: string | null) =>
+    parcelReasonLabel(t, reason);
 
   return (
     <>

@@ -365,7 +365,7 @@ export default function ParcelQueue() {
                   "inline-flex min-h-11 items-center justify-center gap-2 rounded-[9999px] border px-3 py-2.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-vr-500/30 " +
                   (advancedFilterCount > 0
                     ? "border-[#2bb7b0] bg-[#ebfffd] text-[#0c6f68]"
-                    : "border-[#a8dfe6] bg-white text-gray-700 hover:border-[#7dc5cf] hover:bg-[#f3fffe] hover:text-vr-900")
+                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:text-vr-900")
                 }
               >
                 <FiSliders aria-hidden="true" size={16} />
@@ -376,7 +376,7 @@ export default function ParcelQueue() {
               </button>
             </div>
             {showAdvancedFilters ? (
-              <div className="mt-3 space-y-2 rounded-[22px] border border-[#a8dfe6] bg-gray-50/60 p-3">
+              <div className="mt-3 space-y-2 rounded-[22px] border border-gray-300 bg-gray-50/60 p-3">
                 <p className="text-xs font-semibold text-gray-600">
                   {t("parcels.queue.dateFieldLabel")}
                 </p>

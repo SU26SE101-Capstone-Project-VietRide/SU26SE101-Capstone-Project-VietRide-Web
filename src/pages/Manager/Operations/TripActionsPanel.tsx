@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   FiAlertTriangle,
+  FiEdit3,
   FiGitBranch,
   FiRefreshCw,
   FiRepeat,
@@ -39,14 +40,12 @@ import { ConfirmModal } from "../../../components/ConfirmModal";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { toDatetimeLocalValue } from "../../../utils/date";
 import Checkbox from "../../../components/form/Checkbox";
+import { IconInput } from "../../../components/form/IconInput";
 import { Badge } from "../../../components/ui/Badge";
 import {
   SubstitutionResultCard,
   type SubstitutionSummary,
 } from "./SubstitutionResultCard";
-
-const inputClass =
-  "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
 
 /**
  * Trạng thái chuyến còn đổi lộ trình được. Ngoài tập này BE chặn bằng
@@ -460,10 +459,10 @@ export default function TripActionsPanel({
     setErrorHint("");
   }
 
-  const fieldClass = (field: SubstitutionFormField) =>
-    fieldErrors.includes(field)
-      ? `${inputClass} border-red-400 focus:border-red-500 focus:ring-red-100`
-      : inputClass;
+  // Viền đỏ đi qua prop `invalid` chứ không nối vào `className`: `CustomSelect`
+  // lọc bỏ class viền nên bản cũ chỉ tô đỏ được đúng ô Lý do.
+  const hasFieldError = (field: SubstitutionFormField) =>
+    fieldErrors.includes(field);
 
   // Tải số khách ngay khi panel mount thay vì đợi mở mục "Thay xe": mục đó phải
   // mở ra mới chọn được xe, nên đợi tới lúc đó thì cảnh báo thiếu ghế đến sau
@@ -982,7 +981,7 @@ export default function TripActionsPanel({
                         current.filter((field) => field !== "incident"),
                       );
                     }}
-                    className={fieldClass("incident")}
+                    invalid={hasFieldError("incident")}
                     aria-label={t("tripOperations.incident")}
                     disabled={isIncidentsLoading || hasNoIncident}
                   >
@@ -1024,7 +1023,7 @@ export default function TripActionsPanel({
                       current.filter((field) => field !== "vehicle"),
                     );
                   }}
-                  className={fieldClass("vehicle")}
+                  invalid={hasFieldError("vehicle")}
                   aria-label={t("tripOperations.vehicle")}
                 >
                   <option value="">{t("tripOperations.selectVehicle")}</option>
@@ -1070,7 +1069,7 @@ export default function TripActionsPanel({
                       current.filter((field) => field !== "driver"),
                     );
                   }}
-                  className={fieldClass("driver")}
+                  invalid={hasFieldError("driver")}
                   aria-label={t("tripOperations.driver")}
                 >
                   <option value="">{t("tripOperations.selectDriver")}</option>
@@ -1099,7 +1098,7 @@ export default function TripActionsPanel({
                       current.filter((field) => field !== "assistant"),
                     );
                   }}
-                  className={fieldClass("assistant")}
+                  invalid={hasFieldError("assistant")}
                   aria-label={t("tripOperations.assistant")}
                 >
                   <option value="">
@@ -1120,7 +1119,8 @@ export default function TripActionsPanel({
                     *
                   </span>
                 </span>
-                <input
+                <IconInput
+                  icon={<FiEdit3 size={18} />}
                   aria-label={t("tripOperations.reason")}
                   value={reason}
                   onChange={(event) => {
@@ -1129,7 +1129,7 @@ export default function TripActionsPanel({
                       current.filter((field) => field !== "reason"),
                     );
                   }}
-                  className={fieldClass("reason")}
+                  invalid={hasFieldError("reason")}
                   maxLength={500}
                   required
                 />

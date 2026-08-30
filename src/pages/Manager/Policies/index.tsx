@@ -3,8 +3,10 @@ import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FiAlignLeft,
   FiPlus,
   FiEdit2,
+  FiTag,
   FiTrash2,
   FiCheck,
   FiX,
@@ -21,9 +23,10 @@ import {
   updateOperatorPolicy,
   type PolicyItem,
 } from "../../../api/vietride";
+import { IconInput } from "../../../components/form/IconInput";
 import {
-  inputClass,
   labelClass,
+  textareaClass,
 } from "../../../components/form/formClasses";
 import { Badge } from "../../../components/ui/Badge";
 
@@ -338,10 +341,10 @@ export default function ManagerPolicies() {
         <div className="grid gap-5 md:grid-cols-2">
           <div className="md:col-span-2">
             <label className={labelClass}>{t("policies.titleLabel")}</label>
-            <input
+            <IconInput
+              icon={<FiFileText size={18} />}
               type="text"
               placeholder={t("policies.titlePlaceholder")}
-              className={`${inputClass} rounded-xl transition focus:ring-4 focus:ring-vr-500/10`}
               value={formData.title}
               onChange={(e) =>
                 setFormData({ ...formData, title: e.target.value })
@@ -353,10 +356,10 @@ export default function ManagerPolicies() {
             <label className={labelClass}>
               {t("policies.shortDescription")}
             </label>
-            <input
+            <IconInput
+              icon={<FiAlignLeft size={18} />}
               type="text"
               placeholder={t("policies.shortDescPlaceholder")}
-              className={`${inputClass} rounded-xl transition focus:ring-4 focus:ring-vr-500/10`}
               value={formData.description}
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
@@ -364,12 +367,12 @@ export default function ManagerPolicies() {
             />
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <label className={labelClass}>{t("policies.categoryLabel")}</label>
-            <input
+            <IconInput
+              icon={<FiTag size={18} />}
               type="text"
               placeholder={t("policies.categoryPlaceholder")}
-              className={`${inputClass} rounded-xl transition focus:ring-4 focus:ring-vr-500/10`}
               value={formData.category}
               onChange={(e) =>
                 setFormData({ ...formData, category: e.target.value })
@@ -381,7 +384,7 @@ export default function ManagerPolicies() {
             <label className={labelClass}>{t("policies.contentLabel")}</label>
             <textarea
               placeholder={t("policies.contentPlaceholder")}
-              className={`${inputClass} min-h-28 max-h-36 resize-none rounded-xl leading-6 transition focus:ring-4 focus:ring-vr-500/10`}
+              className={`${textareaClass} min-h-28 max-h-36 resize-none leading-6`}
               rows={4}
               value={formData.content}
               onChange={(e) =>

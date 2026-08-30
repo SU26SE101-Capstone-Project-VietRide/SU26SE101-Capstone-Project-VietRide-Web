@@ -1,17 +1,17 @@
 // Panel chuẩn hoá / chỉnh sửa chi tiết trạm đang chọn (cột trái của aside)
 import { useTranslation } from "react-i18next";
 import Checkbox from "../../../components/form/Checkbox";
-import { FiMapPin, FiSave } from "react-icons/fi";
+import { FiMail, FiMap, FiMapPin, FiPhone, FiSave } from "react-icons/fi";
 import { type AdminLocation } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import PlacePicker, {
   type PlaceSelection,
 } from "../../../components/PlacePicker";
+import { IconInput } from "../../../components/form/IconInput";
 import StationFacilityFields from "./StationFacilityFields";
 import StationScheduleFields from "./StationScheduleFields";
 import {
   displayCityName,
-  inputClass,
   labelClass,
   type OperatingDayKey,
   type OperatingDaySchedule,
@@ -92,7 +92,7 @@ export default function StationEditorPanel({
             <span className={labelClass}>{t("stations.province")}</span>
             <CustomSelect
               aria-label={t("stations.province")}
-              className={inputClass}
+              icon={<FiMapPin size={18} />}
               value={provinceCode}
               searchable
               searchPlaceholder={tc("searchOptions", {
@@ -113,7 +113,7 @@ export default function StationEditorPanel({
             <span className={labelClass}>{t("stations.wardLocation")}</span>
             <CustomSelect
               aria-label={t("stations.wardLocation")}
-              className={inputClass}
+              icon={<FiMap size={18} />}
               value={form.locationId}
               disabled={!provinceCode || isLoadingWards}
               searchable
@@ -153,8 +153,8 @@ export default function StationEditorPanel({
           </div>
           <label>
             <span className={labelClass}>{tc("phone")}</span>
-            <input
-              className={inputClass}
+            <IconInput
+              icon={<FiPhone size={18} />}
               value={form.contactPhone}
               onChange={(event) =>
                 onFormChange({ ...form, contactPhone: event.target.value })
@@ -163,8 +163,8 @@ export default function StationEditorPanel({
           </label>
           <label>
             <span className={labelClass}>{tc("email")}</span>
-            <input
-              className={inputClass}
+            <IconInput
+              icon={<FiMail size={18} />}
               value={form.contactEmail}
               onChange={(event) =>
                 onFormChange({ ...form, contactEmail: event.target.value })

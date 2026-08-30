@@ -4,8 +4,6 @@ import CustomSelect from "../../../components/CustomSelect";
 import type { Translate } from "./walletTableShared";
 import { SearchInput } from "../../../components/ui/SearchInput";
 
-const inputClass =
-  "h-12 w-full rounded-[9999px] border border-[#bfe1ec] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] outline-none transition placeholder:text-slate-400 focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5]";
 
 export type DateFieldOption = { value: string; label: string };
 
@@ -57,7 +55,7 @@ export function WalletFilters({
           value={dateField}
           onChange={(event) => onDateFieldChange(event.target.value)}
           aria-label={t("wallet.dateFieldLabel")}
-          className={`${inputClass} lg:w-56`}
+          className="lg:w-56"
         >
           {dateFieldOptions.map((option) => (
             <option key={option.value} value={option.value}>

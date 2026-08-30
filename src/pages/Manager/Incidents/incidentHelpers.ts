@@ -4,8 +4,9 @@ import type {
   OperatorIncident,
 } from "../../../api/vietride";
 
-export const inputClass =
-  "h-12 w-full rounded-[9999px] border border-slate-300 bg-white px-4 py-3 text-[15px] text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100";
+// Skin chung của form — bản riêng cũ cao 48px và viền xám `slate-300`, lệch với
+// `CustomSelect` / `CustomDateTimeInput` đứng cùng hàng lọc.
+export { inputClass } from "../../../components/form/formClasses";
 export const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
 
 /**

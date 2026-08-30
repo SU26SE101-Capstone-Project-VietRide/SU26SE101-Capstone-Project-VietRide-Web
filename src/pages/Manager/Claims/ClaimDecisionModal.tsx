@@ -6,8 +6,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiDollarSign } from "react-icons/fi";
+import { ApiRequestError } from "../../../api/client";
 import {
   decideOperatorParcelClaim,
+  getOperatorParcelClaim,
   type ParcelClaimDetail,
 } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
@@ -92,6 +94,21 @@ export default function ClaimDecisionModal({
         ),
       );
     } catch (err) {
+      // §17: 409 nghĩa là claim đã đổi trạng thái (người khác quyết định trước,
+      // hoặc BE đã đóng hồ sơ). KHÔNG gửi lại — thay màn bằng một detail GET
+      // mới để bộ nút được dựng lại theo `availableActions` thật.
+      if (err instanceof ApiRequestError && err.status === 409 && claim) {
+        try {
+          onDecided(
+            await getOperatorParcelClaim(claim.claimId),
+            t("claims.alreadyDecided"),
+          );
+          return;
+        } catch {
+          // Nạp lại cũng hỏng thì rơi xuống hiện lỗi gốc bên dưới
+        }
+      }
+
       setError(err instanceof Error ? err.message : t("claims.decisionFailed"));
     } finally {
       setIsSubmitting(false);

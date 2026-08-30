@@ -14,8 +14,7 @@ import { SearchInput } from "../../../components/ui/SearchInput";
 import { Badge } from "../../../components/ui/Badge";
 
 const PAGE_SIZE = 10;
-const inputClass =
-  "w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition focus:border-vr-500 focus:outline-none focus:ring-4 focus:ring-vr-100";
+
 
 function stationName(item: OperatorStation) {
   return item.displayNameOverride?.trim() || item.station?.name || "-";
@@ -153,7 +152,6 @@ export default function ManagerStationsPage() {
                 setPage(1);
               }}
               placeholder={t("stations.searchPlaceholder")}
-              inputClassName={`${inputClass} pl-9`}
               wrapperClassName="relative"
             />
             <CustomSelect
@@ -163,7 +161,6 @@ export default function ManagerStationsPage() {
                 setActiveFilter(event.target.value);
                 setPage(1);
               }}
-              className={inputClass}
             >
               <option value="">{t("stations.allActive")}</option>
               <option value="ACTIVE">{tc("active")}</option>
@@ -176,7 +173,6 @@ export default function ManagerStationsPage() {
                 setShuttleFilter(event.target.value);
                 setPage(1);
               }}
-              className={inputClass}
             >
               <option value="">{t("stations.allShuttle")}</option>
               <option value="SHUTTLE">{t("stations.shuttleOnly")}</option>

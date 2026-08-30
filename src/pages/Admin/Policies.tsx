@@ -2,6 +2,7 @@ import { useToastFeedback } from "../../hooks/useToastFeedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FiAlignLeft,
   FiArrowDown,
   FiArrowUp,
   FiCheck,
@@ -9,8 +10,8 @@ import {
   FiEye,
   FiFileText,
   FiPlus,
-
   FiShield,
+  FiTag,
   FiTrash2,
   FiX,
 } from "react-icons/fi";
@@ -27,6 +28,7 @@ import {
   updateAdminPolicy,
   type PolicyItem,
 } from "../../api/vietride";
+import { IconInput } from "../../components/form/IconInput";
 import { inputClass, labelClass, textareaClass } from "../../components/form/formClasses";
 import { TableSkeletonRows } from "../../components/TableSkeletonRows";
 import { Button } from "../../components/ui/Button";
@@ -545,10 +547,10 @@ export default function AdminPolicies() {
         <div className="space-y-4">
           <div>
             <label className={labelClass}>{t("policies.policyTitle")} *</label>
-            <input
+            <IconInput
+              icon={<FiFileText size={18} />}
               type="text"
               placeholder={t("policies.titlePlaceholder")}
-              className={inputClass}
               value={formData.title}
               onChange={(e) =>
                 setFormData({ ...formData, title: e.target.value })
@@ -560,10 +562,10 @@ export default function AdminPolicies() {
             <label className={labelClass}>
               {t("policies.shortDescription")} *
             </label>
-            <input
+            <IconInput
+              icon={<FiAlignLeft size={18} />}
               type="text"
               placeholder={t("policies.descriptionPlaceholder")}
-              className={inputClass}
               value={formData.description}
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
@@ -571,20 +573,29 @@ export default function AdminPolicies() {
             />
           </div>
 
+          {/* Loại chính sách LUÔN bám tab đang mở, không có lượt nào sửa được.
+              Dropdown disabled vẫn vẽ ra mũi tên xổ nên trông như bấm được —
+              hiện ô đọc kèm câu chỉ đường sang tab kia thì đúng sự thật hơn. */}
           <div>
-            <label className={labelClass}>{t("policies.type")} *</label>
-            <CustomSelect className={inputClass} value={activeTab} disabled>
-              <option value="for_operator">{t("policies.forOperator")}</option>
-              <option value="for_user">{t("policies.forUser")}</option>
-            </CustomSelect>
+            <span className={labelClass}>{t("policies.type")}</span>
+            <div className="rounded-xl border border-gray-100 bg-slate-50 px-4 py-3">
+              <p className="text-sm font-semibold text-gray-900">
+                {activeTab === "for_operator"
+                  ? t("policies.forOperator")
+                  : t("policies.forUser")}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                {t("policies.typeLockedHint")}
+              </p>
+            </div>
           </div>
 
           <div>
             <label className={labelClass}>{tc("category")} *</label>
-            <input
+            <IconInput
+              icon={<FiTag size={18} />}
               type="text"
               placeholder={t("policies.categoryPlaceholder")}
-              className={inputClass}
               value={formData.category}
               onChange={(e) =>
                 setFormData({ ...formData, category: e.target.value })

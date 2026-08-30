@@ -25,6 +25,7 @@ import EvidenceGallery from "../../../components/EvidenceGallery";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { formatDateTime } from "../../../utils/date";
+import { parcelReasonLabel } from "../../../utils/parcelReason";
 import { locationLabel } from "../../../utils/parcelReliability";
 import { custodyApprovalTone, type CustodyApprovalUi } from "./incidentHelpers";
 
@@ -97,7 +98,8 @@ export default function CustodyApprovalPanel({
           {t("parcelIncidents.approval.reasonLabel")}
         </p>
         <p className="mt-0.5 text-sm font-semibold text-gray-900">
-          {approval.reason?.trim() || t("parcelIncidents.approval.noReason")}
+          {parcelReasonLabel(t, approval.reason) ||
+            t("parcelIncidents.approval.noReason")}
         </p>
         {approval.description?.trim() && (
           <p className="mt-1.5 text-sm text-gray-700">{approval.description}</p>
