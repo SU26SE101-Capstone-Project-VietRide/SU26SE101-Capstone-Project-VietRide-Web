@@ -32,6 +32,8 @@
     "incidents": "Báo cáo sự cố",
     "parcelIncidents": "Sự cố kiện hàng",
     "claims": "Khiếu nại bồi thường",
+    "claimAppeals": "Khiếu nại lại",
+    "stopDepartureApprovals": "Duyệt rời bến",
     "unidentifiedPackages": "Kiện chưa định danh"
   },
   "admin": {

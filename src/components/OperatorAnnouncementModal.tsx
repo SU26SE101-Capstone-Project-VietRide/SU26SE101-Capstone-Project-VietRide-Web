@@ -1,21 +1,20 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useToastFeedback } from "../hooks/useToastFeedback";
-import { FiSend } from "react-icons/fi";
+import { FiHash, FiSend, FiType, FiUsers } from "react-icons/fi";
 import {
   sendOperatorNotification,
   type OperatorNotificationScope,
 } from "../api/vietride";
 import CustomSelect from "./CustomSelect";
+import { IconInput } from "./form/IconInput";
+import { textareaClass } from "./form/formClasses";
 import Modal from "./Modal";
 
 type OperatorAnnouncementModalProps = {
   open: boolean;
   onClose: () => void;
 };
-
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-vr-500 focus:outline-none focus:ring-2 focus:ring-vr-500/20";
 
 export default function OperatorAnnouncementModal({
   open,
@@ -119,7 +118,7 @@ export default function OperatorAnnouncementModal({
               setScope(event.target.value as OperatorNotificationScope)
             }
             aria-label={t("announcementModal.scopeAria")}
-            className={inputClass}
+            icon={<FiUsers size={18} />}
           >
             <option value="OPERATOR">{t("announcementModal.scopeOperator")}</option>
             <option value="TRIP">{t("announcementModal.scopeTrip")}</option>
@@ -129,10 +128,10 @@ export default function OperatorAnnouncementModal({
         {scope === "TRIP" && (
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-700">{t("announcementModal.tripId")}</span>
-            <input
+            <IconInput
+              icon={<FiHash size={18} />}
               value={tripId}
               onChange={(event) => setTripId(event.target.value)}
-              className={inputClass}
               placeholder={t("announcementModal.tripIdPlaceholder")}
             />
           </label>
@@ -140,11 +139,11 @@ export default function OperatorAnnouncementModal({
 
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-gray-700">{t("title")}</span>
-          <input
+          <IconInput
+            icon={<FiType size={18} />}
             value={title}
             maxLength={120}
             onChange={(event) => setTitle(event.target.value)}
-            className={inputClass}
             placeholder={t("announcementModal.titlePlaceholder")}
           />
           <span className="mt-1 block text-right text-xs text-gray-600">{title.length}/120</span>
@@ -156,7 +155,7 @@ export default function OperatorAnnouncementModal({
             value={body}
             maxLength={500}
             onChange={(event) => setBody(event.target.value)}
-            className={`${inputClass} min-h-28 resize-y`}
+            className={`${textareaClass} min-h-28 resize-y`}
             placeholder={t("announcementModal.bodyPlaceholder")}
           />
           <span className="mt-1 block text-right text-xs text-gray-600">{body.length}/500</span>

@@ -1,15 +1,24 @@
 import { useEffect, useMemo, type ChangeEvent, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { FiUpload, FiX } from "react-icons/fi";
+import {
+  FiActivity,
+  FiBox,
+  FiHash,
+  FiPackage,
+  FiTruck,
+  FiUpload,
+  FiUsers,
+  FiX,
+} from "react-icons/fi";
 import CustomSelect from "../../../components/CustomSelect";
 import { type VehicleType } from "../../../api/vietride";
 import { validateVehicleImageFiles } from "./vehicleImageUpload";
 import { VehicleImage } from "./VehicleImage";
+import { IconInput } from "../../../components/form/IconInput";
 import { labelClass } from "../../../components/form/formClasses";
 import {
   getImageEntries,
   getUniquePublicImageUrls,
-  inputClass,
   type VehicleForm,
   type VehicleFormErrors,
 } from "./vehicleForm";
@@ -68,9 +77,6 @@ export function VehicleInfoForm({
     ...existingImages.map((src) => ({ src, file: null })),
     ...localImagePreviews,
   ];
-  const fieldClass = (key: keyof VehicleForm) =>
-    `${inputClass} ${fieldErrors[key] ? "border-red-300 focus:border-red-500 focus:ring-red-500/30" : ""}`;
-
   useEffect(
     () => () => {
       localImagePreviews.forEach(({ src }) => URL.revokeObjectURL(src));
@@ -135,16 +141,16 @@ export function VehicleInfoForm({
           <label className={labelClass} htmlFor="vehicle-license-plate">
             {t("vehicles.plate")}
           </label>
-          <input
+          <IconInput
+            icon={<FiHash size={18} />}
             id="vehicle-license-plate"
             name="licensePlate"
-            className={fieldClass("licensePlate")}
+            invalid={Boolean(fieldErrors.licensePlate)}
             value={form.licensePlate}
             onChange={(event) => onChange("licensePlate", event.target.value)}
             placeholder="51B-12345"
             maxLength={20}
             autoComplete="off"
-            aria-invalid={Boolean(fieldErrors.licensePlate)}
             aria-describedby={
               fieldErrors.licensePlate
                 ? "vehicle-license-plate-error"
@@ -161,7 +167,7 @@ export function VehicleInfoForm({
             {t("vehicles.vehicleType")}
           </span>
           <CustomSelect
-            className={fieldClass("vehicleTypeId")}
+            icon={<FiTruck size={18} />}
             value={form.vehicleTypeId}
             onChange={(event) => onChange("vehicleTypeId", event.target.value)}
             disabled={!isCreate || isSubmitting}
@@ -185,10 +191,10 @@ export function VehicleInfoForm({
           <label className={labelClass} htmlFor="vehicle-seat-count">
             {t("vehicles.capacitySeats")}
           </label>
-          <input
+          <IconInput
+            icon={<FiUsers size={18} />}
             id="vehicle-seat-count"
             name="totalSeats"
-            className={inputClass}
             type="number"
             value={form.totalSeats}
             readOnly
@@ -207,10 +213,11 @@ export function VehicleInfoForm({
           <label className={labelClass} htmlFor="vehicle-cargo-weight">
             {t("vehicles.cargoWeight")}
           </label>
-          <input
+          <IconInput
+            icon={<FiPackage size={18} />}
             id="vehicle-cargo-weight"
             name="maxCargoWeightKg"
-            className={fieldClass("maxCargoWeightKg")}
+            invalid={Boolean(fieldErrors.maxCargoWeightKg)}
             type="number"
             min={0}
             step="0.1"
@@ -218,7 +225,6 @@ export function VehicleInfoForm({
             onChange={(event) =>
               onChange("maxCargoWeightKg", event.target.value)
             }
-            aria-invalid={Boolean(fieldErrors.maxCargoWeightKg)}
             aria-describedby={
               fieldErrors.maxCargoWeightKg
                 ? "vehicle-cargo-weight-error"
@@ -234,10 +240,11 @@ export function VehicleInfoForm({
           <label className={labelClass} htmlFor="vehicle-cargo-volume">
             {t("vehicles.cargoVolumeM3")}
           </label>
-          <input
+          <IconInput
+            icon={<FiBox size={18} />}
             id="vehicle-cargo-volume"
             name="maxCargoVolumeM3"
-            className={fieldClass("maxCargoVolumeM3")}
+            invalid={Boolean(fieldErrors.maxCargoVolumeM3)}
             min={0}
             step="0.1"
             type="number"
@@ -245,7 +252,6 @@ export function VehicleInfoForm({
             onChange={(event) =>
               onChange("maxCargoVolumeM3", event.target.value)
             }
-            aria-invalid={Boolean(fieldErrors.maxCargoVolumeM3)}
             aria-describedby={
               fieldErrors.maxCargoVolumeM3
                 ? "vehicle-cargo-volume-error"
@@ -263,7 +269,7 @@ export function VehicleInfoForm({
               {tc("status")}
             </span>
             <CustomSelect
-              className={fieldClass("status")}
+              icon={<FiActivity size={18} />}
               value={form.status}
               onChange={(event) => onChange("status", event.target.value)}
               aria-label={`${tc("status")}${

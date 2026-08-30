@@ -942,7 +942,6 @@ export default function ParcelsList() {
                     setFarePage(1);
                   }}
                   placeholder={t("parcels.fareSearchPlaceholder")}
-                  inputClassName="h-12 w-full rounded-[9999px] border border-[#a8dfe6] bg-white pl-11 pr-4 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(168,223,230,0.16)] outline-none transition placeholder:text-slate-400 focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
                   wrapperClassName="relative min-w-0"
                 />
                 <CustomSelect
@@ -953,7 +952,6 @@ export default function ParcelsList() {
                     );
                     setFarePage(1);
                   }}
-                  className="h-12 w-full rounded-[9999px] border border-[#a8dfe6] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(168,223,230,0.16)] outline-none transition focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
                 >
                   <option value="">{t("parcels.allSizeCategories")}</option>
                   {parcelSizeCategories.map((size) => (
@@ -972,7 +970,6 @@ export default function ParcelsList() {
                     setFarePage(1);
                   }}
                   aria-label={t("parcels.fareStatusFilterLabel")}
-                  className="h-12 w-full rounded-[9999px] border border-[#a8dfe6] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(168,223,230,0.16)] outline-none transition focus:border-vr-500 focus:ring-4 focus:ring-vr-100"
                 >
                   <option value="">{t("parcels.allFareStatuses")}</option>
                   <option value="ACTIVE">

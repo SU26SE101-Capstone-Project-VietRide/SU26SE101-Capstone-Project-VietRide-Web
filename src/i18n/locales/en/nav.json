@@ -32,6 +32,8 @@
     "incidents": "Incident reports",
     "parcelIncidents": "Parcel incidents",
     "claims": "Compensation claims",
+    "claimAppeals": "Claim appeals",
+    "stopDepartureApprovals": "Stop departure approval",
     "unidentifiedPackages": "Unidentified packages"
   },
   "admin": {

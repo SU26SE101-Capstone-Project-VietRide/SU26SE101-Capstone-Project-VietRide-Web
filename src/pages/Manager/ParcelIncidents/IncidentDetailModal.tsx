@@ -13,6 +13,7 @@ import {
   FiNavigation,
   FiPackage,
   FiSearch,
+  FiShield,
   FiUser,
 } from "react-icons/fi";
 import {
@@ -24,7 +25,9 @@ import {
 import Modal from "../../../components/Modal";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
+import { formatCurrency } from "../../../utils/currency";
 import { formatDateTime } from "../../../utils/date";
+import { parcelReasonLabel } from "../../../utils/parcelReason";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import CustodyApprovalPanel from "./CustodyApprovalPanel";
 import CustodyDecisionModal from "./CustodyDecisionModal";
@@ -378,6 +381,14 @@ export default function IncidentDetailModal({
                     t("parcelIncidents.unknownLocation"),
                   )}
                 />
+                {/* Chuỗi mô tả nơi kiện ĐÁNG LẼ phải ở, do BE dựng sẵn. Khác
+                    `expectedDropoff` (điểm trả theo vận đơn) nên hiện riêng. */}
+                {detail.expectedLocation?.trim() && (
+                  <DetailItem
+                    label={t("parcelIncidents.expectedLocationLabel")}
+                    value={detail.expectedLocation}
+                  />
+                )}
                 <DetailItem
                   label={t("parcelIncidents.declaredValue")}
                   value={
@@ -488,6 +499,56 @@ export default function IncidentDetailModal({
                     )}
                   />
                 </dl>
+              </section>
+            )}
+
+            {/* Khiếu nại bồi thường mở cho kiện này. Đây là ĐỌC, không phải
+                nơi ra quyết định: quyết định nằm ở hàng đợi Khiếu nại và chỉ
+                OPERATOR_ADMIN mới gọi được endpoint decision (§10). */}
+            {detail.claim && (
+              <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                  <FiShield aria-hidden="true" />
+                  {t("parcelIncidents.claimTitle")}
+                </h3>
+                <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+                  <DetailItem
+                    label={t("parcelIncidents.claimStatus")}
+                    value={t(`claims.status.${detail.claim.status}`, {
+                      defaultValue: detail.claim.status,
+                    })}
+                  />
+                  <DetailItem
+                    label={t("parcelIncidents.claimAward")}
+                    value={formatCurrency(detail.claim.totalAwardVnd)}
+                  />
+                  <DetailItem
+                    label={t("parcelIncidents.claimDecisionDeadline")}
+                    value={
+                      detail.claim.decisionDeadline
+                        ? formatDateTime(detail.claim.decisionDeadline)
+                        : "-"
+                    }
+                  />
+                </dl>
+                {/* Appeal là aggregate RIÊNG: claim gốc vẫn giữ PAID/REJECTED,
+                    trạng thái dưới đây là của chính đơn khiếu nại lại (§12). */}
+                {detail.claim.appeal && (
+                  <p className="mt-3 rounded-lg border border-amber-300 bg-white/70 px-3 py-2 text-sm text-amber-900">
+                    {t("parcelIncidents.claimAppealNote", {
+                      status: t(
+                        `claimAppeals.status.${detail.claim.appeal.status}`,
+                        { defaultValue: detail.claim.appeal.status },
+                      ),
+                      amount: formatCurrency(
+                        detail.claim.appeal.supplementaryAwardVnd,
+                      ),
+                    })}
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-amber-800">
+                  {t("parcelIncidents.claimHint")}
+                </p>
               </section>
             )}
 
@@ -623,7 +684,10 @@ export default function IncidentDetailModal({
                       </p>
                       {event.reason?.trim() && (
                         <p className="mt-0.5 text-xs text-amber-700">
-                          {event.reason}
+                          {/* Cùng đường dịch với timeline ở màn Hàng hóa: mã và
+                              câu tiếng Anh của BE ra tiếng Việt, ghi chú nhân sự
+                              tự nhập giữ nguyên. */}
+                          {parcelReasonLabel(t, event.reason)}
                         </p>
                       )}
                     </li>

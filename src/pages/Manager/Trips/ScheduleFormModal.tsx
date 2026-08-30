@@ -359,7 +359,7 @@ export default function ScheduleFormModal({
                 và làm người dùng tưởng đặt được giờ đến. */}
             <div>
               <FieldLabel label={t("trips.arrivalEstimate")} />
-              <p className="flex min-h-[50px] items-center rounded-[9999px] border border-dashed border-[#bfe1ec] bg-gray-50 px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)]">
+              <p className="flex min-h-[50px] items-center rounded-[9999px] border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.04)]">
                 {/* Cùng thứ tự yyyy-MM-dd HH:mm với ô "Ngày & giờ khởi hành"
                     ngay trên — hai giá trị này luôn được đọc cạnh nhau để đối
                     chiếu chênh lệch thời gian. */}

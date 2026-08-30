@@ -24,6 +24,7 @@ import Modal from "../../../components/Modal";
 import { Button } from "../../../components/ui/Button";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { formatDateTime } from "../../../utils/date";
+import { parcelReasonLabel } from "../../../utils/parcelReason";
 import { classifyIncidentError } from "./incidentHelpers";
 
 type CustodyDecisionModalProps = {
@@ -227,7 +228,7 @@ export default function CustodyDecisionModal({
                 {t("parcelIncidents.approval.reasonLabel")}
               </dt>
               <dd className="mt-0.5 font-semibold text-gray-800">
-                {approval.reason?.trim() ||
+                {parcelReasonLabel(t, approval.reason) ||
                   t("parcelIncidents.approval.noReason")}
               </dd>
             </div>

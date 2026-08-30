@@ -19,6 +19,12 @@ const ParcelIncidentsPage = lazy(
   () => import("./pages/Manager/ParcelIncidents/index"),
 );
 const ClaimsPage = lazy(() => import("./pages/Manager/Claims/index"));
+const ClaimAppealsPage = lazy(
+  () => import("./pages/Manager/ClaimAppeals/index"),
+);
+const StopDepartureApprovalsPage = lazy(
+  () => import("./pages/Manager/StopDepartureApprovals/index"),
+);
 const UnidentifiedPackagesPage = lazy(
   () => import("./pages/Manager/UnidentifiedPackages/index"),
 );
@@ -160,6 +166,13 @@ export default function App() {
                     element={<ParcelIncidentsPage />}
                   />
                   <Route path="claims" element={<ClaimsPage />} />
+                  <Route path="claim-appeals" element={<ClaimAppealsPage />} />
+                  {/* §9: không có queue riêng — màn tra cứu theo `requestId`
+                      crew gửi sang, mở được bằng deep link `?requestId=`. */}
+                  <Route
+                    path="stop-departure-approvals"
+                    element={<StopDepartureApprovalsPage />}
+                  />
                   <Route
                     path="unidentified-packages"
                     element={<UnidentifiedPackagesPage />}

@@ -37,6 +37,16 @@ type CustomSelectProps = {
   defaultValue?: string | number;
   onChange?: (event: SelectChangeEvent) => void;
   className?: string;
+  /**
+   * Icon dẫn ở mép trái, để ô chọn xếp thẳng hàng với `IconInput` đứng cạnh
+   * trong cùng một form. Bỏ trống thì nút giữ nguyên bố cục cũ.
+   */
+  icon?: ReactNode;
+  /**
+   * Trường bị từ chối. PHẢI đi qua prop: nối `border-red-*` vào `className` là
+   * bị `normalizeLegacyControlClasses` lọc mất, nên viền đỏ không bao giờ hiện.
+   */
+  invalid?: boolean;
   allowWrap?: boolean;
   disabled?: boolean;
   searchable?: boolean;
@@ -119,6 +129,8 @@ export default function CustomSelect({
   defaultValue,
   onChange,
   className = "",
+  icon,
+  invalid = false,
   allowWrap = false,
   disabled = false,
   searchable = false,
@@ -128,7 +140,8 @@ export default function CustomSelect({
   "aria-label": ariaLabel,
 }: CustomSelectProps) {
   const mergedClassName = [
-    "flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[9999px] border border-[#bfe1ec] bg-white px-4 py-3 text-left text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] transition focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-100",
+    "flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[9999px] border border-gray-300 bg-white px-4 py-3 text-left text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.04)] transition focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-100",
+    invalid ? "border-red-400 focus:border-red-500 focus:ring-red-100" : "",
     normalizeLegacyControlClasses(className),
   ]
     .filter(Boolean)
@@ -356,6 +369,11 @@ export default function CustomSelect({
         onKeyDown={handleKeyDown}
         className={mergedClassName}
       >
+        {icon && (
+          <span className="shrink-0 text-slate-400" aria-hidden="true">
+            {icon}
+          </span>
+        )}
         <span
           className={`min-w-0 flex-1 ${allowWrap ? "whitespace-normal break-words" : "truncate"}`}
         >
@@ -372,7 +390,7 @@ export default function CustomSelect({
         createPortal(
           <div
             ref={menuRef}
-            className="fixed z-[100] flex flex-col overflow-hidden rounded-[22px] border border-[#9cc3ee] bg-white text-sm shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
+            className="fixed z-[100] flex flex-col overflow-hidden rounded-[22px] border border-gray-300 bg-white text-sm shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
             style={
               menuPosition
                 ? {

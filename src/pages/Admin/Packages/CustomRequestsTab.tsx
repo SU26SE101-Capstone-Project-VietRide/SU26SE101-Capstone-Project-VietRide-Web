@@ -44,7 +44,7 @@ const PERIOD_FILTERS: SubscriptionBillingPeriod[] = ["MONTHLY", "YEARLY"];
 // này danh sách phình ra thì mới xin BE chuyển sang paged như các list admin khác.
 const PAGE_SIZE = 10;
 
-const COLUMN_COUNT = 7;
+const COLUMN_COUNT = 6;
 
 type CustomRequestsTabProps = {
   queue: UseCustomPlanRequestsResult;
@@ -166,28 +166,32 @@ export default function CustomRequestsTab({ queue }: CustomRequestsTabProps) {
         </div>
 
           <div className="overflow-x-auto" aria-busy={queue.isLoading} tabIndex={0}>
-            <table className="w-full min-w-[900px] text-sm">
+            {/* Không ô nào được bẻ dòng (`whitespace-nowrap`) mà cũng không phải
+                cuộn ngang ở desktop. Bảy cột với nhãn module đầy đủ cần ~1350px (VI)
+                / ~1420px (EN), rộng hơn vùng nội dung ~1220px còn lại cạnh sidebar —
+                nên trình duyệt bóp cột và bẻ dòng giữa chừng ("Nhà xe Mai / Linh",
+                "20.000 / chuyến/tháng"). Ba việc kéo tổng xuống ~1080px: gộp "Gửi
+                lúc" thành dòng phụ của ô nhà xe, rút gọn nhãn module, hạ padding ô
+                về px-4. min-w giờ chỉ còn là mốc cuộn cho tablet/mobile. */}
+            <table className="w-full min-w-[1040px] whitespace-nowrap text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/80 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  <th className="px-5 py-3 text-left">
+                  <th className="px-4 py-3 text-left">
                     {t("customPlans.operatorColumn")}
                   </th>
-                  <th className="px-5 py-3 text-center">
-                    {t("customPlans.sentAtColumn")}
-                  </th>
-                  <th className="px-5 py-3 text-left">
+                  <th className="px-4 py-3 text-left">
                     {t("customPlans.scaleColumn")}
                   </th>
-                  <th className="px-5 py-3 text-left">
+                  <th className="px-4 py-3 text-left">
                     {t("customPlans.modulesColumn")}
                   </th>
-                  <th className="px-5 py-3 text-center">
+                  <th className="px-4 py-3 text-center">
                     {t("customPlans.periodColumn")}
                   </th>
-                  <th className="px-5 py-3 text-center">
+                  <th className="px-4 py-3 text-center">
                     {t("customPlans.statusColumn")}
                   </th>
-                  <th className="px-5 py-3 text-center">{tc("actions")}</th>
+                  <th className="px-4 py-3 text-center">{tc("actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,14 +201,14 @@ export default function CustomRequestsTab({ queue }: CustomRequestsTabProps) {
                   <TableSkeletonRows
                     columns={COLUMN_COUNT}
                     testId="custom-requests-table-skeleton"
-                    cellClassName="px-5 py-4"
+                    cellClassName="px-4 py-4"
                   />
                 )}
                 {isEmpty && (
                   <tr>
                     <td
                       colSpan={COLUMN_COUNT}
-                      className="px-5 py-12 text-center text-sm text-gray-500"
+                      className="whitespace-normal px-4 py-12 text-center text-sm text-gray-500"
                     >
                       {/* Rỗng vì lọc khác hẳn rỗng vì chưa ai gửi yêu cầu */}
                       {hasActiveFilter
@@ -219,7 +223,7 @@ export default function CustomRequestsTab({ queue }: CustomRequestsTabProps) {
                     data-testid={`custom-request-row-${request.requestId}`}
                     className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60"
                   >
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-4">
                       <p className="font-semibold text-gray-900">
                         {operatorLabel(request)}
                       </p>
@@ -230,46 +234,65 @@ export default function CustomRequestsTab({ queue }: CustomRequestsTabProps) {
                           {t("customPlans.operatorIdFallback")}
                         </p>
                       ) : null}
-                    </td>
-                    <td className="px-5 py-4 text-center text-gray-600">
-                      {formatDateTime(request.createdAt)}
+                      {/* Thời điểm gửi làm dòng phụ chứ không phải cột riêng: vẫn
+                          đọc được nguyên vẹn mà tiết kiệm hẳn một cột, giống cách
+                          Admin/Khu vực gắn "cập nhật lúc" dưới tên khu vực. */}
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {t("customPlans.sentAtInline", {
+                          value: formatDateTime(request.createdAt),
+                        })}
+                      </p>
                     </td>
                     {/* Ba con số quyết định nhất khi duyệt: xe, tuyến, chuyến/tháng */}
-                    <td className="px-5 py-4 text-gray-600 tabular-nums">
+                    <td className="px-4 py-4 text-gray-600 tabular-nums">
                       {t("customPlans.scaleSummary", {
                         vehicles: request.quota.maxVehicles.toLocaleString("vi-VN"),
                         routes: request.quota.maxRoutes.toLocaleString("vi-VN"),
                         trips: request.quota.maxTripsPerMonth.toLocaleString("vi-VN"),
                       })}
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-1">
+                    <td className="px-4 py-4">
+                      <div className="flex flex-nowrap items-center gap-1.5">
+                        {/* Nhãn rút gọn để ba badge nằm gọn một hàng; tên đầy đủ
+                            vẫn còn ở tooltip và trong modal chi tiết. */}
                         {(
                           [
-                            ["enableParcel", "packages.parcelModule"],
-                            ["enableShuttle", "packages.shuttleModule"],
-                            ["enableRag", "packages.ragModule"],
+                            [
+                              "enableParcel",
+                              "customPlans.moduleShortParcel",
+                              "packages.parcelModule",
+                            ],
+                            [
+                              "enableShuttle",
+                              "customPlans.moduleShortShuttle",
+                              "packages.shuttleModule",
+                            ],
+                            [
+                              "enableRag",
+                              "customPlans.moduleShortRag",
+                              "packages.ragModule",
+                            ],
                           ] as const
                         )
                           .filter(([key]) => request.quota[key])
-                          .map(([key, labelKey]) => (
-                            <Badge key={key} tone="brand">
-                              {t(labelKey)}
-                            </Badge>
+                          .map(([key, shortKey, fullKey]) => (
+                            <span key={key} title={t(fullKey)}>
+                              <Badge tone="brand">{t(shortKey)}</Badge>
+                            </span>
                           ))}
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-center text-gray-600">
+                    <td className="px-4 py-4 text-center text-gray-600">
                       {request.preferredBillingPeriod
                         ? t(`customPlans.billing.${request.preferredBillingPeriod}`)
                         : "-"}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-4 text-center">
+                    <td className="px-4 py-4 text-center">
                       <Badge tone={statusTones[request.status]}>
                         {t(`customPlans.status.${request.status}`)}
                       </Badge>
                     </td>
-                    <td className="px-5 py-4 text-center">
+                    <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"

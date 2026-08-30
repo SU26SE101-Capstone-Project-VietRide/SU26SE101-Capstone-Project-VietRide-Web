@@ -352,7 +352,6 @@ export default function Users() {
                 setRole(event.target.value);
                 setPage(1);
               }}
-              className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition"
             >
               <option value="">{t("users.allRoles")}</option>
               <option value="PASSENGER">{t("users.customer")}</option>
@@ -368,7 +367,6 @@ export default function Users() {
                 setStatus(event.target.value);
                 setPage(1);
               }}
-              className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition"
             >
               <option value="">{t("users.allStatuses")}</option>
               <option value="ACTIVE">{tc("active")}</option>
@@ -388,7 +386,6 @@ export default function Users() {
                 setOperatorId(event.target.value);
                 setPage(1);
               }}
-              className="w-full min-h-[50px] rounded-[9999px] border border-[#9cc3ee] bg-white px-4 py-3 text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(147,197,253,0.35)] transition"
             >
               <option value="">{t("users.filterOperator")}</option>
               {operators.map((operator) => (

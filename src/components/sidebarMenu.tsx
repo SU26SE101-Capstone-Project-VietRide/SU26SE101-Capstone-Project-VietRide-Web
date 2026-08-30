@@ -23,6 +23,8 @@ import {
   FiCreditCard,
   FiAlertTriangle,
   FiAlertOctagon,
+  FiCheckSquare,
+  FiRotateCcw,
   FiGlobe,
   FiLayers,
 } from "react-icons/fi";
@@ -100,6 +102,18 @@ export const operatorAdminMenuConfig: MenuSection[] = [
         labelKey: "manager.claims",
         path: "/manager/claims",
         icon: <FiShield />,
+        requiredModule: "enableParcel",
+      },
+      {
+        labelKey: "manager.claimAppeals",
+        path: "/manager/claim-appeals",
+        icon: <FiRotateCcw />,
+        requiredModule: "enableParcel",
+      },
+      {
+        labelKey: "manager.stopDepartureApprovals",
+        path: "/manager/stop-departure-approvals",
+        icon: <FiCheckSquare />,
         requiredModule: "enableParcel",
       },
       {

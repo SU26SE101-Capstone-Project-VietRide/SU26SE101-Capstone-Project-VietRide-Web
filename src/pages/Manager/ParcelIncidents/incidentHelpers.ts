@@ -77,10 +77,13 @@ export function mergeCustodyEvents(
 /**
  * Nhận diện dòng "chờ duyệt báo cáo" trong hàng đợi.
  *
- * §5 của guide custody exception: pending approval VẪN có `status = "OPEN"` như
- * mọi sự cố mới, nên `status` KHÔNG phân biệt được. Dấu hiệu duy nhất là
- * `availableActions` chứa APPROVE/REJECT — backend hiện chưa có query param
- * `approvalStatus` để lọc từ server.
+ * Pending approval VẪN có `status = "OPEN"` như mọi sự cố mới, nên `status`
+ * KHÔNG phân biệt được; dấu hiệu trên từng dòng là `availableActions` chứa
+ * APPROVE/REJECT.
+ *
+ * Đây là hàm nhận diện MỘT DÒNG (để gắn badge/CTA). Lọc cả hàng đợi thì dùng
+ * query param `approvalStatus=PENDING_APPROVAL` của BE — lọc bằng hàm này chỉ
+ * thấy được trang đang mở.
  */
 export function isPendingCustodyApproval(
   actions: ParcelIncidentAction[] | undefined,

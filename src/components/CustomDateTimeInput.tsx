@@ -128,7 +128,7 @@ export default function CustomDateTimeInput({
     component không màn nào đổi.
   */
   const mergedTriggerClassName = [
-    "flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[9999px] border border-[#bfe1ec] bg-white px-4 py-3 text-left text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] transition focus:border-[#2bb7b0] focus:outline-none focus:ring-4 focus:ring-[#dff7f5] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-100",
+    "flex min-h-[50px] w-full items-center justify-between gap-3 rounded-[9999px] border border-gray-300 bg-white px-4 py-3 text-left text-[17px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.04)] transition focus:border-[#2bb7b0] focus:outline-none focus:ring-4 focus:ring-[#dff7f5] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-100",
     stripSkinClasses(className, [...SKIN_CLASS_PATTERNS, /^px(?:-|$)/]),
     invalid ? "border-red-400 focus:border-red-500 focus:ring-red-100" : "",
   ]

@@ -12,8 +12,9 @@ import { toNumber } from "../../../utils/number";
 import vehiclePlaceholderUrl from "./vehicle-placeholder.svg";
 
 // Hằng class + helper thuần dùng chung cho bảng, panel và VehicleModal.
-export const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-vr-500 focus:outline-none focus:ring-1 focus:ring-vr-500/35";
+// Ô nhập dùng đúng skin chung của form (`components/form/formClasses`) để không
+// so le với `CustomSelect` đứng cạnh trong cùng một hàng.
+export { inputClass } from "../../../components/form/formClasses";
 
 export const MAX_VEHICLE_DECKS = 2;
 export const MAX_ROWS_PER_DECK = 20;

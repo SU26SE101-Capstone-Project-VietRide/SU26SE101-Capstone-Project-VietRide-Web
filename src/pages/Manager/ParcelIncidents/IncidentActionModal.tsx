@@ -14,6 +14,7 @@ import {
   getOperatorUsers,
   markOperatorParcelIncidentFound,
   PARCEL_CUSTODY_LOCATION_TYPES,
+  PARCEL_INCIDENT_LOST_RESOLUTION_CODE,
   recordOperatorParcelIncidentSearch,
   resolveOperatorParcelIncident,
   type OperatorUser,
@@ -285,6 +286,11 @@ export default function IncidentActionModal({
         onDone(detail, t("parcelIncidents.resolveSuccess"));
       } else if (action === "DECLARE_LOST") {
         const detail = await declareOperatorParcelIncidentLost(incidentId, {
+          // §8: kết luận thất lạc luôn mang mã `LOST_CONFIRMED`. Handler hiện
+          // chỉ đọc `note`, nhưng DTO dùng chung với `resolve` và mặc định là
+          // `DELIVERED_TO_CORRECT_LOCATION` — bỏ trống là ghi sai mã vào hồ sơ
+          // ngay khi BE bắt đầu đọc field này.
+          resolutionCode: PARCEL_INCIDENT_LOST_RESOLUTION_CODE,
           ...(note.trim() ? { note: note.trim() } : {}),
         });
         onDone(detail, t("parcelIncidents.declareLostSuccess"));

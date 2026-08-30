@@ -381,7 +381,7 @@ export default function PlacePicker({
           <div className="relative min-w-0 flex-1">
             <FiSearch className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
-              className="h-12 w-full rounded-[9999px] border border-[#bfe1ec] bg-white pl-11 pr-4 text-[15px] text-slate-700 placeholder:text-slate-400 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] outline-none transition focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5]"
+              className="h-12 w-full rounded-[9999px] border border-gray-300 bg-white pl-11 pr-4 text-[15px] text-slate-700 placeholder:text-slate-400 shadow-[0_0_0_1px_rgba(15,23,42,0.04)] outline-none transition focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5]"
               value={query}
               onChange={(event) => handleQueryChange(event.target.value)}
               onKeyDown={(event) => {
@@ -401,7 +401,7 @@ export default function PlacePicker({
               Cùng cách xử lý với `toolbarButtonClass` ở màn Admin/Operators. */}
           <button
             type="button"
-            className="flex h-12 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-[9999px] border border-[#bfe1ec] bg-white px-5 text-[15px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-12 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-[9999px] border border-gray-300 bg-white px-5 text-[15px] font-medium text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.04)] transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={handleManualSearch}
             disabled={isSearching || !placesLibrary}
           >

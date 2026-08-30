@@ -10,7 +10,10 @@ import { useTranslation } from "react-i18next";
 import {
   FiEdit2,
   FiEye,
+  FiHash,
   FiLayers,
+  FiList,
+  FiMap,
   FiMapPin,
   FiPlus,
   FiPower,
@@ -36,6 +39,8 @@ import Pagination from "../../../components/Pagination";
 import { StatCard } from "../../../components/StatCard";
 import { formatDateTime } from "../../../utils/date";
 import Checkbox from "../../../components/form/Checkbox";
+import { IconInput } from "../../../components/form/IconInput";
+import { labelClass } from "../../../components/form/formClasses";
 import { TableSkeletonRows } from "../../../components/TableSkeletonRows";
 import { Button } from "../../../components/ui/Button";
 import { SearchInput } from "../../../components/ui/SearchInput";
@@ -70,9 +75,10 @@ function expectedCodeLength(type: LocationType) {
   return isLeafLocationType(type) ? LEAF_CODE_LENGTH : TOP_LEVEL_CODE_LENGTH;
 }
 
-const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
-const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
+// `inputClass`/`labelClass` riêng của màn này đã bỏ: ô nhập ở đây từng là
+// `rounded-lg` cao 40px chữ 14px, trong khi `CustomSelect` đứng ngay cạnh tự
+// mang skin viên thuốc cao 50px — mở modal ra là thấy ô nhập một kiểu, ô chọn
+// một kiểu. Giờ dùng chung `IconInput` + `labelClass` với các form khác.
 const actionButtonClass =
   "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -366,13 +372,12 @@ export default function AdminLocations() {
               setStatus(event.target.value);
               setPage(1);
             }}
-            className={inputClass}
           >
             <option value="">{t("locations.allStatuses")}</option>
             <option value="ACTIVE">{tc("active")}</option>
             <option value="INACTIVE">{tc("inactive")}</option>
           </CustomSelect>
-          <CustomSelect value={administrativeType} aria-label={t("locations.filterType")} onChange={(event) => { setAdministrativeType(event.target.value as "" | LocationType); setPage(1); }} className={inputClass}><option value="">{t("locations.allTypes")}</option>{[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map((type) => <option key={type} value={type}>{t(`locations.types.${type}`, { defaultValue: type })}</option>)}</CustomSelect>
+          <CustomSelect value={administrativeType} aria-label={t("locations.filterType")} onChange={(event) => { setAdministrativeType(event.target.value as "" | LocationType); setPage(1); }}><option value="">{t("locations.allTypes")}</option>{[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map((type) => <option key={type} value={type}>{t(`locations.types.${type}`, { defaultValue: type })}</option>)}</CustomSelect>
           <CustomSelect
             value={parentCode}
             aria-label={t("locations.filterParent")}
@@ -385,7 +390,6 @@ export default function AdminLocations() {
               setParentCode(event.target.value);
               setPage(1);
             }}
-            className={inputClass}
           >
             <option value="">
               {t("locations.allParents")}
@@ -682,12 +686,12 @@ export default function AdminLocations() {
           <div className="grid gap-5 sm:grid-cols-2">
             <label className="sm:col-span-2">
               <span className={labelClass}>{t("locations.name")}</span>
-              <input
+              <IconInput
+                icon={<FiMap size={18} />}
                 value={form.name}
                 onChange={(event) =>
                   setForm({ ...form, name: event.target.value })
                 }
-                className={inputClass}
                 placeholder={t("locations.namePlaceholder")}
                 maxLength={100}
                 autoFocus
@@ -702,6 +706,7 @@ export default function AdminLocations() {
               <span className={labelClass}>{t("locations.type")}</span>
               <CustomSelect
                 aria-label={t("locations.type")}
+                icon={<FiLayers size={18} />}
                 value={form.type}
                 onChange={(event) => {
                   const nextType = event.target.value as LocationType;
@@ -714,7 +719,6 @@ export default function AdminLocations() {
                       : "",
                   });
                 }}
-                className={inputClass}
               >
                 {[...LOCATION_TOP_LEVEL_TYPES, ...LOCATION_LEAF_TYPES].map(
                   (type) => (
@@ -737,7 +741,8 @@ export default function AdminLocations() {
 
             <label>
               <span className={labelClass}>{t("locations.code")}</span>
-              <input
+              <IconInput
+                icon={<FiHash size={18} />}
                 value={form.code}
                 onChange={(event) =>
                   setForm({
@@ -746,7 +751,6 @@ export default function AdminLocations() {
                     code: event.target.value.replace(/\D/g, ""),
                   })
                 }
-                className={inputClass}
                 placeholder={
                   isLeafLocationType(form.type) ? "26506" : "79"
                 }
@@ -766,6 +770,7 @@ export default function AdminLocations() {
                 <span className={labelClass}>{t("locations.parent")}</span>
                 <CustomSelect
                   aria-label={t("locations.parent")}
+                  icon={<FiMapPin size={18} />}
                   value={form.parentCode}
                   searchable
                   searchPlaceholder={tc("searchOptions", {
@@ -775,7 +780,6 @@ export default function AdminLocations() {
                   onChange={(event) =>
                     setForm({ ...form, parentCode: event.target.value })
                   }
-                  className={inputClass}
                 >
                   <option value="">{t("locations.selectParent")}</option>
                   {provinces.map((province) => (
@@ -792,7 +796,8 @@ export default function AdminLocations() {
 
             <label>
               <span className={labelClass}>{t("locations.sortOrder")}</span>
-              <input
+              <IconInput
+                icon={<FiList size={18} />}
                 type="number"
                 min={0}
                 step={1}
@@ -800,7 +805,6 @@ export default function AdminLocations() {
                 onChange={(event) =>
                   setForm({ ...form, sortOrder: event.target.value })
                 }
-                className={inputClass}
               />
               <span className="mt-1.5 block text-xs text-gray-500">
                 {t("locations.sortOrderHint")}

@@ -45,8 +45,9 @@ export type AlertState = {
 
 // Biến thể class riêng của màn Stations — khác chuỗi chuẩn trong
 // src/components/form/formClasses.ts nên giữ cục bộ (xem comment file đó)
-export const inputClass =
-  "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-vr-500 focus:ring-2 focus:ring-vr-100";
+// Ô nhập dùng skin chung của form để không so le với `CustomSelect` /
+// `CustomDateTimeInput` đứng cùng hàng trong panel chuẩn hoá bến.
+export { inputClass } from "../../../components/form/formClasses";
 export const labelClass =
   "mb-1.5 block whitespace-nowrap text-xs font-semibold text-slate-600";
 export const iconButtonClass =

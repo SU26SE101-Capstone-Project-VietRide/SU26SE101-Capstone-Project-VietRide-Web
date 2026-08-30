@@ -30,8 +30,7 @@ import { WalletOverviewCards } from "./WalletOverviewCards";
 type WalletTab = "transactions" | "settlements" | "ledger";
 
 const pageSize = 10;
-const inputClass =
-  "h-12 w-full rounded-[9999px] border border-[#bfe1ec] bg-white px-4 py-3 text-[15px] text-slate-700 shadow-[0_0_0_1px_rgba(175,219,234,0.18)] transition placeholder:text-slate-400 focus:border-[#2bb7b0] focus:ring-4 focus:ring-[#dff7f5] lg:w-64";
+
 
 const DATE_FIELD_OPTIONS: Record<WalletTab, string[]> = {
   transactions: ["createdAt"],
@@ -275,7 +274,7 @@ export default function ManagerWallet() {
                   setPage(1);
                 }}
                 aria-label={t("wallet.allTransactionTypes")}
-                className={inputClass}
+                className="lg:w-64"
               >
                 <option value="">{t("wallet.allTransactionTypes")}</option>
                 <option value="CREDIT">{t("wallet.moneyIn")}</option>
@@ -291,7 +290,7 @@ export default function ManagerWallet() {
                   setPage(1);
                 }}
                 aria-label={t("wallet.allSettlementStatuses")}
-                className={inputClass}
+                className="lg:w-64"
               >
                 <option value="">{t("wallet.allSettlementStatuses")}</option>
                 {(
