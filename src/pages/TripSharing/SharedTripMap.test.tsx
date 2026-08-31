@@ -6,10 +6,12 @@ import type { SharedTripContext, SharedTripVehicleLocation } from "./tripShareAp
 
 const { canvasProps } = vi.hoisted(() => ({
   canvasProps: [] as Array<{
+    fallbackMapStyleUrl?: string;
     fitPoints?: Array<{ lat: number; lng: number }>;
     focusCenter?: { lat: number; lng: number } | null;
     focusZoom?: number;
     fitKey?: string;
+    mapStyleUrl?: string;
     pointMarkers?: Array<{ id: string; title?: string }>;
     snapToFocusAfterZoom?: boolean;
     suspendViewportSync?: boolean;
@@ -94,6 +96,12 @@ describe("SharedTripMap", () => {
     const lastCanvasProp = canvasProps.at(-1);
     expect(lastCanvasProp?.focusCenter).toBeNull();
     expect(lastCanvasProp?.fitPoints?.length).toBeGreaterThan(0);
+    expect(lastCanvasProp?.mapStyleUrl).toBe(
+      "https://tiles.goong.io/assets/goong_map_web.json",
+    );
+    expect(lastCanvasProp?.fallbackMapStyleUrl).toBe(
+      "https://tiles.goong.io/assets/goong_light_v2.json",
+    );
   });
 
   it("renders follow vehicle toggle button when vehicle position is available", () => {

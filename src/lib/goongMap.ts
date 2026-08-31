@@ -278,6 +278,7 @@ function resolveAdapter(map: GoogleMapInstance | null) {
 
 type GoongMapOptions = {
   center: GoogleMapCoordinate;
+  fallbackMapStyleUrl?: string;
   gestureHandling?: "auto" | "cooperative" | "greedy" | "none";
   mapStyleUrl?: string;
   zoom: number;
@@ -333,6 +334,24 @@ class GoongMapAdapter implements GoogleMapInstance {
     }
 
     this.layers = new LayerStack(this.map);
+    let fallbackAttempted = false;
+    this.map.on("error", () => {
+      const fallbackStyle = options.fallbackMapStyleUrl;
+      if (
+        this.styleReady ||
+        fallbackAttempted ||
+        !fallbackStyle ||
+        fallbackStyle === style
+      ) {
+        return;
+      }
+
+      // Marker DOM vẫn hiện dù style/tile nền lỗi, tạo cảm giác map trắng nhưng
+      // marker bình thường. Chỉ fallback trước lần load đầu; setStyle sau khi
+      // đã load sẽ xoá custom route layers đang sống trên bản đồ.
+      fallbackAttempted = true;
+      this.map.setStyle(fallbackStyle);
+    });
     this.map.on("load", () => {
       this.styleReady = true;
       const tasks = this.pendingStyleTasks;

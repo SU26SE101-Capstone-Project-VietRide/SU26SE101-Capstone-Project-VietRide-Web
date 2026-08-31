@@ -72,6 +72,8 @@ type GoogleMapOptions = {
   cameraControl?: boolean;
   center: GoogleMapCoordinate;
   clickableIcons?: boolean;
+  /** Goong-compatible backup style used only when the primary style cannot load. */
+  fallbackMapStyleUrl?: string;
   fullscreenControl?: boolean;
   gestureHandling?: "auto" | "cooperative" | "greedy" | "none";
   mapTypeControl?: boolean;

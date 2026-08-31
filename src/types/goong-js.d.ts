@@ -76,6 +76,7 @@ declare module "@goongmaps/goong-js" {
     removeSource(id: string): this;
     setCenter(center: LngLatLike): this;
     setPaintProperty(layerId: string, name: string, value: unknown): this;
+    setStyle(style: string): this;
     setZoom(zoom: number): this;
     touchZoomRotate: Handler & { disableRotation: () => void };
     triggerRepaint(): void;

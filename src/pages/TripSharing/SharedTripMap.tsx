@@ -6,6 +6,10 @@ import GoogleMapCanvas from "../../components/GoogleMapCanvas";
 import SharedTripMapLegend from "./SharedTripMapLegend";
 import { buildSharedTripMapModel } from "./sharedTripMapModel";
 import {
+  sharedTripMapFallbackStyleUrl,
+  sharedTripMapStyleUrl,
+} from "./sharedTripVisualStyle";
+import {
   isVehicleReplacementPending,
   type SharedTripContext,
   type SharedTripVehicleLocation,
@@ -99,10 +103,12 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
           center={center}
           className="h-full w-full"
           errorFallback={t("map.unavailable")}
+          fallbackMapStyleUrl={sharedTripMapFallbackStyleUrl}
           fitKey={fitKey}
           fitPoints={fitPoints.length > 0 ? fitPoints : undefined}
           focusCenter={isFollowingVehicle ? model.vehiclePosition : null}
           focusZoom={15}
+          mapStyleUrl={sharedTripMapStyleUrl}
           snapToFocusAfterZoom
           pointMarkers={model.markers}
           polylines={model.polylines}

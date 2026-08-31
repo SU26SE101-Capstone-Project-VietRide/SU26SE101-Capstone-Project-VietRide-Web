@@ -108,6 +108,8 @@ type GoogleMapCanvasProps = {
   center: GoogleMapCoordinate;
   className?: string;
   emptyState?: ReactNode;
+  /** Backup provider style used only if the primary basemap fails before load. */
+  fallbackMapStyleUrl?: string;
   fitPoints?: GoogleMapCoordinate[];
   /**
    * Khoá camera. Có `fitKey` thì camera CHỈ đồng bộ lại theo props (setCenter/
@@ -301,6 +303,7 @@ export default function GoogleMapCanvas({
   center,
   className = defaultClassName,
   emptyState,
+  fallbackMapStyleUrl,
   fitKey,
   fitPoints = [],
   focusCenter,
@@ -326,6 +329,7 @@ export default function GoogleMapCanvas({
   const mapInstanceRef = useRef<ReadyMap | null>(null);
   const mapClickListenerRef = useRef<GoogleMapsEventListener | null>(null);
   const initialCenterRef = useRef(center);
+  const initialFallbackMapStyleUrlRef = useRef(fallbackMapStyleUrl);
   const initialZoomRef = useRef(zoom);
   const initialMapStylesRef = useRef(mapStyles);
   const initialMapStyleUrlRef = useRef(mapStyleUrl);
@@ -406,6 +410,7 @@ export default function GoogleMapCanvas({
               cameraControl: false,
               center: initialCenterRef.current,
               clickableIcons: true,
+              fallbackMapStyleUrl: initialFallbackMapStyleUrlRef.current,
               fullscreenControl: false,
               // "greedy": cuộn chuột luôn zoom map ngay, không cần giữ ctrl —
               // đổi từ "cooperative" để bỏ banner đen gợi ý "Sử dụng ctrl +
