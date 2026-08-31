@@ -8,9 +8,6 @@ export type VoucherForm = {
   discount: string;
   maxDiscountAmount: string;
   applicableTo: string;
-  fundingType: string;
-  operatorScope: string;
-  applicableOperatorIds: string;
   minOrderValue: string;
   quantity: string;
   expiryDate: string;

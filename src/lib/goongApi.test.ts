@@ -6,7 +6,11 @@
 // "biến mất" không dấu vết. Đo thật trên tuyến TP.HCM - Đà Lạt: bắn thẳng ra 2
 // gợi ý, qua hàng đợi ra 18.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetGoongCircuitForTest, goongPlaceDetail } from "./goongApi";
+import {
+  __resetGoongCircuitForTest,
+  goongDirections,
+  goongPlaceDetail,
+} from "./goongApi";
 
 const detailPayload = {
   result: {
@@ -28,6 +32,26 @@ function rateLimitedResponse() {
       error: { code: "OVER_RATE_LIMIT", message: "You have exceeded your rate limit." },
     }),
     { status: 429 },
+  );
+}
+
+function directionResponse() {
+  return new Response(
+    JSON.stringify({
+      routes: [
+        {
+          legs: [
+            {
+              distance: { value: 95_700 },
+              duration: { value: 7_200 },
+            },
+          ],
+          overview_polyline: { points: "_p~iF~ps|U_ulLnnqC" },
+          summary: "QL51",
+        },
+      ],
+    }),
+    { status: 200 },
   );
 }
 
@@ -96,6 +120,34 @@ describe("fetchGoongJson — chống rate limit", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  // Regression thực tế: tab Điểm dừng quét Place Detail dính 429 và mở circuit
+  // chung, sau đó Directions bị từ chối ngay trước khi chạm mạng. Map mất
+  // polyline và chỉ hết sau F5 vì refresh reset state module.
+  it("Places mở circuit không được khóa nhầm Directions", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) =>
+      String(input).includes("/v2/direction")
+        ? directionResponse()
+        : rateLimitedResponse(),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Hai lượt này tạo đủ 3 phản hồi 429 để circuit standard mở.
+    await expect(goongPlaceDetail("place-1")).rejects.toThrow(/429/);
+    await expect(goongPlaceDetail("place-2")).rejects.toThrow(/tạm ngừng/);
+
+    const routes = await goongDirections({
+      origin: { lat: 10.7769, lng: 106.7009 },
+      destination: { lat: 10.346, lng: 107.0843 },
+      vehicle: "truck",
+      waypoints: [{ lat: 10.58, lng: 107.02 }],
+    });
+
+    expect(routes).toHaveLength(1);
+    expect(routes[0].summary).toBe("QL51");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain("/v2/direction");
+  });
+
   // Đây là phần thực sự cứu được gợi ý: bắn 12 lời gọi cùng lúc mà không bao
   // giờ có quá 4 request đang bay.
   it("giới hạn 4 request chạy song song", async () => {
@@ -118,6 +170,52 @@ describe("fetchGoongJson — chống rate limit", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(12);
     expect(peakInFlight).toBeLessThanOrEqual(4);
+  });
+
+  it("cho Directions lấy slot trước các Place Detail đang chờ", async () => {
+    const blockers = Array.from({ length: 4 }, () => {
+      let resolve: (response: Response) => void = () => {};
+      const promise = new Promise<Response>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    });
+    const callOrder: string[] = [];
+    const fetchMock = vi.fn<typeof fetch>((input) => {
+      const url = String(input);
+      callOrder.push(new URL(url).pathname);
+      const callIndex = callOrder.length - 1;
+
+      if (callIndex < blockers.length) {
+        return blockers[callIndex].promise;
+      }
+
+      return Promise.resolve(
+        url.includes("/v2/direction") ? directionResponse() : okResponse(),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    // 4 request chiếm hết slot; 2 Place Detail tiếp theo nằm ở hàng đợi thường.
+    const placePromises = Array.from({ length: 6 }, (_unused, index) =>
+      goongPlaceDetail(`place-${index}`),
+    );
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+
+    // Directions vào sau nhưng phải đứng đầu hàng đợi ưu tiên.
+    const directionsPromise = goongDirections({
+      origin: { lat: 10.7769, lng: 106.7009 },
+      destination: { lat: 10.346, lng: 107.0843 },
+      vehicle: "truck",
+    });
+    blockers[0].resolve(okResponse());
+
+    const routes = await directionsPromise;
+    expect(routes).toHaveLength(1);
+    expect(callOrder[4]).toBe("/v2/direction");
+
+    blockers.slice(1).forEach(({ resolve }) => resolve(okResponse()));
+    await Promise.all(placePromises);
   });
 
   // Hàng đợi phải nhả slot cả khi request hỏng — nếu không, vài lỗi đầu tiên là

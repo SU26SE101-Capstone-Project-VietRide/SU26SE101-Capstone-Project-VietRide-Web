@@ -19,9 +19,6 @@ export const emptyForm: VoucherForm = {
   discount: "10",
   maxDiscountAmount: "50000",
   applicableTo: "all",
-  fundingType: "VIETRIDE_FUNDED",
-  operatorScope: "ALL_OPERATORS",
-  applicableOperatorIds: "",
   minOrderValue: "0",
   quantity: "1000",
   expiryDate: "",
@@ -131,13 +128,6 @@ export function activeOf(voucher: AdminVoucher) {
   return voucher.active ?? voucher.isActive ?? false;
 }
 
-export function toOperatorIds(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function toApplicableServices(applicableTo: string) {
   if (applicableTo === "rides") {
     return ["BOOKING"];
@@ -148,10 +138,6 @@ function toApplicableServices(applicableTo: string) {
   }
 
   return ["BOOKING", "PARCEL"];
-}
-
-export function operatorIdsToValue(operatorIds: string[]) {
-  return operatorIds.join(", ");
 }
 
 export function applicableToOf(voucher: AdminVoucher) {
@@ -173,8 +159,6 @@ export function isActiveOperator(operator: AdminOperator) {
 }
 
 export function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
-  const selectedOperatorIds = toOperatorIds(form.applicableOperatorIds);
-
   return {
     code: form.code.trim(),
     name: form.name.trim(),
@@ -187,9 +171,8 @@ export function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
     validFrom: new Date().toISOString(),
     validUntil: toEndOfDayIso(form.expiryDate),
     applicableServices: toApplicableServices(form.applicableTo),
-    applicableOperatorIds:
-      form.operatorScope === "SELECTED_OPERATORS" ? selectedOperatorIds : null,
-    fundingType: form.fundingType,
+    applicableOperatorIds: null,
+    fundingType: "VIETRIDE_FUNDED",
   };
 }
 
@@ -215,12 +198,6 @@ export function toForm(voucher: AdminVoucher): VoucherForm {
     discount: String(discountValueOf(voucher)),
     maxDiscountAmount: String(voucher.maxDiscountAmount ?? 0),
     applicableTo: applicableToOf(voucher),
-    fundingType: voucher.fundingType ?? "VIETRIDE_FUNDED",
-    operatorScope:
-      voucher.applicableOperatorIds && voucher.applicableOperatorIds.length > 0
-        ? "SELECTED_OPERATORS"
-        : "ALL_OPERATORS",
-    applicableOperatorIds: operatorIdsToValue(voucher.applicableOperatorIds ?? []),
     minOrderValue: String(voucher.minOrderAmount ?? voucher.minOrderValue ?? 0),
     quantity: String(quantityOf(voucher)),
     expiryDate: toLocalDateTimeInput(expiryDateOf(voucher)),

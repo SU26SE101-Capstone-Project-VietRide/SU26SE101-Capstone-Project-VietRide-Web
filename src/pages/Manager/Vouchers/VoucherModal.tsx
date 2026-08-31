@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { FiTag } from "react-icons/fi";
-import type { OperatorRoute } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import {
@@ -8,20 +7,13 @@ import {
   labelClass,
 } from "../../../components/form/formClasses";
 import Field from "./Field";
-import RouteMultiSelect from "./RouteMultiSelect";
-import {
-  toRouteIds,
-  type VoucherForm,
-  type VoucherServiceTab,
-} from "./voucherHelpers";
+import { type VoucherForm } from "./voucherHelpers";
 import { Button } from "../../../components/ui/Button";
 
 type VoucherModalProps = {
   open: boolean;
   form: VoucherForm;
   isEditing: boolean;
-  routes: OperatorRoute[];
-  parcelEnabled: boolean;
   onChange: (key: keyof VoucherForm, value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
@@ -33,8 +25,6 @@ export default function VoucherModal({
   open,
   form,
   isEditing,
-  routes,
-  parcelEnabled,
   onChange,
   onClose,
   onSubmit,
@@ -42,7 +32,6 @@ export default function VoucherModal({
 }: VoucherModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const selectedRouteIds = toRouteIds(form.applicableRouteIds);
 
   function handleFieldChange(key: keyof VoucherForm, value: string) {
     if (key === "type") {
@@ -171,49 +160,6 @@ export default function VoucherModal({
           />
         </div></section>
 
-        <section className="border-b border-slate-100 py-5 first:pt-1 last:border-b-0"><div className="mb-4 flex items-center gap-3"><span className="h-5 w-1 rounded-full bg-vr-500"></span><div><h3 className="font-bold text-gray-900">{t("vouchers.scopeRules")}</h3></div></div><div className="grid gap-4 sm:grid-cols-2">
-          <RouteMultiSelect
-            routes={routes}
-            selectedRouteIds={selectedRouteIds}
-            onChange={(routeIds) =>
-              onChange("applicableRouteIds", routeIds.join(", "))
-            }
-          />
-          <div>
-            <label className={labelClass}>{t("vouchers.applicableTo")}</label>
-            <CustomSelect
-              className={inputClass}
-              value={form.applicableService}
-              disabled={isEditing}
-              onChange={(event) =>
-                onChange(
-                  "applicableService",
-                  event.target.value as VoucherServiceTab,
-                )
-              }
-            >
-              <option value="BOOKING">{t("vouchers.applicableRides")}</option>
-              {parcelEnabled && (
-                <option value="PARCEL">
-                  {t("vouchers.applicableParcels")}
-                </option>
-              )}
-            </CustomSelect>
-          </div>
-          <div>
-            <label className={labelClass}>{t("vouchers.fundingType")}</label>
-            <CustomSelect
-              className={inputClass}
-              value={form.fundingType}
-              disabled={isEditing}
-              onChange={(event) => onChange("fundingType", event.target.value)}
-            >
-              <option value="OPERATOR_FUNDED">{t("vouchers.fundingTypes.OPERATOR_FUNDED")}</option>
-              <option value="VIETRIDE_FUNDED">{t("vouchers.fundingTypes.VIETRIDE_FUNDED")}</option>
-            </CustomSelect>
-          </div>
-        </div>
-      </section>
       </div>
     </Modal>
   );

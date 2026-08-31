@@ -9,17 +9,14 @@ import {
   activateOperatorVoucher,
   createOperatorVoucher,
   deactivateOperatorVoucher,
-  getOperatorRoutes,
   deleteOperatorVoucher,
   getOperatorVouchers,
   getOperatorVoucherSummary,
   updateOperatorVoucher,
-  type OperatorRoute,
   type OperatorVoucher,
   type VoucherDiscountType,
   type VoucherSummary,
 } from "../../../api/vietride";
-import { fetchAllPages } from "../../../api/pagination";
 import { getAuthUser } from "../../../auth";
 import { toDatetimeLocalValue } from "../../../utils/date";
 import VoucherModal from "./VoucherModal";
@@ -53,7 +50,6 @@ const emptyForm: VoucherForm = {
   ),
   applicableService: "BOOKING",
   applicableRouteIds: "",
-  fundingType: "OPERATOR_FUNDED",
 };
 
 export default function ManagerVouchers() {
@@ -79,7 +75,6 @@ export default function ManagerVouchers() {
   const [summary, setSummary] = useState<VoucherSummary | null>(null);
   const [reloadSummaryKey, setReloadSummaryKey] = useState(0);
   const [vouchers, setVouchers] = useState<OperatorVoucher[]>([]);
-  const [routes, setRoutes] = useState<OperatorRoute[]>([]);
   const [form, setForm] = useState<VoucherForm>(emptyForm);
   const [selectedVoucher, setSelectedVoucher] =
     useState<OperatorVoucher | null>(null);
@@ -98,29 +93,24 @@ export default function ManagerVouchers() {
     setError("");
 
     try {
-      const [voucherResult, routeItems] = await Promise.all([
-        getOperatorVouchers({
-          page,
-          pageSize: VOUCHER_PAGE_SIZE,
-          ...(debouncedSearch ? { search: debouncedSearch } : {}),
-          ...(statusFilter ? { isActive: statusFilter === "ACTIVE" } : {}),
-          ...(voucherTypeFilter
-            ? { type: voucherTypeFilter as VoucherDiscountType }
-            : {}),
-          // Tab dịch vụ chỉ áp cho OPERATOR_ADMIN; STAFF xem toàn bộ
-          ...(isOperatorAdmin
-            ? { service: parcelEnabled ? activeServiceTab : "BOOKING" }
-            : {}),
-          sortBy: "createdAt",
-          sortDir: "desc",
-        }),
-        // Danh sách tuyến chỉ dùng cho ô chọn phạm vi trong modal
-        fetchAllPages((params) => getOperatorRoutes(params)),
-      ]);
+      const voucherResult = await getOperatorVouchers({
+        page,
+        pageSize: VOUCHER_PAGE_SIZE,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        ...(statusFilter ? { isActive: statusFilter === "ACTIVE" } : {}),
+        ...(voucherTypeFilter
+          ? { type: voucherTypeFilter as VoucherDiscountType }
+          : {}),
+        // Tab dịch vụ chỉ áp cho OPERATOR_ADMIN; STAFF xem toàn bộ
+        ...(isOperatorAdmin
+          ? { service: parcelEnabled ? activeServiceTab : "BOOKING" }
+          : {}),
+        sortBy: "createdAt",
+        sortDir: "desc",
+      });
 
       setVouchers(voucherResult.items);
       setTotalItems(voucherResult.totalItems);
-      setRoutes(routeItems);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : tRef.current("vouchers.loadFailed"),
@@ -423,8 +413,6 @@ export default function ManagerVouchers() {
         open={isModalOpen}
         form={form}
         isEditing={Boolean(selectedVoucher)}
-        routes={routes}
-        parcelEnabled={parcelEnabled}
         onChange={updateForm}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmit}
