@@ -63,6 +63,7 @@
     "legendVehicleBeforeReplacement": "Position before vehicle change",
     "legendNote": "Drawn along the operator's registered route",
     "focusVehicle": "Focus vehicle",
+    "waitingForReplacementVehicle": "Waiting for new vehicle location",
     "viewWholeRoute": "View whole route"
   },
   "actions": {

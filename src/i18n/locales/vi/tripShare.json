@@ -63,6 +63,7 @@
     "legendVehicleBeforeReplacement": "Vị trí trước khi đổi xe",
     "legendNote": "Bản đồ vẽ theo tuyến nhà xe đã đăng ký",
     "focusVehicle": "Vị trí xe",
+    "waitingForReplacementVehicle": "Đang chờ vị trí xe mới",
     "viewWholeRoute": "Xem toàn tuyến"
   },
   "actions": {

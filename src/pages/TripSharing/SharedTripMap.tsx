@@ -47,6 +47,12 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
 
   const hasVehicle = Boolean(model.vehiclePosition);
   const isFollowingVehicle = hasVehicle && followVehicle;
+  const showVehicleControl = hasVehicle || replacementPending;
+  const vehicleControlLabel = hasVehicle
+    ? isFollowingVehicle
+      ? t("map.viewWholeRoute")
+      : vehicleLabel
+    : t("map.waitingForReplacementVehicle");
 
   const center = useMemo(() => {
     if (model.routePath.length > 0) {
@@ -72,6 +78,7 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
   const fitKey = `fit-route-${fitSequence}`;
 
   const handleToggleFollow = () => {
+    if (!hasVehicle) return;
     setFollowVehicle((prev) => {
       const next = !prev;
       if (!next) {
@@ -117,14 +124,15 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
           zoom={model.vehiclePosition ? 13 : 11}
         />
 
-        {model.hasVehicle && (
+        {showVehicleControl && (
           <div className="absolute left-3 top-3 z-20 lg:left-4 lg:top-4">
             <button
               type="button"
               data-testid="follow-vehicle-toggle"
               aria-pressed={isFollowingVehicle}
+              disabled={!hasVehicle}
               onClick={handleToggleFollow}
-              className={`inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-bold shadow-[0_12px_28px_-18px_rgba(0,86,83,0.8)] backdrop-blur-md transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.98] motion-reduce:transform-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#007A76] focus-visible:ring-offset-2 ${
+              className={`inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-bold shadow-[0_12px_28px_-18px_rgba(0,86,83,0.8)] backdrop-blur-md transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.98] motion-reduce:transform-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#007A76] focus-visible:ring-offset-2 disabled:cursor-wait disabled:border-white/80 disabled:bg-white/90 disabled:text-[#627A77] disabled:shadow-none disabled:active:scale-100 ${
                 isFollowingVehicle
                   ? "border-[#007A76]/35 bg-[#E7F8F7]/95 text-[#005653] ring-1 ring-[#007A76]/20 hover:bg-[#D5F2F0]"
                   : "border-white/80 bg-white/95 text-[#13211F] hover:border-[#007A76]/25 hover:bg-[#F4F8FA]"
@@ -135,9 +143,7 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
               ) : (
                 <FiCrosshair className="h-4 w-4 shrink-0 text-[#627A77]" aria-hidden />
               )}
-              <span>
-                {isFollowingVehicle ? t("map.viewWholeRoute") : vehicleLabel}
-              </span>
+              <span aria-live="polite">{vehicleControlLabel}</span>
             </button>
           </div>
         )}

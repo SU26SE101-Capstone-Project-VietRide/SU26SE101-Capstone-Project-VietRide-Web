@@ -86,6 +86,7 @@ describe("useSharedTripTracking — vehicle substitution", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -162,6 +163,66 @@ describe("useSharedTripTracking — vehicle substitution", () => {
     );
     expect(createSocketMock).toHaveBeenCalledTimes(1);
     expect(fetchContextMock).toHaveBeenLastCalledWith("v1.grant.signature");
+
+    unmount();
+  });
+
+  it("recovers a missed replacement GPS through REST without replacing the socket", async () => {
+    vi.useFakeTimers();
+    const replacementLocation = {
+      ...initialLocation,
+      latitude: 10.8,
+      longitude: 106.9,
+      recordedAt: "2026-08-31T08:10:00+07:00",
+    };
+    fetchContextMock
+      .mockResolvedValueOnce(initialContext)
+      .mockResolvedValueOnce({
+        ...initialContext,
+        status: "VEHICLE_REPLACEMENT_PENDING",
+        vehicle: { location: null },
+        eta: null,
+      })
+      .mockResolvedValueOnce({
+        ...initialContext,
+        status: "IN_PROGRESS",
+        lastUpdatedAt: replacementLocation.recordedAt,
+        vehicle: { location: replacementLocation },
+      });
+
+    const { result, unmount } = renderHook(() =>
+      useSharedTripTracking("v1.grant.signature"),
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(createSocketMock).toHaveBeenCalledTimes(1);
+
+    act(() =>
+      listeners.get("shared:trip:vehicleSubstituted")?.({
+        status: "VEHICLE_REPLACEMENT_PENDING",
+        occurredAt: "2026-08-31T08:05:00+07:00",
+      }),
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(fetchContextMock).toHaveBeenCalledTimes(2);
+    expect(result.current.context?.status).toBe(
+      "VEHICLE_REPLACEMENT_PENDING",
+    );
+    expect(result.current.location).toEqual(initialLocation);
+    expect(result.current.context?.vehicle.location).toEqual(initialLocation);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(fetchContextMock).toHaveBeenCalledTimes(3);
+    expect(result.current.context?.status).toBe("IN_PROGRESS");
+    expect(result.current.location).toEqual(replacementLocation);
+    expect(createSocketMock).toHaveBeenCalledTimes(1);
 
     unmount();
   });

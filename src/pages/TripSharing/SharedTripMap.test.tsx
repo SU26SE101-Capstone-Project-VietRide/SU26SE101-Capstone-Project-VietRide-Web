@@ -39,6 +39,7 @@ vi.mock("react-i18next", () => ({
         "map.focusVehicle": "Vị trí xe",
         "map.legendVehicle": "Xe đang chạy",
         "map.legendVehicleBeforeReplacement": "Vị trí trước khi đổi xe",
+        "map.waitingForReplacementVehicle": "Đang chờ vị trí xe mới",
         "map.viewWholeRoute": "Xem toàn tuyến",
       };
       return translations[key] ?? key;
@@ -190,5 +191,23 @@ describe("SharedTripMap", () => {
     expect(
       canvasProps.at(-1)?.pointMarkers?.find((marker) => marker.id === "vehicle"),
     ).toEqual(expect.objectContaining({ title: "Vị trí trước khi đổi xe" }));
+  });
+
+  it("keeps vehicle mode visible but disabled while waiting for the new GPS", () => {
+    render(
+      <SharedTripMap
+        context={{
+          ...mockContext,
+          status: "VEHICLE_REPLACEMENT_PENDING",
+          eta: null,
+        }}
+        location={null}
+      />,
+    );
+
+    const toggleBtn = screen.getByTestId("follow-vehicle-toggle");
+    expect(toggleBtn).toBeDisabled();
+    expect(toggleBtn).toHaveTextContent("Đang chờ vị trí xe mới");
+    expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
   });
 });

@@ -45,6 +45,9 @@ const INITIAL: SharedTripViewState = {
   revokedReason: null,
 };
 
+const REPLACEMENT_CONTEXT_REFRESH_MS = 5_000;
+const REPLACEMENT_CONTEXT_MAX_BACKOFF_MS = 30_000;
+
 function asNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -158,13 +161,24 @@ export function useSharedTripTracking(shareToken: string | null) {
           ) return;
 
           const terminal = isTerminalStatus(refreshedContext.status);
-          setState({
-            connection: terminal ? "ended" : "live",
-            context: refreshedContext,
-            location: refreshedContext.vehicle.location,
-            errorCode: null,
-            errorMessage: null,
-            revokedReason: null,
+          setState((prev) => {
+            const retainedLocation = isVehicleReplacementPending(
+              refreshedContext.status,
+            )
+              ? refreshedContext.vehicle.location ?? prev.location
+              : refreshedContext.vehicle.location;
+
+            return {
+              connection: terminal ? "ended" : "live",
+              context: {
+                ...refreshedContext,
+                vehicle: { location: retainedLocation },
+              },
+              location: retainedLocation,
+              errorCode: null,
+              errorMessage: null,
+              revokedReason: null,
+            };
           });
           if (terminal) teardownSocket();
         } catch (error) {
@@ -419,6 +433,116 @@ export function useSharedTripTracking(shareToken: string | null) {
       teardownSocket();
     };
   }, [loadContext, shareToken, teardownSocket]);
+
+  const replacementPending = isVehicleReplacementPending(
+    state.context?.status,
+  );
+
+  useEffect(() => {
+    if (!shareToken || !replacementPending) return;
+    const token = shareToken;
+
+    let cancelled = false;
+    let failureCount = 0;
+    let timer: number | null = null;
+    let controller: AbortController | null = null;
+
+    const scheduleRefresh = (delayMs: number) => {
+      if (cancelled) return;
+      timer = window.setTimeout(() => {
+        void refreshPendingContext();
+      }, delayMs);
+    };
+
+    async function refreshPendingContext() {
+      const refreshController = new AbortController();
+      controller = refreshController;
+
+      try {
+        const refreshedContext = await fetchSharedTripContext(
+          token,
+          refreshController.signal,
+        );
+        if (cancelled || tokenRef.current !== token) return;
+
+        const terminal = isTerminalStatus(refreshedContext.status);
+        setState((prev) => {
+          // A GPS/status socket event that arrived while REST was in flight is
+          // newer than this recovery response and must win.
+          if (!isVehicleReplacementPending(prev.context?.status)) return prev;
+
+          // During vehicle handover BE may temporarily return location:null.
+          // Keep only a location already observed in this session; never invent
+          // a fallback coordinate for a fresh shared link.
+          const retainedLocation = isVehicleReplacementPending(
+            refreshedContext.status,
+          )
+            ? refreshedContext.vehicle.location ?? prev.location
+            : refreshedContext.vehicle.location;
+
+          return {
+            connection: terminal ? "ended" : prev.connection,
+            context: {
+              ...refreshedContext,
+              vehicle: { location: retainedLocation },
+            },
+            location: retainedLocation,
+            errorCode: null,
+            errorMessage: null,
+            revokedReason: null,
+          };
+        });
+
+        failureCount = 0;
+        if (terminal) {
+          teardownSocket();
+          return;
+        }
+        if (isVehicleReplacementPending(refreshedContext.status)) {
+          scheduleRefresh(REPLACEMENT_CONTEXT_REFRESH_MS);
+        }
+      } catch (error) {
+        if (cancelled || refreshController.signal.aborted) return;
+        const apiError = error instanceof ApiRequestError ? error : null;
+        if (
+          apiError?.code === "TRACKING_SHARE_TOKEN_INVALID" ||
+          apiError?.code === "TRACKING_SHARE_LINK_UNAVAILABLE"
+        ) {
+          teardownSocket();
+          setState({
+            connection: "error",
+            context: null,
+            location: null,
+            errorCode: apiError.code,
+            errorMessage: null,
+            revokedReason:
+              apiError.code === "TRACKING_SHARE_LINK_UNAVAILABLE"
+                ? "REVOKED"
+                : null,
+          });
+          return;
+        }
+
+        // Transient/429 failures keep the live socket and last safe marker.
+        // Back off so the recovery path cannot hammer the public endpoint.
+        failureCount += 1;
+        scheduleRefresh(
+          Math.min(
+            REPLACEMENT_CONTEXT_REFRESH_MS * 2 ** failureCount,
+            REPLACEMENT_CONTEXT_MAX_BACKOFF_MS,
+          ),
+        );
+      }
+    }
+
+    scheduleRefresh(REPLACEMENT_CONTEXT_REFRESH_MS);
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+      controller?.abort();
+    };
+  }, [replacementPending, shareToken, teardownSocket]);
 
   const retry = useCallback(() => {
     if (!shareToken) return;
