@@ -3,11 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../../../api/client";
 import {
-  assignOperatorParcelIncident,
   decideOperatorParcelIncidentCustodyException,
   getOperatorParcelIncident,
   getOperatorParcelIncidents,
   getOperatorUsers,
+  recordOperatorParcelIncidentSearch,
   resolveOperatorParcelIncident,
   type ParcelCustodyExceptionApproval,
   type ParcelIncidentDetail,
@@ -205,8 +205,16 @@ describe("Manager parcel incidents", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByRole("button", { name: "parcelIncidents.actions.ASSIGN" }),
+      within(dialog).getByRole("button", {
+        name: "parcelIncidents.actions.MARK_FOUND",
+      }),
     ).toBeInTheDocument();
+    // ASSIGN bị ẩn có chủ đích: BE vẫn trả về nhưng màn không bày nút nữa
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "parcelIncidents.actions.ASSIGN",
+      }),
+    ).not.toBeInTheDocument();
     // BE không trả RESOLVE/DECLARE_LOST/FORWARD → màn không được tự bày ra
     expect(
       within(dialog).queryByRole("button", {
@@ -226,31 +234,6 @@ describe("Manager parcel incidents", () => {
     expect(resolveOperatorParcelIncident).not.toHaveBeenCalled();
   });
 
-  it("chặn giao nhiệm vụ khi chưa chọn người, không gọi API", async () => {
-    const user = userEvent.setup();
-    render(<ParcelIncidentsPage />);
-
-    await user.click(await screen.findByRole("button", { name: "details" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(
-      within(dialog).getByRole("button", { name: "parcelIncidents.actions.ASSIGN" }),
-    );
-
-    const dialogs = await screen.findAllByRole("dialog");
-    const assignDialog = dialogs[dialogs.length - 1];
-    await user.click(
-      within(assignDialog).getByRole("button", {
-        name: "parcelIncidents.actions.ASSIGN",
-      }),
-    );
-
-    // §6.3: `Guid.Empty` chưa có guard ở BE nên FE phải chặn trước
-    expect(
-      await within(assignDialog).findByText("parcelIncidents.assigneeRequired"),
-    ).toBeInTheDocument();
-    expect(assignOperatorParcelIncident).not.toHaveBeenCalled();
-  });
-
   it("thay chi tiết bằng kết quả mutation trả về, không gọi lại detail", async () => {
     const user = userEvent.setup();
     const updated: ParcelIncidentDetail = {
@@ -258,28 +241,29 @@ describe("Manager parcel incidents", () => {
       incident: { ...incident, status: "FOUND" },
       availableActions: ["RESOLVE"],
     };
-    vi.mocked(assignOperatorParcelIncident).mockResolvedValue(updated);
+    vi.mocked(recordOperatorParcelIncidentSearch).mockResolvedValue(updated);
 
     render(<ParcelIncidentsPage />);
 
     await user.click(await screen.findByRole("button", { name: "details" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(
-      within(dialog).getByRole("button", { name: "parcelIncidents.actions.ASSIGN" }),
+      within(dialog).getByRole("button", {
+        name: "parcelIncidents.recordSearchShort",
+      }),
     );
 
     const dialogs = await screen.findAllByRole("dialog");
-    const assignDialog = dialogs[dialogs.length - 1];
-    // CustomSelect là listbox tuỳ biến: mở bằng button rồi chọn option
-    await user.click(
-      await within(assignDialog).findByRole("button", {
-        name: "parcelIncidents.assigneeLabel",
+    const searchDialog = dialogs[dialogs.length - 1];
+    await user.type(
+      within(searchDialog).getByRole("textbox", {
+        name: "parcelIncidents.resultLabel",
       }),
+      "Đã rà soát toàn xe",
     );
-    await user.click(screen.getByRole("option", { name: /Phạm D/ }));
     await user.click(
-      within(assignDialog).getByRole("button", {
-        name: "parcelIncidents.actions.ASSIGN",
+      within(searchDialog).getByRole("button", {
+        name: "parcelIncidents.actions.RECORD_SEARCH",
       }),
     );
 

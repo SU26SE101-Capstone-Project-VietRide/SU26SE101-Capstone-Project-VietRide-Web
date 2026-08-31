@@ -243,11 +243,8 @@ export default function IncidentDetailModal({
                 APPROVE/REJECT nên toàn bộ nhóm nút bên dưới tự tắt: đó đúng là
                 luật "không cho search/mark-found/forward/declare-lost trước
                 approval" (§2 mục 7), FE không cần thêm điều kiện riêng. */}
-            {hasIncidentAction(availableActions, "ASSIGN") && (
-              <Button variant="secondary" onClick={() => setAction("ASSIGN")}>
-                {t("parcelIncidents.actions.ASSIGN")}
-              </Button>
-            )}
+            {/* ASSIGN bị ẩn có chủ đích: dù `availableActions` của BE còn trả
+                về, màn chi tiết không bày nút giao nhiệm vụ tìm nữa. */}
             {hasIncidentAction(availableActions, "MARK_FOUND") && (
               <Button
                 variant="secondary"
@@ -447,10 +444,11 @@ export default function IncidentDetailModal({
                   />
                   <DetailItem
                     label={t("parcelIncidents.lastLocation")}
-                    value={
-                      detail.currentCustody.lastLocationSnapshot?.trim() ||
-                      t("parcelIncidents.unknownLocation")
-                    }
+                    value={locationRefLabel(
+                      detail.currentCustody.lastLocationSnapshot,
+                      locationTypeLabel,
+                      t("parcelIncidents.unknownLocation"),
+                    )}
                   />
                   <DetailItem
                     label={t("parcelIncidents.lastConfirmedAt")}

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import {
   FiAlertOctagon,
+  FiAlertTriangle,
   FiEdit3,
   FiGrid,
   FiPhone,
@@ -11,10 +13,12 @@ import {
 } from "react-icons/fi";
 import {
   cancelOperatorTrip,
+  getOperatorIncidents,
   getOperatorRoutes,
   getOperatorVehicles,
   previewOperatorTripCancel,
   updateOperatorTrip,
+  type OperatorIncident,
   type OperatorRoute,
   type OperatorTripCancelPreview,
   type OperatorTripListItem,
@@ -30,6 +34,7 @@ import TripSeatMapPanel from "../../../components/TripSeatMapPanel";
 import { inputClass, labelClass, textareaClass } from "../../../components/form/formClasses";
 import { displayBusinessCode } from "../../../utils/businessCode";
 import { formatCurrency } from "../../../utils/currency";
+import { formatDateTime } from "../../../utils/date";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 
 /**
@@ -41,6 +46,14 @@ const EDITABLE_STATUSES = new Set(["SCHEDULED", "BOARDING"]);
 
 /** Trạng thái mà `POST /cancel` còn chấp nhận. */
 const CANCELLABLE_STATUSES = new Set(["SCHEDULED", "BOARDING"]);
+
+/**
+ * Chuyến ở trạng thái này là do MỘT sự cố nào đó — bảng danh sách chỉ in được
+ * badge "Gặp sự cố", còn lý do nằm ở `GET /v1/operator/incidents?tripId=`.
+ * Không tải sẵn cho mọi chuyến: đại đa số chuyến không có sự cố nào, mở modal
+ * nào cũng bắn thêm một request là lãng phí.
+ */
+const DISRUPTED_STATUS = "DISRUPTED";
 
 type TripManageModalProps = {
   trip: OperatorTripListItem | null;
@@ -126,6 +139,16 @@ export default function TripManageModal({
   );
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  /**
+   * Một state duy nhất cho lượt tải sự cố, gắn kèm `tripId` của lượt đó: chưa
+   * có kết quả của đúng chuyến này = đang tải, `items: null` = tải hỏng. Tách
+   * ra hai cờ `isLoading`/`hasFailed` thì phải set chúng ngay trong effect,
+   * đúng thứ cascading render mà `react-hooks/set-state-in-effect` chặn.
+   */
+  const [incidentsResult, setIncidentsResult] = useState<{
+    tripId: string;
+    items: OperatorIncident[] | null;
+  } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
   /**
@@ -144,6 +167,7 @@ export default function TripManageModal({
   // thừa vừa tạo một lượt render trung gian mang dữ liệu chuyến cũ.
 
   const tripId = trip?.tripId ?? "";
+  const isDisrupted = trip?.status === DISRUPTED_STATUS;
   const isEditable = Boolean(trip && EDITABLE_STATUSES.has(trip.status));
   const isCancellable = Boolean(trip && CANCELLABLE_STATUSES.has(trip.status));
   const canEdit = canMutate && isEditable;
@@ -177,6 +201,46 @@ export default function TripManageModal({
       ignore = true;
     };
   }, [canEdit, tripId]);
+
+  /**
+   * Lý do chuyến bị gián đoạn. BE KHÔNG trả reason kèm trong `GET
+   * /v1/operator/trips` — cả list lẫn detail chuyến đều không có field nào cho
+   * nó — nên phải hỏi riêng danh sách sự cố của đúng chuyến này.
+   *
+   * Không lọc `status=OPEN`: sự cố đã được đánh dấu đã xử lý vẫn là lý do
+   * chuyến thành `DISRUPTED`, giấu đi thì modal lại rỗng đúng như trước.
+   */
+  useEffect(() => {
+    if (!tripId || !isDisrupted) return;
+
+    let ignore = false;
+    getOperatorIncidents({
+      tripId,
+      page: 1,
+      pageSize: 20,
+      sortBy: "reportedAt",
+      sortDir: "desc",
+    })
+      .then((result) => {
+        if (!ignore) setIncidentsResult({ tripId, items: result.items });
+      })
+      .catch(() => {
+        // `items: null` = KHÔNG BIẾT, và khối bên dưới nói đúng như vậy. Không
+        // được hiển thị thành "chuyến chưa có sự cố nào": hai câu đó dẫn người
+        // vận hành đi hai hướng khác nhau.
+        if (!ignore) setIncidentsResult({ tripId, items: null });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [isDisrupted, tripId]);
+
+  // Kết quả của chuyến khác không tính là đã tải xong.
+  const hasIncidentsFor = incidentsResult?.tripId === tripId;
+  const incidents = hasIncidentsFor ? incidentsResult.items : null;
+  const isIncidentsLoading = isDisrupted && Boolean(tripId) && !hasIncidentsFor;
+  const hasIncidentsFailed = hasIncidentsFor && incidentsResult.items === null;
 
   const patch = buildTripPatch(draft, initialDraft);
   const hasChanges = Object.keys(patch).length > 0;
@@ -272,6 +336,87 @@ export default function TripManageModal({
         {trip && (
           <div className="space-y-6">
             {error && <InlineAlert tone="error">{error}</InlineAlert>}
+
+            {/* Lý do gián đoạn đứng TRÊN mọi thứ khác: đây là câu hỏi duy nhất
+                người vận hành mang theo khi mở một chuyến "Gặp sự cố". */}
+            {isDisrupted && (
+              <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                  <FiAlertTriangle aria-hidden="true" />
+                  {t("tripList.manage.incidentTitle")}
+                </h3>
+                <p className="mt-1 text-xs text-amber-800">
+                  {t("tripList.manage.incidentHint")}
+                </p>
+
+                {isIncidentsLoading && (
+                  <p className="mt-3 text-sm text-amber-900">
+                    {t("tripList.manage.incidentsLoading")}
+                  </p>
+                )}
+
+                {!isIncidentsLoading && hasIncidentsFailed && (
+                  <p className="mt-3 text-sm text-amber-900">
+                    {t("tripList.manage.incidentsFailed")}
+                  </p>
+                )}
+
+                {!isIncidentsLoading &&
+                  !hasIncidentsFailed &&
+                  incidents?.length === 0 && (
+                    <p className="mt-3 text-sm text-amber-900">
+                      {t("tripList.manage.noIncident")}
+                    </p>
+                  )}
+
+                {!isIncidentsLoading && (incidents?.length ?? 0) > 0 && (
+                  <ul className="mt-3 space-y-2">
+                    {incidents?.map((incident) => (
+                      <li
+                        key={incident.incidentId}
+                        className="rounded-lg border border-amber-200 bg-white p-3"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Dùng lại đúng bảng dịch của màn Báo cáo sự cố để
+                              hai màn không gọi cùng một loại sự cố bằng hai tên. */}
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 ring-1 ring-gray-200">
+                            {t(`incidents.categories.${incident.category}`, {
+                              defaultValue: String(incident.category),
+                            })}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {formatDateTime(incident.reportedAt)}
+                          </span>
+                          <span className="text-xs font-semibold text-gray-600">
+                            {t(`incidents.statuses.${incident.status}`, {
+                              defaultValue: String(incident.status),
+                            })}
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-sm text-gray-900">
+                          {incident.description?.trim() ||
+                            t("incidents.noDescription")}
+                        </p>
+                        {incident.resolutionNote?.trim() && (
+                          <p className="mt-1 text-xs text-gray-600">
+                            {t("tripList.manage.incidentResolution", {
+                              note: incident.resolutionNote.trim(),
+                            })}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <Link
+                  to={`/manager/incidents?tripId=${encodeURIComponent(trip.tripId)}`}
+                  className="mt-3 inline-block text-sm font-semibold text-vr-800 hover:underline"
+                >
+                  {t("tripList.manage.incidentLink")}
+                </Link>
+              </section>
+            )}
 
             <section>
               <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900">

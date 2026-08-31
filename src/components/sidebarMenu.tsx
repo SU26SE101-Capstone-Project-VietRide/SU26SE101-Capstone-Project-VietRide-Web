@@ -43,14 +43,22 @@ export type MenuSection = {
   items: MenuItem[];
 };
 
+// Menu nhà xe có hơn 20 mục. Gom hết vào một nhóm "CHỨC NĂNG" thì người dùng
+// phải quét cả danh sách mới tìm ra mục cần — chia theo nhóm nghiệp vụ để mắt
+// chỉ phải quét trong một nhóm 2-6 mục.
 export const operatorAdminMenuConfig: MenuSection[] = [
   {
-    titleKey: "sections.menu",
+    titleKey: "sections.operations",
     items: [
       {
         labelKey: "manager.dashboard",
         path: "/manager/dashboard",
         icon: <FiLayout />,
+      },
+      {
+        labelKey: "manager.operations",
+        path: "/manager/operations",
+        icon: <FiMap />,
       },
       { labelKey: "manager.trips", path: "/manager/trips", icon: <FiTruck /> },
       // "Lịch chạy" (ở trên) quản lý LỊCH định kỳ; mục này chỉ tra cứu các chuyến
@@ -60,6 +68,22 @@ export const operatorAdminMenuConfig: MenuSection[] = [
         path: "/manager/trip-list",
         icon: <FiList />,
       },
+      {
+        labelKey: "manager.dispatch",
+        path: "/manager/dispatch",
+        icon: <FiNavigation />,
+        requiredModule: "enableShuttle",
+      },
+      {
+        labelKey: "manager.incidents",
+        path: "/manager/incidents",
+        icon: <FiAlertTriangle />,
+      },
+    ],
+  },
+  {
+    titleKey: "sections.routes",
+    items: [
       {
         labelKey: "manager.routes",
         path: "/manager/routes",
@@ -75,17 +99,39 @@ export const operatorAdminMenuConfig: MenuSection[] = [
         path: "/manager/stations",
         icon: <FiMapPin />,
       },
+    ],
+  },
+  {
+    titleKey: "sections.fleet",
+    items: [
       {
         labelKey: "manager.vehicles",
         path: "/manager/vehicles",
         icon: <FiTruck />,
       },
       { labelKey: "manager.staff", path: "/manager/staff", icon: <FiUsers /> },
+    ],
+  },
+  {
+    titleKey: "sections.sales",
+    items: [
       {
         labelKey: "manager.bookings",
         path: "/manager/bookings",
         icon: <FiBookOpen />,
       },
+      {
+        labelKey: "manager.vouchers",
+        path: "/manager/vouchers",
+        icon: <FiPackage />,
+      },
+    ],
+  },
+  {
+    // Cả nhóm đều thuộc module `enableParcel`: nhà xe không mua module thì bộ
+    // lọc trong Sidebar bỏ hết mục, và nhóm rỗng cũng biến mất theo.
+    titleKey: "sections.parcel",
+    items: [
       {
         labelKey: "manager.parcels",
         path: "/manager/parcels",
@@ -96,18 +142,6 @@ export const operatorAdminMenuConfig: MenuSection[] = [
         labelKey: "manager.parcelIncidents",
         path: "/manager/parcel-incidents",
         icon: <FiAlertOctagon />,
-        requiredModule: "enableParcel",
-      },
-      {
-        labelKey: "manager.claims",
-        path: "/manager/claims",
-        icon: <FiShield />,
-        requiredModule: "enableParcel",
-      },
-      {
-        labelKey: "manager.claimAppeals",
-        path: "/manager/claim-appeals",
-        icon: <FiRotateCcw />,
         requiredModule: "enableParcel",
       },
       {
@@ -123,41 +157,21 @@ export const operatorAdminMenuConfig: MenuSection[] = [
         requiredModule: "enableParcel",
       },
       {
-        labelKey: "manager.operations",
-        path: "/manager/operations",
-        icon: <FiMap />,
+        labelKey: "manager.claims",
+        path: "/manager/claims",
+        icon: <FiShield />,
+        requiredModule: "enableParcel",
       },
       {
-        labelKey: "manager.dispatch",
-        path: "/manager/dispatch",
-        icon: <FiNavigation />,
-        requiredModule: "enableShuttle",
-      },
-      {
-        labelKey: "manager.incidents",
-        path: "/manager/incidents",
-        icon: <FiAlertTriangle />,
-      },
-      {
-        labelKey: "manager.vouchers",
-        path: "/manager/vouchers",
-        icon: <FiPackage />,
-      },
-      {
-        labelKey: "manager.packages",
-        path: "/manager/packages",
-        icon: <FiCreditCard />,
-      },
-      {
-        labelKey: "manager.policies",
-        path: "/manager/policies",
-        icon: <FiFileText />,
-        requiredModule: "enableRag",
+        labelKey: "manager.claimAppeals",
+        path: "/manager/claim-appeals",
+        icon: <FiRotateCcw />,
+        requiredModule: "enableParcel",
       },
     ],
   },
   {
-    titleKey: "sections.support",
+    titleKey: "sections.finance",
     items: [
       {
         labelKey: "manager.wallet",
@@ -165,17 +179,33 @@ export const operatorAdminMenuConfig: MenuSection[] = [
         icon: <FiDollarSign />,
       },
       {
+        labelKey: "manager.packages",
+        path: "/manager/packages",
+        icon: <FiCreditCard />,
+      },
+    ],
+  },
+  {
+    titleKey: "sections.system",
+    items: [
+      {
+        labelKey: "manager.policies",
+        path: "/manager/policies",
+        icon: <FiFileText />,
+        requiredModule: "enableRag",
+      },
+      {
         labelKey: "manager.settings",
         path: "/manager/settings",
         icon: <FiSettings />,
       },
-],
+    ],
   },
 ];
 
 export const adminMenuConfig: MenuSection[] = [
   {
-    titleKey: "sections.menu",
+    titleKey: "sections.analytics",
     items: [
       {
         labelKey: "admin.dashboard",
@@ -183,10 +213,38 @@ export const adminMenuConfig: MenuSection[] = [
         icon: <FiLayout />,
       },
       {
+        labelKey: "admin.reports",
+        path: "/admin/reports",
+        icon: <FiBarChart2 />,
+      },
+    ],
+  },
+  {
+    // Ba màn đều xoay quanh quan hệ với nhà xe: hồ sơ nhà xe, gói họ mua và
+    // tiền phải trả cho họ.
+    titleKey: "sections.operators",
+    items: [
+      {
         labelKey: "admin.operators",
         path: "/admin/operators",
         icon: <FiTruck />,
       },
+      {
+        // FiPackage đã dùng cho "Mã giảm giá" bên nhóm Người dùng.
+        labelKey: "admin.packages",
+        path: "/admin/packages",
+        icon: <FiLayers />,
+      },
+      {
+        labelKey: "admin.walletSettlement",
+        path: "/admin/wallet-settlement",
+        icon: <FiDollarSign />,
+      },
+    ],
+  },
+  {
+    titleKey: "sections.stations",
+    items: [
       {
         labelKey: "admin.stations",
         path: "/admin/stations",
@@ -199,6 +257,11 @@ export const adminMenuConfig: MenuSection[] = [
         path: "/admin/locations",
         icon: <FiGlobe />,
       },
+    ],
+  },
+  {
+    titleKey: "sections.users",
+    items: [
       // FiBookOpen (quyển sách) cho mục quản lý người dùng là sai ngữ nghĩa.
       { labelKey: "admin.users", path: "/admin/users", icon: <FiUsers /> },
       {
@@ -206,31 +269,15 @@ export const adminMenuConfig: MenuSection[] = [
         path: "/admin/vouchers",
         icon: <FiPackage />,
       },
-      {
-        // FiPackage đã dùng cho "Mã giảm giá" ngay phía trên.
-        labelKey: "admin.packages",
-        path: "/admin/packages",
-        icon: <FiLayers />,
-      },
+    ],
+  },
+  {
+    titleKey: "sections.system",
+    items: [
       {
         labelKey: "admin.policies",
         path: "/admin/policies",
         icon: <FiFileText />,
-      },
-      {
-        labelKey: "admin.walletSettlement",
-        path: "/admin/wallet-settlement",
-        icon: <FiDollarSign />,
-      },
-    ],
-  },
-  {
-    titleKey: "sections.support",
-    items: [
-      {
-        labelKey: "admin.reports",
-        path: "/admin/reports",
-        icon: <FiBarChart2 />,
       },
       {
         labelKey: "admin.ragAudit",
@@ -261,4 +308,3 @@ export function menuLabelKeyFor(role: AuthRole, pathname: string): string | null
 
   return null;
 }
-
