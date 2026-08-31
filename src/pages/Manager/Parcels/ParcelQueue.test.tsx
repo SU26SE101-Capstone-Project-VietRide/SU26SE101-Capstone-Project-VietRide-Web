@@ -231,6 +231,12 @@ describe("ParcelQueue", () => {
   });
 
   it("gửi khoảng ngày dạng YYYY-MM-DD kèm dateField", async () => {
+    const now = new Date();
+    const selectedDate = [
+      String(now.getFullYear()),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      "01",
+    ].join("-");
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -252,12 +258,12 @@ describe("ParcelQueue", () => {
     await user.click(
       screen.getByRole("button", { name: "parcels.queue.dateFromLabel" }),
     );
-    await user.click(screen.getByRole("button", { name: "2026-08-01" }));
+    await user.click(screen.getByRole("button", { name: selectedDate }));
 
     await waitFor(() =>
       expect(getOperatorParcels).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          from: "2026-08-01",
+          from: selectedDate,
           dateField: "finalPaymentDeadline",
           sortBy: "finalPaymentDeadline",
         }),
