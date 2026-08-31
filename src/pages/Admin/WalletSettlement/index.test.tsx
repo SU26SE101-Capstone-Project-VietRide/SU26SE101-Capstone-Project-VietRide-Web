@@ -126,7 +126,9 @@ describe("Admin WalletSettlement", () => {
         name: "walletSettlement.settlementAmount",
       }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("walletSettlement.flowTitle")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("walletSettlement.flowTitle"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText("walletSettlement.status.PENDING_HOLD"),
     ).not.toBeInTheDocument();
@@ -165,6 +167,38 @@ describe("Admin WalletSettlement", () => {
         name: "walletSettlement.settlementCode",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("truncates long operator names and exposes the full text on hover", async () => {
+    const longOperatorName =
+      "Nhà xe Hồng Gia Đà Nẵng - Chi nhánh Bắc Sông Thuận An - Tỉnh Thừa Thiên Huế";
+
+    vi.mocked(getAdminTripSettlements).mockResolvedValue({
+      ...page,
+      items: [
+        {
+          ...settlement,
+          operator: {
+            operatorId: "operator-long",
+            name: longOperatorName,
+            logoUrl: null,
+            contactPhone: null,
+          },
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={["/admin/wallet-settlement?tab=settlements"]}
+      >
+        <WalletSettlement />
+      </MemoryRouter>,
+    );
+
+    const operatorCell = await screen.findByText(longOperatorName);
+    expect(operatorCell).toHaveClass("truncate");
+    expect(operatorCell).toHaveAttribute("title", longOperatorName);
   });
 
   it("combines money in and out into one paginated table", async () => {
@@ -270,10 +304,9 @@ describe("Admin WalletSettlement", () => {
     await waitFor(() =>
       expect(getAdminPlatformWallet).toHaveBeenCalledTimes(2),
     );
-    expect(translate).toHaveBeenCalledWith(
-      "walletSettlement.settledMessage",
-      { operator: settlementWithOperator.operator.name },
-    );
+    expect(translate).toHaveBeenCalledWith("walletSettlement.settledMessage", {
+      operator: settlementWithOperator.operator.name,
+    });
   });
 
   it("allows an admin to settle a pending hold early", async () => {

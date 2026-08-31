@@ -1,12 +1,6 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useLatestRequest } from "../../../hooks/useLatestRequest";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertTriangle,
@@ -149,7 +143,9 @@ export default function WalletSettlement() {
   const [transactionTotalItems, setTransactionTotalItems] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [transactionType, setTransactionType] = useState<WalletTransactionType | "">("");
+  const [transactionType, setTransactionType] = useState<
+    WalletTransactionType | ""
+  >("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -227,7 +223,12 @@ export default function WalletSettlement() {
     if (!isLatest()) return;
     setTransactions(transactionResult.items);
     setTransactionTotalItems(transactionResult.totalItems);
-  }, [debouncedSearch, startTransactionsRequest, transactionPage, transactionType]);
+  }, [
+    debouncedSearch,
+    startTransactionsRequest,
+    transactionPage,
+    transactionType,
+  ]);
 
   // Refresh toàn bộ: dùng cho nút refresh và sau khi settle thủ công
   const loadData = useCallback(
@@ -388,7 +389,6 @@ export default function WalletSettlement() {
         </button>
       </div>
 
-
       <OverviewTab
         platformBalance={platformWallet?.balance ?? 0}
         totals={totals}
@@ -420,164 +420,200 @@ export default function WalletSettlement() {
       {activeTab === "settlements" && (
         <>
           <section className="space-y-4">
-<div className="rounded-lg border border-gray-200 bg-white p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center"><SearchInput
-  label={t("walletSettlement.searchPlaceholder")}
-  value={search}
-  onChange={(event) => setSearch(event.target.value)}
-  placeholder={t("walletSettlement.searchPlaceholder")}
-  inputClassName="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
-  wrapperClassName="relative min-w-0 flex-1"
-/>
-            <CustomSelect
-              value={settlementView}
-              onChange={(event) => selectSettlementView(event.target.value as SettlementView)}
-              aria-label={tc("status")}
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 lg:w-64"
-            >
-              {settlementViews.map((view) => (
-                <option key={view} value={view}>{t(`walletSettlement.filters.${view}`)}</option>
-              ))}
-            </CustomSelect>
-            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <SearchInput
+                  label={t("walletSettlement.searchPlaceholder")}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={t("walletSettlement.searchPlaceholder")}
+                  inputClassName="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-vr-500 focus:bg-white"
+                  wrapperClassName="relative min-w-0 flex-1"
+                />
+                <CustomSelect
+                  value={settlementView}
+                  onChange={(event) =>
+                    selectSettlementView(event.target.value as SettlementView)
+                  }
+                  aria-label={tc("status")}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 lg:w-64"
+                >
+                  {settlementViews.map((view) => (
+                    <option key={view} value={view}>
+                      {t(`walletSettlement.filters.${view}`)}
+                    </option>
+                  ))}
+                </CustomSelect>
+              </div>
 
-            {/* Bề rộng thật của bảy cột với `px-3` là ~1138px, vừa trong
-                vùng nội dung ~1183px cạnh sidebar nên không phải cuộn ngang;
-                `px-4` như trước là 1194px, tràn đúng 11px. min-w để dưới mức
-                đó, chỉ còn là mốc cuộn cho màn hẹp. Mọi ô đều `whitespace-nowrap`
-                nên không có gì xuống dòng. */}
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold whitespace-nowrap text-gray-600">
-                    <th className="px-3 py-3 text-left">
-                      {t("walletSettlement.settlementCode")}
-                    </th>
-                    <th className="px-3 py-3 text-left">
-                      {t("walletSettlement.operator")}
-                    </th>
-                    <th className="px-3 py-3 text-center">
-                      {t("walletSettlement.settlementAmount")}
-                    </th>
-                    <th className="px-3 py-3 text-center">
-                      {t("walletSettlement.eligibleAt")}
-                    </th>
-                    <th className="px-3 py-3 text-center">{tc("status")}</th>
-                    <th className="px-3 py-3 text-center">
-                      {t("walletSettlement.method")}
-                    </th>
-                    <th className="sticky right-0 z-10 bg-gray-50 px-3 py-3 text-center">{tc("actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!loading && filteredRecords.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-3 py-10 text-center text-gray-500"
-                      >
-                        {t("walletSettlement.empty")}
-                      </td>
+              {/* Cột trạng thái và mã đối soát được nén lại để bảng vừa trên
+                màn hình rộng vừa mở rộng nhẹ cho thời gian xử lý. */}
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[860px] table-fixed text-sm">
+                  <colgroup>
+                    <col className="w-[14%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[14%]" />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50 text-center text-[11px] font-semibold whitespace-nowrap text-gray-600">
+                      <th className="px-2 py-2.5 text-left">
+                        {t("walletSettlement.settlementCode")}
+                      </th>
+                      <th className="px-2 py-2.5 text-left">
+                        {t("walletSettlement.operator")}
+                      </th>
+                      <th className="px-2 py-2.5 text-center">
+                        {t("walletSettlement.settlementAmount")}
+                      </th>
+                      <th className="px-2 py-2.5 text-center">
+                        {t("walletSettlement.eligibleAt")}
+                      </th>
+                      <th className="px-2 py-2.5 text-center">{tc("status")}</th>
+                      <th className="px-2 py-2.5 text-center">
+                        {t("walletSettlement.method")}
+                      </th>
+                      <th className="sticky right-0 z-10 bg-gray-50 px-2 py-2.5 text-center">
+                        {tc("actions")}
+                      </th>
                     </tr>
-                  )}
-                  {filteredRecords.map((record) => (
-                    <tr
-                      key={record.settlementId}
-                      className="border-b border-gray-100 hover:bg-gray-50"
-                    >
-                      {/* Bản admin có top-level `tripCode`; `pickSettlementTripCode`
-                          vẫn dùng chung để nếu BE đổi sang snapshot thì không vỡ. */}
-                      <td className="whitespace-nowrap px-3 py-3 text-left">
-                        <p className="font-mono text-xs tabular-nums font-semibold text-gray-900">
-                          {displayBusinessCode(record.settlementCode)}
-                        </p>
-                        <p className="mt-0.5 font-mono text-xs tabular-nums text-gray-500">
-                          {displayBusinessCode(pickSettlementTripCode(record))}
-                        </p>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-left">
-                        <p className="font-semibold text-gray-900">
-                          {record.operator?.name ?? record.operatorId ?? "-"}
-                        </p>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-center font-semibold">
-                        {formatMoney(record.netAmount)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-center">
-                        {formatDate(
-                          record.settlementMethod === "ADMIN_MANUAL" && record.settledAt
-                            ? record.settledAt
-                            : record.eligibleAt,
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-center">
-                        <span
-                          className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[record.status]}`}
+                  </thead>
+                  <tbody>
+                    {!loading && filteredRecords.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="px-3 py-10 text-center text-gray-500"
                         >
-                          {t(`walletSettlement.status.${record.status}`)}
-                        </span>
-                        {/* Mã lỗi chi trả trước đây chiếm hẳn một cột "Ghi chú"
+                          {t("walletSettlement.empty")}
+                        </td>
+                      </tr>
+                    )}
+                    {filteredRecords.map((record) => (
+                      <tr
+                        key={record.settlementId}
+                        className="border-b border-gray-100 hover:bg-gray-50"
+                      >
+                        {/* Bản admin có top-level `tripCode`; `pickSettlementTripCode`
+                          vẫn dùng chung để nếu BE đổi sang snapshot thì không vỡ. */}
+                        <td className="whitespace-nowrap px-2 py-2.5 text-left">
+                          <p className="font-mono text-[11px] tabular-nums font-semibold text-gray-900">
+                            {displayBusinessCode(record.settlementCode)}
+                          </p>
+                          <p className="mt-0.5 font-mono text-[11px] tabular-nums text-gray-500">
+                            {displayBusinessCode(
+                              pickSettlementTripCode(record),
+                            )}
+                          </p>
+                        </td>
+                        <td className="overflow-hidden px-1 py-2.5 text-left">
+                          <p
+                            title={
+                              record.operator?.name ?? record.operatorId ?? "-"
+                            }
+                            className="max-w-[150px] truncate whitespace-nowrap font-semibold text-gray-900"
+                          >
+                            {record.operator?.name ?? record.operatorId ?? "-"}
+                          </p>
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2.5 text-center font-semibold">
+                          {formatMoney(record.netAmount)}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">
+                          {formatDate(
+                            record.settlementMethod === "ADMIN_MANUAL" &&
+                              record.settledAt
+                              ? record.settledAt
+                              : record.eligibleAt,
+                          )}
+                        </td>
+                        <td className="overflow-hidden px-1 py-2.5 text-center">
+                          <span
+                            className={`inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass[record.status]}`}
+                          >
+                            {t(`walletSettlement.status.${record.status}`)}
+                          </span>
+                          {/* Mã lỗi chi trả trước đây chiếm hẳn một cột "Ghi chú"
                             trống ở gần như mọi dòng. Gắn xuống dưới chip trạng
                             thái để thẻ "Cần xử lý" trên đầu trang vẫn tra được
                             lý do ngay trên dòng bị kẹt. */}
-                        {record.activeFailureCode ? (
-                          <p className="mx-auto mt-1 flex max-w-[220px] items-center justify-center gap-1.5 whitespace-normal text-xs text-amber-700">
-                            <FiAlertTriangle className="shrink-0" />
-                            <span>
-                              {t(
-                                `walletSettlement.failureCodes.${record.activeFailureCode}`,
-                                { defaultValue: record.activeFailureCode },
+                          {record.activeFailureCode ? (
+                            <p className="mx-auto mt-1 flex max-w-[220px] items-center justify-center gap-1.5 whitespace-normal text-xs text-amber-700">
+                              <FiAlertTriangle className="shrink-0" />
+                              <span>
+                                {t(
+                                  `walletSettlement.failureCodes.${record.activeFailureCode}`,
+                                  { defaultValue: record.activeFailureCode },
+                                )}
+                                {(record.failureCount ?? 0) > 0 &&
+                                  ` (${record.failureCount})`}
+                              </span>
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="overflow-hidden px-2 py-3 text-center">
+                          <p
+                            className="truncate"
+                            title={
+                              record.settlementMethod
+                                ? t(
+                                    `walletSettlement.methods.${record.settlementMethod}`,
+                                  )
+                                : "-"
+                            }
+                          >
+                            {record.settlementMethod
+                              ? t(
+                                  `walletSettlement.methods.${record.settlementMethod}`,
+                                )
+                              : "-"}
+                          </p>
+                          {record.settledBy ? (
+                            <p
+                              className="mt-1 truncate text-xs text-gray-500"
+                              title={`${t("walletSettlement.settledBy")}: ${accountName(record.settledBy.displayName, t("walletSettlement.systemAdminActor"))}`}
+                            >
+                              {t("walletSettlement.settledBy")}:{" "}
+                              {accountName(
+                                record.settledBy.displayName,
+                                t("walletSettlement.systemAdminActor"),
                               )}
-                              {(record.failureCount ?? 0) > 0 &&
-                                ` (${record.failureCount})`}
-                            </span>
-                          </p>
-                        ) : null}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-center">
-                        <p>
-                          {record.settlementMethod
-                            ? t(
-                                `walletSettlement.methods.${record.settlementMethod}`,
-                              )
-                            : "-"}
-                        </p>
-                        {record.settledBy ? (
-                          <p className="mt-1 text-xs text-gray-500">
-                            {t("walletSettlement.settledBy")}:{" "}
-                            {accountName(record.settledBy.displayName, t("walletSettlement.systemAdminActor"))}
-                          </p>
-                        ) : null}
-                      </td>
-                      {/* Ghim cột Thao tác — bảng min-w-[1120px] nên ở laptop
+                            </p>
+                          ) : null}
+                        </td>
+                        {/* Ghim cột Thao tác — bảng min-w-[1120px] nên ở laptop
                           cột này luôn nằm ngoài khung nếu không ghim. */}
-                      <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-3 py-3 text-center">
-                        <button
-                          type="button"
-                          disabled={
-                            !canSettleManually(record.status) ||
-                            settlingId === record.settlementId
-                          }
-                          onClick={() => setSettlementToConfirm(record)}
-                          className="inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <FiCheckCircle />
-                          {t("walletSettlement.manualSettle")}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-2 py-2.5 text-center">
+                          <button
+                            type="button"
+                            disabled={
+                              !canSettleManually(record.status) ||
+                              settlingId === record.settlementId
+                            }
+                            onClick={() => setSettlementToConfirm(record)}
+                            className="inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <FiCheckCircle className="text-[12px]" />
+                            {t("walletSettlement.manualSettle")}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={setPage}
+              />
             </div>
-            <Pagination
-              page={page}
-              pageSize={pageSize}
-              totalItems={totalItems}
-              onPageChange={setPage}
-            />
-          </div>
-        </section>
+          </section>
         </>
       )}
 
@@ -592,7 +628,10 @@ export default function WalletSettlement() {
             search={search}
             onSearch={setSearch}
             transactionType={transactionType}
-            onTransactionTypeChange={(value) => { setTransactionType(value); setTransactionPage(1); }}
+            onTransactionTypeChange={(value) => {
+              setTransactionType(value);
+              setTransactionPage(1);
+            }}
           />
         </>
       )}
@@ -633,7 +672,9 @@ export default function WalletSettlement() {
         {settlementToConfirm && (
           <dl className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-gray-600">{t("walletSettlement.operator")}</dt>
+              <dt className="text-gray-600">
+                {t("walletSettlement.operator")}
+              </dt>
               <dd className="text-right font-semibold text-gray-900">
                 {settlementToConfirm.operator?.name ??
                   settlementToConfirm.operatorId ??
@@ -651,8 +692,7 @@ export default function WalletSettlement() {
           </dl>
         )}
       </Modal>
-
-   </div>
+    </div>
   );
 }
 
@@ -674,10 +714,30 @@ function OverviewTab({
 }) {
   const { t } = useTranslation("admin");
   const cards = [
-    { label: t("walletSettlement.platformBalance"), value: formatMoney(platformBalance), icon: <FiDollarSign />, iconClassName: "bg-emerald-50 text-emerald-700" },
-    { label: t("walletSettlement.pageSettlementTotal"), value: formatMoney(totals.amount), icon: <FiArrowDown />, iconClassName: "bg-blue-50 text-blue-700" },
-    { label: t("walletSettlement.eligible"), value: String(totals.eligible), icon: <FiCheckCircle />, iconClassName: "bg-violet-50 text-violet-700" },
-    { label: t("walletSettlement.needsAttention"), value: String(totals.attention), icon: <FiAlertTriangle />, iconClassName: "bg-amber-50 text-amber-700" },
+    {
+      label: t("walletSettlement.platformBalance"),
+      value: formatMoney(platformBalance),
+      icon: <FiDollarSign />,
+      iconClassName: "bg-emerald-50 text-emerald-700",
+    },
+    {
+      label: t("walletSettlement.pageSettlementTotal"),
+      value: formatMoney(totals.amount),
+      icon: <FiArrowDown />,
+      iconClassName: "bg-blue-50 text-blue-700",
+    },
+    {
+      label: t("walletSettlement.eligible"),
+      value: String(totals.eligible),
+      icon: <FiCheckCircle />,
+      iconClassName: "bg-violet-50 text-violet-700",
+    },
+    {
+      label: t("walletSettlement.needsAttention"),
+      value: String(totals.attention),
+      icon: <FiAlertTriangle />,
+      iconClassName: "bg-amber-50 text-amber-700",
+    },
   ];
 
   return (
@@ -722,7 +782,9 @@ function WalletTransactionTable({
   return (
     <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 p-4">
-        <h2 className="text-center text-lg font-semibold text-gray-900">{t("walletSettlement.latestTransactions")}</h2>
+        <h2 className="text-center text-lg font-semibold text-gray-900">
+          {t("walletSettlement.latestTransactions")}
+        </h2>
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
           <SearchInput
             label={t("walletSettlement.searchPlaceholder")}
@@ -734,11 +796,17 @@ function WalletTransactionTable({
           />
           <CustomSelect
             value={transactionType}
-            onChange={(event) => onTransactionTypeChange(event.target.value as WalletTransactionType | "")}
+            onChange={(event) =>
+              onTransactionTypeChange(
+                event.target.value as WalletTransactionType | "",
+              )
+            }
             aria-label={t("walletSettlement.allTransactionTypes")}
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 lg:w-56"
           >
-            <option value="">{t("walletSettlement.allTransactionTypes")}</option>
+            <option value="">
+              {t("walletSettlement.allTransactionTypes")}
+            </option>
             <option value="CREDIT">{t("walletSettlement.moneyIn")}</option>
             <option value="DEBIT">{t("walletSettlement.moneyOut")}</option>
           </CustomSelect>
@@ -748,40 +816,105 @@ function WalletTransactionTable({
         <table className="w-full min-w-[1140px] text-sm">
           <thead>
             <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3 text-center">{t("walletSettlement.transactionCode")}</th>
-              <th className="px-4 py-3 text-center">{t("walletSettlement.createdAt")}</th>
-              <th className="px-4 py-3 text-center">{t("walletSettlement.cashFlow")}</th>
-              <th className="px-4 py-3 text-center">{t("walletSettlement.amount")}</th>
-              <th className="px-4 py-3 text-center">{t("walletSettlement.balanceBefore")}</th>
-              <th className="px-4 py-3 text-center">{t("walletSettlement.balanceAfter")}</th>
-              <th className="px-4 py-3 text-center">{t("walletSettlement.reference")}</th>
-              <th className="px-4 py-3 text-center">{t("walletSettlement.actor")}</th>
+              <th className="px-4 py-3 text-center">
+                {t("walletSettlement.transactionCode")}
+              </th>
+              <th className="px-4 py-3 text-center">
+                {t("walletSettlement.createdAt")}
+              </th>
+              <th className="px-4 py-3 text-center">
+                {t("walletSettlement.cashFlow")}
+              </th>
+              <th className="px-4 py-3 text-center">
+                {t("walletSettlement.amount")}
+              </th>
+              <th className="px-4 py-3 text-center">
+                {t("walletSettlement.balanceBefore")}
+              </th>
+              <th className="px-4 py-3 text-center">
+                {t("walletSettlement.balanceAfter")}
+              </th>
+              <th className="px-4 py-3 text-center">
+                {t("walletSettlement.reference")}
+              </th>
+              <th className="px-4 py-3 text-center">
+                {t("walletSettlement.actor")}
+              </th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">{t("walletSettlement.empty")}</td></tr>
-            ) : items.map((item) => {
-              const isCredit = item.type === "CREDIT";
-  return (
-                <tr key={item.transactionId} className="border-t border-gray-100 hover:bg-gray-50">
-                  {/* Ví nền tảng dùng mã `PWT-…`; cùng type WalletTransaction với ví
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                  {t("walletSettlement.empty")}
+                </td>
+              </tr>
+            ) : (
+              items.map((item) => {
+                const isCredit = item.type === "CREDIT";
+                return (
+                  <tr
+                    key={item.transactionId}
+                    className="border-t border-gray-100 hover:bg-gray-50"
+                  >
+                    {/* Ví nền tảng dùng mã `PWT-…`; cùng type WalletTransaction với ví
                       nhà xe nên field vẫn là `transactionCode`. */}
-                  <td className="whitespace-nowrap px-4 py-3 text-center font-mono text-xs tabular-nums text-gray-700">{displayBusinessCode(item.transactionCode)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center">{formatDate(item.createdAt)}</td>
-                  <td className="px-4 py-3 text-center"><span className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? <FiArrowDown /> : <FiArrowUp />}{t(isCredit ? "walletSettlement.moneyIn" : "walletSettlement.moneyOut")}</span></td>
-                  <td className={`whitespace-nowrap px-4 py-3 text-center font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>{isCredit ? "+" : "-"}{formatMoney(item.amount)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center text-gray-600">{formatMoney(item.balanceBefore)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center font-semibold">{formatMoney(item.balanceAfter)}</td>
-                  <td className="px-4 py-3 text-center text-gray-700">{t(`walletSettlement.references.${item.referenceType}`, { defaultValue: item.referenceType })}</td>
-                  <td className="px-4 py-3 text-center">{item.actorType === "SYSTEM" ? t("walletSettlement.systemActor") : accountName(item.actor?.displayName, t("walletSettlement.systemAdminActor"))}</td>
-                </tr>
-              );
-            })}
+                    <td className="whitespace-nowrap px-4 py-3 text-center font-mono text-xs tabular-nums text-gray-700">
+                      {displayBusinessCode(item.transactionCode)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center">
+                      {formatDate(item.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}
+                      >
+                        {isCredit ? <FiArrowDown /> : <FiArrowUp />}
+                        {t(
+                          isCredit
+                            ? "walletSettlement.moneyIn"
+                            : "walletSettlement.moneyOut",
+                        )}
+                      </span>
+                    </td>
+                    <td
+                      className={`whitespace-nowrap px-4 py-3 text-center font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}
+                    >
+                      {isCredit ? "+" : "-"}
+                      {formatMoney(item.amount)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-gray-600">
+                      {formatMoney(item.balanceBefore)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center font-semibold">
+                      {formatMoney(item.balanceAfter)}
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-700">
+                      {t(`walletSettlement.references.${item.referenceType}`, {
+                        defaultValue: item.referenceType,
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {item.actorType === "SYSTEM"
+                        ? t("walletSettlement.systemActor")
+                        : accountName(
+                            item.actor?.displayName,
+                            t("walletSettlement.systemAdminActor"),
+                          )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
-      <Pagination page={page} pageSize={pageSize} totalItems={totalItems} onPageChange={onPageChange} />
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        onPageChange={onPageChange}
+      />
     </section>
   );
 }
