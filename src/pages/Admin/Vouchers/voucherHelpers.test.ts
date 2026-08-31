@@ -17,7 +17,11 @@ describe("admin voucher request mapping", () => {
     expect(request).not.toHaveProperty("applicablePaymentMethods");
     expect(request).not.toHaveProperty("applicableRouteIds");
     expect(request).toEqual(
-      expect.objectContaining({ code: "VIETRIDEXNICHAO" }),
+      expect.objectContaining({
+        code: "VIETRIDEXNICHAO",
+        fundingType: "VIETRIDE_FUNDED",
+        applicableOperatorIds: null,
+      }),
     );
   });
 

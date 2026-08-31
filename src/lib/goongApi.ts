@@ -187,26 +187,45 @@ const rateLimitBaseDelayMs = 400;
 const maxConsecutiveRateLimits = 3;
 const circuitCooldownMs = 60_000;
 
-let consecutiveRateLimits = 0;
-let circuitOpenUntil = 0;
+// Places có thể bắn hàng chục request khi quét gợi ý dọc tuyến. Nếu dùng chung
+// một circuit cho mọi endpoint, ba lỗi 429 của Places sẽ khóa luôn Directions:
+// user thêm stop thì đường bị xóa và map rơi về đoạn thẳng cho tới khi F5 reset
+// state module. Tách circuit theo lane để mỗi nhóm chỉ tự ngắt chính nó.
+type GoongRequestLane = "standard" | "direction";
+type GoongCircuitState = {
+  consecutiveRateLimits: number;
+  openUntil: number;
+};
+
+const circuitStates: Record<GoongRequestLane, GoongCircuitState> = {
+  standard: { consecutiveRateLimits: 0, openUntil: 0 },
+  direction: { consecutiveRateLimits: 0, openUntil: 0 },
+};
 
 /** Chỉ dùng trong test để reset trạng thái ngắt mạch giữa các case. */
 export function __resetGoongCircuitForTest() {
-  consecutiveRateLimits = 0;
-  circuitOpenUntil = 0;
+  Object.values(circuitStates).forEach((state) => {
+    state.consecutiveRateLimits = 0;
+    state.openUntil = 0;
+  });
 }
 
 let activeRequests = 0;
+// Directions là thao tác chính user vừa yêu cầu (vẽ lại tuyến sau khi thêm
+// stop), còn Places là tải gợi ý nền. Dùng chung trần 4 request nhưng cho
+// Directions lấy slot tiếp theo, tránh đứng sau hàng chục Place Detail.
+const pendingPriorityQueue: Array<() => void> = [];
 const pendingQueue: Array<() => void> = [];
 
-function acquireSlot(): Promise<void> {
+function acquireSlot(priority = false): Promise<void> {
   if (activeRequests < maxConcurrentRequests) {
     activeRequests += 1;
     return Promise.resolve();
   }
 
   return new Promise((resolve) => {
-    pendingQueue.push(() => {
+    const queue = priority ? pendingPriorityQueue : pendingQueue;
+    queue.push(() => {
       activeRequests += 1;
       resolve();
     });
@@ -215,7 +234,7 @@ function acquireSlot(): Promise<void> {
 
 function releaseSlot() {
   activeRequests -= 1;
-  pendingQueue.shift()?.();
+  (pendingPriorityQueue.shift() ?? pendingQueue.shift())?.();
 }
 
 const delay = (ms: number) =>
@@ -229,32 +248,36 @@ const delay = (ms: number) =>
  * Mọi lời gọi REST Goong đi qua đây nên hàng đợi + retry đặt ở đúng chỗ này:
  * đặt ở tầng trên thì mỗi tính năng lại phải tự chống 429 một kiểu.
  */
-async function fetchGoongJson(url: string): Promise<unknown> {
+async function fetchGoongJson(
+  url: string,
+  lane: GoongRequestLane = "standard",
+): Promise<unknown> {
+  const circuit = circuitStates[lane];
   // Mạch đang ngắt → hỏng ngay, không tốn thêm một request nào. Caller của mọi
   // luồng Goong đều đã .catch() về rỗng/null nên UI xuống cấp y như lúc 429.
-  if (Date.now() < circuitOpenUntil) {
+  if (Date.now() < circuit.openUntil) {
     throw new Error("Goong đang tạm ngừng do vượt giới hạn request.");
   }
 
-  await acquireSlot();
+  await acquireSlot(lane === "direction");
   try {
     for (let attempt = 0; ; attempt += 1) {
       const response = await fetch(url);
       if (response.ok) {
         // Có một lời gọi trót lọt = Goong còn phục vụ → đóng mạch lại.
-        consecutiveRateLimits = 0;
+        circuit.consecutiveRateLimits = 0;
         return (await response.json()) as unknown;
       }
 
       if (response.status === 429) {
-        consecutiveRateLimits += 1;
-        if (consecutiveRateLimits >= maxConsecutiveRateLimits) {
-          circuitOpenUntil = Date.now() + circuitCooldownMs;
+        circuit.consecutiveRateLimits += 1;
+        if (circuit.consecutiveRateLimits >= maxConsecutiveRateLimits) {
+          circuit.openUntil = Date.now() + circuitCooldownMs;
           throw new Error("Goong đang tạm ngừng do vượt giới hạn request.");
         }
       } else {
         // Lỗi khác (sai key, place_id không tồn tại) không phải chuyện quota
-        consecutiveRateLimits = 0;
+        circuit.consecutiveRateLimits = 0;
       }
 
       // 429 lẻ tẻ là tạm thời — chờ rồi thử lại đúng một lần. Các lỗi khác thử
@@ -563,7 +586,7 @@ export async function goongDirections({
     origin: toCoordinateParam(origin),
     vehicle,
   });
-  const payload = await fetchGoongJson(url);
+  const payload = await fetchGoongJson(url, "direction");
 
   if (!isRecord(payload) || !Array.isArray(payload.routes)) {
     return [];

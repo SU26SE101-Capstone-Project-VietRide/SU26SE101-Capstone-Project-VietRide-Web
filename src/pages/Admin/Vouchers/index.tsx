@@ -5,15 +5,12 @@ import { FiPlus, FiRefreshCw, FiTag, FiTrash2 } from "react-icons/fi";
 import {
   createAdminVoucher,
   deleteAdminVoucher,
-  getAdminOperators,
   getAdminVouchers,
   getAdminVoucherSummary,
   updateAdminVoucher,
-  type AdminOperator,
   type AdminVoucher,
   type VoucherSummary,
 } from "../../../api/vietride";
-import { fetchAllPages } from "../../../api/pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import { StatCard } from "../../../components/StatCard";
@@ -37,7 +34,6 @@ import {
   quantityOf,
   toCreateRequest,
   toForm,
-  toOperatorIds,
   toUpdateRequest,
   usedCountOf,
 } from "./voucherHelpers";
@@ -49,7 +45,6 @@ export default function Vouchers() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [vouchers, setVouchers] = useState<AdminVoucher[]>([]);
-  const [operators, setOperators] = useState<AdminOperator[]>([]);
   const [form, setForm] = useState<VoucherForm>(emptyForm);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState<AdminVoucher | null>(
@@ -95,21 +90,15 @@ export default function Vouchers() {
     setError("");
 
     try {
-      const [voucherResult, operatorItems] = await Promise.all([
-        getAdminVouchers({
-          page: voucherPage,
-          pageSize,
-          ...(debouncedSearch ? { search: debouncedSearch } : {}),
-          ...(statusFilter ? { isActive: statusFilter === "ACTIVE" } : {}),
-          ...(serviceFilter ? { service: serviceFilter } : {}),
-        }),
-        // Danh sách nhà xe chỉ dùng cho ô chọn phạm vi trong modal, không liên
-        // quan tới bảng voucher — vẫn cần đủ để hiển thị tên theo id.
-        fetchAllPages((params) => getAdminOperators(params)),
-      ]);
+      const voucherResult = await getAdminVouchers({
+        page: voucherPage,
+        pageSize,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        ...(statusFilter ? { isActive: statusFilter === "ACTIVE" } : {}),
+        ...(serviceFilter ? { service: serviceFilter } : {}),
+      });
       setVouchers(voucherResult.items);
       setTotalVouchers(voucherResult.totalItems);
-      setOperators(operatorItems);
     } catch (err) {
       setError(
         err instanceof Error
@@ -187,15 +176,6 @@ export default function Vouchers() {
 
     if (maxDiscountAmountOf(form) <= 0) {
       setError(t("vouchers.invalidMaxDiscountAmount"));
-      return;
-    }
-
-    if (
-      !editingVoucher &&
-      form.fundingType === "OPERATOR_FUNDED" &&
-      toOperatorIds(form.applicableOperatorIds).length === 0
-    ) {
-      setError(t("vouchers.operatorFundedRequiresOperators"));
       return;
     }
 
@@ -493,7 +473,6 @@ export default function Vouchers() {
         form={form}
         updateForm={updateForm}
         onSave={handleSaveVoucher}
-        operators={operators}
       />
 
       <Modal

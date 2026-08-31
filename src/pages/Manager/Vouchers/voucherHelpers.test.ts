@@ -36,7 +36,6 @@ const form: VoucherForm = {
   validUntil: "2026-09-10T18:45",
   applicableService: "BOOKING",
   applicableRouteIds: "",
-  fundingType: "OPERATOR_FUNDED",
 };
 
 describe("voucher date helpers", () => {
@@ -46,6 +45,14 @@ describe("voucher date helpers", () => {
 
     expect(request.validUntil).toBe(expected);
     expect(request.validUntil).toMatch(/T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  });
+
+  it("keeps the operator-only API defaults after hiding admin scope fields", () => {
+    const request = toCreateRequest(form);
+
+    expect(request.fundingType).toBe("OPERATOR_FUNDED");
+    expect(request.applicableServices).toEqual(["BOOKING"]);
+    expect(request.applicableRouteIds).toEqual([]);
   });
 
   it("maps BE timestamps back to local date and datetime inputs", () => {

@@ -676,71 +676,77 @@ describe("TripsPage", () => {
   });
 
   it("lets the backend enforce subscription limits when six schedules already exist", async () => {
-    vi.mocked(getOperatorDriverSchedules).mockResolvedValue({
-      items: Array.from({ length: 6 }, (_, index) => ({
-        id: `schedule-${index}`,
-        operatorId: "operator-1",
-        routeId: "route-1",
-        vehicleId: "vehicle-1",
-        driverUserId: "driver-active",
-        assistantUserId: null,
-        baseFare: null,
-        departureTime: `${String(index).padStart(2, "0")}:00:00`,
-        effectiveFrom: "2026-09-01",
-        validFrom: "2026-09-01",
-        isActive: true,
-        route: {
-          id: "route-1",
+    const restore = stubCreateFlow(new Date(2026, 7, 21, 1));
+
+    try {
+      vi.mocked(getOperatorDriverSchedules).mockResolvedValue({
+        items: Array.from({ length: 6 }, (_, index) => ({
+          id: `schedule-${index}`,
           operatorId: "operator-1",
-          name: "Hồ Chí Minh - Đà Lạt",
-          originStationId: "origin-1",
-          destinationStationId: "destination-1",
-          totalDistanceKm: 300,
-          estimatedDurationMinutes: 420,
-          baseFare: 250_000,
+          routeId: "route-1",
+          vehicleId: "vehicle-1",
+          driverUserId: "driver-active",
+          assistantUserId: null,
+          baseFare: null,
+          departureTime: `${String(index).padStart(2, "0")}:00:00`,
+          effectiveFrom: "2026-09-01",
+          validFrom: "2026-09-01",
           isActive: true,
-        },
-      })),
-      page: 1,
-      pageSize: 100,
-      totalItems: 6,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    });
-    vi.mocked(createOperatorDriverSchedule).mockRejectedValue(
-      new ApiRequestError(
+          route: {
+            id: "route-1",
+            operatorId: "operator-1",
+            name: "Hồ Chí Minh - Đà Lạt",
+            originStationId: "origin-1",
+            destinationStationId: "destination-1",
+            totalDistanceKm: 300,
+            estimatedDurationMinutes: 420,
+            baseFare: 250_000,
+            isActive: true,
+          },
+        })),
+        page: 1,
+        pageSize: 100,
+        totalItems: 6,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
+      vi.mocked(createOperatorDriverSchedule).mockRejectedValue(
+        new ApiRequestError(
+          "Đã đạt giới hạn chuyến trong tháng của gói Enterprise.",
+          409,
+          "SUBSCRIPTION_LIMIT_EXCEEDED",
+        ),
+      );
+
+      const user = userEvent.setup();
+      renderPage();
+
+      await screen.findAllByText("Hồ Chí Minh - Đà Lạt");
+      await user.click(
+        screen.getByRole("button", { name: "trips.createScheduleTitle" }),
+      );
+
+      const dialog = await screen.findByRole("dialog");
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "trips.suggestNextDeparture",
+        }),
+      );
+      await user.click(
+        within(dialog).getByRole("button", { name: "trips.openForOperation" }),
+      );
+
+      await waitFor(() => {
+        expect(createOperatorDriverSchedule).toHaveBeenCalledOnce();
+      });
+      expect(await screen.findByTestId("toast")).toHaveTextContent(
         "Đã đạt giới hạn chuyến trong tháng của gói Enterprise.",
-        409,
-        "SUBSCRIPTION_LIMIT_EXCEEDED",
-      ),
-    );
-
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findAllByText("Hồ Chí Minh - Đà Lạt");
-    await user.click(
-      screen.getByRole("button", { name: "trips.createScheduleTitle" }),
-    );
-
-    const dialog = await screen.findByRole("dialog");
-    await user.click(
-      within(dialog).getByRole("button", {
-        name: "trips.suggestNextDeparture",
-      }),
-    );
-    await user.click(
-      within(dialog).getByRole("button", { name: "trips.openForOperation" }),
-    );
-
-    await waitFor(() => {
-      expect(createOperatorDriverSchedule).toHaveBeenCalledOnce();
-    });
-    expect(await screen.findByTestId("toast")).toHaveTextContent(
-      "Đã đạt giới hạn chuyến trong tháng của gói Enterprise.",
-    );
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+      );
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    } finally {
+      restore();
+    }
   });
 
   it("opens the modal prefilled with the schedule when edit is selected", async () => {

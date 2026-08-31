@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createAdminVoucher,
   getAdminCampaigns,
-  getAdminOperators,
   getAdminVouchers,
   getAdminVoucherSummary,
 } from "../../../api/vietride";
@@ -23,7 +22,6 @@ vi.mock("../../../api/vietride", () => ({
   deleteAdminVoucher: vi.fn(),
   deactivateAdminCampaign: vi.fn(),
   getAdminCampaigns: vi.fn(),
-  getAdminOperators: vi.fn(),
   getAdminVoucherConsents: vi.fn(),
   getAdminVouchers: vi.fn(),
   getAdminVoucherSummary: vi.fn(),
@@ -62,15 +60,6 @@ describe("Admin Vouchers table", () => {
       pageSize: 100,
       totalItems: 1,
       totalPages: 1,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    });
-    vi.mocked(getAdminOperators).mockResolvedValue({
-      items: [],
-      page: 1,
-      pageSize: 100,
-      totalItems: 0,
-      totalPages: 0,
       hasNextPage: false,
       hasPreviousPage: false,
     });
