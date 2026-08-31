@@ -125,6 +125,11 @@ type GoogleMapCanvasProps = {
   // Mức zoom khoá vào lúc bắt đầu bám focusCenter. Chỉ áp một lần cho mỗi lượt
   // bám (xem effect bên dưới) để người dùng vẫn tự zoom được trong lúc theo dõi.
   focusZoom?: number;
+  /**
+   * Lượt focus đầu tiên zoom rồi đặt tâm trực tiếp vào focusCenter. Mặc định
+   * false để giữ nguyên camera behavior của các màn Admin/Manager hiện có.
+   */
+  snapToFocusAfterZoom?: boolean;
   /** Optional provider style URL, captured once when this map instance mounts. */
   mapStyleUrl?: string;
   /** Optional product palette. Kept stable after map creation to avoid repaint churn. */
@@ -300,6 +305,7 @@ export default function GoogleMapCanvas({
   fitPoints = [],
   focusCenter,
   focusZoom = 14,
+  snapToFocusAfterZoom = false,
   mapStyleUrl,
   mapStyles,
   markers = [],
@@ -481,12 +487,23 @@ export default function GoogleMapCanvas({
       return;
     }
 
+    const shouldApplyFocusZoom = appliedFocusZoomRef.current !== focusZoom;
+    if (shouldApplyFocusZoom && snapToFocusAfterZoom) {
+      appliedFocusZoomRef.current = focusZoom;
+      readyMap.instance.setZoom(focusZoom);
+      // Goong/Mapbox có thể huỷ animation panTo đang chạy khi setZoom được gọi
+      // ngay sau đó. Với trip-sharing, zoom trước rồi snap tâm trực tiếp để
+      // lượt focus đầu tiên nằm chính xác tại toạ độ xe.
+      readyMap.instance.setCenter(focusCenter);
+      return;
+    }
+
     readyMap.instance.panTo(focusCenter);
-    if (appliedFocusZoomRef.current !== focusZoom) {
+    if (shouldApplyFocusZoom) {
       appliedFocusZoomRef.current = focusZoom;
       readyMap.instance.setZoom(focusZoom);
     }
-  }, [focusCenter, focusZoom, readyMap]);
+  }, [focusCenter, focusZoom, readyMap, snapToFocusAfterZoom]);
 
   useEffect(() => {
     if (!readyMap || suspendViewportSync || fitPoints.length < 2) {

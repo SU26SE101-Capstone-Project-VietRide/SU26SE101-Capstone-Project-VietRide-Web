@@ -10,8 +10,8 @@ const { canvasProps } = vi.hoisted(() => ({
     focusCenter?: { lat: number; lng: number } | null;
     focusZoom?: number;
     fitKey?: string;
-    mapStyleUrl?: string;
     pointMarkers?: Array<{ id: string; title?: string }>;
+    snapToFocusAfterZoom?: boolean;
     suspendViewportSync?: boolean;
   }>,
 }));
@@ -94,9 +94,6 @@ describe("SharedTripMap", () => {
     const lastCanvasProp = canvasProps.at(-1);
     expect(lastCanvasProp?.focusCenter).toBeNull();
     expect(lastCanvasProp?.fitPoints?.length).toBeGreaterThan(0);
-    expect(lastCanvasProp?.mapStyleUrl).toBe(
-      "https://tiles.goong.io/assets/goong_light_v2.json",
-    );
   });
 
   it("renders follow vehicle toggle button when vehicle position is available", () => {
@@ -132,6 +129,7 @@ describe("SharedTripMap", () => {
       lng: mockVehicleLocation.longitude,
     });
     expect(canvasProps.at(-1)?.focusZoom).toBe(15);
+    expect(canvasProps.at(-1)?.snapToFocusAfterZoom).toBe(true);
     expect(canvasProps.at(-1)?.fitPoints).toBeUndefined();
     expect(canvasProps.at(-1)?.fitKey).toBe(initialRouteFitKey);
     expect(canvasProps.at(-1)?.suspendViewportSync).toBe(true);

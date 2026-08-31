@@ -11,11 +11,6 @@ export const intermediateStopColor = "#FFFFFF";
 
 export const routeRemainingColor = "#007D78";
 export const routeTraveledColor = "#627A77";
-export const routeCasingColor = "#FFFFFF";
-
-/** Official Goong light basemap, scoped to the public tracking canvas only. */
-export const sharedTripMapStyleUrl =
-  "https://tiles.goong.io/assets/goong_light_v2.json";
 
 export const vehicleMovingColor = "#9A6500";
 export const vehicleIdleColor = "#627A77";

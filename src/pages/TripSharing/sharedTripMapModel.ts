@@ -21,7 +21,6 @@ import {
   destinationStopColor,
   intermediateStopColor,
   originStopColor,
-  routeCasingColor,
   routeEndpointPinScale,
   routeRemainingColor,
   routeStopBadgeScale,
@@ -171,20 +170,6 @@ export function buildSharedTripMapModel(
         : vehicleIdleColor;
     markers.push({
       icon: {
-        fillColor: "#ffffff",
-        fillOpacity: 0.96,
-        path: vehicleDiscPath,
-        scale: 1.38,
-        strokeColor: fill,
-        strokeOpacity: 0.22,
-        strokeWeight: 4,
-      },
-      id: "vehicle-halo",
-      position: vehiclePosition,
-      zIndex: 9,
-    });
-    markers.push({
-      icon: {
         fillColor: fill,
         fillOpacity: 1,
         path: vehicleDiscPath,
@@ -218,16 +203,6 @@ export function buildSharedTripMapModel(
   // chính tuyến đó, KHÔNG nối các điểm GPS lại thành lộ trình bịa.
   const { traveled, remaining } = splitRouteAtPosition(routePath, vehiclePosition);
   const polylines: GoogleMapPolyline[] = [];
-  if (routePath.length > 1) {
-    polylines.push({
-      color: routeCasingColor,
-      id: "shared-route-casing",
-      opacity: 0.96,
-      path: routePath,
-      weight: 9,
-      zIndex: 0,
-    });
-  }
   if (remaining.length > 1) {
     polylines.push({
       color: routeRemainingColor,

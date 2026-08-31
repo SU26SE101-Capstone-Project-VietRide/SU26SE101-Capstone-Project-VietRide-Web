@@ -570,6 +570,7 @@ describe("GoogleMapCanvas", () => {
   // ngay ở ping kế tiếp.
   it("locks the focus zoom once and only pans on later focus updates", async () => {
     const panTo = vi.fn();
+    const setCenter = vi.fn();
     const setZoom = vi.fn();
 
     class Map {
@@ -583,7 +584,9 @@ describe("GoogleMapCanvas", () => {
         panTo(...args);
       }
 
-      setCenter() {}
+      setCenter(...args: unknown[]) {
+        setCenter(...args);
+      }
 
       setZoom(...args: unknown[]) {
         setZoom(...args);
@@ -640,14 +643,21 @@ describe("GoogleMapCanvas", () => {
       <GoogleMapCanvas
         ariaLabel="Fleet map"
         center={mapCenter}
-        focusCenter={{ lat: 10.8, lng: 106.7 }}
+        focusCenter={{ lat: 10.805, lng: 106.705 }}
         focusZoom={14}
+        snapToFocusAfterZoom
         zoom={11}
       />,
     );
 
-    await waitFor(() => expect(panTo).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(setCenter).toHaveBeenLastCalledWith({
+        lat: 10.805,
+        lng: 106.705,
+      }),
+    );
     expect(setZoom).toHaveBeenCalledWith(14);
+    expect(panTo).not.toHaveBeenCalled();
     setZoom.mockClear();
 
     // Điểm GPS mới: pan theo xe, giữ nguyên mức zoom người dùng đang xem
@@ -657,11 +667,12 @@ describe("GoogleMapCanvas", () => {
         center={mapCenter}
         focusCenter={{ lat: 10.81, lng: 106.72 }}
         focusZoom={14}
+        snapToFocusAfterZoom
         zoom={11}
       />,
     );
 
-    await waitFor(() => expect(panTo).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(panTo).toHaveBeenCalledTimes(1));
     expect(panTo).toHaveBeenLastCalledWith({ lat: 10.81, lng: 106.72 });
     expect(setZoom).not.toHaveBeenCalled();
 
@@ -672,6 +683,7 @@ describe("GoogleMapCanvas", () => {
         center={mapCenter}
         focusCenter={null}
         focusZoom={14}
+        snapToFocusAfterZoom
         zoom={11}
       />,
     );
@@ -681,11 +693,13 @@ describe("GoogleMapCanvas", () => {
         center={mapCenter}
         focusCenter={{ lat: 10.9, lng: 106.9 }}
         focusZoom={14}
+        snapToFocusAfterZoom
         zoom={11}
       />,
     );
 
     await waitFor(() => expect(setZoom).toHaveBeenCalledWith(14));
+    expect(setCenter).toHaveBeenLastCalledWith({ lat: 10.9, lng: 106.9 });
   });
   it("reuses a polyline instance when only its path changes", async () => {
     // Kéo nắn đường đổi path mỗi nhịp chuột. Trước đây mỗi lần đổi là gỡ + dựng

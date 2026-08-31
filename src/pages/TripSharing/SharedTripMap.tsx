@@ -5,7 +5,6 @@ import { FiCrosshair, FiMaximize2 } from "react-icons/fi";
 import GoogleMapCanvas from "../../components/GoogleMapCanvas";
 import SharedTripMapLegend from "./SharedTripMapLegend";
 import { buildSharedTripMapModel } from "./sharedTripMapModel";
-import { sharedTripMapStyleUrl } from "./sharedTripVisualStyle";
 import {
   isVehicleReplacementPending,
   type SharedTripContext,
@@ -94,7 +93,7 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 [&_.mapboxgl-ctrl-group]:overflow-hidden [&_.mapboxgl-ctrl-group]:rounded-xl [&_.mapboxgl-ctrl-group]:border [&_.mapboxgl-ctrl-group]:border-white/80 [&_.mapboxgl-ctrl-group]:shadow-[0_10px_28px_-14px_rgba(19,33,31,0.45)] [&_.mapboxgl-ctrl-group_button]:h-10 [&_.mapboxgl-ctrl-group_button]:w-10 [&_.mapboxgl-ctrl-top-right]:right-1 [&_.mapboxgl-ctrl-top-right]:top-1">
+      <div className="relative min-h-0 flex-1">
         <GoogleMapCanvas
           ariaLabel={t("map.ariaLabel")}
           center={center}
@@ -104,7 +103,7 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
           fitPoints={fitPoints.length > 0 ? fitPoints : undefined}
           focusCenter={isFollowingVehicle ? model.vehiclePosition : null}
           focusZoom={15}
-          mapStyleUrl={sharedTripMapStyleUrl}
+          snapToFocusAfterZoom
           pointMarkers={model.markers}
           polylines={model.polylines}
           scrollWheelZoom
