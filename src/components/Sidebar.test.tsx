@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -79,6 +80,9 @@ function renderOperatorNavigation() {
 describe("operator subscription navigation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Trạng thái thu gọn nhóm nằm trong localStorage nên rò từ test này sang
+    // test khác nếu không dọn.
+    window.localStorage.clear();
   });
 
   it("hides modules that are not included in the active plan", async () => {
@@ -133,5 +137,42 @@ describe("operator subscription navigation", () => {
     expect(
       screen.getByRole("button", { name: "assistant.open" }),
     ).toBeInTheDocument();
+  });
+
+  it("thu gọn nhóm menu khi bấm tiêu đề và nhớ lựa chọn đó", async () => {
+    vi.mocked(getOperatorSubscription).mockResolvedValue(
+      subscription({
+        enableParcel: true,
+        enableShuttle: true,
+        enableRag: true,
+      }),
+    );
+
+    const { unmount } = renderOperatorNavigation();
+    expect(
+      await screen.findByRole("link", { name: "manager.parcels" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "sections.parcel" }),
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "manager.parcels" }),
+    ).not.toBeInTheDocument();
+    // Nhóm khác không bị ảnh hưởng — thu gọn là theo từng nhóm.
+    expect(
+      screen.getByRole("link", { name: "manager.dashboard" }),
+    ).toBeInTheDocument();
+
+    unmount();
+    renderOperatorNavigation();
+
+    expect(
+      await screen.findByRole("link", { name: "manager.dashboard" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "manager.parcels" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -32,6 +32,7 @@ import { inputClass, labelClass, textareaClass } from "../../../components/form/
 import EvidenceUploader from "../../../components/EvidenceUploader";
 import {
   isUsableUuid,
+  locationRefLabel,
   requiresLocationId,
 } from "../../../utils/parcelReliability";
 import {
@@ -389,7 +390,14 @@ export default function IncidentActionModal({
                 {t("parcelIncidents.taskLocation")}
               </p>
               <p className="mt-0.5 font-semibold text-gray-800">
-                {task?.location?.trim() || t("parcelIncidents.unknownLocation")}
+                {locationRefLabel(
+                  task?.location,
+                  (type) =>
+                    t(`parcelIncidents.locationTypes.${type}`, {
+                      defaultValue: type.replaceAll("_", " "),
+                    }),
+                  t("parcelIncidents.unknownLocation"),
+                )}
               </p>
             </div>
             <fieldset>
