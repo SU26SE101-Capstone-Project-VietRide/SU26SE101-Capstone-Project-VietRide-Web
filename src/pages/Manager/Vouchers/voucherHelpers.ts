@@ -21,7 +21,6 @@ export type VoucherForm = {
   validUntil: string;
   applicableService: VoucherServiceTab;
   applicableRouteIds: string;
-  fundingType: string;
 };
 
 export function toIsoLocal(value: string) {
@@ -78,7 +77,6 @@ export function toForm(voucher: OperatorVoucher): VoucherForm {
     validUntil: voucher.validUntil ? toLocalDateTimeInput(voucher.validUntil) : "",
     applicableService: isParcelVoucher(voucher) ? "PARCEL" : "BOOKING",
     applicableRouteIds: voucher.applicableRouteIds.join(", "),
-    fundingType: voucher.fundingType ?? "OPERATOR_FUNDED",
   };
 }
 
@@ -96,7 +94,9 @@ export function toCreateRequest(form: VoucherForm): CreateOperatorVoucherRequest
     validUntil: toIsoLocal(form.validUntil),
     applicableServices: [form.applicableService],
     applicableRouteIds: toRouteIds(form.applicableRouteIds),
-    fundingType: form.fundingType,
+    // Operator self-service vouchers are always operator-funded. Keep the
+    // contract value in the payload without exposing an admin-only choice.
+    fundingType: "OPERATOR_FUNDED",
   };
 }
 
