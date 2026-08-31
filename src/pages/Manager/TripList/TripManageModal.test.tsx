@@ -1,12 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import {
   cancelOperatorTrip,
+  getOperatorIncidents,
   getOperatorRoutes,
   getOperatorVehicles,
   previewOperatorTripCancel,
   updateOperatorTrip,
+  type OperatorIncident,
   type OperatorTripListItem,
 } from "../../../api/vietride";
 import TripManageModal from "./TripManageModal";
@@ -26,6 +29,7 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("../../../api/vietride", () => ({
   cancelOperatorTrip: vi.fn(),
+  getOperatorIncidents: vi.fn(),
   getOperatorRoutes: vi.fn(),
   getOperatorVehicles: vi.fn(),
   previewOperatorTripCancel: vi.fn(),
@@ -77,12 +81,15 @@ function renderModal(
   const onChanged = vi.fn();
   const onClose = vi.fn();
   render(
-    <TripManageModal
-      trip={{ ...trip, ...overrides }}
-      canMutate={canMutate}
-      onClose={onClose}
-      onChanged={onChanged}
-    />,
+    // Khối sự cố có link sang màn Báo cáo sự cố nên modal cần router context.
+    <MemoryRouter>
+      <TripManageModal
+        trip={{ ...trip, ...overrides }}
+        canMutate={canMutate}
+        onClose={onClose}
+        onChanged={onChanged}
+      />
+    </MemoryRouter>,
   );
   return { onChanged, onClose };
 }
@@ -105,6 +112,7 @@ describe("TripManageModal", () => {
       tripId: "trip-1",
       status: "CANCELLED",
     });
+    vi.mocked(getOperatorIncidents).mockResolvedValue(emptyPage() as never);
   });
 
   // BE nhận partial: gửi cả form là tự ghi đè những giá trị mình chưa từng nhìn.
@@ -252,5 +260,76 @@ describe("TripManageModal", () => {
       await screen.findByText("Chuyến đi này hiện không thể chỉnh sửa."),
     ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+  });
+  // `GET /v1/operator/trips` không trả lý do gián đoạn ở bất kỳ field nào, nên
+  // màn chỉ in được badge "Gặp sự cố". Lý do phải lấy từ danh sách sự cố của
+  // ĐÚNG chuyến đó.
+  it("hiện lý do sự cố của chuyến DISRUPTED", async () => {
+    const incident: OperatorIncident = {
+      incidentId: "incident-1",
+      category: "VEHICLE_BREAKDOWN",
+      description: "Xe nổ lốp trên quốc lộ 1A",
+      photoUrls: null,
+      latitude: null,
+      longitude: null,
+      reportedAt: "2026-08-30T16:20:00+07:00",
+      status: "OPEN",
+      resolvedAt: null,
+      resolvedByUserId: null,
+      resolutionNote: null,
+      trip: {
+        tripId: "trip-1",
+        status: "DISRUPTED",
+        departureDateTime: "2026-08-30T16:00:00+07:00",
+        route: {
+          routeId: "route-1",
+          name: "Sài Gòn - Đà Lạt",
+          originStation: { stationId: "s1", name: "Bến xe Miền Tây" },
+          destinationStation: { stationId: "s2", name: "Bến xe Đồng Nai" },
+        },
+      },
+      reporter: { userId: "user-1", displayName: "Bùi Văn Hùng", role: "DRIVER" },
+    };
+    vi.mocked(getOperatorIncidents).mockResolvedValue({
+      ...emptyPage(),
+      items: [incident],
+      totalItems: 1,
+      totalPages: 1,
+    } as never);
+
+    renderModal({ status: "DISRUPTED" });
+
+    expect(
+      await screen.findByText("Xe nổ lốp trên quốc lộ 1A"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("incidents.categories.VEHICLE_BREAKDOWN"),
+    ).toBeInTheDocument();
+    expect(getOperatorIncidents).toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: "trip-1" }),
+    );
+  });
+
+  // Chuyến bình thường không được bắn thêm request nào: đại đa số chuyến không
+  // có sự cố, tải sẵn cho tất cả là lãng phí một request mỗi lần mở modal.
+  it("không hỏi sự cố khi chuyến không ở trạng thái DISRUPTED", () => {
+    renderModal();
+
+    expect(getOperatorIncidents).not.toHaveBeenCalled();
+  });
+
+  // Tải hỏng KHÁC "chưa có sự cố nào" — hai câu đó dẫn người vận hành đi hai
+  // hướng khác nhau nên không được gộp làm một.
+  it("phân biệt tải sự cố hỏng với chuyến chưa có sự cố", async () => {
+    vi.mocked(getOperatorIncidents).mockRejectedValue(new Error("network"));
+
+    renderModal({ status: "DISRUPTED" });
+
+    expect(
+      await screen.findByText("tripList.manage.incidentsFailed"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("tripList.manage.noIncident"),
+    ).not.toBeInTheDocument();
   });
 });
