@@ -473,7 +473,9 @@ export default function WalletSettlement() {
                       <th className="px-2 py-2.5 text-center">
                         {t("walletSettlement.eligibleAt")}
                       </th>
-                      <th className="px-2 py-2.5 text-center">{tc("status")}</th>
+                      <th className="px-2 py-2.5 text-center">
+                        {tc("status")}
+                      </th>
                       <th className="px-2 py-2.5 text-center">
                         {t("walletSettlement.method")}
                       </th>
