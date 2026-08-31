@@ -52,10 +52,12 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
     return model.vehiclePosition ? [model.vehiclePosition] : [];
   }, [isFollowingVehicle, model.focusPoints, model.vehiclePosition]);
 
-  const fitKey = useMemo(() => {
-    if (isFollowingVehicle) return "follow-vehicle";
-    return `fit-route-${fitSequence}`;
-  }, [isFollowingVehicle, fitSequence]);
+  // Giữ key của viewport toàn tuyến ổn định trong lúc bám xe. Nếu đổi key sang
+  // một giá trị riêng khi `fitPoints` đang rỗng, GoogleMapCanvas không thể ghi
+  // nhận lượt fit đó; mỗi GPS update sau đó sẽ chạy lại setCenter/setZoom của
+  // toàn tuyến trước khi panTo xe. Chỉ tạo lượt fit mới khi người dùng chủ động
+  // rời focus mode để xem lại toàn tuyến.
+  const fitKey = `fit-route-${fitSequence}`;
 
   const handleToggleFollow = () => {
     setFollowVehicle((prev) => {
@@ -68,51 +70,10 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
   };
 
   return (
-    <div className="relative h-full w-full">
-      <GoogleMapCanvas
-        ariaLabel={t("map.ariaLabel")}
-        center={center}
-        className="h-full w-full"
-        errorFallback={t("map.unavailable")}
-        fitKey={fitKey}
-        fitPoints={fitPoints.length > 0 ? fitPoints : undefined}
-        focusCenter={isFollowingVehicle ? model.vehiclePosition : null}
-        focusZoom={15}
-        pointMarkers={model.markers}
-        polylines={model.polylines}
-        scrollWheelZoom
-        zoom={model.vehiclePosition ? 13 : 11}
-      />
-
-      {model.hasVehicle && (
-        <div className="absolute left-3 top-3 z-10 lg:left-5 lg:top-5">
-          <button
-            type="button"
-            data-testid="follow-vehicle-toggle"
-            aria-pressed={isFollowingVehicle}
-            onClick={handleToggleFollow}
-            className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-bold shadow-md backdrop-blur-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-vr-700 focus-visible:ring-offset-2 ${
-              isFollowingVehicle
-                ? "border-vr-300 bg-vr-50/95 text-vr-900 ring-1 ring-vr-400 hover:bg-vr-100"
-                : "border-slate-200 bg-white/95 text-slate-800 hover:bg-slate-50"
-            }`}
-          >
-            {isFollowingVehicle ? (
-              <FiMaximize2 className="h-4 w-4 shrink-0 text-vr-700" aria-hidden />
-            ) : (
-              <FiCrosshair className="h-4 w-4 shrink-0 text-slate-600" aria-hidden />
-            )}
-            <span>
-              {isFollowingVehicle ? t("map.viewWholeRoute") : t("map.focusVehicle")}
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* Ghi chú nằm ĐÈ lên bản đồ để không ăn chiều cao của bản đồ trên máy
-          điện thoại — khách mở link chủ yếu bằng điện thoại. */}
-      <div className="pointer-events-none absolute inset-x-3 bottom-3 lg:inset-x-5 lg:bottom-5">
-        <div className="pointer-events-auto overflow-x-auto">
+    <div className="flex h-full w-full flex-col bg-white">
+      {/* Giữ chú giải ngoài canvas: không che tuyến và các control của bản đồ. */}
+      <div className="border-b border-[#007A76]/15 bg-white/95 px-3 py-2.5 lg:px-4">
+        <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
           <SharedTripMapLegend
             showRoute={model.hasRoute}
             showEndpoints={model.hasEndpoints}
@@ -121,6 +82,49 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
             showVehicle={model.hasVehicle}
           />
         </div>
+      </div>
+
+      <div className="relative min-h-0 flex-1">
+        <GoogleMapCanvas
+          ariaLabel={t("map.ariaLabel")}
+          center={center}
+          className="h-full w-full"
+          errorFallback={t("map.unavailable")}
+          fitKey={fitKey}
+          fitPoints={fitPoints.length > 0 ? fitPoints : undefined}
+          focusCenter={isFollowingVehicle ? model.vehiclePosition : null}
+          focusZoom={15}
+          pointMarkers={model.markers}
+          polylines={model.polylines}
+          scrollWheelZoom
+          suspendViewportSync={isFollowingVehicle}
+          zoom={model.vehiclePosition ? 13 : 11}
+        />
+
+        {model.hasVehicle && (
+          <div className="absolute left-3 top-3 z-20 lg:left-4 lg:top-4">
+            <button
+              type="button"
+              data-testid="follow-vehicle-toggle"
+              aria-pressed={isFollowingVehicle}
+              onClick={handleToggleFollow}
+              className={`inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-bold shadow-[0_12px_28px_-18px_rgba(0,86,83,0.8)] backdrop-blur-md transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.98] motion-reduce:transform-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#007A76] focus-visible:ring-offset-2 ${
+                isFollowingVehicle
+                  ? "border-[#007A76]/35 bg-[#E7F8F7]/95 text-[#005653] ring-1 ring-[#007A76]/20 hover:bg-[#D5F2F0]"
+                  : "border-white/80 bg-white/95 text-[#13211F] hover:border-[#007A76]/25 hover:bg-[#F4F8FA]"
+              }`}
+            >
+              {isFollowingVehicle ? (
+                <FiMaximize2 className="h-4 w-4 shrink-0 text-[#007A76]" aria-hidden />
+              ) : (
+                <FiCrosshair className="h-4 w-4 shrink-0 text-[#627A77]" aria-hidden />
+              )}
+              <span>
+                {isFollowingVehicle ? t("map.viewWholeRoute") : t("map.focusVehicle")}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

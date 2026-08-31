@@ -8,6 +8,11 @@ import {
   vehicleArrowPath,
   vehicleDiscPath,
 } from "../../components/mapMarkerPaths";
+import type { GoogleMapCoordinate } from "../../lib/googleMaps";
+// Chiếu vị trí xe lên tuyến để cắt đoạn "đã đi"/"còn lại" — dùng CHUNG hàm với
+// Trung tâm vận hành thay vì chép lại phép chiếu, để hai bản đồ cắt giống nhau.
+import { splitRouteAtPosition } from "../Manager/Operations/gpsHelpers";
+import type { SharedTripContext, SharedTripVehicleLocation } from "./tripShareApi";
 import {
   destinationStopColor,
   intermediateStopColor,
@@ -18,12 +23,7 @@ import {
   routeTraveledColor,
   vehicleIdleColor,
   vehicleMovingColor,
-} from "../../components/mapRouteStyle";
-import type { GoogleMapCoordinate } from "../../lib/googleMaps";
-// Chiếu vị trí xe lên tuyến để cắt đoạn "đã đi"/"còn lại" — dùng CHUNG hàm với
-// Trung tâm vận hành thay vì chép lại phép chiếu, để hai bản đồ cắt giống nhau.
-import { splitRouteAtPosition } from "../Manager/Operations/gpsHelpers";
-import type { SharedTripContext, SharedTripVehicleLocation } from "./tripShareApi";
+} from "./sharedTripVisualStyle";
 
 /** Dưới ngưỡng này coi như xe đang dừng/đỗ chứ không phải đang chạy. */
 const MOVING_SPEED_KPH = 5;
@@ -54,9 +54,9 @@ export type SharedTripMapModel = {
 };
 
 /**
- * Dựng marker + polyline cho bản đồ chia sẻ hành trình, dùng ĐÚNG hình và bảng
- * màu của bản đồ tuyến trong app (bến đi pin teal, bến đến pin đỏ, điểm dừng
- * đĩa trắng đánh số, đoạn đã đi đậm / còn lại nhạt, xe là đĩa + mũi tên hướng).
+ * Dựng marker + polyline cho bản đồ chia sẻ hành trình. Hình marker và logic
+ * khung nhìn giữ nguyên; palette được scope riêng để khớp Passenger Mobile mà
+ * không đổi giao diện bản đồ vận hành của Admin/Manager.
  *
  * Hàm thuần, không đụng Google Maps SDK nên test được thẳng.
  */

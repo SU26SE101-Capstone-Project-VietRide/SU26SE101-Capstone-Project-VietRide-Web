@@ -5,7 +5,7 @@ import {
   originStopColor,
   routeRemainingColor,
   routeTraveledColor,
-} from "../../components/mapRouteStyle";
+} from "./sharedTripVisualStyle";
 import { buildSharedTripMapModel } from "./sharedTripMapModel";
 import type { SharedTripContext, SharedTripVehicleLocation } from "./tripShareApi";
 

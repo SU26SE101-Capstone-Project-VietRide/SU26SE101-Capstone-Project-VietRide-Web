@@ -10,7 +10,7 @@ import {
   routeRemainingColor,
   routeTraveledColor,
   vehicleMovingColor,
-} from "../../components/mapRouteStyle";
+} from "./sharedTripVisualStyle";
 
 type SharedTripMapLegendProps = {
   showRoute: boolean;
@@ -22,7 +22,7 @@ type SharedTripMapLegendProps = {
 
 function LineLegendItem({ color, label }: { color: string; label: string }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[#435A57]">
       <span
         aria-hidden="true"
         className="h-1.5 w-6 shrink-0 rounded-full"
@@ -46,10 +46,10 @@ export default function SharedTripMapLegend({
     <aside
       aria-label={t("map.legend")}
       data-testid="shared-trip-map-legend"
-      className="flex w-max min-w-full flex-nowrap items-center gap-4 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-sm"
+      className="flex w-max min-w-full flex-nowrap items-center gap-4 bg-transparent px-1 py-0.5"
     >
       {showVehicle ? (
-        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-700">
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold text-[#13211F]">
           <span
             aria-hidden="true"
             className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -60,18 +60,18 @@ export default function SharedTripMapLegend({
       ) : null}
       {showEndpoints ? (
         <>
-          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[#435A57]">
             <FiMapPin aria-hidden="true" color={originStopColor} size={15} />
             {t("map.legendOrigin")}
           </span>
-          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[#435A57]">
             <FiMapPin aria-hidden="true" color={destinationStopColor} size={15} />
             {t("map.legendDestination")}
           </span>
         </>
       ) : null}
       {showStops ? (
-        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[#435A57]">
           <span
             aria-hidden="true"
             className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 bg-white text-[9px] font-bold"
@@ -88,7 +88,7 @@ export default function SharedTripMapLegend({
       {showRoute ? (
         <LineLegendItem color={routeRemainingColor} label={t("map.legendRemaining")} />
       ) : null}
-      <span className="hidden shrink-0 text-xs text-slate-500 md:inline">
+      <span className="hidden shrink-0 text-xs font-medium text-[#70817F] xl:inline">
         {t("map.legendNote")}
       </span>
     </aside>

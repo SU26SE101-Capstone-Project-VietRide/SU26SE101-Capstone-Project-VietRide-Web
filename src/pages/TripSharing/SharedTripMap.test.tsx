@@ -10,6 +10,7 @@ const { canvasProps } = vi.hoisted(() => ({
     focusCenter?: { lat: number; lng: number } | null;
     focusZoom?: number;
     fitKey?: string;
+    suspendViewportSync?: boolean;
   }>,
 }));
 
@@ -100,14 +101,18 @@ describe("SharedTripMap", () => {
   });
 
   it("toggles between focusing on vehicle and viewing the whole route on click", () => {
-    render(<SharedTripMap context={mockContext} location={mockVehicleLocation} />);
+    const { rerender } = render(
+      <SharedTripMap context={mockContext} location={mockVehicleLocation} />,
+    );
 
     const toggleBtn = screen.getByTestId("follow-vehicle-toggle");
 
     // Initially: whole route view (follow is false)
     expect(canvasProps.at(-1)?.focusCenter).toBeNull();
     expect(canvasProps.at(-1)?.fitPoints?.length).toBeGreaterThan(0);
+    expect(canvasProps.at(-1)?.suspendViewportSync).toBe(false);
     expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
+    const initialRouteFitKey = canvasProps.at(-1)?.fitKey;
 
     // 1st Click: Switch to follow vehicle
     fireEvent.click(toggleBtn);
@@ -120,6 +125,27 @@ describe("SharedTripMap", () => {
     });
     expect(canvasProps.at(-1)?.focusZoom).toBe(15);
     expect(canvasProps.at(-1)?.fitPoints).toBeUndefined();
+    expect(canvasProps.at(-1)?.fitKey).toBe(initialRouteFitKey);
+    expect(canvasProps.at(-1)?.suspendViewportSync).toBe(true);
+
+    // A polling/socket GPS update must only move focusCenter. Keeping the same
+    // fitKey prevents the route viewport effect from resetting center/zoom.
+    const nextVehicleLocation: SharedTripVehicleLocation = {
+      ...mockVehicleLocation,
+      latitude: 10.76,
+      longitude: 106.87,
+      recordedAt: "2026-08-30T09:35:10Z",
+    };
+    rerender(<SharedTripMap context={mockContext} location={nextVehicleLocation} />);
+
+    expect(toggleBtn).toHaveAttribute("aria-pressed", "true");
+    expect(canvasProps.at(-1)?.focusCenter).toEqual({
+      lat: nextVehicleLocation.latitude,
+      lng: nextVehicleLocation.longitude,
+    });
+    expect(canvasProps.at(-1)?.fitPoints).toBeUndefined();
+    expect(canvasProps.at(-1)?.fitKey).toBe(initialRouteFitKey);
+    expect(canvasProps.at(-1)?.suspendViewportSync).toBe(true);
 
     // 2nd Click: Switch back to view whole route
     fireEvent.click(toggleBtn);
@@ -128,5 +154,7 @@ describe("SharedTripMap", () => {
     expect(screen.getByText("Vị trí xe")).toBeInTheDocument();
     expect(canvasProps.at(-1)?.focusCenter).toBeNull();
     expect(canvasProps.at(-1)?.fitPoints?.length).toBeGreaterThan(0);
+    expect(canvasProps.at(-1)?.fitKey).not.toBe(initialRouteFitKey);
+    expect(canvasProps.at(-1)?.suspendViewportSync).toBe(false);
   });
 });
