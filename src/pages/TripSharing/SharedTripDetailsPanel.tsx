@@ -14,6 +14,7 @@ import type {
   SharedTripContext,
   SharedTripVehicleLocation,
 } from "./tripShareApi";
+import { isVehicleReplacementPending } from "./tripShareApi";
 import {
   destinationStopColor,
   originStopColor,
@@ -60,6 +61,7 @@ const SharedTripDetailsPanel = memo(function SharedTripDetailsPanel({
 }: SharedTripDetailsPanelProps) {
   const { t } = useTranslation("tripShare");
   const route = context.route;
+  const replacementPending = isVehicleReplacementPending(context.status);
   const speedLabel =
     location?.speedKph === null || location?.speedKph === undefined
       ? t("metrics.notReported")
@@ -101,7 +103,8 @@ const SharedTripDetailsPanel = memo(function SharedTripDetailsPanel({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[#007A76]/20 bg-[#E7F8F7] p-4">
+        {!replacementPending ? (
+          <section className="rounded-2xl border border-[#007A76]/20 bg-[#E7F8F7] p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="flex items-center gap-2 text-xs font-bold text-[#435A57]">
               <FiClock className="h-4 w-4 text-[#007A76]" aria-hidden="true" />
@@ -123,7 +126,8 @@ const SharedTripDetailsPanel = memo(function SharedTripDetailsPanel({
           <p className="mt-1 text-xs font-medium text-[#435A57] tabular-nums">
             {formatDateTime(context.eta?.estimatedArrivalAt, locale)}
           </p>
-        </section>
+          </section>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3">
           <section className="min-w-0 rounded-2xl border border-[#007A76]/10 bg-[#F4F8FA] p-3.5">

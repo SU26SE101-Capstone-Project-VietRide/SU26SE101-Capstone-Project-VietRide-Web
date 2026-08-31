@@ -75,6 +75,8 @@ type GoogleMapOptions = {
   fullscreenControl?: boolean;
   gestureHandling?: "auto" | "cooperative" | "greedy" | "none";
   mapTypeControl?: boolean;
+  /** Goong-compatible style URL; ignored by providers that do not use it. */
+  mapStyleUrl?: string;
   renderingType?: "RASTER" | "VECTOR";
   rotateControl?: boolean;
   scaleControl?: boolean;

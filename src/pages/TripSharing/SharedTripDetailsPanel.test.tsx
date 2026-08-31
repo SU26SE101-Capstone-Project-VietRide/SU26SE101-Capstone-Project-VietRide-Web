@@ -95,4 +95,23 @@ describe("SharedTripDetailsPanel", () => {
     expect(details).toHaveAttribute("open");
     expect(screen.getByText("Trạm Long Thành")).toBeInTheDocument();
   });
+
+  it("hides ETA while waiting for the replacement vehicle GPS", () => {
+    render(
+      <SharedTripDetailsPanel
+        context={{
+          ...context,
+          status: "VEHICLE_REPLACEMENT_PENDING",
+        }}
+        latestUpdate={location.recordedAt}
+        locale="vi-VN"
+        location={location}
+        revokedCopy={null}
+      />,
+    );
+
+    expect(screen.queryByText("Dự kiến đến")).not.toBeInTheDocument();
+    expect(screen.queryByText("Còn ~15 phút")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Đang đổi xe").length).toBeGreaterThan(0);
+  });
 });

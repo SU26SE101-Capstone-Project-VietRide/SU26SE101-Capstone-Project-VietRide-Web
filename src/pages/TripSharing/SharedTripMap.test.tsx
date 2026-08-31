@@ -10,6 +10,8 @@ const { canvasProps } = vi.hoisted(() => ({
     focusCenter?: { lat: number; lng: number } | null;
     focusZoom?: number;
     fitKey?: string;
+    mapStyleUrl?: string;
+    pointMarkers?: Array<{ id: string; title?: string }>;
     suspendViewportSync?: boolean;
   }>,
 }));
@@ -31,7 +33,10 @@ vi.mock("react-i18next", () => ({
         "map.legendDestination": "Bến đến",
         "map.legendStop": "Điểm dừng",
         "map.vehicle": "Vị trí xe",
+        "map.vehicleBeforeReplacement": "Vị trí trước khi đổi xe",
         "map.focusVehicle": "Vị trí xe",
+        "map.legendVehicle": "Xe đang chạy",
+        "map.legendVehicleBeforeReplacement": "Vị trí trước khi đổi xe",
         "map.viewWholeRoute": "Xem toàn tuyến",
       };
       return translations[key] ?? key;
@@ -89,6 +94,9 @@ describe("SharedTripMap", () => {
     const lastCanvasProp = canvasProps.at(-1);
     expect(lastCanvasProp?.focusCenter).toBeNull();
     expect(lastCanvasProp?.fitPoints?.length).toBeGreaterThan(0);
+    expect(lastCanvasProp?.mapStyleUrl).toBe(
+      "https://tiles.goong.io/assets/goong_light_v2.json",
+    );
   });
 
   it("renders follow vehicle toggle button when vehicle position is available", () => {
@@ -156,5 +164,25 @@ describe("SharedTripMap", () => {
     expect(canvasProps.at(-1)?.fitPoints?.length).toBeGreaterThan(0);
     expect(canvasProps.at(-1)?.fitKey).not.toBe(initialRouteFitKey);
     expect(canvasProps.at(-1)?.suspendViewportSync).toBe(false);
+  });
+
+  it("labels the retained marker as the position before vehicle replacement", () => {
+    render(
+      <SharedTripMap
+        context={{
+          ...mockContext,
+          status: "VEHICLE_REPLACEMENT_PENDING",
+          eta: null,
+        }}
+        location={mockVehicleLocation}
+      />,
+    );
+
+    expect(
+      screen.getAllByText("Vị trí trước khi đổi xe").length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      canvasProps.at(-1)?.pointMarkers?.find((marker) => marker.id === "vehicle"),
+    ).toEqual(expect.objectContaining({ title: "Vị trí trước khi đổi xe" }));
   });
 });

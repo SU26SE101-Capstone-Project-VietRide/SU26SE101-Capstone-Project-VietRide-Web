@@ -12,11 +12,16 @@ import type { GoogleMapCoordinate } from "../../lib/googleMaps";
 // Chiếu vị trí xe lên tuyến để cắt đoạn "đã đi"/"còn lại" — dùng CHUNG hàm với
 // Trung tâm vận hành thay vì chép lại phép chiếu, để hai bản đồ cắt giống nhau.
 import { splitRouteAtPosition } from "../Manager/Operations/gpsHelpers";
-import type { SharedTripContext, SharedTripVehicleLocation } from "./tripShareApi";
+import {
+  isVehicleReplacementPending,
+  type SharedTripContext,
+  type SharedTripVehicleLocation,
+} from "./tripShareApi";
 import {
   destinationStopColor,
   intermediateStopColor,
   originStopColor,
+  routeCasingColor,
   routeEndpointPinScale,
   routeRemainingColor,
   routeStopBadgeScale,
@@ -72,6 +77,7 @@ export function buildSharedTripMapModel(
   const vehiclePosition = location
     ? { lat: location.latitude, lng: location.longitude }
     : null;
+  const replacementPending = isVehicleReplacementPending(context?.status);
 
   // `parseStops` đã sắp theo `sequence`, nhưng sắp lại ở đây để số trên đĩa luôn
   // bám thứ tự chạy kể cả khi context tới từ nguồn khác (vd cập nhật realtime).
@@ -158,7 +164,25 @@ export function buildSharedTripMapModel(
   // cùng toạ độ vì một Symbol chỉ nhận một màu fill.
   if (vehiclePosition) {
     const moving = (location?.speedKph ?? 0) >= MOVING_SPEED_KPH;
-    const fill = moving ? vehicleMovingColor : vehicleIdleColor;
+    const fill = replacementPending
+      ? vehicleIdleColor
+      : moving
+        ? vehicleMovingColor
+        : vehicleIdleColor;
+    markers.push({
+      icon: {
+        fillColor: "#ffffff",
+        fillOpacity: 0.96,
+        path: vehicleDiscPath,
+        scale: 1.38,
+        strokeColor: fill,
+        strokeOpacity: 0.22,
+        strokeWeight: 4,
+      },
+      id: "vehicle-halo",
+      position: vehiclePosition,
+      zIndex: 9,
+    });
     markers.push({
       icon: {
         fillColor: fill,
@@ -194,6 +218,16 @@ export function buildSharedTripMapModel(
   // chính tuyến đó, KHÔNG nối các điểm GPS lại thành lộ trình bịa.
   const { traveled, remaining } = splitRouteAtPosition(routePath, vehiclePosition);
   const polylines: GoogleMapPolyline[] = [];
+  if (routePath.length > 1) {
+    polylines.push({
+      color: routeCasingColor,
+      id: "shared-route-casing",
+      opacity: 0.96,
+      path: routePath,
+      weight: 9,
+      zIndex: 0,
+    });
+  }
   if (remaining.length > 1) {
     polylines.push({
       color: routeRemainingColor,

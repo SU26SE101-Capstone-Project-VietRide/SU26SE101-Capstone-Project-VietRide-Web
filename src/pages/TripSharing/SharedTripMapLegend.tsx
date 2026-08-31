@@ -9,6 +9,7 @@ import {
   originStopColor,
   routeRemainingColor,
   routeTraveledColor,
+  vehicleIdleColor,
   vehicleMovingColor,
 } from "./sharedTripVisualStyle";
 
@@ -18,6 +19,7 @@ type SharedTripMapLegendProps = {
   showStops: boolean;
   showTraveled: boolean;
   showVehicle: boolean;
+  vehicleReplacementPending: boolean;
 };
 
 function LineLegendItem({ color, label }: { color: string; label: string }) {
@@ -39,6 +41,7 @@ export default function SharedTripMapLegend({
   showStops,
   showTraveled,
   showVehicle,
+  vehicleReplacementPending,
 }: SharedTripMapLegendProps) {
   const { t } = useTranslation("tripShare");
 
@@ -53,9 +56,17 @@ export default function SharedTripMapLegend({
           <span
             aria-hidden="true"
             className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: vehicleMovingColor }}
+            style={{
+              backgroundColor: vehicleReplacementPending
+                ? vehicleIdleColor
+                : vehicleMovingColor,
+            }}
           />
-          {t("map.legendVehicle")}
+          {t(
+            vehicleReplacementPending
+              ? "map.legendVehicleBeforeReplacement"
+              : "map.legendVehicle",
+          )}
         </span>
       ) : null}
       {showEndpoints ? (

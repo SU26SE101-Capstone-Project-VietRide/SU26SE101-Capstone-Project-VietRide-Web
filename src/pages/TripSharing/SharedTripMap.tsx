@@ -5,7 +5,12 @@ import { FiCrosshair, FiMaximize2 } from "react-icons/fi";
 import GoogleMapCanvas from "../../components/GoogleMapCanvas";
 import SharedTripMapLegend from "./SharedTripMapLegend";
 import { buildSharedTripMapModel } from "./sharedTripMapModel";
-import type { SharedTripContext, SharedTripVehicleLocation } from "./tripShareApi";
+import { sharedTripMapStyleUrl } from "./sharedTripVisualStyle";
+import {
+  isVehicleReplacementPending,
+  type SharedTripContext,
+  type SharedTripVehicleLocation,
+} from "./tripShareApi";
 
 type SharedTripMapProps = {
   context: SharedTripContext | null;
@@ -21,6 +26,10 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
   const { t } = useTranslation("tripShare");
   const [followVehicle, setFollowVehicle] = useState(false);
   const [fitSequence, setFitSequence] = useState(0);
+  const replacementPending = isVehicleReplacementPending(context?.status);
+  const vehicleLabel = replacementPending
+    ? t("map.vehicleBeforeReplacement")
+    : t("map.vehicle");
 
   const model = useMemo(
     () =>
@@ -28,9 +37,9 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
         origin: t("map.legendOrigin"),
         destination: t("map.legendDestination"),
         stop: t("map.legendStop"),
-        vehicle: t("map.vehicle"),
+        vehicle: vehicleLabel,
       }),
-    [context, location, t],
+    [context, location, t, vehicleLabel],
   );
 
   const hasVehicle = Boolean(model.vehiclePosition);
@@ -80,11 +89,12 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
             showStops={model.hasStops}
             showTraveled={model.hasTraveledSegment}
             showVehicle={model.hasVehicle}
+            vehicleReplacementPending={replacementPending}
           />
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 [&_.mapboxgl-ctrl-group]:overflow-hidden [&_.mapboxgl-ctrl-group]:rounded-xl [&_.mapboxgl-ctrl-group]:border [&_.mapboxgl-ctrl-group]:border-white/80 [&_.mapboxgl-ctrl-group]:shadow-[0_10px_28px_-14px_rgba(19,33,31,0.45)] [&_.mapboxgl-ctrl-group_button]:h-10 [&_.mapboxgl-ctrl-group_button]:w-10 [&_.mapboxgl-ctrl-top-right]:right-1 [&_.mapboxgl-ctrl-top-right]:top-1">
         <GoogleMapCanvas
           ariaLabel={t("map.ariaLabel")}
           center={center}
@@ -94,6 +104,7 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
           fitPoints={fitPoints.length > 0 ? fitPoints : undefined}
           focusCenter={isFollowingVehicle ? model.vehiclePosition : null}
           focusZoom={15}
+          mapStyleUrl={sharedTripMapStyleUrl}
           pointMarkers={model.markers}
           polylines={model.polylines}
           scrollWheelZoom
@@ -120,7 +131,7 @@ export default function SharedTripMap({ context, location }: SharedTripMapProps)
                 <FiCrosshair className="h-4 w-4 shrink-0 text-[#627A77]" aria-hidden />
               )}
               <span>
-                {isFollowingVehicle ? t("map.viewWholeRoute") : t("map.focusVehicle")}
+                {isFollowingVehicle ? t("map.viewWholeRoute") : vehicleLabel}
               </span>
             </button>
           </div>

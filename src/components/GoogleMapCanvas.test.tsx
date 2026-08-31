@@ -166,6 +166,7 @@ describe("GoogleMapCanvas", () => {
         <GoogleMapCanvas
           ariaLabel="Route map"
           center={{ lat: 10.8, lng: 106.7 }}
+          mapStyleUrl="https://tiles.example.test/light.json"
           zoom={12}
         />
       </StrictMode>,
@@ -179,6 +180,7 @@ describe("GoogleMapCanvas", () => {
     expect(receivedElements[0].isConnected).toBe(true);
     expect(receivedOptions[0]).toMatchObject({
       cameraControl: false,
+      mapStyleUrl: "https://tiles.example.test/light.json",
       renderingType: "RASTER",
       rotateControl: false,
       scaleControl: false,

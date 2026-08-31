@@ -125,6 +125,8 @@ type GoogleMapCanvasProps = {
   // Mức zoom khoá vào lúc bắt đầu bám focusCenter. Chỉ áp một lần cho mỗi lượt
   // bám (xem effect bên dưới) để người dùng vẫn tự zoom được trong lúc theo dõi.
   focusZoom?: number;
+  /** Optional provider style URL, captured once when this map instance mounts. */
+  mapStyleUrl?: string;
   /** Optional product palette. Kept stable after map creation to avoid repaint churn. */
   mapStyles?: readonly GoogleMapStyleElement[];
   markers?: GoogleMapMarker[];
@@ -298,6 +300,7 @@ export default function GoogleMapCanvas({
   fitPoints = [],
   focusCenter,
   focusZoom = 14,
+  mapStyleUrl,
   mapStyles,
   markers = [],
   onMapClick,
@@ -319,6 +322,7 @@ export default function GoogleMapCanvas({
   const initialCenterRef = useRef(center);
   const initialZoomRef = useRef(zoom);
   const initialMapStylesRef = useRef(mapStyles);
+  const initialMapStyleUrlRef = useRef(mapStyleUrl);
   // Mức zoom đã áp cho lượt bám focusCenter hiện tại — null = chưa khoá lượt nào
   const appliedFocusZoomRef = useRef<number | null>(null);
   const [readyMap, setReadyMap] = useState<ReadyMap | null>(null);
@@ -402,6 +406,7 @@ export default function GoogleMapCanvas({
               // cuộn..." mà Google tự hiện khi cuộn không giữ ctrl.
               gestureHandling: scrollWheelZoom ? "greedy" : "none",
               mapTypeControl: false,
+              mapStyleUrl: initialMapStyleUrlRef.current,
               renderingType: "RASTER",
               rotateControl: false,
               scaleControl: false,

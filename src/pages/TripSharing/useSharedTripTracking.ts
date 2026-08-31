@@ -4,6 +4,8 @@ import type { Socket } from "socket.io-client";
 import {
   ApiRequestError,
   fetchSharedTripContext,
+  isVehicleReplacementPending,
+  VEHICLE_REPLACEMENT_PENDING_STATUS,
   type SharedTripContext,
   type SharedTripVehicleLocation,
 } from "./tripShareApi";
@@ -13,6 +15,7 @@ import {
   type SharedEtaUpdateEvent,
   type SharedGpsUpdateEvent,
   type SharedTripStatusChangedEvent,
+  type SharedTripVehicleSubstitutedEvent,
 } from "../../lib/sharedTrackingSocket";
 import { isRecord } from "../../utils/typeGuards";
 
@@ -81,6 +84,7 @@ export function useSharedTripTracking(shareToken: string | null) {
   const socketRef = useRef<Socket | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const loadSequenceRef = useRef(0);
+  const realtimeSequenceRef = useRef(0);
   const tokenRef = useRef<string | null>(null);
 
   const teardownSocket = useCallback(() => {
@@ -141,13 +145,62 @@ export function useSharedTripTracking(shareToken: string | null) {
       teardownSocket();
       const socket = createSharedTrackingSocket(token);
       socketRef.current = socket;
+      let hasConnected = false;
+
+      const refreshContextAfterReconnect = async () => {
+        const realtimeSequence = realtimeSequenceRef.current;
+        try {
+          const refreshedContext = await fetchSharedTripContext(token);
+          if (
+            tokenRef.current !== token ||
+            socketRef.current !== socket ||
+            realtimeSequenceRef.current !== realtimeSequence
+          ) return;
+
+          const terminal = isTerminalStatus(refreshedContext.status);
+          setState({
+            connection: terminal ? "ended" : "live",
+            context: refreshedContext,
+            location: refreshedContext.vehicle.location,
+            errorCode: null,
+            errorMessage: null,
+            revokedReason: null,
+          });
+          if (terminal) teardownSocket();
+        } catch (error) {
+          if (tokenRef.current !== token || socketRef.current !== socket) return;
+          const apiError = error instanceof ApiRequestError ? error : null;
+          if (
+            apiError?.code === "TRACKING_SHARE_TOKEN_INVALID" ||
+            apiError?.code === "TRACKING_SHARE_LINK_UNAVAILABLE"
+          ) {
+            teardownSocket();
+            setState({
+              connection: "error",
+              context: null,
+              location: null,
+              errorCode: apiError.code,
+              errorMessage: null,
+              revokedReason:
+                apiError.code === "TRACKING_SHARE_LINK_UNAVAILABLE"
+                  ? "REVOKED"
+                  : null,
+            });
+          }
+          // A transient refresh failure must not discard the live socket or
+          // the last safe context already visible to the guest.
+        }
+      };
 
       socket.on("connect", () => {
         if (tokenRef.current !== token) return;
+        const shouldRefreshContext = hasConnected;
+        hasConnected = true;
         setState((prev) => ({
           ...prev,
           connection: prev.connection === "ended" ? "ended" : "live",
         }));
+        if (shouldRefreshContext) void refreshContextAfterReconnect();
       });
 
       socket.on("disconnect", () => {
@@ -191,6 +244,7 @@ export function useSharedTripTracking(shareToken: string | null) {
         if (tokenRef.current !== token) return;
         const location = normalizeGps(payload);
         if (!location) return;
+        realtimeSequenceRef.current += 1;
         setState((prev) => ({
           ...prev,
           connection: "live",
@@ -198,6 +252,7 @@ export function useSharedTripTracking(shareToken: string | null) {
           context: prev.context
             ? {
                 ...prev.context,
+                status: "IN_PROGRESS",
                 lastUpdatedAt: location.recordedAt,
                 vehicle: { location },
               }
@@ -212,6 +267,8 @@ export function useSharedTripTracking(shareToken: string | null) {
         const updatedAt = asString(eta.updatedAt) ?? new Date().toISOString();
         setState((prev) => {
           if (!prev.context) return prev;
+          if (isVehicleReplacementPending(prev.context.status)) return prev;
+          realtimeSequenceRef.current += 1;
           return {
             ...prev,
             context: {
@@ -228,23 +285,55 @@ export function useSharedTripTracking(shareToken: string | null) {
         });
       });
 
+      socket.on(
+        "shared:trip:vehicleSubstituted",
+        (payload: SharedTripVehicleSubstitutedEvent) => {
+          if (tokenRef.current !== token) return;
+          const status = asString(payload.status);
+          const occurredAt = asString(payload.occurredAt);
+          if (
+            status !== VEHICLE_REPLACEMENT_PENDING_STATUS ||
+            !occurredAt ||
+            !Number.isFinite(Date.parse(occurredAt))
+          ) return;
+
+          realtimeSequenceRef.current += 1;
+          setState((prev) => ({
+            ...prev,
+            context: prev.context
+              ? {
+                  ...prev.context,
+                  status: VEHICLE_REPLACEMENT_PENDING_STATUS,
+                  eta: null,
+                }
+              : prev.context,
+          }));
+        },
+      );
+
       socket.on("shared:trip:statusChanged", (payload: SharedTripStatusChangedEvent) => {
         if (tokenRef.current !== token) return;
         const status = asString(payload.status);
         if (!status) return;
+        realtimeSequenceRef.current += 1;
         const terminal = isTerminalStatus(status);
         if (terminal) teardownSocket();
         setState((prev) => ({
           ...prev,
           connection: terminal ? "ended" : prev.connection,
           context: prev.context
-            ? { ...prev.context, status }
+            ? {
+                ...prev.context,
+                status,
+                eta: isVehicleReplacementPending(status) ? null : prev.context.eta,
+              }
             : prev.context,
         }));
       });
 
       socket.on("shared:access:revoked", (payload: SharedAccessRevokedEvent) => {
         if (tokenRef.current !== token) return;
+        realtimeSequenceRef.current += 1;
         teardownSocket();
         setState({
           connection: "ended",

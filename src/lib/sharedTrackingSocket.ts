@@ -37,6 +37,11 @@ export type SharedTripStatusChangedEvent = {
   updatedAt?: string;
 };
 
+export type SharedTripVehicleSubstitutedEvent = {
+  status?: "VEHICLE_REPLACEMENT_PENDING";
+  occurredAt?: string;
+};
+
 export type SharedAccessRevokedEvent = {
   reason?: "EXPIRED" | "REVOKED" | "TRIP_ENDED" | "ACCESS_UNAVAILABLE" | string;
 };

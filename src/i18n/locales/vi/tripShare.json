@@ -24,6 +24,10 @@
     "unknown": "Đang cập nhật",
     "inMinutes": "Còn ~{{count}} phút"
   },
+  "replacement": {
+    "title": "Chuyến xe đang được đổi phương tiện",
+    "description": "Vị trí trên bản đồ là vị trí cuối trước khi đổi xe. Theo dõi sẽ tự tiếp tục khi xe thay thế bắt đầu gửi GPS."
+  },
   "metrics": {
     "sectionLabel": "Thông tin trực tiếp của chuyến xe",
     "speed": "Tốc độ",
@@ -47,6 +51,7 @@
     "ariaLabel": "Bản đồ theo dõi xe VietRide",
     "sectionLabel": "Vị trí trực tiếp của chuyến xe",
     "vehicle": "Vị trí xe",
+    "vehicleBeforeReplacement": "Vị trí trước khi đổi xe",
     "unavailable": "Chưa thể tải bản đồ. Thông tin hành trình bên cạnh vẫn được cập nhật.",
     "legend": "Ghi chú bản đồ",
     "legendOrigin": "Bến đi",
@@ -55,6 +60,7 @@
     "legendTraveled": "Đoạn đã đi",
     "legendRemaining": "Đoạn còn lại",
     "legendVehicle": "Xe đang chạy",
+    "legendVehicleBeforeReplacement": "Vị trí trước khi đổi xe",
     "legendNote": "Bản đồ vẽ theo tuyến nhà xe đã đăng ký",
     "focusVehicle": "Vị trí xe",
     "viewWholeRoute": "Xem toàn tuyến"
@@ -80,6 +86,7 @@
   },
   "tripStatus": {
     "IN_PROGRESS": "Đang chạy",
+    "VEHICLE_REPLACEMENT_PENDING": "Đang đổi xe",
     "COMPLETED": "Hoàn thành",
     "CANCELLED": "Đã hủy",
     "DISRUPTED": "Gián đoạn",

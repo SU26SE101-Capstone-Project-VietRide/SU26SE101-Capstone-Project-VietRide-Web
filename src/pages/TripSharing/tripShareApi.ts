@@ -14,6 +14,13 @@ export type SharedTripVehicleLocation = {
   recordedAt: string;
 };
 
+export const VEHICLE_REPLACEMENT_PENDING_STATUS =
+  "VEHICLE_REPLACEMENT_PENDING" as const;
+
+export function isVehicleReplacementPending(status: string | null | undefined): boolean {
+  return status === VEHICLE_REPLACEMENT_PENDING_STATUS;
+}
+
 /**
  * Điểm dừng giữa tuyến. CHỈ tên + toạ độ + thứ tự chạy — public DTO không được
  * mang stopId/stationId (contract §GET /v1/tracking/shared-trip/context).
@@ -171,6 +178,14 @@ export function parseSharedTripContext(data: unknown): SharedTripContext {
   const vehicleRecord = isRecord(data.vehicle) ? data.vehicle : {};
   const routeRecord = isRecord(data.route) ? data.route : {};
   const etaRecord = isRecord(data.eta) ? data.eta : null;
+  const eta = etaRecord
+    ? {
+        estimatedArrivalAt: asIsoDate(etaRecord.estimatedArrivalAt),
+        remainingSeconds: asNumber(etaRecord.remainingSeconds),
+        delayMinutes: asNumber(etaRecord.delayMinutes),
+        updatedAt: asIsoDate(etaRecord.updatedAt),
+      }
+    : null;
 
   return {
     status,
@@ -187,14 +202,8 @@ export function parseSharedTripContext(data: unknown): SharedTripContext {
       stops: parseStops(routeRecord.stops),
       geometry: parseGeometry(routeRecord.geometry),
     },
-    eta: etaRecord
-      ? {
-          estimatedArrivalAt: asIsoDate(etaRecord.estimatedArrivalAt),
-          remainingSeconds: asNumber(etaRecord.remainingSeconds),
-          delayMinutes: asNumber(etaRecord.delayMinutes),
-          updatedAt: asIsoDate(etaRecord.updatedAt),
-        }
-      : null,
+    // Pending context must never surface a stale ETA from the previous vehicle.
+    eta: isVehicleReplacementPending(status) ? null : eta,
   };
 }
 

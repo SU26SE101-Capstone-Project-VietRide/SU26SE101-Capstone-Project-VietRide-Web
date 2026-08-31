@@ -279,6 +279,7 @@ function resolveAdapter(map: GoogleMapInstance | null) {
 type GoongMapOptions = {
   center: GoogleMapCoordinate;
   gestureHandling?: "auto" | "cooperative" | "greedy" | "none";
+  mapStyleUrl?: string;
   zoom: number;
   zoomControl?: boolean;
 };
@@ -297,7 +298,7 @@ class GoongMapAdapter implements GoogleMapInstance {
     container: HTMLElement,
     options: GoongMapOptions,
   ) {
-    const style = getGoongMapStyleUrl();
+    const style = options.mapStyleUrl ?? getGoongMapStyleUrl();
     const maptilesKey = getGoongMaptilesKey();
     if (!maptilesKey) {
       throw new Error(goongMissingMaptilesKeyMessage);

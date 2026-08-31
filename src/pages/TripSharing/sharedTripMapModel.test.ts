@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   destinationStopColor,
   originStopColor,
+  routeCasingColor,
   routeRemainingColor,
   routeTraveledColor,
 } from "./sharedTripVisualStyle";
@@ -114,7 +115,12 @@ describe("buildSharedTripMapModel", () => {
     const remaining = model.polylines.find(
       (line) => line.id === "shared-route-remaining",
     );
+    const casing = model.polylines.find(
+      (line) => line.id === "shared-route-casing",
+    );
 
+    expect(casing?.color).toBe(routeCasingColor);
+    expect(casing?.weight).toBeGreaterThan(remaining?.weight ?? 0);
     expect(traveled?.color).toBe(routeTraveledColor);
     expect(remaining?.color).toBe(routeRemainingColor);
     // Đoạn đã đi kết thúc tại hình chiếu của xe lên tuyến
@@ -127,6 +133,7 @@ describe("buildSharedTripMapModel", () => {
     const model = buildSharedTripMapModel(makeContext(), null, labels);
 
     expect(model.polylines.map((line) => line.id)).toEqual([
+      "shared-route-casing",
       "shared-route-remaining",
     ]);
     expect(model.hasTraveledSegment).toBe(false);
@@ -138,10 +145,12 @@ describe("buildSharedTripMapModel", () => {
     const model = buildSharedTripMapModel(makeContext(), movingVehicle, labels);
 
     const disc = model.markers.find((marker) => marker.id === "vehicle");
+    const halo = model.markers.find((marker) => marker.id === "vehicle-halo");
     const arrow = model.markers.find((marker) => marker.id === "vehicle-arrow");
 
     expect(disc?.position).toEqual({ lat: 10.0, lng: 106.1 });
     expect(disc?.title).toBe("Vị trí xe");
+    expect(halo?.zIndex).toBeLessThan(disc?.zIndex ?? 0);
     expect(arrow?.icon?.rotation).toBe(90);
     // Mũi tên phải nằm trên đĩa, đĩa nằm trên marker tuyến
     expect(arrow?.zIndex).toBeGreaterThan(disc?.zIndex ?? 0);

@@ -113,3 +113,21 @@ describe("parseSharedTripContext — toạ độ hai bến", () => {
     expect(context.route.destination).toBeNull();
   });
 });
+
+describe("parseSharedTripContext — vehicle substitution", () => {
+  it("accepts pending status and always removes the previous vehicle ETA", () => {
+    const context = parseSharedTripContext({
+      ...baseData,
+      status: "VEHICLE_REPLACEMENT_PENDING",
+      eta: {
+        estimatedArrivalAt: "2026-08-16T10:00:00+07:00",
+        remainingSeconds: 600,
+        delayMinutes: 0,
+        updatedAt: "2026-08-16T09:50:00+07:00",
+      },
+    });
+
+    expect(context.status).toBe("VEHICLE_REPLACEMENT_PENDING");
+    expect(context.eta).toBeNull();
+  });
+});

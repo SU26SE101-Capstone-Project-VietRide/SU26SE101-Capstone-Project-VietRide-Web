@@ -14,11 +14,15 @@ import LanguageSwitcher from "../../components/LanguageSwitcher";
 import { Button } from "../../components/ui/Button";
 import SharedTripDetailsPanel from "./SharedTripDetailsPanel";
 import SharedTripMap from "./SharedTripMap";
+import SharedTripReplacementNotice from "./SharedTripReplacementNotice";
 import {
   destinationStopColor,
   originStopColor,
 } from "./sharedTripVisualStyle";
 import { captureTripShareTokenFromWindow } from "./tripShareToken";
+import {
+  isVehicleReplacementPending,
+} from "./tripShareApi";
 import {
   useSharedTripTracking,
   type SharedConnectionState,
@@ -185,6 +189,9 @@ export default function TripSharingPage() {
     tracking.errorCode !== "TRACKING_SHARE_TOKEN_INVALID" &&
     tracking.errorCode !== "TRACKING_SHARE_LINK_UNAVAILABLE";
   const route = tracking.context?.route;
+  const replacementPending = isVehicleReplacementPending(
+    tracking.context?.status,
+  );
 
   return (
     <div className="relative min-h-dvh overflow-x-hidden bg-[#F4F8FA] text-[#13211F]">
@@ -290,6 +297,8 @@ export default function TripSharingPage() {
             <span className="h-1.5 rounded-full" style={{ backgroundColor: destinationStopColor }} />
           </div>
         </section>
+
+        {replacementPending ? <SharedTripReplacementNotice /> : null}
 
         <div
           className={

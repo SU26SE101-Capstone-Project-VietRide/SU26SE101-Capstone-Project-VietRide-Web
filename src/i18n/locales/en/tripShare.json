@@ -24,6 +24,10 @@
     "unknown": "Updating",
     "inMinutes": "~{{count}} min left"
   },
+  "replacement": {
+    "title": "This trip is switching vehicles",
+    "description": "The map shows the last position before the vehicle change. Tracking will resume automatically when the replacement vehicle starts sending GPS updates."
+  },
   "metrics": {
     "sectionLabel": "Live trip information",
     "speed": "Speed",
@@ -47,6 +51,7 @@
     "ariaLabel": "VietRide live vehicle map",
     "sectionLabel": "Live vehicle position",
     "vehicle": "Vehicle position",
+    "vehicleBeforeReplacement": "Position before vehicle change",
     "unavailable": "The map could not load. Journey details will continue updating.",
     "legend": "Map legend",
     "legendOrigin": "Departure station",
@@ -55,6 +60,7 @@
     "legendTraveled": "Travelled so far",
     "legendRemaining": "Remaining",
     "legendVehicle": "Vehicle en route",
+    "legendVehicleBeforeReplacement": "Position before vehicle change",
     "legendNote": "Drawn along the operator's registered route",
     "focusVehicle": "Focus vehicle",
     "viewWholeRoute": "View whole route"
@@ -80,6 +86,7 @@
   },
   "tripStatus": {
     "IN_PROGRESS": "In progress",
+    "VEHICLE_REPLACEMENT_PENDING": "Switching vehicles",
     "COMPLETED": "Completed",
     "CANCELLED": "Cancelled",
     "DISRUPTED": "Disrupted",
