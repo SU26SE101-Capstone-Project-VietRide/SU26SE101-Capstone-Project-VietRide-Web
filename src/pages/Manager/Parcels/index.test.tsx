@@ -106,6 +106,12 @@ const route = {
 } satisfies OperatorRoute;
 
 const categories = ["SMALL", "MEDIUM", "LARGE", "EXTRA_LARGE"] as const;
+const activeFareEffectiveFrom = new Date(
+  Date.now() - 24 * 60 * 60 * 1000,
+).toISOString();
+const activeFareEffectiveUntil = new Date(
+  Date.now() + 24 * 60 * 60 * 1000,
+).toISOString();
 // API list nay gom theo tuyến: mỗi tuyến MỘT item, các mức nằm trong `fares[]`
 const fareGroups: ParcelRouteFareGroup[] = [
   {
@@ -113,8 +119,8 @@ const fareGroups: ParcelRouteFareGroup[] = [
     fares: categories.map((sizeCategory, index) => ({
       sizeCategory,
       priceVnd: (index + 1) * 10_000,
-      effectiveFrom: "2026-08-01T00:00:00Z",
-      effectiveUntil: "2026-08-31T23:59:59Z",
+      effectiveFrom: activeFareEffectiveFrom,
+      effectiveUntil: activeFareEffectiveUntil,
     })),
   },
 ];
@@ -231,8 +237,8 @@ describe("parcel route fare workflow", () => {
       expect(batchUpdateOperatorParcelRouteFares).toHaveBeenCalledWith(
         route.id,
         {
-          effectiveFrom: "2026-08-01T00:00:00.000Z",
-          effectiveUntil: "2026-08-31T23:59:59.000Z",
+          effectiveFrom: activeFareEffectiveFrom,
+          effectiveUntil: activeFareEffectiveUntil,
           items: [
             { sizeCategory: "SMALL", priceVnd: 10_000 },
             { sizeCategory: "MEDIUM", priceVnd: 25_000 },
@@ -275,7 +281,7 @@ describe("parcel route fare workflow", () => {
           // Ô không đụng tới giữ nguyên chuỗi gốc (còn cả giây), ô vừa sửa lấy
           // giá trị mới. `toISOString` tính theo múi giờ máy chạy test nên dựng
           // kỳ vọng bằng chính Date, không hard-code chuỗi UTC.
-          effectiveFrom: "2026-08-01T00:00:00.000Z",
+          effectiveFrom: activeFareEffectiveFrom,
           effectiveUntil: new Date(nextUntil).toISOString(),
         }),
       ),
@@ -313,8 +319,8 @@ describe("parcel route fare workflow", () => {
       expect(batchUpdateOperatorParcelRouteFares).toHaveBeenCalledWith(
         route.id,
         {
-          effectiveFrom: "2026-08-01T00:00:00.000Z",
-          effectiveUntil: "2026-08-31T23:59:59.000Z",
+          effectiveFrom: activeFareEffectiveFrom,
+          effectiveUntil: activeFareEffectiveUntil,
           items: [
             { sizeCategory: "SMALL", priceVnd: 10_000 },
             { sizeCategory: "MEDIUM", priceVnd: 20_000 },
