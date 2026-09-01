@@ -10,19 +10,31 @@ const form = {
 };
 
 describe("admin voucher request mapping", () => {
-  it("lets the backend apply hidden constraint defaults on create", () => {
+  it("uses VietRide funding and all operators by default", () => {
     const request = toCreateRequest(form);
 
     expect(request).not.toHaveProperty("newUserOnly");
     expect(request).not.toHaveProperty("applicablePaymentMethods");
     expect(request).not.toHaveProperty("applicableRouteIds");
+    expect(request.fundingType).toBe("VIETRIDE_FUNDED");
+    expect(request.applicableOperatorIds).toBeNull();
     expect(request).toEqual(
       expect.objectContaining({
         code: "VIETRIDEXNICHAO",
-        fundingType: "VIETRIDE_FUNDED",
-        applicableOperatorIds: null,
+        name: "Summer voucher",
       }),
     );
+  });
+
+  it("sends selected operators while keeping VietRide as the funding source", () => {
+    const request = toCreateRequest({
+      ...form,
+      operatorScope: "SELECTED",
+      selectedOperatorIds: ["operator-1", "operator-2"],
+    });
+
+    expect(request.fundingType).toBe("VIETRIDE_FUNDED");
+    expect(request.applicableOperatorIds).toEqual(["operator-1", "operator-2"]);
   });
 
   it("does not overwrite hidden backend constraints on update", () => {

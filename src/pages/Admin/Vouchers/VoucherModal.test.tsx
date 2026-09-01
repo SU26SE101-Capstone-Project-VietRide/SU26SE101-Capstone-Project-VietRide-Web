@@ -10,20 +10,23 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("Admin VoucherModal", () => {
-  it("does not show the funding and operator scope section", () => {
+  it("shows operator scope while keeping funding fixed to VietRide", () => {
     render(
       <VoucherModal
         open
         onClose={vi.fn()}
         editingVoucher={null}
         form={emptyForm}
+        operators={[]}
+        operatorsLoading={false}
         updateForm={vi.fn()}
         onSave={vi.fn()}
       />,
     );
 
     expect(screen.getByText("vouchers.formBasics")).toBeInTheDocument();
-    expect(screen.queryByText("vouchers.scopeRules")).not.toBeInTheDocument();
+    expect(screen.getByText("vouchers.scopeRules")).toBeInTheDocument();
+    expect(screen.getByText("vouchers.vietrideFunded")).toBeInTheDocument();
     expect(screen.queryByText("vouchers.fundingType")).not.toBeInTheDocument();
   });
 });

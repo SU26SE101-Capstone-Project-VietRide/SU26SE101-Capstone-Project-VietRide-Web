@@ -1,11 +1,12 @@
 import { useTranslation } from "react-i18next";
 import Checkbox from "../../../components/form/Checkbox";
 import { FiTag } from "react-icons/fi";
-import type { AdminVoucher } from "../../../api/vietride";
+import type { AdminOperator, AdminVoucher } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
 import Modal from "../../../components/Modal";
 import { inputClass, labelClass, textareaClass } from "../../../components/form/formClasses";
 import { Field } from "./formControls";
+import OperatorSelector from "./OperatorSelector";
 import type { VoucherForm } from "./types";
 import { Button } from "../../../components/ui/Button";
 
@@ -13,6 +14,8 @@ type VoucherModalProps = {
   open: boolean;
   onClose: () => void;
   editingVoucher: AdminVoucher | null;
+  operators: AdminOperator[];
+  operatorsLoading: boolean;
   form: VoucherForm;
   updateForm: <K extends keyof VoucherForm>(key: K, value: VoucherForm[K]) => void;
   onSave: () => Promise<void>;
@@ -60,6 +63,8 @@ export default function VoucherModal({
   onClose,
   editingVoucher,
   form,
+  operators,
+  operatorsLoading,
   updateForm,
   onSave,
 }: VoucherModalProps) {
@@ -176,6 +181,57 @@ export default function VoucherModal({
               <option value="parcels">{t("vouchers.parcelsOnly")}</option>
             </SelectField>
           </div>
+        </section>
+
+        <section className="border-b border-slate-100 py-5">
+          <SectionHeading title={t("vouchers.scopeRules")} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField
+              label={t("vouchers.operatorScope")}
+              value={form.operatorScope}
+              disabled={Boolean(editingVoucher)}
+              onChange={(value) =>
+                updateForm(
+                  "operatorScope",
+                  value as VoucherForm["operatorScope"],
+                )
+              }
+            >
+              <option value="ALL">{t("vouchers.allOperators")}</option>
+              <option value="SELECTED">{t("vouchers.selectedOperators")}</option>
+            </SelectField>
+            <div className="rounded-xl border border-vr-100 bg-vr-50 px-4 py-3">
+              <p className="text-sm font-bold text-vr-900">
+                {t("vouchers.vietrideFunded")}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-vr-800">
+                {t("vouchers.vietrideFundingNotice")}
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            {t("vouchers.operatorScopeHint")}
+          </p>
+          {form.operatorScope === "SELECTED" &&
+            (operatorsLoading ? (
+              <p className="mt-4 text-sm text-gray-500">
+                {t("vouchers.loadingOperators")}
+              </p>
+            ) : editingVoucher ? (
+              <p className="mt-4 text-sm text-gray-500">
+                {t("vouchers.operatorScopeImmutable", {
+                  count: form.selectedOperatorIds.length,
+                })}
+              </p>
+            ) : (
+              <OperatorSelector
+                operators={operators}
+                selectedOperatorIds={form.selectedOperatorIds}
+                onChange={(operatorIds) =>
+                  updateForm("selectedOperatorIds", operatorIds)
+                }
+              />
+            ))}
         </section>
 
         <section className="border-b border-slate-100 py-5">

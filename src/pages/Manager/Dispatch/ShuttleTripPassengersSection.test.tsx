@@ -1,6 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getOperatorShuttleTripPassengers } from "../../../api/vietride";
+import {
+  getOperatorShuttleTripPassengers,
+  unassignOperatorShuttleBooking,
+  type OperatorShuttleTripStatus,
+} from "../../../api/vietride";
 import { ApiRequestError } from "../../../api/client";
 import ShuttleTripPassengersSection from "./ShuttleTripPassengersSection";
 
@@ -19,7 +24,24 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("../../../api/vietride", () => ({
   getOperatorShuttleTripPassengers: vi.fn(),
+  unassignOperatorShuttleBooking: vi.fn(),
 }));
+
+function renderSection(
+  status: OperatorShuttleTripStatus = "SCHEDULED",
+  onMutationSettled = vi.fn(),
+) {
+  render(
+    <ShuttleTripPassengersSection
+      shuttleTripId="shuttle-1"
+      tripStatus={status}
+      canUnassignBooking
+      onMutationSettled={onMutationSettled}
+    />,
+  );
+
+  return { onMutationSettled };
+}
 
 describe("ShuttleTripPassengersSection", () => {
   beforeEach(() => {
@@ -29,7 +51,6 @@ describe("ShuttleTripPassengersSection", () => {
   it("gom khách theo điểm đón và sắp đúng thứ tự đón", async () => {
     vi.mocked(getOperatorShuttleTripPassengers).mockResolvedValue({
       shuttleTripId: "shuttle-1",
-      // BE trả lộn xộn — component phải tự sắp theo `pickupOrder`.
       groups: [
         {
           pickupOrder: 2,
@@ -70,14 +91,11 @@ describe("ShuttleTripPassengersSection", () => {
       ],
     });
 
-    render(<ShuttleTripPassengersSection shuttleTripId="shuttle-1" />);
+    renderSection();
 
     expect(await screen.findByText("5 Nguyễn Huệ")).toBeInTheDocument();
     const addresses = screen.getAllByText(/Nguyễn Huệ|Lê Lợi/);
     expect(addresses[0]).toHaveTextContent("5 Nguyễn Huệ");
-
-    // Số điện thoại phải bấm gọi được ngay — điều độ viên cần nó lúc khách
-    // không ra điểm đón.
     expect(screen.getByRole("link", { name: /0987654321/ })).toHaveAttribute(
       "href",
       "tel:0987654321",
@@ -92,36 +110,179 @@ describe("ShuttleTripPassengersSection", () => {
       groups: null,
     });
 
-    render(<ShuttleTripPassengersSection shuttleTripId="shuttle-1" />);
+    renderSection();
 
     expect(
       await screen.findByText("dispatch.passengersEmpty"),
     ).toBeInTheDocument();
   });
 
-  // 503 = Trip service chưa lấy được snapshot booking. Đó là "thử lại sau",
-  // không phải hết quyền hay sai cấu hình — nói đúng bản chất.
-  it("phân biệt 503 với lỗi thật", async () => {
+  it("phân biệt 503 tải manifest với lỗi thật", async () => {
     vi.mocked(getOperatorShuttleTripPassengers).mockRejectedValue(
       new ApiRequestError("upstream", 503, "SERVICE_UNAVAILABLE"),
     );
 
-    render(<ShuttleTripPassengersSection shuttleTripId="shuttle-1" />);
+    renderSection();
 
     expect(
       await screen.findByText("dispatch.passengersUnavailable"),
     ).toBeInTheDocument();
   });
 
-  it("lỗi khác thì hiện thông báo của BE", async () => {
+  it("lỗi tải manifest khác thì hiện thông báo của BE", async () => {
     vi.mocked(getOperatorShuttleTripPassengers).mockRejectedValue(
       new ApiRequestError("Không tìm thấy chuyến trung chuyển.", 404, "NOT_FOUND"),
     );
 
-    render(<ShuttleTripPassengersSection shuttleTripId="shuttle-1" />);
+    renderSection();
 
     expect(
       await screen.findByText("Không tìm thấy chuyến trung chuyển."),
     ).toBeInTheDocument();
+  });
+
+  it("gỡ cả Booking với lý do nội bộ rồi refetch manifest", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorShuttleTripPassengers).mockResolvedValue({
+      shuttleTripId: "shuttle-1",
+      groups: [
+        {
+          pickupOrder: 1,
+          bookingId: "booking-1",
+          bookingCode: "BK-20260901-ABC",
+          pickupAddress: "5 Nguyễn Huệ",
+          passengerCount: 2,
+          passengers: [],
+        },
+      ],
+    });
+    const result = {
+      shuttleTripId: "shuttle-1",
+      bookingId: "booking-1",
+      unassignedPassengerCount: 2,
+      remainingPassengerCount: 1,
+      shuttleTripStatus: "SCHEDULED" as const,
+      returnedToPendingAssignment: true,
+      shuttleTripCancelled: false,
+      unassignedAt: "2026-09-01T17:00:00+07:00",
+    };
+    vi.mocked(unassignOperatorShuttleBooking).mockResolvedValue(result);
+    const { onMutationSettled } = renderSection();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "dispatch.unassignBooking",
+      }),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "dispatch.confirmUnassignBooking",
+      }),
+    ).toBeDisabled();
+
+    await user.type(
+      screen.getByLabelText("dispatch.unassignBookingReason"),
+      "  Gán nhầm khách vào xe  ",
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "dispatch.confirmUnassignBooking",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(unassignOperatorShuttleBooking).toHaveBeenCalledWith(
+        "shuttle-1",
+        "booking-1",
+        { reason: "Gán nhầm khách vào xe" },
+        expect.any(String),
+      ),
+    );
+    expect(onMutationSettled).toHaveBeenCalledWith({ result });
+    await waitFor(() =>
+      expect(getOperatorShuttleTripPassengers).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("giữ nguyên Idempotency-Key khi thử lại cùng thao tác", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorShuttleTripPassengers).mockResolvedValue({
+      shuttleTripId: "shuttle-1",
+      groups: [
+        {
+          pickupOrder: 1,
+          bookingId: "booking-1",
+          passengerCount: 1,
+          passengers: [],
+        },
+      ],
+    });
+    vi.mocked(unassignOperatorShuttleBooking)
+      .mockRejectedValueOnce(
+        new ApiRequestError(
+          "Dịch vụ tạm thời không khả dụng.",
+          503,
+          "UPSTREAM_UNAVAILABLE",
+        ),
+      )
+      .mockResolvedValueOnce({
+        shuttleTripId: "shuttle-1",
+        bookingId: "booking-1",
+        unassignedPassengerCount: 1,
+        remainingPassengerCount: 0,
+        shuttleTripStatus: "CANCELLED",
+        returnedToPendingAssignment: true,
+        shuttleTripCancelled: true,
+        unassignedAt: "2026-09-01T17:00:00+07:00",
+      });
+    renderSection();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "dispatch.unassignBooking",
+      }),
+    );
+    await user.type(
+      screen.getByLabelText("dispatch.unassignBookingReason"),
+      "Gán nhầm khách",
+    );
+    const confirm = screen.getByRole("button", {
+      name: "dispatch.confirmUnassignBooking",
+    });
+    await user.click(confirm);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Dịch vụ tạm thời không khả dụng.",
+    );
+    await user.click(confirm);
+
+    await waitFor(() =>
+      expect(unassignOperatorShuttleBooking).toHaveBeenCalledTimes(2),
+    );
+    const firstKey = vi.mocked(unassignOperatorShuttleBooking).mock.calls[0][3];
+    const retryKey = vi.mocked(unassignOperatorShuttleBooking).mock.calls[1][3];
+    expect(retryKey).toBe(firstKey);
+  });
+
+  it("khóa thao tác khi chuyến không còn SCHEDULED", async () => {
+    vi.mocked(getOperatorShuttleTripPassengers).mockResolvedValue({
+      shuttleTripId: "shuttle-1",
+      groups: [
+        {
+          pickupOrder: 1,
+          bookingId: "booking-1",
+          passengerCount: 1,
+          passengers: [],
+        },
+      ],
+    });
+    renderSection("IN_PROGRESS");
+
+    expect(
+      await screen.findByText("dispatch.unassignBookingLocked"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "dispatch.unassignBooking" }),
+    ).toBeDisabled();
+    expect(unassignOperatorShuttleBooking).not.toHaveBeenCalled();
   });
 });

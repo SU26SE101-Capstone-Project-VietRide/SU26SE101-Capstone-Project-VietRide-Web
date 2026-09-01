@@ -19,6 +19,8 @@ export const emptyForm: VoucherForm = {
   discount: "10",
   maxDiscountAmount: "50000",
   applicableTo: "all",
+  operatorScope: "ALL",
+  selectedOperatorIds: [],
   minOrderValue: "0",
   quantity: "1000",
   expiryDate: "",
@@ -171,7 +173,8 @@ export function toCreateRequest(form: VoucherForm): CreateAdminVoucherRequest {
     validFrom: new Date().toISOString(),
     validUntil: toEndOfDayIso(form.expiryDate),
     applicableServices: toApplicableServices(form.applicableTo),
-    applicableOperatorIds: null,
+    applicableOperatorIds:
+      form.operatorScope === "SELECTED" ? form.selectedOperatorIds : null,
     fundingType: "VIETRIDE_FUNDED",
   };
 }
@@ -198,6 +201,9 @@ export function toForm(voucher: AdminVoucher): VoucherForm {
     discount: String(discountValueOf(voucher)),
     maxDiscountAmount: String(voucher.maxDiscountAmount ?? 0),
     applicableTo: applicableToOf(voucher),
+    operatorScope:
+      (voucher.applicableOperatorIds?.length ?? 0) > 0 ? "SELECTED" : "ALL",
+    selectedOperatorIds: voucher.applicableOperatorIds ?? [],
     minOrderValue: String(voucher.minOrderAmount ?? voucher.minOrderValue ?? 0),
     quantity: String(quantityOf(voucher)),
     expiryDate: toLocalDateTimeInput(expiryDateOf(voucher)),

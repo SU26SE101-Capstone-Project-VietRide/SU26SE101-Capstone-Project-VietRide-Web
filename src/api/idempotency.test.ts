@@ -43,6 +43,7 @@ describe("idempotency", () => {
     "/internal/v1/operators/summaries/batch",
     "/internal/v1/vouchers/validate",
     "/v1/operator/driver-schedules",
+    "/v1/operator/shuttle-trips/route-preview",
   ])("does not add a key to exempt operation %s", (path) => {
     expect(addIdempotencyHeader(`${path}?source=test`, "POST")).toBeUndefined();
   });

@@ -27,8 +27,6 @@ type VoucherTableProps = {
   pageSize: number;
   totalItems: number;
   onPageChange: (page: number) => void;
-  getFundingLabel: (fundingType?: string) => string;
-  getOperatorScopeLabel: (voucher: AdminVoucher) => string;
   onView: (voucher: AdminVoucher) => void;
   onEdit: (voucher: AdminVoucher) => void;
   onDelete: (voucher: AdminVoucher) => void;
@@ -43,8 +41,6 @@ export default function VoucherTable({
   pageSize,
   totalItems,
   onPageChange,
-  getFundingLabel,
-  getOperatorScopeLabel,
   onView,
   onEdit,
   onDelete,
@@ -56,15 +52,14 @@ export default function VoucherTable({
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 p-4">{toolbar}</div>
       <div className="overflow-x-auto px-2" tabIndex={0}>
-      <table className="w-full min-w-[1000px] table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
+      <table className="w-full min-w-[900px] table-fixed text-sm [&_th]:overflow-hidden [&_th]:text-ellipsis [&_th]:whitespace-nowrap [&_th]:px-2">
         <colgroup>
-          <col className="w-[14%]" />
-          <col className="w-[22%]" />
-          <col className="w-[10%]" />
-          <col className="w-[18%]" />
-          <col className="w-[13%]" />
-          <col className="w-[11%]" />
+          <col className="w-[16%]" />
+          <col className="w-[26%]" />
           <col className="w-[12%]" />
+          <col className="w-[16%]" />
+          <col className="w-[14%]" />
+          <col className="w-[16%]" />
         </colgroup>
         <thead className="border-b border-gray-200 bg-gray-50">
           <tr>
@@ -76,9 +71,6 @@ export default function VoucherTable({
             </th>
             <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
               {t("vouchers.discount")}
-            </th>
-            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
-              {t("vouchers.fundingAndScope")}
             </th>
             <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-600">
               {t("vouchers.used")}
@@ -93,11 +85,11 @@ export default function VoucherTable({
         </thead>
         <tbody>
           {isLoading && vouchers.length === 0 && (
-            <TableSkeletonRows columns={7} testId="admin-vouchers-table-skeleton" cellClassName="px-6 py-4" />
+            <TableSkeletonRows columns={6} testId="admin-vouchers-table-skeleton" cellClassName="px-6 py-4" />
           )}
           {!isLoading && vouchers.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-6 py-12 text-center">
+              <td colSpan={6} className="px-6 py-12 text-center">
                 {emptyState}
               </td>
             </tr>
@@ -139,20 +131,6 @@ export default function VoucherTable({
                       ? `${discount}%`
                       : `${formatNumber(discount)} đ`}
                   </span>
-                </td>
-                <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
-                  <p
-                    className="truncate text-sm font-medium text-gray-900"
-                    title={getFundingLabel(voucher.fundingType)}
-                  >
-                    {getFundingLabel(voucher.fundingType)}
-                  </p>
-                  <p
-                    className="truncate text-xs text-gray-500"
-                    title={getOperatorScopeLabel(voucher)}
-                  >
-                    {getOperatorScopeLabel(voucher)}
-                  </p>
                 </td>
                 <td className="overflow-hidden whitespace-nowrap px-2 py-4 text-center">
                   <div className="mx-auto w-full max-w-20 text-center">

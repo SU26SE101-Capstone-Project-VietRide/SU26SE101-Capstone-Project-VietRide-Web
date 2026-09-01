@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiCalendar,
-  FiEdit2,
   FiPause,
   FiPlay,
   FiRepeat,
@@ -89,7 +88,6 @@ export default function ScheduleTable({
   onDepartureFromChange = () => {},
   onDepartureToChange = () => {},
   onPageChange,
-  onEdit,
   onChangeCrew,
   onToggleActive,
   onDelete,
@@ -458,19 +456,10 @@ export default function ScheduleTable({
                       {t(`trips.scheduleStatus.${schedule.status}`)}
                     </span>
                   </td>
-                  {/* Ghim cột Thao tác: bảng rộng hơn vùng nội dung ngay ở desktop 1440px nên 4 nút này bị đẩy ra ngoài khung. */}
+                  {/* Ghim cột Thao tác để các nút không bị đẩy ra ngoài khung trên màn hình hẹp. */}
                   {canManageSchedules ? (
                     <td className="sticky right-0 z-10 bg-white px-2 py-4 text-right">
                       <div className="inline-flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => onEdit(schedule)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900"
-                          title={t("trips.edit")}
-                          aria-label={t("trips.edit")}
-                        >
-                          <FiEdit2 size={15} />
-                        </button>
                         <button
                           type="button"
                           onClick={() => onChangeCrew(schedule)}

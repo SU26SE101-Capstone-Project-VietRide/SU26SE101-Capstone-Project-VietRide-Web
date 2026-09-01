@@ -33,6 +33,7 @@ import {
   approveRagDocument,
   checkDriverScheduleAvailability,
   checkShuttleTripAvailability,
+  previewShuttleTripRoute,
   updateOperatorDriverScheduleCrew,
   batchUpdateOperatorParcelRouteFares,
   chatWithRag,
@@ -100,6 +101,7 @@ import {
   getOperatorShuttleTrips,
   cancelOperatorShuttleRequest,
   cancelOperatorShuttleTrip,
+  unassignOperatorShuttleBooking,
   getOperatorInvoice,
   getOperatorInvoices,
   getOperatorBooking,
@@ -3812,6 +3814,46 @@ describe("UI gaps API contracts", () => {
     );
   });
 
+  it("unassigns a whole Booking from a shuttle trip with the provided idempotency key", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            shuttleTripId: "shuttle-1",
+            bookingId: "booking-1",
+            unassignedPassengerCount: 2,
+            remainingPassengerCount: 1,
+            shuttleTripStatus: "SCHEDULED",
+            returnedToPendingAssignment: true,
+            shuttleTripCancelled: false,
+            unassignedAt: "2026-09-01T17:00:00+07:00",
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await unassignOperatorShuttleBooking(
+      "shuttle-1",
+      "booking-1",
+      { reason: "Gán nhầm khách vào xe" },
+      "36000000-0000-4000-8000-000000000999",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/shuttle-trips/shuttle-1/bookings/booking-1/unassign",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Gán nhầm khách vào xe" }),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "36000000-0000-4000-8000-000000000999",
+        }),
+      }),
+    );
+  });
+
   it("requests trip eta without stopId to auto-select the next stop", async () => {
     localStorage.setItem(
       "auth",
@@ -4076,6 +4118,58 @@ describe("UI gaps API contracts", () => {
     expect(result.hasMore).toBe(true);
     expect(result.conflicts[0].resourceRole).toBe("ASSISTANT");
     expect(result.conflicts[0].earliestFeasibleStartAt).toBeNull();
+  });
+
+  it("previews a shuttle route in user order without an idempotency key", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            status: "LATE_RISK",
+            estimatedFinishAt: "2026-09-01T15:47:00+07:00",
+            hardCutoffAt: "2026-09-01T15:30:00+07:00",
+            delayMinutes: 17,
+            warningCode: "SHUTTLE_LATE_RISK",
+            lateRiskBlocksCreate: false,
+            basis: "GOONG",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await previewShuttleTripRoute({
+      mainTripId: "trip-1",
+      direction: "INBOUND_TO_STATION",
+      scheduledDepartureTime: "2026-09-01T14:30:00+07:00",
+      orderedBookingIds: ["booking-2", "booking-1"],
+    });
+
+    expect(result.status).toBe("LATE_RISK");
+    expect(result.delayMinutes).toBe(17);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/shuttle-trips/route-preview",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          mainTripId: "trip-1",
+          direction: "INBOUND_TO_STATION",
+          scheduledDepartureTime: "2026-09-01T14:30:00+07:00",
+          orderedBookingIds: ["booking-2", "booking-1"],
+        }),
+      }),
+    );
+    const [, requestInit] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      { headers: Record<string, string> },
+    ];
+    expect(
+      Object.keys(requestInit.headers).some(
+        (header) => header.toLowerCase() === "idempotency-key",
+      ),
+    ).toBe(false);
   });
 
   it("updates driver schedule crew through the alias endpoint", async () => {

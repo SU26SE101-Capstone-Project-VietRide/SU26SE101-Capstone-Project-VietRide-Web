@@ -34,13 +34,13 @@ const vehicle: VehicleOption = {
   status: "active",
 };
 
-function renderTable(routes: RouteOption[]) {
+function renderTable(routes: RouteOption[], canManageSchedules = false) {
   return render(
     <ScheduleTable
       schedules={[schedule]}
       routes={routes}
       vehicles={[vehicle]}
-      canManageSchedules={false}
+      canManageSchedules={canManageSchedules}
       isLoading={false}
       page={1}
       pageSize={10}
@@ -106,5 +106,27 @@ describe("ScheduleTable", () => {
     ]);
 
     expect(screen.getByText("trips.routeFareFallback")).toBeInTheDocument();
+  });
+
+  it("does not render the schedule edit button", () => {
+    renderTable(
+      [
+        {
+          id: "route-1",
+          name: "Hồ Chí Minh - Đà Lạt",
+          origin: "Hồ Chí Minh",
+          destination: "Đà Lạt",
+          status: "active",
+        },
+      ],
+      true,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "trips.edit" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "trips.changeCrew" }),
+    ).toBeInTheDocument();
   });
 });

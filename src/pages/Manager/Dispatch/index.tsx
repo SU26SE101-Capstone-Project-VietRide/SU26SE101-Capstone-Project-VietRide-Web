@@ -16,7 +16,9 @@ import {
   cancelOperatorShuttleTrip,
   checkShuttleTripAvailability,
   createOperatorShuttleTrip,
+  previewShuttleTripRoute,
   getOperatorShuttleRequests,
+  getOperatorShuttleTripPassengers,
   getOperatorShuttleTrips,
   reassignOperatorShuttleTrip,
   getOperatorUsers,
@@ -33,6 +35,8 @@ import {
   type ShuttleBookingGroup,
   type ShuttleDirection,
   type ShuttleRequestGroup,
+  type ShuttleRoutePreviewResult,
+  type UnassignShuttleBookingResult,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
 import type {
@@ -148,6 +152,9 @@ export default function DispatchPanel() {
   // BE mở hai endpoint huỷ cho cả OPERATOR_STAFF, nhưng console chỉ còn phục vụ
   // OPERATOR_ADMIN nên hai quyền này trùng nhau.
   const canCancelShuttle = canDispatchShuttle;
+  // Endpoint unassign mở cho ADMIN và STAFF. Console hiện chỉ cho ADMIN đăng
+  // nhập, nên quyền UI này bám role được hỗ trợ mà không mở lại retired role.
+  const canUnassignShuttleBooking = canDispatchShuttle;
   const tRef = useRef(t);
 
   const [searchParams] = useSearchParams();
@@ -198,6 +205,12 @@ export default function DispatchPanel() {
   const [availability, setAvailability] =
     useState<ResourceAvailabilityResult | null>(null);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [routePreview, setRoutePreview] =
+    useState<ShuttleRoutePreviewResult | null>(null);
+  const [isPreviewingRoute, setIsPreviewingRoute] = useState(false);
+  // 409 nghĩa là draft trong modal đã stale. Danh sách phía sau được refetch,
+  // nhưng modal cũ phải khoá thao tác để không gửi tiếp một request set đã đổi.
+  const [isAssignmentStale, setIsAssignmentStale] = useState(false);
 
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -486,6 +499,92 @@ export default function DispatchPanel() {
     setIsLoadingDetail(false);
   }
 
+  const handleShuttleBookingMutationSettled = useCallback(
+    async (
+      event:
+        | { result: UnassignShuttleBookingResult; errorCode?: never }
+        | { result?: never; errorCode?: string },
+    ) => {
+      const currentTripId = detailRequestRef.current;
+
+      // Cùng một nhịp sau mutation: hàng chờ, danh sách chuyến và preview
+      // availability đều phải bỏ snapshot cũ. Manifest do component con nạp.
+      setRefreshVersion((current) => current + 1);
+      setShuttleTripsVersion((current) => current + 1);
+      setAvailability(null);
+      setRoutePreview(null);
+
+      if (event.result) {
+        const result = event.result;
+        setMessage(
+          result.shuttleTripCancelled
+            ? tRef.current("dispatch.unassignBookingLastSuccess", {
+                count: result.unassignedPassengerCount,
+              })
+            : tRef.current("dispatch.unassignBookingSuccess", {
+                count: result.unassignedPassengerCount,
+                remaining: result.remainingPassengerCount,
+              }),
+        );
+
+        if (result.shuttleTripCancelled) {
+          // Component manifest sắp unmount khi đóng chi tiết, nên parent hoàn
+          // tất lượt refetch bắt buộc này trước khi rời màn chỉnh chuyến.
+          await getOperatorShuttleTripPassengers(result.shuttleTripId).catch(
+            () => null,
+          );
+          detailRequestRef.current = "";
+          setDetailTrip(null);
+          setDetailContext(null);
+          setDetailError("");
+          setIsLoadingDetail(false);
+          setSelectedShuttleTripId((selected) =>
+            selected === result.shuttleTripId ? null : selected,
+          );
+          return;
+        }
+
+        setDetailTrip((current) =>
+          current?.shuttleTripId === result.shuttleTripId
+            ? {
+                ...current,
+                passengerCount: result.remainingPassengerCount,
+                status: result.shuttleTripStatus,
+              }
+            : current,
+        );
+      }
+
+      if (event.errorCode === "SHUTTLE_TRIP_NOT_FOUND") {
+        detailRequestRef.current = "";
+        setDetailTrip(null);
+        setDetailContext(null);
+        setDetailError("");
+        setIsLoadingDetail(false);
+        return;
+      }
+
+      if (!currentTripId) return;
+
+      try {
+        const context = await getOperatorShuttleContext(currentTripId);
+        if (detailRequestRef.current === currentTripId) {
+          setDetailContext(context);
+          setDetailError("");
+        }
+      } catch (contextError: unknown) {
+        if (detailRequestRef.current === currentTripId) {
+          setDetailError(
+            contextError instanceof Error
+              ? contextError.message
+              : tRef.current("dispatch.trackingFailed"),
+          );
+        }
+      }
+    },
+    [],
+  );
+
   const refreshShuttleTracking = useCallback(
     async (shuttleTripId: string) => {
       setTrackingByTripId((current) => ({
@@ -695,6 +794,14 @@ export default function DispatchPanel() {
         }
 
         setShuttleTrips(result.items);
+        setDetailTrip((current) => {
+          if (!current) return null;
+          return (
+            result.items.find(
+              (trip) => trip.shuttleTripId === current.shuttleTripId,
+            ) ?? current
+          );
+        });
         setShuttleTripPageMeta({
           totalItems: result.totalItems,
           totalPages: result.totalPages,
@@ -789,6 +896,8 @@ export default function DispatchPanel() {
     });
     idempotencyKeyRef.current = createIdempotencyKey();
     setAvailability(null);
+    setRoutePreview(null);
+    setIsAssignmentStale(false);
     setOpenAssignVehicle(true);
     void loadAssignmentResources();
   }
@@ -801,10 +910,65 @@ export default function DispatchPanel() {
     setOpenAssignVehicle(false);
     setAssignError("");
     setAvailability(null);
+    setRoutePreview(null);
+    setIsAssignmentStale(false);
     idempotencyKeyRef.current = null;
   }
 
+  function getRoutePreviewValidationError() {
+    if (!selectedGroup) {
+      return t("dispatch.invalidRequest", {
+        defaultValue: "Nhóm yêu cầu không còn hợp lệ.",
+      });
+    }
+
+    const orderedBookingIds = getOrderedSelectedBookingIds(
+      selectedGroup,
+      assignForm.selectedBookingIds,
+    );
+    if (orderedBookingIds.length === 0) {
+      return t("dispatch.selectAtLeastOneBooking", {
+        defaultValue: "Chọn ít nhất một lượt đặt vé để điều phối.",
+      });
+    }
+
+    if (
+      orderedBookingIds.some((bookingId) => {
+        const booking = selectedGroup.bookingGroups.find(
+          (item) => item.bookingId === bookingId,
+        );
+        return !booking || getBookingDistance(booking) === null;
+      })
+    ) {
+      return t("dispatch.distanceRequired", {
+        defaultValue:
+          "Không thể điều phối lượt đặt vé chưa có khoảng cách đường bộ.",
+      });
+    }
+
+    const departure = new Date(assignForm.scheduledDepartureTime);
+    if (
+      !assignForm.scheduledDepartureTime ||
+      Number.isNaN(departure.getTime())
+    ) {
+      return t("dispatch.routePreviewDepartureRequired");
+    }
+
+    if (departure.getTime() <= Date.now()) {
+      return t("dispatch.departureMustBeFuture", {
+        defaultValue: "Giờ xuất phát trung chuyển phải ở tương lai.",
+      });
+    }
+
+    return null;
+  }
+
   function getAssignmentValidationError() {
+    const routeValidationError = getRoutePreviewValidationError();
+    if (routeValidationError) {
+      return routeValidationError;
+    }
+
     if (!selectedGroup) {
       return t("dispatch.invalidRequest", {
         defaultValue: "Nhóm yêu cầu không còn hợp lệ.",
@@ -980,24 +1144,71 @@ export default function DispatchPanel() {
     return (error.code && messages[error.code]) || error.message;
   }
 
+  function handleAssignmentError(error: unknown) {
+    setAssignError(getSubmitError(error));
+
+    if (
+      error instanceof ApiRequestError &&
+      error.code === "SHUTTLE_REQUEST_SET_CHANGED"
+    ) {
+      setIsAssignmentStale(true);
+      // Refetch đúng endpoint pending; effect tự xử lý trường hợp trang cuối
+      // biến mất. Modal giữ mở để người dùng đọc nguyên nhân rồi đóng.
+      setRefreshVersion((current) => current + 1);
+    }
+  }
+
   // Preview và create phải gửi đúng cùng một draft, đặc biệt là thứ tự
   // orderedBookingIds vì nó quyết định điểm đầu/cuối dùng để tính availability
   // (handoff mục 8.2). Dựng payload ở một chỗ để hai luồng không lệch nhau.
-  function buildShuttleDraft(group: ShuttleRequestGroup) {
+  function buildRoutePreviewDraft(group: ShuttleRequestGroup) {
     return {
       mainTripId: group.mainTripId,
       direction: group.direction,
-      vehicleId: assignForm.vehicleId,
-      driverUserId: assignForm.driverId,
       scheduledDepartureTime: new Date(
         assignForm.scheduledDepartureTime,
       ).toISOString(),
-      scheduledEndTime: new Date(assignForm.scheduledEndTime).toISOString(),
       orderedBookingIds: getOrderedSelectedBookingIds(
         group,
         assignForm.selectedBookingIds,
       ),
     };
+  }
+
+  function buildShuttleDraft(group: ShuttleRequestGroup) {
+    return {
+      ...buildRoutePreviewDraft(group),
+      vehicleId: assignForm.vehicleId,
+      driverUserId: assignForm.driverId,
+      scheduledEndTime: new Date(assignForm.scheduledEndTime).toISOString(),
+    };
+  }
+
+  async function handlePreviewRoute() {
+    if (!selectedGroup || isPreviewingRoute) {
+      return;
+    }
+
+    const validationError = getRoutePreviewValidationError();
+    if (validationError) {
+      setAssignError(validationError);
+      return;
+    }
+
+    setIsPreviewingRoute(true);
+    setAssignError("");
+    setRoutePreview(null);
+    setAvailability(null);
+
+    try {
+      setRoutePreview(
+        await previewShuttleTripRoute(buildRoutePreviewDraft(selectedGroup)),
+      );
+    } catch (error) {
+      handleAssignmentError(error);
+    } finally {
+      setIsPreviewingRoute(false);
+    }
   }
 
   async function handleCheckAvailability() {
@@ -1020,7 +1231,7 @@ export default function DispatchPanel() {
         await checkShuttleTripAvailability(buildShuttleDraft(selectedGroup)),
       );
     } catch (error) {
-      setAssignError(getSubmitError(error));
+      handleAssignmentError(error);
     } finally {
       setIsCheckingAvailability(false);
     }
@@ -1034,6 +1245,16 @@ export default function DispatchPanel() {
     const validationError = getAssignmentValidationError();
     if (validationError) {
       setAssignError(validationError);
+      return;
+    }
+
+    if (!routePreview) {
+      setAssignError(t("dispatch.routePreviewRequired"));
+      return;
+    }
+
+    if (!availability?.available) {
+      setAssignError(t("dispatch.availabilityRequired"));
       return;
     }
 
@@ -1087,7 +1308,7 @@ export default function DispatchPanel() {
       }
       void refreshShuttleTracking(result.shuttleTripId);
     } catch (error) {
-      setAssignError(getSubmitError(error));
+      handleAssignmentError(error);
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -1623,8 +1844,27 @@ export default function DispatchPanel() {
         form={assignForm}
         onFormChange={(nextForm) => {
           setAssignError("");
-          // Draft đổi thì kết quả preview cũ không còn đúng với payload sắp gửi.
-          setAvailability(null);
+          const routeInputsChanged =
+            nextForm.scheduledDepartureTime !==
+              assignForm.scheduledDepartureTime ||
+            nextForm.selectedBookingIds.length !==
+              assignForm.selectedBookingIds.length ||
+            nextForm.selectedBookingIds.some(
+              (bookingId, index) =>
+                bookingId !== assignForm.selectedBookingIds[index],
+            );
+          const availabilityInputsChanged =
+            routeInputsChanged ||
+            nextForm.vehicleId !== assignForm.vehicleId ||
+            nextForm.driverId !== assignForm.driverId ||
+            nextForm.scheduledEndTime !== assignForm.scheduledEndTime;
+
+          if (routeInputsChanged) {
+            setRoutePreview(null);
+          }
+          if (availabilityInputsChanged) {
+            setAvailability(null);
+          }
           setAssignForm(nextForm);
         }}
         onSubmit={() => void handleAssignVehicle()}
@@ -1637,6 +1877,10 @@ export default function DispatchPanel() {
         availability={availability}
         isCheckingAvailability={isCheckingAvailability}
         onCheckAvailability={() => void handleCheckAvailability()}
+        routePreview={routePreview}
+        isPreviewingRoute={isPreviewingRoute}
+        onPreviewRoute={() => void handlePreviewRoute()}
+        isAssignmentStale={isAssignmentStale}
       />
 
       <RequestDetailModal
@@ -1671,6 +1915,8 @@ export default function DispatchPanel() {
         context={detailContext}
         isLoading={isLoadingDetail}
         error={detailError}
+        canUnassignBooking={canUnassignShuttleBooking}
+        onBookingMutationSettled={handleShuttleBookingMutationSettled}
         directionLabel={directionLabel}
         // Chỉ tô sáng khi modal đang mở đúng chuyến của deep-link — người dùng
         // mở tay một chuyến khác thì không được dính điểm đón của thông báo cũ.

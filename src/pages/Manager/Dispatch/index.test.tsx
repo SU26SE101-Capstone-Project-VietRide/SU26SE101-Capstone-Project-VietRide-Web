@@ -2,13 +2,16 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiRequestError } from "../../../api/client";
 import {
   cancelOperatorShuttleRequest,
+  previewShuttleTripRoute,
   reassignOperatorShuttleTrip,
   cancelOperatorShuttleTrip,
   getOperatorShuttleContext,
   getOperatorShuttleRequests,
   getOperatorShuttleTripPassengers,
+  unassignOperatorShuttleBooking,
   getOperatorUsers,
   getOperatorVehicles,
   getOperatorShuttleTrips,
@@ -34,6 +37,7 @@ vi.mock("../../../api/vietride", () => ({
   cancelOperatorShuttleTrip: vi.fn(),
   checkShuttleTripAvailability: vi.fn(),
   createOperatorShuttleTrip: vi.fn(),
+  previewShuttleTripRoute: vi.fn(),
   getOperatorShuttleRequests: vi.fn(),
   getOperatorShuttleTrips: vi.fn(),
   getOperatorUsers: vi.fn(),
@@ -42,6 +46,7 @@ vi.mock("../../../api/vietride", () => ({
   getShuttleTripLatest: vi.fn(),
   getOperatorShuttleContext: vi.fn(),
   getOperatorShuttleTripPassengers: vi.fn(),
+  unassignOperatorShuttleBooking: vi.fn(),
   reassignOperatorShuttleTrip: vi.fn(),
 }));
 
@@ -274,6 +279,25 @@ describe("Manager Dispatch", () => {
       changedPassengerCount: 2,
       transitionedAt: "2026-08-11T17:00:00+07:00",
     });
+    vi.mocked(unassignOperatorShuttleBooking).mockResolvedValue({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      bookingId: group.bookingGroups[0].bookingId,
+      unassignedPassengerCount: 2,
+      remainingPassengerCount: 0,
+      shuttleTripStatus: "CANCELLED",
+      returnedToPendingAssignment: true,
+      shuttleTripCancelled: true,
+      unassignedAt: "2026-09-01T17:00:00+07:00",
+    });
+    vi.mocked(previewShuttleTripRoute).mockResolvedValue({
+      status: "SAFE",
+      estimatedFinishAt: "2099-08-12T22:00:00+07:00",
+      hardCutoffAt: group.hardCutoffAt,
+      delayMinutes: 0,
+      warningCode: null,
+      lateRiskBlocksCreate: false,
+      basis: "GOONG",
+    });
   });
 
   it("dùng routeName làm nhãn nhóm và không hiện mainTripId", async () => {
@@ -284,6 +308,111 @@ describe("Manager Dispatch", () => {
     );
     expect(screen.getAllByText("Bến xe Miền Đông").length).toBeGreaterThan(0);
     expect(screen.queryByText(group.mainTripId)).not.toBeInTheDocument();
+  });
+
+  it("gửi route preview theo đúng thứ tự điểm đón người dùng đã sắp", async () => {
+    const user = userEvent.setup();
+    const secondBooking = {
+      ...group.bookingGroups[0],
+      bookingId: "36000000-0000-4000-8000-000000000302",
+      passengerCount: 1,
+      pickupAddress: "456 Lê Lợi, Quận 1, TP.HCM",
+      requestedAt: "2026-08-11T16:35:00+07:00",
+    };
+    vi.mocked(getOperatorShuttleRequests).mockResolvedValue({
+      items: [
+        {
+          ...group,
+          pendingPassengerCount: 3,
+          bookingGroups: [...group.bookingGroups, secondBooking],
+          suggestedBookingOrder: [
+            group.bookingGroups[0].bookingId,
+            secondBooking.bookingId,
+          ],
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    vi.mocked(previewShuttleTripRoute).mockResolvedValue({
+      status: "LATE_RISK",
+      estimatedFinishAt: "2099-08-12T22:47:00+07:00",
+      hardCutoffAt: group.hardCutoffAt,
+      delayMinutes: 17,
+      warningCode: "SHUTTLE_LATE_RISK",
+      lateRiskBlocksCreate: false,
+      basis: "GOONG",
+    });
+
+    renderPage();
+    await user.click(
+      await screen.findByRole("button", { name: "dispatch.assignVehicle" }),
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "dispatch.moveBookingDown 1",
+      }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "dispatch.routePreviewAction",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(previewShuttleTripRoute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mainTripId: group.mainTripId,
+          direction: "INBOUND_TO_STATION",
+          orderedBookingIds: [
+            secondBooking.bookingId,
+            group.bookingGroups[0].bookingId,
+          ],
+        }),
+      ),
+    );
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "dispatch.routePreviewStatus.LATE_RISK",
+    );
+  });
+
+  it("refetch pending requests và khóa draft khi request set đã đổi", async () => {
+    const user = userEvent.setup();
+    vi.mocked(previewShuttleTripRoute).mockRejectedValue(
+      new ApiRequestError(
+        "One or more selected Booking groups changed.",
+        409,
+        "SHUTTLE_REQUEST_SET_CHANGED",
+      ),
+    );
+
+    renderPage();
+    await user.click(
+      await screen.findByRole("button", { name: "dispatch.assignVehicle" }),
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "dispatch.routePreviewAction",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(getOperatorShuttleRequests).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      within(dialog).getByText("dispatch.requestSetChanged"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", {
+        name: "dispatch.routePreviewAction",
+      }),
+    ).toBeDisabled();
   });
 
   it("huỷ một yêu cầu chờ với direction, lý do rồi tải lại cả hai danh sách", async () => {
@@ -360,6 +489,63 @@ describe("Manager Dispatch", () => {
     await waitFor(() =>
       expect(getOperatorShuttleTrips).toHaveBeenCalledTimes(2),
     );
+  });
+
+  it("gỡ Booking cuối, refetch các nguồn rồi đóng chi tiết chuyến tự hủy", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorShuttleTripPassengers).mockResolvedValue({
+      shuttleTripId: shuttleTrip.shuttleTripId,
+      groups: [
+        {
+          pickupOrder: 1,
+          bookingId: group.bookingGroups[0].bookingId,
+          bookingCode: "BK-20260901-ABC",
+          pickupAddress: group.bookingGroups[0].pickupAddress,
+          passengerCount: 2,
+          passengers: [],
+        },
+      ],
+    });
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "dispatch.viewTripDetail",
+      }),
+    );
+    await user.click(
+      await screen.findByRole("button", {
+        name: "dispatch.unassignBooking",
+      }),
+    );
+    await user.type(
+      screen.getByLabelText("dispatch.unassignBookingReason"),
+      "Gán nhầm khách vào xe",
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "dispatch.confirmUnassignBooking",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(unassignOperatorShuttleBooking).toHaveBeenCalledWith(
+        shuttleTrip.shuttleTripId,
+        group.bookingGroups[0].bookingId,
+        { reason: "Gán nhầm khách vào xe" },
+        expect.any(String),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("dispatch.tripDetailTitle"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(getOperatorShuttleTripPassengers).toHaveBeenCalledTimes(2);
+    await waitFor(() =>
+      expect(getOperatorShuttleRequests).toHaveBeenCalledTimes(2),
+    );
+    expect(getOperatorShuttleTrips).toHaveBeenCalledTimes(2);
   });
 
   it("không hiện nút huỷ cho chuyến đã kết thúc", async () => {
