@@ -11,6 +11,7 @@ import {
   bookingTicketCount,
   findNotifiedStop,
   findStopByPickupOrder,
+  getOrderedSelectedBookingIds,
   isStaleSignal,
   nextPickupLabel,
   pickNewerEta,
@@ -42,6 +43,30 @@ const trip: OperatorShuttleTripListItem = {
 };
 
 const now = new Date("2026-08-12T21:40:00+07:00").getTime();
+
+describe("getOrderedSelectedBookingIds", () => {
+  it("giữ thứ tự người dùng và loại id stale/trùng", () => {
+    const bookingA = bookingWith([]);
+    const bookingB = { ...bookingA, bookingId: "booking-b" };
+    const ordered = getOrderedSelectedBookingIds(
+      {
+        mainTripId: "trip-1",
+        routeName: "Sài Gòn - Đà Lạt",
+        direction: "INBOUND_TO_STATION",
+        departureDateTime: "2026-09-01T16:00:00+07:00",
+        hardCutoffAt: "2026-09-01T15:30:00+07:00",
+        stationId: "station-1",
+        stationName: "Bến xe",
+        pendingPassengerCount: 0,
+        bookingGroups: [bookingA, bookingB],
+        suggestedBookingOrder: [bookingA.bookingId, bookingB.bookingId],
+      },
+      ["booking-b", bookingA.bookingId, "booking-b", "stale-booking"],
+    );
+
+    expect(ordered).toEqual(["booking-b", bookingA.bookingId]);
+  });
+});
 
 function latestAt(offsetMs: number, extra: Record<string, number> = {}) {
   return {

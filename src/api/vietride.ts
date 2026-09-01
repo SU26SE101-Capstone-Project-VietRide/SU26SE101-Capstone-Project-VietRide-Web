@@ -2588,6 +2588,22 @@ export type CancelShuttleRequest = {
   reason: string;
 };
 
+export type UnassignShuttleBookingRequest = {
+  /** Lý do vận hành nội bộ; BE không phát field này tới khách hoặc tài xế. */
+  reason: string;
+};
+
+export type UnassignShuttleBookingResult = {
+  shuttleTripId: string;
+  bookingId: string;
+  unassignedPassengerCount: number;
+  remainingPassengerCount: number;
+  shuttleTripStatus: OperatorShuttleTripStatus;
+  returnedToPendingAssignment: boolean;
+  shuttleTripCancelled: boolean;
+  unassignedAt: string;
+};
+
 /**
  * Đổi phân công chuyến trung chuyển. Bỏ trống field nào thì BE giữ nguyên giá
  * trị hiện tại của field đó — nhưng phải gửi ít nhất một trong hai.
@@ -2663,6 +2679,34 @@ export type ShuttleTripAvailabilityRequest = {
   scheduledDepartureTime: string;
   scheduledEndTime: string;
   orderedBookingIds: string[];
+};
+
+export type ShuttleRoutePreviewStatus =
+  | "SAFE"
+  | "LATE_RISK"
+  | "UNKNOWN"
+  | "NOT_APPLICABLE";
+
+/**
+ * Tư vấn thời gian lộ trình trước khi chọn xe/tài xế. Thứ tự booking là thứ tự
+ * đón thực tế; không được sort lại ở API client.
+ */
+export type ShuttleRoutePreviewRequest = {
+  mainTripId: string;
+  direction: ShuttleDirection;
+  scheduledDepartureTime: string;
+  orderedBookingIds: string[];
+};
+
+export type ShuttleRoutePreviewResult = {
+  status: ShuttleRoutePreviewStatus;
+  estimatedFinishAt: string | null;
+  hardCutoffAt: string | null;
+  delayMinutes: number | null;
+  warningCode: "SHUTTLE_LATE_RISK" | null;
+  /** Soft warning only: BE currently always returns false. */
+  lateRiskBlocksCreate: boolean;
+  basis: "GOONG" | null;
 };
 
 export const INCIDENT_CATEGORIES = [
@@ -2932,9 +2976,9 @@ export type CreateAdminVoucherRequest = {
   newUserOnly?: boolean;
   applicablePaymentMethods?: PaymentMethod[];
   applicableServices: VoucherService[];
-  applicableRouteIds?: string[] | null;
   applicableOperatorIds: string[] | null;
-  fundingType: string;
+  applicableRouteIds?: string[] | null;
+  fundingType: "VIETRIDE_FUNDED";
 };
 
 export type UpdateAdminVoucherRequest = Partial<
@@ -6715,6 +6759,18 @@ export function checkShuttleTripAvailability(
   );
 }
 
+// Read-only POST: không tạo reservation/ShuttleTrip và tuyệt đối không gửi
+// Idempotency-Key. Middleware exemption nằm trong api/idempotency.ts.
+export function previewShuttleTripRoute(
+  request: ShuttleRoutePreviewRequest,
+  signal?: AbortSignal,
+) {
+  return apiRequest<ShuttleRoutePreviewResult>(
+    "/v1/operator/shuttle-trips/route-preview",
+    { method: "POST", body: request, signal },
+  );
+}
+
 export function createOperatorShuttleTrip(
   request: CreateShuttleTripRequest,
   idempotencyKey = createIdempotencyKey(),
@@ -6737,6 +6793,31 @@ export function cancelOperatorShuttleTrip(
 ) {
   return apiRequest<ShuttleLifecycleResult>(
     `/v1/operator/shuttle-trips/${shuttleTripId}/cancel`,
+    {
+      method: "POST",
+      body: request,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+}
+
+/**
+ * Gỡ toàn bộ hành khách/ticket của một Booking khỏi manifest ShuttleTrip.
+ * Booking quay lại hàng chờ phân xe; đây KHÔNG phải API huỷ Booking/chuyến.
+ *
+ * Chỉ ShuttleTrip `SCHEDULED` mới thao tác được. Nếu đây là Booking cuối, BE
+ * tự chuyển ShuttleTrip sang `CANCELLED` và giải phóng reservation.
+ */
+export function unassignOperatorShuttleBooking(
+  shuttleTripId: string,
+  bookingId: string,
+  request: UnassignShuttleBookingRequest,
+  idempotencyKey = createIdempotencyKey(),
+) {
+  return apiRequest<UnassignShuttleBookingResult>(
+    `/v1/operator/shuttle-trips/${shuttleTripId}/bookings/${bookingId}/unassign`,
     {
       method: "POST",
       body: request,

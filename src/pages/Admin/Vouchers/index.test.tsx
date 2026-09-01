@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createAdminVoucher,
   getAdminCampaigns,
+  getAdminOperators,
   getAdminVouchers,
   getAdminVoucherSummary,
 } from "../../../api/vietride";
@@ -23,6 +24,7 @@ vi.mock("../../../api/vietride", () => ({
   deactivateAdminCampaign: vi.fn(),
   getAdminCampaigns: vi.fn(),
   getAdminVoucherConsents: vi.fn(),
+  getAdminOperators: vi.fn(),
   getAdminVouchers: vi.fn(),
   getAdminVoucherSummary: vi.fn(),
   updateAdminCampaign: vi.fn(),
@@ -32,6 +34,26 @@ vi.mock("../../../api/vietride", () => ({
 describe("Admin Vouchers table", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getAdminOperators).mockResolvedValue({
+      items: [
+        {
+          operatorId: "operator-1",
+          name: "VietRide Express",
+          contactEmail: "operator@vietride.vn",
+          contactPhone: "0900000000",
+          businessRegistrationNumber: "BR-001",
+          taxCode: "TAX-001",
+          registrationStatus: "APPROVED",
+          isActive: true,
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
     vi.mocked(getAdminVoucherSummary).mockResolvedValue({
       total: 1,
       active: 1,
@@ -81,7 +103,7 @@ describe("Admin Vouchers table", () => {
 
     expect(table).not.toBeNull();
     expect(table).toHaveClass("table-fixed");
-    expect(table).toHaveClass("min-w-[1000px]");
+    expect(table).toHaveClass("min-w-[900px]");
     expect(container).toHaveClass("overflow-x-auto");
     expect(container).not.toHaveClass("overflow-hidden");
     // Vùng cuộn phải focus được, nếu không người dùng bàn phím không cuộn tới
@@ -89,6 +111,17 @@ describe("Admin Vouchers table", () => {
     expect(container).toHaveAttribute("tabindex", "0");
     expect(voucherName).toHaveClass("truncate");
     expect(voucherName.closest("td")).toHaveClass("whitespace-nowrap");
+  });
+
+  it("does not invent an audience that is absent from the API response", async () => {
+    render(<Vouchers />);
+
+    await screen.findByText("Gói Premium - Giảm 100K");
+
+    expect(screen.queryByText("vouchers.audience")).not.toBeInTheDocument();
+    expect(screen.queryByText("vouchers.passengerAudience")).not.toBeInTheDocument();
+    expect(screen.queryByText("vouchers.fundingAndScope")).not.toBeInTheDocument();
+    expect(screen.queryByText("vouchers.allOperators")).not.toBeInTheDocument();
   });
 
   // Trước đây nhánh rỗng thay thế cả bảng, mà thanh tìm kiếm nằm trong bảng —
@@ -159,6 +192,8 @@ describe("Admin Vouchers table", () => {
           type: "FIXED_AMOUNT",
           value: 75_000,
           maxDiscountAmount: 75_000,
+          fundingType: "VIETRIDE_FUNDED",
+          applicableOperatorIds: null,
         }),
       );
     });

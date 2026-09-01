@@ -8,6 +8,8 @@ export type VoucherForm = {
   discount: string;
   maxDiscountAmount: string;
   applicableTo: string;
+  operatorScope: "ALL" | "SELECTED";
+  selectedOperatorIds: string[];
   minOrderValue: string;
   quantity: string;
   expiryDate: string;

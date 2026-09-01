@@ -19,7 +19,9 @@ import type {
   ShuttleDirection,
 } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
-import ShuttleTripPassengersSection from "./ShuttleTripPassengersSection";
+import ShuttleTripPassengersSection, {
+  type ShuttleBookingMutationEvent,
+} from "./ShuttleTripPassengersSection";
 import ShuttleAssignmentHistorySection from "./ShuttleAssignmentHistorySection";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import { formatDistance, formatTime } from "./dispatchHelpers";
@@ -32,6 +34,10 @@ type ShuttleTripDetailModalProps = {
   context: OperatorShuttleContext | null;
   isLoading: boolean;
   error: string;
+  canUnassignBooking: boolean;
+  onBookingMutationSettled: (
+    event: ShuttleBookingMutationEvent,
+  ) => void | Promise<void>;
   directionLabel: (direction: ShuttleDirection) => string;
   /**
    * Điểm đón mà thông báo đang trỏ tới (deep-link có `bookingId`/`pickupOrder`).
@@ -72,6 +78,8 @@ export default function ShuttleTripDetailModal({
   context,
   isLoading,
   error,
+  canUnassignBooking,
+  onBookingMutationSettled,
   directionLabel,
   highlightedStop = null,
 }: ShuttleTripDetailModalProps) {
@@ -258,7 +266,12 @@ export default function ShuttleTripDetailModal({
             )}
           </section>
 
-          <ShuttleTripPassengersSection shuttleTripId={trip.shuttleTripId} />
+          <ShuttleTripPassengersSection
+            shuttleTripId={trip.shuttleTripId}
+            tripStatus={trip.status}
+            canUnassignBooking={canUnassignBooking}
+            onMutationSettled={onBookingMutationSettled}
+          />
 
           {/* Key kèm mốc gán gần nhất: sau khi đổi xe/tài xế, danh sách được
               nạp lại nên `assignedAt` đổi → component remount và lịch sử được

@@ -5,10 +5,12 @@ import { FiPlus, FiRefreshCw, FiTag, FiTrash2 } from "react-icons/fi";
 import {
   createAdminVoucher,
   deleteAdminVoucher,
+  getAdminOperators,
   getAdminVouchers,
   getAdminVoucherSummary,
   updateAdminVoucher,
   type AdminVoucher,
+  type AdminOperator,
   type VoucherSummary,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
@@ -21,6 +23,7 @@ import VoucherModal from "./VoucherModal";
 import VoucherTable from "./VoucherTable";
 import {
   activeOf,
+  isActiveOperator,
   applicableToOf,
   discountTypeOf,
   discountValueOf,
@@ -45,6 +48,8 @@ export default function Vouchers() {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [vouchers, setVouchers] = useState<AdminVoucher[]>([]);
+  const [operators, setOperators] = useState<AdminOperator[]>([]);
+  const [operatorsLoading, setOperatorsLoading] = useState(true);
   const [form, setForm] = useState<VoucherForm>(emptyForm);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState<AdminVoucher | null>(
@@ -134,6 +139,31 @@ export default function Vouchers() {
     };
   }, [reloadCountsKey]);
 
+
+  useEffect(() => {
+    let ignore = false;
+    void getAdminOperators({
+      page: 1,
+      pageSize: 100,
+      status: "APPROVED",
+      isActive: true,
+      sortBy: "name",
+      sortDir: "asc",
+    })
+      .then((result) => {
+        if (!ignore) setOperators(result.items.filter(isActiveOperator));
+      })
+      .catch(() => {
+        if (!ignore) setOperators([]);
+      })
+      .finally(() => {
+        if (!ignore) setOperatorsLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
   function updateForm<K extends keyof VoucherForm>(
     key: K,
     value: VoucherForm[K],
@@ -179,6 +209,15 @@ export default function Vouchers() {
       return;
     }
 
+
+    if (
+      !editingVoucher &&
+      form.operatorScope === "SELECTED" &&
+      form.selectedOperatorIds.length === 0
+    ) {
+      setError(t("vouchers.selectAtLeastOneOperator"));
+      return;
+    }
     try {
       const saved = editingVoucher
         ? await updateAdminVoucher(editingVoucher.id, toUpdateRequest(form))
@@ -227,8 +266,7 @@ export default function Vouchers() {
     }
   }
 
-  const { getApplicableLabel, getFundingLabel, getOperatorScopeLabel } =
-    useVoucherLabels();
+  const { getApplicableLabel } = useVoucherLabels();
   const activeCount = summary?.active ?? 0;
   const bookingCount = summary?.booking ?? 0;
   const parcelCount = summary?.parcel ?? 0;
@@ -359,8 +397,6 @@ export default function Vouchers() {
           pageSize={pageSize}
           totalItems={totalVouchers}
           onPageChange={setVoucherPage}
-          getFundingLabel={getFundingLabel}
-          getOperatorScopeLabel={getOperatorScopeLabel}
           onView={setDetailVoucher}
           onEdit={openEditModal}
           onDelete={setDeletingVoucher}
@@ -421,18 +457,20 @@ export default function Vouchers() {
               <h3 className="mb-4 text-base font-bold text-gray-900">
                 {t("vouchers.detailScopeTitle")}
               </h3>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4">
                 <DetailItem
                   label={t("vouchers.applicable")}
                   value={getApplicableLabel(applicableToOf(detailVoucher))}
                 />
                 <DetailItem
-                  label={t("vouchers.fundingType")}
-                  value={getFundingLabel(detailVoucher.fundingType)}
-                />
-                <DetailItem
                   label={t("vouchers.operatorScope")}
-                  value={getOperatorScopeLabel(detailVoucher)}
+                  value={
+                    (detailVoucher.applicableOperatorIds?.length ?? 0) > 0
+                      ? t("vouchers.selectedOperatorsCount", {
+                          count: detailVoucher.applicableOperatorIds?.length ?? 0,
+                        })
+                      : t("vouchers.allOperators")
+                  }
                 />
               </div>
             </section>
@@ -473,6 +511,8 @@ export default function Vouchers() {
         form={form}
         updateForm={updateForm}
         onSave={handleSaveVoucher}
+        operators={operators}
+        operatorsLoading={operatorsLoading}
       />
 
       <Modal

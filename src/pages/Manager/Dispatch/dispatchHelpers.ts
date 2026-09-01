@@ -434,10 +434,21 @@ export function getOrderedSelectedBookingIds(
   group: ShuttleRequestGroup,
   selectedBookingIds: string[],
 ) {
-  const selectedIds = new Set(selectedBookingIds);
-  return getOrderedBookingGroups(group)
-    .map((booking) => booking.bookingId)
-    .filter((bookingId) => selectedIds.has(bookingId));
+  const validIds = new Set(
+    group.bookingGroups.map((booking) => booking.bookingId),
+  );
+  const seen = new Set<string>();
+
+  // `selectedBookingIds` là thứ tự điều độ viên đã sắp trên UI. Chỉ lọc id
+  // stale/trùng; không ép lại suggestedBookingOrder vì BE dùng chính thứ tự
+  // này để dựng chuỗi pickup -> ... -> station cho route preview.
+  return selectedBookingIds.filter((bookingId) => {
+    if (!validIds.has(bookingId) || seen.has(bookingId)) {
+      return false;
+    }
+    seen.add(bookingId);
+    return true;
+  });
 }
 
 export function getSelectedPassengerCount(

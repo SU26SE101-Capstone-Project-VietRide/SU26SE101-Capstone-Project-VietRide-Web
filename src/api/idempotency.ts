@@ -24,6 +24,7 @@ const IDEMPOTENCY_EXEMPT_OPERATIONS = new Set([
   // key (handoff API-driver-resource-availability mục 7.2 và 8.2).
   "POST /v1/operator/driver-schedules/availability-check",
   "POST /v1/operator/shuttle-trips/availability-check",
+  "POST /v1/operator/shuttle-trips/route-preview",
 ]);
 
 // Exempt theo pattern cho path có id động — BE SkipIdempotency (mục 4.4):

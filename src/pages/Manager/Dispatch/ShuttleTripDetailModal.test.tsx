@@ -95,6 +95,8 @@ function renderModal(direction: ShuttleDirection = "INBOUND_TO_STATION") {
       directionLabel={(value) => `dispatch.direction.${value}`}
       isLoading={false}
       error=""
+      canUnassignBooking
+      onBookingMutationSettled={vi.fn()}
     />,
   );
 }
