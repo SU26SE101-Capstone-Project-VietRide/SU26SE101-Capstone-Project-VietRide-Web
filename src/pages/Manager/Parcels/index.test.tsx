@@ -106,12 +106,9 @@ const route = {
 } satisfies OperatorRoute;
 
 const categories = ["SMALL", "MEDIUM", "LARGE", "EXTRA_LARGE"] as const;
-const activeFareEffectiveFrom = new Date(
-  Date.now() - 24 * 60 * 60 * 1000,
-).toISOString();
-const activeFareEffectiveUntil = new Date(
-  Date.now() + 24 * 60 * 60 * 1000,
-).toISOString();
+// Giữ fixture ACTIVE độc lập với đồng hồ thật/fake timers của từng test.
+const activeFareEffectiveFrom = "2020-01-01T00:00:00.000Z";
+const activeFareEffectiveUntil = "2099-12-31T23:59:59.000Z";
 // API list nay gom theo tuyến: mỗi tuyến MỘT item, các mức nằm trong `fares[]`
 const fareGroups: ParcelRouteFareGroup[] = [
   {
