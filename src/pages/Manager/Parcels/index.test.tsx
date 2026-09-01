@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   batchUpdateOperatorParcelRouteFares,
   getOperatorParcelReportSummary,
@@ -121,6 +121,10 @@ const fareGroups: ParcelRouteFareGroup[] = [
 
 describe("parcel route fare workflow", () => {
   beforeEach(() => {
+    // Giữ fixture tháng 8/2026 luôn nằm trong cửa sổ ACTIVE. Chỉ fake Date để
+    // userEvent/waitFor tiếp tục dùng timer thật và test không phụ thuộc ngày chạy.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-10T03:00:00Z"));
     vi.clearAllMocks();
     vi.mocked(getOperatorParcelReportSummary).mockResolvedValue({
       operatorId: "operator-1",
@@ -168,6 +172,10 @@ describe("parcel route fare workflow", () => {
         created: false,
       })),
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders the fare edit button in the actions column", async () => {
