@@ -7,6 +7,7 @@ import {
   getAdminCustomPlanRequests,
   getAdminSubscriptionPlans,
   rejectAdminCustomPlanRequest,
+  updateAdminSubscriptionPlan,
   type AdminCustomPlanRequest,
   type SubscriptionPlan,
 } from "../../../api/vietride";
@@ -108,6 +109,42 @@ describe("Admin Service Packages", () => {
     expect(screen.queryByText("enableParcel")).not.toBeInTheDocument();
     expect(screen.queryByText("enableShuttle")).not.toBeInTheDocument();
     expect(screen.queryByText("enableRag")).not.toBeInTheDocument();
+  });
+
+  it("shows all six resource limits in the redesigned admin plan card", async () => {
+    vi.mocked(getAdminSubscriptionPlans).mockResolvedValue([plan]);
+    render(<Packages />);
+
+    const card = await screen.findByTestId(`admin-plan-card-${plan.planId}`);
+    expect(within(card).getAllByTestId(/^admin-plan-limit-/)).toHaveLength(6);
+
+    [
+      "packages.limitLabels.maxVehicles",
+      "packages.limitLabels.maxRoutes",
+      "packages.limitLabels.maxDrivers",
+      "packages.limitLabels.maxAssistants",
+      "packages.limitLabels.maxOperatorUsers",
+      "packages.limitLabels.maxTripsPerMonth",
+    ].forEach((label) => {
+      expect(within(card).getByText(label)).toBeInTheDocument();
+    });
+  });
+
+  it("keeps the disable and edit actions working in the redesigned card", async () => {
+    const interaction = userEvent.setup();
+    vi.mocked(getAdminSubscriptionPlans).mockResolvedValue([plan]);
+    render(<Packages />);
+
+    const card = await screen.findByTestId(`admin-plan-card-${plan.planId}`);
+    await interaction.click(within(card).getByRole("button", { name: "disable" }));
+
+    expect(updateAdminSubscriptionPlan).toHaveBeenCalledWith(
+      plan.planId,
+      expect.objectContaining({ isActive: false }),
+    );
+
+    await interaction.click(within(card).getByRole("button", { name: "edit" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("explains each module and keeps local validation inside the create modal", async () => {

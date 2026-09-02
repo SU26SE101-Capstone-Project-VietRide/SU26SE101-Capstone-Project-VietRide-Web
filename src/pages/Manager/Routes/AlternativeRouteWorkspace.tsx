@@ -59,6 +59,13 @@ export default function AlternativeRouteWorkspace({
 }: AlternativeRouteWorkspaceProps) {
   const { t } = useTranslation("manager");
   const { altGeometry } = workspace;
+  // A list item has metadata/stops but no authoritative pathPolyline. Passing
+  // those points to RouteDesignMap while detail is pending makes it connect
+  // them with a straight grey line ("đường chim bay"). Keep the alternative
+  // layer completely hidden until GET detail has resolved.
+  const canRenderAlternativeGeometry =
+    !workspace.selectedAlternativeRouteId ||
+    workspace.selectedAlternativeDetailState?.status === "ready";
 
   // Điểm dừng tuyến chính rút gọn về đúng field map cần — memo để RouteDesignMap
   // không reconcile lại marker mỗi render của trang cha
@@ -158,19 +165,38 @@ export default function AlternativeRouteWorkspace({
 
         <div
           data-testid="route-map-shell"
+          aria-busy={workspace.isLoadingAlternativeDetail}
           className="relative h-105 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:h-[calc(100vh-16rem)] lg:min-h-140"
         >
+          {workspace.isLoadingAlternativeDetail && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/75 backdrop-blur-[1px]">
+              <span
+                role="status"
+                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm"
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-vr-200 border-t-vr-700"
+                />
+                {t("routes.alternativeDetailLoading")}
+              </span>
+            </div>
+          )}
           <RouteDesignMap
             // Camera chỉ canh khung khi đổi tuyến thay thế đang soạn, không
             // canh theo từng nhịp nắn (xem `fitKey` của GoogleMapCanvas)
-            viewportKey={`alt:${workspace.selectedAlternativeRouteId}`}
-            points={workspace.altMapPoints}
-            pathPoints={altGeometry.routePathPoints}
-            stopMarkers={altStopMarkers}
+            viewportKey={`alt:${workspace.selectedAlternativeRouteId}:${workspace.selectedAlternativeDetailState?.status ?? "draft"}`}
+            points={canRenderAlternativeGeometry ? workspace.altMapPoints : []}
+            pathPoints={
+              canRenderAlternativeGeometry ? altGeometry.routePathPoints : []
+            }
+            stopMarkers={canRenderAlternativeGeometry ? altStopMarkers : []}
             onRequestRemoveStop={
               canManageRoutes ? (stopId) => workspace.removeAltStop(stopId) : undefined
             }
-            routeOptions={altGeometry.routeOptions}
+            routeOptions={
+              canRenderAlternativeGeometry ? altGeometry.routeOptions : []
+            }
             selectedOptionIndex={altGeometry.selectedOptionIndex}
             selectedPathDurationMinutes={
               workspace.altMetrics.estimatedDurationMinutes
@@ -178,7 +204,7 @@ export default function AlternativeRouteWorkspace({
             onSelectOption={
               canManageRoutes ? altGeometry.handleSelectRouteOption : undefined
             }
-            viaPoints={altGeometry.viaPoints}
+            viaPoints={canRenderAlternativeGeometry ? altGeometry.viaPoints : []}
             onAddViaPoint={canManageRoutes ? altGeometry.handleAddViaPoint : undefined}
             onBeginViaDrag={
               canManageRoutes ? altGeometry.handleBeginViaPointDrag : undefined
@@ -194,7 +220,11 @@ export default function AlternativeRouteWorkspace({
             }
             isRerouting={altGeometry.isRerouting}
             emptyText={t("routes.mapNoPoints")}
-            suggestions={canManageRoutes ? workspace.altSuggestions : undefined}
+            suggestions={
+              canManageRoutes && canRenderAlternativeGeometry
+                ? workspace.altSuggestions
+                : undefined
+            }
             onAddSuggestion={(suggestion) => {
               if (suggestion.kind === "googlePlace") {
                 onRequestWardConfirm(suggestion, (locationId) => {
@@ -214,6 +244,7 @@ export default function AlternativeRouteWorkspace({
             referenceColor={mainRouteColor}
             referenceStops={mainRouteStopMarkers}
             showPickupDropoffOptions={false}
+            connectPointsWithoutGeometry={false}
           />
         </div>
       </div>

@@ -4,12 +4,12 @@
 import { useTranslation } from "react-i18next";
 import { FiSlash } from "react-icons/fi";
 import Modal from "../../../components/Modal";
-import type { AlternativeRoute } from "../../../api/vietride";
+import type { AlternativeRouteListItem } from "../../../api/vietride";
 
 type RemoveAlternativeRouteModalProps = {
-  item: AlternativeRoute | null;
+  item: AlternativeRouteListItem | null;
   onClose: () => void;
-  onConfirm: (item: AlternativeRoute) => void;
+  onConfirm: (item: AlternativeRouteListItem) => void;
   /** Đang gửi request ngưng áp dụng — khoá nút để không gửi hai lệnh */
   busy?: boolean;
 };

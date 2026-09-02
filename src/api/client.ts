@@ -238,6 +238,43 @@ export async function apiBlobRequest(
   path: string,
   options: RequestOptions = {},
 ): Promise<Blob> {
+  const result = await apiFileRequest(path, options);
+  return result.blob;
+}
+
+export type ApiFileResponse = {
+  blob: Blob;
+  fileName?: string;
+};
+
+function fileNameFromContentDisposition(value: string | null) {
+  if (!value) return undefined;
+
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      return utf8Match[1].trim().replace(/^"|"$/g, "");
+    }
+  }
+
+  return value.match(/filename\s*=\s*"?([^";]+)"?/i)?.[1]?.trim();
+}
+
+async function toFileResponse(response: Response): Promise<ApiFileResponse> {
+  return {
+    blob: await response.blob(),
+    fileName: fileNameFromContentDisposition(
+      response.headers.get("Content-Disposition"),
+    ),
+  };
+}
+
+export async function apiFileRequest(
+  path: string,
+  options: RequestOptions = {},
+): Promise<ApiFileResponse> {
   const method = options.method ?? "GET";
   const requestOptions = prepareRequestOptions(path, method, options);
   const session = getAuthSession();
@@ -265,7 +302,7 @@ export async function apiBlobRequest(
         throw createApiRequestError(retryPayload, retryResponse.status);
       }
 
-      return retryResponse.blob();
+      return toFileResponse(retryResponse);
     }
   }
 
@@ -274,7 +311,7 @@ export async function apiBlobRequest(
     throw createApiRequestError(payload, response.status);
   }
 
-  return response.blob();
+  return toFileResponse(response);
 }
 
 export type ApiSseEvent = {

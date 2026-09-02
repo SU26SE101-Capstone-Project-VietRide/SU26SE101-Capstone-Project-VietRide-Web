@@ -5,7 +5,12 @@
 // phải: slot `trailing` (badge "Chưa lưu thay đổi" + nút "Lưu tuyến" do
 // RouteMapWorkspace truyền vào). Cảnh báo TRUCK dài xuống dòng riêng dưới thanh.
 import { useTranslation } from "react-i18next";
-import { FiCornerUpLeft, FiLoader, FiRotateCcw } from "react-icons/fi";
+import {
+  FiCornerUpLeft,
+  FiEdit3,
+  FiLoader,
+  FiRotateCcw,
+} from "react-icons/fi";
 import type { ReactNode } from "react";
 import type { UseRouteGeometryResult } from "./useRouteGeometry";
 
@@ -43,7 +48,9 @@ export default function GeometryToolbar({
     isFetchingOptions,
     autoRouteUnavailable,
     allOptionsExcluded,
+    routePathPoints,
     handleSetTravelMode,
+    handleStartFromExcludedPath,
     handleUndoViaPoint,
     handleResetViaPoints,
   } = geometry;
@@ -117,17 +124,6 @@ export default function GeometryToolbar({
           </span>
         )}
 
-        {/* Google có trả phương án nhưng tất cả đều trùng tuyến chính (bị lọc
-            khỏi bộ phương án thay thế) → hint kéo điểm nắn để tự tạo đường khác */}
-        {allOptionsExcluded && !isFetchingOptions && (
-          <span
-            data-testid="all-options-excluded"
-            className="text-xs text-amber-600"
-          >
-            {t("routes.allOptionsMatchMainRoute")}
-          </span>
-        )}
-
         {/* Đường tự động ĐANG có điểm nắn user kéo — cho hoàn tác điểm vừa kéo
             hoặc bỏ hết để quay lại đường Google gốc (kéo lỡ tay quá nhiều lần) */}
         {viaPoints.length > 0 && (
@@ -157,6 +153,33 @@ export default function GeometryToolbar({
           <div className="ml-auto flex items-center gap-2">{trailing}</div>
         )}
       </div>
+
+      {/* Nhà cung cấp chỉ trả lại tuyến chính: trước đây UI bảo "kéo điểm nắn"
+          nhưng lại không vẽ đường cam nào để kéo. Cho người dùng chủ động tạo
+          một lớp nháp từ tuyến chính; nút Lưu vẫn bị guard nếu chưa nắn khác. */}
+      {allOptionsExcluded && !isFetchingOptions && (
+        <div
+          data-testid="all-options-excluded"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800"
+        >
+          <span>
+            {routePathPoints.length > 1
+              ? t("routes.manualAlternativeReadyHint")
+              : t("routes.allOptionsMatchMainRoute")}
+          </span>
+          {routePathPoints.length < 2 && (
+            <button
+              type="button"
+              data-testid="start-manual-alternative"
+              onClick={handleStartFromExcludedPath}
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-2.5 py-1.5 font-semibold text-amber-800 hover:bg-amber-100"
+            >
+              <FiEdit3 size={13} />
+              {t("routes.startManualAlternative")}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Cảnh báo đường hạn chế xe lớn (tính bằng TRUCK) — dòng riêng dưới thanh:
           amber = TRUCK phải đi vòng đáng kể so với DRIVE; đỏ = TRUCK bí đường

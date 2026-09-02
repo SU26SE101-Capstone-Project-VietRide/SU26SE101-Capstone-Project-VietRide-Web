@@ -71,7 +71,7 @@ function placesStorageKey(cacheKey: string) {
  */
 function readCachedPlaces(cacheKey: string): PlaceAlongRoute[] | null {
   const inMemory = placesCache.get(cacheKey);
-  if (inMemory) {
+  if (inMemory && inMemory.length > 0) {
     return inMemory;
   }
 
@@ -79,7 +79,7 @@ function readCachedPlaces(cacheKey: string): PlaceAlongRoute[] | null {
     placesStorageKey(cacheKey),
     placesCacheMaxAgeMs,
   );
-  if (persisted) {
+  if (persisted && persisted.length > 0) {
     placesCache.set(cacheKey, persisted);
     return persisted;
   }
@@ -118,11 +118,13 @@ function loadPlaces(
         }
       }
 
-      placesCache.set(cacheKey, mergedResult);
-      writeSessionCache<PlaceAlongRoute[]>(
-        placesStorageKey(cacheKey),
-        mergedResult,
-      );
+      if (mergedResult.length > 0) {
+        placesCache.set(cacheKey, mergedResult);
+        writeSessionCache<PlaceAlongRoute[]>(
+          placesStorageKey(cacheKey),
+          mergedResult,
+        );
+      }
       return mergedResult;
     })
     .finally(() => {
@@ -194,12 +196,16 @@ export function useRouteStopSuggestions({
 
     // Batch tự lo phần gộp + ghi cache; ở đây chỉ cần biết lúc nào xong để
     // buộc useMemo bên dưới đọc lại. Bám vào loạt đang bay nếu có.
-    void loadPlaces(cacheKey, encodedPolyline).then(() => {
+    const finishScan = () => {
       if (cancelled) {
         return;
       }
       setPlacesVersion((version) => version + 1);
-    });
+      // Allow retry when a scan completes without a result/cache.
+      setRequestedKey((current) => (current === cacheKey ? "" : current));
+    };
+
+    void loadPlaces(cacheKey, encodedPolyline).then(finishScan, finishScan);
 
     return () => {
       cancelled = true;

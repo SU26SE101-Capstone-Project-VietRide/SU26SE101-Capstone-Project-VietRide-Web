@@ -66,8 +66,10 @@ import {
   getAdminDashboardSummary,
   getAdminOutboxDlq,
   getAdminPlatformWallet,
+  getAdminPlatformWalletReconciliationSummary,
   getAdminPlatformReport,
   getAdminPlatformWalletTransactions,
+  exportAdminPlatformWalletTransactions,
   getAdminPolicies,
   getAdminRevenueAnalytics,
   getAdminStations,
@@ -107,6 +109,7 @@ import {
   getOperatorBooking,
   getOperatorBookings,
   getOperatorLedger,
+  exportOperatorWalletReconciliation,
   getNotifications,
   getOperatorSubscription,
   getOperatorSubscriptionPlans,
@@ -139,6 +142,7 @@ import {
   getTrackingTripLatest,
   getTrackingTripTrail,
   getTripHealth,
+  getAlternativeRoute,
   getVehicleTypes,
   lockAdminUser,
   markNotificationRead,
@@ -742,6 +746,7 @@ describe("vietride API", () => {
     await updateAlternativeRouteGeometry("alt-1", {
       pathPolyline: "def",
     });
+    await getAlternativeRoute("alt-1");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "https://api.vietride.online/v1/driver/me/schedule?from=2026-08-11&to=2026-08-25",
@@ -762,6 +767,11 @@ describe("vietride API", () => {
         body: JSON.stringify({ pathPolyline: "def" }),
         method: "PUT",
       }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://api.vietride.online/v1/operator/alternative-routes/alt-1",
+      expect.objectContaining({ method: "GET" }),
     );
   });
 
@@ -2720,6 +2730,121 @@ describe("vietride API", () => {
       3,
       "https://api.vietride.online/v1/operator/ledger?page=1&pageSize=10&search=PCL-9&dateField=occurredAt",
       expect.anything(),
+    );
+  });
+
+  it("supports the reconciliation summary, taxonomy filters, totalCount paging and both XLSX exports", async () => {
+    localStorage.setItem(
+      "auth",
+      JSON.stringify({
+        accessToken: "reconciliation-token",
+        refreshToken: "refresh-token",
+        expiresInSeconds: 3600,
+        user: {
+          id: "admin-1",
+          email: "admin@vietride.vn",
+          displayName: "Admin",
+          role: "SYSTEM_ADMIN",
+        },
+      }),
+    );
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              snapshot: {
+                platformWalletBalanceVnd: 100,
+                outstandingOperatorPayableVnd: 80,
+                awaitingTripCompletionVnd: 40,
+                pendingHoldVnd: 20,
+                eligibleForSettlementVnd: 20,
+                eligibleOperatorCount: 1,
+                stuckSettlementCount: 0,
+                partialReconciliationTransactionCount: 0,
+              },
+              period: {
+                from: "2026-09-01",
+                to: "2026-09-30",
+                timezone: "Asia/Ho_Chi_Minh",
+                subscriptionRevenueVnd: 10,
+                paidToOperatorsVnd: 20,
+              },
+              calculatedAt: "2026-09-02T10:15:00+07:00",
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              items: [],
+              page: 2,
+              pageSize: 20,
+              totalCount: 42,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockImplementation(async () =>
+        new Response("xlsx", {
+          status: 200,
+          headers: {
+            "Content-Type":
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Content-Disposition": "attachment; filename=reconciliation.xlsx",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getAdminPlatformWalletReconciliationSummary({
+      from: "2026-09-01",
+      to: "2026-09-30",
+    });
+    const page = await getAdminPlatformWalletTransactions({
+      page: 2,
+      pageSize: 20,
+      operatorId: "operator-1",
+      tripId: "trip-1",
+      businessGroup: "TICKET",
+      cashFlowPurpose: "CUSTOMER_FUNDS_HELD",
+      search: "BKG",
+    });
+    await exportAdminPlatformWalletTransactions({
+      operatorId: "operator-1",
+      businessGroup: "TICKET",
+    });
+    await exportOperatorWalletReconciliation({
+      from: "2026-09-01",
+      to: "2026-09-30",
+    });
+
+    expect(page.totalItems).toBe(42);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://api.vietride.online/v1/admin/platform-wallet/reconciliation-summary?from=2026-09-01&to=2026-09-30",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://api.vietride.online/v1/admin/platform-wallet/transactions?page=2&pageSize=20&operatorId=operator-1&tripId=trip-1&businessGroup=TICKET&cashFlowPurpose=CUSTOMER_FUNDS_HELD&search=BKG",
+    );
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      "https://api.vietride.online/v1/admin/platform-wallet/transactions/export?operatorId=operator-1&businessGroup=TICKET",
+    );
+    expect(fetchMock.mock.calls[3]?.[0]).toBe(
+      "https://api.vietride.online/v1/operator/wallet/reconciliation/export?from=2026-09-01&to=2026-09-30",
+    );
+    expect(fetchMock.mock.calls[2]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+      }),
     );
   });
 

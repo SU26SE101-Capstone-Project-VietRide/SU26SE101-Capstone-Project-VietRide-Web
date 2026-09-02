@@ -1,5 +1,6 @@
 import {
   apiBlobRequest,
+  apiFileRequest,
   apiRequest,
   apiSseRequest,
   buildQuery,
@@ -576,6 +577,27 @@ export type WalletTransactionType = "CREDIT" | "DEBIT";
 // amount luôn dùng được) nhưng có thể thiếu vài field mô tả nguồn gốc.
 export type FinancialDataCompleteness = "COMPLETE" | "PARTIAL";
 
+export type FinancialBusinessGroup =
+  | "TICKET"
+  | "PARCEL"
+  | "REFUND"
+  | "SETTLEMENT"
+  | "SUBSCRIPTION"
+  | "COMPENSATION"
+  | "MANUAL_ADJUSTMENT"
+  | string;
+
+export type CashFlowPurpose =
+  | "CUSTOMER_FUNDS_HELD"
+  | "CUSTOMER_REFUND"
+  | "OPERATOR_PAYOUT"
+  | "OPERATOR_PAYOUT_RECEIVED"
+  | "PLATFORM_REVENUE"
+  | "PLATFORM_SERVICE_PAYMENT"
+  | "PARCEL_COMPENSATION_PAYOUT"
+  | "MANUAL_ADJUSTMENT"
+  | string;
+
 /**
  * Mã nghiệp vụ người đọc được: `TRIP-yyyyMMdd-XXXXXXXX`, `STL-…`, `OWT-…`,
  * `PWT-…` do BE sinh, hoặc mã tuyến do nhà xe tự đặt (`SG-DL-01`).
@@ -629,6 +651,12 @@ export type OperatorWallet = {
   // false ở V1: không có luồng rút tiền ra ngân hàng — FE phải ẩn/disable
   // mọi hành động rút tiền khi field này false.
   withdrawalSupported?: boolean;
+  reconciliation?: {
+    outstandingPayableVnd: number;
+    awaitingTripCompletionPayableVnd: number;
+    pendingHoldPayableVnd: number;
+    eligibleForSettlementVnd: number;
+  };
   // Chỉ đổi khi balance đổi
   updatedAt: string;
   // Thời điểm Backend tính các aggregate hiện tại (awaiting/hold/eligible...)
@@ -639,10 +667,54 @@ export type WalletRelatedSettlement = {
   settlementId: string;
   /** Mã phiên tất toán (`STL-…`) — xem {@link BusinessCode}. */
   settlementCode?: BusinessCode;
-  tripId: string;
+  tripId?: string;
   /** Mã chuyến (`TRIP-…`) — xem {@link BusinessCode}. */
   tripCode?: BusinessCode;
-  method: "AUTO_WEEKLY" | "ADMIN_MANUAL" | string;
+  method?: "AUTO_WEEKLY" | "ADMIN_MANUAL" | string;
+  status?: TripSettlementStatus;
+  eligibleAt?: string | null;
+  settledAt?: string | null;
+  walletTransactionId?: string | null;
+};
+
+type CountPagedResult<T> = Partial<Omit<PagedResult<T>, "items">> & {
+  items: T[];
+  totalCount?: number;
+};
+
+function normalizeCountPagedResult<T>(
+  result: CountPagedResult<T>,
+): PagedResult<T> {
+  const page = result.page ?? 1;
+  const pageSize = result.pageSize ?? Math.max(result.items.length, 1);
+  const totalItems = result.totalItems ?? result.totalCount ?? result.items.length;
+  const totalPages = result.totalPages ?? Math.ceil(totalItems / pageSize);
+
+  return {
+    items: result.items,
+    page,
+    pageSize,
+    totalItems,
+    totalPages,
+    hasNextPage: result.hasNextPage ?? page < totalPages,
+    hasPreviousPage: result.hasPreviousPage ?? page > 1,
+  };
+}
+
+export type WalletTransactionAllocation = {
+  allocatedAmountVnd: number;
+  operator: {
+    operatorId: string;
+    name: string;
+    logoUrl?: string | null;
+    contactPhone?: string | null;
+  } | null;
+  tripId: string | null;
+  tripCode?: BusinessCode;
+  referenceType: string;
+  referenceId: string | null;
+  referenceCode?: BusinessCode;
+  relatedSettlement?: WalletRelatedSettlement | null;
 };
 
 export type WalletTransaction = {
@@ -673,6 +745,9 @@ export type WalletTransaction = {
   // Có khi movement đến từ settlement — cho phép đối chiếu sang tab đối soát
   relatedSettlement?: WalletRelatedSettlement | null;
   adjustmentReason?: string | null;
+  businessGroup?: FinancialBusinessGroup;
+  cashFlowPurpose?: CashFlowPurpose;
+  allocations?: WalletTransactionAllocation[];
   dataCompleteness?: FinancialDataCompleteness;
   missingFields?: string[];
 };
@@ -802,6 +877,10 @@ export type AdminTripSettlementParams = FinancialListParams & {
 export type AdminWalletTransactionParams = FinancialListParams & {
   type?: WalletTransactionType;
   referenceType?: string;
+  operatorId?: string;
+  tripId?: string;
+  businessGroup?: FinancialBusinessGroup;
+  cashFlowPurpose?: CashFlowPurpose;
 };
 
 // BUSINESS_EVENT: occurredAt là thời điểm nghiệp vụ thật. FALLBACK: chưa có
@@ -838,6 +917,24 @@ export type OperatorLedgerEntry = {
   adjustmentReason?: string | null;
   affectsRevenue?: boolean;
   affectsSettlement?: boolean;
+  businessGroup?: FinancialBusinessGroup;
+  operatorEffect?:
+    | "INCREASES_ENTITLEMENT"
+    | "DECREASES_ENTITLEMENT"
+    | "AUDIT_ONLY"
+    | "INCREASES_WALLET_BALANCE"
+    | "DECREASES_WALLET_BALANCE"
+    | string;
+  trip?: {
+    tripId: string;
+    tripCode?: BusinessCode;
+    departureAt?: string | null;
+    routeName?: string | null;
+    originName?: string | null;
+    destinationName?: string | null;
+  } | null;
+  dataCompleteness?: FinancialDataCompleteness;
+  missingFields?: string[];
   /**
    * Snapshot phiên tất toán của chuyến, đúng theo `LedgerSettlementDto` của BE
    * (`GET /v1/operator/ledger`): chỉ có 7 field, KHÔNG có `processingState` —
@@ -917,6 +1014,32 @@ export type PlatformWallet = {
   platformWalletId: string;
   balance: number;
   updatedAt: string;
+};
+
+export type AdminWalletReconciliationSummary = {
+  snapshot: {
+    platformWalletBalanceVnd: number;
+    outstandingOperatorPayableVnd: number;
+    awaitingTripCompletionVnd: number;
+    pendingHoldVnd: number;
+    eligibleForSettlementVnd: number;
+    eligibleOperatorCount: number;
+    stuckSettlementCount: number;
+    partialReconciliationTransactionCount: number;
+  };
+  period: {
+    from: string;
+    to: string;
+    timezone: string;
+    subscriptionRevenueVnd: number;
+    paidToOperatorsVnd: number;
+  };
+  calculatedAt: string;
+};
+
+export type ReconciliationPeriodParams = {
+  from?: string;
+  to?: string;
 };
 
 export type WalletAdjustmentRequest = {
@@ -3609,7 +3732,7 @@ export type AlternativeRoute = {
   name: string;
   description: string;
   destinationStationId: string;
-  pathPolyline?: string | null;
+  pathPolyline: string | null;
   totalDistanceKm: number;
   estimatedDurationMinutes: number;
   isActive: boolean;
@@ -3617,6 +3740,11 @@ export type AlternativeRoute = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+// GET .../routes/{routeId}/alternative-routes intentionally returns a light
+// list DTO without the potentially large geometry. Consumers that need to draw
+// an alternative must follow the id with getAlternativeRoute().
+export type AlternativeRouteListItem = Omit<AlternativeRoute, "pathPolyline">;
 
 export type AlternativeRouteStop = {
   alternativeRouteId: string;
@@ -4894,6 +5022,20 @@ export function getOperatorLedger(params: OperatorLedgerParams = {}) {
   );
 }
 
+export function exportOperatorWalletReconciliation(
+  params: ReconciliationPeriodParams = {},
+) {
+  return apiFileRequest(
+    `/v1/operator/wallet/reconciliation/export${buildQuery(params)}`,
+    {
+      headers: {
+        Accept:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    },
+  );
+}
+
 export function getOperatorInvoices(params: OperatorInvoiceParams = {}) {
   return apiRequest<PagedResult<OperatorInvoice>>(
     `/v1/operator/invoices${buildQuery(params)}`,
@@ -4937,11 +5079,34 @@ export function getAdminPlatformWallet() {
   return apiRequest<PlatformWallet>("/v1/admin/platform-wallet");
 }
 
-export function getAdminPlatformWalletTransactions(
+export async function getAdminPlatformWalletTransactions(
   params: AdminWalletTransactionParams = {},
 ) {
-  return apiRequest<PagedResult<WalletTransaction>>(
+  const result = await apiRequest<CountPagedResult<WalletTransaction>>(
     `/v1/admin/platform-wallet/transactions${buildQuery(params)}`,
+  );
+  return normalizeCountPagedResult(result);
+}
+
+export function getAdminPlatformWalletReconciliationSummary(
+  params: ReconciliationPeriodParams = {},
+) {
+  return apiRequest<AdminWalletReconciliationSummary>(
+    `/v1/admin/platform-wallet/reconciliation-summary${buildQuery(params)}`,
+  );
+}
+
+export function exportAdminPlatformWalletTransactions(
+  params: Omit<AdminWalletTransactionParams, "page" | "pageSize"> = {},
+) {
+  return apiFileRequest(
+    `/v1/admin/platform-wallet/transactions/export${buildQuery(params)}`,
+    {
+      headers: {
+        Accept:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    },
   );
 }
 
@@ -6165,8 +6330,14 @@ export function deleteOperatorFareSurchargePeriod(
 }
 
 export function getAlternativeRoutes(routeId: string, params: PageParams = {}) {
-  return apiRequest<PagedResult<AlternativeRoute>>(
+  return apiRequest<PagedResult<AlternativeRouteListItem>>(
     `/v1/operator/routes/${routeId}/alternative-routes${buildQuery(params)}`,
+  );
+}
+
+export function getAlternativeRoute(alternativeRouteId: string) {
+  return apiRequest<AlternativeRoute>(
+    `/v1/operator/alternative-routes/${alternativeRouteId}`,
   );
 }
 

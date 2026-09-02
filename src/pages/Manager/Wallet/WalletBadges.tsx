@@ -2,6 +2,7 @@ import type {
   FinancialDataCompleteness,
   TripSettlementProcessingState,
 } from "../../../api/vietride";
+import { FinancialDataCompletenessBadge } from "../../../components/FinancialDataCompletenessBadge";
 import { processingStateClass } from "./walletFormat";
 import type { Translate } from "./walletTableShared";
 
@@ -34,18 +35,13 @@ export function DataCompletenessBadge({
   missingFields?: string[];
   t: Translate;
 }) {
-  if (completeness !== "PARTIAL") return null;
-
-  const tooltip = missingFields?.length
-    ? `${t("wallet.partialTooltip")} (${missingFields.join(", ")})`
-    : t("wallet.partialTooltip");
-
   return (
-    <span
-      title={tooltip}
-      className="ml-2 inline-flex cursor-help rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800"
-    >
-      {t("wallet.partialBadge")}
-    </span>
+    <FinancialDataCompletenessBadge
+      completeness={completeness}
+      missingFields={missingFields}
+      label={t("wallet.partialBadge")}
+      tooltip={t("wallet.partialTooltip")}
+      className="ml-2"
+    />
   );
 }

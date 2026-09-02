@@ -200,6 +200,9 @@ type RouteDesignMapProps = {
   // niệm đón/trả riêng theo điểm (AlternativeRouteRequest.stops không có 2 cờ
   // này). Mặc định true (tab Điểm dừng tuyến chính vẫn hiện như cũ).
   showPickupDropoffOptions?: boolean;
+  // Có được nối thẳng các waypoint khi chưa có geometry hay không. Tuyến thay
+  // thế phải tắt: đường thẳng này dễ bị hiểu nhầm là đường đã lưu/đề xuất.
+  connectPointsWithoutGeometry?: boolean;
 };
 
 function toMapPath(path: RouteCoordinate[]): GoogleMapCoordinate[] {
@@ -238,6 +241,7 @@ export default function RouteDesignMap({
   referenceColor = mainRouteColor,
   referenceStops,
   showPickupDropoffOptions = true,
+  connectPointsWithoutGeometry = true,
 }: RouteDesignMapProps) {
   const { t } = useTranslation("manager");
   // Callback đổi identity mỗi render của trang cha — giữ trong ref để các mảng
@@ -552,9 +556,16 @@ export default function RouteDesignMap({
         : defaultRouteMapCenter,
     [displayedPath],
   );
-  const linePositions = useMemo(
+  const displayedPositions = useMemo(
     () => toMapPath(displayedPath),
     [displayedPath],
+  );
+  const linePositions = useMemo(
+    () =>
+      pathPoints.length > 0 || connectPointsWithoutGeometry
+        ? displayedPositions
+        : [],
+    [connectPointsWithoutGeometry, displayedPositions, pathPoints.length],
   );
   // Trong lúc kéo (gesture túm thân đường HOẶC kéo native marker chấm tròn),
   // đường KHÔNG được vẽ tạm bằng đoạn thẳng: Google Maps giữ đường bám mặt
@@ -1256,15 +1267,19 @@ export default function RouteDesignMap({
         ? [
             // Gồm cả đường đang hiển thị (vd đường đã lưu không trùng phương án
             // nào) để fit không cắt mất nó
-            ...linePositions,
+            ...displayedPositions,
             ...routeOptions.flatMap((option) => toMapPath(option.points)),
             ...externalSuggestionPoint,
             ...referenceLinePositions,
           ]
-        : [...linePositions, ...externalSuggestionPoint, ...referenceLinePositions],
+        : [
+            ...displayedPositions,
+            ...externalSuggestionPoint,
+            ...referenceLinePositions,
+          ],
     [
       externalSuggestionPoint,
-      linePositions,
+      displayedPositions,
       referenceLinePositions,
       routeOptions,
       showOptionOverlay,

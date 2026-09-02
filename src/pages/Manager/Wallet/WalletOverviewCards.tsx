@@ -18,9 +18,33 @@ export function WalletOverviewCards({
   isLoading: boolean;
   t: Translate;
 }) {
+  const reconciliation = wallet?.reconciliation;
+  const outstanding =
+    reconciliation?.outstandingPayableVnd ??
+    (wallet?.awaitingTripCompletionAmount ?? 0) +
+      (wallet?.pendingHoldAmount ?? 0) +
+      (wallet?.eligibleAmount ?? 0);
+  const awaiting =
+    reconciliation?.awaitingTripCompletionPayableVnd ??
+    wallet?.awaitingTripCompletionAmount ??
+    0;
+  const pending =
+    reconciliation?.pendingHoldPayableVnd ?? wallet?.pendingHoldAmount ?? 0;
+  const eligible =
+    reconciliation?.eligibleForSettlementVnd ?? wallet?.eligibleAmount ?? 0;
+
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+        <div className="mb-3">
+          <h2 className="font-semibold text-slate-900">
+            {t("wallet.reconciliationTitle")}
+          </h2>
+          <p className="text-sm text-slate-600">
+            {t("wallet.reconciliationHint")}
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={<FiDollarSign />}
           label={t("wallet.currentBalance")}
@@ -30,9 +54,17 @@ export function WalletOverviewCards({
           helper={t("wallet.balanceHelper")}
         />
         <StatCard
+          icon={<FiDollarSign />}
+          label={t("wallet.outstandingPayable")}
+          value={formatCurrency(outstanding)}
+          iconClassName="bg-violet-50 text-violet-700"
+          isLoading={isLoading}
+          helper={t("wallet.outstandingHelper")}
+        />
+        <StatCard
           icon={<FiClock />}
           label={t("wallet.awaitingTripCompletion")}
-          value={formatCurrency(wallet?.awaitingTripCompletionAmount ?? 0)}
+          value={formatCurrency(awaiting)}
           iconClassName="bg-slate-100 text-slate-700"
           isLoading={isLoading}
           helper={t("wallet.countHelper", { count: wallet?.awaitingTripCompletionCount ?? 0 })}
@@ -40,7 +72,7 @@ export function WalletOverviewCards({
         <StatCard
           icon={<FiClock />}
           label={t("wallet.pendingHold")}
-          value={formatCurrency(wallet?.pendingHoldAmount ?? 0)}
+          value={formatCurrency(pending)}
           iconClassName="bg-amber-50 text-amber-700"
           isLoading={isLoading}
           helper={t("wallet.countHelper", { count: wallet?.pendingHoldCount ?? 0 })}
@@ -48,11 +80,12 @@ export function WalletOverviewCards({
         <StatCard
           icon={<FiArrowDown />}
           label={t("wallet.eligibleAmount")}
-          value={formatCurrency(wallet?.eligibleAmount ?? 0)}
+          value={formatCurrency(eligible)}
           iconClassName="bg-blue-50 text-blue-700"
           isLoading={isLoading}
           helper={t("wallet.countHelper", { count: wallet?.eligibleCount ?? 0 })}
         />
+        </div>
       </div>
       <WalletScheduleSummary wallet={wallet} t={t} />
     </>

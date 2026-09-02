@@ -1,38 +1,50 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useLatestRequest } from "../../../hooks/useLatestRequest";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertTriangle,
-  FiArrowDown,
-  FiArrowUp,
   FiCheckCircle,
   FiDollarSign,
   FiRefreshCw,
 } from "react-icons/fi";
 import { useSearchParams } from "react-router-dom";
 import {
-  getAdminPlatformWallet,
+  exportAdminPlatformWalletTransactions,
+  getAdminPlatformWalletReconciliationSummary,
   getAdminPlatformWalletTransactions,
   getAdminTripSettlements,
   settleAdminTripSettlement,
   type AdminTripSettlementParams,
-  type PlatformWallet,
+  type AdminWalletReconciliationSummary,
+  type FinancialBusinessGroup,
   type TripSettlement,
   type TripSettlementStatus,
   type WalletTransaction,
   type WalletTransactionType,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
+import { getAdminPlatformWallet } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
 import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
-import { StatCard } from "../../../components/StatCard";
 import { formatCurrency } from "../../../utils/currency";
+import {
+  formatDateTimeInVietnam,
+  toExclusiveUtcDayEnd,
+  toUtcDayStart,
+} from "../../../utils/date";
+import { downloadFile } from "../../../utils/downloadFile";
 import {
   displayBusinessCode,
   pickSettlementTripCode,
 } from "../../../utils/businessCode";
 import { SearchInput } from "../../../components/ui/SearchInput";
+import {
+  PlatformTransactionsTable,
+  type AdminTransactionFilters,
+} from "./PlatformTransactionsTable";
+import { ReconciliationOverview } from "./ReconciliationOverview";
 
 const pageSize = 10;
 
@@ -84,17 +96,7 @@ function canSettleManually(status: TripSettlementStatus) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(date);
+  return formatDateTimeInVietnam(value);
 }
 
 function parseFinanceTab(value: string | null): FinanceTab {
@@ -134,9 +136,10 @@ export default function WalletSettlement() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseFinanceTab(searchParams.get("tab"));
   const settlementView = parseSettlementView(searchParams.get("filter"));
-  const [platformWallet, setPlatformWallet] = useState<PlatformWallet | null>(
-    null,
-  );
+  const [reconciliation, setReconciliation] =
+    useState<AdminWalletReconciliationSummary | null>(null);
+  const [summaryFrom, setSummaryFrom] = useState("");
+  const [summaryTo, setSummaryTo] = useState("");
   const [records, setRecords] = useState<TripSettlement[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [transactionPage, setTransactionPage] = useState(1);
@@ -146,6 +149,15 @@ export default function WalletSettlement() {
   const [transactionType, setTransactionType] = useState<
     WalletTransactionType | ""
   >("");
+  const [operatorId, setOperatorId] = useState("");
+  const [tripId, setTripId] = useState("");
+  const [businessGroup, setBusinessGroup] = useState<
+    FinancialBusinessGroup | ""
+  >("");
+  const [cashFlowPurpose, setCashFlowPurpose] = useState("");
+  const [transactionFrom, setTransactionFrom] = useState("");
+  const [transactionTo, setTransactionTo] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -188,9 +200,17 @@ export default function WalletSettlement() {
   }, []);
 
   const loadWallet = useCallback(async () => {
-    const walletResult = await getAdminPlatformWallet();
-    setPlatformWallet(walletResult);
+    await getAdminPlatformWallet();
   }, []);
+
+  const loadReconciliation = useCallback(async () => {
+    if (Boolean(summaryFrom) !== Boolean(summaryTo)) return;
+    const result = await getAdminPlatformWalletReconciliationSummary({
+      from: summaryFrom || undefined,
+      to: summaryTo || undefined,
+    });
+    setReconciliation(result);
+  }, [summaryFrom, summaryTo]);
 
   // `search` chạy server-side, TRƯỚC khi count và phân trang. Trước đây màn
   // phân trang server nhưng lại lọc `records` của đúng trang đang xem, nên gõ
@@ -218,6 +238,12 @@ export default function WalletSettlement() {
       sortBy: "createdAt",
       sortDir: "desc",
       type: transactionType || undefined,
+      operatorId: operatorId.trim() || undefined,
+      tripId: tripId.trim() || undefined,
+      businessGroup: businessGroup || undefined,
+      cashFlowPurpose: cashFlowPurpose || undefined,
+      from: toUtcDayStart(transactionFrom),
+      to: toExclusiveUtcDayEnd(transactionTo),
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
     });
     if (!isLatest()) return;
@@ -225,18 +251,35 @@ export default function WalletSettlement() {
     setTransactionTotalItems(transactionResult.totalItems);
   }, [
     debouncedSearch,
+    businessGroup,
+    cashFlowPurpose,
+    operatorId,
     startTransactionsRequest,
+    transactionFrom,
     transactionPage,
+    transactionTo,
     transactionType,
+    tripId,
   ]);
 
   // Refresh toàn bộ: dùng cho nút refresh và sau khi settle thủ công
   const loadData = useCallback(
     () =>
       runLoad(() =>
-        Promise.all([loadWallet(), loadSettlements(), loadTransactions()]),
+        Promise.all([
+          loadWallet(),
+          loadReconciliation(),
+          loadSettlements(),
+          loadTransactions(),
+        ]),
       ),
-    [loadSettlements, loadTransactions, loadWallet, runLoad],
+    [
+      loadReconciliation,
+      loadSettlements,
+      loadTransactions,
+      loadWallet,
+      runLoad,
+    ],
   );
 
   // Ví chỉ load lúc mount (và sau settle qua loadData)
@@ -250,6 +293,17 @@ export default function WalletSettlement() {
       cancelled = true;
     };
   }, [loadWallet, runLoad]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void runLoad(loadReconciliation);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadReconciliation, runLoad]);
 
   // Settlements load theo page / filter đang xem
   useEffect(() => {
@@ -301,27 +355,6 @@ export default function WalletSettlement() {
   const filteredRecords = records;
   const filteredTransactions = transactions;
 
-  const totals = useMemo(
-    () => ({
-      amount: records.reduce((sum, record) => sum + record.netAmount, 0),
-      eligible: records.filter((record) => record.status === "ELIGIBLE").length,
-      attention: records.filter(
-        (record) => (record.failureCount ?? 0) > 0 || Boolean(record.severity),
-      ).length,
-      byStatus: {
-        PENDING_HOLD: records.filter(
-          (record) => record.status === "PENDING_HOLD",
-        ).length,
-        ELIGIBLE: records.filter((record) => record.status === "ELIGIBLE")
-          .length,
-        SETTLED: records.filter((record) => record.status === "SETTLED").length,
-        CANCELLED: records.filter((record) => record.status === "CANCELLED")
-          .length,
-      },
-    }),
-    [records],
-  );
-
   function selectTab(tab: FinanceTab) {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
@@ -366,6 +399,44 @@ export default function WalletSettlement() {
     }
   }
 
+  async function exportTransactions() {
+    if (Boolean(transactionFrom) !== Boolean(transactionTo)) {
+      setError(t("walletSettlement.datePairRequired"));
+      return;
+    }
+
+    setExporting(true);
+    setError("");
+    try {
+      const file = await exportAdminPlatformWalletTransactions({
+        sortBy: "createdAt",
+        sortDir: "desc",
+        type: transactionType || undefined,
+        operatorId: operatorId.trim() || undefined,
+        tripId: tripId.trim() || undefined,
+        businessGroup: businessGroup || undefined,
+        cashFlowPurpose: cashFlowPurpose || undefined,
+        from: toUtcDayStart(transactionFrom),
+        to: toExclusiveUtcDayEnd(transactionTo),
+        search: debouncedSearch || undefined,
+      });
+      downloadFile(
+        file,
+        `platform-wallet-reconciliation-${transactionFrom || "current"}-${transactionTo || "month"}.xlsx`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof ApiRequestError && err.status === 503
+          ? t("walletSettlement.exportUpstreamUnavailable")
+          : err instanceof Error
+            ? err.message
+            : t("walletSettlement.exportFailed"),
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   useToastFeedback({ message, error });
   return (
     <div className="space-y-6">
@@ -389,11 +460,14 @@ export default function WalletSettlement() {
         </button>
       </div>
 
-      <OverviewTab
-        platformBalance={platformWallet?.balance ?? 0}
-        totals={totals}
+      <ReconciliationOverview
+        summary={reconciliation}
         loading={loading}
-        onOpenSettlements={() => selectSettlementView("NEEDS_ATTENTION")}
+        from={summaryFrom}
+        to={summaryTo}
+        onFromChange={setSummaryFrom}
+        onToChange={setSummaryTo}
+        t={t}
       />
 
       <nav
@@ -620,22 +694,37 @@ export default function WalletSettlement() {
       )}
 
       {activeTab === "transactions" && (
-        <>
-          <WalletTransactionTable
-            items={filteredTransactions}
-            page={transactionPage}
-            totalItems={transactionTotalItems}
-            onPageChange={setTransactionPage}
-            t={t}
-            search={search}
-            onSearch={setSearch}
-            transactionType={transactionType}
-            onTransactionTypeChange={(value) => {
-              setTransactionType(value);
-              setTransactionPage(1);
-            }}
-          />
-        </>
+        <PlatformTransactionsTable
+          items={filteredTransactions}
+          page={transactionPage}
+          pageSize={pageSize}
+          totalItems={transactionTotalItems}
+          filters={{
+            search,
+            type: transactionType,
+            operatorId,
+            tripId,
+            businessGroup,
+            cashFlowPurpose,
+            from: transactionFrom,
+            to: transactionTo,
+          }}
+          exporting={exporting}
+          onPageChange={setTransactionPage}
+          onFiltersChange={(filters: AdminTransactionFilters) => {
+            setSearch(filters.search);
+            setTransactionType(filters.type);
+            setOperatorId(filters.operatorId ?? "");
+            setTripId(filters.tripId ?? "");
+            setBusinessGroup(filters.businessGroup ?? "");
+            setCashFlowPurpose(filters.cashFlowPurpose ?? "");
+            setTransactionFrom(filters.from);
+            setTransactionTo(filters.to);
+            setTransactionPage(1);
+          }}
+          onExport={() => void exportTransactions()}
+          t={t}
+        />
       )}
 
       <Modal
@@ -695,228 +784,5 @@ export default function WalletSettlement() {
         )}
       </Modal>
     </div>
-  );
-}
-
-function OverviewTab({
-  platformBalance,
-  totals,
-  loading,
-  onOpenSettlements,
-}: {
-  platformBalance: number;
-  totals: {
-    amount: number;
-    eligible: number;
-    attention: number;
-    byStatus: Record<TripSettlementStatus, number>;
-  };
-  loading: boolean;
-  onOpenSettlements: () => void;
-}) {
-  const { t } = useTranslation("admin");
-  const cards = [
-    {
-      label: t("walletSettlement.platformBalance"),
-      value: formatMoney(platformBalance),
-      icon: <FiDollarSign />,
-      iconClassName: "bg-emerald-50 text-emerald-700",
-    },
-    {
-      label: t("walletSettlement.pageSettlementTotal"),
-      value: formatMoney(totals.amount),
-      icon: <FiArrowDown />,
-      iconClassName: "bg-blue-50 text-blue-700",
-    },
-    {
-      label: t("walletSettlement.eligible"),
-      value: String(totals.eligible),
-      icon: <FiCheckCircle />,
-      iconClassName: "bg-violet-50 text-violet-700",
-    },
-    {
-      label: t("walletSettlement.needsAttention"),
-      value: String(totals.attention),
-      icon: <FiAlertTriangle />,
-      iconClassName: "bg-amber-50 text-amber-700",
-    },
-  ];
-
-  return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card, index) => (
-        <button
-          key={card.label}
-          type="button"
-          onClick={index === 3 ? onOpenSettlements : undefined}
-          className={index === 3 ? "text-left" : "cursor-default text-left"}
-        >
-          <StatCard {...card} value={loading ? "…" : card.value} />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-type Translate = (key: string, options?: Record<string, unknown>) => string;
-
-function WalletTransactionTable({
-  items,
-  page,
-  totalItems,
-  onPageChange,
-  t,
-  search,
-  onSearch,
-  transactionType,
-  onTransactionTypeChange,
-}: {
-  items: WalletTransaction[];
-  page: number;
-  totalItems: number;
-  onPageChange: (page: number) => void;
-  t: Translate;
-  search: string;
-  onSearch: (value: string) => void;
-  transactionType: WalletTransactionType | "";
-  onTransactionTypeChange: (value: WalletTransactionType | "") => void;
-}) {
-  return (
-    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="border-b border-gray-100 p-4">
-        <h2 className="text-center text-lg font-semibold text-gray-900">
-          {t("walletSettlement.latestTransactions")}
-        </h2>
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
-          <SearchInput
-            label={t("walletSettlement.searchPlaceholder")}
-            value={search}
-            onChange={(event) => onSearch(event.target.value)}
-            placeholder={t("walletSettlement.searchPlaceholder")}
-            inputClassName="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-vr-400 focus:ring-2 focus:ring-vr-100"
-            wrapperClassName="relative min-w-0 flex-1"
-          />
-          <CustomSelect
-            value={transactionType}
-            onChange={(event) =>
-              onTransactionTypeChange(
-                event.target.value as WalletTransactionType | "",
-              )
-            }
-            aria-label={t("walletSettlement.allTransactionTypes")}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 lg:w-56"
-          >
-            <option value="">
-              {t("walletSettlement.allTransactionTypes")}
-            </option>
-            <option value="CREDIT">{t("walletSettlement.moneyIn")}</option>
-            <option value="DEBIT">{t("walletSettlement.moneyOut")}</option>
-          </CustomSelect>
-        </div>
-      </div>
-      <div className="overflow-x-auto p-4">
-        <table className="w-full min-w-[1140px] text-sm">
-          <thead>
-            <tr className="bg-gray-50 text-center text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3 text-center">
-                {t("walletSettlement.transactionCode")}
-              </th>
-              <th className="px-4 py-3 text-center">
-                {t("walletSettlement.createdAt")}
-              </th>
-              <th className="px-4 py-3 text-center">
-                {t("walletSettlement.cashFlow")}
-              </th>
-              <th className="px-4 py-3 text-center">
-                {t("walletSettlement.amount")}
-              </th>
-              <th className="px-4 py-3 text-center">
-                {t("walletSettlement.balanceBefore")}
-              </th>
-              <th className="px-4 py-3 text-center">
-                {t("walletSettlement.balanceAfter")}
-              </th>
-              <th className="px-4 py-3 text-center">
-                {t("walletSettlement.reference")}
-              </th>
-              <th className="px-4 py-3 text-center">
-                {t("walletSettlement.actor")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                  {t("walletSettlement.empty")}
-                </td>
-              </tr>
-            ) : (
-              items.map((item) => {
-                const isCredit = item.type === "CREDIT";
-                return (
-                  <tr
-                    key={item.transactionId}
-                    className="border-t border-gray-100 hover:bg-gray-50"
-                  >
-                    {/* Ví nền tảng dùng mã `PWT-…`; cùng type WalletTransaction với ví
-                      nhà xe nên field vẫn là `transactionCode`. */}
-                    <td className="whitespace-nowrap px-4 py-3 text-center font-mono text-xs tabular-nums text-gray-700">
-                      {displayBusinessCode(item.transactionCode)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center">
-                      {formatDate(item.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={`inline-flex items-center gap-2 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}
-                      >
-                        {isCredit ? <FiArrowDown /> : <FiArrowUp />}
-                        {t(
-                          isCredit
-                            ? "walletSettlement.moneyIn"
-                            : "walletSettlement.moneyOut",
-                        )}
-                      </span>
-                    </td>
-                    <td
-                      className={`whitespace-nowrap px-4 py-3 text-center font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}
-                    >
-                      {isCredit ? "+" : "-"}
-                      {formatMoney(item.amount)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center text-gray-600">
-                      {formatMoney(item.balanceBefore)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center font-semibold">
-                      {formatMoney(item.balanceAfter)}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-700">
-                      {t(`walletSettlement.references.${item.referenceType}`, {
-                        defaultValue: item.referenceType,
-                      })}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {item.actorType === "SYSTEM"
-                        ? t("walletSettlement.systemActor")
-                        : accountName(
-                            item.actor?.displayName,
-                            t("walletSettlement.systemAdminActor"),
-                          )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        totalItems={totalItems}
-        onPageChange={onPageChange}
-      />
-    </section>
   );
 }

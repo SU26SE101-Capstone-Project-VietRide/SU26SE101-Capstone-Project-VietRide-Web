@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../i18n";
-import { ApiRequestError, apiRequest, buildQuery } from "./client";
+import {
+  ApiRequestError,
+  apiFileRequest,
+  apiRequest,
+  buildQuery,
+} from "./client";
 
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -41,6 +46,30 @@ describe("api client", () => {
       code: "TRACKING_ACCESS_DENIED",
       message: "Tracking access denied.",
     });
+  });
+
+  it("returns a blob with the UTF-8 filename from Content-Disposition", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response("xlsx-content", {
+          status: 200,
+          headers: {
+            "Content-Type":
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Content-Disposition":
+              "attachment; filename*=UTF-8''doi-soat-thang-09.xlsx",
+          },
+        }),
+      ),
+    );
+
+    const file = await apiFileRequest("/v1/operator/wallet/export", {
+      authenticated: false,
+    });
+
+    expect(file.fileName).toBe("doi-soat-thang-09.xlsx");
+    expect(file.blob.size).toBeGreaterThan(0);
   });
   // Các service NestJS dùng code VALIDATION_FAILED (khác VALIDATION_ERROR của
   // .NET) nhưng cùng kiểu envelope: message top-level chung chung, lý do thật

@@ -3,10 +3,10 @@ import type {
   TripSettlementProcessingState,
   TripSettlementStatus,
 } from "../../../api/vietride";
-import { formatDateTime } from "../../../utils/date";
+import { formatDateTimeInVietnam } from "../../../utils/date";
 
 export function formatWalletDate(value?: string | null) {
-  return formatDateTime(value ?? undefined);
+  return formatDateTimeInVietnam(value ?? undefined);
 }
 
 export function processingStateClass(state?: TripSettlementProcessingState) {

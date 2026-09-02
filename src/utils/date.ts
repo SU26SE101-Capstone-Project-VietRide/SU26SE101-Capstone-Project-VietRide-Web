@@ -29,6 +29,25 @@ export function formatDateTime(value?: string | null) {
   return `${formatDateOnly(value)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+export function formatDateTimeInVietnam(value?: string | null) {
+  const date = parseDate(value);
+  if (!date) return value || "-";
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+
+  return `${part("day")}-${part("month")}-${part("year")} ${part("hour")}:${part("minute")}`;
+}
+
 /**
  * `yyyy-MM-dd HH:mm` — đúng thứ tự mà `CustomDateTimeInput` hiện giá trị
  * datetime-local. Chỉ dùng cho giá trị đứng NGAY CẠNH một ô nhập ngày giờ trong

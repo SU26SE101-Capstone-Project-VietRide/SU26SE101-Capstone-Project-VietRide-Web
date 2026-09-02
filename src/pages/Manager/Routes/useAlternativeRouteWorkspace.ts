@@ -18,18 +18,23 @@ import {
   createAlternativeRoute,
   createOperatorStop,
   deleteAlternativeRoute,
+  getAlternativeRoute,
+  getAlternativeRoutes,
   setAlternativeRouteActive,
   updateAlternativeRoute,
   updateAlternativeRouteGeometry,
   type AlternativeRoute,
+  type AlternativeRouteListItem,
   type AlternativeRouteRequest,
   type OperatorRoute,
   type OperatorRouteRequest,
   type OperatorStop,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import {
   distanceKmBetween,
   findRouteGeometryWaypointMismatches,
+  findMatchingRouteOption,
 } from "./geometry";
 import {
   encodeGooglePolyline,
@@ -95,6 +100,11 @@ const emptyAlternativeMetrics = { totalDistanceKm: 0, estimatedDurationMinutes: 
 // là guard của UI.
 const maxActiveAlternatives = 2;
 
+export type AlternativeDetailLoadState =
+  | { status: "loading" }
+  | { status: "ready"; detail: AlternativeRoute }
+  | { status: "error"; reason: "forbidden" | "failed" };
+
 // Re-index toàn bộ stop nháp theo khoá km-từ-bến-đi (giống reindexRouteDrafts
 // của tuyến chính, xem useRouteStopEditor.ts) — trả 1..N liên tục.
 function reindexAlternativeStops(
@@ -143,8 +153,13 @@ export function useAlternativeRouteWorkspace({
   t,
   onStopCreated,
 }: UseAlternativeRouteWorkspaceParams) {
-  const [alternativeRoutes, setAlternativeRoutes] = useState<AlternativeRoute[]>([]);
+  const [alternativeRoutes, setAlternativeRoutes] = useState<
+    AlternativeRouteListItem[]
+  >([]);
   const [selectedAlternativeRouteId, setSelectedAlternativeRouteId] = useState("");
+  const [alternativeDetailStates, setAlternativeDetailStates] = useState<
+    Record<string, AlternativeDetailLoadState>
+  >({});
   const [altFormState, setAltFormState] = useState<AlternativeRouteFormState>(
     emptyAlternativeFormState,
   );
@@ -154,7 +169,7 @@ export function useAlternativeRouteWorkspace({
   const [isSavingAlternative, setIsSavingAlternative] = useState(false);
   const [isDeletingAlternative, setIsDeletingAlternative] = useState(false);
   const [pendingDeleteAlternative, setPendingDeleteAlternative] =
-    useState<AlternativeRoute | null>(null);
+    useState<AlternativeRouteListItem | null>(null);
 
   // Ref giữ `stops` (kho nhà xe) mới nhất — loadAlternativeIntoWorkspace ĐỌC qua
   // ref thay vì nhận trực tiếp: `stops` là mảng MỚI mỗi lần loadData/handleSelectRoute
@@ -182,6 +197,12 @@ export function useAlternativeRouteWorkspace({
   useEffect(() => {
     selectedRouteIdRef.current = selectedRouteId;
   }, [selectedRouteId]);
+
+  // Detail geometry loads are keyed by alternative id. A response may still
+  // finish after the user selected another alternative; keep it as cache for
+  // that id, but only apply it to the map when the same id is still selected.
+  const selectedAlternativeRouteIdRef = useRef("");
+  const alternativeDetailRequestVersionRef = useRef<Record<string, number>>({});
 
   // Id tuyến thay thế vừa tạo/cập nhật metrics THÀNH CÔNG nhưng bước lưu
   // geometry lỗi (xem nhánh catch trong handleSaveAlternative) — dùng để lần
@@ -252,6 +273,20 @@ export function useAlternativeRouteWorkspace({
       null,
     [alternativeRoutes, selectedAlternativeRouteId],
   );
+  const selectedAlternativeDetailState = selectedAlternativeRouteId
+    ? alternativeDetailStates[selectedAlternativeRouteId]
+    : undefined;
+  const isLoadingAlternativeDetail =
+    selectedAlternativeDetailState?.status === "loading";
+  const alternativeDetailLoadFailed =
+    selectedAlternativeDetailState?.status === "error";
+  const alternativeDetailErrorReason =
+    selectedAlternativeDetailState?.status === "error"
+      ? selectedAlternativeDetailState.reason
+      : null;
+  const canUseSelectedAlternativeGeometry =
+    !selectedAlternativeRouteId ||
+    selectedAlternativeDetailState?.status === "ready";
   const activeAlternativeCount = useMemo(
     () => alternativeRoutes.filter((item) => item.isActive).length,
     [alternativeRoutes],
@@ -324,6 +359,7 @@ export function useAlternativeRouteWorkspace({
     isWorkspaceActive:
       isWorkspaceActive &&
       canManageRoutes &&
+      canUseSelectedAlternativeGeometry &&
       Boolean(originStation) &&
       Boolean(altDestinationStation),
     setRouteForm: setGeometryForm,
@@ -342,7 +378,10 @@ export function useAlternativeRouteWorkspace({
     canRequestPlaces: canRequestAltPlaces,
     requestPlaces: requestAltPlaces,
   } = useRouteStopSuggestions({
-      enabled: isWorkspaceActive && canManageRoutes,
+      enabled:
+        isWorkspaceActive &&
+        canManageRoutes &&
+        canUseSelectedAlternativeGeometry,
       routeKey: altGeometryKey,
       pathPoints: altGeometry.routePathPoints,
       stops,
@@ -400,7 +439,11 @@ export function useAlternativeRouteWorkspace({
   // thảo: form gọn, metrics đã lưu, danh sách stop (resolve tên/tọa độ qua kho
   // `stops`), và polyline đã lưu (nếu có) qua máy geometry dùng chung.
   const loadAlternativeIntoWorkspace = useCallback(
-    (alternative: AlternativeRoute | null) => {
+    (
+      alternative: AlternativeRouteListItem | AlternativeRoute | null,
+      options?: { deferGeometry?: boolean },
+    ) => {
+      selectedAlternativeRouteIdRef.current = alternative?.id ?? "";
       setSelectedAlternativeRouteId(alternative?.id ?? "");
       setAltFormState(
         alternative
@@ -442,7 +485,13 @@ export function useAlternativeRouteWorkspace({
             )
           : [],
       );
-      altGeometry.applySavedGeometry(alternative);
+      altGeometry.applySavedGeometry(
+        options?.deferGeometry ||
+          !alternative ||
+          !("pathPolyline" in alternative)
+          ? null
+          : alternative,
+      );
       setIsAltDirty(false);
       // Nạp lại state đầy đủ (chọn khác/tạo mới/save+geometry thành công) →
       // "id đang chờ" (nếu có, từ lần lưu geometry lỗi trước) hết hiệu lực.
@@ -456,20 +505,150 @@ export function useAlternativeRouteWorkspace({
     [],
   );
 
+  const loadAlternativeDetail = useCallback(
+    async function loadDetail(
+      alternativeRouteId: string,
+      requestRouteId: string,
+    ) {
+      const requestVersion =
+        (alternativeDetailRequestVersionRef.current[alternativeRouteId] ?? 0) +
+        1;
+      alternativeDetailRequestVersionRef.current[alternativeRouteId] =
+        requestVersion;
+      setAlternativeDetailStates((current) => ({
+        ...current,
+        [alternativeRouteId]: { status: "loading" },
+      }));
+
+      try {
+        const detail = await getAlternativeRoute(alternativeRouteId);
+        if (
+          selectedRouteIdRef.current !== requestRouteId ||
+          alternativeDetailRequestVersionRef.current[alternativeRouteId] !==
+            requestVersion
+        ) {
+          return;
+        }
+
+        setAlternativeDetailStates((current) => ({
+          ...current,
+          [alternativeRouteId]: { status: "ready", detail },
+        }));
+        setAlternativeRoutes((current) =>
+          current.map((item) =>
+            item.id === detail.id ? { ...item, ...detail } : item,
+          ),
+        );
+
+        if (selectedAlternativeRouteIdRef.current === alternativeRouteId) {
+          loadAlternativeIntoWorkspace(detail);
+        }
+      } catch (error) {
+        if (
+          selectedRouteIdRef.current !== requestRouteId ||
+          alternativeDetailRequestVersionRef.current[alternativeRouteId] !==
+            requestVersion
+        ) {
+          return;
+        }
+
+        if (error instanceof ApiRequestError && error.status === 404) {
+          try {
+            const refreshed = await getAlternativeRoutes(requestRouteId, {
+              page: 1,
+              pageSize: 100,
+            });
+            if (
+              selectedRouteIdRef.current !== requestRouteId ||
+              alternativeDetailRequestVersionRef.current[
+                alternativeRouteId
+              ] !== requestVersion
+            ) {
+              return;
+            }
+
+            // The missing id may have been removed/deactivated elsewhere.
+            // Drop every detail cache from the old list and rehydrate the
+            // current id (if it still exists) from the refreshed metadata.
+            alternativeDetailRequestVersionRef.current = {};
+            setAlternativeDetailStates({});
+            setAlternativeRoutes(refreshed.items);
+            const currentSelectedId = selectedAlternativeRouteIdRef.current;
+            const nextAlternative =
+              refreshed.items.find(
+                (item) => item.id === currentSelectedId,
+              ) ??
+              refreshed.items[0] ??
+              null;
+            loadAlternativeIntoWorkspace(nextAlternative, {
+              deferGeometry: Boolean(nextAlternative),
+            });
+            return;
+          } catch {
+            // If refreshing the list also fails, keep an actionable retry UI
+            // for the originally selected item instead of silently falling
+            // back to a generated route.
+          }
+        }
+
+        setAlternativeDetailStates((current) => ({
+          ...current,
+          [alternativeRouteId]: {
+            status: "error",
+            reason:
+              error instanceof ApiRequestError && error.status === 403
+                ? "forbidden"
+                : "failed",
+          },
+        }));
+      }
+    },
+    [loadAlternativeIntoWorkspace],
+  );
+
   // Đồng bộ danh sách sau khi load tuyến chính (loadData/handleSelectRoute) —
   // identity ổn định để những nơi gọi phụ thuộc được (giống applyAlternatives cũ).
   const applyAlternatives = useCallback(
-    (items: AlternativeRoute[]) => {
+    (items: AlternativeRouteListItem[]) => {
+      alternativeDetailRequestVersionRef.current = {};
+      setAlternativeDetailStates({});
       setAlternativeRoutes(items);
-      loadAlternativeIntoWorkspace(items[0] ?? null);
+      const firstAlternative = items[0] ?? null;
+      loadAlternativeIntoWorkspace(firstAlternative, {
+        deferGeometry: Boolean(firstAlternative),
+      });
     },
     [loadAlternativeIntoWorkspace],
   );
 
   const resetAlternatives = useCallback(() => {
+    alternativeDetailRequestVersionRef.current = {};
+    setAlternativeDetailStates({});
     setAlternativeRoutes([]);
     loadAlternativeIntoWorkspace(null);
   }, [loadAlternativeIntoWorkspace]);
+
+  // Detail is lazy: opening the page on the Information tab does not download
+  // large polylines. Entering Alternatives fetches only the selected id.
+  useEffect(() => {
+    if (
+      !isWorkspaceActive ||
+      !selectedAlternativeRouteId ||
+      selectedAlternativeDetailState
+    ) {
+      return;
+    }
+
+    void loadAlternativeDetail(
+      selectedAlternativeRouteId,
+      selectedRouteIdRef.current,
+    );
+  }, [
+    isWorkspaceActive,
+    loadAlternativeDetail,
+    selectedAlternativeDetailState,
+    selectedAlternativeRouteId,
+  ]);
 
   function startNewAlternative() {
     loadAlternativeIntoWorkspace(null);
@@ -478,7 +657,22 @@ export function useAlternativeRouteWorkspace({
   function handleSelectAlternativeRoute(alternativeRouteId: string) {
     const alternative =
       alternativeRoutes.find((item) => item.id === alternativeRouteId) ?? null;
-    loadAlternativeIntoWorkspace(alternative);
+    const detailState = alternativeDetailStates[alternativeRouteId];
+    loadAlternativeIntoWorkspace(
+      detailState?.status === "ready" ? detailState.detail : alternative,
+      { deferGeometry: detailState?.status !== "ready" },
+    );
+  }
+
+  function retryAlternativeDetail() {
+    if (!selectedAlternativeRouteId) {
+      return;
+    }
+
+    void loadAlternativeDetail(
+      selectedAlternativeRouteId,
+      selectedRouteIdRef.current,
+    );
   }
 
   function updateAltField<K extends keyof AlternativeRouteFormState>(
@@ -634,6 +828,13 @@ export function useAlternativeRouteWorkspace({
       toastError(t("routes.selectRouteFirst"));
       return;
     }
+    if (
+      selectedAlternativeRouteId &&
+      selectedAlternativeDetailState?.status !== "ready"
+    ) {
+      toastError(t("routes.alternativeDetailUnavailable"));
+      return;
+    }
     if (!altForm.name.trim()) {
       toastError(t("routes.alternativeNameRequired"));
       return;
@@ -663,6 +864,22 @@ export function useAlternativeRouteWorkspace({
     }
     if (altGeometry.routePathPoints.length < 2) {
       toastError(t("routes.alternativeGeometryRequired"));
+      return;
+    }
+    if (
+      mainRoutePathPoints.length >= 2 &&
+      findMatchingRouteOption(
+        [
+          {
+            points: altGeometry.routePathPoints,
+            totalDistanceKm: altMetrics.totalDistanceKm,
+            estimatedDurationMinutes: altMetrics.estimatedDurationMinutes,
+          },
+        ],
+        mainRoutePathPoints,
+      ) >= 0
+    ) {
+      toastError(t("routes.alternativeMustDifferFromMainRoute"));
       return;
     }
 
@@ -729,6 +946,10 @@ export function useAlternativeRouteWorkspace({
               )
             : [...current, withGeometry],
         );
+        setAlternativeDetailStates((current) => ({
+          ...current,
+          [withGeometry.id]: { status: "ready", detail: withGeometry },
+        }));
         loadAlternativeIntoWorkspace(withGeometry);
         toastSuccess(
           targetAlternativeId
@@ -774,7 +995,9 @@ export function useAlternativeRouteWorkspace({
   // sách vẫn trả về. Vì vậy UI KHÔNG gỡ item khỏi danh sách (làm vậy là nói dối
   // user: F5 phát là nó hiện lại) — chỉ đánh dấu ngưng áp dụng, giữ nguyên
   // đang chọn để bấm "Khôi phục" ngay tại chỗ.
-  async function handleDeleteAlternativeRoute(alternative: AlternativeRoute) {
+  async function handleDeleteAlternativeRoute(
+    alternative: AlternativeRouteListItem,
+  ) {
     // Chụp tuyến chính đang chọn lúc bấm xoá — cùng lý do race với handleSaveAlternative
     const requestRouteId = selectedRouteId;
 
@@ -789,11 +1012,30 @@ export function useAlternativeRouteWorkspace({
         return;
       }
 
-      const deactivated: AlternativeRoute = { ...alternative, isActive: false };
+      const currentDetail = alternativeDetailStates[alternative.id];
+      const deactivated: AlternativeRouteListItem = {
+        ...alternative,
+        isActive: false,
+      };
       setAlternativeRoutes((current) =>
         current.map((item) => (item.id === deactivated.id ? deactivated : item)),
       );
-      loadAlternativeIntoWorkspace(deactivated);
+      if (currentDetail?.status === "ready") {
+        const deactivatedDetail = {
+          ...currentDetail.detail,
+          isActive: false,
+        };
+        setAlternativeDetailStates((current) => ({
+          ...current,
+          [alternative.id]: {
+            status: "ready",
+            detail: deactivatedDetail,
+          },
+        }));
+        loadAlternativeIntoWorkspace(deactivatedDetail);
+      } else {
+        loadAlternativeIntoWorkspace(deactivated, { deferGeometry: true });
+      }
       toastSuccess(t("routes.alternativeDeactivated"));
     } catch (err) {
       if (selectedRouteIdRef.current !== requestRouteId) {
@@ -810,7 +1052,9 @@ export function useAlternativeRouteWorkspace({
   // Khôi phục: PATCH partial chỉ có `isActive` — BE giữ nguyên mọi field khác
   // (xem UpdateAlternativeRouteRequest, field vắng mặt = không đụng tới), nên
   // KHÔNG gửi kèm form đang soạn để tránh vô tình ghi đè bản đã lưu.
-  async function handleRestoreAlternativeRoute(alternative: AlternativeRoute) {
+  async function handleRestoreAlternativeRoute(
+    alternative: AlternativeRouteListItem,
+  ) {
     const requestRouteId = selectedRouteId;
 
     setIsSavingAlternative(true);
@@ -824,6 +1068,10 @@ export function useAlternativeRouteWorkspace({
       setAlternativeRoutes((current) =>
         current.map((item) => (item.id === restored.id ? restored : item)),
       );
+      setAlternativeDetailStates((current) => ({
+        ...current,
+        [restored.id]: { status: "ready", detail: restored },
+      }));
       loadAlternativeIntoWorkspace(restored);
       toastSuccess(t("routes.alternativeRestored"));
     } catch (err) {
@@ -839,8 +1087,13 @@ export function useAlternativeRouteWorkspace({
 
   return {
     alternativeRoutes,
+    alternativeDetailStates,
     selectedAlternativeRouteId,
     selectedAlternative,
+    selectedAlternativeDetailState,
+    isLoadingAlternativeDetail,
+    alternativeDetailLoadFailed,
+    alternativeDetailErrorReason,
     activeAlternativeCount,
     maxActiveAlternatives,
     altForm,
@@ -866,6 +1119,7 @@ export function useAlternativeRouteWorkspace({
     resetAlternatives,
     startNewAlternative,
     handleSelectAlternativeRoute,
+    retryAlternativeDetail,
     updateAltField,
     toggleAlternativeActive,
     addAltStopFromSuggestion,

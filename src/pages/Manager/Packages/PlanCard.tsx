@@ -1,5 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { FiBox, FiShoppingCart, FiTrendingUp } from "react-icons/fi";
+import {
+  FiCalendar,
+  FiMap,
+  FiShoppingCart,
+  FiTruck,
+  FiUserCheck,
+  FiUserPlus,
+  FiUsers,
+} from "react-icons/fi";
 import type {
   SubscriptionBillingPeriod,
   SubscriptionPlan,
@@ -13,6 +21,15 @@ import {
   sellableBillingPeriods,
   type PlanUsageShortfall,
 } from "../../../utils/subscription";
+
+const planQuotaItems = [
+  { key: "maxVehicles", Icon: FiTruck },
+  { key: "maxRoutes", Icon: FiMap },
+  { key: "maxDrivers", Icon: FiUserCheck },
+  { key: "maxAssistants", Icon: FiUserPlus },
+  { key: "maxOperatorUsers", Icon: FiUsers },
+  { key: "maxTripsPerMonth", Icon: FiCalendar },
+] as const;
 
 type PlanCardProps = {
   plan: SubscriptionPlan;
@@ -57,11 +74,9 @@ export default function PlanCard({
   return (
     <div
       data-testid={`plan-card-${plan.planId}`}
-      className={`flex flex-col rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md ${
-        hasShortfall || notAnUpgrade ? "opacity-60" : ""
-      }`}
+      className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
     >
-      <div className="mb-4 flex items-start justify-between gap-2">
+      <div className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-wider text-gray-500">
             {t("packages.packageLabel")}
@@ -76,7 +91,10 @@ export default function PlanCard({
         </Badge>
       </div>
 
-      <p className="mb-4 text-sm text-gray-600">
+      <p
+        className="mb-4 min-h-10 text-sm leading-5 text-gray-600 line-clamp-2"
+        title={plan.description || undefined}
+      >
         {plan.description || "-"}
       </p>
 
@@ -86,10 +104,10 @@ export default function PlanCard({
         </p>
       ) : null}
 
-      <div className="mb-6 border-b border-gray-200 pb-6">
+      <div className="mb-4 rounded-xl bg-gradient-to-br from-vr-50 to-white p-4 ring-1 ring-vr-100">
         {periodOnSale ? (
           <>
-            <p className="text-3xl font-bold text-vr-900">
+            <p className="text-2xl font-bold tracking-tight text-vr-900">
               {formatPrice(plan, billingPeriod)}
             </p>
             <p className="mt-1 text-sm text-gray-500">
@@ -109,40 +127,34 @@ export default function PlanCard({
         )}
       </div>
 
-      <div className="mb-6 space-y-3">
-        <LimitRow
-          icon={<FiBox size={16} />}
-          label={t("packages.vehicleCount")}
-          value={t("packages.maxVehicles", {
-            n: planLimit(plan, "maxVehicles"),
-          })}
-        />
-        <LimitRow
-          icon={<FiTrendingUp size={16} />}
-          label={t("packages.routesLabel")}
-          value={t("packages.maxRoutes", {
-            n: planLimit(plan, "maxRoutes"),
-          })}
-        />
-        <LimitRow
-          icon={<FiTrendingUp size={16} />}
-          label={t("packages.tripsPerMonth")}
-          value={formatNumber(planLimit(plan, "maxTripsPerMonth"))}
-        />
+      <div className="mb-4">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          {t("packages.usageLimits")}
+        </p>
+        <div className="grid grid-cols-2 gap-2 rounded-xl border border-gray-100 bg-gray-50/80 p-2.5">
+          {planQuotaItems.map(({ key, Icon }) => (
+            <LimitRow
+              key={key}
+              icon={<Icon size={15} />}
+              label={t(`packages.limitLabels.${key}`)}
+              value={formatNumber(planLimit(plan, key))}
+            />
+          ))}
+        </div>
       </div>
 
-      <div className="mb-6 flex-1">
-        <p className="mb-2 text-xs font-medium text-gray-600">
+      <div className="mb-5 flex-1">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
           {t("packages.features")}
         </p>
         <div className="flex flex-wrap gap-2 text-xs">
           {Object.entries(plan.modules).map(([key, enabled]) => (
             <span
               key={key}
-              className={`rounded-full px-2 py-1 font-semibold ${
+              className={`rounded-full border px-2.5 py-1 font-semibold ${
                 enabled
-                  ? "bg-vr-50 text-vr-900"
-                  : "bg-gray-100 text-gray-500"
+                  ? "border-vr-100 bg-vr-50 text-vr-900"
+                  : "border-gray-200 bg-gray-50 text-gray-400"
               }`}
             >
               {moduleLabels[key] ?? key}
@@ -184,7 +196,7 @@ export default function PlanCard({
         type="button"
         onClick={() => onPurchase(plan)}
         disabled={purchaseDisabled || blocked}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-vr-800 py-2 font-medium text-white transition-colors hover:bg-vr-900 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 py-2.5 font-semibold text-white shadow-sm transition-colors hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-vr-200 disabled:text-white disabled:shadow-none"
       >
         <FiShoppingCart className="text-lg" />
         {t("packages.buyPackage")}

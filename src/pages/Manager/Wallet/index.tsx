@@ -2,8 +2,9 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { useLatestRequest } from "../../../hooks/useLatestRequest";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { FiRefreshCw } from "react-icons/fi";
+import { FiDownload, FiRefreshCw } from "react-icons/fi";
 import {
+  exportOperatorWalletReconciliation,
   getOperatorLedger,
   getOperatorTripSettlements,
   getOperatorWallet,
@@ -18,6 +19,7 @@ import {
   type WalletTransactionParams,
   type WalletTransactionType,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import Pagination from "../../../components/Pagination";
 import CustomSelect from "../../../components/CustomSelect";
 import { toExclusiveUtcDayEnd, toUtcDayStart } from "../../../utils/date";
@@ -26,6 +28,7 @@ import { SettlementsTable } from "./SettlementsTable";
 import { TransactionsTable } from "./TransactionsTable";
 import { WalletFilters, type DateFieldOption } from "./WalletFilters";
 import { WalletOverviewCards } from "./WalletOverviewCards";
+import { downloadFile } from "../../../utils/downloadFile";
 
 type WalletTab = "transactions" | "settlements" | "ledger";
 
@@ -50,6 +53,7 @@ export default function ManagerWallet() {
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -185,6 +189,36 @@ export default function ManagerWallet() {
     setDateTo("");
   }
 
+  async function exportReconciliation() {
+    if (Boolean(dateFrom) !== Boolean(dateTo)) {
+      setError(t("wallet.exportDatePairRequired"));
+      return;
+    }
+
+    setExporting(true);
+    setError("");
+    try {
+      const file = await exportOperatorWalletReconciliation({
+        from: dateFrom || undefined,
+        to: dateTo || undefined,
+      });
+      downloadFile(
+        file,
+        `operator-wallet-reconciliation-${dateFrom || "current"}-${dateTo || "month"}.xlsx`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof ApiRequestError && err.status === 503
+          ? t("wallet.exportUpstreamUnavailable")
+          : err instanceof Error
+            ? err.message
+            : t("wallet.exportFailed"),
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const tabs: { value: WalletTab; label: string }[] = [
     { value: "transactions", label: t("wallet.tabs.transactions") },
     { value: "settlements", label: t("wallet.tabs.settlements") },
@@ -207,15 +241,26 @@ export default function ManagerWallet() {
           </h1>
           <p className="mt-1 text-gray-600">{t("wallet.apiSubtitle")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadData()}
-          disabled={loading}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <FiRefreshCw className={loading ? "animate-spin" : ""} />
-          {tc("refresh")}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void exportReconciliation()}
+            disabled={exporting}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-vr-700 px-4 py-2 text-sm font-semibold text-white hover:bg-vr-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FiDownload />
+            {exporting ? tc("processing") : t("wallet.exportReconciliation")}
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            disabled={loading}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FiRefreshCw className={loading ? "animate-spin" : ""} />
+            {tc("refresh")}
+          </button>
+        </div>
       </div>
 
       <WalletOverviewCards

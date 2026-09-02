@@ -4,7 +4,16 @@
 // tay). Km/phút KHÔNG còn ô nhập — hiện dạng chỉ đọc, tự tính từ polyline đang
 // soạn trên bản đồ (xem useAlternativeRouteWorkspace).
 import { useTranslation } from "react-i18next";
-import { FiGitBranch, FiPlus, FiRotateCcw, FiSearch, FiSlash, FiTrash2 } from "react-icons/fi";
+import {
+  FiAlertTriangle,
+  FiGitBranch,
+  FiPlus,
+  FiRefreshCw,
+  FiRotateCcw,
+  FiSearch,
+  FiSlash,
+  FiTrash2,
+} from "react-icons/fi";
 import {
   labelClass,
   textareaClass,
@@ -44,8 +53,12 @@ export default function AlternativeRoutesSection({
   const { t } = useTranslation("manager");
   const {
     alternativeRoutes,
+    alternativeDetailStates,
     selectedAlternativeRouteId,
     selectedAlternative,
+    isLoadingAlternativeDetail,
+    alternativeDetailLoadFailed,
+    alternativeDetailErrorReason,
     activeAlternativeCount,
     maxActiveAlternatives,
     altForm,
@@ -55,6 +68,7 @@ export default function AlternativeRoutesSection({
     isSavingAlternative,
     startNewAlternative,
     handleSelectAlternativeRoute,
+    retryAlternativeDetail,
     handleRestoreAlternativeRoute,
     updateAltField,
     toggleAlternativeActive,
@@ -140,6 +154,18 @@ export default function AlternativeRoutesSection({
               {alternative.totalDistanceKm} km · {alternative.estimatedDurationMinutes}{" "}
               {t("routes.minutes")}
             </p>
+            {alternativeDetailStates[alternative.id]?.status === "loading" && (
+              <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-vr-700">
+                <FiRefreshCw className="animate-spin" size={12} />
+                {t("routes.alternativeDetailLoading")}
+              </span>
+            )}
+            {alternativeDetailStates[alternative.id]?.status === "error" && (
+              <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-red-700">
+                <FiAlertTriangle size={12} />
+                {t("routes.alternativeDetailLoadFailedShort")}
+              </span>
+            )}
           </button>
         ))}
         {!alternativeRoutes.length && (
@@ -147,7 +173,57 @@ export default function AlternativeRoutesSection({
         )}
       </div>
 
-      {canManageRoutes && (
+      {isLoadingAlternativeDetail && (
+        <div
+          role="status"
+          data-testid="alternative-detail-loading"
+          className="flex items-start gap-3 rounded-lg border border-vr-200 bg-vr-50 px-3 py-3 text-sm text-vr-900"
+        >
+          <FiRefreshCw className="mt-0.5 shrink-0 animate-spin" size={16} />
+          <div>
+            <p className="font-semibold">
+              {t("routes.alternativeDetailLoading")}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-vr-700">
+              {t("routes.alternativeDetailLoadingHint")}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {alternativeDetailLoadFailed && (
+        <div
+          role="alert"
+          data-testid="alternative-detail-error"
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800"
+        >
+          <div className="flex items-start gap-2">
+            <FiAlertTriangle className="mt-0.5 shrink-0" size={16} />
+            <div>
+              <p className="font-semibold">
+                {alternativeDetailErrorReason === "forbidden"
+                  ? t("routes.alternativeDetailForbidden")
+                  : t("routes.alternativeDetailLoadFailed")}
+              </p>
+              <p className="mt-0.5 text-xs leading-5">
+                {t("routes.alternativeDetailLoadFailedHint")}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={retryAlternativeDetail}
+            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+          >
+            <FiRefreshCw size={13} />
+            {t("routes.alternativeDetailRetry")}
+          </button>
+        </div>
+      )}
+
+      {canManageRoutes &&
+        !isLoadingAlternativeDetail &&
+        !alternativeDetailLoadFailed && (
         <>
           {/* Bản đang mở đã ngưng: nói rõ dữ liệu còn nguyên, khôi phục được —
               tránh user tưởng đã mất rồi đi tạo lại từ đầu */}
@@ -305,7 +381,7 @@ export default function AlternativeRoutesSection({
               ))}
           </div>
         </>
-      )}
+        )}
     </div>
   );
 }
