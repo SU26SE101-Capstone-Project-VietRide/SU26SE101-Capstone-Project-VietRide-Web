@@ -40,6 +40,7 @@ import {
   type ManualCancelRefundChoice,
 } from "./parcelQueueHelpers";
 import { ActionBox, ActionButton, Field, TextArea } from "./queueControls";
+import ParcelQrCode from "./ParcelQrCode";
 
 function HighlightItem({
   label,
@@ -169,6 +170,14 @@ export default function ParcelDetailModal({
           selected && (
             <div className="space-y-6">
               <div className="space-y-4">
+                <ParcelQrCode
+                  parcelCode={selected.parcelCode}
+                  title={t("parcels.queue.qrTitle")}
+                  description={t("parcels.queue.qrDescription")}
+                  ariaLabel={t("parcels.queue.qrAriaLabel", {
+                    code: selected.parcelCode,
+                  })}
+                />
                 <DetailSection
                   title={t("parcels.queue.overviewSection")}
                   columns="three"

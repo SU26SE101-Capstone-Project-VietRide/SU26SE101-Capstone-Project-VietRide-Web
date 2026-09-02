@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import {
   cancelOperatorTrip,
+  getOperatorTripCargoCapacity,
   getOperatorIncidents,
   getOperatorRoutes,
   getOperatorVehicles,
@@ -29,6 +30,7 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("../../../api/vietride", () => ({
   cancelOperatorTrip: vi.fn(),
+  getOperatorTripCargoCapacity: vi.fn(),
   getOperatorIncidents: vi.fn(),
   getOperatorRoutes: vi.fn(),
   getOperatorVehicles: vi.fn(),
@@ -113,6 +115,18 @@ describe("TripManageModal", () => {
       status: "CANCELLED",
     });
     vi.mocked(getOperatorIncidents).mockResolvedValue(emptyPage() as never);
+    vi.mocked(getOperatorTripCargoCapacity).mockResolvedValue({
+      tripId: "trip-1",
+      reservedWeightKg: 300,
+      reservedVolumeM3: 2.5,
+      loadedWeightKg: 200,
+      loadedVolumeM3: 1.5,
+      maxCargoWeightKg: 1_000,
+      maxCargoVolumeM3: 8,
+      availableWeightKg: 500,
+      availableVolumeM3: 4,
+      percentFull: 20,
+    });
   });
 
   // BE nhận partial: gửi cả form là tự ghi đè những giá trị mình chưa từng nhìn.
@@ -177,6 +191,37 @@ describe("TripManageModal", () => {
     expect(screen.getByText("Nguyễn Văn A")).toBeInTheDocument();
     expect(screen.getByText("tripList.manage.assistant")).toBeInTheDocument();
     expect(screen.getByText("Trần Thị B")).toBeInTheDocument();
+  });
+
+  it("tự tải và hiển thị sức chứa hàng hóa của chuyến", async () => {
+    renderModal();
+
+    expect(getOperatorTripCargoCapacity).toHaveBeenCalledWith("trip-1");
+    expect(await screen.findByText("1.000 kg")).toBeInTheDocument();
+    expect(screen.getByText("8 m³")).toBeInTheDocument();
+    expect(screen.getByText("500 kg · 4 m³")).toBeInTheDocument();
+    expect(screen.getByText("20%")).toBeInTheDocument();
+  });
+
+  it("cho phép tải lại khi không lấy được sức chứa", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorTripCargoCapacity)
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({
+        tripId: "trip-1",
+        maxCargoWeightKg: 750,
+        maxCargoVolumeM3: 6,
+      });
+
+    renderModal();
+
+    expect(
+      await screen.findByText("tripList.manage.cargoFailed"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "retry" }));
+
+    expect(await screen.findByText("750 kg")).toBeInTheDocument();
+    expect(getOperatorTripCargoCapacity).toHaveBeenCalledTimes(2);
   });
 
   it("chuyến đã chạy thì khoá form và ẩn mục huỷ chuyến", () => {

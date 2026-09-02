@@ -104,8 +104,8 @@ export default function AppealDetailModal({
         title={t("claimAppeals.detailTitle")}
         subtitle={
           appeal
-            ? t("claimAppeals.appealRef", {
-                ref: appeal.appealId.slice(0, 8).toUpperCase(),
+            ? t("claimAppeals.submittedAt", {
+                at: formatDateTime(appeal.submittedAt),
               })
             : undefined
         }
@@ -139,9 +139,7 @@ export default function AppealDetailModal({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-lg font-bold text-gray-900">
-                    {t("claimAppeals.appealRef", {
-                      ref: appeal.appealId.slice(0, 8).toUpperCase(),
-                    })}
+                    {t("claimAppeals.requestLabel")}
                   </p>
                   <p className="mt-1 text-sm text-gray-600">
                     {t("claimAppeals.submittedAt", {
@@ -151,7 +149,7 @@ export default function AppealDetailModal({
                 </div>
                 <Badge tone={appealStatusTone(appeal.status)}>
                   {t(`claimAppeals.status.${appeal.status}`, {
-                    defaultValue: appeal.status,
+                    defaultValue: t("claimAppeals.unknownStatus"),
                   })}
                 </Badge>
               </div>
@@ -161,7 +159,7 @@ export default function AppealDetailModal({
               <p className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700">
                 {t("claimAppeals.originalClaimNote", {
                   status: t(`claims.status.${appeal.originalClaimStatus}`, {
-                    defaultValue: appeal.originalClaimStatus,
+                    defaultValue: t("claimAppeals.unknownStatus"),
                   }),
                   amount: formatCurrency(appeal.originalTotalAwardVnd),
                 })}
@@ -255,10 +253,6 @@ export default function AppealDetailModal({
                     label={t("claimAppeals.paidAt")}
                     value={formatDateTime(appeal.paidAt)}
                   />
-                  <DetailItem
-                    label={t("claimAppeals.payoutReference")}
-                    value={appeal.payoutReferenceId ?? "-"}
-                  />
                 </dl>
               </section>
             )}
@@ -288,12 +282,12 @@ export default function AppealDetailModal({
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Badge tone={claimStatusTone(claim.claim.status)}>
                       {t(`claims.status.${claim.claim.status}`, {
-                        defaultValue: claim.claim.status,
+                        defaultValue: t("claimAppeals.unknownStatus"),
                       })}
                     </Badge>
                     <Badge tone={fundingStatusTone(claim.fundingStatus)}>
                       {t(`claims.funding.${claim.fundingStatus}`, {
-                        defaultValue: claim.fundingStatus,
+                        defaultValue: t("claimAppeals.unknownStatus"),
                       })}
                     </Badge>
                   </div>

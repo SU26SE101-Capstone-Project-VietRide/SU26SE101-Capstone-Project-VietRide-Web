@@ -6,6 +6,7 @@ import {
   decideParcelStopDepartureApproval,
   getOperatorParcel,
   getParcelStopDepartureApproval,
+  getPublicTrip,
   type ParcelStopDepartureApproval,
 } from "../../../api/vietride";
 import StopDepartureApprovalsPage from "./index";
@@ -23,6 +24,7 @@ vi.mock("../../../api/vietride", () => ({
   getParcelStopDepartureApproval: vi.fn(),
   decideParcelStopDepartureApproval: vi.fn(),
   getOperatorParcel: vi.fn(),
+  getPublicTrip: vi.fn(),
 }));
 
 vi.mock("../../../hooks/useToastFeedback", () => ({
@@ -53,6 +55,7 @@ const approval: ParcelStopDepartureApproval = {
 const lookupMock = vi.mocked(getParcelStopDepartureApproval);
 const decideMock = vi.mocked(decideParcelStopDepartureApproval);
 const parcelMock = vi.mocked(getOperatorParcel);
+const tripMock = vi.mocked(getPublicTrip);
 
 function renderPage(initialEntry = "/manager/stop-departure-approvals") {
   return render(
@@ -70,6 +73,25 @@ beforeEach(() => {
     parcelCode: "VR-PCL-20260821-ABCD2345",
     status: "IN_TRANSIT",
   } as Awaited<ReturnType<typeof getOperatorParcel>>);
+  tripMock.mockResolvedValue({
+    tripId: approval.tripId,
+    tripCode: "TRIP-20260825-A1B2C3D4",
+    departureTime: "2026-08-25T08:00:00+07:00",
+    originStation: { id: "origin-1", name: "Bến Miền Đông" },
+    destinationStation: { id: "destination-1", name: "Bến Đà Lạt" },
+    stops: [
+      {
+        stopId: approval.stopId,
+        name: "Trạm Bảo Lộc",
+        orderIndex: 1,
+        allowPickup: true,
+        allowDropoff: true,
+        estimatedArrivalTime: "2026-08-25T12:00:00+07:00",
+        distanceFromOriginKm: 180,
+        fareFromThisStop: 0,
+      },
+    ],
+  } as Awaited<ReturnType<typeof getPublicTrip>>);
 });
 
 describe("StopDepartureApprovalsPage", () => {
@@ -92,11 +114,28 @@ describe("StopDepartureApprovalsPage", () => {
     ).toBeTruthy();
   });
 
+  it("hiện mã chuyến, tuyến và tên điểm dừng thay cho UUID", async () => {
+    renderPage(`/manager/stop-departure-approvals?requestId=${REQUEST_ID}`);
+
+    expect(
+      await screen.findByText("TRIP-20260825-A1B2C3D4"),
+    ).toBeTruthy();
+    expect(screen.getByText("Bến Miền Đông → Bến Đà Lạt")).toBeTruthy();
+    expect(screen.getByText("Trạm Bảo Lộc")).toBeTruthy();
+    expect(screen.queryByText(approval.tripId)).toBeNull();
+    expect(screen.queryByText(approval.stopId)).toBeNull();
+  });
+
   it("vẫn hiện được yêu cầu khi không tra được mã kiện", async () => {
     parcelMock.mockRejectedValue(new Error("parcel unavailable"));
     renderPage(`/manager/stop-departure-approvals?requestId=${REQUEST_ID}`);
 
-    expect(await screen.findByText(PARCEL_ID)).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "stopDepartureApprovals.unknownParcel 1",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(PARCEL_ID)).toBeNull();
   });
 
   // §9: không có queue nên mã phải đến từ crew — chuỗi tự gõ bị chặn tại chỗ,

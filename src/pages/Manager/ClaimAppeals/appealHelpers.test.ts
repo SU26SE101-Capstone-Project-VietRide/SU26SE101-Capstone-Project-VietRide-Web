@@ -1,10 +1,26 @@
 import { describe, expect, it } from "vitest";
+import { ApiRequestError } from "../../../api/client";
 import {
+  appealErrorTranslationKey,
   appealStatusTone,
   hasAppealAction,
   parseAppealDecision,
   type AppealDecisionDraft,
 } from "./appealHelpers";
+
+describe("appealErrorTranslationKey", () => {
+  it("không đưa message lỗi kỹ thuật thô ra màn nhà xe", () => {
+    expect(
+      appealErrorTranslationKey(
+        new ApiRequestError("Internal server error", 500, "INTERNAL_ERROR"),
+        "claimAppeals.loadFailed",
+      ),
+    ).toBe("claimAppeals.errors.systemUnavailable");
+    expect(
+      appealErrorTranslationKey(new Error("raw failure"), "claimAppeals.loadFailed"),
+    ).toBe("claimAppeals.loadFailed");
+  });
+});
 
 function draft(
   overrides: Partial<AppealDecisionDraft> = {},

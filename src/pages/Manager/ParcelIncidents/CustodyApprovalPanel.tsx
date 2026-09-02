@@ -5,7 +5,7 @@
 // - `custodyExceptionApproval` là NGUỒN DUY NHẤT của lý do/vị trí/bằng chứng;
 //   dòng trong hàng đợi không mang các dữ liệu này (§6).
 // - `actualLocationId` là UUID ĐỊA ĐIỂM, không phải id người báo hay người
-//   duyệt (§6) — nên nó nằm trong khối "mã kỹ thuật", không đứng cạnh tên người.
+//   duyệt (§6), nên không hiển thị cạnh tên người.
 // - Form duyệt KHÔNG có ô nhập UUID người duyệt: backend lấy người duyệt từ
 //   JWT (§2 mục 3-5).
 import { useTranslation } from "react-i18next";
@@ -236,31 +236,6 @@ export default function CustodyApprovalPanel({
         />
       </div>
 
-      {/* Người duyệt không cần UUID để làm việc, nhưng support thì cần. Gập lại
-          để không có UUID nào chen vào phần đọc chính. */}
-      <details className="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
-        <summary className="cursor-pointer text-xs font-semibold text-gray-600">
-          {t("parcelIncidents.approval.technicalIds")}
-        </summary>
-        <dl className="mt-2 space-y-1.5 text-xs">
-          <TechnicalId
-            label={t("parcelIncidents.approval.requestIdLabel")}
-            value={approval.requestId}
-          />
-          <TechnicalId
-            label={t("parcelIncidents.approval.actualLocationIdLabel")}
-            value={approval.actualLocationId}
-          />
-          <TechnicalId
-            label={t("parcelIncidents.approval.reportedByUserIdLabel")}
-            value={approval.reportedByUserId}
-          />
-          <TechnicalId
-            label={t("parcelIncidents.approval.parcelIdLabel")}
-            value={approval.parcelId}
-          />
-        </dl>
-      </details>
 
       {/* Quyết định đã ghi nhận — hiện reviewer THẬT từ BE, kể cả khi người
           duyệt là đồng nghiệp vừa bấm trước mình (§10). */}
@@ -326,8 +301,7 @@ export default function CustodyApprovalPanel({
 /**
  * Tên người báo. Identity Service hỏng thì `detail.reporter` rỗng — lúc đó lùi
  * về nhãn chung chứ KHÔNG hiện `reportedByUserId`, vì UUID không giúp điều độ
- * viên nhận ra ai và dễ bị đọc nhầm là mã địa điểm (UUID vẫn tra được ở khối
- * "mã kỹ thuật" bên dưới).
+ * viên nhận ra ai và dễ bị đọc nhầm là mã địa điểm.
  *
  * `detail.reporter` là người báo của SỰ CỐ; chỉ dùng khi nó đúng là người gửi
  * báo cáo này — hai bên lệch nhau thì thà hiện "Chưa rõ" còn hơn gán nhầm tên.
@@ -381,17 +355,3 @@ function PanelItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TechnicalId({
-  label,
-  value,
-}: {
-  label: string;
-  value?: string | null;
-}) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-2">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="break-all font-mono text-gray-700">{value?.trim() || "-"}</dd>
-    </div>
-  );
-}

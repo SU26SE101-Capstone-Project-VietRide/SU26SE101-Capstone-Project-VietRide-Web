@@ -90,7 +90,7 @@ describe("ClaimAppealsPage", () => {
     render(<ClaimAppealsPage />);
 
     expect(
-      await screen.findByText("claimAppeals.appealRef 36000000"),
+      await screen.findByText("claimAppeals.requestLabel"),
     ).toBeTruthy();
     expect(
       screen.getByText("Hoá đơn mua hàng chứng minh giá trị cao hơn"),
@@ -101,7 +101,7 @@ describe("ClaimAppealsPage", () => {
   it("gửi bộ lọc trạng thái lên BE", async () => {
     const user = userEvent.setup();
     render(<ClaimAppealsPage />);
-    await screen.findByText("claimAppeals.appealRef 36000000");
+    await screen.findByText("claimAppeals.requestLabel");
 
     await user.click(
       screen.getByRole("button", { name: "claimAppeals.status.PAID" }),

@@ -82,6 +82,20 @@ export default function IncidentDetailModal({
     t(`parcelIncidents.locationTypes.${type}`, {
       defaultValue: type.replaceAll("_", " "),
     });
+  // Một số kết quả hệ thống do BE ghi bằng tiếng Anh rồi dùng lại ở cả
+  // search task và resolutionNote. Chỉ dịch các câu hệ thống đã biết; ghi chú
+  // do người dùng nhập vẫn phải được giữ nguyên.
+  const systemMessageLabel = (message: string) => {
+    const trimmed = message.trim();
+
+    if (trimmed === "Search SLA expired without a verified found event.") {
+      return t(
+        "parcelIncidents.searchTaskResults.searchSlaExpiredWithoutVerifiedFound",
+      );
+    }
+
+    return trimmed;
+  };
   const { t: tc } = useTranslation("common");
 
   const [action, setAction] = useState<IncidentActionKind | null>(null);
@@ -606,7 +620,7 @@ export default function IncidentDetailModal({
                           )}
                           {task.result?.trim() && (
                             <p className="mt-1 text-xs text-gray-700">
-                              {task.result}
+                              {systemMessageLabel(task.result)}
                             </p>
                           )}
                         </div>
@@ -754,7 +768,11 @@ export default function IncidentDetailModal({
                   />
                   <DetailItem
                     label={tc("note")}
-                    value={detail.resolutionNote?.trim() || "-"}
+                    value={
+                      detail.resolutionNote?.trim()
+                        ? systemMessageLabel(detail.resolutionNote)
+                        : "-"
+                    }
                   />
                 </dl>
               </section>

@@ -1,10 +1,18 @@
 // Đăng ký một kiện hàng chưa định danh tại bến (§10.4).
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiHelpCircle } from "react-icons/fi";
 import {
+  getOperatorStations,
+  getOperatorStops,
+  getOperatorTrips,
+  getOperatorVehicles,
   PARCEL_CUSTODY_LOCATION_TYPES,
   registerUnidentifiedPackage,
+  type OperatorStation,
+  type OperatorStop,
+  type OperatorTripListItem,
+  type OperatorVehicle,
   type UnidentifiedPackage,
 } from "../../../api/vietride";
 import CustomSelect from "../../../components/CustomSelect";
@@ -13,9 +21,11 @@ import InlineAlert from "../../../components/InlineAlert";
 import { Button } from "../../../components/ui/Button";
 import { inputClass, labelClass, textareaClass } from "../../../components/form/formClasses";
 import EvidenceUploader from "../../../components/EvidenceUploader";
+import { formatDateTime } from "../../../utils/date";
 import {
   parseRegisterPackageDraft,
   type RegisterPackageDraft,
+  unidentifiedErrorTranslationKey,
 } from "./unidentifiedHelpers";
 
 type RegisterPackageModalProps = {
@@ -35,6 +45,39 @@ const emptyDraft: RegisterPackageDraft = {
   evidenceReferences: [],
 };
 
+const RESOURCE_PAGE_SIZE = 100;
+
+function stationValue(station: OperatorStation) {
+  return station.stationId ?? station.id ?? "";
+}
+
+function stationLabel(station: OperatorStation) {
+  return (
+    station.displayNameOverride?.trim() ||
+    station.station?.name?.trim() ||
+    station.counterLocation?.trim() ||
+    ""
+  );
+}
+
+function vehicleValue(vehicle: OperatorVehicle) {
+  return vehicle.vehicleId ?? vehicle.id ?? "";
+}
+
+function tripLabel(trip: OperatorTripListItem) {
+  const route =
+    trip.route.originName && trip.route.destinationName
+      ? `${trip.route.originName} → ${trip.route.destinationName}`
+      : trip.route.name;
+  return [
+    trip.tripCode,
+    route,
+    formatDateTime(trip.departureAt),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export default function RegisterPackageModal({
   open,
   onClose,
@@ -46,6 +89,83 @@ export default function RegisterPackageModal({
   const [draft, setDraft] = useState<RegisterPackageDraft>(emptyDraft);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resourcesLoaded, setResourcesLoaded] = useState(false);
+  const [resourceWarning, setResourceWarning] = useState("");
+  const [stations, setStations] = useState<OperatorStation[]>([]);
+  const [stops, setStops] = useState<OperatorStop[]>([]);
+  const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
+  const [trips, setTrips] = useState<OperatorTripListItem[]>([]);
+
+  useEffect(() => {
+    if (!open || resourcesLoaded) return;
+
+    let ignore = false;
+    void Promise.allSettled([
+      getOperatorStations({
+        page: 1,
+        pageSize: RESOURCE_PAGE_SIZE,
+        isActive: true,
+        sortBy: "name",
+        sortDir: "asc",
+      }),
+      getOperatorStops({
+        page: 1,
+        pageSize: RESOURCE_PAGE_SIZE,
+        isActive: true,
+      }),
+      getOperatorVehicles({
+        page: 1,
+        pageSize: RESOURCE_PAGE_SIZE,
+        isActive: true,
+      }),
+      getOperatorTrips({ page: 1, pageSize: RESOURCE_PAGE_SIZE }),
+    ]).then((results) => {
+      if (ignore) return;
+
+      const [stationResult, stopResult, vehicleResult, tripResult] = results;
+      if (stationResult.status === "fulfilled") {
+        setStations(stationResult.value.items);
+      }
+      if (stopResult.status === "fulfilled") setStops(stopResult.value.items);
+      if (vehicleResult.status === "fulfilled") {
+        setVehicles(vehicleResult.value.items);
+      }
+      if (tripResult.status === "fulfilled") setTrips(tripResult.value.items);
+
+      if (results.some((result) => result.status === "rejected")) {
+        setResourceWarning(t("unidentifiedPackages.resourceLoadWarning"));
+      }
+      setResourcesLoaded(true);
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [open, resourcesLoaded, t]);
+
+  const locationOptions = useMemo(() => {
+    switch (draft.locationType) {
+      case "ROUTE_STOP":
+        return stops.map((stop) => ({ value: stop.id, label: stop.name }));
+      case "VEHICLE":
+        return vehicles
+          .map((vehicle) => ({
+            value: vehicleValue(vehicle),
+            label: vehicle.licensePlate,
+          }))
+          .filter((item) => item.value);
+      case "ORIGIN_STATION":
+      case "DESTINATION_STATION":
+      case "WAREHOUSE":
+      default:
+        return stations
+          .map((station) => ({
+            value: stationValue(station),
+            label: stationLabel(station),
+          }))
+          .filter((item) => item.value && item.label);
+    }
+  }, [draft.locationType, stations, stops, vehicles]);
 
   function update<K extends keyof RegisterPackageDraft>(
     key: K,
@@ -58,7 +178,21 @@ export default function RegisterPackageModal({
   function handleClose() {
     setDraft(emptyDraft);
     setError("");
+    if (resourceWarning) {
+      setResourcesLoaded(false);
+      setResourceWarning("");
+    }
     onClose();
+  }
+
+  function selectLocation(value: string) {
+    const selected = locationOptions.find((item) => item.value === value);
+    setError("");
+    setDraft((prev) => ({
+      ...prev,
+      locationId: value,
+      locationSnapshot: selected?.label ?? prev.locationSnapshot,
+    }));
   }
 
   async function handleSubmit() {
@@ -78,9 +212,12 @@ export default function RegisterPackageModal({
       onRegistered(created, t("unidentifiedPackages.registerSuccess"));
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : t("unidentifiedPackages.registerFailed"),
+        t(
+          unidentifiedErrorTranslationKey(
+            err,
+            "unidentifiedPackages.registerFailed",
+          ),
+        ),
       );
     } finally {
       setIsSubmitting(false);
@@ -121,6 +258,12 @@ export default function RegisterPackageModal({
           </InlineAlert>
         ) : null}
 
+        {resourceWarning ? (
+          <InlineAlert tone="warning">
+            <p>{resourceWarning}</p>
+          </InlineAlert>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelClass} htmlFor="package-tag">
@@ -139,17 +282,30 @@ export default function RegisterPackageModal({
             />
           </div>
           <div>
-            <label className={labelClass} htmlFor="package-trip">
-              {t("unidentifiedPackages.tripIdLabel")}
+            <label className={labelClass}>
+              {t("unidentifiedPackages.tripLabel")}
             </label>
-            <input
-              id="package-trip"
-              type="text"
+            <CustomSelect
+              aria-label={t("unidentifiedPackages.tripLabel")}
+              className={inputClass}
               value={draft.tripId}
               onChange={(event) => update("tripId", event.target.value)}
-              placeholder={t("unidentifiedPackages.optionalPlaceholder")}
-              className={inputClass}
-            />
+              searchable
+              searchPlaceholder={t(
+                "unidentifiedPackages.tripSearchPlaceholder",
+              )}
+              emptyMessage={t("unidentifiedPackages.tripEmpty")}
+              disabled={!resourcesLoaded}
+            >
+              <option value="">
+                {t("unidentifiedPackages.noTripOption")}
+              </option>
+              {trips.map((trip) => (
+                <option key={trip.tripId} value={trip.tripId}>
+                  {tripLabel(trip)}
+                </option>
+              ))}
+            </CustomSelect>
           </div>
           <div>
             <label className={labelClass}>
@@ -160,32 +316,62 @@ export default function RegisterPackageModal({
               aria-label={t("unidentifiedPackages.locationTypeLabel")}
               className={inputClass}
               value={draft.locationType}
-              onChange={(event) => update("locationType", event.target.value)}
+              onChange={(event) => {
+                setError("");
+                setDraft((prev) => ({
+                  ...prev,
+                  locationType: event.target.value,
+                  locationId: "",
+                  locationSnapshot: "",
+                }));
+              }}
             >
               {PARCEL_CUSTODY_LOCATION_TYPES.map((value) => (
                 <option key={value} value={value}>
                   {t(`parcelIncidents.locationTypes.${value}`, {
-                    defaultValue: value,
+                    defaultValue: t(
+                      "unidentifiedPackages.unknownLocationType",
+                    ),
                   })}
                 </option>
               ))}
             </CustomSelect>
           </div>
           <div>
-            <label className={labelClass} htmlFor="package-location-id">
-              {t("unidentifiedPackages.locationIdLabel")}
+            <label className={labelClass}>
+              {t(
+                `unidentifiedPackages.locationSelectorLabel.${draft.locationType}`,
+                {
+                  defaultValue: t(
+                    "unidentifiedPackages.locationSelectorLabel.DEFAULT",
+                  ),
+                },
+              )}
               <span className="text-rose-700"> *</span>
             </label>
-            <input
-              id="package-location-id"
-              type="text"
-              value={draft.locationId}
-              onChange={(event) => update("locationId", event.target.value)}
+            <CustomSelect
+              aria-label={t("unidentifiedPackages.locationLabel")}
               className={inputClass}
-            />
-            {/* Khác custody scan: entity này đòi mã địa điểm kể cả VEHICLE */}
+              value={draft.locationId}
+              onChange={(event) => selectLocation(event.target.value)}
+              searchable
+              searchPlaceholder={t(
+                "unidentifiedPackages.locationSearchPlaceholder",
+              )}
+              emptyMessage={t("unidentifiedPackages.locationEmpty")}
+              disabled={!resourcesLoaded}
+            >
+              <option value="">
+                {t("unidentifiedPackages.locationPlaceholder")}
+              </option>
+              {locationOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </CustomSelect>
             <p className="mt-1 text-xs text-gray-600">
-              {t("unidentifiedPackages.locationIdHint")}
+              {t("unidentifiedPackages.locationHint")}
             </p>
           </div>
           <div>

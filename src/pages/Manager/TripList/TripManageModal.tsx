@@ -6,6 +6,7 @@ import {
   FiAlertTriangle,
   FiEdit3,
   FiGrid,
+  FiPackage,
   FiPhone,
   FiSave,
   FiSettings,
@@ -13,11 +14,13 @@ import {
 } from "react-icons/fi";
 import {
   cancelOperatorTrip,
+  getOperatorTripCargoCapacity,
   getOperatorIncidents,
   getOperatorRoutes,
   getOperatorVehicles,
   previewOperatorTripCancel,
   updateOperatorTrip,
+  type CargoCapacity,
   type OperatorIncident,
   type OperatorRoute,
   type OperatorTripCancelPreview,
@@ -132,6 +135,11 @@ export default function TripManageModal({
   const [draft, setDraft] = useState<TripDraft>(initialDraft);
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [routes, setRoutes] = useState<OperatorRoute[]>([]);
+  const [capacityResult, setCapacityResult] = useState<{
+    tripId: string;
+    data: CargoCapacity | null;
+  } | null>(null);
+  const [capacityReloadVersion, setCapacityReloadVersion] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<OperatorTripCancelPreview | null>(
@@ -202,6 +210,26 @@ export default function TripManageModal({
     };
   }, [canEdit, tripId]);
 
+  // Sức chứa là snapshot của CHUYẾN (xe đang gán + hàng đã giữ/xếp),
+  // không phải field của Route. Tải cho cả STAFF và chuyến đã khóa vì
+  // endpoint này là read-only và hai nhóm đó vẫn cần xem tình trạng hàng.
+  useEffect(() => {
+    if (!tripId) return;
+
+    let ignore = false;
+    getOperatorTripCargoCapacity(tripId)
+      .then((data) => {
+        if (!ignore) setCapacityResult({ tripId, data });
+      })
+      .catch(() => {
+        if (!ignore) setCapacityResult({ tripId, data: null });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [capacityReloadVersion, tripId]);
+
   /**
    * Lý do chuyến bị gián đoạn. BE KHÔNG trả reason kèm trong `GET
    * /v1/operator/trips` — cả list lẫn detail chuyến đều không có field nào cho
@@ -241,6 +269,51 @@ export default function TripManageModal({
   const incidents = hasIncidentsFor ? incidentsResult.items : null;
   const isIncidentsLoading = isDisrupted && Boolean(tripId) && !hasIncidentsFor;
   const hasIncidentsFailed = hasIncidentsFor && incidentsResult.items === null;
+
+  const hasCapacityFor = capacityResult?.tripId === tripId;
+  const capacity = hasCapacityFor ? capacityResult.data : null;
+  const isCapacityLoading = Boolean(tripId) && !hasCapacityFor;
+  const hasCapacityFailed = hasCapacityFor && capacityResult.data === null;
+  const capacityMetrics = capacity
+    ? [
+        {
+          label: t("tripList.manage.maxCargoWeight"),
+          value: formatCargoMeasure(capacity.maxCargoWeightKg, "kg"),
+        },
+        {
+          label: t("tripList.manage.maxCargoVolume"),
+          value: formatCargoMeasure(capacity.maxCargoVolumeM3, "m³"),
+        },
+        {
+          label: t("tripList.manage.reservedCargo"),
+          value: formatCargoPair(
+            capacity.reservedCargoWeightKg ?? capacity.reservedWeightKg,
+            capacity.reservedCargoVolumeM3 ?? capacity.reservedVolumeM3,
+          ),
+        },
+        {
+          label: t("tripList.manage.loadedCargo"),
+          value: formatCargoPair(
+            capacity.loadedCargoWeightKg ?? capacity.loadedWeightKg,
+            capacity.loadedCargoVolumeM3 ?? capacity.loadedVolumeM3,
+          ),
+        },
+        {
+          label: t("tripList.manage.availableCargo"),
+          value: formatCargoPair(
+            capacity.availableCargoWeightKg ?? capacity.availableWeightKg,
+            capacity.availableCargoVolumeM3 ?? capacity.availableVolumeM3,
+          ),
+        },
+        {
+          label: t("tripList.manage.cargoUtilization"),
+          value:
+            capacity.percentFull == null
+              ? "-"
+              : `${formatCargoNumber(capacity.percentFull)}%`,
+        },
+      ]
+    : [];
 
   const patch = buildTripPatch(draft, initialDraft);
   const hasChanges = Object.keys(patch).length > 0;
@@ -592,6 +665,56 @@ export default function TripManageModal({
 
             <section>
               <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                <FiPackage aria-hidden="true" className="text-vr-800" />
+                {t("tripList.manage.cargoTitle")}
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">
+                {t("tripList.manage.cargoHint")}
+              </p>
+
+              {isCapacityLoading && (
+                <p className="mt-3 text-sm text-gray-600">{tc("loading")}</p>
+              )}
+
+              {!isCapacityLoading && hasCapacityFailed && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <p className="text-sm text-amber-900">
+                    {t("tripList.manage.cargoFailed")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCapacityResult(null);
+                      setCapacityReloadVersion((current) => current + 1);
+                    }}
+                    className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                  >
+                    {tc("retry")}
+                  </button>
+                </div>
+              )}
+
+              {capacity && (
+                <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {capacityMetrics.map((metric) => (
+                    <div
+                      key={metric.label}
+                      className="rounded-lg border border-gray-100 bg-gray-50 p-3"
+                    >
+                      <dt className="text-xs font-medium text-gray-500">
+                        {metric.label}
+                      </dt>
+                      <dd className="mt-1 text-base font-bold tabular-nums text-gray-900">
+                        {metric.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </section>
+
+            <section>
+              <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900">
                 <FiGrid aria-hidden="true" className="text-vr-800" />
                 {t("tripList.manage.seatsTitle")}
               </h3>
@@ -715,4 +838,18 @@ function PreviewStat({
       </dd>
     </div>
   );
+}
+
+function formatCargoNumber(value: number) {
+  return value.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+}
+
+function formatCargoMeasure(value: number | undefined, unit: "kg" | "m³") {
+  return value == null ? "-" : `${formatCargoNumber(value)} ${unit}`;
+}
+
+function formatCargoPair(weightKg?: number, volumeM3?: number) {
+  const weight = formatCargoMeasure(weightKg, "kg");
+  const volume = formatCargoMeasure(volumeM3, "m³");
+  return weight === "-" && volume === "-" ? "-" : `${weight} · ${volume}`;
 }

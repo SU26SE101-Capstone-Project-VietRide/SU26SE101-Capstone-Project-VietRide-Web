@@ -9,6 +9,7 @@ import {
   type ParcelClaimListItem,
 } from "../../../api/vietride";
 import ClaimsPage from "./index";
+import { useToastFeedback } from "../../../hooks/useToastFeedback";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -117,6 +118,7 @@ const claimDetail: ParcelClaimDetail = {
 const listMock = vi.mocked(getOperatorParcelClaims);
 const detailMock = vi.mocked(getOperatorParcelClaim);
 const decideMock = vi.mocked(decideOperatorParcelClaim);
+const toastMock = vi.mocked(useToastFeedback);
 
 function mockList(items: ParcelClaimListItem[] = [claimRow]) {
   listMock.mockResolvedValue({
@@ -144,6 +146,18 @@ describe("ClaimsPage", () => {
     expect(await screen.findByText("VR-PCL-20260821-ABCD2345")).toBeTruthy();
     expect(screen.getByText("Nguyễn Văn A")).toBeTruthy();
     expect(detailMock).not.toHaveBeenCalled();
+  });
+
+  it("không hiện nguyên message kỹ thuật khi tải danh sách lỗi", async () => {
+    listMock.mockRejectedValue(new Error("INTERNAL_ERROR: database timeout"));
+    render(<ClaimsPage />);
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenLastCalledWith({
+        message: "",
+        error: "claims.loadFailed",
+      });
+    });
   });
 
   it("gửi bộ lọc trạng thái lên BE", async () => {
