@@ -112,7 +112,8 @@ const geometryOptionsCache = new Map<string, FetchedOptionsEntry>();
 // `autoFetchOptions`), nên trình duyệt của người dùng có thể đang giữ những
 // entry "không tính được đường" sai sự thật, sống 24h và qua cả F5. Đổi tiền tố
 // là bỏ qua toàn bộ đám đó, khỏi bắt người dùng tự xoá dữ liệu trình duyệt.
-const geometryStorageKeyPrefix = "vietride.routeGeometryOptions.v2.";
+// v3: xả kết quả v2 để tuyến ngắn được tính lại bằng probe/divergence thích ứng.
+const geometryStorageKeyPrefix = "vietride.routeGeometryOptions.v3.";
 const geometryCacheMaxAgeMs = 24 * 60 * 60 * 1_000;
 // Chặn trên số đỉnh polyline được phép ghi xuống sessionStorage. Kho này dùng
 // CHUNG với cache danh sách tuyến/nguồn lực chuyến — một tuyến dài bất thường
@@ -276,6 +277,10 @@ export function useRouteGeometry({
     totalDistanceKm: number;
     estimatedDurationMinutes: number;
   } | null>(null);
+  // Khi mọi option bị loại vì trùng tuyến chính, giữ lại option gốc làm "giấy
+  // can" để người dùng bắt đầu nắn. Nó không được coi là geometry hợp lệ để
+  // lưu cho tới khi có một điểm nắn tạo ra đường khác.
+  const excludedDraftSeedRef = useRef<RoadRouteOption | null>(null);
   // Index phương án trùng ~ đường đã lưu trong bộ options hiện tại (-1 = không có)
   const savedOptionIndexRef = useRef(-1);
   // true = lượt auto-fetch KẾ TIẾP phải tự áp ngay phương án đầu (không chờ
@@ -315,6 +320,7 @@ export function useRouteGeometry({
     setIsFetchingOptions(false);
     setAutoRouteUnavailable(false);
     setAllOptionsExcluded(false);
+    excludedDraftSeedRef.current = null;
     dragPreviewRef.current = { lastRunAt: 0, lastPoint: null };
   }
 
@@ -343,6 +349,7 @@ export function useRouteGeometry({
       setIsFetchingOptions(false);
       setAutoRouteUnavailable(false);
       setAllOptionsExcluded(false);
+      excludedDraftSeedRef.current = null;
       dragPreviewRef.current = { lastRunAt: 0, lastPoint: null };
       autoApplyPendingRef.current = false;
 
@@ -494,7 +501,12 @@ export function useRouteGeometry({
     const options = excludedPathPoints
       ? excludeMatchingRouteOptions(rawOptions, excludedPathPoints)
       : rawOptions;
-    setAllOptionsExcluded(rawOptions.length > 0 && options.length === 0);
+    const everyOptionWasExcluded =
+      rawOptions.length > 0 && options.length === 0;
+    setAllOptionsExcluded(everyOptionWasExcluded);
+    excludedDraftSeedRef.current = everyOptionWasExcluded
+      ? rawOptions[0]
+      : null;
     setRouteOptions(options);
 
     const currentPath = routePathPointsRef.current;
@@ -692,6 +704,25 @@ export function useRouteGeometry({
 
     setTravelMode(mode);
     setTruckWarning("");
+  }
+
+  // Không có option tự động nào đủ khác tuyến chính: cho phép dùng chính đường
+  // gốc làm lớp nháp màu cam để cắm/kéo điểm nắn. Không đánh dirty ở bước này,
+  // và luồng lưu tuyến thay thế còn kiểm tra khác tuyến chính lần cuối.
+  function handleStartFromExcludedPath() {
+    const seed = excludedDraftSeedRef.current;
+    if (!seed) {
+      return;
+    }
+
+    rerouteSeqRef.current += 1;
+    savedGeometryRef.current = null;
+    setRouteOptions([]);
+    setSelectedOptionIndex(-1);
+    setViaPoints([]);
+    applyRouteOption(seed);
+    setIsGeometryDirty(false);
+    setAutoRouteUnavailable(false);
   }
 
   // Mỏ neo của chặng đang nắn: điểm dừng của tuyến + các điểm nắn KHÁC. Kéo ở
@@ -934,6 +965,7 @@ export function useRouteGeometry({
     applyComputedGeometry,
     invalidateLocalGeometry,
     handleSetTravelMode,
+    handleStartFromExcludedPath,
     handleSelectRouteOption,
     handleAddViaPoint,
     handleBeginViaPointDrag,

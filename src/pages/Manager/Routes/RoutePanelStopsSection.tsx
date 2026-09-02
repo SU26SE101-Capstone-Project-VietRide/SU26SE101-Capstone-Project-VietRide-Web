@@ -84,22 +84,24 @@ export default function RoutePanelStopsSection({
               <p className="text-xs text-gray-500">
                 {t("routes.suggestModeHint")}
               </p>
-              {isLoadingSuggestions ? (
-                <p className="text-xs text-gray-600">
-                  {t("routes.suggestLoading")}
-                </p>
-              ) : canRequestPlaces && onRequestPlaces ? (
-                // Quét dọc tuyến là hàng chục lời gọi Goong nên phải do người
-                // dùng chủ động — gợi ý từ kho nhà xe vẫn hiện sẵn, miễn phí.
+              {onRequestPlaces && (
+                // Keep this action visible after scanning. Disable it while a
+                // scan is running or the route already has cached results.
                 <button
                   type="button"
                   onClick={onRequestPlaces}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-vr-200 bg-white px-3 py-2 text-xs font-semibold text-vr-900 transition hover:bg-vr-50"
+                  disabled={isLoadingSuggestions || !canRequestPlaces}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-vr-200 bg-white px-3 py-2 text-xs font-semibold text-vr-900 transition hover:bg-vr-50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white"
                 >
                   <FiSearch size={14} />
-                  {t("routes.suggestScan")}
+                  {isLoadingSuggestions
+                    ? t("routes.suggestLoading")
+                    : t("routes.suggestScan")}
                 </button>
-              ) : suggestionCount === 0 ? (
+              )}
+              {!isLoadingSuggestions &&
+              !canRequestPlaces &&
+              suggestionCount === 0 ? (
                 <p className="text-xs text-amber-700">
                   {t("routes.suggestEmpty")}
                 </p>

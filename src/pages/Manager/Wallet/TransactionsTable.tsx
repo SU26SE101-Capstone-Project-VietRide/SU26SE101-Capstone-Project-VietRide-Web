@@ -59,6 +59,11 @@ function TransactionRow({
     defaultValue: item.note || item.referenceType,
   });
   const copy = t(copyKey, { defaultValue: fallbackCopy });
+  const purpose = item.cashFlowPurpose
+    ? t(`wallet.cashFlowPurposes.${item.cashFlowPurpose}`, {
+        defaultValue: item.cashFlowPurpose,
+      })
+    : copy;
 
   return (
     <tr className="border-t border-gray-100">
@@ -68,7 +73,14 @@ function TransactionRow({
       <td className="w-[12%] whitespace-nowrap px-3 py-3 text-gray-700">{formatWalletDate(item.createdAt)}</td>
       <td className={`w-[21%] whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
         {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
-        {copy}
+        {purpose}
+        {item.businessGroup && (
+          <p className="mt-0.5 text-xs font-normal text-gray-600">
+            {t(`wallet.businessGroups.${item.businessGroup}`, {
+              defaultValue: item.businessGroup,
+            })}
+          </p>
+        )}
         {item.adjustmentReason && (
           <p className="mt-0.5 text-xs font-normal text-gray-600">
             {t(`wallet.adjustmentReasons.${item.adjustmentReason}`, {
@@ -103,9 +115,11 @@ function TransactionRow({
       <td className="w-[15%] px-4 py-3 text-gray-600">
         {item.relatedSettlement ? (
           <Badge tone="neutral">
-            {t(`wallet.methods.${item.relatedSettlement.method}`, {
-              defaultValue: item.relatedSettlement.method,
-            })}
+            {item.relatedSettlement.method
+              ? t(`wallet.methods.${item.relatedSettlement.method}`, {
+                  defaultValue: item.relatedSettlement.method,
+                })
+              : item.relatedSettlement.settlementCode || "-"}
           </Badge>
         ) : (
           "-"

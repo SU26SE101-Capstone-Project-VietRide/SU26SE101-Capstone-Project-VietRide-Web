@@ -25,6 +25,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("../../../api/vietride", () => ({
+  exportOperatorWalletReconciliation: vi.fn(),
   getOperatorWallet: vi.fn(),
   getOperatorWalletTransactions: vi.fn(),
   getOperatorTripSettlements: vi.fn(),
@@ -74,6 +75,12 @@ const walletMock: OperatorWallet = {
   withdrawalSupported: false,
   updatedAt: "2026-07-15T10:00:00Z",
   calculatedAt: "2026-07-15T10:00:03Z",
+  reconciliation: {
+    outstandingPayableVnd: 2450000,
+    awaitingTripCompletionPayableVnd: 1700000,
+    pendingHoldPayableVnd: 300000,
+    eligibleForSettlementVnd: 450000,
+  },
 };
 
 const creditTransaction: WalletTransaction = {
@@ -142,6 +149,17 @@ const ledgerEntry: OperatorLedgerEntry = {
   occurredAtSource: "BUSINESS_EVENT",
   affectsRevenue: true,
   affectsSettlement: true,
+  businessGroup: "TICKET",
+  operatorEffect: "INCREASES_ENTITLEMENT",
+  trip: {
+    tripId: "trip-2",
+    tripCode: "TRIP-20260810-CCCC3333",
+    departureAt: "2026-08-10T08:00:00+07:00",
+    routeName: "TP.HCM - Đà Lạt",
+    originName: "TP.HCM",
+    destinationName: "Đà Lạt",
+  },
+  dataCompleteness: "COMPLETE",
 };
 
 function renderWallet() {
@@ -171,8 +189,9 @@ describe("ManagerWallet", () => {
     renderWallet();
 
     await waitFor(() => expect(getOperatorWallet).toHaveBeenCalled());
-    // 4 card mô tả 4 giai đoạn riêng biệt — không có nhãn "tổng" nào gộp lại.
+    // Số dư đã credit và bốn số công nợ từ reconciliation là các metric riêng.
     expect(screen.getByText("wallet.currentBalance")).toBeInTheDocument();
+    expect(screen.getByText("wallet.outstandingPayable")).toBeInTheDocument();
     expect(screen.getByText("wallet.awaitingTripCompletion")).toBeInTheDocument();
     expect(screen.getByText("wallet.pendingHold")).toBeInTheDocument();
     expect(screen.getByText("wallet.eligibleAmount")).toBeInTheDocument();
@@ -394,7 +413,13 @@ describe("ManagerWallet", () => {
     await waitFor(() => expect(getOperatorLedger).toHaveBeenCalled());
     const table = (await screen.findByText("BK-100")).closest("table");
     if (!table) throw new Error("Không tìm thấy bảng ledger");
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(5);
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
+    expect(
+      within(table).getByText("wallet.businessGroups.TICKET"),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByText("wallet.operatorEffects.INCREASES_ENTITLEMENT"),
+    ).toBeInTheDocument();
     expect(
       within(table).queryByText("wallet.statusLabel"),
     ).not.toBeInTheDocument();

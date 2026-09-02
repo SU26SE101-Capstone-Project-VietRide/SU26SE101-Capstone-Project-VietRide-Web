@@ -180,6 +180,72 @@ describe("useRouteStopSuggestions", () => {
     expect(result.current.canRequestPlaces).toBe(false);
   });
 
+  it("cho phep do lai khi luot truoc khong co ket qua", async () => {
+    mockedSearchPlacesAlongRoute
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([googlePlace])
+      .mockResolvedValueOnce([]);
+
+    const { result } = renderHook(() =>
+      useRouteStopSuggestions({
+        enabled: true,
+        routeKey: "route-retry-empty",
+        pathPoints,
+        stops: [],
+        currentRouteStops: [],
+      }),
+    );
+
+    await scanPlaces(result);
+    await waitFor(() => {
+      expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(2);
+      expect(result.current.isLoadingPlaces).toBe(false);
+    });
+    expect(result.current.canRequestPlaces).toBe(true);
+
+    await scanPlaces(result);
+    await waitFor(() => {
+      expect(result.current.suggestions.map((item) => item.id)).toEqual([
+        "google-place-1",
+      ]);
+    });
+    expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(4);
+  });
+
+  it("cho phep do lai khi luot truoc bi loi", async () => {
+    mockedSearchPlacesAlongRoute
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockResolvedValueOnce([googlePlace])
+      .mockResolvedValueOnce([]);
+
+    const { result } = renderHook(() =>
+      useRouteStopSuggestions({
+        enabled: true,
+        routeKey: "route-retry-error",
+        pathPoints,
+        stops: [],
+        currentRouteStops: [],
+      }),
+    );
+
+    await scanPlaces(result);
+    await waitFor(() => {
+      expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(2);
+      expect(result.current.isLoadingPlaces).toBe(false);
+    });
+    expect(result.current.canRequestPlaces).toBe(true);
+
+    await scanPlaces(result);
+    await waitFor(() => {
+      expect(result.current.suggestions.map((item) => item.id)).toEqual([
+        "google-place-1",
+      ]);
+    });
+    expect(mockedSearchPlacesAlongRoute).toHaveBeenCalledTimes(4);
+  });
+
   it("không gọi Google và trả rỗng khi enabled=false", async () => {
     const { result } = renderHook(() =>
       useRouteStopSuggestions({

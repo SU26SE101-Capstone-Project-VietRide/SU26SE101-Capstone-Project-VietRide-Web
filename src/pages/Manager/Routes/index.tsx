@@ -382,7 +382,7 @@ export default function RoutesPage() {
         ? await getOperatorRoute(nextRouteSummary.id)
         : undefined;
       const alternativeResult = nextRoute
-        ? await getAlternativeRoutes(nextRoute.id, { page: 1, pageSize: 2 })
+        ? await getAlternativeRoutes(nextRoute.id, { page: 1, pageSize: 100 })
         : undefined;
       const nextStop =
         stopItems.find((item) => item.id === selectedStopIdRef.current) ??
@@ -871,7 +871,7 @@ export default function RoutesPage() {
     try {
       const [route, alternativeResult] = await Promise.all([
         getOperatorRoute(routeId),
-        getAlternativeRoutes(routeId, { page: 1, pageSize: 2 }),
+        getAlternativeRoutes(routeId, { page: 1, pageSize: 100 }),
       ]);
 
       // Trong lúc chờ user đã chọn tuyến khác → bỏ qua response cũ,

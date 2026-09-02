@@ -17,6 +17,7 @@ import {
   createOperatorStop,
   deleteAlternativeRoute,
   setAlternativeRouteActive,
+  getAlternativeRoute,
   getAlternativeRoutes,
   getOperatorRoute,
   getOperatorRoutes,
@@ -29,6 +30,7 @@ import {
   updateAlternativeRouteGeometry,
   updateOperatorRouteFull,
   type AlternativeRoute,
+  type AlternativeRouteListItem,
   type OperatorRoute,
   type OperatorRouteDetail,
   type OperatorStation,
@@ -138,6 +140,7 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
     polylines?: Array<{
       id: string;
       color: string;
+      path?: Array<{ latitude: number; longitude: number }>;
       dashed?: boolean;
       opacity?: number;
       onClick?: (position?: { lat: number; lng: number }) => void;
@@ -157,6 +160,7 @@ vi.mock("../../../components/GoogleMapCanvas", () => ({
           data-color={polyline.color}
           data-dashed={polyline.dashed ? "true" : "false"}
           data-opacity={polyline.opacity ?? 1}
+          data-points={JSON.stringify(polyline.path ?? [])}
           // Giả lập click trên đường tại một tọa độ cố định (như event.latLng thật)
           onClick={() => polyline.onClick?.({ lat: 11.05, lng: 107.4 })}
         />
@@ -209,6 +213,7 @@ vi.mock("../../../api/vietride", () => ({
   createOperatorStop: vi.fn(),
   deleteAlternativeRoute: vi.fn(),
   setAlternativeRouteActive: vi.fn(),
+  getAlternativeRoute: vi.fn(),
   getAlternativeRoutes: vi.fn(),
   getOperatorRoute: vi.fn(),
   getOperatorRoutes: vi.fn(),
@@ -312,6 +317,7 @@ describe("Manager route setup workflow", () => {
     // Xóa cache danh sách tuyến để test không dính dữ liệu của test trước
     sessionStorage.clear();
     vi.mocked(getOperatorRoutes).mockResolvedValue(emptyPage);
+    vi.mocked(getAlternativeRoute).mockReset();
     vi.mocked(getAlternativeRoutes).mockResolvedValue(emptyPage);
     vi.mocked(getOperatorStops).mockResolvedValue(emptyPage);
     vi.mocked(getOperatorStations).mockResolvedValue({
@@ -558,10 +564,13 @@ describe("Manager route setup workflow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Tuyến B/ }));
 
-    // Quét địa điểm Goong nay do người dùng bấm, không còn tự chạy khi vào tab
-    fireEvent.click(
-      await screen.findByRole("button", { name: "routes.suggestScan" }),
-    );
+    // Quét địa điểm Goong nay do người dùng bấm, không còn tự chạy khi vào tab.
+    // Nút vẫn hiện trong lúc đổi tuyến nhưng chỉ bấm được khi hình học đã sẵn sàng.
+    const scanButton = await screen.findByRole("button", {
+      name: "routes.suggestScan",
+    });
+    await waitFor(() => expect(scanButton).toBeEnabled());
+    fireEvent.click(scanButton);
 
     // Gợi ý Google của tuyến B phải hiện — đúng polyline B được gọi tới Google
     expect(
@@ -569,6 +578,12 @@ describe("Manager route setup workflow", () => {
         `map-pointmarker-suggest-googlePlace-${placeNearB.placeId}`,
       ),
     ).toBeInTheDocument();
+
+    // The scan action remains visible after results arrive, but is disabled
+    // because the route suggestions are already cached.
+    expect(
+      screen.getByRole("button", { name: "routes.suggestScan" }),
+    ).toBeDisabled();
   });
 
   // Hành vi #3 owner: rời tab Điểm dừng → chấm GỢI Ý biến mất, nhưng marker
@@ -2918,6 +2933,30 @@ describe("Manager route setup workflow", () => {
       isActive: false,
       stops: [],
     };
+    // GET list intentionally has no pathPolyline. These fixtures ensure every
+    // saved line shown by the UI came from GET detail, never from list metadata.
+    const altOneList: AlternativeRouteListItem = {
+      id: altOne.id,
+      routeId: altOne.routeId,
+      name: altOne.name,
+      description: altOne.description,
+      destinationStationId: altOne.destinationStationId,
+      totalDistanceKm: altOne.totalDistanceKm,
+      estimatedDurationMinutes: altOne.estimatedDurationMinutes,
+      isActive: altOne.isActive,
+      stops: altOne.stops,
+    };
+    const altTwoList: AlternativeRouteListItem = {
+      id: altTwo.id,
+      routeId: altTwo.routeId,
+      name: altTwo.name,
+      description: altTwo.description,
+      destinationStationId: altTwo.destinationStationId,
+      totalDistanceKm: altTwo.totalDistanceKm,
+      estimatedDurationMinutes: altTwo.estimatedDurationMinutes,
+      isActive: altTwo.isActive,
+      stops: altTwo.stops,
+    };
 
     beforeEach(() => {
       vi.mocked(getOperatorRoutes).mockResolvedValue({
@@ -2942,11 +2981,14 @@ describe("Manager route setup workflow", () => {
       });
       vi.mocked(getAlternativeRoutes).mockResolvedValue({
         ...emptyPage,
-        items: [altOne, altTwo],
+        items: [altOneList, altTwoList],
         totalItems: 2,
         totalPages: 1,
         pageSize: 2,
       });
+      vi.mocked(getAlternativeRoute).mockImplementation((id: string) =>
+        Promise.resolve(id === altTwo.id ? altTwo : altOne),
+      );
     });
 
     async function openAlternativesTab() {
@@ -2976,6 +3018,314 @@ describe("Manager route setup workflow", () => {
       expect(screen.getByText("Alt Two")).toBeInTheDocument();
     });
 
+    it("waits for GET detail before drawing or requesting a fallback route", async () => {
+      vi.mocked(getAlternativeRoute).mockReturnValue(new Promise<never>(() => {}));
+
+      renderRoutesPage();
+      await waitForLoaded();
+      vi.mocked(requestRoadGeometry).mockClear();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+
+      expect(await screen.findByText("Alt One")).toBeInTheDocument();
+      expect(
+        await screen.findByTestId("alternative-detail-loading"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("route-map-shell")).toHaveAttribute(
+        "aria-busy",
+        "true",
+      );
+      expect(requestRoadGeometry).not.toHaveBeenCalled();
+      expect(
+        screen.queryByTestId("map-polyline-route-geometry"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("requests suggestions only after detail confirms pathPolyline is null", async () => {
+      let resolveDetail!: (value: AlternativeRoute) => void;
+      vi.mocked(getAlternativeRoute).mockImplementation(
+        () =>
+          new Promise<AlternativeRoute>((resolve) => {
+            resolveDetail = resolve;
+          }),
+      );
+      vi.mocked(requestRoadGeometry).mockResolvedValue([
+        {
+          points: altTwoPoints,
+          totalDistanceKm: 60,
+          estimatedDurationMinutes: 80,
+        },
+      ]);
+
+      renderRoutesPage();
+      await waitForLoaded();
+      vi.mocked(requestRoadGeometry).mockClear();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+
+      await waitFor(() => expect(getAlternativeRoute).toHaveBeenCalledWith("alt-1"));
+      expect(requestRoadGeometry).not.toHaveBeenCalled();
+      await act(async () => {
+        resolveDetail({ ...altOne, pathPolyline: null });
+      });
+      await waitFor(() => expect(requestRoadGeometry).toHaveBeenCalled());
+      expect(
+        await screen.findByTestId("map-polyline-route-option-0"),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the selected route geometry when an older detail response arrives late", async () => {
+      let resolveAltOne!: (value: AlternativeRoute) => void;
+      let resolveAltTwo!: (value: AlternativeRoute) => void;
+      vi.mocked(getAlternativeRoute).mockImplementation(
+        (id: string) =>
+          new Promise<AlternativeRoute>((resolve) => {
+            if (id === altTwo.id) {
+              resolveAltTwo = resolve;
+            } else {
+              resolveAltOne = resolve;
+            }
+          }),
+      );
+
+      renderRoutesPage();
+      await waitForLoaded();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+      await waitFor(() =>
+        expect(getAlternativeRoute).toHaveBeenCalledWith("alt-1"),
+      );
+
+      fireEvent.click(await screen.findByText("Alt Two"));
+      await waitFor(() =>
+        expect(getAlternativeRoute).toHaveBeenCalledWith("alt-2"),
+      );
+      await act(async () => {
+        resolveAltTwo(altTwo);
+      });
+      await waitFor(() => {
+        expect(
+          screen
+            .getByTestId("map-polyline-route-geometry")
+            .getAttribute("data-points"),
+        ).toContain('"lat":10.9');
+      });
+
+      await act(async () => {
+        resolveAltOne(altOne);
+      });
+      expect(screen.getByDisplayValue("Alt Two")).toBeInTheDocument();
+      expect(
+        screen
+          .getByTestId("map-polyline-route-geometry")
+          .getAttribute("data-points"),
+      ).toContain(
+        '"lat":10.9',
+      );
+    });
+
+    it("shows a retryable detail error and reloads the saved geometry", async () => {
+      vi.mocked(getAlternativeRoute)
+        .mockRejectedValueOnce(new Error("detail unavailable"))
+        .mockResolvedValueOnce(altOne);
+
+      renderRoutesPage();
+      await waitForLoaded();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+
+      expect(
+        await screen.findByTestId("alternative-detail-error"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("routes.alternativeDetailLoadFailed"),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.alternativeDetailRetry" }),
+      );
+
+      await waitFor(() =>
+        expect(getAlternativeRoute).toHaveBeenCalledTimes(2),
+      );
+      expect(await screen.findByDisplayValue("Alt One")).toBeInTheDocument();
+      expect(
+        await screen.findByTestId("map-polyline-route-geometry"),
+      ).toHaveAttribute("data-color", "#f59e0b");
+    });
+
+    it("shows the operator-scope message for a 403 detail response", async () => {
+      vi.mocked(getAlternativeRoute).mockRejectedValue(
+        new ApiRequestError("Forbidden", 403),
+      );
+
+      renderRoutesPage();
+      await waitForLoaded();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+
+      expect(
+        await screen.findByText("routes.alternativeDetailForbidden"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("map-polyline-route-geometry"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("clears stale detail state and refreshes the list after a 404", async () => {
+      vi.mocked(getAlternativeRoute).mockRejectedValue(
+        new ApiRequestError("Not found", 404),
+      );
+      vi.mocked(getAlternativeRoutes)
+        .mockResolvedValueOnce({
+          ...emptyPage,
+          items: [altOneList, altTwoList],
+          totalItems: 2,
+          totalPages: 1,
+          pageSize: 100,
+        })
+        .mockResolvedValueOnce({ ...emptyPage, pageSize: 100 });
+
+      renderRoutesPage();
+      await waitForLoaded();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+
+      expect(await screen.findByText("routes.alternativeEmpty")).toBeInTheDocument();
+      expect(getAlternativeRoutes).toHaveBeenLastCalledWith(routeA.id, {
+        page: 1,
+        pageSize: 100,
+      });
+      expect(
+        screen.queryByTestId("alternative-detail-error"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("provides an editable base path when every automatic alternative matches the main route", async () => {
+      const mainRoutePoints = [
+        { latitude: 10.77, longitude: 106.69 },
+        { latitude: 11.94, longitude: 108.44 },
+      ];
+      const reshapedPoints = [
+        mainRoutePoints[0],
+        { latitude: 11.05, longitude: 107.4 },
+        mainRoutePoints[1],
+      ];
+      const mainDetail: OperatorRouteDetail = {
+        ...routeA,
+        pathPolyline: encodeGooglePolyline(mainRoutePoints),
+        stops: [],
+      };
+      const createdAlternative: AlternativeRoute = {
+        id: "alt-manual",
+        routeId: routeA.id,
+        name: "Tuyến tránh QL chính",
+        description: "",
+        destinationStationId,
+        pathPolyline: encodeGooglePolyline(reshapedPoints),
+        totalDistanceKm: 145,
+        estimatedDurationMinutes: 220,
+        isActive: true,
+        stops: [],
+      };
+
+      vi.mocked(getOperatorRoute).mockResolvedValue(mainDetail);
+      vi.mocked(getAlternativeRoutes).mockResolvedValue({
+        ...emptyPage,
+        pageSize: 100,
+      });
+      vi.mocked(requestRoadGeometry).mockImplementation(
+        async (_points, _message, options) => [
+          options?.intermediates?.length
+            ? {
+                points: reshapedPoints,
+                totalDistanceKm: 145,
+                estimatedDurationMinutes: 220,
+              }
+            : {
+                points: mainRoutePoints,
+                totalDistanceKm: 120,
+                estimatedDurationMinutes: 180,
+              },
+        ],
+      );
+      vi.mocked(createAlternativeRoute).mockResolvedValue(createdAlternative);
+      vi.mocked(updateAlternativeRouteGeometry).mockResolvedValue(
+        createdAlternative,
+      );
+
+      renderRoutesPage();
+      await waitForLoaded();
+      fireEvent.click(
+        screen.getByRole("button", { name: "routes.tabs.alternatives" }),
+      );
+
+      const startButton = await screen.findByTestId(
+        "start-manual-alternative",
+      );
+      expect(
+        screen.queryByTestId("map-polyline-route-geometry"),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(startButton);
+      expect(
+        await screen.findByTestId("map-polyline-route-geometry"),
+      ).toHaveAttribute("data-color", "#f59e0b");
+      expect(
+        screen.getByText("routes.manualAlternativeReadyHint"),
+      ).toBeInTheDocument();
+
+      fireEvent.change(
+        screen.getByPlaceholderText("routes.alternativeNamePlaceholder"),
+        { target: { value: createdAlternative.name } },
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: /routes.saveAlternative/ }),
+      );
+      expect(
+        await screen.findByText("routes.alternativeMustDifferFromMainRoute"),
+      ).toBeInTheDocument();
+      expect(createAlternativeRoute).not.toHaveBeenCalled();
+
+      // Click đường cam để cắm điểm nắn; mock map phát tọa độ 11.05/107.4.
+      fireEvent.click(screen.getByTestId("map-polyline-route-geometry"));
+      await waitFor(() =>
+        expect(requestRoadGeometry).toHaveBeenCalledWith(
+          expect.any(Array),
+          expect.any(String),
+          expect.objectContaining({
+            intermediates: [{ latitude: 11.05, longitude: 107.4 }],
+          }),
+        ),
+      );
+      await waitFor(() => {
+        expect(
+          screen
+            .getByTestId("map-polyline-route-option-0")
+            .getAttribute("data-points"),
+        ).toContain('"lat":11.05');
+      });
+      expect(
+        screen.queryByTestId("all-options-excluded"),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /routes.saveAlternative/ }),
+      );
+      await waitFor(() => expect(createAlternativeRoute).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(updateAlternativeRouteGeometry).toHaveBeenCalledWith(
+          createdAlternative.id,
+          { pathPolyline: encodeGooglePolyline(reshapedPoints) },
+        ),
+      );
+    });
+
     it("loads the selected alternative's polyline (orange) and stop markers onto the map", async () => {
       await openAlternativesTab();
 
@@ -2992,6 +3342,14 @@ describe("Manager route setup workflow", () => {
       // Chọn Alt Two (không có stop) → map đổi theo: marker của Alt One biến mất
       fireEvent.click(screen.getByText("Alt Two"));
       await screen.findByDisplayValue("Alt Two");
+      await waitFor(() =>
+        expect(getAlternativeRoute).toHaveBeenCalledWith("alt-2"),
+      );
+      expect(
+        screen
+          .getByTestId("map-polyline-route-geometry")
+          .getAttribute("data-points"),
+      ).toContain('"lat":10.9');
       expect(
         screen.queryByTestId("map-pointmarker-route-stop-alt-stop-1"),
       ).not.toBeInTheDocument();

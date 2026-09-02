@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   FiAlertTriangle,
+  FiChevronDown,
   FiEdit3,
   FiGitBranch,
   FiRefreshCw,
@@ -20,7 +21,7 @@ import {
   getPublicTripSeatMap,
   previewSubstituteOperatorTripVehicle,
   substituteOperatorTripVehicle,
-  type AlternativeRoute,
+  type AlternativeRouteListItem,
   type CargoCapacity,
   type OperatorIncident,
   type OperatorUser,
@@ -265,7 +266,9 @@ export default function TripActionsPanel({
   const [error, setError] = useState("");
   // Section "Đổi lộ trình": null = chưa tải danh sách tuyến thay thế
   const [isChangeRouteOpen, setIsChangeRouteOpen] = useState(false);
-  const [alternatives, setAlternatives] = useState<AlternativeRoute[] | null>(
+  const [alternatives, setAlternatives] = useState<
+    AlternativeRouteListItem[] | null
+  >(
     null,
   );
   const [isAlternativesLoading, setIsAlternativesLoading] = useState(false);
@@ -1108,14 +1111,12 @@ export default function TripActionsPanel({
 
       {canMutate && canDisruptTrip && !isSubstituteClosed && (
         <details className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-slate-50/40">
-          <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3.5 text-sm font-semibold text-gray-900 marker:hidden select-none">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-sm font-semibold text-gray-900 marker:hidden select-none">
             <span>{t("tripOperations.substitute")}</span>
-            <span
-              className="mt-0.5 text-lg leading-none text-gray-500"
+            <FiChevronDown
+              className="h-5 w-5 shrink-0 text-gray-500"
               aria-hidden="true"
-            >
-              ⌄
-            </span>
+            />
           </summary>
           <div className="border-t border-gray-200 px-4 pb-4 pt-4">
             <p className="mb-4 text-xs text-gray-500">
@@ -1411,13 +1412,8 @@ export default function TripActionsPanel({
                 checked={notifyPassengers}
                 onChange={setNotifyPassengers}
               />
-              <span>
-                <span className="block text-sm font-semibold text-gray-800">
-                  {t("tripOperations.notifyPassengers")}
-                </span>
-                <span className="mt-0.5 block text-xs text-gray-500">
-                  {t("tripOperations.notifyPassengersHint")}
-                </span>
+              <span className="text-sm font-semibold text-gray-800">
+                {t("tripOperations.notifyPassengers")}
               </span>
             </label>
             {noSeatMatchedVehicle && (

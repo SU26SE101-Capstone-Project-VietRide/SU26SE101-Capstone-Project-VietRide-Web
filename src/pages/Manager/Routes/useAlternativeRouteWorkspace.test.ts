@@ -10,6 +10,8 @@ vi.mock("../../../api/vietride", () => ({
   createAlternativeRoute: vi.fn(),
   createOperatorStop: vi.fn(),
   deleteAlternativeRoute: vi.fn(),
+  getAlternativeRoute: vi.fn(),
+  getAlternativeRoutes: vi.fn(),
   setAlternativeRouteActive: vi.fn(),
   updateAlternativeRoute: vi.fn(),
   updateAlternativeRouteGeometry: vi.fn(),
@@ -124,6 +126,7 @@ describe("useAlternativeRouteWorkspace — xoá mềm & khôi phục", () => {
     estimatedDurationMinutes: 75,
     isActive: true,
     stops: [],
+    pathPolyline: null,
   };
 
   beforeEach(() => {

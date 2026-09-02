@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -180,6 +180,36 @@ describe("ManagerPackages", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("shows all six configured resource quotas to the operator admin", async () => {
+    renderPackages();
+
+    expect(
+      await screen.findByText("packages.currentPackage Starter (Free Trial)"),
+    ).toBeInTheDocument();
+
+    const expectedCurrentUsage = [
+      ["packages.vehiclesUsed", "1/20"],
+      ["packages.routesUsed", "1/10"],
+      ["packages.driversUsed", "1/30"],
+      ["packages.assistantsUsed", "1/20"],
+      ["packages.operatorUsersUsed", "2/10"],
+      ["packages.tripsUsed", "4/500"],
+    ] as const;
+
+    expectedCurrentUsage.forEach(([label, usage]) => {
+      expect(screen.getByLabelText(`${label}: ${usage}`)).toBeInTheDocument();
+    });
+
+    const availablePlan = await screen.findByTestId("plan-card-plan-pro");
+    [
+      "packages.limitLabels.maxDrivers",
+      "packages.limitLabels.maxAssistants",
+      "packages.limitLabels.maxOperatorUsers",
+    ].forEach((label) => {
+      expect(within(availablePlan).getByText(label)).toBeInTheDocument();
+    });
   });
 
   it("quotes before charging and uses a different idempotency key for each step", async () => {

@@ -12,7 +12,7 @@ import {
   getPublicTripSeatMap,
   previewSubstituteOperatorTripVehicle,
   substituteOperatorTripVehicle,
-  type AlternativeRoute,
+  type AlternativeRouteListItem,
   type OperatorIncident,
   type OperatorUser,
   type OperatorVehicle,
@@ -246,7 +246,7 @@ async function chooseIncidentAndCrew(
 }
 
 // Tuyến thay thế trả về từ API — bản active và bản inactive (bị lọc khỏi danh sách)
-const activeAlternative: AlternativeRoute = {
+const activeAlternative: AlternativeRouteListItem = {
   id: "alt-1",
   routeId: "route-1",
   name: "Tuyến tránh đèo",
@@ -258,14 +258,14 @@ const activeAlternative: AlternativeRoute = {
   stops: [],
 };
 
-const inactiveAlternative: AlternativeRoute = {
+const inactiveAlternative: AlternativeRouteListItem = {
   ...activeAlternative,
   id: "alt-2",
   name: "Tuyến cũ ngưng dùng",
   isActive: false,
 };
 
-function alternativesResult(items: AlternativeRoute[]) {
+function alternativesResult(items: AlternativeRouteListItem[]) {
   return {
     items,
     totalItems: items.length,
@@ -358,9 +358,32 @@ describe("TripActionsPanel", () => {
     expect(await screen.findByText("500 kg")).toBeInTheDocument();
   });
 
+  it("aligns the replace-vehicle chevron with its label", () => {
+    renderPanel();
+
+    const summary = screen
+      .getAllByText("tripOperations.substitute")
+      .map((element) => element.closest("summary"))
+      .find((element) => element !== null);
+
+    expect(summary).toHaveClass("items-center");
+    expect(summary?.querySelector("svg")).toHaveClass(
+      "h-5",
+      "w-5",
+      "shrink-0",
+    );
+  });
+
   it("substitutes a vehicle with the selected crew and reason", async () => {
     const user = userEvent.setup();
     const onTripReplaced = renderPanel();
+
+    expect(
+      screen.getByText("tripOperations.notifyPassengers"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("tripOperations.notifyPassengersHint"),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByLabelText("tripOperations.vehicle"));
     await user.click(

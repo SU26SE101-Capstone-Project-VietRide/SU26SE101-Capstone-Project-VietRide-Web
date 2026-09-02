@@ -155,6 +155,62 @@ describe("requestRoadGeometry", () => {
     expect(options[1].totalDistanceKm).toBe(352);
   });
 
+  it("keeps a distinct parallel corridor for a short urban route", async () => {
+    vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
+    const shortEndpoints = [
+      { latitude: 10.77, longitude: 106.69 },
+      { latitude: 10.77, longitude: 107.05 },
+    ];
+    // Hành lang chỉ lệch khoảng 1.3km nhưng zig-zag đủ khác về hình/chiều dài.
+    // Với tuyến ~40km đây là đường đô thị khác thực sự; ngưỡng cứng 2km cũ
+    // loại oan toàn bộ trường hợp kiểu Sài Gòn–Đồng Nai.
+    const parallelDetour = [
+      shortEndpoints[0],
+      { latitude: 10.782, longitude: 106.78 },
+      { latitude: 10.758, longitude: 106.87 },
+      { latitude: 10.782, longitude: 106.96 },
+      shortEndpoints[1],
+    ];
+    const routeResponse = (
+      points: typeof shortEndpoints,
+      distanceMeters: number,
+      durationSeconds: number,
+    ) => ({
+      legs: [
+        {
+          distance: { value: distanceMeters },
+          duration: { value: durationSeconds },
+          steps: [{ maneuver: "right" }],
+        },
+      ],
+      overview_polyline: { points: encodeGooglePolyline(points) },
+    });
+    const fetchMock = vi.fn(async (url: string) => {
+      const hasProbe = new URL(String(url)).searchParams
+        .get("destination")!
+        .includes(";");
+      return {
+        ok: true,
+        json: async () => ({
+          routes: [
+            hasProbe
+              ? routeResponse(parallelDetour, 44_000, 3_600)
+              : routeResponse(shortEndpoints, 40_000, 3_000),
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const options = await requestRoadGeometry(shortEndpoints, "failed", {
+      alternatives: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(options).toHaveLength(2);
+    expect(options[1].points).toEqual(parallelDetour);
+  });
+
   it("drops synthesised detours that are absurdly worse than the main route", async () => {
     vi.stubEnv("VITE_GOONG_API_KEY", "test-key");
     const farPath = [
@@ -599,7 +655,7 @@ describe("dedupeRouteOptions", () => {
 });
 
 // Tìm phương án "trùng ~" một đường có sẵn (polyline đã lưu): tổng km lệch
-// <1.5% và trung điểm 2 đường gần nhau → coi là cùng lộ trình
+// <1.5% và toàn bộ hành lang 2 đường gần nhau → coi là cùng lộ trình
 describe("findMatchingRouteOption", () => {
   const viaNorth = [
     { latitude: 10.77, longitude: 106.69 },
@@ -685,6 +741,29 @@ describe("excludeMatchingRouteOptions", () => {
     expect(
       excludeMatchingRouteOptions([options[0]], viaNorth),
     ).toEqual([]);
+  });
+});
+
+describe("findMatchingRouteOption — detects a detour that rejoins before the midpoint", () => {
+  it("does not classify a short off-corridor segment as the main route", () => {
+    // Mô phỏng polyline Directions dài: detour tách ở 30% rồi nhập lại,
+    // nên đỉnh giữa mảng vẫn nằm trên tuyến chính. Tổng km vẫn lệch dưới 1.5%.
+    const mainPath = Array.from({ length: 5001 }, (_unused, index) => ({
+      latitude: 10 + index * 0.001,
+      longitude: 106.7,
+    }));
+    const detourPath = mainPath.map((point, index) =>
+      index >= 1500 && index <= 1600
+        ? { ...point, longitude: 106.73 }
+        : point,
+    );
+    const option: RoadRouteOption = {
+      points: detourPath,
+      totalDistanceKm: 562,
+      estimatedDurationMinutes: 600,
+    };
+
+    expect(findMatchingRouteOption([option], mainPath)).toBe(-1);
   });
 });
 

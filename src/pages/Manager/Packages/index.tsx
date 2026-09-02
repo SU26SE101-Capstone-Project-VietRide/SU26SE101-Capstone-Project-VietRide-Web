@@ -4,9 +4,15 @@ import { useTranslation } from "react-i18next";
 import {
   FiAlertTriangle,
   FiBox,
+  FiCalendar,
   FiCheck,
   FiClock,
+  FiMap,
   FiShoppingCart,
+  FiTruck,
+  FiUserCheck,
+  FiUserPlus,
+  FiUsers,
   FiXCircle,
 } from "react-icons/fi";
 import {
@@ -388,7 +394,7 @@ export default function ManagerPackages() {
 
       {subscription && currentPlan ? (
         <div
-          className={`rounded-lg border p-6 ${
+          className={`rounded-2xl border p-5 shadow-sm sm:p-6 ${
             hasPendingPayment
               ? "border-amber-200 bg-amber-50/70"
               : isCancelledSubscription
@@ -399,9 +405,11 @@ export default function ManagerPackages() {
           }`}
         >
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <FiBox className="mt-1 text-2xl text-vr-900" />
-              <div>
+            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-xl text-vr-800 shadow-sm ring-1 ring-vr-100">
+                <FiBox />
+              </span>
+              <div className="min-w-0">
                 <h3 className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900">
                   {t(
                     isCancelledSubscription
@@ -419,65 +427,108 @@ export default function ManagerPackages() {
                     </Badge>
                   ) : null}
                 </h3>
-                {subscription.expiresAt ? (
-                  <p className="mt-1 text-sm text-gray-600">
-                    {t("packages.expiresOn", {
-                      date: formatDateOnly(subscription.expiresAt),
-                    })}
-                  </p>
-                ) : null}
-                <p
-                  className={`mt-1 text-xs font-semibold uppercase ${
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {subscription.expiresAt ? (
+                    <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200/70">
+                      {t("packages.expiresOn", {
+                        date: formatDateOnly(subscription.expiresAt),
+                      })}
+                    </span>
+                  ) : null}
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase ${
                     isCancelledSubscription
-                      ? "text-red-700"
+                      ? "bg-red-100 text-red-700"
                       : hasPendingPayment || isExpiredSubscription
-                        ? "text-amber-700"
-                        : "text-vr-900"
-                  }`}
-                >
-                  {tc(`enumLabels.${subscription.status}`, {
-                    defaultValue: subscription.status,
-                  })}{" "}
-                  ·{" "}
-                  {subscription.billingPeriod
-                    ? tc(`enumLabels.${subscription.billingPeriod}`, {
-                        defaultValue: subscription.billingPeriod,
-                      })
-                    : "-"}
-                </p>
-                {hasCurrentPlanEntitlement ? (
-                  <div className="mt-3 grid gap-4 text-sm sm:grid-cols-3">
-                    <UsageItem
-                      label={t("packages.vehiclesUsed")}
-                      used={subscription.usage.currentVehicles}
-                      limit={planLimit(currentPlan, "maxVehicles")}
-                    />
-                    <UsageItem
-                      label={t("packages.routesUsed")}
-                      used={subscription.usage.currentRoutes}
-                      limit={planLimit(currentPlan, "maxRoutes")}
-                    />
-                    <UsageItem
-                      label={t("packages.tripsUsed")}
-                      used={subscription.usage.currentTripsThisMonth}
-                      limit={planLimit(currentPlan, "maxTripsPerMonth")}
-                    />
-                  </div>
-                ) : null}
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-vr-100 text-vr-900"
+                    }`}
+                  >
+                    {tc(`enumLabels.${subscription.status}`, {
+                      defaultValue: subscription.status,
+                    })}{" "}
+                    ·{" "}
+                    {subscription.billingPeriod
+                      ? tc(`enumLabels.${subscription.billingPeriod}`, {
+                          defaultValue: subscription.billingPeriod,
+                        })
+                      : "-"}
+                  </span>
+                </div>
               </div>
             </div>
-            {hasPendingPayment ? (
-              <FiClock className="text-3xl text-amber-600" />
-            ) : isCancelledSubscription ? (
-              <FiXCircle className="text-3xl text-red-600" />
-            ) : isExpiredSubscription ? (
-              <FiClock className="text-3xl text-amber-600" />
-            ) : subscription.status === "ACTIVE" ? (
-              <FiCheck className="text-3xl text-emerald-600" />
-            ) : (
-              <FiClock className="text-3xl text-gray-500" />
-            )}
+            <span
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${
+                hasPendingPayment || isExpiredSubscription
+                  ? "bg-amber-100 text-amber-600"
+                  : isCancelledSubscription
+                    ? "bg-red-100 text-red-600"
+                    : subscription.status === "ACTIVE"
+                      ? "bg-emerald-100 text-emerald-600"
+                      : "bg-gray-100 text-gray-500"
+              }`}
+            >
+              {hasPendingPayment ? (
+                <FiClock />
+              ) : isCancelledSubscription ? (
+                <FiXCircle />
+              ) : isExpiredSubscription ? (
+                <FiClock />
+              ) : subscription.status === "ACTIVE" ? (
+                <FiCheck />
+              ) : (
+                <FiClock />
+              )}
+            </span>
           </div>
+          {hasCurrentPlanEntitlement ? (
+            <div className="mt-5 border-t border-vr-200/70 pt-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                {t("packages.usageLimits")}
+              </p>
+              <div
+                data-testid="current-plan-quota-grid"
+                className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6"
+              >
+                <UsageItem
+                  icon={<FiTruck />}
+                  label={t("packages.vehiclesUsed")}
+                  used={subscription.usage.currentVehicles}
+                  limit={planLimit(currentPlan, "maxVehicles")}
+                />
+                <UsageItem
+                  icon={<FiMap />}
+                  label={t("packages.routesUsed")}
+                  used={subscription.usage.currentRoutes}
+                  limit={planLimit(currentPlan, "maxRoutes")}
+                />
+                <UsageItem
+                  icon={<FiUserCheck />}
+                  label={t("packages.driversUsed")}
+                  used={subscription.usage.currentDrivers}
+                  limit={planLimit(currentPlan, "maxDrivers")}
+                />
+                <UsageItem
+                  icon={<FiUserPlus />}
+                  label={t("packages.assistantsUsed")}
+                  used={subscription.usage.currentAssistants}
+                  limit={planLimit(currentPlan, "maxAssistants")}
+                />
+                <UsageItem
+                  icon={<FiUsers />}
+                  label={t("packages.operatorUsersUsed")}
+                  used={subscription.usage.currentOperatorUsers}
+                  limit={planLimit(currentPlan, "maxOperatorUsers")}
+                />
+                <UsageItem
+                  icon={<FiCalendar />}
+                  label={t("packages.tripsUsed")}
+                  used={subscription.usage.currentTripsThisMonth}
+                  limit={planLimit(currentPlan, "maxTripsPerMonth")}
+                />
+              </div>
+            </div>
+          ) : null}
           {hasUnresolvedPendingPayment ? (
             <div
               role="status"

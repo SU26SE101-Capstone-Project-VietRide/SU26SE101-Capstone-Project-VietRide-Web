@@ -1,7 +1,18 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { FiBox, FiEdit2, FiPlus, FiPower } from "react-icons/fi";
+import {
+  FiBox,
+  FiCalendar,
+  FiEdit2,
+  FiMap,
+  FiPlus,
+  FiPower,
+  FiTruck,
+  FiUserCheck,
+  FiUserPlus,
+  FiUsers,
+} from "react-icons/fi";
 import Modal from "../../../components/Modal";
 import {
   createAdminSubscriptionPlan,
@@ -25,6 +36,15 @@ import { Badge } from "../../../components/ui/Badge";
 function formatNumber(n: number) {
   return n.toLocaleString("vi-VN");
 }
+
+const planLimitItems = [
+  { key: "maxVehicles", Icon: FiTruck },
+  { key: "maxRoutes", Icon: FiMap },
+  { key: "maxDrivers", Icon: FiUserCheck },
+  { key: "maxAssistants", Icon: FiUserPlus },
+  { key: "maxOperatorUsers", Icon: FiUsers },
+  { key: "maxTripsPerMonth", Icon: FiCalendar },
+] as const;
 
 const emptyForm: AdminSubscriptionPlanRequest = {
   name: "",
@@ -242,14 +262,15 @@ export default function PlansTab() {
         {plans.map((plan) => (
           <div
             key={plan.planId}
-            className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+            data-testid={`admin-plan-card-${plan.planId}`}
+            className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
           >
-            <div className="mb-4 flex items-start justify-between">
-              <div>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-wider text-gray-500">
                   {t("packages.packageLabel")}
                 </p>
-                <h3 className="mt-1 text-xl font-bold text-gray-900">
+                <h3 className="mt-1 break-words text-xl font-bold leading-tight text-gray-900">
                   {plan.name}
                 </h3>
               </div>
@@ -263,34 +284,51 @@ export default function PlansTab() {
               </div>
             </div>
 
-            <p className="mb-4 text-sm text-gray-600">
+            <p
+              className="mb-4 min-h-10 text-sm leading-5 text-gray-600 line-clamp-2"
+              title={plan.description || undefined}
+            >
               {plan.description || "-"}
             </p>
 
-            <div className="mb-6 border-b border-gray-200 pb-6">
-              <p className="text-sm text-gray-500">
-                {t("packages.monthlyPrice")}
-              </p>
-              <p className="text-3xl font-bold text-vr-900">
-                {formatCurrency(plan.pricePerMonth)}
-              </p>
-              <p className="mt-2 text-sm text-gray-500">
-                {t("packages.yearlyPrice")}:{" "}
-                <span className="font-semibold text-gray-900">
+            <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl bg-gradient-to-br from-vr-50 to-white p-4 ring-1 ring-vr-100">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-500">
+                  {t("packages.monthlyPrice")}
+                </p>
+                <p className="mt-1 break-words text-xl font-bold tracking-tight text-vr-900">
+                  {formatCurrency(plan.pricePerMonth)}
+                </p>
+              </div>
+              <div className="min-w-0 border-l border-vr-100 pl-3">
+                <p className="text-xs font-medium text-gray-500">
+                  {t("packages.yearlyPrice")}
+                </p>
+                <p className="mt-1 break-words text-xl font-bold tracking-tight text-gray-900">
                   {formatCurrency(plan.pricePerYear)}
-                </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                {t("packages.limitsTitle")}
               </p>
+              <div className="grid grid-cols-2 gap-2 rounded-xl border border-gray-100 bg-gray-50/80 p-2.5">
+                {planLimitItems.map(({ key, Icon }) => (
+                  <Limit
+                    key={key}
+                    testId={`admin-plan-limit-${key}`}
+                    icon={<Icon size={15} />}
+                    label={t(`packages.limitLabels.${key}`)}
+                    value={plan.limits[key]}
+                  />
+                ))}
+              </div>
             </div>
 
-            <div className="mb-6 grid grid-cols-2 gap-3 text-sm">
-              <Limit label={t("packages.vehicleCount")} value={plan.limits.maxVehicles} />
-              <Limit label={t("packages.routesLabel")} value={plan.limits.maxRoutes} />
-              <Limit label={t("packages.maxDriversLabel")} value={plan.limits.maxDrivers} />
-              <Limit label={t("packages.maxTripsLabel")} value={plan.limits.maxTripsPerMonth} />
-            </div>
-
-            <div className="mb-6">
-              <p className="mb-2 text-xs font-medium text-gray-600">
+            <div className="mb-5 flex-1">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 {t("packages.features")}
               </p>
               <div className="flex flex-wrap gap-2 text-xs">
@@ -299,8 +337,10 @@ export default function PlansTab() {
                   return (
                     <span
                       key={feature.key}
-                      className={`rounded-full px-2 py-1 font-semibold ${
-                        enabled ? "bg-vr-50 text-vr-900" : "bg-gray-100 text-gray-500"
+                      className={`rounded-full border px-2.5 py-1 font-semibold ${
+                        enabled
+                          ? "border-vr-100 bg-vr-50 text-vr-900"
+                          : "border-gray-200 bg-gray-50 text-gray-400"
                       }`}
                       title={feature.description}
                     >
@@ -311,15 +351,20 @@ export default function PlansTab() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 border-t border-gray-200 pt-4">
+            <div className="grid grid-cols-2 gap-2 border-t border-gray-200 pt-4">
               <button
                 type="button"
                 onClick={() => void toggleActive(plan)}
-                className="table-action-button"
+                className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${
+                  plan.isActive
+                    ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                }`}
                 title={plan.isActive ? tc("disable") : tc("enable")}
                 aria-label={plan.isActive ? tc("disable") : tc("enable")}
               >
                 <FiPower size={16} />
+                <span>{plan.isActive ? tc("disable") : tc("enable")}</span>
               </button>
               {/* Gói riêng không sửa được sau khi tạo (spec §8). Để nút
                   DISABLED kèm tooltip thay vì ẩn hẳn — ẩn thì admin tưởng
@@ -328,7 +373,7 @@ export default function PlansTab() {
                 type="button"
                 onClick={() => openEdit(plan)}
                 disabled={isCustomPlan(plan)}
-                className="table-action-button disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-vr-200 hover:bg-vr-50 hover:text-vr-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                 title={
                   isCustomPlan(plan)
                     ? t("customPlans.notEditableHint")
@@ -337,6 +382,7 @@ export default function PlansTab() {
                 aria-label={tc("edit")}
               >
                 <FiEdit2 size={16} />
+                <span>{tc("edit")}</span>
               </button>
             </div>
           </div>
@@ -396,11 +442,33 @@ export default function PlansTab() {
   );
 }
 
-function Limit({ label, value }: { label: string; value: number }) {
+function Limit({
+  icon,
+  label,
+  value,
+  testId,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: number;
+  testId: string;
+}) {
   return (
-    <div>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="font-semibold text-gray-900">{formatNumber(value)}</p>
+    <div
+      data-testid={testId}
+      className="flex min-w-0 items-center gap-2.5 rounded-lg bg-white px-3 py-2.5 shadow-sm ring-1 ring-gray-100"
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-vr-50 text-vr-600">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-xs text-gray-500" title={label}>
+          {label}
+        </p>
+        <p className="mt-0.5 font-bold leading-none text-gray-900">
+          {formatNumber(value)}
+        </p>
+      </div>
     </div>
   );
 }

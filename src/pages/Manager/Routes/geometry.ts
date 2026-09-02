@@ -250,9 +250,27 @@ export function dedupeRouteOptions(
 }
 
 // Ngưỡng coi một phương án "trùng ~" một đường có sẵn (vd polyline đã lưu):
-// tổng km lệch dưới 1.5% VÀ trung điểm 2 đường cách nhau dưới 2km
+// tổng km lệch dưới 1.5% VÀ toàn bộ hành lang đường không lệch quá 2km.
 const matchingPathKmRatio = 0.015;
-const matchingPathMidpointKm = 2;
+const matchingPathMaxDivergenceKm = 2;
+const matchingPathSampleCount = 400;
+
+function maxSampledPathDivergenceKm(
+  source: RouteCoordinate[],
+  reference: RouteCoordinate[],
+) {
+  const sampledSource = samplePath(source, matchingPathSampleCount);
+  const sampledReference = samplePath(reference, matchingPathSampleCount);
+
+  return sampledSource.reduce(
+    (maximum, point) =>
+      Math.max(
+        maximum,
+        projectPointOntoPolyline(sampledReference, point).distanceToPathKm,
+      ),
+    0,
+  );
+}
 
 // Tìm index phương án trùng ~ đường path (polyline đã lưu / đang áp) — -1 nếu không có
 export function findMatchingRouteOption(
@@ -264,7 +282,6 @@ export function findMatchingRouteOption(
   }
 
   const pathKm = calculatePathDistance(path);
-  const pathMidpoint = path[Math.floor(path.length / 2)];
 
   return options.findIndex((option) => {
     if (option.points.length < 2) {
@@ -272,13 +289,21 @@ export function findMatchingRouteOption(
     }
 
     const optionKm = calculatePathDistance(option.points);
-    const optionMidpoint = option.points[Math.floor(option.points.length / 2)];
+    if (
+      Math.abs(optionKm - pathKm) / Math.max(pathKm, 0.1) >=
+      matchingPathKmRatio
+    ) {
+      return false;
+    }
 
-    return (
-      Math.abs(optionKm - pathKm) / Math.max(pathKm, 0.1) <
-        matchingPathKmRatio &&
-      distanceKmBetween(pathMidpoint, optionMidpoint) < matchingPathMidpointKm
+    // Đo cả hai chiều để bắt được trường hợp một polyline có thêm nhánh
+    // ngắn mà chiều ngược lại (option → path) không đi qua đúng đoạn đó.
+    const maxDivergenceKm = Math.max(
+      maxSampledPathDivergenceKm(option.points, path),
+      maxSampledPathDivergenceKm(path, option.points),
     );
+
+    return maxDivergenceKm < matchingPathMaxDivergenceKm;
   });
 }
 
@@ -396,10 +421,13 @@ export function findRouteLabelAnchor(
 // Vị trí (theo tỉ lệ chiều dài tuyến) đặt điểm thử lệch. Tránh hai đầu vì mọi
 // phương án đều chụm về bến đi/bến đến.
 const detourProbeFractions = [0.35, 0.65];
-// Độ lệch sang bên, tính theo % chiều dài tuyến rồi kẹp trong [5, 30] km:
-// lệch ít quá thì Goong trả lại đúng tuyến chính, nhiều quá thì ra đường vô lý.
+// Độ lệch sang bên, tính theo % chiều dài tuyến. Tuyến ngắn/đô thị dùng sàn
+// thấp hơn: ép lệch 5km trên hành trình 30-50km thường đẩy waypoint quá xa,
+// khiến mọi detour hợp lệ bị trần 1.5x loại sạch.
 const detourOffsetRatio = 0.08;
-const minDetourOffsetKm = 5;
+const shortRouteThresholdKm = 100;
+const shortRouteMinDetourOffsetKm = 2;
+const longRouteMinDetourOffsetKm = 5;
 const maxDetourOffsetKm = 30;
 // Phương án dài/lâu hơn tuyến chính quá ngưỡng này thì không đáng đề xuất
 const maxDetourDistanceRatio = 1.5;
@@ -457,9 +485,13 @@ function offsetAcrossPath(
 
 /** Bộ điểm thử lệch hai bên tuyến chính. */
 function buildDetourProbes(primary: RoadRouteOption): RouteCoordinate[] {
+  const minOffsetKm =
+    primary.totalDistanceKm < shortRouteThresholdKm
+      ? shortRouteMinDetourOffsetKm
+      : longRouteMinDetourOffsetKm;
   const offsetKm = Math.min(
     maxDetourOffsetKm,
-    Math.max(minDetourOffsetKm, primary.totalDistanceKm * detourOffsetRatio),
+    Math.max(minOffsetKm, primary.totalDistanceKm * detourOffsetRatio),
   );
 
   return detourProbeFractions
@@ -578,9 +610,11 @@ export function longestRetracedSpanKm(points: RouteCoordinate[]) {
 // toạ độ gốc 600m — so với toạ độ gốc là loại sạch cả những bản hoàn toàn tốt.
 const sameTerminusKm = 0.3;
 
-// Dưới mức tách này thì phương án chỉ là tuyến chính cộng vài khúc ngoằn ngoèo
-// vặt, không đáng gọi là "tuyến thay thế" để nhà xe chọn khi lộ trình chính kẹt
-const minCorridorDivergenceKm = 2;
+// Tuyến dài vẫn cần tách ít nhất 2km. Với tuyến ngắn/đô thị, hai trục đường song
+// song cách nhau 0.5-1.5km đã là hành lang khác thực sự, nên scale theo chiều dài.
+function minCorridorDivergenceKm(primaryDistanceKm: number) {
+  return Math.min(2, Math.max(0.5, primaryDistanceKm * 0.025));
+}
 
 function reachesSameEnds(option: RoadRouteOption, primary: RoadRouteOption) {
   const optionEnd = option.points[option.points.length - 1];
@@ -727,7 +761,7 @@ export async function requestRoadGeometry(
       return (
         anchor !== null &&
         projectPointOntoPolyline(primary.points, anchor).distanceToPathKm >=
-          minCorridorDivergenceKm
+          minCorridorDivergenceKm(primary.totalDistanceKm)
       );
     })
     // Vòng ít hơn thì xếp trước — nhà xe cần bản đỡ tốn dầu nhất trước tiên
