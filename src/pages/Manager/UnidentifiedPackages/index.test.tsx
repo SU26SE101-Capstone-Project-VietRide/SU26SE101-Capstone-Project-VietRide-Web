@@ -5,6 +5,10 @@ import {
   getUnidentifiedPackage,
   getUnidentifiedPackageMatchCandidates,
   getUnidentifiedPackages,
+  getOperatorStations,
+  getOperatorStops,
+  getOperatorTrips,
+  getOperatorVehicles,
   matchUnidentifiedPackage,
   registerUnidentifiedPackage,
   type UnidentifiedPackage,
@@ -27,6 +31,10 @@ vi.mock("../../../api/vietride", () => ({
   getUnidentifiedPackageMatchCandidates: vi.fn(),
   matchUnidentifiedPackage: vi.fn(),
   registerUnidentifiedPackage: vi.fn(),
+  getOperatorStations: vi.fn(),
+  getOperatorStops: vi.fn(),
+  getOperatorTrips: vi.fn(),
+  getOperatorVehicles: vi.fn(),
   UNIDENTIFIED_PACKAGE_STATUSES: ["UNIDENTIFIED", "MATCHED"],
   PARCEL_CUSTODY_LOCATION_TYPES: ["WAREHOUSE", "VEHICLE"],
 }));
@@ -78,6 +86,10 @@ const detailMock = vi.mocked(getUnidentifiedPackage);
 const candidatesMock = vi.mocked(getUnidentifiedPackageMatchCandidates);
 const matchMock = vi.mocked(matchUnidentifiedPackage);
 const registerMock = vi.mocked(registerUnidentifiedPackage);
+const stationsMock = vi.mocked(getOperatorStations);
+const stopsMock = vi.mocked(getOperatorStops);
+const tripsMock = vi.mocked(getOperatorTrips);
+const vehiclesMock = vi.mocked(getOperatorVehicles);
 
 function mockList(items: UnidentifiedPackage[] = [packageItem]) {
   listMock.mockResolvedValue({
@@ -96,6 +108,48 @@ beforeEach(() => {
   mockList();
   detailMock.mockResolvedValue(packageItem);
   candidatesMock.mockResolvedValue([candidate]);
+  stationsMock.mockResolvedValue({
+    items: [
+      {
+        id: "operator-station-1",
+        stationId: "36000000-0000-4000-8000-000000000502",
+        displayNameOverride: "Kho bến B",
+      },
+    ],
+    page: 1,
+    pageSize: 100,
+    totalItems: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+  stopsMock.mockResolvedValue({
+    items: [],
+    page: 1,
+    pageSize: 100,
+    totalItems: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+  vehiclesMock.mockResolvedValue({
+    items: [],
+    page: 1,
+    pageSize: 100,
+    totalItems: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+  tripsMock.mockResolvedValue({
+    items: [],
+    page: 1,
+    pageSize: 100,
+    totalItems: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
 });
 
 describe("UnidentifiedPackagesPage", () => {
@@ -182,10 +236,17 @@ describe("UnidentifiedPackagesPage", () => {
       screen.getByLabelText(/unidentifiedPackages.tagLabel/),
       "TMP-BEN-B-002",
     );
-    await user.type(
-      screen.getByLabelText(/unidentifiedPackages.locationIdLabel/),
-      "36000000-0000-4000-8000-000000000502",
+    await waitFor(() => {
+      expect(
+        screen
+          .getByLabelText("unidentifiedPackages.locationLabel")
+          .getAttribute("disabled"),
+      ).toBeNull();
+    });
+    await user.click(
+      screen.getByLabelText("unidentifiedPackages.locationLabel"),
     );
+    await user.click(screen.getByRole("option", { name: "Kho bến B" }));
     await user.type(
       screen.getByLabelText(/unidentifiedPackages.descriptionLabel/),
       "Thùng xốp",
@@ -208,6 +269,7 @@ describe("UnidentifiedPackagesPage", () => {
         temporaryExceptionTag: "TMP-BEN-B-002",
         locationType: "WAREHOUSE",
         locationId: "36000000-0000-4000-8000-000000000502",
+        locationSnapshot: "Kho bến B",
         description: "Thùng xốp",
         evidenceReferences: ["https://cdn.example/x.jpg"],
       });
@@ -227,10 +289,17 @@ describe("UnidentifiedPackagesPage", () => {
       screen.getByLabelText(/unidentifiedPackages.tagLabel/),
       "TMP-BEN-B-003",
     );
-    await user.type(
-      screen.getByLabelText(/unidentifiedPackages.locationIdLabel/),
-      "36000000-0000-4000-8000-000000000502",
+    await waitFor(() => {
+      expect(
+        screen
+          .getByLabelText("unidentifiedPackages.locationLabel")
+          .getAttribute("disabled"),
+      ).toBeNull();
+    });
+    await user.click(
+      screen.getByLabelText("unidentifiedPackages.locationLabel"),
     );
+    await user.click(screen.getByRole("option", { name: "Kho bến B" }));
     await user.type(
       screen.getByLabelText(/unidentifiedPackages.descriptionLabel/),
       "Thùng xốp",

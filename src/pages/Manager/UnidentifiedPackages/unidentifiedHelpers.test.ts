@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
+import { ApiRequestError } from "../../../api/client";
 import {
   hasPackageAction,
   packageStatusTone,
   parseRegisterPackageDraft,
+  unidentifiedErrorTranslationKey,
   type RegisterPackageDraft,
 } from "./unidentifiedHelpers";
+
+describe("unidentifiedErrorTranslationKey", () => {
+  it("không đưa message lỗi kỹ thuật thô ra màn nhà xe", () => {
+    expect(
+      unidentifiedErrorTranslationKey(
+        new ApiRequestError("Internal server error", 500, "INTERNAL_ERROR"),
+        "unidentifiedPackages.loadFailed",
+      ),
+    ).toBe("unidentifiedPackages.errors.systemUnavailable");
+  });
+});
 
 function draft(overrides: Partial<RegisterPackageDraft> = {}): RegisterPackageDraft {
   return {

@@ -18,6 +18,7 @@ import { Button } from "../../../components/ui/Button";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { formatCurrency } from "../../../utils/currency";
 import {
+  claimErrorTranslationKey,
   parseClaimDecision,
   previewClaimCargoAward,
   type ClaimDecisionDraft,
@@ -109,7 +110,7 @@ export default function ClaimDecisionModal({
         }
       }
 
-      setError(err instanceof Error ? err.message : t("claims.decisionFailed"));
+      setError(t(claimErrorTranslationKey(err, "claims.decisionFailed")));
     } finally {
       setIsSubmitting(false);
     }

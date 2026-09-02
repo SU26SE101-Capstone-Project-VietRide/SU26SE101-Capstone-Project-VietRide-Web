@@ -425,6 +425,9 @@ describe("duyệt báo cáo custody exception", () => {
     expect(
       within(dialog).getByAltText("parcelIncidents.approval.evidenceItem 1"),
     ).toHaveAttribute("src", "https://cdn.example/wrong-stop.jpg");
+    expect(
+      within(dialog).queryByText("parcelIncidents.approval.technicalIds"),
+    ).not.toBeInTheDocument();
   });
 
   it("chưa duyệt thì không mở được search/mark-found/forward/declare-lost", async () => {

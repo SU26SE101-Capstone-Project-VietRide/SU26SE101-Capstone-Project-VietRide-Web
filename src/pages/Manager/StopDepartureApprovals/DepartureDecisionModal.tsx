@@ -20,6 +20,7 @@ import {
 import Modal from "../../../components/Modal";
 import { Button } from "../../../components/ui/Button";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
+import { departureErrorTranslationKey } from "./departureHelpers";
 
 type DepartureDecisionModalProps = {
   /** `null` = đóng. Đổi giá trị = thao tác nghiệp vụ khác → key mới. */
@@ -50,7 +51,6 @@ export default function DepartureDecisionModal({
 
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
-  const [traceId, setTraceId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pendingRef = useRef<{
@@ -88,7 +88,6 @@ export default function DepartureDecisionModal({
 
     setIsSubmitting(true);
     setError("");
-    setTraceId("");
 
     const idempotencyKey = takeIdempotencyKey(decision, notePayload);
 
@@ -133,11 +132,13 @@ export default function DepartureDecisionModal({
     }
 
     setError(
-      err instanceof Error
-        ? err.message
-        : t("stopDepartureApprovals.decisionFailed"),
+      t(
+        departureErrorTranslationKey(
+          err,
+          "stopDepartureApprovals.decisionFailed",
+        ),
+      ),
     );
-    setTraceId(err instanceof ApiRequestError ? (err.traceId ?? "") : "");
   }
 
   return (
@@ -150,9 +151,7 @@ export default function DepartureDecisionModal({
           ? "stopDepartureApprovals.approveTitle"
           : "stopDepartureApprovals.rejectTitle",
       )}
-      subtitle={t("stopDepartureApprovals.requestRef", {
-        ref: approval.requestId.slice(0, 8).toUpperCase(),
-      })}
+      subtitle={t("stopDepartureApprovals.requestLabel")}
       footer={
         <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
@@ -218,11 +217,6 @@ export default function DepartureDecisionModal({
             className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
           >
             <p>{error}</p>
-            {traceId && (
-              <p className="mt-1 break-all font-mono text-xs text-red-600">
-                {t("stopDepartureApprovals.traceId", { traceId })}
-              </p>
-            )}
           </div>
         )}
       </div>

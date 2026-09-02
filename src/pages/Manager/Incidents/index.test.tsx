@@ -421,9 +421,9 @@ describe("Manager Incidents", () => {
     expect(screen.queryByText("incidents.filteredByTrip")).not.toBeInTheDocument();
   });
 
-  // Toạ độ điểm báo là nơi tài xế bấm gửi, không phải vị trí hiện tại của xe —
-  // bỏ khỏi modal để không ai đọc nhầm thành vị trí xe.
-  it("không hiện ô vị trí/bản đồ trong chi tiết sự cố", async () => {
+  // Đây là vị trí lúc tài xế bấm gửi, được ghi nhãn riêng để không bị hiểu nhầm
+  // là GPS hiện tại của xe.
+  it("hiện toạ độ điểm báo và link mở Google Maps trong chi tiết sự cố", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("TP.HCM - Hà Nội");
@@ -435,10 +435,36 @@ describe("Manager Incidents", () => {
       within(dialog).getByText("incidents.reporterInfo"),
     ).toBeInTheDocument();
     expect(
+      within(dialog).getByText("incidents.location"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("10.351000")).toBeInTheDocument();
+    expect(within(dialog).getByText("107.084000")).toBeInTheDocument();
+    const mapsLink = within(dialog).getByRole("link", {
+      name: "incidents.openInMaps",
+    });
+    expect(mapsLink).toHaveAttribute(
+      "href",
+      "https://www.google.com/maps/search/?api=1&query=10.351000%2C%20107.084000",
+    );
+  });
+
+  it("không hiện khối vị trí khi báo cáo không có đủ toạ độ", async () => {
+    vi.mocked(getOperatorIncident).mockResolvedValueOnce({
+      ...incident,
+      longitude: null,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("TP.HCM - Hà Nội");
+
+    await user.click(screen.getByRole("button", { name: /details/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
       within(dialog).queryByText("incidents.location"),
     ).not.toBeInTheDocument();
     expect(
-      within(dialog).queryByText("incidents.openInMaps"),
+      within(dialog).queryByRole("link", { name: "incidents.openInMaps" }),
     ).not.toBeInTheDocument();
   });
 

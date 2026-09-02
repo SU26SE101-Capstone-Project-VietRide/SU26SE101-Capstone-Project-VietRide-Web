@@ -25,6 +25,7 @@ import { inputClass, labelClass } from "../../../components/form/formClasses";
 import { formatCurrency } from "../../../utils/currency";
 import {
   APPEAL_REASON_MAX_LENGTH,
+  appealErrorTranslationKey,
   parseAppealDecision,
   type AppealDecisionDraft,
 } from "./appealHelpers";
@@ -60,7 +61,6 @@ export default function AppealDecisionModal({
 
   const [draft, setDraft] = useState<AppealDecisionDraft>(emptyDraft);
   const [error, setError] = useState("");
-  const [traceId, setTraceId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Khoá dedupe của thao tác đang chờ. Giữ nguyên nội dung đã gửi để phân biệt
@@ -96,7 +96,6 @@ export default function AppealDecisionModal({
 
     setIsSubmitting(true);
     setError("");
-    setTraceId("");
 
     const idempotencyKey = takeIdempotencyKey(JSON.stringify(parsed.value));
 
@@ -144,9 +143,8 @@ export default function AppealDecisionModal({
     }
 
     setError(
-      err instanceof Error ? err.message : t("claimAppeals.decisionFailed"),
+      t(appealErrorTranslationKey(err, "claimAppeals.decisionFailed")),
     );
-    setTraceId(err instanceof ApiRequestError ? (err.traceId ?? "") : "");
   }
 
   return (
@@ -156,9 +154,7 @@ export default function AppealDecisionModal({
       wide
       icon={<FiRotateCcw size={20} />}
       title={t("claimAppeals.decisionTitle")}
-      subtitle={t("claimAppeals.appealRef", {
-        ref: appeal.appealId.slice(0, 8).toUpperCase(),
-      })}
+      subtitle={t("claimAppeals.requestLabel")}
       footer={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
@@ -184,12 +180,6 @@ export default function AppealDecisionModal({
         {error ? (
           <InlineAlert tone="error">
             <p>{error}</p>
-            {/* traceId chỉ để gửi cho support, không phải nội dung thông báo */}
-            {traceId && (
-              <p className="mt-1 break-all font-mono text-xs">
-                {t("claimAppeals.traceId", { traceId })}
-              </p>
-            )}
           </InlineAlert>
         ) : null}
 

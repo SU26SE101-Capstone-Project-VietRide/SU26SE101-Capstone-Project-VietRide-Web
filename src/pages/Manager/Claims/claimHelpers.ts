@@ -1,5 +1,6 @@
 import type { BadgeTone } from "../../../components/ui/Badge";
 import type { ParcelClaimAction } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 
 /**
  * `availableActions` của backend là NGUỒN QUYỀN DUY NHẤT cho nút quyết định
@@ -46,6 +47,36 @@ export function fundingStatusTone(status: string): BadgeTone {
     default:
       return "neutral";
   }
+}
+
+/** Trả về khoá bản dịch dễ hiểu, không để message/mã lỗi thô rơi ra UI. */
+export function claimErrorTranslationKey(
+  error: unknown,
+  fallbackKey: string,
+) {
+  if (!(error instanceof ApiRequestError)) return fallbackKey;
+
+  switch (error.code) {
+    case "PARCEL_CLAIM_ALREADY_DECIDED":
+      return "claims.alreadyDecided";
+    case "PARCEL_CLAIM_NOT_FOUND":
+    case "PARCEL_NOT_FOUND":
+      return "claims.errors.notFound";
+    case "PARCEL_CLAIM_EVIDENCE_REQUIRED":
+      return "claims.errors.reasonRequired";
+    case "FORBIDDEN":
+      return "claims.errors.noPermission";
+    case "VALIDATION_ERROR":
+    case "VALIDATION_FAILED":
+      return "claims.errors.invalidDecision";
+    default:
+      break;
+  }
+
+  if (error.status === 403) return "claims.errors.noPermission";
+  if (error.status === 404) return "claims.errors.notFound";
+  if (error.status >= 500) return "claims.errors.systemUnavailable";
+  return fallbackKey;
 }
 
 export type ClaimDecisionDraft = {

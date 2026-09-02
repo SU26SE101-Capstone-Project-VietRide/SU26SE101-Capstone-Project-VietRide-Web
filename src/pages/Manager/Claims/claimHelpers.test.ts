@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { ApiRequestError } from "../../../api/client";
 import {
+  claimErrorTranslationKey,
   claimStatusTone,
   fundingStatusTone,
   hasClaimAction,
@@ -7,6 +9,28 @@ import {
   previewClaimCargoAward,
   type ClaimDecisionDraft,
 } from "./claimHelpers";
+
+describe("claimErrorTranslationKey", () => {
+  it("không đưa mã hoặc message lỗi kỹ thuật thô ra màn nhà xe", () => {
+    expect(
+      claimErrorTranslationKey(
+        new ApiRequestError(
+          "A decision reason is required.",
+          422,
+          "PARCEL_CLAIM_EVIDENCE_REQUIRED",
+        ),
+        "claims.decisionFailed",
+      ),
+    ).toBe("claims.errors.reasonRequired");
+
+    expect(
+      claimErrorTranslationKey(
+        new ApiRequestError("Internal server error", 500, "INTERNAL_ERROR"),
+        "claims.loadFailed",
+      ),
+    ).toBe("claims.errors.systemUnavailable");
+  });
+});
 
 function draft(overrides: Partial<ClaimDecisionDraft> = {}): ClaimDecisionDraft {
   return {

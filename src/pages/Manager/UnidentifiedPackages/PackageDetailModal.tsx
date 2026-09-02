@@ -18,7 +18,11 @@ import { Button } from "../../../components/ui/Button";
 import { ConfirmModal } from "../../../components/ConfirmModal";
 import { formatDateTime } from "../../../utils/date";
 import { locationLabel } from "../../../utils/parcelReliability";
-import { hasPackageAction, packageStatusTone } from "./unidentifiedHelpers";
+import {
+  hasPackageAction,
+  packageStatusTone,
+  unidentifiedErrorTranslationKey,
+} from "./unidentifiedHelpers";
 
 type PackageDetailModalProps = {
   open: boolean;
@@ -83,10 +87,15 @@ export default function PackageDetailModal({
       setCandidateState({
         packageId: id,
         isLoading: false,
-        error: err instanceof Error ? err.message : "",
+        error: t(
+          unidentifiedErrorTranslationKey(
+            err,
+            "unidentifiedPackages.candidatesLoadFailed",
+          ),
+        ),
       });
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!open || !packageId || !canViewCandidates) {
@@ -125,9 +134,12 @@ export default function PackageDetailModal({
       setCandidateState((prev) => ({
         ...prev,
         error:
-          err instanceof Error
-            ? err.message
-            : t("unidentifiedPackages.matchFailed"),
+          t(
+            unidentifiedErrorTranslationKey(
+              err,
+              "unidentifiedPackages.matchFailed",
+            ),
+          ),
       }));
       setPendingMatch(null);
     } finally {
@@ -178,7 +190,7 @@ export default function PackageDetailModal({
                 </div>
                 <Badge tone={packageStatusTone(packageItem.status)}>
                   {t(`unidentifiedPackages.status.${packageItem.status}`, {
-                    defaultValue: packageItem.status,
+                    defaultValue: t("unidentifiedPackages.unknownStatus"),
                   })}
                 </Badge>
               </div>
@@ -190,7 +202,11 @@ export default function PackageDetailModal({
                     packageItem.locationSnapshot?.trim() ||
                     t(
                       `parcelIncidents.locationTypes.${packageItem.locationType}`,
-                      { defaultValue: packageItem.locationType },
+                      {
+                        defaultValue: t(
+                          "unidentifiedPackages.unknownLocation",
+                        ),
+                      },
                     )
                   }
                 />
@@ -221,7 +237,7 @@ export default function PackageDetailModal({
 
               {(packageItem.evidenceReferences ?? []).length > 0 && (
                 <ul className="mt-3 space-y-1">
-                  {(packageItem.evidenceReferences ?? []).map((reference) => (
+                  {(packageItem.evidenceReferences ?? []).map((reference, index) => (
                     <li key={reference} className="break-all text-sm">
                       {/* Tham chiếu do nhân viên nhập, không chắc là URL */}
                       {/^https?:\/\//i.test(reference) ? (
@@ -231,10 +247,14 @@ export default function PackageDetailModal({
                           rel="noreferrer noopener"
                           className="font-medium text-vr-900 underline"
                         >
-                          {reference}
+                          {t("unidentifiedPackages.viewEvidence", {
+                            index: index + 1,
+                          })}
                         </a>
                       ) : (
-                        <span className="text-gray-700">{reference}</span>
+                        <span className="text-gray-700">
+                          {t("unidentifiedPackages.evidenceUnavailable")}
+                        </span>
                       )}
                     </li>
                   ))}
@@ -293,6 +313,12 @@ export default function PackageDetailModal({
                               dropoff: locationLabel(
                                 candidate.expectedDropoff,
                                 t("unidentifiedPackages.unknownLocation"),
+                                (type) =>
+                                  t(`parcelIncidents.locationTypes.${type}`, {
+                                    defaultValue: t(
+                                      "unidentifiedPackages.unknownLocation",
+                                    ),
+                                  }),
                               ),
                             })}
                           </p>
@@ -301,7 +327,11 @@ export default function PackageDetailModal({
                               <Badge key={reason} tone="info">
                                 {t(
                                   `unidentifiedPackages.matchReasons.${reason}`,
-                                  { defaultValue: reason },
+                                  {
+                                    defaultValue: t(
+                                      "unidentifiedPackages.unknownMatchReason",
+                                    ),
+                                  },
                                 )}
                               </Badge>
                             ))}

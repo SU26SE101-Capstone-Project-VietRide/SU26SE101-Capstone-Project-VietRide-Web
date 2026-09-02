@@ -26,7 +26,10 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatCurrency } from "../../../utils/currency";
 import { formatDateTime } from "../../../utils/date";
 import AppealDetailModal from "./AppealDetailModal";
-import { appealStatusTone } from "./appealHelpers";
+import {
+  appealErrorTranslationKey,
+  appealStatusTone,
+} from "./appealHelpers";
 
 const PAGE_SIZE = 20;
 
@@ -108,9 +111,9 @@ export default function ClaimAppealsPage() {
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error
-              ? err.message
-              : tRef.current("claimAppeals.loadFailed"),
+            tRef.current(
+              appealErrorTranslationKey(err, "claimAppeals.loadFailed"),
+            ),
           );
         }
       } finally {
@@ -137,9 +140,9 @@ export default function ClaimAppealsPage() {
     } catch (err) {
       if (detailRequestRef.current !== appealId) return;
       setDetailError(
-        err instanceof Error
-          ? err.message
-          : tRef.current("claimAppeals.detailLoadFailed"),
+        tRef.current(
+          appealErrorTranslationKey(err, "claimAppeals.detailLoadFailed"),
+        ),
       );
     } finally {
       if (detailRequestRef.current === appealId) {
@@ -326,12 +329,8 @@ function AppealRow({
   return (
     <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60">
       <td className="px-5 py-4">
-        {/* Payload appeal không có mã kiện — hiện 8 ký tự đầu của ID để đối
-            chiếu nhanh, phần còn lại nằm ở màn chi tiết cùng dữ liệu claim. */}
         <p className="font-semibold text-gray-900">
-          {t("claimAppeals.appealRef", {
-            ref: appeal.appealId.slice(0, 8).toUpperCase(),
-          })}
+          {t("claimAppeals.requestLabel")}
         </p>
         <p className="mt-0.5 text-xs text-gray-600">
           {formatDateTime(appeal.submittedAt)}
@@ -339,7 +338,7 @@ function AppealRow({
         <p className="mt-0.5 text-xs text-gray-500">
           {t("claimAppeals.originalClaimStatus", {
             status: t(`claims.status.${appeal.originalClaimStatus}`, {
-              defaultValue: appeal.originalClaimStatus,
+              defaultValue: t("claimAppeals.unknownStatus"),
             }),
           })}
         </p>
@@ -350,7 +349,7 @@ function AppealRow({
       <td className="px-5 py-4 text-center">
         <Badge tone={appealStatusTone(appeal.status)}>
           {t(`claimAppeals.status.${appeal.status}`, {
-            defaultValue: appeal.status,
+            defaultValue: t("claimAppeals.unknownStatus"),
           })}
         </Badge>
       </td>

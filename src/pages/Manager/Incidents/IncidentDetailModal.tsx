@@ -167,6 +167,18 @@ export default function IncidentDetailModal({
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const photoUrls = incident?.photoUrls ?? [];
+  const hasReportedLocation =
+    incident !== null &&
+    incident.latitude !== null &&
+    incident.longitude !== null &&
+    Number.isFinite(incident.latitude) &&
+    Number.isFinite(incident.longitude);
+  const reportedLocation = hasReportedLocation
+    ? `${incident.latitude!.toFixed(6)}, ${incident.longitude!.toFixed(6)}`
+    : null;
+  const reportedLocationUrl = reportedLocation
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(reportedLocation)}`
+    : null;
 
   return (
     <Modal
@@ -245,9 +257,33 @@ export default function IncidentDetailModal({
               />
             </DetailSection>
 
-            {/* Không hiển thị toạ độ/link bản đồ của điểm báo: nó là vị trí lúc
-                tài xế bấm gửi, không phải vị trí hiện tại của xe — muốn xem xe ở
-                đâu thì sang Trung tâm vận hành (link ở khối hành động bên dưới). */}
+            {hasReportedLocation && reportedLocationUrl && (
+              <DetailSection title={t("incidents.location")} columns="three">
+                <DetailItem
+                  label={t("incidents.latitude")}
+                  value={incident.latitude!.toFixed(6)}
+                />
+                <DetailItem
+                  label={t("incidents.longitude")}
+                  value={incident.longitude!.toFixed(6)}
+                />
+                <DetailItem
+                  label={t("incidents.map")}
+                  value={
+                    <a
+                      href={reportedLocationUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-vr-800 hover:underline"
+                    >
+                      <FiExternalLink size={14} aria-hidden="true" />
+                      {t("incidents.openInMaps")}
+                    </a>
+                  }
+                />
+              </DetailSection>
+            )}
+
             <DetailSection title={t("incidents.reporterInfo")} columns="two">
               <DetailItem
                 label={t("incidents.reporter")}

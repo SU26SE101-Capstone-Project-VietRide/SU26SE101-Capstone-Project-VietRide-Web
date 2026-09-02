@@ -5,6 +5,10 @@ type InfoHintProps = {
   text: string;
   /** Nhãn cho screen reader, vd "Đây là gì?". */
   label: string;
+  /** Ký tự hiển thị trong nút gợi ý. */
+  symbol?: "!" | "i";
+  /** Giữ nội dung tooltip trên một dòng và tự điều chỉnh chiều rộng. */
+  noWrap?: boolean;
 };
 
 const TOOLTIP_WIDTH = 220;
@@ -12,7 +16,7 @@ const VIEWPORT_MARGIN = 8;
 
 // Dấu "!" nhỏ đứng cạnh nhãn viết tắt: hover thấy tooltip gốc của trình duyệt,
 // bấm thì mở popover cho thiết bị cảm ứng (hover không tồn tại trên mobile).
-export default function InfoHint({ text, label }: InfoHintProps) {
+export default function InfoHint({ text, label, symbol = "!", noWrap = false }: InfoHintProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -28,19 +32,22 @@ export default function InfoHint({ text, label }: InfoHintProps) {
 
     const anchor = buttonRef.current.getBoundingClientRect();
     const height = tooltipRef.current?.offsetHeight ?? 0;
+    const tooltipWidth = noWrap
+      ? (tooltipRef.current?.offsetWidth ?? TOOLTIP_WIDTH)
+      : TOOLTIP_WIDTH;
     const left = Math.min(
       Math.max(
-        anchor.left + anchor.width / 2 - TOOLTIP_WIDTH / 2,
+        anchor.left + anchor.width / 2 - tooltipWidth / 2,
         VIEWPORT_MARGIN,
       ),
-      window.innerWidth - TOOLTIP_WIDTH - VIEWPORT_MARGIN,
+      window.innerWidth - tooltipWidth - VIEWPORT_MARGIN,
     );
     // Ưu tiên đặt bên dưới; không đủ chỗ mới lật lên trên.
     const below = anchor.bottom + 6;
     const flipUp = below + height > window.innerHeight - VIEWPORT_MARGIN;
 
     setPosition({ top: flipUp ? anchor.top - height - 6 : below, left });
-  }, [open, text]);
+  }, [noWrap, open, text]);
 
   useEffect(() => {
     if (!open) {
@@ -87,7 +94,7 @@ export default function InfoHint({ text, label }: InfoHintProps) {
         title={text}
         className="info-hint-button inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-semibold leading-none text-gray-500 transition hover:border-vr-300 hover:bg-vr-50 hover:text-vr-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40"
       >
-        !
+        {symbol}
       </button>
       {open && (
         <span
@@ -97,9 +104,12 @@ export default function InfoHint({ text, label }: InfoHintProps) {
           style={{
             top: position.top,
             left: position.left,
-            width: TOOLTIP_WIDTH,
+            width: noWrap ? "max-content" : TOOLTIP_WIDTH,
+            maxWidth: `calc(100vw - ${VIEWPORT_MARGIN * 2}px)`,
           }}
-          className="fixed z-50 whitespace-normal rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium leading-relaxed text-gray-700 shadow-lg shadow-gray-900/10"
+          className={`fixed z-50 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium leading-relaxed text-gray-700 shadow-lg shadow-gray-900/10 ${
+            noWrap ? "whitespace-nowrap" : "whitespace-normal"
+          }`}
         >
           {text}
         </span>

@@ -45,7 +45,8 @@ export function splitRemainingMinutes(minutes: number) {
  * `locationLabel` nhận. Dựng lại nhãn từ phần loại và VỨT uuid đi — điều độ viên
  * không đối chiếu được bằng uuid, xem `locationLabel` cùng file.
  *
- * Không khớp dạng đó (BE có nơi ghi thẳng tên bến) thì trả nguyên văn.
+ * BE cũng có chỗ chỉ ghi mã loại như `STOP`. Dịch cả dạng mã đứng riêng;
+ * không khớp mã enum (BE có nơi ghi thẳng tên bến) thì trả nguyên văn.
  */
 export function locationRefLabel(
   raw: string | null | undefined,
@@ -56,9 +57,11 @@ export function locationRefLabel(
   if (!trimmed) return fallback;
 
   const match = /^([A-Z][A-Z0-9_]*):(.+)$/.exec(trimmed);
-  if (!match) return trimmed;
+  if (match) return typeLabel(match[1]);
 
-  return typeLabel(match[1]);
+  if (/^[A-Z][A-Z0-9_]*$/.test(trimmed)) return typeLabel(trimmed);
+
+  return trimmed;
 }
 
 /**

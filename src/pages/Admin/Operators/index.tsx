@@ -590,10 +590,10 @@ export default function Operators() {
         )}
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1080px] whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
+                <th className="w-72 max-w-72 px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   {t("operators.operatorName")}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
@@ -622,8 +622,13 @@ export default function Operators() {
                     key={operator.operatorId}
                     className="border-b border-gray-100 hover:bg-gray-50 transition"
                   >
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                      {operator.name}
+                    <td className="w-72 max-w-72 px-6 py-4 text-sm font-semibold text-gray-900">
+                      <span
+                        className="block max-w-72 truncate"
+                        title={operator.name}
+                      >
+                        {operator.name}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {operator.contactEmail}

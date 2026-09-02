@@ -109,12 +109,12 @@ export default function ClaimDetailModal({
                 <div className="flex flex-wrap gap-2">
                   <Badge tone={claimStatusTone(claim.status)}>
                     {t(`claims.status.${claim.status}`, {
-                      defaultValue: claim.status,
+                      defaultValue: t("claims.status.UNKNOWN"),
                     })}
                   </Badge>
                   <Badge tone={fundingStatusTone(detail.fundingStatus)}>
                     {t(`claims.funding.${detail.fundingStatus}`, {
-                      defaultValue: detail.fundingStatus,
+                      defaultValue: t("claims.funding.UNKNOWN"),
                     })}
                   </Badge>
                 </div>
@@ -226,18 +226,18 @@ export default function ClaimDetailModal({
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-700">
                   <Badge tone="neutral">
                     {t(`parcelIncidents.type.${detail.incident.type}`, {
-                      defaultValue: detail.incident.type,
+                      defaultValue: t("claims.unknownIncidentType"),
                     })}
                   </Badge>
                   <Badge tone="neutral">
                     {t(`parcelIncidents.status.${detail.incident.status}`, {
-                      defaultValue: detail.incident.status,
+                      defaultValue: t("claims.unknownIncidentStatus"),
                     })}
                   </Badge>
                   {detail.incident.slaState && (
                     <Badge tone={slaTone(detail.incident.slaState)}>
                       {t(`parcelIncidents.sla.${detail.incident.slaState}`, {
-                        defaultValue: detail.incident.slaState,
+                        defaultValue: t("parcelIncidents.sla.UNKNOWN"),
                       })}
                     </Badge>
                   )}
@@ -250,6 +250,10 @@ export default function ClaimDetailModal({
                     location: locationLabel(
                       detail.currentCustody?.lastConfirmedLocation,
                       t("claims.unknownLocation"),
+                      (type) =>
+                        t(`parcelIncidents.locationTypes.${type}`, {
+                          defaultValue: t("claims.unknownLocation"),
+                        }),
                     ),
                     at: detail.currentCustody?.lastConfirmedAt
                       ? formatDateTime(detail.currentCustody.lastConfirmedAt)
@@ -276,7 +280,11 @@ export default function ClaimDetailModal({
                       className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Badge tone="neutral">{item.evidenceType}</Badge>
+                        <Badge tone="neutral">
+                          {t(`claims.evidenceType.${item.evidenceType}`, {
+                            defaultValue: t("claims.evidenceType.OTHER"),
+                          })}
+                        </Badge>
                         <span className="text-xs text-gray-500">
                           {formatDateTime(item.createdAt)}
                         </span>

@@ -70,7 +70,7 @@ export function getStatusBadge(status: string, tc: TranslateFn) {
   const c = config[toKnownStatus(status)];
   return (
     <span
-      className={`px-3 py-1 rounded-full text-xs font-medium ${c.bg} ${c.text}`}
+      className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium ${c.bg} ${c.text}`}
     >
       {c.label}
     </span>

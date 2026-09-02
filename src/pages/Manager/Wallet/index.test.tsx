@@ -194,7 +194,7 @@ describe("ManagerWallet", () => {
     expect(screen.getByText("wallet.outstandingPayable")).toBeInTheDocument();
     expect(screen.getByText("wallet.awaitingTripCompletion")).toBeInTheDocument();
     expect(screen.getByText("wallet.pendingHold")).toBeInTheDocument();
-    expect(screen.getByText("wallet.eligibleAmount")).toBeInTheDocument();
+    expect(screen.queryByText("wallet.eligibleAmount")).not.toBeInTheDocument();
     expect(screen.queryByText(/tổng tài sản/i)).not.toBeInTheDocument();
 
     await waitFor(() => expect(getOperatorWalletTransactions).toHaveBeenCalled());
@@ -327,6 +327,7 @@ describe("ManagerWallet", () => {
     expect(
       screen.getByText("STL-20260810-CCCC3333"),
     ).toBeInTheDocument();
+    expect(screen.getByText("wallet.methodUnknown")).toBeInTheDocument();
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
@@ -387,6 +388,43 @@ describe("ManagerWallet", () => {
 
     await waitFor(() => expect(getOperatorLedger).toHaveBeenCalled());
     expect(await screen.findByText("BK-100")).toBeInTheDocument();
+  });
+
+  it("hiển thị nguồn ghi nhận tự động hoặc tên người thực hiện theo actorType", async () => {
+    vi.mocked(getOperatorLedger).mockResolvedValue(
+      pagedResult([
+        {
+          ...ledgerEntry,
+          actorType: "SYSTEM",
+          actor: {
+            userId: "system-user",
+            displayName: "System Admin",
+          },
+        },
+        {
+          ...ledgerEntry,
+          ledgerEntryId: "ledger-user",
+          referenceCode: "BK-USER",
+          actorType: "USER",
+          actor: {
+            userId: "operator-user",
+            displayName: "Nguyễn Văn An",
+          },
+        },
+      ]),
+    );
+
+    renderWallet();
+    fireEvent.click(screen.getByRole("button", { name: "wallet.tabs.ledger" }));
+
+    const table = (await screen.findByText("BK-USER")).closest("table");
+    if (!table) throw new Error("Không tìm thấy bảng ledger");
+    expect(within(table).getByText("wallet.recordSource")).toBeInTheDocument();
+    expect(
+      within(table).getByText("wallet.recordSourceAutomatic"),
+    ).toBeInTheDocument();
+    expect(within(table).getByText("Nguyễn Văn An")).toBeInTheDocument();
+    expect(within(table).queryByText("System Admin")).not.toBeInTheDocument();
   });
 
   // Endpoint ledger không trả `processingState` (LedgerSettlementDto của BE chỉ

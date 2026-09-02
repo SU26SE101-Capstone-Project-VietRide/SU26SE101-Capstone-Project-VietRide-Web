@@ -133,6 +133,13 @@ describe("ParcelQueue", () => {
     await waitFor(() =>
       expect(getOperatorParcel).toHaveBeenCalledWith("parcel-1"),
     );
+    const qrCode = within(dialog).getByRole("img", {
+      name: "parcels.queue.qrAriaLabel",
+    });
+    expect(qrCode.parentElement).toHaveAttribute(
+      "data-qr-value",
+      "VR-PCL-20260812-ABCDEFGH",
+    );
     expect(
       await within(dialog).findByText("parcels.queue.statusHistorySection"),
     ).toBeInTheDocument();

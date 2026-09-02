@@ -24,7 +24,10 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatDateTime } from "../../../utils/date";
 import PackageDetailModal from "./PackageDetailModal";
 import RegisterPackageModal from "./RegisterPackageModal";
-import { packageStatusTone } from "./unidentifiedHelpers";
+import {
+  packageStatusTone,
+  unidentifiedErrorTranslationKey,
+} from "./unidentifiedHelpers";
 
 const PAGE_SIZE = 20;
 
@@ -113,9 +116,12 @@ export default function UnidentifiedPackagesPage() {
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error
-              ? err.message
-              : tRef.current("unidentifiedPackages.loadFailed"),
+            tRef.current(
+              unidentifiedErrorTranslationKey(
+                err,
+                "unidentifiedPackages.loadFailed",
+              ),
+            ),
           );
         }
       } finally {
@@ -142,9 +148,12 @@ export default function UnidentifiedPackagesPage() {
     } catch (err) {
       if (detailRequestRef.current !== packageId) return;
       setDetailError(
-        err instanceof Error
-          ? err.message
-          : tRef.current("unidentifiedPackages.detailLoadFailed"),
+        tRef.current(
+          unidentifiedErrorTranslationKey(
+            err,
+            "unidentifiedPackages.detailLoadFailed",
+          ),
+        ),
       );
     } finally {
       if (detailRequestRef.current === packageId) {
@@ -369,7 +378,7 @@ function PackageRow({
         <p className="font-medium text-gray-800">
           {packageItem.locationSnapshot?.trim() ||
             t(`parcelIncidents.locationTypes.${packageItem.locationType}`, {
-              defaultValue: packageItem.locationType,
+              defaultValue: t("unidentifiedPackages.unknownLocation"),
             })}
         </p>
         <p className="mt-0.5 text-xs">
@@ -381,7 +390,7 @@ function PackageRow({
       <td className="px-5 py-4 text-center">
         <Badge tone={packageStatusTone(packageItem.status)}>
           {t(`unidentifiedPackages.status.${packageItem.status}`, {
-            defaultValue: packageItem.status,
+            defaultValue: t("unidentifiedPackages.unknownStatus"),
           })}
         </Badge>
       </td>

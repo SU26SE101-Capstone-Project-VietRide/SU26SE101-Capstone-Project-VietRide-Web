@@ -22,7 +22,10 @@ import {
 } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
 import { Button } from "../../../components/ui/Button";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import {
+  labelClass,
+  textareaClass,
+} from "../../../components/form/formClasses";
 import { formatDateTime } from "../../../utils/date";
 import { parcelReasonLabel } from "../../../utils/parcelReason";
 import { classifyIncidentError } from "./incidentHelpers";
@@ -266,7 +269,7 @@ export default function CustodyDecisionModal({
                 ? t("parcelIncidents.approval.approveNotePlaceholder")
                 : t("parcelIncidents.approval.rejectNotePlaceholder")
             }
-            className={inputClass}
+            className={textareaClass}
           />
           <span className="mt-1 block text-xs text-gray-500">
             {t("parcelIncidents.approval.noteHint", {

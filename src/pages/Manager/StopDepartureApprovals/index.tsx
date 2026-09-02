@@ -26,7 +26,9 @@ import {
 import {
   getOperatorParcel,
   getParcelStopDepartureApproval,
+  getPublicTrip,
   type ParcelStopDepartureApproval,
+  type PublicTrip,
 } from "../../../api/vietride";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -35,7 +37,10 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatDateTime } from "../../../utils/date";
 import { isUsableUuid } from "../../../utils/parcelReliability";
 import DepartureDecisionModal from "./DepartureDecisionModal";
-import { departureApprovalTone } from "./departureHelpers";
+import {
+  departureApprovalTone,
+  departureErrorTranslationKey,
+} from "./departureHelpers";
 import { hasIncidentAction } from "../ParcelIncidents/incidentHelpers";
 
 /**
@@ -67,6 +72,10 @@ export default function StopDepartureApprovalsPage() {
   const [message, setMessage] = useState("");
   const [decision, setDecision] = useState<"APPROVE" | "REJECT" | null>(null);
   const [parcelLabels, setParcelLabels] = useState<ParcelLabel[]>([]);
+  const [tripContext, setTripContext] = useState<{
+    tripId: string;
+    trip: PublicTrip | null;
+  }>({ tripId: "", trip: null });
 
   // Bấm lại "Tra cứu" với đúng mã đang xem vẫn phải nạp lại — URL không đổi nên
   // effect sẽ không tự chạy lần nữa nếu không có mốc này.
@@ -104,9 +113,12 @@ export default function StopDepartureApprovalsPage() {
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error
-              ? err.message
-              : tRef.current("stopDepartureApprovals.loadFailed"),
+            tRef.current(
+              departureErrorTranslationKey(
+                err,
+                "stopDepartureApprovals.loadFailed",
+              ),
+            ),
           );
         }
       } finally {
@@ -154,6 +166,24 @@ export default function StopDepartureApprovalsPage() {
       ignore = true;
     };
   }, [approval]);
+
+  useEffect(() => {
+    const tripId = approval?.tripId ?? "";
+    if (!tripId) return;
+
+    let ignore = false;
+    void getPublicTrip(tripId)
+      .then((trip) => {
+        if (!ignore) setTripContext({ tripId, trip });
+      })
+      .catch(() => {
+        if (!ignore) setTripContext({ tripId, trip: null });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [approval?.tripId]);
 
   function handleLookup() {
     const requestId = requestIdInput.trim();
@@ -206,7 +236,7 @@ export default function StopDepartureApprovalsPage() {
               if (event.key === "Enter") handleLookup();
             }}
             placeholder={t("stopDepartureApprovals.requestIdPlaceholder")}
-            className={`${inputClass} font-mono`}
+            className={inputClass}
           />
           <Button
             variant="primary"
@@ -252,14 +282,12 @@ export default function StopDepartureApprovalsPage() {
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-lg font-bold text-gray-900">
                 <FiTruck className="text-vr-900" aria-hidden="true" />
-                {t("stopDepartureApprovals.requestRef", {
-                  ref: approval.requestId.slice(0, 8).toUpperCase(),
-                })}
+                {t("stopDepartureApprovals.requestLabel")}
               </p>
               <p className="mt-1 text-sm text-gray-600">
                 {t("stopDepartureApprovals.requestedBy", {
                   role: t(`parcelIncidents.actorRoles.${approval.requestedByRole}`, {
-                    defaultValue: approval.requestedByRole,
+                    defaultValue: t("stopDepartureApprovals.unknownRole"),
                   }),
                   at: formatDateTime(approval.requestedAt),
                 })}
@@ -267,7 +295,7 @@ export default function StopDepartureApprovalsPage() {
             </div>
             <Badge tone={departureApprovalTone(approval.status)}>
               {t(`stopDepartureApprovals.status.${approval.status}`, {
-                defaultValue: approval.status,
+                defaultValue: t("stopDepartureApprovals.unknownStatus"),
               })}
             </Badge>
           </div>
@@ -306,18 +334,20 @@ export default function StopDepartureApprovalsPage() {
                       className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"
                     >
                       <span className="font-semibold text-gray-900">
-                        {label?.parcelCode ?? (
-                          <span className="font-mono text-xs text-gray-600">
-                            {parcelId}
-                          </span>
-                        )}
+                        {label?.parcelCode ??
+                          t("stopDepartureApprovals.unknownParcel", {
+                            index:
+                              approval.unresolvedParcelIds.indexOf(parcelId) + 1,
+                          })}
                       </span>
                       {label && (
                         <Badge tone="neutral">
                           {/* Trạng thái Parcel dùng từ điển chung
                               `common:enumLabels`, giống màn Hàng hoá. */}
                           {tc(`enumLabels.${label.status}`, {
-                            defaultValue: label.status.replaceAll("_", " "),
+                            defaultValue: t(
+                              "stopDepartureApprovals.unknownStatus",
+                            ),
                           })}
                         </Badge>
                       )}
@@ -338,13 +368,38 @@ export default function StopDepartureApprovalsPage() {
           <dl className="grid gap-3 rounded-lg bg-gray-50 px-4 py-3 text-sm sm:grid-cols-2">
             <DetailItem
               label={t("stopDepartureApprovals.tripLabel")}
-              value={approval.tripId}
-              mono
+              value={
+                tripContext.tripId === approval.tripId
+                  ? tripContext.trip?.tripCode ||
+                    t("stopDepartureApprovals.tripUnavailable")
+                  : t("stopDepartureApprovals.loadingTrip")
+              }
+            />
+            <DetailItem
+              label={t("stopDepartureApprovals.routeLabel")}
+              value={
+                tripContext.tripId === approval.tripId && tripContext.trip
+                  ? `${tripContext.trip.originStation.name} → ${tripContext.trip.destinationStation.name}`
+                  : t("stopDepartureApprovals.tripUnavailable")
+              }
+            />
+            <DetailItem
+              label={t("stopDepartureApprovals.departureTimeLabel")}
+              value={
+                tripContext.tripId === approval.tripId && tripContext.trip
+                  ? formatDateTime(tripContext.trip.departureTime)
+                  : "-"
+              }
             />
             <DetailItem
               label={t("stopDepartureApprovals.stopLabel")}
-              value={approval.stopId}
-              mono
+              value={
+                tripContext.tripId === approval.tripId
+                  ? tripContext.trip?.stops.find(
+                      (stop) => stop.stopId === approval.stopId,
+                    )?.name || t("stopDepartureApprovals.unknownStop")
+                  : t("stopDepartureApprovals.loadingTrip")
+              }
             />
           </dl>
 
@@ -357,7 +412,11 @@ export default function StopDepartureApprovalsPage() {
                 {t("stopDepartureApprovals.reviewedBy", {
                   role: t(
                     `parcelIncidents.actorRoles.${approval.reviewedByRole}`,
-                    { defaultValue: approval.reviewedByRole ?? "-" },
+                    {
+                      defaultValue: t(
+                        "stopDepartureApprovals.unknownRole",
+                      ),
+                    },
                   ),
                   at: formatDateTime(approval.reviewedAt),
                 })}
@@ -422,19 +481,14 @@ export default function StopDepartureApprovalsPage() {
 function DetailItem({
   label,
   value,
-  mono = false,
 }: {
   label: string;
   value: string;
-  mono?: boolean;
 }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs text-gray-500">{label}</dt>
-      <dd
-        className={`mt-0.5 truncate font-semibold text-gray-800 ${mono ? "font-mono text-xs" : ""}`}
-        title={value}
-      >
+      <dd className="mt-0.5 truncate font-semibold text-gray-800" title={value}>
         {value}
       </dd>
     </div>

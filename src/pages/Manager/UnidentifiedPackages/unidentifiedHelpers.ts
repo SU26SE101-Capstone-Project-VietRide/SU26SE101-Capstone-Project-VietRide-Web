@@ -3,7 +3,23 @@ import type {
   RegisterUnidentifiedPackageRequest,
   UnidentifiedPackageAction,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import { isUsableUuid } from "../../../utils/parcelReliability";
+
+/** Trả về khóa dịch an toàn, không để message/mã lỗi kỹ thuật rơi ra UI. */
+export function unidentifiedErrorTranslationKey(
+  error: unknown,
+  fallbackKey: string,
+) {
+  if (!(error instanceof ApiRequestError)) return fallbackKey;
+
+  if (error.status === 403) return "unidentifiedPackages.errors.noPermission";
+  if (error.status === 404) return "unidentifiedPackages.errors.notFound";
+  if (error.status >= 500) {
+    return "unidentifiedPackages.errors.systemUnavailable";
+  }
+  return fallbackKey;
+}
 
 /**
  * `availableActions` là nguồn quyền duy nhất. Quan trọng hơn bình thường ở màn

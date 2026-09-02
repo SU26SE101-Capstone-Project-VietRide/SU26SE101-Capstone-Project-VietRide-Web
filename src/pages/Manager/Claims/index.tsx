@@ -29,7 +29,11 @@ import { formatCurrency } from "../../../utils/currency";
 import { formatDateTime } from "../../../utils/date";
 import { slaTone } from "../../../utils/parcelReliability";
 import ClaimDetailModal from "./ClaimDetailModal";
-import { claimStatusTone, fundingStatusTone } from "./claimHelpers";
+import {
+  claimErrorTranslationKey,
+  claimStatusTone,
+  fundingStatusTone,
+} from "./claimHelpers";
 
 const PAGE_SIZE = 20;
 
@@ -132,7 +136,9 @@ export default function ClaimsPage() {
       } catch (err) {
         if (!ignore) {
           setError(
-            err instanceof Error ? err.message : tRef.current("claims.loadFailed"),
+            tRef.current(
+              claimErrorTranslationKey(err, "claims.loadFailed"),
+            ),
           );
         }
       } finally {
@@ -159,9 +165,9 @@ export default function ClaimsPage() {
     } catch (err) {
       if (detailRequestRef.current !== claimId) return;
       setDetailError(
-        err instanceof Error
-          ? err.message
-          : tRef.current("claims.detailLoadFailed"),
+        tRef.current(
+          claimErrorTranslationKey(err, "claims.detailLoadFailed"),
+        ),
       );
     } finally {
       if (detailRequestRef.current === claimId) {
@@ -444,12 +450,14 @@ function ClaimRow({
       </td>
       <td className="px-5 py-4 text-center">
         <Badge tone={claimStatusTone(claim.status)}>
-          {t(`claims.status.${claim.status}`, { defaultValue: claim.status })}
+          {t(`claims.status.${claim.status}`, {
+            defaultValue: t("claims.status.UNKNOWN"),
+          })}
         </Badge>
         <div className="mt-1.5">
           <Badge tone={fundingStatusTone(claim.fundingStatus)}>
             {t(`claims.funding.${claim.fundingStatus}`, {
-              defaultValue: claim.fundingStatus,
+              defaultValue: t("claims.funding.UNKNOWN"),
             })}
           </Badge>
         </div>
@@ -469,7 +477,7 @@ function ClaimRow({
         {claim.slaState && (
           <Badge tone={slaTone(claim.slaState)}>
             {t(`parcelIncidents.sla.${claim.slaState}`, {
-              defaultValue: claim.slaState,
+              defaultValue: t("parcelIncidents.sla.UNKNOWN"),
             })}
           </Badge>
         )}

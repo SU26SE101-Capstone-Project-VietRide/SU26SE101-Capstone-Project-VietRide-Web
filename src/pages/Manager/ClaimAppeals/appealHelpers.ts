@@ -1,6 +1,20 @@
 // Helper cho hàng đợi khiếu nại lại (§12 playbook Parcel Reliability v2).
 import type { BadgeTone } from "../../../components/ui/Badge";
 import type { ParcelClaimAppealAction } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
+
+/** Trả về khóa dịch an toàn, không để message/mã lỗi kỹ thuật rơi ra UI. */
+export function appealErrorTranslationKey(
+  error: unknown,
+  fallbackKey: string,
+) {
+  if (!(error instanceof ApiRequestError)) return fallbackKey;
+
+  if (error.status === 403) return "claimAppeals.errors.noPermission";
+  if (error.status === 404) return "claimAppeals.errors.notFound";
+  if (error.status >= 500) return "claimAppeals.errors.systemUnavailable";
+  return fallbackKey;
+}
 
 /**
  * `availableActions` của BE là NGUỒN QUYỀN DUY NHẤT cho nút quyết định. BE chỉ

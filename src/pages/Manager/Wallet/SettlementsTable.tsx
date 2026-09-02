@@ -131,7 +131,7 @@ function SettlementRowGroup({
         <td className="px-4 py-3">
           {item.settlementMethod
             ? t(`wallet.methods.${item.settlementMethod}`)
-            : "-"}
+            : t("wallet.methodUnknown")}
         </td>
         <td className="px-2 py-3 text-gray-500">
           {expanded ? (
