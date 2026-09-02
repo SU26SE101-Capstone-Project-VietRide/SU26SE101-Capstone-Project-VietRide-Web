@@ -315,32 +315,59 @@ export default function ParcelCompensationTab() {
           </div>
         </div>
 
-        {/* Công thức của BE (ParcelCompensationCalculator) viết lại bằng con số
-            đang nhập — nhà xe thấy ngay hệ quả trước khi bấm lưu. */}
-        <div className="rounded-xl bg-vr-50 px-4 py-3">
-          <p className="text-xs font-semibold text-vr-800">
-            {t("settings.parcelCompensation.summaryTitle")}
-          </p>
-          <ul className="mt-2 space-y-1.5 text-sm leading-6 text-gray-700">
-            <li>
-              {t("settings.parcelCompensation.summaryWithProof", {
-                rate: draft.compensationRatePercent || "—",
-                cap: draft.maxCompensationVnd
-                  ? formatCurrency(draft.maxCompensationVnd)
-                  : "—",
-              })}
-            </li>
-            <li>
-              {t("settings.parcelCompensation.summaryNoProof", {
-                multiplier: draft.noProofFallbackMultiplier || "—",
-                cap: draft.maxCompensationVnd
-                  ? formatCurrency(draft.maxCompensationVnd)
-                  : "—",
-              })}
-            </li>
-            <li>{t("settings.parcelCompensation.summaryFreight")}</li>
-          </ul>
-        </div>
+        {/* Phản chiếu đúng ParcelCompensationCalculator của BE và thay trực tiếp
+            các tham số đang nhập để nhà xe thấy công thức trước khi bấm lưu. */}
+        <section
+          className="rounded-xl border border-vr-100 bg-vr-50 px-4 py-4"
+          aria-labelledby="parcel-compensation-formula-title"
+        >
+          <h4
+            id="parcel-compensation-formula-title"
+            className="text-sm font-semibold text-vr-800"
+          >
+            {t("settings.parcelCompensation.formulaTitle")}
+          </h4>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <div className="rounded-lg bg-white/80 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {t("settings.parcelCompensation.formulaWithProofTitle")}
+              </p>
+              <div className="mt-2 space-y-2 text-sm leading-6 text-gray-700">
+                <p>{t("settings.parcelCompensation.formulaAssessedLoss")}</p>
+                <p className="font-medium text-gray-900">
+                  {t("settings.parcelCompensation.formulaCargoWithProof", {
+                    rate: draft.compensationRatePercent || "—",
+                    cap: draft.maxCompensationVnd
+                      ? formatCurrency(draft.maxCompensationVnd)
+                      : "—",
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-white/80 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {t("settings.parcelCompensation.formulaWithoutProofTitle")}
+              </p>
+              <p className="mt-2 text-sm font-medium leading-6 text-gray-900">
+                {t("settings.parcelCompensation.formulaCargoWithoutProof", {
+                  multiplier: draft.noProofFallbackMultiplier || "—",
+                  cap: draft.maxCompensationVnd
+                    ? formatCurrency(draft.maxCompensationVnd)
+                    : "—",
+                })}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-1.5 border-t border-vr-100 pt-3 text-sm leading-6 text-gray-700">
+            <p>{t("settings.parcelCompensation.formulaFreightRefund")}</p>
+            <p className="font-semibold text-vr-900">
+              {t("settings.parcelCompensation.formulaTotal")}
+            </p>
+          </div>
+        </section>
 
         {belowDefault ? (
           <InlineAlert tone="warning">

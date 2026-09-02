@@ -1,5 +1,6 @@
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { Badge } from "../../../components/ui/Badge";
+import InfoHint from "../../../components/InfoHint";
 import Checkbox from "../../../components/form/Checkbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -1034,6 +1035,14 @@ export default function ParcelsList() {
                                 <Icon aria-hidden="true" size={12} />
                               </span>
                               <span>{t(`parcels.sizeCategories.${size}`)}</span>
+                              <InfoHint
+                                symbol="i"
+                                noWrap
+                                label={t("parcels.sizeCategoryRangeLabel", {
+                                  size: t(`parcels.sizeCategories.${size}`),
+                                })}
+                                text={t(`parcels.sizeCategoryRanges.${size}`)}
+                              />
                             </div>
                           );
                         })}

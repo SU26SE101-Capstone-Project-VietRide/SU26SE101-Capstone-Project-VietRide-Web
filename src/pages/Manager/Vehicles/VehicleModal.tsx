@@ -175,7 +175,6 @@ export function VehicleInfoForm({
               fieldErrors.vehicleTypeId ? `: ${fieldErrors.vehicleTypeId}` : ""
             }`}
           >
-            <option value="">{t("vehicles.selectVehicleType")}</option>
             {vehicleTypes.map((type) => (
               <option key={type.id} value={type.id}>
                 {type.displayName}

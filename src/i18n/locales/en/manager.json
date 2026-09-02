@@ -1404,6 +1404,13 @@
       "LARGE": "Large",
       "EXTRA_LARGE": "Extra large"
     },
+    "sizeCategoryRangeLabel": "View the {{size}} size limit",
+    "sizeCategoryRanges": {
+      "SMALL": "Chargeable weight: over 0 to 5 kg.",
+      "MEDIUM": "Chargeable weight: over 5 to 15 kg.",
+      "LARGE": "Chargeable weight: over 15 to 30 kg.",
+      "EXTRA_LARGE": "Chargeable weight: over 30 kg."
+    },
     "selectRoute": "Select a route",
     "effectiveFrom": "Effective from",
     "effectiveUntil": "Effective until (optional)",
@@ -2616,7 +2623,7 @@
   "wallet": {
     "title": "Wallet",
     "apiSubtitle": "Track the operator balance, pending settlements and revenue ledger.",
-    "pendingHold": "Pending hold",
+    "pendingHold": "Money pending wallet credit",
     "eligibleAmount": "Eligible amount",
     "settledAmount": "Settled amount",
     "loadFailed": "Could not load operator wallet data.",
@@ -2629,6 +2636,8 @@
     "settlementMethod": "Settlement method",
     "settledAt": "Settled at",
     "actor": "Actor",
+    "recordSource": "Record source",
+    "recordSourceAutomatic": "Automatic",
     "note": "Note",
     "noNote": "No note",
     "tabs": {
@@ -2666,12 +2675,13 @@
     "paymentTime": "Payment time",
     "receivedAmount": "Received amount",
     "form": "Form",
+    "methodUnknown": "Not specified",
     "settledBy": "Settled by",
     "status": {
       "PENDING_HOLD": "Pending hold",
       "ELIGIBLE": "Eligible",
       "SETTLED": "Settled",
-      "CANCELLED": "Cancelled"
+      "CANCELLED": "No transaction generated"
     },
     "methods": {
       "AUTO_WEEKLY": "Automatic weekly",
@@ -2686,7 +2696,7 @@
     "moneyOut": "Money out",
     "noCredits": "No money-in transactions yet.",
     "noDebits": "No money-out transactions yet.",
-    "reference": "Reference",
+    "reference": "Transaction code",
     "references": {
       "BOOKING_PAYMENT_HOLD": "Ticket purchase",
       "PARCEL_PAYMENT_HOLD": "Parcel shipment",
@@ -2712,7 +2722,7 @@
     "topupAlert": "Top up: {{amount}}₫ - Redirecting to VNPay",
     "monthLabel": "Month {{n}}",
     "balanceHelper": "Credited to the wallet after settlement — not the same as a bank withdrawal",
-    "awaitingTripCompletion": "Awaiting trip completion",
+    "awaitingTripCompletion": "Money from ongoing trips",
     "countHelper": "{{count}} trips",
     "nextScheduledAttempt": "Next scheduled attempt",
     "lifetimeSettled": "Lifetime settled",
@@ -2736,8 +2746,8 @@
       "VEHICLE_SUBSTITUTION_REVENUE_RETAINED_ON_ORIGINAL_TRIP": "This is a vehicle-substitution trip; the revenue is still settled on the original trip, so no extra transfer was created here."
     },
     "occurredAtFallback": "Estimated from the record's creation time",
-    "notAffectingSettlement": "Does not affect the settled amount",
-    "operatorFundedVoucherAmount": "Operator-funded voucher",
+    "notAffectingSettlement": "This does not change the amount you receive",
+    "operatorFundedVoucherAmount": "Discount paid by the operator",
     "dateFieldLabel": "Filter by",
     "dateFrom": "From date",
     "dateTo": "To date",
@@ -2757,7 +2767,7 @@
       "READY_FOR_SETTLEMENT": "Ready for settlement",
       "RETRY_SCHEDULED": "System retrying",
       "COMPLETED": "Settled",
-      "CANCELLED": "Settlement cancelled"
+      "CANCELLED": "No transaction generated"
     },
     "breakdown": {
       "grossSalesAmount": "Gross sales",
@@ -2781,27 +2791,27 @@
     "reconciliationHint": "Balance is already credited; payables are amounts the platform still owes.",
     "outstandingPayable": "Outstanding payable",
     "outstandingHelper": "Positive payable not yet settled",
-    "businessContext": "Business context and effect",
+    "businessContext": "Details",
     "tripUnavailable": "Trip information unavailable",
     "exportReconciliation": "Download reconciliation XLSX",
     "exportDatePairRequired": "Select both the start and end dates.",
     "exportUpstreamUnavailable": "Trip enrichment is incomplete for export. Please try again later.",
     "exportFailed": "Could not download the reconciliation file.",
     "businessGroups": {
-      "TICKET": "Ticket",
-      "PARCEL": "Parcel",
-      "REFUND": "Refund",
-      "SETTLEMENT": "Settlement",
-      "SUBSCRIPTION": "Subscription",
-      "COMPENSATION": "Compensation",
-      "MANUAL_ADJUSTMENT": "Manual adjustment"
+      "TICKET": "Ticket income",
+      "PARCEL": "Parcel income",
+      "REFUND": "Customer refund",
+      "SETTLEMENT": "Money credited to wallet",
+      "SUBSCRIPTION": "Subscription fee",
+      "COMPENSATION": "Compensation payment",
+      "MANUAL_ADJUSTMENT": "Amount adjustment"
     },
     "operatorEffects": {
-      "INCREASES_ENTITLEMENT": "Increases operator entitlement",
-      "DECREASES_ENTITLEMENT": "Decreases operator entitlement",
-      "AUDIT_ONLY": "Audit only",
-      "INCREASES_WALLET_BALANCE": "Increases wallet balance",
-      "DECREASES_WALLET_BALANCE": "Decreases wallet balance"
+      "INCREASES_ENTITLEMENT": "This amount is added to what you receive",
+      "DECREASES_ENTITLEMENT": "This amount is deducted from what you receive",
+      "AUDIT_ONLY": "Recorded for your reference",
+      "INCREASES_WALLET_BALANCE": "This amount was added to your wallet",
+      "DECREASES_WALLET_BALANCE": "This amount was deducted from your wallet"
     },
     "cashFlowPurposes": {
       "OPERATOR_PAYOUT_RECEIVED": "Settlement payout received",
@@ -3030,10 +3040,14 @@
       "newParcelsOnly": "Changes only apply to parcels sent after you hit Save. Parcels already sent keep the old terms, even if a claim is open on them.",
       "versionLine": "Version {{version}} · last edited {{updatedAt}}",
       "neverConfigured": "You have not set your own terms yet, so VietRide's standard applies.",
-      "summaryTitle": "What the passenger gets",
-      "summaryWithProof": "Passenger has receipts: you pay {{rate}}% of the loss they can prove, but never above the value they declared when sending, and never above {{cap}}.",
-      "summaryNoProof": "Passenger has no receipts: you pay the freight they were charged times {{multiplier}}, up to {{cap}}.",
-      "summaryFreight": "Either way, they also get back any freight you have not already refunded.",
+      "formulaTitle": "Compensation calculation",
+      "formulaWithProofTitle": "Receipt or supporting evidence available",
+      "formulaWithoutProofTitle": "No receipt or supporting evidence",
+      "formulaAssessedLoss": "Step 1 — Assessed loss = the documented loss, but no more than the parcel value declared by the passenger.",
+      "formulaCargoWithProof": "Step 2 — Cargo compensation = assessed loss × {{rate}}%. If the result exceeds {{cap}}, the operator pays {{cap}}.",
+      "formulaCargoWithoutProof": "Cargo compensation = parcel freight × {{multiplier}}. If the result exceeds {{cap}}, the operator pays {{cap}}.",
+      "formulaFreightRefund": "Additional freight refund = freight collected − freight already refunded. This amount is 0 VND if the freight was already refunded in full.",
+      "formulaTotal": "Total received by the passenger = cargo compensation + additional freight refund.",
       "belowDefaultWarning": "You are setting terms below VietRide's standard. Passengers who ship with you get less than they would with other operators.",
       "belowDefaultAck": "I understand and still want to pay less than VietRide's standard.",
       "useDefaults": "Go back to VietRide's standard",
@@ -3208,6 +3222,11 @@
     "originStation": "Origin station",
     "destinationStation": "Destination station",
     "reportedAt": "Reported at",
+    "location": "Location when reported",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "map": "Map",
+    "openInMaps": "Open in Google Maps",
     "reporter": "Reported by",
     "reporterRole": "Role",
     "photos": "Attached photos",

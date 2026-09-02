@@ -1,4 +1,4 @@
-import { FiArrowDown, FiCheckCircle, FiClock, FiDollarSign } from "react-icons/fi";
+import { FiCheckCircle, FiClock, FiDollarSign } from "react-icons/fi";
 import type { OperatorWallet } from "../../../api/vietride";
 import { StatCard } from "../../../components/StatCard";
 import { formatCurrency } from "../../../utils/currency";
@@ -30,9 +30,6 @@ export function WalletOverviewCards({
     0;
   const pending =
     reconciliation?.pendingHoldPayableVnd ?? wallet?.pendingHoldAmount ?? 0;
-  const eligible =
-    reconciliation?.eligibleForSettlementVnd ?? wallet?.eligibleAmount ?? 0;
-
   return (
     <>
       <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
@@ -44,7 +41,7 @@ export function WalletOverviewCards({
             {t("wallet.reconciliationHint")}
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={<FiDollarSign />}
           label={t("wallet.currentBalance")}
@@ -76,14 +73,6 @@ export function WalletOverviewCards({
           iconClassName="bg-amber-50 text-amber-700"
           isLoading={isLoading}
           helper={t("wallet.countHelper", { count: wallet?.pendingHoldCount ?? 0 })}
-        />
-        <StatCard
-          icon={<FiArrowDown />}
-          label={t("wallet.eligibleAmount")}
-          value={formatCurrency(eligible)}
-          iconClassName="bg-blue-50 text-blue-700"
-          isLoading={isLoading}
-          helper={t("wallet.countHelper", { count: wallet?.eligibleCount ?? 0 })}
         />
         </div>
       </div>

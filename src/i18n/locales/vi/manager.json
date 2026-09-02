@@ -1404,6 +1404,13 @@
       "LARGE": "Lớn",
       "EXTRA_LARGE": "Quá khổ"
     },
+    "sizeCategoryRangeLabel": "Xem giới hạn cỡ {{size}}",
+    "sizeCategoryRanges": {
+      "SMALL": "Khối lượng tính cước: trên 0 đến 5 kg.",
+      "MEDIUM": "Khối lượng tính cước: trên 5 đến 15 kg.",
+      "LARGE": "Khối lượng tính cước: trên 15 đến 30 kg.",
+      "EXTRA_LARGE": "Khối lượng tính cước: trên 30 kg."
+    },
     "selectRoute": "Chọn tuyến",
     "effectiveFrom": "Hiệu lực từ",
     "effectiveUntil": "Hiệu lực đến (không bắt buộc)",
@@ -2543,7 +2550,7 @@
     "categoryLabel": "Danh mục *",
     "categoryPlaceholder": "VD: Hành khách, Hủy vé, Hành lý",
     "categories": {
-      "PARCEL": "Hàng hóa",
+      "PARCEL": "Tiền gửi hàng",
       "BOARDING": "Lên xe",
       "LUGGAGE": "Hành lý",
       "BOOKING_CHANGE": "Đổi chuyến và thông tin vé",
@@ -2616,7 +2623,7 @@
   "wallet": {
     "title": "Ví nhà xe",
     "apiSubtitle": "Theo dõi số tiền hiện có, tiền đang xử lý và lịch sử thanh toán.",
-    "pendingHold": "Tiền đang chờ xử lý",
+    "pendingHold": "Tiền đang chờ vào ví",
     "eligibleAmount": "Tiền có thể rút",
     "settledAmount": "Đã thanh toán",
     "loadFailed": "Không thể tải dữ liệu ví nhà xe.",
@@ -2629,11 +2636,13 @@
     "settlementMethod": "Phương thức đối soát",
     "settledAt": "Đối soát lúc",
     "actor": "Người thực hiện",
+    "recordSource": "Nguồn ghi nhận",
+    "recordSourceAutomatic": "Tự động",
     "note": "Ghi chú",
     "noNote": "Không có ghi chú",
     "tabs": {
       "transactions": "Lịch sử giao dịch",
-      "settlements": "Doanh thu hàng tuần",
+      "settlements": "Đối soát theo chuyến",
       "ledger": "Lịch sử doanh thu"
     },
     "subtitle": "Quản lý số dư, nạp tiền và lịch sử giao dịch.",
@@ -2664,14 +2673,15 @@
     "allTransactionTypes": "Tất cả loại giao dịch",
     "allSettlementStatuses": "Tất cả trạng thái đối soát",
     "paymentTime": "Thời gian thanh toán",
-    "receivedAmount": "Tiền nhận được",
+    "receivedAmount": "Số tiền đối soát",
     "form": "Hình thức",
+    "methodUnknown": "Chưa xác định",
     "settledBy": "Người đối soát",
     "status": {
       "PENDING_HOLD": "Đang tạm giữ",
       "ELIGIBLE": "Đủ điều kiện",
       "SETTLED": "Đã đối soát",
-      "CANCELLED": "Đã hủy"
+      "CANCELLED": "Không phát sinh giao dịch"
     },
     "methods": {
       "AUTO_WEEKLY": "Tự động hàng tuần",
@@ -2686,14 +2696,14 @@
     "moneyOut": "Tiền ra",
     "noCredits": "Chưa có giao dịch tiền vào.",
     "noDebits": "Chưa có giao dịch tiền ra.",
-    "reference": "Mã tham chiếu",
+    "reference": "Mã giao dịch",
     "references": {
       "BOOKING_PAYMENT_HOLD": "Khách mua vé",
       "PARCEL_PAYMENT_HOLD": "Khách gửi hàng",
       "PARCEL_ADDITIONAL_PAYMENT_HOLD": "Thu thêm phí gửi hàng",
       "SETTLEMENT_TO_OPERATOR": "Đối soát chuyến",
       "TRIP_SETTLEMENT": "Thanh toán chuyến xe",
-      "REFUND": "Hoàn tiền",
+      "REFUND": "Tiền hoàn cho khách",
       "ADJUSTMENT": "Điều chỉnh số dư"
     },
     "showingTransactions": "Hiển thị {{count}} giao dịch",
@@ -2712,7 +2722,7 @@
     "topupAlert": "Nạp tiền: {{amount}}đ - Sẽ chuyển hướng tới VNPay",
     "monthLabel": "Tháng {{n}}",
     "balanceHelper": "Đã vào ví sau đối soát",
-    "awaitingTripCompletion": "Chờ chuyến kết thúc",
+    "awaitingTripCompletion": "Tiền từ chuyến chưa kết thúc",
     "countHelper": "{{count}} chuyến",
     "nextScheduledAttempt": "Lần xử lý dự kiến tiếp theo",
     "lifetimeSettled": "Tổng đã đối soát",
@@ -2736,17 +2746,17 @@
       "VEHICLE_SUBSTITUTION_REVENUE_RETAINED_ON_ORIGINAL_TRIP": "Chuyến này là chuyến thay xe; doanh thu vẫn được đối soát trên chuyến gốc nên hệ thống không tạo thêm lệnh chuyển tiền ở đây."
     },
     "occurredAtFallback": "Thời điểm ước tính từ ngày tạo bản ghi",
-    "notAffectingSettlement": "Không ảnh hưởng số tiền đối soát",
-    "operatorFundedVoucherAmount": "Voucher nhà xe tài trợ",
+    "notAffectingSettlement": "Khoản này không làm thay đổi số tiền bạn nhận",
+    "operatorFundedVoucherAmount": "Phần giảm giá do nhà xe chi trả",
     "dateFieldLabel": "Lọc theo",
     "dateFrom": "Từ ngày",
     "dateTo": "Đến ngày",
     "dateFieldOption": {
-      "createdAt": "Ngày tạo",
+      "createdAt": "Ngày tạo đối soát",
       "tripTerminalAt": "Ngày chuyến kết thúc",
       "eligibleAt": "Ngày đủ điều kiện",
       "settledAt": "Ngày đã đối soát",
-      "occurredAt": "Ngày phát sinh nghiệp vụ"
+      "occurredAt": "Ngày giao dịch thực tế"
     },
     "delayReason": {
       "SYSTEM_PROCESSING_DELAY": "Hệ thống đang xử lý, khoản tiền sẽ được thử lại theo lịch",
@@ -2757,7 +2767,7 @@
       "READY_FOR_SETTLEMENT": "Đủ điều kiện đối soát",
       "RETRY_SCHEDULED": "Hệ thống đang xử lý lại",
       "COMPLETED": "Đã đối soát",
-      "CANCELLED": "Đã hủy đối soát"
+      "CANCELLED": "Không phát sinh giao dịch"
     },
     "breakdown": {
       "grossSalesAmount": "Tổng giá trị bán",
@@ -2781,27 +2791,27 @@
     "reconciliationHint": "Số dư là tiền đã vào ví; công nợ là khoản nền tảng còn phải trả.",
     "outstandingPayable": "Tổng còn được nhận",
     "outstandingHelper": "Tổng công nợ dương chưa tất toán",
-    "businessContext": "Nghiệp vụ và ảnh hưởng",
+    "businessContext": "Nội dung",
     "tripUnavailable": "Chưa có thông tin chuyến",
     "exportReconciliation": "Tải đối soát XLSX",
     "exportDatePairRequired": "Vui lòng chọn đồng thời ngày bắt đầu và ngày kết thúc.",
     "exportUpstreamUnavailable": "Thông tin chuyến chưa đầy đủ để xuất file. Vui lòng thử lại sau.",
     "exportFailed": "Không thể tải file đối soát.",
     "businessGroups": {
-      "TICKET": "Vé xe",
-      "PARCEL": "Gửi hàng",
-      "REFUND": "Hoàn tiền",
-      "SETTLEMENT": "Đối soát",
-      "SUBSCRIPTION": "Gói dịch vụ",
-      "COMPENSATION": "Bồi thường",
-      "MANUAL_ADJUSTMENT": "Điều chỉnh thủ công"
+      "TICKET": "Tiền vé",
+      "PARCEL": "Tiền gửi hàng",
+      "REFUND": "Tiền hoàn cho khách",
+      "SETTLEMENT": "Tiền chuyển vào ví",
+      "SUBSCRIPTION": "Phí gói dịch vụ",
+      "COMPENSATION": "Tiền bồi thường",
+      "MANUAL_ADJUSTMENT": "Điều chỉnh số tiền"
     },
     "operatorEffects": {
-      "INCREASES_ENTITLEMENT": "Tăng khoản nhà xe được nhận",
-      "DECREASES_ENTITLEMENT": "Giảm khoản nhà xe được nhận",
-      "AUDIT_ONLY": "Chỉ dùng để truy vết",
-      "INCREASES_WALLET_BALANCE": "Tăng số dư ví",
-      "DECREASES_WALLET_BALANCE": "Giảm số dư ví"
+      "INCREASES_ENTITLEMENT": "Bạn được cộng thêm khoản này",
+      "DECREASES_ENTITLEMENT": "Khoản này được trừ vào tiền bạn nhận",
+      "AUDIT_ONLY": "Ghi nhận để bạn kiểm tra",
+      "INCREASES_WALLET_BALANCE": "Khoản này đã được cộng vào ví",
+      "DECREASES_WALLET_BALANCE": "Khoản này đã được trừ khỏi ví"
     },
     "cashFlowPurposes": {
       "OPERATOR_PAYOUT_RECEIVED": "Nhận tiền đối soát",
@@ -3030,10 +3040,14 @@
       "newParcelsOnly": "Sửa xong chỉ áp cho hàng gửi từ lúc bấm Lưu trở đi. Hàng đã gửi trước đó vẫn tính theo mức cũ, kể cả khi khách đang khiếu nại.",
       "versionLine": "Bản {{version}} · sửa lần cuối {{updatedAt}}",
       "neverConfigured": "Nhà xe chưa đặt mức riêng nên đang dùng mức chung của VietRide.",
-      "summaryTitle": "Khách sẽ được đền như thế nào",
-      "summaryWithProof": "Khách có hoá đơn, chứng từ: nhà xe đền {{rate}}% chỗ thiệt hại chứng minh được, nhưng không vượt quá giá trị khách khai lúc gửi và không quá {{cap}}.",
-      "summaryNoProof": "Khách không có chứng từ: nhà xe đền bằng tiền cước đã thu nhân {{multiplier}}, không quá {{cap}}.",
-      "summaryFreight": "Cả hai trường hợp khách đều được trả lại tiền cước",
+      "formulaTitle": "Công thức tính tiền đền bù",
+      "formulaWithProofTitle": "Có hoá đơn, chứng từ",
+      "formulaWithoutProofTitle": "Không có hoá đơn, chứng từ",
+      "formulaAssessedLoss": "Bước 1 — Thiệt hại được tính = số tiền thiệt hại có chứng từ, nhưng không cao hơn giá trị hàng khách đã khai.",
+      "formulaCargoWithProof": "Bước 2 — Tiền đền hàng = thiệt hại được tính × {{rate}}%. Nếu kết quả cao hơn {{cap}}, nhà xe chỉ đền {{cap}}.",
+      "formulaCargoWithoutProof": "Tiền đền hàng = tiền cước gửi hàng × {{multiplier}}. Nếu kết quả cao hơn {{cap}}, nhà xe chỉ đền {{cap}}.",
+      "formulaFreightRefund": "Tiền cước hoàn thêm = tiền cước đã thu − tiền cước đã hoàn trước đó. Nếu đã hoàn đủ cước thì khoản này bằng 0 đ.",
+      "formulaTotal": "Tổng tiền khách nhận = tiền đền hàng + tiền cước hoàn thêm.",
       "belowDefaultWarning": "Bạn đang đặt mức thấp hơn mức chung của VietRide. Khách đi nhà xe của bạn sẽ được đền ít hơn so với các nhà xe khác.",
       "belowDefaultAck": "Tôi hiểu và vẫn muốn đền thấp hơn mức chung của VietRide.",
       "useDefaults": "Quay về mức chung của VietRide",
@@ -3208,6 +3222,11 @@
     "originStation": "Bến đi",
     "destinationStation": "Bến đến",
     "reportedAt": "Báo lúc",
+    "location": "Vị trí lúc báo cáo",
+    "latitude": "Vĩ độ",
+    "longitude": "Kinh độ",
+    "map": "Bản đồ",
+    "openInMaps": "Mở trên Google Maps",
     "reporter": "Người báo",
     "reporterRole": "Vai trò",
     "photos": "Ảnh đính kèm",

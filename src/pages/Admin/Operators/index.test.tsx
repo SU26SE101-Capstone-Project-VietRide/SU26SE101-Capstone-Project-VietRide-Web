@@ -75,6 +75,22 @@ describe("Admin Operators", () => {
     });
   });
 
+  it("rút gọn tên nhà xe trên một dòng và giữ nguyên tên khi hover", async () => {
+    render(<Operators />);
+
+    const operatorName = await screen.findByTitle(
+      pendingOperator.name,
+      {},
+      { timeout: 5_000 },
+    );
+    expect(operatorName).toHaveTextContent(pendingOperator.name);
+    expect(operatorName).toHaveClass("truncate");
+    expect(operatorName.closest("table")).toHaveClass(
+      "whitespace-nowrap",
+      "min-w-[1080px]",
+    );
+  });
+
   it("shows the approved operator immediately and returns to the full list", async () => {
     const user = userEvent.setup();
     render(<Operators />);

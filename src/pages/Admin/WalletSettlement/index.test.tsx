@@ -167,6 +167,9 @@ describe("Admin WalletSettlement", () => {
 
     expect(await screen.findByText(settlement.operatorId)).toBeInTheDocument();
     expect(
+      screen.queryByText("walletSettlement.reconciliation.partialCount"),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByText("walletSettlement.eligible"),
     ).not.toBeInTheDocument();
     expect(

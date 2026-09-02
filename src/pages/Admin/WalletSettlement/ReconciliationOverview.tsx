@@ -62,23 +62,9 @@ export function ReconciliationOverview({
     <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-semibold text-slate-900">
-              {t("walletSettlement.reconciliation.title")}
-            </h2>
-            {snapshot && snapshot.partialReconciliationTransactionCount > 0 && (
-              <span
-                title={t("walletSettlement.reconciliation.partialWarning", {
-                  count: snapshot.partialReconciliationTransactionCount,
-                })}
-                className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
-              >
-                {t("walletSettlement.reconciliation.partialCount", {
-                  count: snapshot.partialReconciliationTransactionCount,
-                })}
-              </span>
-            )}
-          </div>
+          <h2 className="font-semibold text-slate-900">
+            {t("walletSettlement.reconciliation.title")}
+          </h2>
           {period && (
             <p className="text-sm text-slate-600">
               {t("walletSettlement.reconciliation.periodTitle")}: {period.from}{" "}

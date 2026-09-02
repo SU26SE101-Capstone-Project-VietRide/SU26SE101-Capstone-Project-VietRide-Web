@@ -75,6 +75,31 @@ async function renderLoadedTab() {
 }
 
 describe("ParcelCompensationTab", () => {
+  it("hiện đầy đủ công thức tính tiền đền bù ngay tại chỗ cấu hình", async () => {
+    await renderLoadedTab();
+
+    expect(
+      screen.getByRole("heading", {
+        name: "settings.parcelCompensation.formulaTitle",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("settings.parcelCompensation.formulaAssessedLoss"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("settings.parcelCompensation.formulaCargoWithProof"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("settings.parcelCompensation.formulaCargoWithoutProof"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("settings.parcelCompensation.formulaFreightRefund"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("settings.parcelCompensation.formulaTotal"),
+    ).toBeTruthy();
+  });
+
   it("nói rõ chính sách mới chỉ áp cho đơn tạo sau khi lưu", async () => {
     render(<ParcelCompensationTab />);
 
@@ -252,5 +277,24 @@ describe("mật độ chữ của hint", () => {
 
     expect(errors["out-of-range"]).toContain("{{min}}");
     expect(errors["out-of-range"]).toContain("{{max}}");
+  });
+});
+
+describe("cách diễn giải tiền đền bù", () => {
+  const locales = ["vi", "en"] as const;
+
+  it.each(locales)("%s dùng câu nghiệp vụ thay vì cú pháp code", async (locale) => {
+    const messages = (
+      await import(`../../../i18n/locales/${locale}/manager.json`)
+    ).default.settings.parcelCompensation;
+    const explanation = [
+      messages.formulaAssessedLoss,
+      messages.formulaCargoWithProof,
+      messages.formulaCargoWithoutProof,
+      messages.formulaFreightRefund,
+      messages.formulaTotal,
+    ].join(" ");
+
+    expect(explanation).not.toMatch(/\b(?:min|max|round)\s*\(/i);
   });
 });

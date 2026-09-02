@@ -1,6 +1,6 @@
 import type { OperatorLedgerEntry } from "../../../api/vietride";
 import { formatCurrency } from "../../../utils/currency";
-import { actorDisplayName, formatWalletDate } from "./walletFormat";
+import { formatWalletDate } from "./walletFormat";
 import { DataCompletenessBadge } from "./WalletBadges";
 import { BusinessCodeCell, EmptyRow, type Translate } from "./walletTableShared";
 
@@ -20,13 +20,13 @@ export function LedgerTable({ items, t, tc }: { items: OperatorLedgerEntry[]; t:
           <col className="w-[12%]" />
         </colgroup>
         <thead>
-          <tr className="whitespace-nowrap bg-gray-50 text-center text-xs font-semibold uppercase text-gray-600">
+          <tr className="whitespace-nowrap bg-gray-50 text-center text-xs font-semibold text-gray-600">
             <th className="px-4 py-3">{t("wallet.datetime")}</th>
             <th className="px-4 py-3">{t("wallet.trip")}</th>
             <th className="px-4 py-3">{t("wallet.reference")}</th>
             <th className="px-4 py-3">{t("wallet.businessContext")}</th>
             <th className="px-4 py-3">{t("wallet.amount")}</th>
-            <th className="px-4 py-3">{t("wallet.actor")}</th>
+            <th className="px-4 py-3">{t("wallet.recordSource")}</th>
           </tr>
         </thead>
         <tbody>
@@ -108,8 +108,9 @@ function LedgerRow({ item, t, tc }: { item: OperatorLedgerEntry; t: Translate; t
         {formatCurrency(item.amount)}
       </td>
       <td className="px-4 py-3">
-        {actorDisplayName(item.actor, tc) ||
-          tc("enumLabels.SYSTEM", { defaultValue: item.actorType || "-" })}
+        {item.actorType === "SYSTEM"
+          ? t("wallet.recordSourceAutomatic")
+          : item.actor?.displayName || "-"}
       </td>
     </tr>
   );
