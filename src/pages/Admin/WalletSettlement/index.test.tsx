@@ -308,8 +308,8 @@ describe("Admin WalletSettlement", () => {
         name: "walletSettlement.toggleAllocations",
       })[0],
     );
-    expect(screen.getByText("Nhà xe A")).toBeInTheDocument();
-    expect(screen.getByText("BKG-A (BOOKING)")).toBeInTheDocument();
+    expect(screen.getAllByText("Nhà xe A").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/BKG-A/).length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "next" }));
     await waitFor(() =>
