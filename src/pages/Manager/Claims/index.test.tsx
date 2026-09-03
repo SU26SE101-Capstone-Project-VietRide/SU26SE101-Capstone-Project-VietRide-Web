@@ -5,6 +5,7 @@ import {
   decideOperatorParcelClaim,
   getOperatorParcelClaim,
   getOperatorParcelClaims,
+  previewOperatorParcelClaimAward,
   type ParcelClaimDetail,
   type ParcelClaimListItem,
 } from "../../../api/vietride";
@@ -24,8 +25,14 @@ vi.mock("../../../api/vietride", () => ({
   getOperatorParcelClaims: vi.fn(),
   getOperatorParcelClaim: vi.fn(),
   decideOperatorParcelClaim: vi.fn(),
+  previewOperatorParcelClaimAward: vi.fn(),
+  PARCEL_CLAIM_PROOF_STATUSES: ["VERIFIED", "UNVERIFIED", "NO_PROOF"],
   PARCEL_CLAIM_STATUSES: ["SUBMITTED", "APPROVED", "REJECTED"],
   SLA_STATES: ["ON_TRACK", "DUE_SOON", "BREACHED", "CLOSED"],
+}));
+
+vi.mock("../../../api/idempotency", () => ({
+  createIdempotencyKey: () => "11111111-2222-4333-8444-555555555555",
 }));
 
 vi.mock("../../../hooks/useToastFeedback", () => ({
@@ -84,6 +91,8 @@ const claimDetail: ParcelClaimDetail = {
     status: "SUBMITTED",
     declaredValueVnd: 12_000_000,
     provenDirectLossVnd: null,
+    proofStatus: null,
+    acceptedEvidenceIds: [],
     compensationRatePercent: 50,
     policyCapVnd: 30_000_000,
     cargoAwardVnd: 0,
@@ -99,7 +108,16 @@ const claimDetail: ParcelClaimDetail = {
     appealReason: null,
     appealedByUserId: null,
     appealedAt: null,
-    evidence: [],
+    evidence: [
+      {
+        evidenceId: "36000000-0000-4000-8000-000000000801",
+        evidenceType: "INVOICE",
+        reference: "https://example.com/invoice",
+        note: "Hóa đơn mua hàng",
+        uploadedByUserId: "user-1",
+        createdAt: "2026-08-21T11:00:00+07:00",
+      },
+    ],
     policySnapshot,
     decisionDeadline: "2026-09-01T11:00:00+07:00",
     payoutDeadline: null,
@@ -118,6 +136,7 @@ const claimDetail: ParcelClaimDetail = {
 const listMock = vi.mocked(getOperatorParcelClaims);
 const detailMock = vi.mocked(getOperatorParcelClaim);
 const decideMock = vi.mocked(decideOperatorParcelClaim);
+const previewMock = vi.mocked(previewOperatorParcelClaimAward);
 const toastMock = vi.mocked(useToastFeedback);
 
 function mockList(items: ParcelClaimListItem[] = [claimRow]) {
@@ -137,6 +156,25 @@ beforeEach(() => {
   authMock.getAuthUser.mockReturnValue({ role: "OPERATOR_ADMIN" });
   mockList();
   detailMock.mockResolvedValue(claimDetail);
+  previewMock.mockResolvedValue({
+    claimId: claimRow.claimId,
+    appealId: null,
+    proofStatus: "VERIFIED",
+    acceptedEvidenceIds: [
+      "36000000-0000-4000-8000-000000000801",
+    ],
+    calculationBasis: "VERIFIED_LOSS",
+    provenDirectLossVnd: 12_000_000,
+    assessedLossVnd: 12_000_000,
+    declaredLiabilityVnd: 6_000_000,
+    fallbackAmountVnd: null,
+    policySnapshot,
+    cargoAwardVnd: 6_000_000,
+    freightRefundVnd: 150_000,
+    totalAwardVnd: 6_150_000,
+    originalTotalAwardVnd: null,
+    supplementaryAwardVnd: null,
+  });
 });
 
 describe("ClaimsPage", () => {
@@ -223,23 +261,36 @@ describe("ClaimsPage", () => {
     await screen.findByText("claims.decisionTitle");
 
     await user.click(
-      screen.getByRole("radio", { name: /claims\.proof\.WITH_PROOF/ }),
+      screen.getByRole("radio", {
+        name: /claims\.proofStatus\.VERIFIED/,
+      }),
     );
     await user.type(
       screen.getByLabelText(/claims.provenLossLabel/),
       "12000000",
     );
+    await user.click(screen.getByRole("checkbox"));
     await user.type(screen.getByLabelText(/claims.reasonLabel/), "Lỗi vận hành");
-    await user.click(
-      screen.getByRole("button", { name: "claims.confirmApprove" }),
-    );
+    await waitFor(() => expect(previewMock).toHaveBeenCalledTimes(1));
+    const confirmButton = screen.getByRole("button", {
+      name: "claims.confirmApprove",
+    });
+    await waitFor(() => expect(confirmButton).toBeEnabled());
+    await user.click(confirmButton);
+    expect(screen.queryByText(/claims\.decisionErrors\./)).toBeNull();
+    expect(screen.queryByText("claims.decisionFailed")).toBeNull();
 
     await waitFor(() => {
       expect(decideMock).toHaveBeenCalledWith(claimRow.claimId, {
         decision: "APPROVE",
+        proofStatus: "VERIFIED",
         provenDirectLossVnd: 12_000_000,
+        acceptedEvidenceIds: [
+          "36000000-0000-4000-8000-000000000801",
+        ],
         reason: "Lỗi vận hành",
-      });
+      },
+      expect.any(String));
     });
     // Mutation trả detail mới → dùng thẳng, chỉ có đúng 1 lần gọi detail lúc mở
     expect(detailMock).toHaveBeenCalledTimes(1);

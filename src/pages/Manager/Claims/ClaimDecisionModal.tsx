@@ -1,32 +1,28 @@
-// Duyệt/từ chối một khiếu nại bồi thường (§7.3).
-//
-// Chỉ OPERATOR_ADMIN mở được modal này; phía gọi đã lọc theo vai trò lẫn
-// `availableActions`. Ở đây tập trung vào việc người quyết định nhìn thấy hệ quả
-// bằng tiền TRƯỚC khi bấm.
-import { useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiDollarSign } from "react-icons/fi";
 import { ApiRequestError } from "../../../api/client";
+import { createIdempotencyKey } from "../../../api/idempotency";
 import {
   decideOperatorParcelClaim,
   getOperatorParcelClaim,
+  previewOperatorParcelClaimAward,
+  type ParcelClaimAwardPreview,
   type ParcelClaimDetail,
 } from "../../../api/vietride";
-import Modal from "../../../components/Modal";
+import { textareaClass, labelClass } from "../../../components/form/formClasses";
 import InlineAlert from "../../../components/InlineAlert";
+import Modal from "../../../components/Modal";
 import { Button } from "../../../components/ui/Button";
-import {
-  inputClass,
-  labelClass,
-  textareaClass,
-} from "../../../components/form/formClasses";
-import { formatCurrency } from "../../../utils/currency";
+import AwardPreviewPanel from "./AwardPreviewPanel";
 import {
   claimErrorTranslationKey,
   parseClaimDecision,
-  previewClaimAward,
+  parseProofAssessment,
   type ClaimDecisionDraft,
+  type ProofAssessmentDraft,
 } from "./claimHelpers";
+import ProofAssessmentFields from "./ProofAssessmentFields";
 
 type ClaimDecisionModalProps = {
   open: boolean;
@@ -37,9 +33,17 @@ type ClaimDecisionModalProps = {
 
 const emptyDraft: ClaimDecisionDraft = {
   decision: "APPROVE",
-  proofMode: "",
-  provenDirectLossVnd: "",
+  proofStatus: "",
+  lossVnd: "",
+  acceptedEvidenceIds: [],
   reason: "",
+};
+
+type PreviewState = {
+  signature: string;
+  value: ParcelClaimAwardPreview | null;
+  error: string;
+  loading: boolean;
 };
 
 export default function ClaimDecisionModal({
@@ -50,51 +54,185 @@ export default function ClaimDecisionModal({
 }: ClaimDecisionModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const claim = detail?.claim ?? null;
 
   const [draft, setDraft] = useState<ClaimDecisionDraft>(emptyDraft);
   const [error, setError] = useState("");
+  const [proofInvalid, setProofInvalid] = useState(false);
+  const [previewState, setPreviewState] = useState<PreviewState | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Form phải trắng lại khi mở cho một claim khác — giữ id đang soạn ngay trong
-  // state để không cần effect dọn (effect chạy sau render đầu, hở đúng 1 frame).
-  const [draftClaimId, setDraftClaimId] = useState<string | null>(null);
+  const pendingRef = useRef<{
+    signature: string;
+    idempotencyKey: string;
+  } | null>(null);
+  const handlePreviewEvidenceStale = useEffectEvent(
+    (fresh: ParcelClaimDetail) => {
+      onDecided(fresh, t("claims.errors.evidenceStale"));
+    },
+  );
+  const translatePreviewError = useEffectEvent((caught: unknown) =>
+    t(claimErrorTranslationKey(caught, "claims.previewFailed")),
+  );
 
-  const claim = detail?.claim ?? null;
-  if (claim && draftClaimId !== claim.claimId) {
-    setDraftClaimId(claim.claimId);
-    setDraft(emptyDraft);
+  const parsedPreview = parseProofAssessment({
+    proofStatus: draft.proofStatus,
+    lossVnd: draft.lossVnd,
+    acceptedEvidenceIds: draft.acceptedEvidenceIds,
+  });
+  const previewSignature =
+    open && claim && parsedPreview.ok
+      ? JSON.stringify({ claimId: claim.claimId, ...parsedPreview.value })
+      : null;
+  const visiblePreviewState =
+    previewState?.signature === previewSignature ? previewState : null;
+  const preview = visiblePreviewState?.value ?? null;
+  const previewError = visiblePreviewState?.error ?? "";
+  const isPreviewLoading =
+    previewSignature !== null && (visiblePreviewState?.loading ?? true);
+
+  useEffect(() => {
+    if (!open || !claim || !previewSignature) return;
+
+    const parsed = parseProofAssessment({
+      proofStatus: draft.proofStatus,
+      lossVnd: draft.lossVnd,
+      acceptedEvidenceIds: draft.acceptedEvidenceIds,
+    });
+    if (!parsed.ok) return;
+
+    const controller = new AbortController();
+    let active = true;
+
+    const timer = window.setTimeout(async () => {
+      setPreviewState({
+        signature: previewSignature,
+        value: null,
+        error: "",
+        loading: true,
+      });
+      try {
+        const next = await previewOperatorParcelClaimAward(
+          claim.claimId,
+          {
+            proofStatus: parsed.value.proofStatus,
+            provenDirectLossVnd: parsed.value.lossVnd,
+            acceptedEvidenceIds: parsed.value.acceptedEvidenceIds,
+          },
+          controller.signal,
+        );
+        if (active) {
+          setPreviewState({
+            signature: previewSignature,
+            value: next,
+            error: "",
+            loading: false,
+          });
+        }
+      } catch (caught) {
+        if (!active || isAbortError(caught)) return;
+
+        if (
+          caught instanceof ApiRequestError &&
+          caught.code === "PARCEL_CLAIM_EVIDENCE_NOT_FOUND"
+        ) {
+          try {
+            const fresh = await getOperatorParcelClaim(claim.claimId);
+            if (active) {
+              handlePreviewEvidenceStale(fresh);
+            }
+            return;
+          } catch {
+            // Fall through to the original evidence error.
+          }
+        }
+
+        if (active) {
+          if (
+            caught instanceof ApiRequestError &&
+            caught.code === "PARCEL_CLAIM_EVIDENCE_REQUIRED"
+          ) {
+            setProofInvalid(true);
+            setPreviewState({
+              signature: previewSignature,
+              value: null,
+              error: caught.message,
+              loading: false,
+            });
+          } else {
+            setPreviewState({
+              signature: previewSignature,
+              value: null,
+              error: translatePreviewError(caught),
+              loading: false,
+            });
+          }
+        }
+      } finally {
+        if (active) {
+          setPreviewState((current) =>
+            current?.signature === previewSignature
+              ? { ...current, loading: false }
+              : current,
+          );
+        }
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [
+    claim,
+    draft.acceptedEvidenceIds,
+    draft.lossVnd,
+    draft.proofStatus,
+    open,
+    previewSignature,
+  ]);
+
+  if (!claim || !detail) return null;
+  const activeClaimId = claim.claimId;
+
+  function updateProof(next: ProofAssessmentDraft) {
     setError("");
+    setProofInvalid(false);
+    setDraft((current) => ({ ...current, ...next }));
   }
 
-  if (!claim) return null;
-
-  const lossText = draft.provenDirectLossVnd.trim();
-  const preview =
-    draft.decision === "APPROVE"
-      ? previewClaimAward(
-          draft.proofMode,
-          /^\d+$/.test(lossText) ? Number(lossText) : null,
-          claim.declaredValueVnd,
-          claim.freightCollectedVnd,
-          claim.alreadyRefundedVnd,
-          claim.compensationRatePercent,
-          claim.policyCapVnd,
-          claim.policySnapshot?.noProofFallbackMultiplier,
-        )
-      : null;
+  function takeIdempotencyKey(signature: string) {
+    if (pendingRef.current?.signature === signature) {
+      return pendingRef.current.idempotencyKey;
+    }
+    const idempotencyKey = createIdempotencyKey();
+    pendingRef.current = { signature, idempotencyKey };
+    return idempotencyKey;
+  }
 
   async function handleSubmit() {
-    if (!claim || isSubmitting) return;
+    if (isSubmitting || isPreviewLoading) return;
 
     const parsed = parseClaimDecision(draft);
     if (!parsed.ok) {
-      setError(t(`claims.decisionErrors.${parsed.error}`));
+      setProofInvalid(parsed.error !== "reason-required");
+      setError(t("claims.decisionErrors." + parsed.error));
       return;
     }
 
     setIsSubmitting(true);
     setError("");
+    setProofInvalid(false);
+    const signature = JSON.stringify(parsed.value);
+
     try {
-      const next = await decideOperatorParcelClaim(claim.claimId, parsed.value);
+      const idempotencyKey = takeIdempotencyKey(signature);
+      const next = await decideOperatorParcelClaim(
+        activeClaimId,
+        parsed.value,
+        idempotencyKey,
+      );
+      pendingRef.current = null;
       onDecided(
         next,
         t(
@@ -103,23 +241,49 @@ export default function ClaimDecisionModal({
             : "claims.rejectSuccess",
         ),
       );
-    } catch (err) {
-      // §17: 409 nghĩa là claim đã đổi trạng thái (người khác quyết định trước,
-      // hoặc BE đã đóng hồ sơ). KHÔNG gửi lại — thay màn bằng một detail GET
-      // mới để bộ nút được dựng lại theo `availableActions` thật.
-      if (err instanceof ApiRequestError && err.status === 409 && claim) {
+    } catch (caught) {
+      if (
+        caught instanceof ApiRequestError &&
+        (caught.status === 409 ||
+          caught.code === "PARCEL_CLAIM_ALREADY_DECIDED")
+      ) {
+        pendingRef.current = null;
         try {
           onDecided(
-            await getOperatorParcelClaim(claim.claimId),
+            await getOperatorParcelClaim(activeClaimId),
             t("claims.alreadyDecided"),
           );
           return;
         } catch {
-          // Nạp lại cũng hỏng thì rơi xuống hiện lỗi gốc bên dưới
+          // Fall through to the original stale error.
         }
       }
 
-      setError(t(claimErrorTranslationKey(err, "claims.decisionFailed")));
+      if (
+        caught instanceof ApiRequestError &&
+        caught.code === "PARCEL_CLAIM_EVIDENCE_NOT_FOUND"
+      ) {
+        pendingRef.current = null;
+        try {
+          onDecided(
+            await getOperatorParcelClaim(activeClaimId),
+            t("claims.errors.evidenceStale"),
+          );
+          return;
+        } catch {
+          // Fall through to the original evidence error.
+        }
+      }
+
+      if (
+        caught instanceof ApiRequestError &&
+        caught.code === "PARCEL_CLAIM_EVIDENCE_REQUIRED"
+      ) {
+        setProofInvalid(true);
+        setError(caught.message);
+      } else {
+        setError(t(claimErrorTranslationKey(caught, "claims.decisionFailed")));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -132,7 +296,7 @@ export default function ClaimDecisionModal({
       wide
       icon={<FiDollarSign size={20} />}
       title={t("claims.decisionTitle")}
-      subtitle={detail?.parcel?.parcelCode}
+      subtitle={detail.parcel?.parcelCode}
       footer={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
@@ -141,13 +305,15 @@ export default function ClaimDecisionModal({
           <Button
             variant={draft.decision === "APPROVE" ? "primary" : "danger"}
             onClick={() => void handleSubmit()}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isPreviewLoading}
           >
-            {t(
-              draft.decision === "APPROVE"
-                ? "claims.confirmApprove"
-                : "claims.confirmReject",
-            )}
+            {isSubmitting
+              ? tc("processing")
+              : t(
+                  draft.decision === "APPROVE"
+                    ? "claims.confirmApprove"
+                    : "claims.confirmReject",
+                )}
           </Button>
         </div>
       }
@@ -159,17 +325,18 @@ export default function ClaimDecisionModal({
           </InlineAlert>
         ) : null}
 
-        <fieldset>
+        <fieldset disabled={isSubmitting}>
           <legend className={labelClass}>{t("claims.decisionLabel")}</legend>
           <div className="mt-1 grid gap-2 sm:grid-cols-2">
             {(["APPROVE", "REJECT"] as const).map((value) => (
               <label
                 key={value}
-                className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${
-                  draft.decision === value
+                className={
+                  "flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm " +
+                  (draft.decision === value
                     ? "border-vr-300 bg-vr-50"
-                    : "border-gray-200 bg-white"
-                }`}
+                    : "border-gray-200 bg-white")
+                }
               >
                 <input
                   type="radio"
@@ -178,16 +345,19 @@ export default function ClaimDecisionModal({
                   checked={draft.decision === value}
                   onChange={() => {
                     setError("");
-                    setDraft((prev) => ({ ...prev, decision: value }));
+                    setDraft((current) => ({
+                      ...current,
+                      decision: value,
+                    }));
                   }}
                   className="mt-0.5"
                 />
                 <span>
                   <span className="block font-semibold text-gray-900">
-                    {t(`claims.decision.${value}`)}
+                    {t("claims.decision." + value)}
                   </span>
                   <span className="mt-0.5 block text-xs text-gray-600">
-                    {t(`claims.decisionHint.${value}`)}
+                    {t("claims.decisionHint." + value)}
                   </span>
                 </span>
               </label>
@@ -195,141 +365,21 @@ export default function ClaimDecisionModal({
           </div>
         </fieldset>
 
-        {draft.decision === "APPROVE" ? (
-          <div className="space-y-3">
-            <fieldset>
-              <legend className={labelClass}>{t("claims.proofLabel")}</legend>
-              <div className="mt-1 grid gap-2 sm:grid-cols-2">
-                {(["WITH_PROOF", "WITHOUT_PROOF"] as const).map((value) => (
-                  <label
-                    key={value}
-                    className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${
-                      draft.proofMode === value
-                        ? "border-vr-300 bg-vr-50"
-                        : "border-gray-200 bg-white"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="claim-proof-mode"
-                      value={value}
-                      checked={draft.proofMode === value}
-                      onChange={() => {
-                        setError("");
-                        setDraft((prev) => ({
-                          ...prev,
-                          proofMode: value,
-                          provenDirectLossVnd:
-                            value === "WITHOUT_PROOF"
-                              ? ""
-                              : prev.provenDirectLossVnd,
-                        }));
-                      }}
-                      className="mt-0.5"
-                    />
-                    <span>
-                      <span className="block font-semibold text-gray-900">
-                        {t(`claims.proof.${value}`)}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-gray-600">
-                        {t(`claims.proofHint.${value}`, {
-                          multiplier:
-                            claim.policySnapshot?.noProofFallbackMultiplier ?? "—",
-                        })}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+        <ProofAssessmentFields
+          draft={draft}
+          evidence={claim.evidence}
+          lossLabel={t("claims.provenLossLabel")}
+          lossHint={t("claims.provenLossHint")}
+          invalid={proofInvalid}
+          disabled={isSubmitting}
+          onChange={updateProof}
+        />
 
-            {draft.proofMode === "WITH_PROOF" ? (
-              <div>
-                <label className={labelClass} htmlFor="claim-proven-loss">
-                  {t("claims.provenLossLabel")}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="claim-proven-loss"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1}
-                    value={draft.provenDirectLossVnd}
-                    onChange={(event) => {
-                      setError("");
-                      setDraft((prev) => ({
-                        ...prev,
-                        provenDirectLossVnd: event.target.value,
-                      }));
-                    }}
-                    className={inputClass}
-                  />
-                  <span className="shrink-0 text-sm text-gray-500">đ</span>
-                </div>
-                <p className="mt-1 text-xs text-gray-600">
-                  {t("claims.provenLossHint")}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* Con số bằng tiền phải hiện TRƯỚC khi bấm duyệt, không phải sau. */}
-        {preview ? (
-          <div className="rounded-xl bg-vr-50 px-4 py-3">
-            <p className="text-xs font-semibold text-vr-800">
-              {t("claims.previewTitle")}
-            </p>
-            <ul className="mt-2 space-y-1 text-sm leading-6 text-gray-700">
-              {preview.proofMode === "WITH_PROOF" ? (
-                <li>
-                  {t("claims.previewAssessed", {
-                    amount: formatCurrency(preview.assessedLossVnd),
-                    rate: claim.compensationRatePercent,
-                  })}
-                </li>
-              ) : (
-                <li>
-                  {t("claims.previewNoProofFormula", {
-                    freight: formatCurrency(preview.freightCollectedVnd),
-                    multiplier:
-                      claim.policySnapshot?.noProofFallbackMultiplier ?? "—",
-                    amount: formatCurrency(preview.cargoAwardVnd),
-                  })}
-                </li>
-              )}
-              <li className="font-semibold text-gray-900">
-                {t("claims.previewCargoAward", {
-                  amount: formatCurrency(preview.cargoAwardVnd),
-                })}
-              </li>
-              {preview.cappedByPolicy ? (
-                <li className="text-amber-700">
-                  {t("claims.previewCapped", {
-                    cap: formatCurrency(claim.policyCapVnd),
-                  })}
-                </li>
-              ) : null}
-              <li>
-                {t("claims.previewFreightFormula", {
-                  freight: formatCurrency(preview.freightCollectedVnd),
-                  refunded: formatCurrency(preview.alreadyRefundedVnd),
-                  amount: formatCurrency(preview.freightRefundVnd),
-                })}
-              </li>
-              <li className="font-semibold text-vr-900">
-                {t("claims.previewTotal", {
-                  amount: formatCurrency(preview.totalAwardVnd),
-                })}
-              </li>
-            </ul>
-          </div>
-        ) : draft.decision === "APPROVE" && draft.proofMode ? (
-          <InlineAlert tone="warning">
-            <p>{t("claims.previewUnavailable")}</p>
-          </InlineAlert>
-        ) : null}
+        <AwardPreviewPanel
+          preview={preview}
+          isLoading={isPreviewLoading}
+          error={previewError}
+        />
 
         <div>
           <label className={labelClass} htmlFor="claim-reason">
@@ -340,19 +390,32 @@ export default function ClaimDecisionModal({
             id="claim-reason"
             rows={3}
             value={draft.reason}
+            disabled={isSubmitting}
             onChange={(event) => {
               setError("");
-              setDraft((prev) => ({ ...prev, reason: event.target.value }));
+              setDraft((current) => ({
+                ...current,
+                reason: event.target.value,
+              }));
             }}
             placeholder={t("claims.reasonPlaceholder")}
             className={textareaClass}
           />
         </div>
 
+        {draft.decision === "REJECT" ? (
+          <InlineAlert tone="warning">
+            <p>{t("claims.rejectProofAuditNote")}</p>
+          </InlineAlert>
+        ) : null}
         <InlineAlert tone="info">
           <p>{t("claims.payoutAsyncNote")}</p>
         </InlineAlert>
       </div>
     </Modal>
   );
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
 }

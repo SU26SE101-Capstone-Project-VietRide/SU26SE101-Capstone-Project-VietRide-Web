@@ -12,9 +12,11 @@ import {
   updateParcelCompensationPolicy,
   getOperatorParcelClaims,
   getOperatorParcelClaim,
+  previewOperatorParcelClaimAward,
   decideOperatorParcelClaim,
   getOperatorParcelClaimAppeals,
   getOperatorParcelClaimAppeal,
+  previewOperatorParcelClaimAppealAdjustment,
   decideOperatorParcelClaimAppeal,
   getParcelStopDepartureApproval,
   decideParcelStopDepartureApproval,
@@ -4881,7 +4883,9 @@ describe("parcel claims", () => {
 
     await decideOperatorParcelClaim("claim-1", {
       decision: "APPROVE",
+      proofStatus: "VERIFIED",
       provenDirectLossVnd: 12_000_000,
+      acceptedEvidenceIds: ["evidence-1"],
       reason: "Chung tu hop le",
     });
 
@@ -4897,8 +4901,37 @@ describe("parcel claims", () => {
     );
     expect(JSON.parse(String(init?.body))).toEqual({
       decision: "APPROVE",
+      proofStatus: "VERIFIED",
       provenDirectLossVnd: 12_000_000,
+      acceptedEvidenceIds: ["evidence-1"],
       reason: "Chung tu hop le",
+    });
+  });
+
+  it("gọi award preview đúng body và không gửi Idempotency-Key", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await previewOperatorParcelClaimAward("claim-1", {
+      proofStatus: "NO_PROOF",
+      provenDirectLossVnd: null,
+      acceptedEvidenceIds: [],
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://api.vietride.online/v1/operator/claims/claim-1/award-preview",
+    );
+    expect(init?.method).toBe("POST");
+    expect(
+      (init?.headers as Record<string, string>)["Idempotency-Key"],
+    ).toBeUndefined();
+    expect(JSON.parse(String(init?.body))).toEqual({
+      proofStatus: "NO_PROOF",
+      provenDirectLossVnd: null,
+      acceptedEvidenceIds: [],
     });
   });
 });
@@ -4953,7 +4986,7 @@ describe("parcel claim appeals", () => {
     );
   });
 
-  it("gửi quyết định appeal kèm Idempotency-Key và đúng ba field", async () => {
+  it("gửi quyết định appeal kèm Idempotency-Key và đủ proof fields", async () => {
     const fetchMock = vi.fn<typeof fetch>(async () =>
       Response.json({ success: true, data: {} }, { status: 200 }),
     );
@@ -4961,7 +4994,9 @@ describe("parcel claim appeals", () => {
 
     await decideOperatorParcelClaimAppeal("appeal-1", {
       decision: "APPROVE_ADJUSTMENT",
+      proofStatus: "VERIFIED",
       revisedProvenDirectLossVnd: 15_000_000,
+      acceptedEvidenceIds: ["claim-evidence-1"],
       reason: "Chung tu bo sung hop le",
     });
 
@@ -4978,9 +5013,33 @@ describe("parcel claim appeals", () => {
     // KHÔNG có reviewer/supervisor UUID trong body — người quyết định lấy từ JWT
     expect(JSON.parse(String(init?.body))).toEqual({
       decision: "APPROVE_ADJUSTMENT",
+      proofStatus: "VERIFIED",
       revisedProvenDirectLossVnd: 15_000_000,
+      acceptedEvidenceIds: ["claim-evidence-1"],
       reason: "Chung tu bo sung hop le",
     });
+  });
+
+  it("gọi adjustment preview không kèm Idempotency-Key", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({ success: true, data: {} }, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await previewOperatorParcelClaimAppealAdjustment("appeal-1", {
+      proofStatus: "UNVERIFIED",
+      revisedProvenDirectLossVnd: null,
+      acceptedEvidenceIds: [],
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://api.vietride.online/v1/operator/claim-appeals/appeal-1/adjustment-preview",
+    );
+    expect(init?.method).toBe("POST");
+    expect(
+      (init?.headers as Record<string, string>)["Idempotency-Key"],
+    ).toBeUndefined();
   });
 
   it("dùng lại đúng Idempotency-Key được truyền vào khi retry", async () => {
@@ -4992,12 +5051,24 @@ describe("parcel claim appeals", () => {
     const key = "11111111-2222-4333-8444-555555555555";
     await decideOperatorParcelClaimAppeal(
       "appeal-1",
-      { decision: "UPHOLD", reason: "Giu nguyen quyet dinh" },
+      {
+        decision: "UPHOLD",
+        proofStatus: "NO_PROOF",
+        revisedProvenDirectLossVnd: null,
+        acceptedEvidenceIds: [],
+        reason: "Giu nguyen quyet dinh",
+      },
       key,
     );
     await decideOperatorParcelClaimAppeal(
       "appeal-1",
-      { decision: "UPHOLD", reason: "Giu nguyen quyet dinh" },
+      {
+        decision: "UPHOLD",
+        proofStatus: "NO_PROOF",
+        revisedProvenDirectLossVnd: null,
+        acceptedEvidenceIds: [],
+        reason: "Giu nguyen quyet dinh",
+      },
       key,
     );
 

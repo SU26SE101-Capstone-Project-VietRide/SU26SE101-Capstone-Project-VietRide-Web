@@ -44,6 +44,16 @@ const IDEMPOTENCY_EXEMPT_PATTERNS: ReadonlyArray<{
     method: "POST",
     pattern: /^\/v1\/operator\/trips\/[^/]+\/substitute-vehicle\/preview$/,
   },
+  // Compensation previews are read-only POST endpoints. Their decision
+  // mutations provide an explicit operation key separately.
+  {
+    method: "POST",
+    pattern: /^\/v1\/operator\/claims\/[^/]+\/award-preview$/,
+  },
+  {
+    method: "POST",
+    pattern: /^\/v1\/operator\/claim-appeals\/[^/]+\/adjustment-preview$/,
+  },
 ];
 
 function normalizePath(path: string): string {

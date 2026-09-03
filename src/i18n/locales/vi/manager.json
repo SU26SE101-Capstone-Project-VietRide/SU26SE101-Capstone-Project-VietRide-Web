@@ -2443,6 +2443,12 @@
     "quoteAmountDue": "Cần thanh toán",
     "quoteAppliesTo": "Áp dụng cho",
     "quoteFullPriceHint": "Đây là giá đầy đủ cho một chu kỳ mới, không có khoản khấu trừ.",
+    "deductionFormulaTitle": "Cách tính số tiền khấu trừ",
+    "deductionFormulaIntro": "Khi nâng cấp giữa chu kỳ, nhà xe chỉ thanh toán phần chênh lệch trong thời gian còn lại.",
+    "deductionRemainingRate": "Tỷ lệ thời gian còn lại = Thời gian từ ngày nâng cấp đến ngày hết hạn ÷ Tổng thời gian của gói.",
+    "deductionRemainingValues": "Hệ thống dùng tỷ lệ này để tính giá gói mới cho thời gian còn lại và giá trị gói cũ chưa sử dụng.",
+    "deductionAmountDue": "Số tiền cần thanh toán = Giá gói mới cho thời gian còn lại − Giá trị gói cũ được khấu trừ.",
+    "deductionRoundingHint": "Các khoản tiền được hệ thống làm tròn theo quy định.",
     "billingPeriodLockedHint": "Bạn đang trả theo tháng nên nâng cấp giữa chu kỳ cũng phải theo tháng. Muốn chuyển sang kỳ năm thì đợi hết chu kỳ hiện tại rồi mua.",
     "periodNotSold": "Không bán kỳ này",
     "onlySoldPerPeriod": "Chỉ bán {{period}}",
@@ -2844,7 +2850,7 @@
       "OPERATOR_PAYOUT_RECEIVED": "Nhận tiền đối soát",
       "PLATFORM_SERVICE_PAYMENT": "Thanh toán dịch vụ nền tảng",
       "MANUAL_ADJUSTMENT": "Điều chỉnh thủ công",
-      "PARCEL_COMPENSATION_PAYOUT": "Nhận bồi thường kiện hàng"
+      "PARCEL_COMPENSATION_PAYOUT": "Bồi thường kiện hàng"
     }
   },
   "vehicleBuilder": {
@@ -3656,6 +3662,8 @@
     "cargoAward": "Bồi thường giá trị hàng",
     "freightRefund": "Hoàn lại cước vận chuyển",
     "evidenceCount": "Số chứng từ",
+    "proofAssessment": "Kết quả đánh giá chứng minh",
+    "acceptedEvidenceCount": "Chứng từ được chấp nhận",
     "policySnapshotTitle": "Mức bồi thường áp dụng cho đơn hàng này",
     "policySnapshotHint": "Mức này đã được chốt khi nhà xe nhận gửi hàng, nên không thay đổi theo cài đặt hiện tại.",
     "snapshotRate": "Tỉ lệ bồi thường",
@@ -3693,18 +3701,37 @@
       "APPROVE": "Nhà xe đồng ý bồi thường và chuyển tiền cho người gửi.",
       "REJECT": "Không chấp nhận bồi thường; cần nêu rõ lý do cho khách."
     },
-    "proofLabel": "Khách có hóa đơn hoặc chứng từ không?",
-    "proof": {
-      "WITH_PROOF": "Có hóa đơn/chứng từ",
-      "WITHOUT_PROOF": "Không có hóa đơn/chứng từ"
+    "proofLabel": "Kết quả xác minh chứng từ và thiệt hại",
+    "proofStatus": {
+      "VERIFIED": "Đã xác minh",
+      "UNVERIFIED": "Chưa xác minh được",
+      "NO_PROOF": "Không có chứng từ",
+      "PENDING": "Chưa đánh giá",
+      "LEGACY": "Chưa ghi nhận (legacy)"
     },
     "proofHint": {
-      "WITH_PROOF": "Bồi thường theo thiệt hại được chứng minh, không vượt giá trị hàng đã khai.",
-      "WITHOUT_PROOF": "Bồi thường giá trị hàng bằng {{multiplier}} lần cước vận chuyển đã thu."
+      "VERIFIED": "Có đủ căn cứ để ghi nhận thiệt hại trực tiếp; cần chọn ít nhất một chứng từ được chấp nhận.",
+      "UNVERIFIED": "Khách có cung cấp thông tin nhưng chưa đủ căn cứ xác minh; hệ thống áp dụng nhánh không có thiệt hại được chứng minh.",
+      "NO_PROOF": "Khách không cung cấp được chứng từ; hệ thống áp dụng mức fallback của chính sách."
     },
     "provenLossLabel": "Giá trị thiệt hại có chứng từ",
     "provenLossHint": "Nhập số tiền thể hiện trên hóa đơn hoặc giấy tờ của khách.",
+    "acceptedEvidenceLabel": "Chứng từ được dùng làm căn cứ",
+    "acceptedEvidenceHint": "Chỉ chọn từ chứng từ thuộc hồ sơ này. ID chứng từ, không phải đường dẫn, sẽ được gửi cho hệ thống.",
+    "evidenceEmptyForDecision": "Hồ sơ chưa có chứng từ nên không thể chọn “Đã xác minh”.",
+    "evidenceAccepted": "Đã chấp nhận",
+    "openEvidence": "Mở chứng từ",
     "previewTitle": "Mức bồi thường dự kiến",
+    "previewLoading": "Đang lấy kết quả tính bồi thường mới nhất…",
+    "previewFailed": "Không lấy được mức bồi thường dự kiến. Vui lòng thử lại.",
+    "previewAssessedLoss": "Thiệt hại được dùng để tính",
+    "previewDeclaredLiability": "Trách nhiệm theo giá khai báo",
+    "previewFallback": "Mức fallback trước khi áp trần",
+    "previewNotCommitment": "Đây là kết quả xem trước, chưa phải cam kết chi trả. Số tiền cuối cùng lấy từ kết quả quyết định của hệ thống.",
+    "calculationBasis": {
+      "VERIFIED_LOSS": "Theo thiệt hại đã xác minh",
+      "NO_PROOF_FALLBACK": "Theo mức fallback"
+    },
     "previewAssessed": "Giá trị thiệt hại được ghi nhận là {{amount}}; áp dụng tỉ lệ bồi thường {{rate}}%.",
     "previewNoProofFormula": "Không có chứng từ: cước {{freight}} × {{multiplier}} = {{amount}}.",
     "previewCargoAward": "Bồi thường giá trị hàng: {{amount}}",
@@ -3714,6 +3741,7 @@
     "previewUnavailable": "Chưa lấy được dữ liệu cước của đơn hàng để tính trước. Vui lòng đóng và mở lại hồ sơ.",
     "reasonLabel": "Lý do",
     "reasonPlaceholder": "Nêu căn cứ để khách và bộ phận kế toán hiểu được quyết định",
+    "rejectProofAuditNote": "Từ chối vẫn phải ghi nhận đầy đủ kết quả đánh giá chứng từ, thiệt hại và căn cứ được chấp nhận để lưu vết quyết định.",
     "payoutAsyncNote": "Sau khi duyệt, hệ thống sẽ chuyển tiền vào ví VietRide của người gửi. Trạng thái chi trả sẽ tự cập nhật khi chuyển tiền xong.",
     "confirmApprove": "Duyệt bồi thường",
     "confirmReject": "Từ chối khiếu nại",
@@ -3725,7 +3753,8 @@
       "proof-required": "Chọn rõ khách có hay không có hóa đơn/chứng từ.",
       "loss-required": "Nhập giá trị thiệt hại trên hóa đơn/chứng từ.",
       "invalid-loss": "Tổn thất phải là số nguyên.",
-      "negative-loss": "Tổn thất không được âm."
+      "negative-loss": "Tổn thất không được âm.",
+      "evidence-required": "Chọn ít nhất một chứng từ được chấp nhận khi đánh giá là đã xác minh."
     },
     "actions": {
       "DECIDE_CLAIM": "Kiểm tra và xử lý"
@@ -3733,7 +3762,7 @@
     "status": {
       "SUBMITTED": "Chờ xử lý",
       "UNDER_REVIEW": "Đang xem xét",
-      "APPROVED": "Đã duyệt",
+      "APPROVED": "Đã duyệt, chờ chi",
       "FUNDING_PENDING": "Chờ cấp tiền",
       "PAID": "Đã chi",
       "REJECTED": "Đã từ chối",
@@ -3754,6 +3783,8 @@
       "notFound": "Không tìm thấy yêu cầu bồi thường này. Hồ sơ có thể đã được xoá hoặc không còn thuộc nhà xe.",
       "reasonRequired": "Vui lòng nhập lý do để khách và bộ phận kế toán hiểu quyết định.",
       "invalidDecision": "Thông tin xử lý chưa hợp lệ. Vui lòng kiểm tra lại số tiền thiệt hại và lý do.",
+      "proofInvalid": "Thông tin chứng minh chưa hợp lệ. Kiểm tra trạng thái xác minh, số tiền thiệt hại và chứng từ đã chọn.",
+      "evidenceStale": "Danh sách chứng từ đã thay đổi. Hồ sơ đã được tải lại; vui lòng mở form và chọn lại.",
       "systemUnavailable": "Hệ thống tạm thời chưa xử lý được yêu cầu. Vui lòng thử lại sau."
     }
   },
@@ -3793,7 +3824,7 @@
     "paidAt": "Đã chi lúc",
     "payoutReference": "Mã giao dịch chi",
     "claimContextTitle": "Hồ sơ khiếu nại gốc",
-    "claimContextFailed": "Không tải được hồ sơ khiếu nại gốc. Vẫn quyết định được, chỉ thiếu phần đối chiếu.",
+    "claimContextFailed": "Không tải được hồ sơ khiếu nại gốc và danh sách chứng từ. Vui lòng tải lại trước khi ra quyết định.",
     "parcelLabel": "Kiện hàng",
     "beneficiaryLabel": "Người được đền",
     "beneficiaryPhone": "Số điện thoại",
@@ -3807,6 +3838,8 @@
     "revisedProvenLossHint": "Để trống nếu không thay đổi mức tổn thất. Hệ thống sẽ tính lại tiền bồi thường theo mức đã áp dụng khi khách gửi hàng.",
     "adjustmentRule": "Mức bồi thường sau khi xem xét phải cao hơn {{amount}}. Hệ thống sẽ tự tính số tiền cuối cùng từ thông tin tổn thất đã xác nhận.",
     "upholdNote": "Giữ nguyên quyết định cũ: không phát sinh khoản chi nào thêm cho khách.",
+    "upholdProofAuditNote": "Giữ nguyên quyết định không cần xem trước mức điều chỉnh, nhưng vẫn phải ghi nhận đầy đủ kết quả đánh giá chứng từ để lưu vết.",
+    "previewFailed": "Không lấy được mức điều chỉnh dự kiến. Vui lòng thử lại.",
     "reasonLabel": "Lý do",
     "reasonPlaceholder": "Nêu căn cứ để khách và bộ phận kế toán hiểu được quyết định",
     "reasonHint": "Tối đa {{max}} ký tự.",
@@ -3821,13 +3854,19 @@
     "errors": {
       "noPermission": "Bạn không có quyền xử lý yêu cầu này.",
       "notFound": "Không tìm thấy yêu cầu này hoặc yêu cầu không còn thuộc nhà xe.",
+      "adjustmentRequired": "Phương án điều chỉnh phải tạo ra khoản bồi thường bổ sung lớn hơn 0. Hãy sửa đánh giá hoặc chọn giữ nguyên quyết định.",
+      "proofInvalid": "Thông tin chứng minh chưa hợp lệ. Kiểm tra trạng thái xác minh, số tiền và chứng từ đã chọn.",
+      "evidenceStale": "Danh sách chứng từ của hồ sơ gốc đã thay đổi. Dữ liệu đã được tải lại; vui lòng chọn lại.",
       "systemUnavailable": "Hệ thống đang tạm gián đoạn. Vui lòng thử lại sau."
     },
     "decisionErrors": {
       "reason-required": "Nhập lý do cho quyết định.",
       "reason-too-long": "Lý do không được quá 2000 ký tự.",
+      "proof-required": "Chọn kết quả xác minh chứng từ.",
+      "loss-required": "Nhập giá trị thiệt hại đã xác minh.",
       "invalid-loss": "Tổn thất phải là số nguyên.",
-      "negative-loss": "Tổn thất không được âm."
+      "negative-loss": "Tổn thất không được âm.",
+      "evidence-required": "Chọn ít nhất một chứng từ được chấp nhận khi đánh giá là đã xác minh."
     },
     "actions": {
       "DECIDE_APPEAL": "Ra quyết định"
@@ -3836,7 +3875,7 @@
       "SUBMITTED": "Chờ xem xét",
       "UNDER_REVIEW": "Đang xem xét",
       "UPHELD": "Giữ nguyên quyết định",
-      "ADJUSTMENT_APPROVED": "Đã duyệt điều chỉnh",
+      "ADJUSTMENT_APPROVED": "Đã duyệt điều chỉnh, chờ chi",
       "FUNDING_PENDING": "Chờ cấp tiền",
       "PAID": "Đã chi"
     }

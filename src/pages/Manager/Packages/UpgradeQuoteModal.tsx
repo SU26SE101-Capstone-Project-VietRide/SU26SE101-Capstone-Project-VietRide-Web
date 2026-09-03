@@ -283,6 +283,42 @@ export default function UpgradeQuoteModal({
               </div>
             </section>
 
+            {quote.prorationApplied ? (
+              <section
+                data-testid="deduction-formula"
+                className="rounded-lg border border-blue-200 bg-blue-50/70 p-4 text-sm text-gray-700"
+              >
+                <h3 className="font-bold text-gray-900">
+                  {t("packages.deductionFormulaTitle")}
+                </h3>
+                <p className="mt-2 text-xs leading-5 text-gray-600">
+                  {t("packages.deductionFormulaIntro")}
+                </p>
+                <ol className="mt-3 space-y-2 text-xs leading-5">
+                  <li>
+                    <span className="font-semibold text-gray-800">1. </span>
+                    {t("packages.deductionRemainingRate")}
+                  </li>
+                  <li>
+                    <span className="font-semibold text-gray-800">2. </span>
+                    {t("packages.deductionRemainingValues")}
+                  </li>
+                  <li>
+                    <span className="font-semibold text-gray-800">3. </span>
+                    {t("packages.deductionAmountDue")}
+                  </li>
+                </ol>
+                <div className="mt-3 rounded-md bg-white px-3 py-2 text-center font-semibold tabular-nums text-vr-900 shadow-sm ring-1 ring-blue-100">
+                  {formatCurrency(quote.proratedTargetAmount)} −{" "}
+                  {formatCurrency(quote.unusedCredit)} ={" "}
+                  {formatCurrency(quote.amountDue)}
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  {t("packages.deductionRoundingHint")}
+                </p>
+              </section>
+            ) : null}
+
           </>
         ) : null}
       </div>

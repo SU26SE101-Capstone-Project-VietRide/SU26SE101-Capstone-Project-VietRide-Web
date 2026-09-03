@@ -8168,6 +8168,15 @@ export type ParcelClaimFundingStatus =
 /** Chỉ `DECIDE_CLAIM`; FE không tự dựng lại state machine (§11.1). */
 export type ParcelClaimAction = "DECIDE_CLAIM" | (string & {});
 
+export const PARCEL_CLAIM_PROOF_STATUSES = [
+  "VERIFIED",
+  "UNVERIFIED",
+  "NO_PROOF",
+] as const;
+
+export type ParcelClaimProofStatus =
+  (typeof PARCEL_CLAIM_PROOF_STATUSES)[number];
+
 export type ReliabilityIncidentSummary = {
   incidentId: string;
   type: string;
@@ -8209,6 +8218,9 @@ export type ParcelClaim = {
   status: ParcelClaimStatus | (string & {});
   declaredValueVnd?: number | null;
   provenDirectLossVnd?: number | null;
+  /** Null trước quyết định; với hồ sơ đã chốt thì null là dữ liệu legacy. */
+  proofStatus?: ParcelClaimProofStatus | null;
+  acceptedEvidenceIds: string[];
   compensationRatePercent: number;
   policyCapVnd: number;
   cargoAwardVnd: number;
@@ -8286,10 +8298,38 @@ export type ParcelClaimListParams = {
 
 export type DecideParcelClaimRequest = {
   decision: "APPROVE" | "REJECT";
-  /** Chỉ dùng khi approve; bỏ trống là BE rơi vào công thức "không chứng từ" */
-  provenDirectLossVnd?: number | null;
-  /** Bắt buộc nonblank — blank trả `PARCEL_CLAIM_EVIDENCE_REQUIRED` */
+  proofStatus: ParcelClaimProofStatus;
+  provenDirectLossVnd: number | null;
+  acceptedEvidenceIds: string[];
   reason: string;
+};
+
+export type ParcelClaimAwardPreviewRequest = {
+  proofStatus: ParcelClaimProofStatus;
+  provenDirectLossVnd: number | null;
+  acceptedEvidenceIds: string[];
+};
+
+export type ParcelClaimAwardCalculationBasis =
+  | "VERIFIED_LOSS"
+  | "NO_PROOF_FALLBACK";
+
+export type ParcelClaimAwardPreview = {
+  claimId: string;
+  appealId: string | null;
+  proofStatus: ParcelClaimProofStatus;
+  acceptedEvidenceIds: string[];
+  calculationBasis: ParcelClaimAwardCalculationBasis;
+  provenDirectLossVnd: number | null;
+  assessedLossVnd: number | null;
+  declaredLiabilityVnd: number | null;
+  fallbackAmountVnd: number | null;
+  policySnapshot: ParcelCompensationPolicySnapshot;
+  cargoAwardVnd: number;
+  freightRefundVnd: number;
+  totalAwardVnd: number;
+  originalTotalAwardVnd: number | null;
+  supplementaryAwardVnd: number | null;
 };
 
 export function getOperatorParcelClaims(params: ParcelClaimListParams = {}) {
@@ -8302,6 +8342,18 @@ export function getOperatorParcelClaim(claimId: string) {
   return apiRequest<ParcelClaimDetail>(`/v1/operator/claims/${claimId}`);
 }
 
+/** Read-only preview. Không gửi Idempotency-Key. */
+export function previewOperatorParcelClaimAward(
+  claimId: string,
+  request: ParcelClaimAwardPreviewRequest,
+  signal?: AbortSignal,
+) {
+  return apiRequest<ParcelClaimAwardPreview>(
+    `/v1/operator/claims/${claimId}/award-preview`,
+    { method: "POST", body: request, signal },
+  );
+}
+
 /**
  * Chỉ `OPERATOR_ADMIN`, và chỉ claim còn `DECIDE_CLAIM` trong `availableActions`.
  * Trả về DETAIL đã cập nhật — thay thẳng vào state, không refetch.
@@ -8312,10 +8364,15 @@ export function getOperatorParcelClaim(claimId: string) {
 export function decideOperatorParcelClaim(
   claimId: string,
   request: DecideParcelClaimRequest,
+  idempotencyKey = createIdempotencyKey(),
 ) {
   return apiRequest<ParcelClaimDetail>(
     `/v1/operator/claims/${claimId}/decision`,
-    { method: "POST", body: request },
+    {
+      method: "POST",
+      body: request,
+      headers: { "Idempotency-Key": idempotencyKey },
+    },
   );
 }
 
@@ -8361,6 +8418,9 @@ export type ParcelClaimAppeal = {
   submittedByUserId: string;
   submittedAt: string;
   revisedProvenDirectLossVnd?: number | null;
+  /** Null trước quyết định; với hồ sơ đã chốt thì null là dữ liệu legacy. */
+  proofStatus?: ParcelClaimProofStatus | null;
+  acceptedEvidenceIds: string[];
   revisedCargoAwardVnd: number;
   revisedFreightRefundVnd: number;
   revisedTotalAwardVnd: number;
@@ -8397,8 +8457,16 @@ export type ParcelClaimAppealListParams = {
  */
 export type DecideParcelClaimAppealRequest = {
   decision: "UPHOLD" | "APPROVE_ADJUSTMENT";
-  revisedProvenDirectLossVnd?: number | null;
+  proofStatus: ParcelClaimProofStatus;
+  revisedProvenDirectLossVnd: number | null;
+  acceptedEvidenceIds: string[];
   reason: string;
+};
+
+export type ParcelClaimAppealAdjustmentPreviewRequest = {
+  proofStatus: ParcelClaimProofStatus;
+  revisedProvenDirectLossVnd: number | null;
+  acceptedEvidenceIds: string[];
 };
 
 export function getOperatorParcelClaimAppeals(
@@ -8412,6 +8480,18 @@ export function getOperatorParcelClaimAppeals(
 export function getOperatorParcelClaimAppeal(appealId: string) {
   return apiRequest<ParcelClaimAppeal>(
     `/v1/operator/claim-appeals/${appealId}`,
+  );
+}
+
+/** Read-only preview cho phương án tăng bồi thường. Không có Idempotency-Key. */
+export function previewOperatorParcelClaimAppealAdjustment(
+  appealId: string,
+  request: ParcelClaimAppealAdjustmentPreviewRequest,
+  signal?: AbortSignal,
+) {
+  return apiRequest<ParcelClaimAwardPreview>(
+    `/v1/operator/claim-appeals/${appealId}/adjustment-preview`,
+    { method: "POST", body: request, signal },
   );
 }
 
