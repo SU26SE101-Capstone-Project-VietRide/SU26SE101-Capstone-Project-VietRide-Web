@@ -11,7 +11,7 @@ import {
 const defaults: ParcelCompensationPolicyDefaults = {
   compensationRatePercent: 50,
   maxCompensationVnd: 30_000_000,
-  noProofFallbackMultiplier: 4,
+  noProofFallbackMultiplier: 2,
   claimWindowDays: 30,
   searchSlaHours: 72,
   decisionSlaBusinessDays: 7,
@@ -163,5 +163,20 @@ describe("isBelowPlatformDefault", () => {
     expect(
       isBelowPlatformDefault(draft({ compensationRatePercent: "" }), defaults),
     ).toBe(false);
+  });
+});
+
+describe("legacy no-proof multiplier compatibility", () => {
+  it("không đưa snapshot legacy 4 vào PUT policy mới", () => {
+    const legacyDefaults = { ...defaults, noProofFallbackMultiplier: 4 };
+    const result = parseParcelCompensationDraft(
+      draftFromParcelCompensationDefaults(legacyDefaults),
+      legacyDefaults,
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { noProofFallbackMultiplier: 2 },
+    });
   });
 });

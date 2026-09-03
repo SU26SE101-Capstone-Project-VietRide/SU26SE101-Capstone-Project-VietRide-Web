@@ -20,6 +20,7 @@ import {
   type ParcelClaimDetail,
 } from "../../../api/vietride";
 import Modal from "../../../components/Modal";
+import InlineAlert from "../../../components/InlineAlert";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { formatCurrency } from "../../../utils/currency";
@@ -32,6 +33,7 @@ import {
 } from "../Claims/claimHelpers";
 import AppealDecisionModal from "./AppealDecisionModal";
 import { appealStatusTone, hasAppealAction } from "./appealHelpers";
+import { CANONICAL_DATA_REFRESH_EVENT } from "../../../utils/canonicalDataRefresh";
 
 type AppealDetailModalProps = {
   open: boolean;
@@ -58,6 +60,14 @@ export default function AppealDetailModal({
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
   const [isDecisionOpen, setIsDecisionOpen] = useState(false);
+  const [canonicalRefreshVersion, setCanonicalRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setCanonicalRefreshVersion((current) => current + 1);
+    window.addEventListener(CANONICAL_DATA_REFRESH_EVENT, refresh);
+    return () =>
+      window.removeEventListener(CANONICAL_DATA_REFRESH_EVENT, refresh);
+  }, []);
 
   // Ngữ cảnh claim gốc. Giữ kèm `claimId` để lượt nạp của hồ sơ trước không
   // hiện nhầm dưới hồ sơ đang mở.
@@ -89,7 +99,7 @@ export default function AppealDetailModal({
     return () => {
       ignore = true;
     };
-  }, [claimId, open]);
+  }, [canonicalRefreshVersion, claimId, open]);
 
   const claim =
     claimContext.claimId === claimId ? claimContext.detail : null;
@@ -224,6 +234,15 @@ export default function AppealDetailModal({
                   value={String((appeal.acceptedEvidenceIds ?? []).length)}
                 />
               </dl>
+
+              {appeal.proofStatus === "UNVERIFIED" ||
+              appeal.proofStatus === "NO_PROOF" ? (
+                <div className="mt-3">
+                  <InlineAlert tone="warning">
+                    <p>{t("claims.noVerifiedProofNotice")}</p>
+                  </InlineAlert>
+                </div>
+              ) : null}
 
               {/* Khoản bổ sung là con số nghiệp vụ quan trọng nhất của màn:
                   đây là phần DUY NHẤT được gửi sang Payment, và Payment dùng

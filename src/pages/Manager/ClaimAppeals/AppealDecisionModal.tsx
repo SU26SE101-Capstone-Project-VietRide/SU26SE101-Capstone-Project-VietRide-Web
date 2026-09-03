@@ -98,6 +98,11 @@ export default function AppealDecisionModal({
   const previewError = visiblePreviewState?.error ?? "";
   const isPreviewLoading =
     previewSignature !== null && (visiblePreviewState?.loading ?? true);
+  const hasNonPositiveAdjustment =
+    isAdjustment &&
+    preview !== null &&
+    (preview.supplementaryAwardVnd ?? 0) <= 0;
+  const hasBlockingPreviewError = Boolean(previewSignature && previewError);
 
   useEffect(() => {
     if (!open || !appeal || !isAdjustment || !previewSignature) return;
@@ -211,6 +216,15 @@ export default function AppealDecisionModal({
     setDraft((current) => ({ ...current, ...next }));
   }
 
+  function handleClose() {
+    pendingRef.current = null;
+    setDraft(emptyDraft);
+    setError("");
+    setProofInvalid(false);
+    setPreviewState(null);
+    onClose();
+  }
+
   function takeIdempotencyKey(signature: string) {
     if (pendingRef.current?.signature === signature) {
       return pendingRef.current.idempotencyKey;
@@ -289,6 +303,12 @@ export default function AppealDecisionModal({
         }
       }
 
+      // 4xx là kết quả dứt khoát của thao tác hiện tại. Chỉ giữ UUID để người
+      // dùng retry đúng thao tác sau timeout/network hoặc lỗi server.
+      if (caught instanceof ApiRequestError && caught.status < 500) {
+        pendingRef.current = null;
+      }
+
       if (
         caught instanceof ApiRequestError &&
         (code === "PARCEL_CLAIM_EVIDENCE_REQUIRED" ||
@@ -314,20 +334,25 @@ export default function AppealDecisionModal({
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       wide
       icon={<FiRotateCcw size={20} />}
       title={t("claimAppeals.decisionTitle")}
       subtitle={t("claimAppeals.requestLabel")}
       footer={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+          <Button variant="secondary" onClick={handleClose} disabled={isSubmitting}>
             {tc("cancel")}
           </Button>
           <Button
             variant="primary"
             onClick={() => void handleSubmit()}
-            disabled={isSubmitting || isPreviewLoading}
+            disabled={
+              isSubmitting ||
+              isPreviewLoading ||
+              hasNonPositiveAdjustment ||
+              hasBlockingPreviewError
+            }
           >
             {isSubmitting
               ? tc("processing")
@@ -417,6 +442,11 @@ export default function AppealDecisionModal({
               isLoading={isPreviewLoading}
               error={previewError}
             />
+            {hasNonPositiveAdjustment ? (
+              <InlineAlert tone="warning">
+                <p>{t("claimAppeals.errors.adjustmentRequired")}</p>
+              </InlineAlert>
+            ) : null}
             <InlineAlert tone="warning">
               <p>
                 {t("claimAppeals.adjustmentRule", {

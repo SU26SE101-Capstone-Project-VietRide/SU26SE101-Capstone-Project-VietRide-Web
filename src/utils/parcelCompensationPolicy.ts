@@ -36,12 +36,21 @@ export const PARCEL_COMPENSATION_RANGES: Record<
 > = {
   compensationRatePercent: { min: 1, max: 100 },
   maxCompensationVnd: { min: 1, max: 999_999_999_999 },
-  noProofFallbackMultiplier: { min: 1, max: 100 },
+  noProofFallbackMultiplier: { min: 1, max: 2 },
   claimWindowDays: { min: 1, max: 365 },
   searchSlaHours: { min: 1, max: 720 },
   decisionSlaBusinessDays: { min: 1, max: 90 },
   payoutSlaBusinessDays: { min: 1, max: 90 },
 };
+
+/**
+ * Field này chỉ còn tồn tại để tương thích contract PUT, không tham gia tính
+ * award mới và không được hiện thành control. Policy/snapshot legacy có thể
+ * còn giá trị 4, nhưng BE mới chỉ chấp nhận 1..2 khi ghi lại policy.
+ */
+function compatibleNoProofMultiplier(value: number) {
+  return String(Math.min(2, Math.max(1, Math.trunc(value))));
+}
 
 export const PARCEL_COMPENSATION_NUMERIC_FIELDS = Object.keys(
   PARCEL_COMPENSATION_RANGES,
@@ -67,7 +76,9 @@ export function draftFromParcelCompensationPolicy(
   return {
     compensationRatePercent: String(policy.compensationRatePercent),
     maxCompensationVnd: String(policy.maxCompensationVnd),
-    noProofFallbackMultiplier: String(policy.noProofFallbackMultiplier),
+    noProofFallbackMultiplier: compatibleNoProofMultiplier(
+      policy.noProofFallbackMultiplier,
+    ),
     claimWindowDays: String(policy.claimWindowDays),
     searchSlaHours: String(policy.searchSlaHours),
     decisionSlaBusinessDays: String(policy.decisionSlaBusinessDays),
@@ -82,7 +93,9 @@ export function draftFromParcelCompensationDefaults(
   return {
     compensationRatePercent: String(defaults.compensationRatePercent),
     maxCompensationVnd: String(defaults.maxCompensationVnd),
-    noProofFallbackMultiplier: String(defaults.noProofFallbackMultiplier),
+    noProofFallbackMultiplier: compatibleNoProofMultiplier(
+      defaults.noProofFallbackMultiplier,
+    ),
     claimWindowDays: String(defaults.claimWindowDays),
     searchSlaHours: String(defaults.searchSlaHours),
     decisionSlaBusinessDays: String(defaults.decisionSlaBusinessDays),

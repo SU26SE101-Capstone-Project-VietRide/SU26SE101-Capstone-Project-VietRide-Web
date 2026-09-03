@@ -28,6 +28,10 @@ import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatCurrency } from "../../../utils/currency";
 import { formatDateTime } from "../../../utils/date";
 import { slaTone } from "../../../utils/parcelReliability";
+import {
+  CANONICAL_DATA_REFRESH_EVENT,
+  notifyCanonicalDataRefresh,
+} from "../../../utils/canonicalDataRefresh";
 import ClaimDetailModal from "./ClaimDetailModal";
 import {
   claimErrorTranslationKey,
@@ -176,6 +180,33 @@ export default function ClaimsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    function refreshCanonicalData() {
+      setRefreshVersion((current) => current + 1);
+
+      const openClaimId = detailRequestRef.current;
+      if (!openClaimId) return;
+      void getOperatorParcelClaim(openClaimId)
+        .then((fresh) => {
+          if (detailRequestRef.current === openClaimId) setDetail(fresh);
+        })
+        .catch(() => {
+          // Giữ detail đang xem khi lượt làm mới nền tạm lỗi; list load phía
+          // trên vẫn đưa lỗi qua toast và người dùng có thể refresh lại.
+        });
+    }
+
+    window.addEventListener(
+      CANONICAL_DATA_REFRESH_EVENT,
+      refreshCanonicalData,
+    );
+    return () =>
+      window.removeEventListener(
+        CANONICAL_DATA_REFRESH_EVENT,
+        refreshCanonicalData,
+      );
+  }, []);
+
   function closeDetail() {
     detailRequestRef.current = "";
     setDetail(null);
@@ -214,7 +245,7 @@ export default function ClaimsPage() {
           type="button"
           onClick={() => {
             setMessage("");
-            setRefreshVersion((current) => current + 1);
+            notifyCanonicalDataRefresh();
           }}
           disabled={isLoading}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"

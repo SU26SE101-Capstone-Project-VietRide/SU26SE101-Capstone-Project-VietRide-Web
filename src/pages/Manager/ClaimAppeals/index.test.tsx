@@ -365,6 +365,53 @@ describe("ClaimAppealsPage", () => {
     ).toBeTruthy();
   });
 
+  it("khóa duyệt điều chỉnh khi preview không tạo khoản bổ sung", async () => {
+    const user = userEvent.setup();
+    previewMock.mockResolvedValue({
+      claimId: appeal.claimId,
+      appealId: appeal.appealId,
+      proofStatus: "NO_PROOF",
+      acceptedEvidenceIds: [],
+      calculationBasis: "NO_VERIFIED_PROOF_FREIGHT_ONLY",
+      provenDirectLossVnd: null,
+      assessedLossVnd: null,
+      declaredLiabilityVnd: 10_000_000,
+      fallbackAmountVnd: null,
+      policySnapshot,
+      cargoAwardVnd: 0,
+      freightRefundVnd: 0,
+      totalAwardVnd: appeal.originalTotalAwardVnd,
+      originalTotalAwardVnd: appeal.originalTotalAwardVnd,
+      supplementaryAwardVnd: 0,
+    });
+    render(<ClaimAppealsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "details" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "claimAppeals.actions.DECIDE_APPEAL",
+      }),
+    );
+    await user.click(
+      screen.getByRole("radio", {
+        name: /claimAppeals.decision.APPROVE_ADJUSTMENT/,
+      }),
+    );
+    await user.click(
+      screen.getByRole("radio", { name: /claims\.proofStatus\.NO_PROOF/ }),
+    );
+
+    await waitFor(() => expect(previewMock).toHaveBeenCalledTimes(1));
+    expect(
+      screen.getByRole("button", {
+        name: "claimAppeals.confirmAdjustment",
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText("claimAppeals.errors.adjustmentRequired"),
+    ).toBeTruthy();
+  });
+
   it("vẫn mở được chi tiết khi claim gốc không đọc được", async () => {
     const user = userEvent.setup();
     claimMock.mockRejectedValue(new Error("claim unavailable"));

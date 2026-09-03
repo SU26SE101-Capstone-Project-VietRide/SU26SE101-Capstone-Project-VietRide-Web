@@ -89,6 +89,9 @@ export default function ClaimDecisionModal({
   const previewError = visiblePreviewState?.error ?? "";
   const isPreviewLoading =
     previewSignature !== null && (visiblePreviewState?.loading ?? true);
+  const isZeroAwardApproval =
+    draft.decision === "APPROVE" && preview?.totalAwardVnd === 0;
+  const hasBlockingPreviewError = Boolean(previewSignature && previewError);
 
   useEffect(() => {
     if (!open || !claim || !previewSignature) return;
@@ -201,6 +204,15 @@ export default function ClaimDecisionModal({
     setDraft((current) => ({ ...current, ...next }));
   }
 
+  function handleClose() {
+    pendingRef.current = null;
+    setDraft(emptyDraft);
+    setError("");
+    setProofInvalid(false);
+    setPreviewState(null);
+    onClose();
+  }
+
   function takeIdempotencyKey(signature: string) {
     if (pendingRef.current?.signature === signature) {
       return pendingRef.current.idempotencyKey;
@@ -275,6 +287,13 @@ export default function ClaimDecisionModal({
         }
       }
 
+      // Chỉ reuse key khi request không có response xác định (timeout/network)
+      // hoặc lỗi server. Một response 4xx là thao tác đã kết thúc; lần bấm tiếp
+      // theo là thao tác người dùng mới và phải có UUID mới.
+      if (caught instanceof ApiRequestError && caught.status < 500) {
+        pendingRef.current = null;
+      }
+
       if (
         caught instanceof ApiRequestError &&
         caught.code === "PARCEL_CLAIM_EVIDENCE_REQUIRED"
@@ -292,20 +311,25 @@ export default function ClaimDecisionModal({
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       wide
       icon={<FiDollarSign size={20} />}
       title={t("claims.decisionTitle")}
       subtitle={detail.parcel?.parcelCode}
       footer={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+          <Button variant="secondary" onClick={handleClose} disabled={isSubmitting}>
             {tc("cancel")}
           </Button>
           <Button
             variant={draft.decision === "APPROVE" ? "primary" : "danger"}
             onClick={() => void handleSubmit()}
-            disabled={isSubmitting || isPreviewLoading}
+            disabled={
+              isSubmitting ||
+              isPreviewLoading ||
+              isZeroAwardApproval ||
+              hasBlockingPreviewError
+            }
           >
             {isSubmitting
               ? tc("processing")
@@ -380,6 +404,12 @@ export default function ClaimDecisionModal({
           isLoading={isPreviewLoading}
           error={previewError}
         />
+
+        {isZeroAwardApproval ? (
+          <InlineAlert tone="warning">
+            <p>{t("claims.zeroAwardCannotApprove")}</p>
+          </InlineAlert>
+        ) : null}
 
         <div>
           <label className={labelClass} htmlFor="claim-reason">

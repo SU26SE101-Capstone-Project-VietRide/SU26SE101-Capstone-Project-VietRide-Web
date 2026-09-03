@@ -4790,7 +4790,7 @@ describe("parcel compensation policy", () => {
     await updateParcelCompensationPolicy({
       compensationRatePercent: 50,
       maxCompensationVnd: 30_000_000,
-      noProofFallbackMultiplier: 4,
+      noProofFallbackMultiplier: 2,
       claimWindowDays: 30,
       searchSlaHours: 72,
       decisionSlaBusinessDays: 7,
@@ -4811,7 +4811,7 @@ describe("parcel compensation policy", () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       compensationRatePercent: 50,
       maxCompensationVnd: 30_000_000,
-      noProofFallbackMultiplier: 4,
+      noProofFallbackMultiplier: 2,
       claimWindowDays: 30,
       searchSlaHours: 72,
       decisionSlaBusinessDays: 7,
@@ -4876,18 +4876,22 @@ describe("parcel claims", () => {
   });
 
   it("posts the decision with an Idempotency-Key", async () => {
+    const responseData = { claim: { claimId: "claim-1" } };
     const fetchMock = vi.fn<typeof fetch>(async () =>
-      Response.json({ success: true, data: {} }, { status: 200 }),
+      Response.json({ success: true, data: responseData }, { status: 200 }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await decideOperatorParcelClaim("claim-1", {
+    const result = await decideOperatorParcelClaim("claim-1", {
       decision: "APPROVE",
       proofStatus: "VERIFIED",
       provenDirectLossVnd: 12_000_000,
       acceptedEvidenceIds: ["evidence-1"],
       reason: "Chung tu hop le",
     });
+
+    expect(result).toEqual(responseData);
+    expect(result.claim.claimId).toBe("claim-1");
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
@@ -4987,18 +4991,22 @@ describe("parcel claim appeals", () => {
   });
 
   it("gửi quyết định appeal kèm Idempotency-Key và đủ proof fields", async () => {
+    const responseData = { appealId: "appeal-1" };
     const fetchMock = vi.fn<typeof fetch>(async () =>
-      Response.json({ success: true, data: {} }, { status: 200 }),
+      Response.json({ success: true, data: responseData }, { status: 200 }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await decideOperatorParcelClaimAppeal("appeal-1", {
+    const result = await decideOperatorParcelClaimAppeal("appeal-1", {
       decision: "APPROVE_ADJUSTMENT",
       proofStatus: "VERIFIED",
       revisedProvenDirectLossVnd: 15_000_000,
       acceptedEvidenceIds: ["claim-evidence-1"],
       reason: "Chung tu bo sung hop le",
     });
+
+    expect(result).toEqual(responseData);
+    expect(result.appealId).toBe("appeal-1");
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(

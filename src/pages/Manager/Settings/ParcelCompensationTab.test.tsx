@@ -35,7 +35,7 @@ const saveMock = vi.mocked(updateParcelCompensationPolicy);
 const platformDefaults = {
   compensationRatePercent: 50,
   maxCompensationVnd: 30_000_000,
-  noProofFallbackMultiplier: 4,
+  noProofFallbackMultiplier: 2,
   claimWindowDays: 30,
   searchSlaHours: 72,
   decisionSlaBusinessDays: 7,
@@ -120,10 +120,16 @@ describe("ParcelCompensationTab", () => {
     ).toBeNull();
   });
 
-  it("lưu đủ bảy trường khi giá trị hợp lệ", async () => {
+  it("lưu đủ contract, gồm field tương thích bị ẩn", async () => {
     const user = userEvent.setup();
     saveMock.mockResolvedValue(policy({ compensationRatePercent: 70 }));
     await renderLoadedTab();
+
+    expect(
+      screen.queryByLabelText(
+        "settings.parcelCompensation.fields.noProofFallbackMultiplier",
+      ),
+    ).toBeNull();
 
     const rate = screen.getByLabelText(
       "settings.parcelCompensation.fields.compensationRatePercent",
@@ -239,7 +245,7 @@ describe("ParcelCompensationTab", () => {
 });
 
 /**
- * Bảy ô nhập từng kèm bảy đoạn diễn giải + khoảng nhập được, tạo thành một bức
+ * Các ô nhập từng kèm diễn giải + khoảng nhập được, tạo thành một bức
  * tường chữ mà người dùng bỏ đọc hết. Các test dưới đọc thẳng file dịch (mock
  * `t` ở trên trả về key nên không kiểm được nội dung thật) để chốt lại: chỉ ô
  * nào nhãn không nói hết ý mới còn hint.
@@ -247,9 +253,8 @@ describe("ParcelCompensationTab", () => {
 describe("mật độ chữ của hint", () => {
   const locales = ["vi", "en"] as const;
 
-  // Hai ô này giữ hint vì nhãn không diễn tả được: "lần tiền cước" là một phép
-  // nhân, và "Hạn tìm hàng" không nói ra hệ quả hết hạn thì coi như mất.
-  const KEEP_HINTS = ["noProofFallbackMultiplier", "searchSlaHours"];
+  // "Hạn tìm hàng" không nói ra hệ quả hết hạn thì coi như mất.
+  const KEEP_HINTS = ["searchSlaHours"];
 
   it.each(locales)("%s chỉ giữ hint cho ô cần giải thích", async (locale) => {
     const messages = (
@@ -296,5 +301,7 @@ describe("cách diễn giải tiền đền bù", () => {
     ].join(" ");
 
     expect(explanation).not.toMatch(/\b(?:min|max|round)\s*\(/i);
+    expect(messages.formulaCargoWithoutProof).not.toContain("{{multiplier}}");
+    expect(messages.fields).not.toHaveProperty("noProofFallbackMultiplier");
   });
 });

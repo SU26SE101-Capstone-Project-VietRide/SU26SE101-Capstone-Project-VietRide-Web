@@ -317,4 +317,47 @@ describe("ClaimsPage", () => {
       await screen.findByText("claims.decisionErrors.reason-required"),
     ).toBeTruthy();
   });
+
+  it("khóa duyệt khi preview hợp lệ nhưng tổng chi bằng 0", async () => {
+    const user = userEvent.setup();
+    previewMock.mockResolvedValue({
+      claimId: claimRow.claimId,
+      appealId: null,
+      proofStatus: "NO_PROOF",
+      acceptedEvidenceIds: [],
+      calculationBasis: "NO_VERIFIED_PROOF_FREIGHT_ONLY",
+      provenDirectLossVnd: null,
+      assessedLossVnd: null,
+      declaredLiabilityVnd: 6_000_000,
+      fallbackAmountVnd: null,
+      policySnapshot,
+      cargoAwardVnd: 0,
+      freightRefundVnd: 0,
+      totalAwardVnd: 0,
+      originalTotalAwardVnd: null,
+      supplementaryAwardVnd: null,
+    });
+    render(<ClaimsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "details" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "claims.actions.DECIDE_CLAIM",
+      }),
+    );
+    await user.click(
+      screen.getByRole("radio", { name: /claims\.proofStatus\.NO_PROOF/ }),
+    );
+
+    await waitFor(() => expect(previewMock).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText("claims.zeroAwardCannotApprove"),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "claims.confirmApprove" }),
+    ).toBeDisabled();
+    expect(
+      screen.getAllByText("claims.noVerifiedProofNotice").length,
+    ).toBeGreaterThan(0);
+  });
 });
