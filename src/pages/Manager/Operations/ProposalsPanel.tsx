@@ -28,6 +28,8 @@ import { decodeGooglePolyline, routeGeometryPath } from "./gpsHelpers";
 import { SearchInput } from "../../../components/ui/SearchInput";
 import { Badge } from "../../../components/ui/Badge";
 import type { BadgeTone } from "../../../components/ui/Badge";
+import { Button } from "../../../components/ui/Button";
+import CustomSelect from "../../../components/CustomSelect";
 
 const pageSize = 50;
 
@@ -46,11 +48,11 @@ const statusStyles: Record<RouteChangeProposalStatus, BadgeTone> = {
   EXPIRED: "neutral",
 };
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat("vi-VN", {
+    : new Intl.DateTimeFormat(locale, {
         dateStyle: "short",
         timeStyle: "short",
       }).format(date);
@@ -70,8 +72,11 @@ export default function ProposalsPanel({
   onViewTrip,
   onProposalsChanged,
 }: ProposalsPanelProps) {
-  const { t } = useTranslation("manager");
+  const { t, i18n } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
+  const dateLocale = i18n?.resolvedLanguage?.startsWith("vi")
+    ? "vi-VN"
+    : "en-US";
   const [requests, setRequests] = useState<RouteChangeProposal[]>([]);
   const [selectedRequest, setSelectedRequest] =
     useState<RouteChangeProposal | null>(null);
@@ -119,7 +124,13 @@ export default function ProposalsPanel({
     const query = search.trim().toLowerCase();
     if (!query) return requests;
     return requests.filter((request) =>
-      [request.id, request.tripId, request.reason, request.snapshot.name]
+      [
+        request.id,
+        request.tripId,
+        request.reason,
+        request.snapshot.name,
+        request.snapshot.description ?? "",
+      ]
         .join(" ")
         .toLowerCase()
         .includes(query),
@@ -281,23 +292,25 @@ export default function ProposalsPanel({
           <p className="mt-0.5 text-xs text-gray-500">{t("routeEta.subtitle")}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
+          <Button
             onClick={() => void loadRequests()}
             disabled={loading}
             aria-label={tc("refresh")}
-            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 disabled:opacity-60"
+            variant="secondary"
+            size="md"
+            iconOnly
           >
             <FiRefreshCw className={loading ? "animate-spin" : ""} />
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
             onClick={onClose}
             aria-label={tc("close")}
-            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600"
+            variant="secondary"
+            size="md"
+            iconOnly
           >
             <FiX />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -310,23 +323,21 @@ export default function ProposalsPanel({
           inputClassName="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-3 text-sm"
           wrapperClassName="relative"
         />
-        <label className="flex items-center gap-2 text-sm text-gray-600">
-          <FiFilter />
-          <select
-            value={status}
-            onChange={(event) =>
-              setStatus(event.target.value as RouteChangeProposalStatus | "ALL")
-            }
-            className="flex-1 rounded-lg border border-gray-200 px-3 py-2"
-          >
+        <CustomSelect
+          value={status}
+          onChange={(event) =>
+            setStatus(event.target.value as RouteChangeProposalStatus | "ALL")
+          }
+          icon={<FiFilter />}
+          aria-label={t("routeEta.statusFilter")}
+        >
             <option value="PENDING">{tc("pending")}</option>
             <option value="APPROVED">{tc("approved")}</option>
             <option value="REJECTED">{t("routeEta.rejected")}</option>
             <option value="SUPERSEDED">{t("routeEta.superseded")}</option>
             <option value="EXPIRED">{t("routeEta.expired")}</option>
             <option value="ALL">{tc("all")}</option>
-          </select>
-        </label>
+        </CustomSelect>
       </div>
 
       <div className="space-y-3">
@@ -346,32 +357,43 @@ export default function ProposalsPanel({
                     <span className="font-bold text-gray-900">{request.snapshot.name}</span>
                     <Badge tone={statusStyles[request.status]}>{t(`routeEta.status.${request.status}`)}</Badge>
                   </div>
-                  <p className="mt-2 text-sm text-gray-700">{request.reason}</p>
-                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
-                    <span><FiClock className="mr-1 inline" />{formatDate(request.createdAt)}</span>
-                    <span>{request.type}</span>
-                    <span>{request.snapshot.stops.length} {t("routeEta.stops")}</span>
+                  <p className="mt-2 line-clamp-2 text-sm leading-5 text-gray-700">
+                    <span className="font-medium text-gray-600">
+                      {t("routeEta.reasonLabel")}:
+                    </span>{" "}
+                    {request.reason}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                    <span className="inline-flex items-center gap-1">
+                      <FiClock />
+                      {formatDate(request.createdAt, dateLocale)}
+                    </span>
+                    <span>{t(`routeEta.typeValue.${request.type}`)}</span>
+                    <span>
+                      {t("routeEta.stopsCount", {
+                        count: request.snapshot.stops.length,
+                      })}
+                    </span>
                   </div>
                 </button>
               </div>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <button
-                  type="button"
+              <div className="mt-3 flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
+                <Button
                   onClick={() => onViewTrip(request.tripId)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-vr-800 hover:underline"
+                  variant="ghost"
+                  size="sm"
+                  leadingIcon={<FiMap />}
                 >
-                  <FiMap />
                   {t("operations.viewOnMap")}
-                  <span className="font-mono font-normal text-gray-500">{request.tripId}</span>
-                </button>
+                </Button>
                 {request.status === "PENDING" && (
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => void openDetails(request)}
-                    className="rounded-lg bg-vr-800 px-3 py-1.5 text-sm font-semibold text-white"
+                    variant="primary"
+                    size="sm"
                   >
                     {t("routeEta.review")}
-                  </button>
+                  </Button>
                 )}
               </div>
             </article>
@@ -383,7 +405,7 @@ export default function ProposalsPanel({
         open={selectedRequest !== null}
         onClose={closeDetails}
         title={selectedRequest?.snapshot.name ?? ""}
-        subtitle={selectedRequest ? selectedRequest.tripId : ""}
+        subtitle={selectedRequest ? t("routeEta.detailSubtitle") : ""}
         wide
       >
         {selectedRequest && (
@@ -416,34 +438,55 @@ export default function ProposalsPanel({
                   />
                   {t("operations.currentPathLegend")}
                 </span>
-                <button
-                  type="button"
+                <Button
                   onClick={() => onViewTrip(selectedRequest.tripId)}
-                  className="ml-auto inline-flex items-center gap-1 font-semibold text-vr-800 hover:underline"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto"
+                  leadingIcon={<FiMap />}
                 >
-                  <FiMap />
                   {t("operations.viewOnMap")}
-                </button>
+                </Button>
               </div>
             </div>
             <div className="rounded-lg bg-gray-50 p-4 text-sm">
-              <p className="font-medium text-gray-900">{selectedRequest.reason}</p>
-              <p className="mt-2 text-gray-600">{selectedRequest.snapshot.description || "-"}</p>
-              <dl className="mt-4 grid gap-2 sm:grid-cols-2">
-                <div><dt className="text-gray-500">{t("routeEta.type")}</dt><dd className="font-semibold">{selectedRequest.type}</dd></div>
-                <div><dt className="text-gray-500">{t("routeEta.createdAt")}</dt><dd className="font-semibold">{formatDate(selectedRequest.createdAt)}</dd></div>
-                <div><dt className="text-gray-500">{t("routeEta.distance")}</dt><dd className="font-semibold">{selectedRequest.snapshot.totalDistanceKm ?? "-"} km</dd></div>
-                <div><dt className="text-gray-500">{t("routeEta.duration")}</dt><dd className="font-semibold">{t("routeEta.durationMinutes", { value: selectedRequest.snapshot.estimatedDurationMinutes ?? "-" })}</dd></div>
+              <h3 className="font-semibold text-gray-900">
+                {t("routeEta.proposalInfo")}
+              </h3>
+              <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+                <p className="text-xs font-medium text-gray-500">
+                  {t("routeEta.reasonLabel")}
+                </p>
+                <p className="mt-1 font-medium leading-5 text-gray-900">
+                  {selectedRequest.reason}
+                </p>
+                {selectedRequest.snapshot.description && (
+                  <>
+                    <p className="mt-3 text-xs font-medium text-gray-500">
+                      {t("routeEta.description")}
+                    </p>
+                    <p className="mt-1 leading-5 text-gray-700">
+                      {selectedRequest.snapshot.description}
+                    </p>
+                  </>
+                )}
+              </div>
+              <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                <div><dt className="text-gray-500">{t("routeEta.type")}</dt><dd className="mt-0.5 font-semibold text-gray-900">{t(`routeEta.typeValue.${selectedRequest.type}`)}</dd></div>
+                <div><dt className="text-gray-500">{t("routeEta.createdAt")}</dt><dd className="mt-0.5 font-semibold text-gray-900">{formatDate(selectedRequest.createdAt, dateLocale)}</dd></div>
+                <div><dt className="text-gray-500">{t("routeEta.distance")}</dt><dd className="mt-0.5 font-semibold text-gray-900">{selectedRequest.snapshot.totalDistanceKm ?? "-"} km</dd></div>
+                <div><dt className="text-gray-500">{t("routeEta.duration")}</dt><dd className="mt-0.5 font-semibold text-gray-900">{t("routeEta.durationMinutes", { value: selectedRequest.snapshot.estimatedDurationMinutes ?? "-" })}</dd></div>
+                <div><dt className="text-gray-500">{t("routeEta.stopCountLabel")}</dt><dd className="mt-0.5 font-semibold text-gray-900">{t("routeEta.stopsCount", { count: selectedRequest.snapshot.stops.length })}</dd></div>
                 <div>
                   <dt className="text-gray-500">{tc("status")}</dt>
-                  <dd>
+                  <dd className="mt-1">
                     <Badge tone={statusStyles[selectedRequest.status]}>
                       {t(`routeEta.status.${selectedRequest.status}`)}
                     </Badge>
                   </dd>
                 </div>
                 {selectedRequest.decidedAt && (
-                  <div><dt className="text-gray-500">{t("routeEta.decidedAt")}</dt><dd className="font-semibold">{formatDate(selectedRequest.decidedAt)}</dd></div>
+                  <div><dt className="text-gray-500">{t("routeEta.decidedAt")}</dt><dd className="mt-0.5 font-semibold text-gray-900">{formatDate(selectedRequest.decidedAt, dateLocale)}</dd></div>
                 )}
               </dl>
               {selectedRequest.rejectionReason && (
@@ -485,25 +528,26 @@ export default function ProposalsPanel({
                       />
                     </label>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
+                      <Button
                         disabled={Boolean(actionId)}
                         onClick={() => void reject(selectedRequest)}
-                        className="flex-1 cursor-pointer rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        variant="danger"
+                        size="md"
+                        className="flex-1"
                       >
                         {actionId ? tc("processing") : t("routeEta.confirmReject")}
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
                         disabled={Boolean(actionId)}
                         onClick={() => {
                           setRejecting(false);
                           setRejectReason("");
                         }}
-                        className="cursor-pointer rounded-lg border border-gray-200 px-4 py-2.5 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                        variant="secondary"
+                        size="md"
                       >
                         {tc("cancel")}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : (
@@ -512,22 +556,24 @@ export default function ProposalsPanel({
                       {t("routeEta.decisionHint")}
                     </p>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
+                      <Button
                         disabled={Boolean(actionId)}
                         onClick={() => void approve(selectedRequest)}
-                        className="flex-1 cursor-pointer rounded-lg bg-green-600 px-4 py-2.5 font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        variant="primary"
+                        size="md"
+                        className="flex-1"
                       >
                         {actionId ? tc("processing") : t("routeEta.approve")}
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
                         disabled={Boolean(actionId)}
                         onClick={() => setRejecting(true)}
-                        className="flex-1 cursor-pointer rounded-lg border border-red-200 px-4 py-2.5 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                        variant="danger"
+                        size="md"
+                        className="flex-1"
                       >
                         {t("routeEta.reject")}
-                      </button>
+                      </Button>
                     </div>
                   </>
                 )}
