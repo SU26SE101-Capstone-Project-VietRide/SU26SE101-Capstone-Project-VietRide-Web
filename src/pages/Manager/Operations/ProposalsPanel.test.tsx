@@ -15,7 +15,10 @@ vi.mock("react-i18next", () => {
   const translate = (key: string) => key;
 
   return {
-    useTranslation: () => ({ t: translate }),
+    useTranslation: () => ({
+      t: translate,
+      i18n: { resolvedLanguage: "vi" },
+    }),
   };
 });
 
@@ -207,5 +210,40 @@ describe("Operations ProposalsPanel", () => {
       screen.getByRole("button", { name: /operations\.viewOnMap/ }),
     );
     expect(onViewTrip).toHaveBeenCalledWith("trip-1");
+  });
+
+  it("hiển thị loại tuyến đã dịch và không lộ UUID chuyến trên giao diện", async () => {
+    renderPanel();
+
+    await screen.findByText("Đường tránh QL20");
+
+    expect(screen.getByText("routeEta.typeValue.CUSTOM")).toBeInTheDocument();
+    expect(screen.queryByText("trip-1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "routeEta.review" }));
+
+    await waitFor(() =>
+      expect(getOperatorRouteChangeProposal).toHaveBeenCalledWith("proposal-1"),
+    );
+    expect(screen.getByText("routeEta.detailSubtitle")).toBeInTheDocument();
+    expect(screen.queryByText("trip-1")).not.toBeInTheDocument();
+  });
+
+  it("lọc đề xuất bằng bộ chọn trạng thái dùng chung", async () => {
+    renderPanel();
+
+    await screen.findByText("Đường tránh QL20");
+    fireEvent.click(
+      screen.getByRole("button", { name: "routeEta.statusFilter" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "approved" }));
+
+    await waitFor(() =>
+      expect(getOperatorRouteChangeProposals).toHaveBeenLastCalledWith({
+        page: 1,
+        pageSize: 50,
+        status: "APPROVED",
+      }),
+    );
   });
 });
