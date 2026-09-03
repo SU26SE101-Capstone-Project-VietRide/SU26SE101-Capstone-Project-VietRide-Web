@@ -662,6 +662,14 @@ function IncidentRow({
             </Badge>
           </div>
         )}
+        {incident.claimSummary && (
+          <div className="mt-1.5">
+            <Badge tone="warning" className="gap-1">
+              <FiAlertTriangle size={14} aria-hidden="true" />
+              {t("parcelIncidents.hasClaim")}
+            </Badge>
+          </div>
+        )}
       </td>
       <td className="px-5 py-4 text-gray-600">
         <p className="font-medium text-gray-800">
@@ -741,7 +749,7 @@ function IncidentRow({
         )}
       </td>
       <td className="px-5 py-4 text-center">
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex items-center justify-center">
           {/* CTA của dòng chờ duyệt vẫn là "mở chi tiết" — quyết định chỉ được
               đưa ra sau khi xem bằng chứng, không bao giờ ngay tại hàng đợi. */}
           {isPendingApproval ? (
@@ -758,14 +766,6 @@ function IncidentRow({
             >
               <FiEye size={16} />
             </button>
-          )}
-          {incident.claimSummary && (
-            <span
-              title={t("parcelIncidents.hasClaim")}
-              className="inline-flex items-center text-amber-600"
-            >
-              <FiAlertTriangle size={16} aria-label={t("parcelIncidents.hasClaim")} />
-            </span>
           )}
         </div>
       </td>

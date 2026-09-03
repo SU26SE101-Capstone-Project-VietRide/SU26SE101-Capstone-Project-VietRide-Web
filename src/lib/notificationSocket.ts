@@ -48,13 +48,23 @@ export function parseNotificationCreatedEvent(
   const id = typeof payload.id === "string" ? payload.id.trim() : "";
   if (!id) return null;
 
+  const action = parseNotificationAction(payload.action);
+  const rawAction = isRecord(payload.action) ? payload.action : null;
+  const unsupportedActionType =
+    action == null && typeof rawAction?.type === "string"
+      ? rawAction.type.trim()
+      : "";
+
   return {
     id,
     type: typeof payload.type === "string" ? payload.type : "",
     title: typeof payload.title === "string" ? payload.title : "",
     body: typeof payload.body === "string" ? payload.body : "",
     data: payload.data ?? null,
-    action: parseNotificationAction(payload.action),
+    action,
+    // Giữ lại dấu vết action không hợp lệ/không được hỗ trợ để resolver
+    // không rơi xuống nhánh suy luận legacy theo notification type.
+    ...(unsupportedActionType ? { actionType: unsupportedActionType } : {}),
     readAt: typeof payload.readAt === "string" ? payload.readAt : null,
     createdAt:
       typeof payload.createdAt === "string"

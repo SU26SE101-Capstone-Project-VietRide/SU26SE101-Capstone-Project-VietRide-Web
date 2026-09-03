@@ -10,6 +10,7 @@ import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { inputClass } from "../../../components/form/formClasses";
 import { formatDateTime } from "../../../utils/date";
 import {
+  getAdminCustomPlanRequest,
   getAdminSubscriptionPlans,
   type CustomPlanRequestStatus,
   type SubscriptionBillingPeriod,
@@ -17,6 +18,7 @@ import {
 } from "../../../api/vietride";
 import {
   operatorLabel,
+  toCustomPlanRequestView,
   type CustomPlanRequestView,
 } from "../../../utils/customPlanRequest";
 import ApproveCustomPlanModal from "./ApproveCustomPlanModal";
@@ -48,9 +50,15 @@ const COLUMN_COUNT = 6;
 
 type CustomRequestsTabProps = {
   queue: UseCustomPlanRequestsResult;
+  requestId?: string | null;
+  onRequestIdConsumed?: () => void;
 };
 
-export default function CustomRequestsTab({ queue }: CustomRequestsTabProps) {
+export default function CustomRequestsTab({
+  queue,
+  requestId = null,
+  onRequestIdConsumed,
+}: CustomRequestsTabProps) {
   const { t } = useTranslation("admin");
   const { t: tc } = useTranslation("common");
   const [approving, setApproving] = useState<CustomPlanRequestView | null>(
@@ -67,6 +75,8 @@ export default function CustomRequestsTab({ queue }: CustomRequestsTabProps) {
   const [periodFilter, setPeriodFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
+  const [isOpeningRequest, setIsOpeningRequest] = useState(false);
+  const [openRequestError, setOpenRequestError] = useState("");
 
   const { load } = queue;
   useEffect(() => {
@@ -78,6 +88,56 @@ export default function CustomRequestsTab({ queue }: CustomRequestsTabProps) {
       .then(setStandardPlans)
       .catch(() => setStandardPlans([]));
   }, []);
+
+  useEffect(() => {
+    if (!requestId || queue.isLoading) return;
+    let cancelled = false;
+    // Đẩy sang microtask để effect chỉ điều phối luồng ngoài React, không set
+    // state đồng bộ ngay trong effect và gây một render nối tầng.
+    void Promise.resolve().then(async () => {
+      const requestInQueue = queue.requests.find(
+        (request) => request.requestId === requestId,
+      );
+      if (requestInQueue) {
+        if (cancelled) return;
+        setOpenRequestError("");
+        setViewing(requestInQueue);
+        onRequestIdConsumed?.();
+        return;
+      }
+
+      // Item không còn trong list hiện tại thì endpoint detail vẫn mở đúng
+      // notification (bao gồm yêu cầu đã được xử lý).
+      setIsOpeningRequest(true);
+      setOpenRequestError("");
+      try {
+        const request = await getAdminCustomPlanRequest(requestId);
+        if (cancelled) return;
+        setIsOpeningRequest(false);
+        setViewing(toCustomPlanRequestView(request));
+        onRequestIdConsumed?.();
+      } catch (error: unknown) {
+        if (cancelled) return;
+        setOpenRequestError(
+          error instanceof Error
+            ? error.message
+            : t("customPlans.openRequestFailed"),
+        );
+      } finally {
+        if (!cancelled) setIsOpeningRequest(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    onRequestIdConsumed,
+    queue.isLoading,
+    queue.requests,
+    requestId,
+    t,
+  ]);
 
   // Endpoint trả mảng thuần và không nhận query nào, nên tìm/lọc chạy ở client
   // trên đúng những field có trong response: tên nhà xe, mã yêu cầu, trạng
@@ -114,6 +174,22 @@ export default function CustomRequestsTab({ queue }: CustomRequestsTabProps) {
 
   return (
     <div>
+      {isOpeningRequest ? (
+        <p
+          role="status"
+          className="mb-4 rounded-lg border border-vr-100 bg-vr-50 px-4 py-3 text-sm text-vr-900"
+        >
+          {t("customPlans.openingRequest")}
+        </p>
+      ) : null}
+      {openRequestError ? (
+        <p
+          role="alert"
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {openRequestError}
+        </p>
+      ) : null}
       {/* Thanh lọc nằm TRONG cùng khung với bảng, giống PersonnelTable ở các màn
           admin khác — tách thành hai card rời làm hàng lọc trông như một khối
           không liên quan tới bảng bên dưới. */}

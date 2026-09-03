@@ -11,7 +11,6 @@ import {
   createSubscriptionUpgradeQuote,
   createOperatorCustomPlanRequest,
   getOperatorCustomPlanRequests,
-  getOperatorWallet,
   type OperatorCustomPlanRequest,
   type OperatorSubscriptionDetail,
   type SubscriptionPlan,
@@ -51,7 +50,6 @@ vi.mock("../../../api/vietride", () => ({
   retryOperatorSubscriptionPayment: vi.fn(),
   createSubscriptionUpgradeQuote: vi.fn(),
   confirmSubscriptionUpgradePayment: vi.fn(),
-  getOperatorWallet: vi.fn(),
   getOperatorCustomPlanRequests: vi.fn(),
   createOperatorCustomPlanRequest: vi.fn(),
 }));
@@ -117,7 +115,7 @@ const quote: SubscriptionUpgradeQuote = {
   sourcePlanId: currentPlan.planId,
   targetPlanId: plan.planId,
   billingPeriod: "YEARLY",
-  paymentMethod: "WALLET",
+  paymentMethod: "VNPAY",
   prorationApplied: true,
   currentCyclePrice: 300_000,
   targetCyclePrice: 3_000_000,
@@ -157,14 +155,8 @@ const customRequest: OperatorCustomPlanRequest = {
 describe("ManagerPackages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     vi.mocked(getOperatorCustomPlanRequests).mockResolvedValue([]);
-    vi.mocked(getOperatorWallet).mockResolvedValue({
-      operatorId: "operator-1",
-      balance: 5_000_000,
-      pendingHoldAmount: 0,
-      eligibleAmount: 0,
-      updatedAt: "2026-08-21T10:00:00Z",
-    });
     vi.mocked(getOperatorSubscription).mockResolvedValue(subscription);
     vi.mocked(getOperatorSubscriptionPlans).mockResolvedValue([plan]);
     vi.mocked(getOperatorInvoices).mockResolvedValue({
@@ -228,6 +220,11 @@ describe("ManagerPackages", () => {
       await screen.findByRole("button", { name: "packages.buyPackage" }),
     );
 
+    expect(screen.getByTestId("upgrade-method-VNPAY")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("upgrade-method-WALLET"),
+    ).not.toBeInTheDocument();
+
     // Bước 1 chỉ chọn — chưa được gọi thanh toán
     expect(confirmSubscriptionUpgradePayment).not.toHaveBeenCalled();
 
@@ -237,7 +234,7 @@ describe("ManagerPackages", () => {
       {
         planId: "plan-pro",
         billingPeriod: "YEARLY",
-        paymentMethod: "WALLET",
+        paymentMethod: "VNPAY",
       },
       expect.any(String),
     );
@@ -259,6 +256,32 @@ describe("ManagerPackages", () => {
     const paymentKey = vi.mocked(confirmSubscriptionUpgradePayment).mock
       .calls[0][1];
     expect(paymentKey).not.toBe(quoteKey);
+  });
+
+  it("shows a persistent banner and resumes the quote after the modal closes", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createSubscriptionUpgradeQuote).mockResolvedValue(quote);
+
+    renderPackages();
+
+    await user.click(
+      await screen.findByRole("button", { name: "packages.buyPackage" }),
+    );
+    await user.click(screen.getByTestId("upgrade-request-quote"));
+    expect(await screen.findByTestId("quote-amount-due")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("close-upgrade-quote"));
+
+    const banner = await screen.findByTestId("saved-upgrade-quote");
+    expect(banner).toHaveTextContent("packages.savedQuoteTitle");
+    expect(banner).toHaveTextContent("Professional");
+    expect(
+      screen.getByRole("button", { name: "packages.buyPackage" }),
+    ).toBeDisabled();
+
+    await user.click(screen.getByTestId("resume-saved-upgrade-quote"));
+
+    expect(screen.getByTestId("quote-amount-due")).toBeInTheDocument();
   });
 
   it("defaults the price list to the period the operator is actually billed on", async () => {
@@ -333,40 +356,6 @@ describe("ManagerPackages", () => {
     // 422 SUBSCRIPTION_UPGRADE_BILLING_PERIOD_MISMATCH
     expect(screen.getByTestId("upgrade-period-MONTHLY")).toBeDisabled();
     expect(screen.getByTestId("upgrade-period-YEARLY")).toBeDisabled();
-  });
-
-  it("keeps the quote and shows the shortfall when the wallet is short", async () => {
-    const user = userEvent.setup();
-    vi.mocked(createSubscriptionUpgradeQuote).mockResolvedValue(quote);
-    vi.mocked(getOperatorWallet).mockResolvedValue({
-      operatorId: "operator-1",
-      balance: 40_000,
-      pendingHoldAmount: 0,
-      eligibleAmount: 0,
-      updatedAt: "2026-08-21T10:00:00Z",
-    });
-    vi.mocked(confirmSubscriptionUpgradePayment).mockRejectedValue(
-      new ApiRequestError(
-        "insufficient",
-        402,
-        "WALLET_INSUFFICIENT_BALANCE",
-        [],
-      ),
-    );
-
-    renderPackages();
-
-    await user.click(
-      await screen.findByRole("button", { name: "packages.buyPackage" }),
-    );
-    await user.click(screen.getByTestId("upgrade-request-quote"));
-    await user.click(await screen.findByTestId("upgrade-confirm-payment"));
-
-    // Thiếu 100.000 − 40.000 = 60.000; báo giá và nút thanh toán vẫn còn đó
-    const shortfall = await screen.findByTestId("wallet-shortfall");
-    expect(shortfall).toHaveTextContent("60.000");
-    expect(screen.getByTestId("quote-breakdown")).toBeInTheDocument();
-    expect(screen.getByTestId("upgrade-confirm-payment")).toBeEnabled();
   });
 
   it("shows the one-time trial notice without listing the free plan for purchase", async () => {
@@ -558,7 +547,7 @@ describe("ManagerPackages", () => {
         {
           planId: "plan-pro",
           billingPeriod: "YEARLY",
-          paymentMethod: "WALLET",
+          paymentMethod: "VNPAY",
         },
         expect.any(String),
       );

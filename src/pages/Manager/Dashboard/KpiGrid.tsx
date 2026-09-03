@@ -21,13 +21,19 @@ export default function KpiGrid({ summary }: KpiGridProps) {
     () => [
       {
         labelKey: "dashboard.revenue",
-        value: summary.revenue.currentMonth === null ? "-" : formatCurrency(summary.revenue.currentMonth),
+        value:
+          summary.revenue.currentQuarter === null
+            ? "-"
+            : formatCurrency(summary.revenue.currentQuarter),
         icon: <FiBarChart2 className="h-5 w-5" />,
         iconClassName: "bg-sky-50 text-sky-600",
       },
       {
         labelKey: "dashboard.bookings",
-        value: summary.bookings.currentMonth === null ? "-" : formatCompactNumber(summary.bookings.currentMonth),
+        value:
+          summary.bookings.currentQuarter === null
+            ? "-"
+            : formatCompactNumber(summary.bookings.currentQuarter),
         icon: <FiPackage className="h-5 w-5" />,
         iconClassName: "bg-violet-50 text-violet-600",
       },

@@ -2310,7 +2310,7 @@ describe("vietride API", () => {
     const quoteRequest = {
       planId: "plan-advanced",
       billingPeriod: "MONTHLY" as const,
-      paymentMethod: "WALLET" as const,
+      paymentMethod: "VNPAY" as const,
     };
 
     await createSubscriptionUpgradeQuote(
@@ -2514,10 +2514,10 @@ describe("vietride API", () => {
         return new Response(
           JSON.stringify({
             data: {
-              vnPayTxnRef: "VR-SUBSCRIPTION-001",
+              txnRef: "VR-SUBSCRIPTION-001",
               paymentId: "payment-1",
               referenceType: "SUBSCRIPTION",
-              referenceId: "subscription-1",
+              referenceId: "upgrade-attempt-1",
               status: "PENDING_REDIRECT",
             },
           }),
@@ -2540,7 +2540,7 @@ describe("vietride API", () => {
     );
     const headers = fetchMock.mock.calls[0]?.[1]?.headers ?? {};
     expect(headers).not.toHaveProperty("Authorization");
-    expect(result.vnPayTxnRef).toBe("VR-SUBSCRIPTION-001");
+    expect(result.txnRef).toBe("VR-SUBSCRIPTION-001");
   });
 
   it("accepts a VNPay return query without a leading question mark", async () => {
@@ -2557,6 +2557,47 @@ describe("vietride API", () => {
       "https://api.vietride.online/v1/payments/vnpay-return-status?vnp_ResponseCode=00&vnp_TxnRef=VR-1",
       expect.objectContaining({ method: "GET" }),
     );
+  });
+
+  it("retries a subscription payment without a body and with the provided idempotency key", async () => {
+    setOperatorAdminSession();
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        void input;
+        void init;
+        return new Response(
+          JSON.stringify({
+            data: {
+              upgradeAttemptId: "attempt-1",
+              status: "PENDING_PAYMENT",
+              paymentId: "payment-2",
+              paymentRedirectUrl:
+                "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
+              dueAt: "2026-09-03T17:15:00+07:00",
+            },
+          }),
+          { status: 202 },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await retryOperatorSubscriptionPayment(
+      "attempt-1",
+      "44444444-4444-4444-8444-444444444444",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.vietride.online/v1/operator/subscription/upgrade/attempt-1/retry-payment",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "44444444-4444-4444-8444-444444444444",
+        }),
+      }),
+    );
+    const requestOptions = fetchMock.mock.calls[0]?.[1];
+    expect(requestOptions?.body).toBeUndefined();
   });
 
   it("calls operator and admin wallet, settlement, ledger, and invoice APIs", async () => {

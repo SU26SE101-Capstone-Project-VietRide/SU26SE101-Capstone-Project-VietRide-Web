@@ -1,19 +1,16 @@
-// Test hook nâng cấp hai bước: quote là tham số hoá theo kỳ + phương thức nên
-// đổi lựa chọn phải huỷ báo giá; và mỗi mã lỗi phải dẫn tới một hành vi cụ thể.
-import { act, renderHook, waitFor } from "@testing-library/react";
+// Test hook nâng cấp hai bước và các hành vi lỗi của báo giá/thanh toán.
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../api/vietride", () => ({
   createSubscriptionUpgradeQuote: vi.fn(),
   confirmSubscriptionUpgradePayment: vi.fn(),
-  getOperatorWallet: vi.fn(),
 }));
 
 import { ApiRequestError } from "../../../api/client";
 import {
   confirmSubscriptionUpgradePayment,
   createSubscriptionUpgradeQuote,
-  getOperatorWallet,
   type SubscriptionPlan,
   type SubscriptionUpgradeQuote,
 } from "../../../api/vietride";
@@ -41,7 +38,7 @@ const quote: SubscriptionUpgradeQuote = {
   sourcePlanId: "plan-starter",
   targetPlanId: plan.planId,
   billingPeriod: "MONTHLY",
-  paymentMethod: "WALLET",
+  paymentMethod: "VNPAY",
   prorationApplied: true,
   currentCyclePrice: 300_000,
   targetCyclePrice: 500_000,
@@ -51,7 +48,7 @@ const quote: SubscriptionUpgradeQuote = {
   periodFrom: "2026-08-21T10:00:00Z",
   periodTo: "2026-09-05T10:00:00Z",
   quotedAt: "2026-08-21T10:00:00Z",
-  dueAt: "2026-08-21T10:15:00Z",
+  dueAt: "2099-01-01T00:00:00Z",
   currency: "VND",
   status: "INITIATED",
 };
@@ -81,13 +78,7 @@ async function openAndQuote(result: {
 describe("useSubscriptionUpgrade", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getOperatorWallet).mockResolvedValue({
-      operatorId: "operator-1",
-      balance: 5_000_000,
-      pendingHoldAmount: 0,
-      eligibleAmount: 0,
-      updatedAt: "2026-08-21T10:00:00Z",
-    });
+    sessionStorage.clear();
     vi.mocked(createSubscriptionUpgradeQuote).mockResolvedValue(quote);
   });
 
@@ -102,19 +93,6 @@ describe("useSubscriptionUpgrade", () => {
     expect(result.current.isBillingPeriodLocked).toBe(true);
   });
 
-  it("discards the quote when the payment method changes", async () => {
-    const { result } = renderUpgrade();
-    await openAndQuote(result);
-
-    expect(result.current.step).toBe("quote");
-
-    // paymentMethod nằm TRONG quote — đổi nó là báo giá cũ hết nghĩa
-    act(() => result.current.setPaymentMethod("VNPAY"));
-
-    expect(result.current.quote).toBeNull();
-    expect(result.current.step).toBe("select");
-  });
-
   it("reuses one idempotency key while the selection stays the same", async () => {
     const { result } = renderUpgrade();
     await openAndQuote(result);
@@ -126,14 +104,92 @@ describe("useSubscriptionUpgrade", () => {
       .calls[0];
     const [, secondKey] = vi.mocked(createSubscriptionUpgradeQuote).mock
       .calls[1];
+    expect(createSubscriptionUpgradeQuote).toHaveBeenCalledWith(
+      {
+        planId: "plan-pro",
+        billingPeriod: "MONTHLY",
+        paymentMethod: "VNPAY",
+      },
+      expect.any(String),
+    );
     // Bấm "Xem báo giá" hai lần cho cùng một lựa chọn không được đẻ hai attempt
     expect(secondKey).toBe(firstKey);
+  });
+
+  it("keeps a quote when the modal closes and can reopen it", async () => {
+    const { result } = renderUpgrade();
+    await openAndQuote(result);
+
+    act(() => result.current.close());
+
+    expect(result.current.isOpen).toBe(false);
+    expect(result.current.quote?.upgradeAttemptId).toBe("attempt-1");
+    expect(sessionStorage.getItem("vietride.subscription-upgrade-quote")).toContain(
+      "attempt-1",
+    );
+
+    act(() => result.current.reopenQuote());
+
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.step).toBe("quote");
+  });
+
+  it("restores a saved quote after the Packages page mounts again", async () => {
+    const firstView = renderUpgrade();
+    await openAndQuote(firstView.result);
+    firstView.unmount();
+
+    const secondView = renderUpgrade();
+    act(() => secondView.result.current.restoreSavedQuotePlan([plan]));
+    act(() => secondView.result.current.reopenQuote());
+
+    expect(secondView.result.current.isOpen).toBe(true);
+    expect(secondView.result.current.selectedPlan?.planId).toBe(plan.planId);
+    expect(secondView.result.current.quote?.upgradeAttemptId).toBe("attempt-1");
+  });
+
+  it("drops an expired saved quote when the Packages page mounts", () => {
+    sessionStorage.setItem(
+      "vietride.subscription-upgrade-quote",
+      JSON.stringify({
+        quote: { ...quote, dueAt: "2020-01-01T00:00:00Z" },
+        targetPlanName: plan.name,
+      }),
+    );
+
+    const { result } = renderUpgrade();
+
+    expect(result.current.quote).toBeNull();
+    expect(
+      sessionStorage.getItem("vietride.subscription-upgrade-quote"),
+    ).toBeNull();
+  });
+
+  it("keeps an active-upgrade conflict visible inside the modal", async () => {
+    const { result } = renderUpgrade();
+    vi.mocked(createSubscriptionUpgradeQuote).mockRejectedValue(
+      new ApiRequestError(
+        "active",
+        409,
+        "SUBSCRIPTION_UPGRADE_ALREADY_ACTIVE",
+      ),
+    );
+
+    act(() => result.current.open(plan, "MONTHLY"));
+    await act(async () => {
+      await result.current.requestQuote();
+    });
+
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.error).toBe(
+      "packages.upgradeError.SUBSCRIPTION_UPGRADE_ALREADY_ACTIVE",
+    );
   });
 
   it("mints a new idempotency key for every payment attempt", async () => {
     const { result } = renderUpgrade();
     vi.mocked(confirmSubscriptionUpgradePayment).mockRejectedValue(
-      new ApiRequestError("insufficient", 402, "WALLET_INSUFFICIENT_BALANCE"),
+      new ApiRequestError("payment failed", 502, "PAYMENT_VNPAY_ERROR"),
     );
     await openAndQuote(result);
 
@@ -148,33 +204,7 @@ describe("useSubscriptionUpgrade", () => {
       .calls[0];
     const [, secondKey] = vi.mocked(confirmSubscriptionUpgradePayment).mock
       .calls[1];
-    // Dùng lại key đã nhận 402 sẽ được replay đúng response cũ trong 24 giờ
     expect(secondKey).not.toBe(firstKey);
-  });
-
-  it("keeps the quote and reports the shortfall on 402", async () => {
-    const { result } = renderUpgrade();
-    vi.mocked(getOperatorWallet).mockResolvedValue({
-      operatorId: "operator-1",
-      balance: 40_000,
-      pendingHoldAmount: 0,
-      eligibleAmount: 0,
-      updatedAt: "2026-08-21T10:00:00Z",
-    });
-    vi.mocked(confirmSubscriptionUpgradePayment).mockRejectedValue(
-      new ApiRequestError("insufficient", 402, "WALLET_INSUFFICIENT_BALANCE"),
-    );
-
-    await openAndQuote(result);
-    await act(async () => {
-      await result.current.confirmPayment();
-    });
-
-    expect(result.current.walletShortfall).toBe(60_000);
-    // Chưa trừ tiền, báo giá còn hiệu lực → giữ nguyên attempt và bước
-    expect(result.current.quote?.upgradeAttemptId).toBe("attempt-1");
-    expect(result.current.step).toBe("quote");
-    expect(result.current.error).toBe("");
   });
 
   it("drops the quote and refreshes when the backend says it is stale", async () => {
@@ -195,12 +225,9 @@ describe("useSubscriptionUpgrade", () => {
     expect(result.current.quote).toBeNull();
     expect(result.current.step).toBe("select");
     expect(onSubscriptionChanged).toHaveBeenCalled();
-    // Đây là LỖI nên phải đi kênh error (hiện đỏ trong modal), không phải
-    // notice — notice nổi lên thành toast dấu tích xanh, sai hoàn toàn ngữ nghĩa
     expect(result.current.error).toBe(
       "packages.upgradeError.SUBSCRIPTION_UPGRADE_QUOTE_STALE",
     );
-    expect(result.current.notice).toBe("");
   });
 
   it("closes and refreshes when the target plan went off sale", async () => {
@@ -222,12 +249,11 @@ describe("useSubscriptionUpgrade", () => {
     expect(onSubscriptionChanged).toHaveBeenCalled();
   });
 
-  it("refreshes and closes after the wallet debit succeeds", async () => {
+  it("keeps the modal open when VNPay does not return a redirect URL", async () => {
     const { result, onSubscriptionChanged } = renderUpgrade();
-    // Không có paymentRedirectUrl = ví đã trừ xong (200), không phải VNPAY
     vi.mocked(confirmSubscriptionUpgradePayment).mockResolvedValue({
       upgradeAttemptId: "attempt-1",
-      status: "ACTIVE",
+      status: "PENDING_PAYMENT",
       paymentRedirectUrl: null,
     });
 
@@ -236,8 +262,8 @@ describe("useSubscriptionUpgrade", () => {
       await result.current.confirmPayment();
     });
 
-    await waitFor(() => expect(onSubscriptionChanged).toHaveBeenCalled());
-    expect(result.current.isOpen).toBe(false);
-    expect(result.current.notice).toBe("packages.walletPaymentSuccess");
+    expect(onSubscriptionChanged).not.toHaveBeenCalled();
+    expect(result.current.isOpen).toBe(true);
+    expect(result.current.error).toBe("packages.missingPaymentRedirect");
   });
 });

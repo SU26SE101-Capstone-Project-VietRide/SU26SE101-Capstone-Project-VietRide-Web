@@ -15,6 +15,7 @@ import logo from "../../../assets/Login/logo.svg";
 import {
   getOperatorSubscription,
   getVnPayReturnStatus,
+  retryOperatorSubscriptionPayment,
   type OperatorSubscriptionDetail,
   type VnPayReturnStatus,
 } from "../../../api/vietride";
@@ -24,7 +25,9 @@ import LanguageSwitcher from "../../../components/LanguageSwitcher";
 import {
   clearSubscriptionPaymentIntent,
   getSubscriptionPaymentIntent,
+  saveSubscriptionPaymentIntent,
 } from "./subscriptionPaymentIntent";
+import { getRemainingPaymentSeconds } from "./subscriptionHelpers";
 
 type PaymentReturnStatus =
   | "verifying"
@@ -35,6 +38,19 @@ type PaymentReturnStatus =
   | "invalid"
   | "notFound"
   | "error";
+
+type RetryAvailability =
+  | "none"
+  | "syncing"
+  | "ready"
+  | "retrying"
+  | "expired"
+  | "unavailable";
+
+type IdempotentAction = {
+  signature: string;
+  idempotencyKey: string;
+};
 
 const PACKAGES_PATH = "/manager/packages";
 
@@ -63,8 +79,8 @@ function resolvePackagesHref() {
 const backButtonClass =
   "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 py-3.5 font-semibold text-white transition hover:bg-vr-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40";
 
-const MAX_VERIFICATION_ATTEMPTS = 30;
-const VERIFICATION_INTERVAL_MS = 2_000;
+const MAX_VERIFICATION_ATTEMPTS = 10;
+const VERIFICATION_INTERVAL_MS = 1_000;
 const SUCCESS_REDIRECT_DELAY_SECONDS = 5;
 
 // PaymentStatus của Backend (Payment.Domain.Enums.PaymentStatus). Khi không có
@@ -108,7 +124,11 @@ export default function SubscriptionPaymentReturn() {
   const [redirectSeconds, setRedirectSeconds] = useState(
     SUCCESS_REDIRECT_DELAY_SECONDS,
   );
+  const [retryAvailability, setRetryAvailability] =
+    useState<RetryAvailability>("none");
   const verificationRunRef = useRef(0);
+  const retryInFlightRef = useRef(false);
+  const retryIntentRef = useRef<IdempotentAction | null>(null);
 
   const verifyPayment = useCallback(async () => {
     const runId = verificationRunRef.current + 1;
@@ -118,6 +138,7 @@ export default function SubscriptionPaymentReturn() {
 
     setStatus("verifying");
     setError("");
+    setRetryAvailability("none");
 
     if (import.meta.env.DEV) {
       console.info("[SubscriptionPayment] RETURN_VERIFICATION_START", {
@@ -130,14 +151,22 @@ export default function SubscriptionPaymentReturn() {
     }
 
     // Bước 1: đẩy NGUYÊN query VNPay lên Backend để nó xác thực chữ ký và cho
-    // biết giao dịch nào đang được nói tới (handoff §2.2). FE không tự tin
-    // vnp_ResponseCode trong URL.
-    let latestPaymentStatus: string | null = null;
+    // biết giao dịch nào đang được nói tới. Query trình duyệt chỉ dùng hiển thị;
+    // mọi kết luận trạng thái đều lấy từ response đã xác minh của Backend.
+    let latestPaymentStatus: string;
+    let verifiedReferenceId: string;
     try {
       const verified = await getVnPayReturnStatus(rawQuery);
       if (verificationRunRef.current !== runId) return;
       setReturnStatus(verified);
       latestPaymentStatus = verified.status;
+      verifiedReferenceId = verified.referenceId;
+
+      if (verified.referenceType !== "SUBSCRIPTION") {
+        clearSubscriptionPaymentIntent();
+        setStatus("invalid");
+        return;
+      }
     } catch (err) {
       if (verificationRunRef.current !== runId) return;
 
@@ -162,31 +191,53 @@ export default function SubscriptionPaymentReturn() {
         setStatus("error");
         return;
       }
-      // Lỗi khác (mạng/5xx): vẫn xác minh tiếp bằng trạng thái subscription
       if (import.meta.env.DEV) {
         console.warn("[SubscriptionPayment] RETURN_STATUS_LOOKUP_FAILED", {
           message: err instanceof Error ? err.message : String(err),
         });
       }
-    }
-
-    // VNPay báo giao dịch KHÔNG thành công thì kết luận ngay — đây là chiều
-    // an toàn (không tự nhận thành công), khỏi bắt người dùng chờ hết vòng poll.
-    if (responseCode !== "00") {
-      clearSubscriptionPaymentIntent();
-      setStatus(responseCode === "24" ? "cancelled" : "failed");
+      setError(err instanceof Error ? err.message : t("packages.loadFailed"));
+      setStatus("error");
       return;
     }
 
-    // responseCode = 00 vẫn CHƯA phải thành công: chỉ khi IPN về và backend đổi
-    // trạng thái thì mới được báo thành công (handoff §2.2).
-    //
-    // Còn phiên đăng nhập → đối chiếu trạng thái subscription (chắc chắn nhất,
-    // vì gói đã kích hoạt là bằng chứng cuối cùng). Mất phiên → poll
-    // `vnpay-return-status` (endpoint public, cũng chỉ do IPN cập nhật) để vẫn
-    // kết luận được thay vì bắt người dùng đăng nhập lại giữa chừng.
     let hasSession = getAuthUser() !== null;
     setSignedOut(!hasSession);
+    const isCancelledReturn = responseCode === "24";
+    const hasVerifiedFailure = Boolean(
+      latestPaymentStatus && PAYMENT_FAILURE_STATUSES.has(latestPaymentStatus),
+    );
+    let observedPaymentFailure = hasVerifiedFailure;
+
+    if (latestPaymentStatus === "EXPIRED") {
+      clearSubscriptionPaymentIntent();
+      setStatus("failed");
+      setRetryAvailability(hasSession ? "expired" : "none");
+      return;
+    }
+
+    if (hasVerifiedFailure) {
+      setStatus(isCancelledReturn ? "cancelled" : "failed");
+      if (!hasSession) {
+        clearSubscriptionPaymentIntent();
+        return;
+      }
+      // Payment đã FAILED ngay, nhưng Identity cập nhật pendingUpgrade qua
+      // event bất đồng bộ. Khóa nút trong lúc poll để không tạo payment trùng.
+      setRetryAvailability("syncing");
+    } else if (
+      latestPaymentStatus &&
+      PAYMENT_SUCCESS_STATUSES.has(latestPaymentStatus) &&
+      !hasSession
+    ) {
+      clearSubscriptionPaymentIntent();
+      setStatus("success");
+      return;
+    } else {
+      // PENDING_REDIRECT không phải thành công, kể cả query có code 00/24.
+      setStatus("processing");
+    }
+
     let lastResultStatus: string | null = null;
     for (let attempt = 1; attempt <= MAX_VERIFICATION_ATTEMPTS; attempt += 1) {
       if (hasSession) {
@@ -227,6 +278,32 @@ export default function SubscriptionPaymentReturn() {
             }
             return;
           }
+
+          const pendingUpgrade = result.pendingUpgrade;
+          const matchesReturnedAttempt = Boolean(
+            pendingUpgrade &&
+              (!verifiedReferenceId ||
+                pendingUpgrade.upgradeAttemptId === verifiedReferenceId),
+          );
+          if (
+            matchesReturnedAttempt &&
+            pendingUpgrade?.latestPayment?.status === "FAILED"
+          ) {
+            observedPaymentFailure = true;
+            setStatus(isCancelledReturn ? "cancelled" : "failed");
+            if (
+              getRemainingPaymentSeconds(pendingUpgrade, Date.now()) <= 0
+            ) {
+              clearSubscriptionPaymentIntent();
+              setRetryAvailability("expired");
+              return;
+            }
+            if (pendingUpgrade.latestPayment.canRetry === true) {
+              setRetryAvailability("ready");
+              return;
+            }
+            setRetryAvailability("syncing");
+          }
         } catch (err) {
           if (verificationRunRef.current !== runId) return;
 
@@ -251,7 +328,11 @@ export default function SubscriptionPaymentReturn() {
             setError(
               err instanceof Error ? err.message : t("packages.loadFailed"),
             );
-            setStatus("error");
+            if (observedPaymentFailure) {
+              setRetryAvailability("unavailable");
+            } else {
+              setStatus("error");
+            }
             return;
           }
         }
@@ -265,7 +346,7 @@ export default function SubscriptionPaymentReturn() {
         }
         if (latestPaymentStatus && PAYMENT_FAILURE_STATUSES.has(latestPaymentStatus)) {
           clearSubscriptionPaymentIntent();
-          setStatus("failed");
+          setStatus(isCancelledReturn ? "cancelled" : "failed");
           return;
         }
         lastResultStatus = latestPaymentStatus;
@@ -291,7 +372,11 @@ export default function SubscriptionPaymentReturn() {
     }
 
     if (verificationRunRef.current === runId) {
-      setStatus("processing");
+      if (observedPaymentFailure) {
+        setRetryAvailability("unavailable");
+      } else {
+        setStatus("processing");
+      }
       if (import.meta.env.DEV) {
         console.warn("[SubscriptionPayment] RETURN_STILL_PENDING", {
           attempts: MAX_VERIFICATION_ATTEMPTS,
@@ -309,6 +394,90 @@ export default function SubscriptionPaymentReturn() {
     responseCode,
     t,
     vnpTransactionReference,
+  ]);
+
+  const handleRetryPayment = useCallback(async () => {
+    const pendingUpgrade = subscription?.pendingUpgrade;
+    const latestPayment = pendingUpgrade?.latestPayment;
+    if (
+      retryAvailability !== "ready" ||
+      !pendingUpgrade ||
+      latestPayment?.status !== "FAILED" ||
+      latestPayment.canRetry !== true ||
+      retryInFlightRef.current
+    ) {
+      return;
+    }
+
+    const retrySignature = `${pendingUpgrade.upgradeAttemptId}:${latestPayment.paymentId}`;
+    if (retryIntentRef.current?.signature !== retrySignature) {
+      retryIntentRef.current = {
+        signature: retrySignature,
+        idempotencyKey: crypto.randomUUID(),
+      };
+    }
+
+    retryInFlightRef.current = true;
+    setRetryAvailability("retrying");
+    setError("");
+
+    try {
+      const result = await retryOperatorSubscriptionPayment(
+        pendingUpgrade.upgradeAttemptId,
+        retryIntentRef.current.idempotencyKey,
+      );
+      // Backend đã nhận request: lần bấm chủ động tiếp theo (nếu response thiếu
+      // URL bất thường) phải dùng key mới. Chỉ lỗi mạng mới giữ key cũ.
+      retryIntentRef.current = null;
+
+      if (!result.paymentRedirectUrl) {
+        setError(t("packages.missingPaymentRedirect"));
+        setRetryAvailability("ready");
+        return;
+      }
+
+      saveSubscriptionPaymentIntent({
+        paymentId: result.paymentId,
+        upgradeAttemptId: pendingUpgrade.upgradeAttemptId,
+        targetPlanId:
+          pendingUpgrade.targetPlan?.planId ??
+          pendingUpgrade.targetPlanId ??
+          paymentIntent?.targetPlanId ??
+          "",
+        targetPlanName:
+          pendingUpgrade.targetPlan?.name ?? paymentIntent?.targetPlanName ?? "",
+      });
+      window.location.assign(result.paymentRedirectUrl);
+    } catch (err) {
+      const apiError = err instanceof ApiRequestError ? err : null;
+      if (apiError) {
+        // Server đã trả lời, nên lần người dùng bấm lại là một action mới.
+        retryIntentRef.current = null;
+      }
+
+      if (apiError?.code === "SUBSCRIPTION_UPGRADE_EXPIRED") {
+        clearSubscriptionPaymentIntent();
+        setRetryAvailability("expired");
+      } else if (apiError?.code === "SUBSCRIPTION_PAYMENT_NOT_RETRYABLE") {
+        setRetryAvailability("syncing");
+        await verifyPayment();
+      } else {
+        // Lỗi mạng giữ nguyên key để lần bấm kế tiếp retry đúng request cũ.
+        setRetryAvailability("ready");
+      }
+      setError(
+        err instanceof Error ? err.message : t("packages.retryPaymentFailed"),
+      );
+    } finally {
+      retryInFlightRef.current = false;
+    }
+  }, [
+    paymentIntent?.targetPlanId,
+    paymentIntent?.targetPlanName,
+    retryAvailability,
+    subscription?.pendingUpgrade,
+    t,
+    verifyPayment,
   ]);
 
   useEffect(() => {
@@ -392,11 +561,17 @@ export default function SubscriptionPaymentReturn() {
   // Ưu tiên mã giao dịch Backend xác thực được; chỉ rơi về giá trị đọc từ URL
   // khi chưa gọi được status API.
   const transactionReference =
-    returnStatus?.vnPayTxnRef ?? vnpTransactionReference;
+    returnStatus?.txnRef ?? vnpTransactionReference;
   // Mất phiên thì không đọc được subscription, nhưng tên gói vừa chọn vẫn còn
   // trong payment intent nên vẫn hiển thị được ngữ cảnh.
   const planName = subscription?.plan.name ?? paymentIntent?.targetPlanName ?? "";
-  const canRetry = status === "processing" || status === "error";
+  const canRecheck =
+    (status === "processing" ||
+      status === "error" ||
+      retryAvailability === "unavailable") &&
+    retryAvailability !== "syncing" &&
+    retryAvailability !== "retrying";
+  const showRetryPanel = retryAvailability !== "none" && !signedOut;
   const packagesHref = resolvePackagesHref();
 
   useToastFeedback({ error });
@@ -446,6 +621,63 @@ export default function SubscriptionPaymentReturn() {
           </p>
         ) : null}
 
+        {showRetryPanel ? (
+          <div
+            role="status"
+            className={`mt-5 rounded-xl border px-4 py-4 text-left ${
+              retryAvailability === "ready"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+                : retryAvailability === "expired"
+                  ? "border-red-200 bg-red-50 text-red-950"
+                  : "border-amber-200 bg-amber-50 text-amber-950"
+            }`}
+          >
+            <p className="font-bold">
+              {retryAvailability === "ready"
+                ? t("paymentReturn.retryReadyTitle")
+                : retryAvailability === "expired"
+                  ? t("paymentReturn.retryExpiredTitle")
+                  : retryAvailability === "unavailable"
+                    ? t("paymentReturn.retryUnavailableTitle")
+                    : t("paymentReturn.updatingTransaction")}
+            </p>
+            <p className="mt-1 text-sm leading-6 opacity-80">
+              {retryAvailability === "ready"
+                ? t("paymentReturn.retryReadyDescription")
+                : retryAvailability === "expired"
+                  ? t("paymentReturn.retryExpiredDescription")
+                  : retryAvailability === "unavailable"
+                    ? t("paymentReturn.retryUnavailableDescription")
+                    : t("paymentReturn.updatingTransactionDescription")}
+            </p>
+            {retryAvailability === "syncing" ||
+            retryAvailability === "ready" ||
+            retryAvailability === "retrying" ? (
+              <button
+                type="button"
+                onClick={() => void handleRetryPayment()}
+                disabled={retryAvailability !== "ready"}
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-vr-800 px-5 py-3 font-semibold text-white transition hover:bg-vr-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vr-500/40 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                <FiRefreshCw
+                  className={`h-4 w-4 ${
+                    retryAvailability === "syncing" ||
+                    retryAvailability === "retrying"
+                      ? "animate-spin"
+                      : ""
+                  }`}
+                  aria-hidden="true"
+                />
+                {retryAvailability === "ready"
+                  ? t("paymentReturn.retryPayment")
+                  : retryAvailability === "retrying"
+                    ? t("paymentReturn.retryingPayment")
+                    : t("paymentReturn.updatingTransaction")}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         {transactionReference || responseCode || planName ? (
           <dl className="mt-7 overflow-hidden rounded-xl border border-slate-200 bg-white text-left text-sm">
             {transactionReference ? (
@@ -477,7 +709,7 @@ export default function SubscriptionPaymentReturn() {
         </div>
 
         <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row">
-          {canRetry ? (
+          {canRecheck ? (
             <button
               type="button"
               onClick={() => void verifyPayment()}

@@ -1,10 +1,8 @@
 // Modal nâng cấp hai bước: chọn kỳ + phương thức → báo giá → thanh toán.
 // Thay PurchasePlanModal (luồng cũ bấm-một-nhịp-ra-VNPAY).
 //
-// Đồng hồ `dueAt` chạy CỤC BỘ trong modal: mở mới tick, đóng là dừng — không
-// bắt cả trang re-render mỗi giây.
+// Đồng hồ `dueAt` giữ báo giá đúng hạn kể cả khi modal đang đóng.
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   FiAlertTriangle,
@@ -46,12 +44,9 @@ export default function UpgradeQuoteModal({
     step,
     selectedPlan,
     billingPeriod,
-    paymentMethod,
     quote,
     isQuoting,
     isPaying,
-    walletBalance,
-    walletShortfall,
     error,
     isBillingPeriodLocked,
   } = upgrade;
@@ -80,12 +75,6 @@ export default function UpgradeQuoteModal({
   if (!selectedPlan) return null;
 
   const sellablePeriods = sellableBillingPeriods(selectedPlan);
-  const hasInsufficientWallet =
-    paymentMethod === "WALLET" &&
-    quote !== null &&
-    walletBalance !== null &&
-    walletBalance < quote.amountDue;
-
   function renderPeriodButton(period: SubscriptionBillingPeriod) {
     // Kỳ nào giá bằng 0 thì gói này không bán kỳ đó (gói riêng chỉ cần một giá
     // lớn hơn 0) — khoá luôn thay vì hiện "0 đ" rồi để user đâm vào 422
@@ -126,43 +115,6 @@ export default function UpgradeQuoteModal({
     );
   }
 
-  function renderMethodCard(method: "WALLET" | "VNPAY") {
-    const active = paymentMethod === method;
-
-    return (
-      <button
-        key={method}
-        type="button"
-        data-testid={`upgrade-method-${method}`}
-        aria-pressed={active}
-        onClick={() => upgrade.setPaymentMethod(method)}
-        className={`flex items-start gap-3 rounded-lg border p-4 text-left transition-colors ${
-          active
-            ? "border-vr-400 bg-vr-50"
-            : "border-gray-200 bg-white hover:border-vr-200 hover:bg-vr-50/60"
-        }`}
-      >
-        {method === "WALLET" ? (
-          <FiZap className="mt-0.5 shrink-0 text-vr-900" />
-        ) : (
-          <FiCreditCard className="mt-0.5 shrink-0 text-vr-900" />
-        )}
-        <span className="min-w-0">
-          <span className="block font-semibold text-gray-900">
-            {t(`packages.paymentMethods.${method}.title`)}
-          </span>
-          <span className="mt-1 block text-xs text-gray-500">
-            {method === "WALLET" && walletBalance !== null
-              ? t("packages.walletBalanceShort", {
-                  balance: formatCurrency(walletBalance),
-                })
-              : t(`packages.paymentMethods.${method}.hint`)}
-          </span>
-        </span>
-      </button>
-    );
-  }
-
   return (
     <Modal
       open={isOpen}
@@ -193,8 +145,12 @@ export default function UpgradeQuoteModal({
           </>
         ) : (
           <>
-            <Button variant="secondary" onClick={upgrade.discardQuote}>
-              {t("packages.changeSelection")}
+            <Button
+              variant="secondary"
+              data-testid="close-upgrade-quote"
+              onClick={upgrade.close}
+            >
+              {tc("close")}
             </Button>
             <Button
               variant="primary"
@@ -240,8 +196,19 @@ export default function UpgradeQuoteModal({
               <h3 className="text-base font-bold text-gray-900">
                 {t("packages.paymentMethod")}
               </h3>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {(["WALLET", "VNPAY"] as const).map(renderMethodCard)}
+              <div
+                data-testid="upgrade-method-VNPAY"
+                className="mt-4 flex items-start gap-3 rounded-lg border border-vr-400 bg-vr-50 p-4 text-left"
+              >
+                <FiCreditCard className="mt-0.5 shrink-0 text-vr-900" />
+                <span className="min-w-0">
+                  <span className="block font-semibold text-gray-900">
+                    {t("packages.paymentMethods.VNPAY.title")}
+                  </span>
+                  <span className="mt-1 block text-xs text-gray-500">
+                    {t("packages.paymentMethods.VNPAY.hint")}
+                  </span>
+                </span>
               </div>
             </section>
           </>
@@ -316,38 +283,6 @@ export default function UpgradeQuoteModal({
               </div>
             </section>
 
-            {walletShortfall !== null ? (
-              // 402: chưa trừ đồng nào, báo giá vẫn còn hiệu lực → giữ attempt
-              // và đồng hồ, chỉ đổi sang panel thiếu tiền.
-              <section
-                data-testid="wallet-shortfall"
-                className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
-              >
-                <p className="font-semibold">
-                  {t("packages.walletInsufficientTitle")}
-                </p>
-                <p className="tabular-nums">
-                  {t("packages.walletShortfall", {
-                    shortfall: formatCurrency(walletShortfall),
-                  })}
-                </p>
-                <p>{t("packages.walletNotChargedHint")}</p>
-                {/* BE đang làm luồng nạp ví — chưa có endpoint thì không dựng
-                    nút chết, chỉ dẫn sang màn Ví và gợi ý trả bằng VNPAY. */}
-                <p>
-                  <Link
-                    to="/manager/wallet"
-                    className="font-semibold underline underline-offset-2"
-                  >
-                    {t("packages.openWallet")}
-                  </Link>
-                </p>
-              </section>
-            ) : hasInsufficientWallet ? (
-              <p className="rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                {t("packages.walletMayBeInsufficient")}
-              </p>
-            ) : null}
           </>
         ) : null}
       </div>

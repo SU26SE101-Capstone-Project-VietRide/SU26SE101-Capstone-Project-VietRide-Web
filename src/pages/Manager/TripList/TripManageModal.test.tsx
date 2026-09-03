@@ -121,6 +121,8 @@ describe("TripManageModal", () => {
       reservedVolumeM3: 2.5,
       loadedWeightKg: 200,
       loadedVolumeM3: 1.5,
+      historicalLoadedWeightKg: 250,
+      historicalLoadedVolumeM3: 2,
       maxCargoWeightKg: 1_000,
       maxCargoVolumeM3: 8,
       availableWeightKg: 500,
@@ -201,6 +203,33 @@ describe("TripManageModal", () => {
     expect(screen.getByText("8 m³")).toBeInTheDocument();
     expect(screen.getByText("500 kg · 4 m³")).toBeInTheDocument();
     expect(screen.getByText("20%")).toBeInTheDocument();
+    expect(
+      screen.getByText("tripList.manage.historicalCargo"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("250 kg · 2 m³")).toBeInTheDocument();
+  });
+
+  it("giữ riêng tải lịch sử khi cốp hiện tại đã trống", async () => {
+    vi.mocked(getOperatorTripCargoCapacity).mockResolvedValueOnce({
+      tripId: "trip-1",
+      reservedWeightKg: 0,
+      reservedVolumeM3: 0,
+      loadedWeightKg: 0,
+      loadedVolumeM3: 0,
+      historicalLoadedWeightKg: 12.5,
+      historicalLoadedVolumeM3: 0.2,
+      maxCargoWeightKg: 500,
+      maxCargoVolumeM3: 5,
+      availableWeightKg: 500,
+      availableVolumeM3: 5,
+      percentFull: 0,
+    });
+
+    renderModal();
+
+    expect(await screen.findByText("12,5 kg · 0,2 m³")).toBeInTheDocument();
+    expect(screen.getByText("500 kg · 5 m³")).toBeInTheDocument();
+    expect(screen.getByText("0%")).toBeInTheDocument();
   });
 
   it("cho phép tải lại khi không lấy được sức chứa", async () => {

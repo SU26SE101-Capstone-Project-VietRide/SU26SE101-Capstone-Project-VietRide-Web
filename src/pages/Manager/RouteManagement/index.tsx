@@ -118,10 +118,6 @@ export default function ManagerRouteManagementPage() {
     [items],
   );
   const inactiveCount = items.length - activeCount;
-  const distance = useMemo(
-    () => items.reduce((sum, route) => sum + (route.totalDistanceKm || 0), 0),
-    [items],
-  );
   const distanceLabel = i18n.language.startsWith("vi")
     ? "Khoảng cách"
     : "Distance";
@@ -177,7 +173,7 @@ export default function ManagerRouteManagementPage() {
           {tc("refresh")}
         </button>
       </header>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           label={t("routeManagement.total")}
           value={totalItems}
@@ -190,13 +186,6 @@ export default function ManagerRouteManagementPage() {
           value={activeCount}
           icon={<FiActivity size={20} />}
           iconClassName="bg-emerald-50 text-emerald-600"
-          isLoading={isLoading}
-        />
-        <StatCard
-          label={distanceLabel}
-          value={`${distance.toLocaleString("vi-VN")} km`}
-          icon={<FiMap size={20} />}
-          iconClassName="bg-amber-50 text-amber-700"
           isLoading={isLoading}
         />
       </div>

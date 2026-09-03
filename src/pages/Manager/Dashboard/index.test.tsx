@@ -238,18 +238,19 @@ describe("Manager Dashboard", () => {
     vi.useRealTimers();
   });
 
-  it("shows monthly ticket metrics with YTD context and keeps chart semantics correct", async () => {
+  it("shows quarterly metrics and keeps chart semantics correct", async () => {
     render(<ManagerDashboard />);
 
     const revenueLabel = await screen.findByText("dashboard.revenue");
     const revenueCard = revenueLabel.parentElement?.parentElement
       ?.parentElement as HTMLElement;
-    expect(within(revenueCard).getByText("9.000.000 đ")).toBeInTheDocument();
+    expect(within(revenueCard).getByText("21.000.000 đ")).toBeInTheDocument();
 
     const bookingLabel = screen.getByText("dashboard.bookings");
     const bookingCard = bookingLabel.parentElement?.parentElement
       ?.parentElement as HTMLElement;
-    expect(within(bookingCard).getByText("30")).toBeInTheDocument();
+    expect(within(bookingCard).getByText("110")).toBeInTheDocument();
+    expect(screen.queryByText(/dashboard\.yearToDateValue/)).not.toBeInTheDocument();
 
     const fleetLabel = screen.getByText("dashboard.fleet");
     const fleetCard = fleetLabel.parentElement?.parentElement
@@ -265,6 +266,16 @@ describe("Manager Dashboard", () => {
     expect(chartData).toContain('"revenue":9000000');
     expect(chartData).toContain('"bookings":30');
     expect(chartData).not.toContain('"bookings":2');
+
+    const chartSection = screen
+      .getByText("dashboard.revenueChart")
+      .closest("section");
+    expect(chartSection).not.toBeNull();
+    expect(
+      within(chartSection as HTMLElement).getByRole("button", {
+        name: "dashboard.revenueMonth",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("preserves the parcel total and exposes route share plus available operations data", async () => {
@@ -280,7 +291,7 @@ describe("Manager Dashboard", () => {
 
     await waitFor(() => {
       expect(getOperatorBookingStats).toHaveBeenCalledWith({
-        from: "2026-01-01",
+        from: "2025-09-01",
         to: "2026-08-02",
         groupBy: "date",
       });
@@ -308,9 +319,6 @@ describe("Manager Dashboard", () => {
     ).not.toBeInTheDocument();
   });
 });
-
-
-
 
 
 

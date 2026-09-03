@@ -84,6 +84,11 @@ export default function PlanCard({
           <h3 className="text-lg font-bold text-gray-900">
             {plan.name}
           </h3>
+          {isCustom ? (
+            <span className="mt-1 inline-flex rounded-full bg-vr-50 px-2 py-1 text-[11px] font-medium leading-none text-vr-900">
+              {t("packages.customPlanPrivateHint")}
+            </span>
+          ) : null}
         </div>
         {/* Gói riêng: badge nhận diện. KHÔNG bao giờ hiện ownerOperatorId. */}
         <Badge tone={isCustom ? "brand" : "success"}>
@@ -97,12 +102,6 @@ export default function PlanCard({
       >
         {plan.description || "-"}
       </p>
-
-      {isCustom ? (
-        <p className="mb-4 text-xs text-vr-900">
-          {t("packages.customPlanPrivateHint")}
-        </p>
-      ) : null}
 
       <div className="mb-4 rounded-xl bg-gradient-to-br from-vr-50 to-white p-4 ring-1 ring-vr-100">
         {periodOnSale ? (
@@ -196,7 +195,7 @@ export default function PlanCard({
         type="button"
         onClick={() => onPurchase(plan)}
         disabled={purchaseDisabled || blocked}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 py-2.5 font-semibold text-white shadow-sm transition-colors hover:bg-vr-900 disabled:cursor-not-allowed disabled:bg-vr-200 disabled:text-white disabled:shadow-none"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-vr-800 py-2.5 font-semibold text-white shadow-sm transition-colors hover:bg-vr-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none"
       >
         <FiShoppingCart className="text-lg" />
         {t("packages.buyPackage")}

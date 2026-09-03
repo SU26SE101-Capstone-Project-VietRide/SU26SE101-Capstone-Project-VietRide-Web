@@ -42,13 +42,11 @@ export type Shipment = {
 
 export type DashboardSummary = {
   revenue: {
-    currentMonth: number | null;
-    previousMonth: number | null;
+    currentQuarter: number | null;
     yearToDate: number | null;
   };
   bookings: {
-    currentMonth: number | null;
-    previousMonth: number | null;
+    currentQuarter: number | null;
     yearToDate: number | null;
   };
   fleet: number | null;
@@ -67,6 +65,21 @@ export function currentYearRange() {
   return {
     from: toDateInput(new Date(now.getFullYear(), 0, 1)),
     to: toDateInput(now),
+  };
+}
+
+/** Khoảng 12 tháng kết thúc ở tháng được chọn, không lấy dữ liệu tương lai. */
+export function revenueChartRange(monthValue: string) {
+  const [year, month] = monthValue.split("-").map(Number);
+  const firstMonth = new Date(year, month - 12, 1);
+  const selectedMonthEnd = new Date(year, month, 0);
+  const today = new Date();
+  const end =
+    selectedMonthEnd.getTime() > today.getTime() ? today : selectedMonthEnd;
+
+  return {
+    from: toDateInput(firstMonth),
+    to: toDateInput(end),
   };
 }
 
@@ -182,6 +195,7 @@ export function aggregateBookingStats(items: BookingStatsItem[]) {
 export function mapDashboardChart(
   bookingItems: BookingStatsItem[],
   revenueItems: OperatorRevenueAnalytics["monthly"] = [],
+  throughMonth?: string,
 ): RevenueChartPoint[] {
   const monthlyStats = aggregateBookingStats(bookingItems);
 
@@ -203,7 +217,37 @@ export function mapDashboardChart(
       revenue: value.revenue,
       bookings: value.bookings,
     }))
+    .filter((item) => !throughMonth || item.monthKey <= throughMonth)
     .sort((first, second) => first.monthKey.localeCompare(second.monthKey));
+}
+
+export function summarizeDashboardPeriod(
+  data: RevenueChartPoint[],
+  selectedMonth: string,
+) {
+  const selectedYear = Number(selectedMonth.slice(0, 4));
+  const selectedMonthNumber = Number(selectedMonth.slice(5, 7));
+  const quarterStart = Math.floor((selectedMonthNumber - 1) / 3) * 3 + 1;
+
+  const inSelectedYear = data.filter((item) => {
+    const year = Number(item.monthKey.slice(0, 4));
+    const month = Number(item.monthKey.slice(5, 7));
+    return year === selectedYear && month <= selectedMonthNumber;
+  });
+  const inSelectedQuarter = inSelectedYear.filter((item) => {
+    const month = Number(item.monthKey.slice(5, 7));
+    return month >= quarterStart;
+  });
+
+  const sum = (items: RevenueChartPoint[], key: "revenue" | "bookings") =>
+    items.reduce((total, item) => total + item[key], 0);
+
+  return {
+    quarterRevenue: sum(inSelectedQuarter, "revenue"),
+    quarterBookings: sum(inSelectedQuarter, "bookings"),
+    yearRevenue: sum(inSelectedYear, "revenue"),
+    yearBookings: sum(inSelectedYear, "bookings"),
+  };
 }
 
 export function compactRouteName(name: string) {

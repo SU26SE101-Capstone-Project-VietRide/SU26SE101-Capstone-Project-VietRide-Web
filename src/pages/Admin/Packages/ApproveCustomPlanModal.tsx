@@ -1,6 +1,6 @@
 // Modal duyệt yêu cầu gói riêng: admin chốt tên, mô tả, sáu hạn mức, ba module
 // và HAI GIÁ ĐỘC LẬP. Form prefill nguyên từ yêu cầu — admin chỉnh chứ không gõ lại.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FiAlertTriangle, FiCheck } from "react-icons/fi";
 import Modal from "../../../components/Modal";
@@ -75,7 +75,17 @@ export default function ApproveCustomPlanModal({
   const [form, setForm] = useState<ApproveCustomPlanRequestPayload>(() =>
     buildInitialForm(request),
   );
-  const [localError, setLocalError] = useState("");
+  const [localError, setLocalError] = useState<"name" | "pricing" | null>(null);
+  const pricingSectionRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (localError === "pricing") {
+      pricingSectionRef.current?.scrollIntoView?.({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [localError]);
 
   function update<K extends keyof ApproveCustomPlanRequestPayload>(
     key: K,
@@ -86,18 +96,18 @@ export default function ApproveCustomPlanModal({
 
   function submit() {
     if (!form.name.trim()) {
-      setLocalError(t("customPlans.nameRequired"));
+      setLocalError("name");
       return;
     }
 
     // Hai giá độc lập nhưng phải bán được ít nhất một kỳ — cả hai bằng 0 thì
     // gói dựng ra không ai mua nổi
     if (form.pricePerMonth <= 0 && form.pricePerYear <= 0) {
-      setLocalError(t("customPlans.priceRequired"));
+      setLocalError("pricing");
       return;
     }
 
-    setLocalError("");
+    setLocalError(null);
     onSubmit({
       ...form,
       name: form.name.trim(),
@@ -131,11 +141,11 @@ export default function ApproveCustomPlanModal({
         </>
       }
     >
-      <div className="space-y-5">
-        {localError ? (
+      <div className="flex flex-col gap-5">
+        {localError === "name" ? (
           <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <FiAlertTriangle className="mt-0.5 shrink-0" />
-            <span>{localError}</span>
+            <span>{t("customPlans.nameRequired")}</span>
           </p>
         ) : null}
 
@@ -161,7 +171,10 @@ export default function ApproveCustomPlanModal({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-vr-100 bg-vr-50/50 p-5">
+        <section
+          ref={pricingSectionRef}
+          className="order-3 rounded-2xl border border-vr-100 bg-vr-50/50 p-5"
+        >
           <div className="mb-4">
             <h3 className="text-base font-bold tracking-tight text-slate-900">
               {t("packages.pricingTitle")}
@@ -227,9 +240,15 @@ export default function ApproveCustomPlanModal({
               onChange={(value) => update("pricePerYear", value)}
             />
           </div>
+          {localError === "pricing" ? (
+            <p className="mt-2 flex items-start gap-2 text-xs font-semibold text-red-600">
+              <FiAlertTriangle className="mt-0.5 shrink-0" />
+              <span>{t("customPlans.priceRequired")}</span>
+            </p>
+          ) : null}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
+        <section className="order-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
           <div className="mb-4">
             <h3 className="text-base font-bold tracking-tight text-slate-900">
               {t("packages.limitsTitle")}

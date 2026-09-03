@@ -76,6 +76,27 @@ describe("notification socket", () => {
     expect(notification).not.toHaveProperty("deepLink");
   });
 
+  it("parses the submitted custom-request action with its requestId", () => {
+    const notification = parseNotificationCreatedEvent({
+      id: "notification-custom-request",
+      type: "SUBSCRIPTION_CUSTOM_REQUEST_SUBMITTED",
+      title: "Yêu cầu gói tùy chỉnh mới",
+      body: "Nhà xe VietRide Express vừa gửi yêu cầu.",
+      data: { requestId: "request-1", operatorId: "operator-1" },
+      action: {
+        type: "OPEN_ADMIN_SUBSCRIPTION_CUSTOM_REQUEST",
+        params: { requestId: "request-1" },
+      },
+      readAt: null,
+      createdAt: "2026-09-03T15:15:01+07:00",
+    });
+
+    expect(notification?.action).toEqual({
+      type: "OPEN_ADMIN_SUBSCRIPTION_CUSTOM_REQUEST",
+      params: { requestId: "request-1" },
+    });
+  });
+
   it("rejects payloads the inbox cannot deduplicate", () => {
     // Payload cũ chỉ có notificationId, và mọi shape không dùng được đều phải
     // lùi về REST inbox thay vì dựng item nửa vời.
@@ -98,5 +119,18 @@ describe("notification socket", () => {
 
     expect(notification?.action).toBeNull();
     expect(notification?.data).toBeNull();
+  });
+
+  it("preserves an unsupported action marker for safe no-navigation", () => {
+    const notification = parseNotificationCreatedEvent({
+      id: "notification-unknown-action",
+      type: "SUBSCRIPTION_CUSTOM_REQUEST_APPROVED",
+      title: "A plan was created",
+      body: "Open it.",
+      action: { type: "OPEN_FUTURE_SCREEN", params: {} },
+    });
+
+    expect(notification?.action).toBeNull();
+    expect(notification?.actionType).toBe("OPEN_FUTURE_SCREEN");
   });
 });

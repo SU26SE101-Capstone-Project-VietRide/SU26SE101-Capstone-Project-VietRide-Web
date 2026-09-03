@@ -6,6 +6,7 @@ import {
   fundingStatusTone,
   hasClaimAction,
   parseClaimDecision,
+  previewClaimAward,
   previewClaimCargoAward,
   type ClaimDecisionDraft,
 } from "./claimHelpers";
@@ -35,6 +36,7 @@ describe("claimErrorTranslationKey", () => {
 function draft(overrides: Partial<ClaimDecisionDraft> = {}): ClaimDecisionDraft {
   return {
     decision: "APPROVE",
+    proofMode: "WITH_PROOF",
     provenDirectLossVnd: "",
     reason: "Chứng từ hợp lệ",
     ...overrides,
@@ -69,9 +71,21 @@ describe("parseClaimDecision", () => {
     });
   });
 
-  // Để trống là chủ ý: BE chuyển sang công thức "không chứng từ".
-  it("duyệt không kèm tổn thất thì không gửi trường đó", () => {
-    const result = parseClaimDecision(draft());
+  it("bắt buộc chọn rõ có hay không có chứng từ", () => {
+    expect(parseClaimDecision(draft({ proofMode: "" }))).toEqual({
+      ok: false,
+      error: "proof-required",
+    });
+    expect(parseClaimDecision(draft())).toEqual({
+      ok: false,
+      error: "loss-required",
+    });
+  });
+
+  it("duyệt không có chứng từ thì không gửi trường tổn thất", () => {
+    const result = parseClaimDecision(
+      draft({ proofMode: "WITHOUT_PROOF", provenDirectLossVnd: "" }),
+    );
 
     expect(result).toEqual({
       ok: true,
@@ -144,6 +158,56 @@ describe("previewClaimCargoAward", () => {
   // đoán bừa, trả null để màn nói rõ là chưa ước tính được.
   it("không ước tính khi chưa có tổn thất chứng minh", () => {
     expect(previewClaimCargoAward(null, 4_000_000, 50, 30_000_000)).toBeNull();
+  });
+});
+
+describe("previewClaimAward", () => {
+  it("tính đủ test case 300.000đ có chứng từ, gồm cả hoàn cước", () => {
+    expect(
+      previewClaimAward(
+        "WITH_PROOF",
+        300_000,
+        300_000,
+        150_000,
+        0,
+        50,
+        30_000_000,
+        4,
+      ),
+    ).toEqual({
+      proofMode: "WITH_PROOF",
+      assessedLossVnd: 300_000,
+      cargoAwardVnd: 150_000,
+      cappedByPolicy: false,
+      freightCollectedVnd: 150_000,
+      alreadyRefundedVnd: 0,
+      freightRefundVnd: 150_000,
+      totalAwardVnd: 300_000,
+    });
+  });
+
+  it("giải thích đúng 600.000đ tiền hàng + 150.000đ hoàn cước khi không có chứng từ", () => {
+    expect(
+      previewClaimAward(
+        "WITHOUT_PROOF",
+        null,
+        300_000,
+        150_000,
+        0,
+        50,
+        30_000_000,
+        4,
+      ),
+    ).toEqual({
+      proofMode: "WITHOUT_PROOF",
+      assessedLossVnd: 0,
+      cargoAwardVnd: 600_000,
+      cappedByPolicy: false,
+      freightCollectedVnd: 150_000,
+      alreadyRefundedVnd: 0,
+      freightRefundVnd: 150_000,
+      totalAwardVnd: 750_000,
+    });
   });
 });
 

@@ -113,9 +113,8 @@ describe("CustomDateTimeInput — vị trí bảng lịch", () => {
   });
 });
 
-// Cột phút trước đây nhảy 5 phút một nấc nên không đặt được giờ khởi hành lẻ.
-describe("CustomDateTimeInput — cột phút", () => {
-  it("cho chọn từng phút, không nhảy nấc 5 phút", () => {
+describe("CustomDateTimeInput — nhập giờ phút", () => {
+  it("cho nhập trực tiếp từng phút", () => {
     const onChange = vi.fn();
     render(
       <CustomDateTimeInput
@@ -128,21 +127,47 @@ describe("CustomDateTimeInput — cột phút", () => {
     fireEvent.click(screen.getByLabelText("gio-khoi-hanh"));
 
     const panel = screen.getByTestId("datetime-picker-panel");
-    // Giới hạn trong cột phút: "07" cũng là một giờ và một ngày trên lịch
-    const minuteColumn = within(panel).getByText("dateTimePicker.minute")
-      .parentElement as HTMLElement;
+    const minuteInput = within(panel).getByRole("spinbutton", {
+      name: "dateTimePicker.minute",
+    });
 
-    // Phút lẻ như 07/53 chỉ tồn tại khi bước nhảy là 1
-    expect(
-      within(minuteColumn).getByRole("button", { name: "07" }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(within(minuteColumn).getByRole("button", { name: "53" }));
+    fireEvent.change(minuteInput, { target: { value: "53" } });
+    fireEvent.blur(minuteInput);
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         target: expect.objectContaining({ value: "2026-08-16T07:53" }),
       }),
     );
+  });
+
+  it("không ghi nhận giờ hoặc phút nằm ngoài giới hạn", () => {
+    const onChange = vi.fn();
+    render(
+      <CustomDateTimeInput
+        type="datetime-local"
+        value="2026-08-16T07:21"
+        aria-label="gio-khoi-hanh"
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("gio-khoi-hanh"));
+
+    const panel = screen.getByTestId("datetime-picker-panel");
+    const hourInput = within(panel).getByRole("spinbutton", {
+      name: "dateTimePicker.hour",
+    });
+    const minuteInput = within(panel).getByRole("spinbutton", {
+      name: "dateTimePicker.minute",
+    });
+
+    fireEvent.change(hourInput, { target: { value: "24" } });
+    fireEvent.blur(hourInput);
+    fireEvent.change(minuteInput, { target: { value: "60" } });
+    fireEvent.blur(minuteInput);
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(hourInput).toHaveValue(7);
+    expect(minuteInput).toHaveValue(21);
   });
 });

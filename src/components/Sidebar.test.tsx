@@ -139,6 +139,32 @@ describe("operator subscription navigation", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the assistant mounted while the bubble is temporarily closed", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorSubscription).mockResolvedValue(
+      subscription({
+        enableParcel: false,
+        enableShuttle: false,
+        enableRag: true,
+      }),
+    );
+
+    renderOperatorNavigation();
+
+    const toggle = await screen.findByRole("button", {
+      name: "assistant.open",
+    });
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog).toHaveAttribute("hidden");
+
+    await user.click(toggle);
+    expect(dialog).not.toHaveAttribute("hidden");
+
+    await user.click(toggle);
+    expect(dialog).toHaveAttribute("hidden");
+    expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+  });
+
   it("thu gọn nhóm menu khi bấm tiêu đề và nhớ lựa chọn đó", async () => {
     vi.mocked(getOperatorSubscription).mockResolvedValue(
       subscription({

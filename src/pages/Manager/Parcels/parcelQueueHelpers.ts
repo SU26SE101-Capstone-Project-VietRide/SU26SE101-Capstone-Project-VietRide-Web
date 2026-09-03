@@ -109,18 +109,54 @@ export function actionLabel(
   t: Translate,
   tc: Translate,
 ) {
-  if (item.status === "PENDING_OPERATOR_REVIEW")
+  return parcelStatusLabel(item.status, item.pendingActionType, t, tc);
+}
+
+/**
+ * Nhãn trạng thái hiện tại. `PENDING_OPERATOR_ACTION` là trạng thái kỹ thuật
+ * tổng quát, còn `pendingActionType` mới nói rõ người vận hành đang xử lý gì.
+ */
+export function parcelStatusLabel(
+  status: string,
+  pendingActionType: string | null | undefined,
+  t: Translate,
+  tc: Translate,
+) {
+  if (status === "PENDING_OPERATOR_REVIEW")
     return t("parcels.queue.pendingReview");
   if (
-    item.status === "PENDING_OPERATOR_ACTION" &&
-    item.pendingActionType &&
-    PENDING_ACTION_TYPES.has(item.pendingActionType)
+    status === "PENDING_OPERATOR_ACTION" &&
+    pendingActionType &&
+    PENDING_ACTION_TYPES.has(pendingActionType)
   ) {
-    return pendingActionLabel(item.pendingActionType, t);
+    return pendingActionLabel(pendingActionType, t);
   }
-  return tc(`enumLabels.${item.status}`, {
-    defaultValue: item.status.replaceAll("_", " "),
+  return tc(`enumLabels.${status}`, {
+    defaultValue: status.replaceAll("_", " "),
   });
+}
+
+/**
+ * Ghi bù chỉ có ý nghĩa khi kiện đã vào chuỗi giữ hàng hoặc đang trên đường
+ * hoàn về bến. Các trạng thái đặt/thu tiền, chờ duyệt, đã giao, huỷ, từ chối
+ * và hết hạn không được hiện CTA này.
+ */
+const HANDOFF_ELIGIBLE_STATUSES = new Set([
+  "CHECKED_IN",
+  "PENDING_FINAL_PAYMENT",
+  "READY_TO_LOAD",
+  "LOADED",
+  "IN_TRANSIT",
+  "PENDING_TRANSFER_CONFIRM",
+  "TRANSFER_ESCALATED",
+  "UNLOADED",
+  "DELIVERY_REJECTED",
+  "RETURN_INITIATED",
+  "RETURNED",
+]);
+
+export function canRecordStationHandoff(status: string | null | undefined) {
+  return Boolean(status && HANDOFF_ELIGIBLE_STATUSES.has(status));
 }
 
 export function needsAction(item: OperatorParcelListItem) {

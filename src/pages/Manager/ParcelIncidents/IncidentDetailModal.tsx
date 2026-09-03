@@ -130,7 +130,7 @@ export default function IncidentDetailModal({
   const historyError = isHistoryForCurrentIncident ? history.error : "";
   const historyExhausted = isHistoryForCurrentIncident
     ? history.exhausted
-    : false;
+    : detail?.custodyTimeline.nextCursor == null;
 
   if (!open) return null;
 

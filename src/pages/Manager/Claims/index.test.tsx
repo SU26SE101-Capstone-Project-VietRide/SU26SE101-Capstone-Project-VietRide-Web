@@ -222,6 +222,9 @@ describe("ClaimsPage", () => {
     // Các nhãn dưới đây chỉ tồn tại trong modal quyết định nên không cần scope
     await screen.findByText("claims.decisionTitle");
 
+    await user.click(
+      screen.getByRole("radio", { name: /claims\.proof\.WITH_PROOF/ }),
+    );
     await user.type(
       screen.getByLabelText(/claims.provenLossLabel/),
       "12000000",

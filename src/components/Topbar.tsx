@@ -82,6 +82,9 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const notificationRefreshInFlightRef = useRef(false);
+  // Nhớ các id đã thấy trong suốt vòng đời Topbar để event replay không làm
+  // tăng badge lần hai, kể cả khi REST và socket đua nhau.
+  const knownNotificationIdsRef = useRef(new Set<string>());
   // Refetch trùng lúc đang có request bay không bị bỏ hẳn mà xếp lại một lượt:
   // response cũ (chụp trước khi notification được persist) không được phép là
   // tiếng nói cuối cùng về inbox.
@@ -135,6 +138,9 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
             sortDir: "desc",
           }),
         ]);
+        latest.items.forEach((item) =>
+          knownNotificationIdsRef.current.add(item.id),
+        );
         setNotifications(latest.items);
         setUnreadNotifications(unread.totalItems);
         setNotificationsError("");
@@ -199,12 +205,17 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
       // Event mang nguyên DTO nên hiện được ngay, không phải chờ REST. Dedupe
       // theo `id` vì Socket.IO là at-least-once và event có thể được replay.
       const incoming = parseNotificationCreatedEvent(payload);
-      if (incoming) {
+      if (
+        incoming &&
+        !knownNotificationIdsRef.current.has(incoming.id)
+      ) {
+        knownNotificationIdsRef.current.add(incoming.id);
         setNotifications((current) =>
-          current.some((item) => item.id === incoming.id)
-            ? current
-            : [incoming, ...current].slice(0, NOTIFICATION_PAGE_SIZE),
+          [incoming, ...current].slice(0, NOTIFICATION_PAGE_SIZE),
         );
+        if (!incoming.readAt) {
+          setUnreadNotifications((current) => current + 1);
+        }
       }
 
       // REST inbox là nguồn bền vững: gọi lại để chốt danh sách và số chưa đọc

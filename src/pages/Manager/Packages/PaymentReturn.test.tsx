@@ -1,9 +1,10 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getOperatorSubscription,
   getVnPayReturnStatus,
+  retryOperatorSubscriptionPayment,
   type OperatorSubscriptionDetail,
   type SubscriptionPlan,
 } from "../../../api/vietride";
@@ -35,6 +36,7 @@ vi.mock("../../../components/LanguageSwitcher", () => ({
 vi.mock("../../../api/vietride", () => ({
   getOperatorSubscription: vi.fn(),
   getVnPayReturnStatus: vi.fn(),
+  retryOperatorSubscriptionPayment: vi.fn(),
 }));
 
 const plan: SubscriptionPlan = {
@@ -95,6 +97,36 @@ function signIn() {
   );
 }
 
+function createRetryableSubscription(): OperatorSubscriptionDetail {
+  return {
+    ...subscription,
+    status: "PENDING_PAYMENT",
+    pendingUpgrade: {
+      upgradeAttemptId: "attempt-1",
+      targetPlan: { planId: plan.planId, name: plan.name },
+      billingPeriod: "YEARLY",
+      amount: plan.pricePerYear,
+      dueAt: "2099-01-01T00:00:00Z",
+      remainingSeconds: 600,
+      latestPayment: {
+        paymentId: "payment-1",
+        status: "FAILED",
+        canRetry: true,
+      },
+    },
+  };
+}
+
+function mockCancelledReturn() {
+  vi.mocked(getVnPayReturnStatus).mockResolvedValue({
+    txnRef: "VR-SUBSCRIPTION-001",
+    paymentId: "payment-1",
+    referenceType: "SUBSCRIPTION",
+    referenceId: "attempt-1",
+    status: "FAILED",
+  });
+}
+
 describe("SubscriptionPaymentReturn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -103,10 +135,10 @@ describe("SubscriptionPaymentReturn", () => {
     signIn();
     vi.mocked(getOperatorSubscription).mockResolvedValue(subscription);
     vi.mocked(getVnPayReturnStatus).mockResolvedValue({
-      vnPayTxnRef: "VR-SUBSCRIPTION-001",
+      txnRef: "VR-SUBSCRIPTION-001",
       paymentId: "payment-1",
       referenceType: "SUBSCRIPTION",
-      referenceId: "subscription-1",
+      referenceId: "attempt-1",
       status: "PENDING_REDIRECT",
     });
   });
@@ -224,7 +256,26 @@ describe("SubscriptionPaymentReturn", () => {
     expect(getOperatorSubscription).not.toHaveBeenCalled();
   });
 
-  it("shows a failed result without confirming it through subscription data", async () => {
+  it("does not report failure from the browser query while backend status is pending", async () => {
+    vi.useFakeTimers();
+    vi.mocked(getOperatorSubscription).mockResolvedValue({
+      ...subscription,
+      status: "PENDING_PAYMENT",
+      pendingUpgrade: {
+        upgradeAttemptId: "attempt-1",
+        targetPlan: { planId: plan.planId, name: plan.name },
+        billingPeriod: "YEARLY",
+        amount: plan.pricePerYear,
+        dueAt: "2099-01-01T00:00:00Z",
+        remainingSeconds: 600,
+        latestPayment: {
+          paymentId: "payment-1",
+          status: "PENDING_REDIRECT",
+          canRetry: false,
+        },
+      },
+    });
+
     render(
       <MemoryRouter
         initialEntries={["/payments/return?vnp_ResponseCode=05"]}
@@ -233,10 +284,201 @@ describe("SubscriptionPaymentReturn", () => {
       </MemoryRouter>,
     );
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("paymentReturn.processingTitle")).toBeInTheDocument();
+    expect(screen.queryByText("paymentReturn.failedTitle")).not.toBeInTheDocument();
+    expect(getOperatorSubscription).toHaveBeenCalledTimes(1);
+  });
+
+  it("polls a cancelled subscription until payment retry is enabled", async () => {
+    vi.useFakeTimers();
+    const pendingUpgrade = {
+      upgradeAttemptId: "attempt-1",
+      targetPlan: { planId: plan.planId, name: plan.name },
+      billingPeriod: "YEARLY" as const,
+      amount: plan.pricePerYear,
+      dueAt: "2099-01-01T00:00:00Z",
+      remainingSeconds: 600,
+      latestPayment: {
+        paymentId: "payment-1",
+        status: "FAILED",
+        canRetry: false,
+      },
+    };
+    vi.mocked(getVnPayReturnStatus).mockResolvedValue({
+      txnRef: "VR-SUBSCRIPTION-001",
+      paymentId: "payment-1",
+      referenceType: "SUBSCRIPTION",
+      referenceId: "attempt-1",
+      status: "FAILED",
+    });
+    vi.mocked(getOperatorSubscription)
+      .mockResolvedValueOnce({
+        ...subscription,
+        status: "PENDING_PAYMENT",
+        pendingUpgrade,
+      })
+      .mockResolvedValue({
+        ...subscription,
+        status: "PENDING_PAYMENT",
+        pendingUpgrade: {
+          ...pendingUpgrade,
+          latestPayment: { ...pendingUpgrade.latestPayment, canRetry: true },
+        },
+      });
+    vi.mocked(retryOperatorSubscriptionPayment).mockResolvedValue({
+      upgradeAttemptId: "attempt-1",
+      status: "PENDING_PAYMENT",
+      paymentId: "payment-2",
+      paymentRedirectUrl: null,
+      dueAt: "2099-01-01T00:00:00Z",
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=24&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("paymentReturn.cancelledTitle")).toBeInTheDocument();
     expect(
-      await screen.findByText("paymentReturn.failedTitle"),
+      screen.getByRole("button", { name: "paymentReturn.updatingTransaction" }),
+    ).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    const retryButton = screen.getByRole("button", {
+      name: "paymentReturn.retryPayment",
+    });
+    expect(retryButton).toBeEnabled();
+
+    fireEvent.click(retryButton);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(retryOperatorSubscriptionPayment).toHaveBeenCalledWith(
+      "attempt-1",
+      expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      ),
+    );
+    expect(retryButton).toBeEnabled();
+  });
+
+  it("refreshes subscription and does not create another payment after a not-retryable response", async () => {
+    mockCancelledReturn();
+    vi.mocked(getOperatorSubscription).mockResolvedValue(
+      createRetryableSubscription(),
+    );
+    vi.mocked(retryOperatorSubscriptionPayment).mockRejectedValue(
+      new ApiRequestError(
+        "Payment is not retryable",
+        409,
+        "SUBSCRIPTION_PAYMENT_NOT_RETRYABLE",
+      ),
+    );
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=24&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    const retryButton = await screen.findByRole("button", {
+      name: "paymentReturn.retryPayment",
+    });
+    fireEvent.click(retryButton);
+
+    await waitFor(() => {
+      expect(getOperatorSubscription).toHaveBeenCalledTimes(2);
+    });
+    expect(retryOperatorSubscriptionPayment).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "paymentReturn.retryPayment" }),
+    ).toBeEnabled();
+  });
+
+  it("requires a new upgrade quote when retry reports an expired attempt", async () => {
+    mockCancelledReturn();
+    vi.mocked(getOperatorSubscription).mockResolvedValue(
+      createRetryableSubscription(),
+    );
+    vi.mocked(retryOperatorSubscriptionPayment).mockRejectedValue(
+      new ApiRequestError(
+        "Upgrade attempt expired",
+        409,
+        "SUBSCRIPTION_UPGRADE_EXPIRED",
+      ),
+    );
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=24&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "paymentReturn.retryPayment",
+      }),
+    );
+
+    expect(
+      await screen.findByText("paymentReturn.retryExpiredTitle"),
     ).toBeInTheDocument();
-    expect(getOperatorSubscription).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "paymentReturn.retryPayment" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("stays on the result page when the VNPay web channel is disabled", async () => {
+    mockCancelledReturn();
+    vi.mocked(getOperatorSubscription).mockResolvedValue(
+      createRetryableSubscription(),
+    );
+    vi.mocked(retryOperatorSubscriptionPayment).mockRejectedValue(
+      new ApiRequestError(
+        "VNPay web is temporarily disabled",
+        503,
+        "VNPAY_WEB_DISABLED",
+      ),
+    );
+
+    render(
+      <MemoryRouter
+        initialEntries={["/payments/return?vnp_ResponseCode=24&vnp_TxnRef=VR-1"]}
+      >
+        <SubscriptionPaymentReturn />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "paymentReturn.retryPayment",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "paymentReturn.retryPayment" }),
+      ).toBeEnabled();
+    });
+    expect(
+      screen.getByRole("link", { name: "paymentReturn.backToPackages" }),
+    ).toBeInTheDocument();
+    expect(retryOperatorSubscriptionPayment).toHaveBeenCalledTimes(1);
   });
 
   it("returns to the packages page five seconds after a verified payment", async () => {
@@ -276,10 +518,10 @@ describe("SubscriptionPaymentReturn", () => {
   it("still reports the result when the session is gone on return", async () => {
     localStorage.clear();
     vi.mocked(getVnPayReturnStatus).mockResolvedValue({
-      vnPayTxnRef: "VR-SUBSCRIPTION-001",
+      txnRef: "VR-SUBSCRIPTION-001",
       paymentId: "payment-1",
       referenceType: "SUBSCRIPTION",
-      referenceId: "subscription-1",
+      referenceId: "attempt-1",
       status: "SUCCEEDED",
     });
 
@@ -306,10 +548,10 @@ describe("SubscriptionPaymentReturn", () => {
       new ApiRequestError("Unauthorized", 401, "UNAUTHORIZED"),
     );
     vi.mocked(getVnPayReturnStatus).mockResolvedValue({
-      vnPayTxnRef: "VR-SUBSCRIPTION-001",
+      txnRef: "VR-SUBSCRIPTION-001",
       paymentId: "payment-1",
       referenceType: "SUBSCRIPTION",
-      referenceId: "subscription-1",
+      referenceId: "attempt-1",
       status: "SUCCEEDED",
     });
 

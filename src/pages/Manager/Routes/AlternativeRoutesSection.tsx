@@ -295,7 +295,10 @@ export default function AlternativeRoutesSection({
                   data-testid={`alternative-stop-row-${stop.stopId}`}
                   className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm"
                 >
-                  <span className="min-w-0 truncate font-medium text-gray-800">
+                  <span
+                    className="min-w-0 truncate font-medium text-gray-800"
+                    title={"#" + stop.orderIndex + " - " + stop.stopName}
+                  >
                     #{stop.orderIndex} · {stop.stopName}
                   </span>
                   <span className="shrink-0 text-xs text-gray-500">

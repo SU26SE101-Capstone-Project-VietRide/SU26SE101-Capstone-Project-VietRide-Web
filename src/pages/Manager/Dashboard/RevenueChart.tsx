@@ -3,16 +3,47 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import EmptyChartState from "./EmptyChartState";
 import { formatCompactMoney, formatCompactNumber, type RevenueChartPoint } from "./dashboardHelpers";
 import { CHART_GRID_COLOR, chartColorAt } from "../../../lib/chartColors";
+import CustomSelect from "../../../components/CustomSelect";
 
-type RevenueChartProps = { data: RevenueChartPoint[]; isLoading: boolean };
+type RevenueMonthOption = { value: string; label: string };
 
-export default function RevenueChart({ data, isLoading }: RevenueChartProps) {
+type RevenueChartProps = {
+  data: RevenueChartPoint[];
+  isLoading: boolean;
+  selectedMonth?: string;
+  monthOptions?: RevenueMonthOption[];
+  onMonthChange?: (month: string) => void;
+};
+
+export default function RevenueChart({
+  data,
+  isLoading,
+  selectedMonth,
+  monthOptions = [],
+  onMonthChange,
+}: RevenueChartProps) {
   const { t } = useTranslation("manager");
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2">
-      <div className="mb-5">
-        <h2 className="text-lg font-semibold text-gray-900">{t("dashboard.revenueChart")}</h2>
-        <p className="mt-1 text-sm text-gray-500">{t("dashboard.revenueChartHint")}</p>
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">{t("dashboard.revenueChart")}</h2>
+          <p className="mt-1 text-sm text-gray-500">{t("dashboard.revenueChartHint")}</p>
+        </div>
+        {selectedMonth && onMonthChange && monthOptions.length > 0 && (
+          <CustomSelect
+            value={selectedMonth}
+            onChange={(event) => onMonthChange(event.target.value)}
+            className="min-w-[132px] shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-medium text-gray-800"
+            aria-label={t("dashboard.revenueMonth")}
+          >
+            {monthOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </CustomSelect>
+        )}
       </div>
       {data.length === 0 ? (
         <EmptyChartState message={isLoading ? t("dashboard.loadingData") : t("dashboard.noRevenueData")} />

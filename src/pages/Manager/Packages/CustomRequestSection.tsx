@@ -27,6 +27,7 @@ type CustomRequestSectionProps = {
   // Gói riêng vừa được duyệt, tra từ plan list theo approvedPlanId. Không tìm
   // thấy (admin đã ngừng bán) → chỉ hiện trạng thái, không mời nâng cấp.
   approvedPlan: SubscriptionPlan | null;
+  upgradeDisabled?: boolean;
   canRequest: boolean;
   onOpenForm: () => void;
   onUpgradeToApprovedPlan: (plan: SubscriptionPlan) => void;
@@ -35,6 +36,7 @@ type CustomRequestSectionProps = {
 export default function CustomRequestSection({
   queue,
   approvedPlan,
+  upgradeDisabled = false,
   canRequest,
   onOpenForm,
   onUpgradeToApprovedPlan,
@@ -80,11 +82,20 @@ export default function CustomRequestSection({
           <p className="mt-2 text-sm text-gray-700">
             {t("packages.customRequestApprovedHint")}
           </p>
+          {approvedPlan && upgradeDisabled ? (
+            <p
+              data-testid="custom-request-upgrade-blocked"
+              className="mt-3 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600"
+            >
+              {t("packages.notAnUpgradeHint")}
+            </p>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             {approvedPlan ? (
               <Button
                 variant="primary"
                 data-testid="custom-request-upgrade"
+                disabled={upgradeDisabled}
                 onClick={() => onUpgradeToApprovedPlan(approvedPlan)}
               >
                 {t("packages.customRequestUpgradeCta", {

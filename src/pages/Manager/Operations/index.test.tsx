@@ -22,6 +22,7 @@ import {
   getTrackingTripLatest,
   getTrackingTripRouteGeometry,
   getTrackingTripTrail,
+  type OperatorIncident,
   type OperatorShuttleTripListItem,
   type OperatorTripListItem,
 } from "../../../api/vietride";
@@ -154,12 +155,59 @@ function pagedTrips(items: OperatorTripListItem[]) {
   };
 }
 
+function pagedIncidents(items: OperatorIncident[]) {
+  return {
+    items,
+    totalItems: items.length,
+    page: 1,
+    pageSize: 100,
+    totalPages: 1,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  };
+}
+
 function renderPage(initialEntry = "/manager/operations") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <OperationsPage />
     </MemoryRouter>,
   );
+}
+
+function openIncidentForTrip(trip: OperatorTripListItem): OperatorIncident {
+  return {
+    incidentId: `incident-${trip.tripId}`,
+    category: "VEHICLE_BREAKDOWN",
+    description: "Engine failure",
+    photoUrls: null,
+    latitude: null,
+    longitude: null,
+    reportedAt: "2026-08-05T08:20:00Z",
+    status: "OPEN",
+    resolvedAt: null,
+    resolvedByUserId: null,
+    resolutionNote: null,
+    trip: {
+      tripId: trip.tripId,
+      status: trip.status,
+      departureDateTime: trip.departureAt,
+      route: {
+        routeId: trip.route.routeId,
+        name: trip.route.name,
+        originStation: { stationId: "origin-1", name: trip.route.originName },
+        destinationStation: {
+          stationId: "destination-1",
+          name: trip.route.destinationName,
+        },
+      },
+    },
+    reporter: {
+      userId: "driver-1",
+      displayName: "Driver One",
+      role: "DRIVER",
+    },
+  };
 }
 
 describe("Manager Operations Center", () => {
@@ -354,6 +402,9 @@ describe("Manager Operations Center", () => {
         pagedTrips(params?.status === "DISRUPTED" ? [disruptedTrip] : [tripItem]),
       ),
     );
+    vi.mocked(getOperatorIncidents).mockResolvedValue(
+      pagedIncidents([openIncidentForTrip(disruptedTrip)]),
+    );
     vi.mocked(getOperatorFleetLatest).mockImplementation((params) =>
       Promise.resolve({
         items: [
@@ -381,6 +432,49 @@ describe("Manager Operations Center", () => {
     // Đang chạy 30 km/h nhưng phải hiện là sự cố, không phải "đang chạy"
     expect(screen.getAllByText("gps.disruptedStatus").length).toBeGreaterThan(0);
     expect(screen.getByText("operations.disruptedChip 1")).toBeInTheDocument();
+  });
+
+  it("ẩn chuyến đã hoàn tất và chuyến sự cố đã xử lý", async () => {
+    const completedTrip: OperatorTripListItem = {
+      ...tripItem,
+      status: "COMPLETED",
+    };
+    const resolvedDisruptedTrip: OperatorTripListItem = {
+      ...tripItem,
+      tripId: "trip-9",
+      status: "DISRUPTED",
+      vehicle: {
+        vehicleId: "vehicle-9",
+        licensePlate: "51D-111.11",
+        status: "IN_USE",
+      },
+    };
+    vi.mocked(getOperatorTrips).mockImplementation((params) =>
+      Promise.resolve(
+        pagedTrips(
+          params?.status === "DISRUPTED"
+            ? [resolvedDisruptedTrip]
+            : [completedTrip],
+        ),
+      ),
+    );
+    // Query OPEN không còn trả sự cố của trip-9 sau khi đã resolve.
+    vi.mocked(getOperatorIncidents).mockResolvedValue(pagedIncidents([]));
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(getOperatorIncidents).toHaveBeenCalledWith({
+        status: "OPEN",
+        page: 1,
+        pageSize: 100,
+      }),
+    );
+    expect(screen.queryByText("51A-123.45")).not.toBeInTheDocument();
+    expect(screen.queryByText("51D-111.11")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("operations.disruptedChip 1"),
+    ).not.toBeInTheDocument();
   });
 
   it("chọn chuyến thì gọi ETA và hiển thị stopName + trạng thái trễ", async () => {

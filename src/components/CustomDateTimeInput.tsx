@@ -237,7 +237,7 @@ export default function CustomDateTimeInput({
       return;
     }
 
-    commit(timeValue, true);
+    commit(timeValue);
   }
 
   const updateCalendarPosition = useCallback(() => {
@@ -485,13 +485,15 @@ export default function CustomDateTimeInput({
                   }
                 >
                   <div className="grid grid-cols-2 gap-3">
-                    <TimeColumn
+                    <TimeField
+                      key={`hour-${selectedTime.hour}`}
                       label={t("dateTimePicker.hour")}
                       value={selectedTime.hour}
                       max={23}
                       onChange={(hour) => commitTime(hour, selectedTime.minute)}
                     />
-                    <TimeColumn
+                    <TimeField
+                      key={`minute-${selectedTime.minute}`}
                       label={t("dateTimePicker.minute")}
                       value={selectedTime.minute}
                       max={59}
@@ -519,53 +521,58 @@ export default function CustomDateTimeInput({
   );
 }
 
-function TimeColumn({
+function TimeField({
   label,
   value,
   max,
-  step = 1,
   onChange,
 }: {
   label: string;
   value: number;
   max: number;
-  step?: number;
   onChange: (value: number) => void;
 }) {
-  const values = Array.from(
-    { length: Math.floor(max / step) + 1 },
-    (_, index) => index * step,
-  );
-  const selectedRef = useRef<HTMLButtonElement | null>(null);
+  const [draft, setDraft] = useState(() => pad(value));
+  const parsedDraft = Number(draft);
+  const isValid =
+    draft !== "" &&
+    Number.isInteger(parsedDraft) &&
+    parsedDraft >= 0 &&
+    parsedDraft <= max;
 
-  // Cột phút có 60 dòng mà khung chỉ cao ~5 dòng, nên giá trị đang chọn gần như
-  // luôn nằm ngoài tầm nhìn khi mở bảng chọn — không kéo nó vào thì đổi từ bước
-  // 5 phút sang từng phút lại thành khó dùng hơn trước. `block: "nearest"` để
-  // chỉ cuộn trong khung này, không kéo cả trang.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView?.({ block: "nearest" });
-  }, [value]);
+  function commitDraft() {
+    if (!isValid) {
+      setDraft(pad(value));
+      return;
+    }
+
+    setDraft(pad(parsedDraft));
+    if (parsedDraft !== value) onChange(parsedDraft);
+  }
 
   return (
-    <div>
-      <p className="mb-1 text-xs font-semibold text-gray-500">{label}</p>
-      <div className="max-h-40 overflow-auto rounded-lg border border-gray-100 p-1">
-        {values.map((item) => (
-          <button
-            key={item}
-            ref={item === value ? selectedRef : undefined}
-            type="button"
-            onClick={() => onChange(item)}
-            className={`block w-full rounded-md px-2 py-1.5 text-center ${
-              item === value
-                ? "bg-vr-100 font-bold text-vr-900"
-                : "text-gray-700 hover:bg-vr-50"
-            }`}
-          >
-            {pad(item)}
-          </button>
-        ))}
-      </div>
-    </div>
+    <label>
+      <span className="mb-1 block text-xs font-semibold text-gray-500">
+        {label}
+      </span>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={max}
+        step={1}
+        value={draft}
+        aria-invalid={!isValid}
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commitDraft}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+        className={`h-11 w-full rounded-lg border bg-white px-3 text-center text-base font-semibold tabular-nums text-gray-900 outline-none transition focus:border-vr-500 focus:ring-4 focus:ring-vr-100 ${
+          isValid ? "border-gray-200" : "border-red-400"
+        }`}
+      />
+    </label>
   );
 }

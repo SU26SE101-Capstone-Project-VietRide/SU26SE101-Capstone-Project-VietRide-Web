@@ -9,6 +9,7 @@ import {
   FiArrowDown,
   FiArrowUp,
   FiCheckCircle,
+  FiEye,
   FiSliders,
 } from "react-icons/fi";
 import {
@@ -575,9 +576,11 @@ export default function ParcelQueue() {
               <button
                 type="button"
                 onClick={() => void openDetail(item)}
-                className="min-w-[124px] whitespace-nowrap rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:border-vr-300 hover:text-vr-900"
+                title={t("parcels.queue.openAction")}
+                aria-label={t("parcels.queue.openAction")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-vr-900 transition hover:border-vr-300 hover:bg-vr-50"
               >
-                {t("parcels.queue.openAction")}
+                <FiEye size={17} aria-hidden="true" />
               </button>
             ),
           },

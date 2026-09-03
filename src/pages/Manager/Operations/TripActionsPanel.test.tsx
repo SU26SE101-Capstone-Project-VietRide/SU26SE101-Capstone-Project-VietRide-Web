@@ -318,6 +318,8 @@ describe("TripActionsPanel", () => {
       maxCargoWeightKg: 500,
       reservedWeightKg: 100,
       loadedWeightKg: 50,
+      historicalLoadedWeightKg: 75,
+      historicalLoadedVolumeM3: 0.6,
       percentFull: 30,
     });
     // Mặc định: xe thay giữ được toàn bộ ghế nên không có bước chọn ghế nào.
@@ -356,6 +358,10 @@ describe("TripActionsPanel", () => {
 
     expect(getOperatorTripCargoCapacity).toHaveBeenCalledWith("trip-1");
     expect(await screen.findByText("500 kg")).toBeInTheDocument();
+    expect(
+      screen.getByText("tripOperations.historicalLoadedCargo"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("75 kg · 0,6 m³")).toBeInTheDocument();
   });
 
   it("aligns the replace-vehicle chevron with its label", () => {

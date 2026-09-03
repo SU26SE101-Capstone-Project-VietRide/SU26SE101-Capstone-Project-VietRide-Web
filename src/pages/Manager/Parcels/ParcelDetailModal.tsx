@@ -31,12 +31,13 @@ import { formatDateTime } from "../../../utils/date";
 import { parcelReasonLabel } from "../../../utils/parcelReason";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
 import {
+  canRecordStationHandoff,
   inputClass,
   isPreLoadParcelStatus,
   manualCancelRefundChoices,
   money,
+  parcelStatusLabel,
   parcelStatusTone,
-  pendingActionLabel,
   type ManualCancelRefundChoice,
 } from "./parcelQueueHelpers";
 import { ActionBox, ActionButton, Field, TextArea } from "./queueControls";
@@ -122,6 +123,7 @@ export default function ParcelDetailModal({
   const statusHistory = selected?.statusHistory ?? [];
 
   const canCancel = isPreLoadParcelStatus(selected?.status);
+  const canBackfillHandoff = canRecordStationHandoff(selected?.status);
 
   const getStatusReasonLabel = (reason?: string | null) =>
     parcelReasonLabel(t, reason);
@@ -143,7 +145,7 @@ export default function ParcelDetailModal({
         wide
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            {canOperate && selected && (
+            {canOperate && selected && canBackfillHandoff && (
               <Button
                 variant="secondary"
                 onClick={() => setIsHandoffOpen(true)}
@@ -180,19 +182,16 @@ export default function ParcelDetailModal({
                 />
                 <DetailSection
                   title={t("parcels.queue.overviewSection")}
-                  columns="three"
+                  columns="two"
                 >
                   <DetailItem
                     label={t("parcels.queue.statusLabel")}
-                    value={tc(`enumLabels.${selected.status}`, {
-                      defaultValue: selected.status.replaceAll("_", " "),
-                    })}
-                  />
-                  <DetailItem
-                    label={t("parcels.queue.pendingActionLabel")}
-                    value={
-                      pendingActionLabel(selected.pendingActionType, t) || "-"
-                    }
+                    value={parcelStatusLabel(
+                      selected.status,
+                      selected.pendingActionType,
+                      t,
+                      tc,
+                    )}
                   />
                   <DetailItem
                     label={t("parcels.queue.createdAtLabel")}
@@ -432,12 +431,20 @@ export default function ParcelDetailModal({
                               <span
                                 className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${parcelStatusTone(entry.status)}`}
                               >
-                                {tc(`enumLabels.${entry.status}`, {
-                                  defaultValue: entry.status.replaceAll(
-                                    "_",
-                                    " ",
-                                  ),
-                                })}
+                                {index === statusHistory.length - 1 &&
+                                entry.status === selected.status
+                                  ? parcelStatusLabel(
+                                      entry.status,
+                                      selected.pendingActionType,
+                                      t,
+                                      tc,
+                                    )
+                                  : tc(`enumLabels.${entry.status}`, {
+                                      defaultValue: entry.status.replaceAll(
+                                        "_",
+                                        " ",
+                                      ),
+                                    })}
                               </span>
                               <time className="text-xs text-gray-500">
                                 {formatDateTime(entry.occurredAt)}
@@ -864,7 +871,7 @@ export default function ParcelDetailModal({
         )}
       </Modal>
 
-      {selected && (
+      {selected && canBackfillHandoff && (
         <StationHandoffModal
           open={isHandoffOpen}
           parcelId={selected.parcelId}

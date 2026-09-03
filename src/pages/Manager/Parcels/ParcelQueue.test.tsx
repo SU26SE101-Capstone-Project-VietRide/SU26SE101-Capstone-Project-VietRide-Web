@@ -128,6 +128,12 @@ describe("ParcelQueue", () => {
     const user = userEvent.setup();
     renderQueue();
 
+    const viewButton = await screen.findByRole("button", {
+      name: "parcels.queue.openAction",
+    });
+    expect(viewButton).toHaveAttribute("title", "parcels.queue.openAction");
+    expect(viewButton).toHaveTextContent("");
+
     const dialog = await openDetail(user);
 
     await waitFor(() =>
@@ -154,6 +160,54 @@ describe("ParcelQueue", () => {
     // Mã actor/source phải đi qua i18n, không in thẳng "UNKNOWN · STATUS_TRIGGER"
     expect(entries[1]).not.toHaveTextContent("STATUS_TRIGGER");
     expect(entries[1]).not.toHaveTextContent("UNKNOWN");
+    // Đơn đã sang bước giao cho người nhận không còn được ghi bù custody.
+    expect(
+      within(dialog).queryByRole("button", { name: "parcels.handoff.action" }),
+    ).toBeNull();
+  });
+
+  it("đồng bộ ngoại lệ bàn giao giữa bảng, tổng quan và mốc hiện tại", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorParcels).mockResolvedValue({
+      items: [
+        {
+          ...listItem,
+          status: "PENDING_OPERATOR_ACTION",
+          pendingActionType: "CUSTODY_EXCEPTION",
+        },
+      ],
+      page: 1,
+      pageSize: 20,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    vi.mocked(getOperatorParcel).mockResolvedValue({
+      ...detail,
+      status: "PENDING_OPERATOR_ACTION",
+      pendingActionType: "CUSTODY_EXCEPTION",
+      statusHistory: [
+        ...detail.statusHistory!.slice(0, -1),
+        {
+          ...detail.statusHistory!.at(-1)!,
+          status: "PENDING_OPERATOR_ACTION",
+        },
+      ],
+    });
+    renderQueue();
+
+    expect(
+      await screen.findByText("parcels.pendingActions.CUSTODY_EXCEPTION"),
+    ).toBeInTheDocument();
+    const dialog = await openDetail(user);
+
+    expect(
+      within(dialog).getAllByText("parcels.pendingActions.CUSTODY_EXCEPTION"),
+    ).toHaveLength(2);
+    expect(
+      within(dialog).queryByText("parcels.queue.pendingActionLabel"),
+    ).toBeNull();
   });
 
   it("gửi lại email xác nhận khi bưu kiện chờ người nhận xác nhận", async () => {
@@ -461,6 +515,9 @@ describe("ParcelQueue", () => {
         name: "parcels.queue.cancelButton",
       }),
     ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "parcels.handoff.action" }),
+    ).toBeInTheDocument();
   });
 
   // Phụ xe đóng đơn từ app là đường chính; nút này là đường lùi khi họ không

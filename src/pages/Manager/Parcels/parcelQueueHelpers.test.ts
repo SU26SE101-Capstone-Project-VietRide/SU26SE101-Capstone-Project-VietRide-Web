@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  canRecordStationHandoff,
   isPreLoadParcelStatus,
   manualCancelRefundChoices,
+  parcelStatusLabel,
   pendingActionLabel,
 } from "./parcelQueueHelpers";
 
@@ -71,5 +73,50 @@ describe("pendingActionLabel", () => {
   it("loại lạ thì hiện tên đọc được thay vì gạch dưới", () => {
     expect(pendingActionLabel("SOMETHING_NEW", t)).toBe("SOMETHING NEW");
     expect(pendingActionLabel(null, t)).toBe("");
+  });
+});
+
+describe("parcelStatusLabel", () => {
+  it("ưu tiên loại xử lý cụ thể thay cho trạng thái kỹ thuật tổng quát", () => {
+    expect(
+      parcelStatusLabel("PENDING_OPERATOR_ACTION", "CUSTODY_EXCEPTION", t, t),
+    ).toBe("parcels.pendingActions.CUSTODY_EXCEPTION");
+  });
+
+  it("giữ nhãn trạng thái thông thường khi không có pending action", () => {
+    expect(parcelStatusLabel("IN_TRANSIT", null, t, t)).toBe(
+      "enumLabels.IN_TRANSIT",
+    );
+  });
+});
+
+describe("canRecordStationHandoff", () => {
+  it("chỉ cho ghi bù trong giai đoạn đang giữ/vận chuyển hoặc hoàn về bến", () => {
+    [
+      "CHECKED_IN",
+      "PENDING_FINAL_PAYMENT",
+      "READY_TO_LOAD",
+      "LOADED",
+      "IN_TRANSIT",
+      "PENDING_TRANSFER_CONFIRM",
+      "TRANSFER_ESCALATED",
+      "UNLOADED",
+      "DELIVERY_REJECTED",
+      "RETURN_INITIATED",
+      "RETURNED",
+    ].forEach((status) => expect(canRecordStationHandoff(status)).toBe(true));
+  });
+
+  it("ẩn ở giai đoạn đặt/thu tiền, chờ xử lý và trạng thái kết thúc", () => {
+    [
+      "PENDING_OPERATOR_REVIEW",
+      "PENDING_PAYMENT",
+      "PENDING_OPERATOR_ACTION",
+      "DELIVERED_PENDING_CONFIRM",
+      "DELIVERY_CONFIRMED",
+      "CANCELLED",
+      "REJECTED",
+      "EXPIRED",
+    ].forEach((status) => expect(canRecordStationHandoff(status)).toBe(false));
   });
 });

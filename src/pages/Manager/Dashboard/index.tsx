@@ -16,7 +16,6 @@ import {
   type OperatorVehicle,
 } from "../../../api/vietride";
 import { getAuthUser } from "../../../auth";
-import CustomSelect from "../../../components/CustomSelect";
 import { downloadCsv } from "../../../utils/csv";
 import EmptyChartState from "./EmptyChartState";
 import KpiGrid from "./KpiGrid";
@@ -26,14 +25,14 @@ import RecentShipmentsTable from "./RecentShipmentsTable";
 import RevenueChart from "./RevenueChart";
 import { useOperatorSubscription } from "../../../contexts/operatorSubscriptionContext";
 import {
-  aggregateBookingStats,
   currentMonth,
   currentYearRange,
   errorMessage,
   mapDashboardChart,
   mapShipment,
+  revenueChartRange,
   statusColor,
-  sumStats,
+  summarizeDashboardPeriod,
   vehicleId,
   vehicleStatusClass,
   type DashboardSummary,
@@ -52,12 +51,6 @@ function revenueMonthOptions() {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     return { value: `${year}-${month}`, label: `${month}/${year}` };
   });
-}
-
-function previousMonthOf(monthValue: string) {
-  const [year, month] = monthValue.split("-").map(Number);
-  const date = new Date(year, month - 2, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export default function ManagerDashboard() {
@@ -90,13 +83,11 @@ export default function ManagerDashboard() {
   const [vehicles, setVehicles] = useState<OperatorVehicle[]>([]);
   const [summary, setSummary] = useState<DashboardSummary>({
     revenue: {
-      currentMonth: null,
-      previousMonth: null,
+      currentQuarter: null,
       yearToDate: null,
     },
     bookings: {
-      currentMonth: null,
-      previousMonth: null,
+      currentQuarter: null,
       yearToDate: null,
     },
     fleet: null,
@@ -155,31 +146,31 @@ export default function ManagerDashboard() {
 
     try {
       const bookingStats = await getOperatorBookingStats({
-        ...currentYearRange(),
+        ...revenueChartRange(selectedRevenueMonth),
         groupBy: "date",
       });
       if (!isLatest()) return;
       bookingItems = bookingStats.items;
-      const monthlyStats = aggregateBookingStats(bookingItems);
-      const thisMonthStats = monthlyStats.get(selectedRevenueMonth);
-      const lastMonthStats = monthlyStats.get(
-        previousMonthOf(selectedRevenueMonth),
+      const bookingChart = mapDashboardChart(
+        bookingItems,
+        [],
+        selectedRevenueMonth,
+      );
+      const bookingPeriod = summarizeDashboardPeriod(
+        bookingChart,
+        selectedRevenueMonth,
       );
 
-      setRevenueData(mapDashboardChart(bookingItems));
+      setRevenueData(bookingChart);
       setSummary((current) => ({
         ...current,
         revenue: {
-          currentMonth: thisMonthStats?.revenue ?? 0,
-          previousMonth: lastMonthStats?.revenue ?? 0,
+          currentQuarter: 0,
           yearToDate: null,
         },
         bookings: {
-          currentMonth: thisMonthStats?.bookings ?? 0,
-          previousMonth: lastMonthStats?.bookings ?? 0,
-          yearToDate:
-            bookingStats.totalBookings ??
-            sumStats(bookingStats.items, "totalBookings"),
+          currentQuarter: bookingPeriod.quarterBookings,
+          yearToDate: bookingPeriod.yearBookings,
         },
       }));
     } catch (error) {
@@ -188,13 +179,11 @@ export default function ManagerDashboard() {
       setSummary((current) => ({
         ...current,
         revenue: {
-          currentMonth: null,
-          previousMonth: null,
+          currentQuarter: null,
           yearToDate: null,
         },
         bookings: {
-          currentMonth: null,
-          previousMonth: null,
+          currentQuarter: null,
           yearToDate: null,
         },
       }));
@@ -221,18 +210,21 @@ export default function ManagerDashboard() {
           await getOperatorRevenueAnalytics({ month: selectedRevenueMonth });
         if (!isLatest()) return;
         routePerformance = analytics.routePerformance ?? [];
-        const selectedYear = selectedRevenueMonth.slice(0, 4);
-        const yearToDate = analytics.monthly
-          .filter((item) => item.month.startsWith(selectedYear))
-          .reduce((total, item) => total + item.netRevenueVnd, 0);
-        setRevenueData(mapDashboardChart(bookingItems, analytics.monthly));
+        const chartData = mapDashboardChart(
+          bookingItems,
+          analytics.monthly,
+          selectedRevenueMonth,
+        );
+        const selectedPeriod = summarizeDashboardPeriod(
+          chartData,
+          selectedRevenueMonth,
+        );
+        setRevenueData(chartData);
         setSummary((current) => ({
           ...current,
           revenue: {
-            ...current.revenue,
-            currentMonth: analytics.summary.netRevenueVnd.currentValue,
-            previousMonth: analytics.summary.netRevenueVnd.previousValue,
-            yearToDate,
+            currentQuarter: selectedPeriod.quarterRevenue,
+            yearToDate: selectedPeriod.yearRevenue,
           },
         }));
 
@@ -442,24 +434,6 @@ export default function ManagerDashboard() {
           </h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {isOperatorAdmin && (
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              <CustomSelect
-                value={selectedRevenueMonth}
-                onChange={(event) =>
-                  setSelectedRevenueMonth(event.target.value)
-                }
-                className="min-w-[132px] rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-medium text-gray-800"
-                aria-label={t("dashboard.revenueMonth")}
-              >
-                {revenueMonths.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </CustomSelect>
-            </label>
-          )}
           <button
             type="button"
             onClick={() => void handleRefresh()}
@@ -482,7 +456,13 @@ export default function ManagerDashboard() {
           parcelEnabled ? "lg:grid-cols-3" : "lg:grid-cols-2"
         }`}
       >
-        <RevenueChart data={revenueData} isLoading={isLoading} />
+        <RevenueChart
+          data={revenueData}
+          isLoading={isLoading}
+          selectedMonth={isOperatorAdmin ? selectedRevenueMonth : undefined}
+          monthOptions={isOperatorAdmin ? revenueMonths : undefined}
+          onMonthChange={isOperatorAdmin ? setSelectedRevenueMonth : undefined}
+        />
 
         {parcelEnabled && <ParcelStatusChart
           data={parcelStatusData}
@@ -580,8 +560,3 @@ export default function ManagerDashboard() {
     </div>
   );
 }
-
-
-
-
-
