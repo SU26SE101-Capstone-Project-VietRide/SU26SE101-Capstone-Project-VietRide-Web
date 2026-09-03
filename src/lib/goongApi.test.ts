@@ -5,9 +5,10 @@
 // bằng `429 OVER_RATE_LIMIT`, mà tầng trên `.catch()` nuốt im lặng nên gợi ý
 // "biến mất" không dấu vết. Đo thật trên tuyến TP.HCM - Đà Lạt: bắn thẳng ra 2
 // gợi ý, qua hàng đợi ra 18.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetGoongCircuitForTest,
+  __setGoongRequestStartIntervalForTest,
   goongDirections,
   goongPlaceDetail,
 } from "./goongApi";
@@ -26,12 +27,12 @@ function okResponse() {
   return new Response(JSON.stringify(detailPayload), { status: 200 });
 }
 
-function rateLimitedResponse() {
+function rateLimitedResponse(headers?: HeadersInit) {
   return new Response(
     JSON.stringify({
       error: { code: "OVER_RATE_LIMIT", message: "You have exceeded your rate limit." },
     }),
-    { status: 429 },
+    { headers, status: 429 },
   );
 }
 
@@ -62,6 +63,37 @@ describe("fetchGoongJson — chống rate limit", () => {
     // Trạng thái ngắt mạch nằm ở module-level — không reset thì một case dính
     // 429 sẽ mở mạch và làm mọi case sau đó hỏng vì không request nữa.
     __resetGoongCircuitForTest();
+    __setGoongRequestStartIntervalForTest(0);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("rải thời điểm bắt đầu request thay vì bắn dồn", async () => {
+    vi.useFakeTimers();
+    __setGoongRequestStartIntervalForTest(350);
+    const fetchMock = vi.fn<typeof fetch>(async () => okResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const requests = [
+      goongPlaceDetail("place-1"),
+      goongPlaceDetail("place-2"),
+      goongPlaceDetail("place-3"),
+    ];
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(349);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(350);
+    await Promise.all(requests);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("thử lại một lần khi Goong trả 429 thay vì bỏ luôn kết quả", async () => {
@@ -73,6 +105,27 @@ describe("fetchGoongJson — chống rate limit", () => {
 
     const detail = await goongPlaceDetail("place-1");
 
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(detail?.name).toBe("Bến xe Miền Đông");
+  });
+
+  it("tôn trọng Retry-After trước khi thử lại 429", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(rateLimitedResponse({ "Retry-After": "2" }))
+      .mockResolvedValueOnce(okResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const detailPromise = goongPlaceDetail("place-1");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const detail = await detailPromise;
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(detail?.name).toBe("Bến xe Miền Đông");
   });

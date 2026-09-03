@@ -165,6 +165,15 @@ function toPlaceResult(value: unknown): GoongPlaceResult | null {
  */
 const maxConcurrentRequests = 4;
 /**
+ * Khoảng cách tối thiểu giữa hai lần BẮT ĐẦU request.
+ *
+ * Chỉ giới hạn concurrency là chưa đủ: khi response nhanh, hàng đợi 4 slot
+ * vẫn có thể xả hàng chục request trong vài giây và chạm rate limit theo giây
+ * của Goong. Giữ nguyên số điểm quét/kết quả, chỉ rải nhịp request để tính năng
+ * không bị mất gợi ý do 429.
+ */
+const defaultRequestStartIntervalMs = 350;
+/**
  * Số lần thử lại khi dính 429.
  *
  * Trước đây là 3, tức MỖI lời gọi có thể thành 4 request. Gợi ý điểm dừng bắn
@@ -216,6 +225,9 @@ let activeRequests = 0;
 // Directions lấy slot tiếp theo, tránh đứng sau hàng chục Place Detail.
 const pendingPriorityQueue: Array<() => void> = [];
 const pendingQueue: Array<() => void> = [];
+let requestStartIntervalMs = defaultRequestStartIntervalMs;
+let nextRequestStartAt = 0;
+let requestStartGate: Promise<void> = Promise.resolve();
 
 function acquireSlot(priority = false): Promise<void> {
   if (activeRequests < maxConcurrentRequests) {
@@ -242,6 +254,56 @@ const delay = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
+function assertCircuitClosed(circuit: GoongCircuitState) {
+  if (Date.now() < circuit.openUntil) {
+    throw new Error("Goong đang tạm ngừng do vượt giới hạn request.");
+  }
+}
+
+/**
+ * Xếp nối tiếp thời điểm bắt đầu request, nhưng request chậm vẫn có thể chạy
+ * chồng lên nhau trong trần `maxConcurrentRequests`.
+ */
+function waitForRequestStart(circuit: GoongCircuitState): Promise<void> {
+  const scheduled = requestStartGate.then(async () => {
+    // Batch có thể đã xếp hàng trước khi mạch bị mở. Kiểm tra lại ngay trong
+    // gate để những request còn chờ không tiếp tục chạm mạng.
+    assertCircuitClosed(circuit);
+    const waitMs = Math.max(0, nextRequestStartAt - Date.now());
+    if (waitMs > 0) {
+      await delay(waitMs);
+    }
+    assertCircuitClosed(circuit);
+    nextRequestStartAt = Date.now() + requestStartIntervalMs;
+  });
+
+  // Promise hỏng không được làm kẹt vĩnh viễn những request phía sau.
+  requestStartGate = scheduled.catch(() => undefined);
+  return scheduled;
+}
+
+function retryAfterMs(response: Response): number | null {
+  const value = response.headers.get("Retry-After")?.trim();
+  if (!value) {
+    return null;
+  }
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return seconds * 1_000;
+  }
+
+  const retryAt = Date.parse(value);
+  return Number.isNaN(retryAt) ? null : Math.max(0, retryAt - Date.now());
+}
+
+/** Chỉ dùng trong test để test khác không phải chờ nhịp production. */
+export function __setGoongRequestStartIntervalForTest(intervalMs: number) {
+  requestStartIntervalMs = Math.max(0, intervalMs);
+  nextRequestStartAt = 0;
+  requestStartGate = Promise.resolve();
+}
+
 /**
  * Goong báo lỗi bằng `{ error: { code, message } }` kèm HTTP 4xx.
  *
@@ -255,13 +317,12 @@ async function fetchGoongJson(
   const circuit = circuitStates[lane];
   // Mạch đang ngắt → hỏng ngay, không tốn thêm một request nào. Caller của mọi
   // luồng Goong đều đã .catch() về rỗng/null nên UI xuống cấp y như lúc 429.
-  if (Date.now() < circuit.openUntil) {
-    throw new Error("Goong đang tạm ngừng do vượt giới hạn request.");
-  }
+  assertCircuitClosed(circuit);
 
   await acquireSlot(lane === "direction");
   try {
     for (let attempt = 0; ; attempt += 1) {
+      await waitForRequestStart(circuit);
       const response = await fetch(url);
       if (response.ok) {
         // Có một lời gọi trót lọt = Goong còn phục vụ → đóng mạch lại.
@@ -286,7 +347,14 @@ async function fetchGoongJson(
         throw new Error(`Goong trả về HTTP ${response.status}.`);
       }
 
-      await delay(rateLimitBaseDelayMs * 2 ** attempt);
+      // Goong/proxy biết chính xác cửa sổ rate limit hơn client. Khi server có
+      // Retry-After, không thử lại sớm hơn mốc đó.
+      await delay(
+        Math.max(
+          rateLimitBaseDelayMs * 2 ** attempt,
+          retryAfterMs(response) ?? 0,
+        ),
+      );
     }
   } finally {
     releaseSlot();
