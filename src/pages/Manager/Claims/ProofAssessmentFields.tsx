@@ -7,6 +7,7 @@ import {
 import { inputClass, labelClass } from "../../../components/form/formClasses";
 import InlineAlert from "../../../components/InlineAlert";
 import type { ProofAssessmentDraft } from "./claimHelpers";
+import ClaimEvidenceCard from "./ClaimEvidenceCard";
 
 type ProofAssessmentFieldsProps = {
   draft: ProofAssessmentDraft;
@@ -133,51 +134,15 @@ export default function ProofAssessmentFields({
             ) : (
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {evidence.map((item) => (
-                  <label
+                  <ClaimEvidenceCard
                     key={item.evidenceId}
-                    className={
-                      "flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm " +
-                      (draft.acceptedEvidenceIds.includes(item.evidenceId)
-                        ? "border-vr-300 bg-vr-50"
-                        : "border-gray-200 bg-white")
-                    }
-                  >
-                    <input
-                      type="checkbox"
-                      checked={draft.acceptedEvidenceIds.includes(
-                        item.evidenceId,
-                      )}
-                      onChange={() => toggleEvidence(item.evidenceId)}
-                      className="mt-0.5"
-                    />
-                    <span className="min-w-0">
-                      <span className="block font-semibold text-gray-900">
-                        {t("claims.evidenceType." + item.evidenceType, {
-                          defaultValue: t("claims.evidenceType.OTHER"),
-                        })}
-                      </span>
-                      {item.note?.trim() ? (
-                        <span className="mt-0.5 block text-xs text-gray-600">
-                          {item.note}
-                        </span>
-                      ) : null}
-                      {/^https?:\/\//i.test(item.reference) ? (
-                        <a
-                          href={item.reference}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          onClick={(event) => event.stopPropagation()}
-                          className="mt-1 block truncate text-xs font-semibold text-vr-800 underline"
-                        >
-                          {t("claims.openEvidence")}
-                        </a>
-                      ) : (
-                        <span className="mt-1 block break-all text-xs text-gray-600">
-                          {item.reference}
-                        </span>
-                      )}
-                    </span>
-                  </label>
+                    evidence={item}
+                    selected={draft.acceptedEvidenceIds.includes(
+                      item.evidenceId,
+                    )}
+                    disabled={disabled}
+                    onSelectedChange={() => toggleEvidence(item.evidenceId)}
+                  />
                 ))}
               </div>
             )}

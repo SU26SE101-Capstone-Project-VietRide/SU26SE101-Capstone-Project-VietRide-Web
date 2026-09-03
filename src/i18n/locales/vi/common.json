@@ -275,6 +275,7 @@
     "SYSTEM_ADMIN": "Quản trị viên hệ thống",
     "OPERATOR_ADMIN": "Quản trị viên nhà xe",
     "OPERATOR_STAFF": "Nhân viên nhà xe",
+    "OPERATOR_STAFF": "Nhân viên nhà xe",
     "DRIVER": "Tài xế",
     "ASSISTANT": "Phụ xe"
   },

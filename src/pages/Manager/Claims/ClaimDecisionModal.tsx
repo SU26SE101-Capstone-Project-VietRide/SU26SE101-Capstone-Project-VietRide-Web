@@ -8,6 +8,7 @@ import {
   getOperatorParcelClaim,
   previewOperatorParcelClaimAward,
   type ParcelClaimAwardPreview,
+  type ParcelClaim,
   type ParcelClaimDetail,
 } from "../../../api/vietride";
 import { textareaClass, labelClass } from "../../../components/form/formClasses";
@@ -31,13 +32,18 @@ type ClaimDecisionModalProps = {
   onDecided: (detail: ParcelClaimDetail, message: string) => void;
 };
 
-const emptyDraft: ClaimDecisionDraft = {
-  decision: "APPROVE",
-  proofStatus: "",
-  lossVnd: "",
-  acceptedEvidenceIds: [],
-  reason: "",
-};
+function decisionDraftFromClaim(claim: ParcelClaim | null): ClaimDecisionDraft {
+  return {
+    decision: "APPROVE",
+    proofStatus: claim?.proofStatus ?? "",
+    lossVnd:
+      claim?.provenDirectLossVnd == null
+        ? ""
+        : String(claim.provenDirectLossVnd),
+    acceptedEvidenceIds: [...(claim?.acceptedEvidenceIds ?? [])],
+    reason: "",
+  };
+}
 
 type PreviewState = {
   signature: string;
@@ -56,7 +62,9 @@ export default function ClaimDecisionModal({
   const { t: tc } = useTranslation("common");
   const claim = detail?.claim ?? null;
 
-  const [draft, setDraft] = useState<ClaimDecisionDraft>(emptyDraft);
+  const [draft, setDraft] = useState<ClaimDecisionDraft>(() =>
+    decisionDraftFromClaim(claim),
+  );
   const [error, setError] = useState("");
   const [proofInvalid, setProofInvalid] = useState(false);
   const [previewState, setPreviewState] = useState<PreviewState | null>(null);
@@ -206,7 +214,7 @@ export default function ClaimDecisionModal({
 
   function handleClose() {
     pendingRef.current = null;
-    setDraft(emptyDraft);
+    setDraft(decisionDraftFromClaim(claim));
     setError("");
     setProofInvalid(false);
     setPreviewState(null);

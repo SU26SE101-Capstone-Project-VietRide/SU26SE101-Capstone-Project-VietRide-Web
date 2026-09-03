@@ -8,7 +8,6 @@ import {
   getAuthUser,
   getHomePathForRole,
   login,
-  RETIRED_ROLE_ERROR,
 } from "../auth";
 import Checkbox from "../components/form/Checkbox";
 import { isRecord } from "../utils/typeGuards";
@@ -125,11 +124,7 @@ export default function Login() {
         localStorage.setItem("rememberEmail", email);
       }
     } catch (err) {
-      if (err instanceof Error && err.message === RETIRED_ROLE_ERROR) {
-        setError(t("errors.roleRetired"));
-      } else {
-        setError(err instanceof Error ? err.message : t("errors.failed"));
-      }
+      setError(err instanceof Error ? err.message : t("errors.failed"));
     } finally {
       setLoading(false);
     }
@@ -251,6 +246,5 @@ export default function Login() {
     </div>
   );
 }
-
 
 

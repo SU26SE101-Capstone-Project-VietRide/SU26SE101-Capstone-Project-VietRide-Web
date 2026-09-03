@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Sidebar from "../components/Sidebar";
 import { menuLabelKeyFor } from "../components/sidebarMenu";
@@ -8,14 +8,18 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import AssistantBubble from "../components/AssistantBubble";
 import { OperatorSubscriptionProvider } from "../contexts/OperatorSubscriptionProvider";
 import { useOperatorSubscription } from "../contexts/operatorSubscriptionContext";
+import { getAuthUser } from "../auth";
+
+const STAFF_READ_ONLY_PATHS = new Set([
+  "/manager/claims",
+  "/manager/claim-appeals",
+]);
 
 function ManagerLayoutContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { t } = useTranslation(["nav", "common"]);
   const { isLoading } = useOperatorSubscription();
-  // Chỉ OPERATOR_ADMIN vào được nhánh /manager (PrivateRoute chặn từ App.tsx),
-  // nên không còn nhánh vai trò nào để rẽ.
-  const role = "OPERATOR_ADMIN" as const;
+  const role = getAuthUser()?.role ?? "OPERATOR_ADMIN";
   const { pathname } = useLocation();
   const labelKey = menuLabelKeyFor(role, pathname);
   useDocumentTitle(labelKey ? t(labelKey) : null, t("common:brand"));
@@ -55,21 +59,22 @@ function ManagerLayoutContent() {
               <p className="text-sm text-gray-500">
                 {t("common:pageLoading")}
               </p>
-            ) : (
-              <Outlet />
-            )}
+            ) : role === "OPERATOR_STAFF" &&
+              !STAFF_READ_ONLY_PATHS.has(pathname) ? (
+                <Navigate to="/manager/claims" replace />
+              ) : (
+                <Outlet />
+              )}
           </div>
         </main>
       </div>
-      <AssistantBubble />
+      {role === "OPERATOR_ADMIN" ? <AssistantBubble /> : null}
     </div>
   );
 }
 
 export default function ManagerLayout() {
-  // Chỉ OPERATOR_ADMIN vào được nhánh /manager (PrivateRoute chặn từ App.tsx),
-  // nên không còn nhánh vai trò nào để rẽ.
-  const role = "OPERATOR_ADMIN" as const;
+  const role = getAuthUser()?.role ?? "OPERATOR_ADMIN";
 
   return (
     <OperatorSubscriptionProvider role={role}>

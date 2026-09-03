@@ -77,6 +77,16 @@ function renderOperatorNavigation() {
   );
 }
 
+function renderStaffNavigation() {
+  return render(
+    <MemoryRouter>
+      <OperatorSubscriptionProvider role="OPERATOR_STAFF">
+        <Sidebar role="OPERATOR_STAFF" isOpen onClose={() => undefined} />
+      </OperatorSubscriptionProvider>
+    </MemoryRouter>,
+  );
+}
+
 describe("operator subscription navigation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -137,6 +147,24 @@ describe("operator subscription navigation", () => {
     expect(
       screen.getByRole("button", { name: "assistant.open" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows operator staff only the read-only claim and appeal queues", () => {
+    renderStaffNavigation();
+
+    expect(
+      screen.getByRole("link", { name: "manager.claims" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "manager.claimAppeals" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "manager.parcels" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "manager.dashboard" }),
+    ).not.toBeInTheDocument();
+    expect(getOperatorSubscription).not.toHaveBeenCalled();
   });
 
   it("keeps the assistant mounted while the bubble is temporarily closed", async () => {
