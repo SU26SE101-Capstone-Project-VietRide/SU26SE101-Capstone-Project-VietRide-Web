@@ -25,7 +25,11 @@ import { Button } from "../../../components/ui/Button";
 import { formatCurrency } from "../../../utils/currency";
 import { formatDateTime } from "../../../utils/date";
 import { formatVietnamPhoneForDisplay } from "../../../utils/phone";
-import { claimStatusTone, fundingStatusTone } from "../Claims/claimHelpers";
+import {
+  claimStatusTone,
+  fundingStatusTone,
+  proofStatusTranslationKey,
+} from "../Claims/claimHelpers";
 import AppealDecisionModal from "./AppealDecisionModal";
 import { appealStatusTone, hasAppealAction } from "./appealHelpers";
 
@@ -112,7 +116,11 @@ export default function AppealDetailModal({
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             {showDecide && (
-              <Button variant="primary" onClick={() => setIsDecisionOpen(true)}>
+              <Button
+                variant="primary"
+                onClick={() => setIsDecisionOpen(true)}
+                disabled={!claim}
+              >
                 {t("claimAppeals.actions.DECIDE_APPEAL")}
               </Button>
             )}
@@ -202,6 +210,19 @@ export default function AppealDetailModal({
                   label={t("claimAppeals.revisedFreightRefund")}
                   value={formatCurrency(appeal.revisedFreightRefundVnd)}
                 />
+                <DetailItem
+                  label={t("claims.proofAssessment")}
+                  value={t(
+                    proofStatusTranslationKey(
+                      appeal.proofStatus,
+                      appeal.status,
+                    ),
+                  )}
+                />
+                <DetailItem
+                  label={t("claims.acceptedEvidenceCount")}
+                  value={String((appeal.acceptedEvidenceIds ?? []).length)}
+                />
               </dl>
 
               {/* Khoản bổ sung là con số nghiệp vụ quan trọng nhất của màn:
@@ -218,6 +239,43 @@ export default function AppealDetailModal({
                   {t("claimAppeals.supplementaryHint")}
                 </p>
               </div>
+
+              {(appeal.acceptedEvidenceIds ?? []).length > 0 ? (
+                <div className="mt-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {t("claims.acceptedEvidenceLabel")}
+                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {(appeal.acceptedEvidenceIds ?? []).map((evidenceId) => {
+                      const evidence = claim?.claim.evidence.find(
+                        (item) => item.evidenceId === evidenceId,
+                      );
+                      return (
+                        <li key={evidenceId} className="text-sm text-gray-700">
+                          <span className="font-semibold">
+                            {evidence
+                              ? t(
+                                  "claims.evidenceType." +
+                                    evidence.evidenceType,
+                                  {
+                                    defaultValue: t(
+                                      "claims.evidenceType.OTHER",
+                                    ),
+                                  },
+                                )
+                              : evidenceId}
+                          </span>
+                          {evidence?.note?.trim() ? (
+                            <span className="ml-2 text-gray-500">
+                              {evidence.note}
+                            </span>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
             </section>
 
             {(appeal.decisionReason?.trim() || appeal.decidedAt) && (
@@ -352,11 +410,21 @@ export default function AppealDetailModal({
         key={appeal?.appealId ?? ""}
         open={isDecisionOpen}
         appeal={appeal}
+        claimDetail={claim}
         onClose={() => setIsDecisionOpen(false)}
         onDecided={(next, decisionMessage) => {
           setIsDecisionOpen(false);
           onAppealChange(next);
           onMessage(decisionMessage);
+        }}
+        onEvidenceStale={(freshClaim, staleMessage) => {
+          setIsDecisionOpen(false);
+          setClaimContext({
+            claimId: freshClaim.claim.claimId,
+            detail: freshClaim,
+            failed: false,
+          });
+          onMessage(staleMessage);
         }}
       />
     </>

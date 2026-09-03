@@ -243,6 +243,13 @@ describe("ManagerPackages", () => {
     expect(await screen.findByTestId("quote-amount-due")).toHaveTextContent(
       "100.000",
     );
+    const deductionFormula = screen.getByTestId("deduction-formula");
+    expect(deductionFormula).toHaveTextContent(
+      "packages.deductionFormulaTitle",
+    );
+    expect(deductionFormula).toHaveTextContent("250.000");
+    expect(deductionFormula).toHaveTextContent("150.000");
+    expect(deductionFormula).toHaveTextContent("100.000");
 
     await user.click(screen.getByTestId("upgrade-confirm-payment"));
 

@@ -381,6 +381,26 @@ describe("ManagerWallet", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("đổi nhãn bồi thường theo chiều tiền của giao dịch", async () => {
+    vi.mocked(getOperatorWalletTransactions).mockResolvedValue(
+      pagedResult([
+        {
+          ...debitTransaction,
+          cashFlowPurpose: "PARCEL_COMPENSATION_PAYOUT",
+          signedAmount: -750000,
+        },
+      ]),
+    );
+
+    renderWallet();
+
+    expect(
+      await screen.findByText(
+        "wallet.cashFlowPurposes.PARCEL_COMPENSATION_PAYOUT",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("renders the ledger tab with referenceCode instead of parsing note", async () => {
     renderWallet();
 

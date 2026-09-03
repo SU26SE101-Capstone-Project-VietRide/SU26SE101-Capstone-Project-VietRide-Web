@@ -57,6 +57,13 @@ describe("idempotency", () => {
     expect(addIdempotencyHeader(path, "PATCH")).toBeUndefined();
   });
 
+  it.each([
+    "/v1/operator/claims/11111111-1111-4111-8111-111111111111/award-preview",
+    "/v1/operator/claim-appeals/11111111-1111-4111-8111-111111111111/adjustment-preview",
+  ])("does not add a key to read-only POST preview %s", (path) => {
+    expect(addIdempotencyHeader(path, "POST")).toBeUndefined();
+  });
+
   it("still adds a key to driver-schedule DELETE and other mutations", () => {
     expect(
       addIdempotencyHeader(

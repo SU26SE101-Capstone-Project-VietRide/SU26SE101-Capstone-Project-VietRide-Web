@@ -82,16 +82,6 @@ export default function ManagerPackages() {
 
   const currentPlan = subscription?.plan ?? null;
   const pendingUpgrade = subscription?.pendingUpgrade ?? null;
-  // Suy ra kỳ tháng/năm khi response BE cũ chưa trả billingPeriod.
-  const inferredBillingPeriod = useMemo<SubscriptionBillingPeriod | null>(() => {
-    if (!subscription?.startedAt || !subscription.expiresAt) return null;
-    const startedAt = Date.parse(subscription.startedAt);
-    const expiresAt = Date.parse(subscription.expiresAt);
-    if (!Number.isFinite(startedAt) || !Number.isFinite(expiresAt)) return null;
-    const durationInDays = (expiresAt - startedAt) / (24 * 60 * 60 * 1000);
-    return durationInDays >= 180 ? "YEARLY" : "MONTHLY";
-  }, [subscription?.expiresAt, subscription?.startedAt]);
-  const activeBillingPeriod = subscription?.billingPeriod ?? inferredBillingPeriod;
   const hasPendingPayment =
     subscription?.status === "PENDING_PAYMENT" || Boolean(pendingUpgrade);
   const hasUnresolvedPendingPayment =
@@ -169,7 +159,7 @@ export default function ManagerPackages() {
   // hết hiệu lực đều mở CHU KỲ MỚI nên được chọn kỳ tự do — xem §5 spec.
   const lockedBillingPeriod =
     subscription?.status === "ACTIVE" && !isCurrentTrialPlan
-      ? activeBillingPeriod
+      ? (subscription.billingPeriod ?? null)
       : null;
   // Bảng giá mặc định hiện ĐÚNG kỳ đang trả: thấy giá nào thì mua được giá đó.
   // Trước đây mặc định cứng YEARLY nên nhà xe trả theo tháng vẫn thấy giá năm,
@@ -533,9 +523,9 @@ export default function ManagerPackages() {
                     ·{" "}
                     {subscription.billingPeriod
                       ? tc(`enumLabels.${subscription.billingPeriod}`, {
-                          defaultValue: activeBillingPeriod,
+                          defaultValue: subscription.billingPeriod,
                         })
-                      : tc("enumLabels.UNKNOWN", { defaultValue: "-" })}
+                      : "-"}
                   </span>
                 </div>
               </div>

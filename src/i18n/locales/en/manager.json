@@ -2443,6 +2443,12 @@
     "quoteAmountDue": "Amount due",
     "quoteAppliesTo": "Applies to",
     "quoteFullPriceHint": "This is the full price of a new cycle, with no deduction.",
+    "deductionFormulaTitle": "How the deduction is calculated",
+    "deductionFormulaIntro": "For a mid-cycle upgrade, the operator only pays the price difference for the remaining time.",
+    "deductionRemainingRate": "Remaining-time rate = Time from the upgrade date to the expiry date ÷ Total plan duration.",
+    "deductionRemainingValues": "The system uses this rate to calculate the new plan's remaining value and the unused value of the old plan.",
+    "deductionAmountDue": "Amount due = New plan value for the remaining time − Deducted unused value of the old plan.",
+    "deductionRoundingHint": "Amounts are rounded according to system rules.",
     "billingPeriodLockedHint": "You are billed monthly, so a mid-cycle upgrade stays monthly. To switch to yearly, wait until the current cycle ends.",
     "periodNotSold": "Not sold for this period",
     "onlySoldPerPeriod": "Sold {{period}} only",
@@ -2844,7 +2850,7 @@
       "OPERATOR_PAYOUT_RECEIVED": "Settlement payout received",
       "PLATFORM_SERVICE_PAYMENT": "Platform service payment",
       "MANUAL_ADJUSTMENT": "Manual adjustment",
-      "PARCEL_COMPENSATION_PAYOUT": "Parcel compensation received"
+      "PARCEL_COMPENSATION_PAYOUT": "Parcel compensation"
     }
   },
   "vehicleBuilder": {
@@ -3656,6 +3662,8 @@
     "cargoAward": "Cargo payout",
     "freightRefund": "Freight refund",
     "evidenceCount": "Evidence items",
+    "proofAssessment": "Proof assessment",
+    "acceptedEvidenceCount": "Accepted evidence",
     "policySnapshotTitle": "Compensation terms for this parcel",
     "policySnapshotHint": "These are the terms fixed when the parcel was sent, not your current settings.",
     "snapshotRate": "Compensation rate",
@@ -3693,18 +3701,37 @@
       "APPROVE": "The operator pays compensation to the passenger.",
       "REJECT": "No payout; you must state a clear reason."
     },
-    "proofLabel": "Does the customer have an invoice or supporting document?",
-    "proof": {
-      "WITH_PROOF": "Invoice/document available",
-      "WITHOUT_PROOF": "No invoice/document"
+    "proofLabel": "Proof and loss assessment",
+    "proofStatus": {
+      "VERIFIED": "Verified",
+      "UNVERIFIED": "Could not be verified",
+      "NO_PROOF": "No proof",
+      "PENDING": "Not assessed",
+      "LEGACY": "Not recorded (legacy)"
     },
     "proofHint": {
-      "WITH_PROOF": "Compensation uses the proven loss, limited by the declared cargo value.",
-      "WITHOUT_PROOF": "Cargo compensation equals {{multiplier}} times the freight collected."
+      "VERIFIED": "There is sufficient support for a direct loss; select at least one accepted evidence item.",
+      "UNVERIFIED": "Information was provided but could not be verified; the unproven-loss policy branch applies.",
+      "NO_PROOF": "No supporting proof was supplied; the policy fallback applies."
     },
     "provenLossLabel": "Proven direct loss",
     "provenLossHint": "Enter the amount shown on the customer's invoice or supporting document.",
+    "acceptedEvidenceLabel": "Evidence accepted for this decision",
+    "acceptedEvidenceHint": "Select only evidence from this claim. Evidence IDs, not their URLs, are submitted.",
+    "evidenceEmptyForDecision": "This claim has no evidence, so it cannot be marked Verified.",
+    "evidenceAccepted": "Accepted",
+    "openEvidence": "Open evidence",
     "previewTitle": "Estimated payout",
+    "previewLoading": "Loading the latest compensation preview…",
+    "previewFailed": "Could not load the compensation preview. Please try again.",
+    "previewAssessedLoss": "Loss used in the calculation",
+    "previewDeclaredLiability": "Declared-value liability",
+    "previewFallback": "Fallback before caps",
+    "previewNotCommitment": "This preview is not a payout commitment. The decision response is the source of truth for the final amount.",
+    "calculationBasis": {
+      "VERIFIED_LOSS": "Verified loss",
+      "NO_PROOF_FALLBACK": "Policy fallback"
+    },
     "previewAssessed": "Assessed loss {{amount}}, paid at {{rate}}%.",
     "previewNoProofFormula": "No proof: freight {{freight}} × {{multiplier}} = {{amount}}.",
     "previewCargoAward": "Cargo payout: {{amount}}",
@@ -3714,6 +3741,7 @@
     "previewUnavailable": "Freight data is not available for this preview. Close and reopen the claim.",
     "reasonLabel": "Reason",
     "reasonPlaceholder": "State the grounds so the passenger and finance can follow the decision",
+    "rejectProofAuditNote": "A rejection still records the proof status, loss and accepted evidence for the decision audit trail.",
     "payoutAsyncNote": "Approving is not paying: the payout is handled asynchronously and the status updates itself.",
     "confirmApprove": "Approve payout",
     "confirmReject": "Reject claim",
@@ -3725,7 +3753,8 @@
       "proof-required": "Choose whether the customer has an invoice or supporting document.",
       "loss-required": "Enter the proven loss shown on the invoice or supporting document.",
       "invalid-loss": "Proven loss must be a whole number.",
-      "negative-loss": "Proven loss cannot be negative."
+      "negative-loss": "Proven loss cannot be negative.",
+      "evidence-required": "Select at least one accepted evidence item when the proof is Verified."
     },
     "actions": {
       "DECIDE_CLAIM": "Decide"
@@ -3733,7 +3762,7 @@
     "status": {
       "SUBMITTED": "Submitted",
       "UNDER_REVIEW": "Under review",
-      "APPROVED": "Approved",
+      "APPROVED": "Approved, awaiting payout",
       "FUNDING_PENDING": "Funding pending",
       "PAID": "Paid",
       "REJECTED": "Rejected",
@@ -3754,6 +3783,8 @@
       "notFound": "This compensation request could not be found.",
       "reasonRequired": "Enter a reason so the customer and finance team can understand the decision.",
       "invalidDecision": "The decision details are invalid. Check the proven loss and reason.",
+      "proofInvalid": "The proof assessment is invalid. Check its status, loss and accepted evidence.",
+      "evidenceStale": "The evidence list changed. The claim was reloaded; reopen the form and select again.",
       "systemUnavailable": "The system cannot process this request right now. Please try again later."
     }
   },
@@ -3793,7 +3824,7 @@
     "paidAt": "Paid at",
     "payoutReference": "Payout reference",
     "claimContextTitle": "Original claim record",
-    "claimContextFailed": "Could not load the original claim record. You can still decide, only the reference data is missing.",
+    "claimContextFailed": "Could not load the original claim and its evidence. Reload it before making a decision.",
     "parcelLabel": "Parcel",
     "beneficiaryLabel": "Beneficiary",
     "beneficiaryPhone": "Phone",
@@ -3807,6 +3838,8 @@
     "revisedProvenLossHint": "Leave empty to keep the proven loss unchanged. The award is recalculated from the policy captured at booking time.",
     "adjustmentRule": "The recalculated award must be HIGHER than {{amount}}, otherwise the request is rejected. The final figure is computed by the backend and cannot be typed in.",
     "upholdNote": "Uphold the original decision: no additional payout is created for the customer.",
+    "upholdProofAuditNote": "Upholding needs no adjustment preview, but the proof assessment must still be recorded for the audit trail.",
+    "previewFailed": "Could not load the adjustment preview. Please try again.",
     "reasonLabel": "Reason",
     "reasonPlaceholder": "Explain the basis so the customer and finance can follow the decision",
     "reasonHint": "Up to {{max}} characters.",
@@ -3821,13 +3854,19 @@
     "errors": {
       "noPermission": "You do not have permission to handle this request.",
       "notFound": "This request could not be found.",
+      "adjustmentRequired": "The adjustment must create a positive supplementary award. Change the assessment or uphold the original decision.",
+      "proofInvalid": "The proof assessment is invalid. Check its status, loss and accepted evidence.",
+      "evidenceStale": "The original claim evidence changed. It was reloaded; select the evidence again.",
       "systemUnavailable": "The service is temporarily unavailable. Please try again."
     },
     "decisionErrors": {
       "reason-required": "Enter a reason for the decision.",
       "reason-too-long": "The reason must not exceed 2000 characters.",
+      "proof-required": "Select a proof assessment.",
+      "loss-required": "Enter the verified direct loss.",
       "invalid-loss": "The loss must be a whole number.",
-      "negative-loss": "The loss cannot be negative."
+      "negative-loss": "The loss cannot be negative.",
+      "evidence-required": "Select at least one accepted evidence item when the proof is Verified."
     },
     "actions": {
       "DECIDE_APPEAL": "Decide"
@@ -3836,7 +3875,7 @@
       "SUBMITTED": "Awaiting review",
       "UNDER_REVIEW": "Under review",
       "UPHELD": "Decision upheld",
-      "ADJUSTMENT_APPROVED": "Adjustment approved",
+      "ADJUSTMENT_APPROVED": "Adjustment approved, awaiting payout",
       "FUNDING_PENDING": "Awaiting funds",
       "PAID": "Paid"
     }

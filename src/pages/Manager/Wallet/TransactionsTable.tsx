@@ -4,7 +4,11 @@ import { formatCurrency } from "../../../utils/currency";
 import { Badge } from "../../../components/ui/Badge";
 import { actorDisplayName, formatWalletDate } from "./walletFormat";
 import { DataCompletenessBadge } from "./WalletBadges";
-import { BusinessCodeCell, EmptyRow, type Translate } from "./walletTableShared";
+import {
+  BusinessCodeCell,
+  EmptyRow,
+  type Translate,
+} from "./walletTableShared";
 
 export function TransactionsTable({
   items,
@@ -26,14 +30,23 @@ export function TransactionsTable({
             <th className="w-[12%] px-3 py-3">{t("wallet.change")}</th>
             <th className="w-[11%] px-3 py-3">{t("wallet.balanceAfter")}</th>
             <th className="w-[12%] px-3 py-3">{t("wallet.actor")}</th>
-            <th className="w-[15%] px-4 py-3">{t("wallet.relatedSettlement")}</th>
+            <th className="w-[15%] px-4 py-3">
+              {t("wallet.relatedSettlement")}
+            </th>
           </tr>
         </thead>
         <tbody>
           {items.length === 0 ? (
             <EmptyRow columns={7} t={t} />
           ) : (
-            items.map((item) => <TransactionRow key={item.transactionId} item={item} t={t} tc={tc} />)
+            items.map((item) => (
+              <TransactionRow
+                key={item.transactionId}
+                item={item}
+                t={t}
+                tc={tc}
+              />
+            ))
           )}
         </tbody>
       </table>
@@ -52,7 +65,8 @@ function TransactionRow({
 }) {
   // amount luôn dương (giữ cho client cũ) — signedAmount mới là field đúng để
   // suy dấu +/-. Fallback theo type chỉ dùng khi BE chưa trả signedAmount.
-  const signed = item.signedAmount ?? (item.type === "CREDIT" ? item.amount : -item.amount);
+  const signed =
+    item.signedAmount ?? (item.type === "CREDIT" ? item.amount : -item.amount);
   const isCredit = signed >= 0;
   const copyKey = `wallet.transactionCopy.${item.referenceType}_${item.type}`;
   const fallbackCopy = t(`wallet.references.${item.referenceType}`, {
@@ -70,9 +84,17 @@ function TransactionRow({
       <td className="w-[17%] whitespace-nowrap px-3 py-3">
         <BusinessCodeCell code={item.transactionCode} />
       </td>
-      <td className="w-[12%] whitespace-nowrap px-3 py-3 text-gray-700">{formatWalletDate(item.createdAt)}</td>
-      <td className={`w-[21%] whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
-        {isCredit ? <FiArrowDown className="mr-2 inline" /> : <FiArrowUp className="mr-2 inline" />}
+      <td className="w-[12%] whitespace-nowrap px-3 py-3 text-gray-700">
+        {formatWalletDate(item.createdAt)}
+      </td>
+      <td
+        className={`w-[21%] whitespace-nowrap px-4 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}
+      >
+        {isCredit ? (
+          <FiArrowDown className="mr-2 inline" />
+        ) : (
+          <FiArrowUp className="mr-2 inline" />
+        )}
         {purpose}
         {item.businessGroup && (
           <p className="mt-0.5 text-xs font-normal text-gray-600">
@@ -88,13 +110,21 @@ function TransactionRow({
             })}
           </p>
         )}
-        <DataCompletenessBadge completeness={item.dataCompleteness} missingFields={item.missingFields} t={t} />
+        <DataCompletenessBadge
+          completeness={item.dataCompleteness}
+          missingFields={item.missingFields}
+          t={t}
+        />
       </td>
-      <td className={`w-[12%] whitespace-nowrap px-3 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
+      <td
+        className={`w-[12%] whitespace-nowrap px-3 py-3 font-semibold ${isCredit ? "text-emerald-700" : "text-red-700"}`}
+      >
         {isCredit ? "+" : ""}
         {formatCurrency(signed)}
       </td>
-      <td className="w-[11%] whitespace-nowrap px-3 py-3 font-semibold">{formatCurrency(item.balanceAfter)}</td>
+      <td className="w-[11%] whitespace-nowrap px-3 py-3 font-semibold">
+        {formatCurrency(item.balanceAfter)}
+      </td>
       <td className="w-[12%] whitespace-nowrap px-3 py-3 text-gray-600">
         {actorDisplayName(item.actor, tc) ||
           tc("enumLabels.SYSTEM", { defaultValue: "-" })}

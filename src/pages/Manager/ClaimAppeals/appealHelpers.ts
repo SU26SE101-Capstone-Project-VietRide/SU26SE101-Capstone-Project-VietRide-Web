@@ -1,14 +1,31 @@
-// Helper cho hàng đợi khiếu nại lại (§12 playbook Parcel Reliability v2).
-import type { BadgeTone } from "../../../components/ui/Badge";
-import type { ParcelClaimAppealAction } from "../../../api/vietride";
 import { ApiRequestError } from "../../../api/client";
+import type {
+  DecideParcelClaimAppealRequest,
+  ParcelClaimAppealAction,
+} from "../../../api/vietride";
+import type { BadgeTone } from "../../../components/ui/Badge";
+import {
+  parseProofAssessment,
+  type ProofAssessmentDraft,
+  type ProofAssessmentParseError,
+} from "../Claims/claimHelpers";
 
-/** Trả về khóa dịch an toàn, không để message/mã lỗi kỹ thuật rơi ra UI. */
 export function appealErrorTranslationKey(
   error: unknown,
   fallbackKey: string,
 ) {
   if (!(error instanceof ApiRequestError)) return fallbackKey;
+
+  switch (error.code) {
+    case "PARCEL_CLAIM_APPEAL_ADJUSTMENT_REQUIRED":
+      return "claimAppeals.errors.adjustmentRequired";
+    case "PARCEL_CLAIM_EVIDENCE_NOT_FOUND":
+      return "claimAppeals.errors.evidenceStale";
+    case "PARCEL_CLAIM_EVIDENCE_REQUIRED":
+      return "claimAppeals.errors.proofInvalid";
+    default:
+      break;
+  }
 
   if (error.status === 403) return "claimAppeals.errors.noPermission";
   if (error.status === 404) return "claimAppeals.errors.notFound";
@@ -16,11 +33,6 @@ export function appealErrorTranslationKey(
   return fallbackKey;
 }
 
-/**
- * `availableActions` của BE là NGUỒN QUYỀN DUY NHẤT cho nút quyết định. BE chỉ
- * gắn `DECIDE_APPEAL` khi appeal còn `SUBMITTED`; đừng suy từ `status` vì luật
- * đó có thể đổi mà FE không hay.
- */
 export function hasAppealAction(
   actions: ParcelClaimAppealAction[] | undefined | null,
   action: ParcelClaimAppealAction,
@@ -28,13 +40,6 @@ export function hasAppealAction(
   return (actions ?? []).includes(action);
 }
 
-/**
- * Tone pill trạng thái appeal.
- *
- * KHÔNG có trạng thái "xấu" kiểu REJECTED ở đây: `UPHELD` nghĩa là giữ nguyên
- * quyết định cũ, một kết cục hợp lệ chứ không phải lỗi — nhuộm đỏ nó là nói sai
- * nghiệp vụ. `SUBMITTED` mới là thứ cần người xử lý.
- */
 export function appealStatusTone(status: string): BadgeTone {
   switch (status) {
     case "PAID":
@@ -50,82 +55,41 @@ export function appealStatusTone(status: string): BadgeTone {
   }
 }
 
-export type AppealDecisionDraft = {
+export type AppealDecisionDraft = ProofAssessmentDraft & {
   decision: "UPHOLD" | "APPROVE_ADJUSTMENT";
-  /** Để trống = không điều chỉnh mức tổn thất, BE giữ nguyên số cũ. */
-  revisedProvenDirectLossVnd: string;
   reason: string;
 };
 
 export type AppealDecisionParseError =
   | "reason-required"
   | "reason-too-long"
-  | "invalid-loss"
-  | "negative-loss";
+  | ProofAssessmentParseError;
 
 export type AppealDecisionParseResult =
-  | {
-      ok: true;
-      value: {
-        decision: "UPHOLD" | "APPROVE_ADJUSTMENT";
-        revisedProvenDirectLossVnd?: number;
-        reason: string;
-      };
-    }
+  | { ok: true; value: DecideParcelClaimAppealRequest }
   | { ok: false; error: AppealDecisionParseError };
 
-/** BE: `Reason` NotEmpty + MaximumLength(2000) */
 export const APPEAL_REASON_MAX_LENGTH = 2000;
 
-/**
- * Kiểm trước khi gọi BE (validator `DecideParcelClaimAppealCommandValidator`):
- * `reason` blank hoặc > 2000, và `revisedProvenDirectLossVnd < 0` đều là 422 —
- * cả ba đều tốn một vòng mạng vô ích.
- *
- * `revisedProvenDirectLossVnd` chỉ có nghĩa khi ĐIỀU CHỈNH; ở `UPHOLD` nó bị
- * bỏ hẳn khỏi body thay vì gửi kèm rồi để BE lờ đi.
- *
- * FE KHÔNG tự tính `revisedTotalAwardVnd`: BE tính lại theo policy snapshot của
- * Parcel rồi mới so với `originalTotalAwardVnd`. Luật "điều chỉnh phải lớn hơn
- * mức cũ" vì thế chỉ được cảnh báo ở UI, không chặn tại chỗ.
- */
 export function parseAppealDecision(
   draft: AppealDecisionDraft,
 ): AppealDecisionParseResult {
   const reason = draft.reason.trim();
-  if (!reason) {
-    return { ok: false, error: "reason-required" };
-  }
+  if (!reason) return { ok: false, error: "reason-required" };
   if (reason.length > APPEAL_REASON_MAX_LENGTH) {
     return { ok: false, error: "reason-too-long" };
   }
 
-  if (draft.decision === "UPHOLD") {
-    return { ok: true, value: { decision: "UPHOLD", reason } };
-  }
-
-  const lossText = draft.revisedProvenDirectLossVnd.trim();
-  if (!lossText) {
-    return { ok: true, value: { decision: "APPROVE_ADJUSTMENT", reason } };
-  }
-
-  if (!/^-?\d+$/.test(lossText)) {
-    return { ok: false, error: "invalid-loss" };
-  }
-
-  const revisedProvenDirectLossVnd = Number(lossText);
-  if (!Number.isSafeInteger(revisedProvenDirectLossVnd)) {
-    return { ok: false, error: "invalid-loss" };
-  }
-  if (revisedProvenDirectLossVnd < 0) {
-    return { ok: false, error: "negative-loss" };
-  }
+  const proof = parseProofAssessment(draft);
+  if (!proof.ok) return proof;
 
   return {
     ok: true,
     value: {
-      decision: "APPROVE_ADJUSTMENT",
-      revisedProvenDirectLossVnd,
+      decision: draft.decision,
+      proofStatus: proof.value.proofStatus,
+      revisedProvenDirectLossVnd: proof.value.lossVnd,
+      acceptedEvidenceIds: proof.value.acceptedEvidenceIds,
       reason,
     },
   };

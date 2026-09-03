@@ -26,6 +26,7 @@ import {
   claimStatusTone,
   fundingStatusTone,
   hasClaimAction,
+  proofStatusTranslationKey,
 } from "./claimHelpers";
 
 type ClaimDetailModalProps = {
@@ -144,6 +145,16 @@ export default function ClaimDetailModal({
                 <DetailItem
                   label={t("claims.evidenceCount")}
                   value={String(claim.evidence.length)}
+                />
+                <DetailItem
+                  label={t("claims.proofAssessment")}
+                  value={t(
+                    proofStatusTranslationKey(claim.proofStatus, claim.status),
+                  )}
+                />
+                <DetailItem
+                  label={t("claims.acceptedEvidenceCount")}
+                  value={String((claim.acceptedEvidenceIds ?? []).length)}
                 />
               </dl>
             </section>
@@ -285,6 +296,13 @@ export default function ClaimDetailModal({
                             defaultValue: t("claims.evidenceType.OTHER"),
                           })}
                         </Badge>
+                        {(claim.acceptedEvidenceIds ?? []).includes(
+                          item.evidenceId,
+                        ) ? (
+                          <Badge tone="success">
+                            {t("claims.evidenceAccepted")}
+                          </Badge>
+                        ) : null}
                         <span className="text-xs text-gray-500">
                           {formatDateTime(item.createdAt)}
                         </span>
@@ -345,6 +363,7 @@ export default function ClaimDetailModal({
       </Modal>
 
       <ClaimDecisionModal
+        key={claim?.claimId ?? ""}
         open={isDecisionOpen}
         detail={detail}
         onClose={() => setIsDecisionOpen(false)}
