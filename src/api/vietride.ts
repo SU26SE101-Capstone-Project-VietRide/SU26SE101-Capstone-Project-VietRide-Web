@@ -8089,6 +8089,7 @@ export function declareOperatorParcelIncidentLost(
 export type ParcelCompensationPolicyDefaults = {
   compensationRatePercent: number;
   maxCompensationVnd: number;
+  /** Contract compatibility only (PUT range 1..2); unused by new awards. */
   noProofFallbackMultiplier: number;
   claimWindowDays: number;
   searchSlaHours: number;
@@ -8204,6 +8205,7 @@ export type ParcelCompensationPolicySnapshot = {
   version: number;
   compensationRatePercent: number;
   maxCompensationVnd: number;
+  /** Historical compatibility only; never interpret or render as an award. */
   noProofFallbackMultiplier: number;
   claimWindowDays: number;
   searchSlaHours: number;
@@ -8312,7 +8314,7 @@ export type ParcelClaimAwardPreviewRequest = {
 
 export type ParcelClaimAwardCalculationBasis =
   | "VERIFIED_LOSS"
-  | "NO_PROOF_FALLBACK";
+  | "NO_VERIFIED_PROOF_FREIGHT_ONLY";
 
 export type ParcelClaimAwardPreview = {
   claimId: string;
@@ -8323,6 +8325,7 @@ export type ParcelClaimAwardPreview = {
   provenDirectLossVnd: number | null;
   assessedLossVnd: number | null;
   declaredLiabilityVnd: number | null;
+  /** Always null for new previews; retained only for response compatibility. */
   fallbackAmountVnd: number | null;
   policySnapshot: ParcelCompensationPolicySnapshot;
   cargoAwardVnd: number;

@@ -27,7 +27,6 @@ import { SettingsField } from "./SettingsField";
 const AMOUNT_GROUP: ParcelCompensationNumericField[] = [
   "compensationRatePercent",
   "maxCompensationVnd",
-  "noProofFallbackMultiplier",
 ];
 
 const SLA_GROUP: ParcelCompensationNumericField[] = [
@@ -183,9 +182,9 @@ export default function ParcelCompensationTab() {
    *
    * Cố tình KHÔNG lặp lại thứ nhãn đã nói: "Tỉ lệ đền %", "Đền tối đa một vụ đ",
    * "Hạn trả lời khách ngày làm việc" tự nó đã đủ nghĩa, thêm một câu diễn giải
-   * bên dưới chỉ làm 7 ô thành một bức tường chữ và người dùng bỏ đọc hết. Chỉ
-   * hai ô còn hint (xem `fieldHints` trong file dịch) vì nhãn của chúng không
-   * nói ra được phép nhân tiền cước và hệ quả "coi như mất".
+   * bên dưới chỉ làm các ô thành một bức tường chữ và người dùng bỏ đọc hết. Chỉ
+   * ô hạn tìm hàng còn hint (xem `fieldHints` trong file dịch) vì nhãn không
+   * nói ra được hệ quả "coi như mất".
    *
    * Khoảng nhập được cũng không hiện sẵn: nó chỉ có ích đúng lúc nhập sai, và
    * lúc đó `errors.out-of-range` đã ghi rõ "chỉ nhận từ {min} đến {max}".
@@ -301,7 +300,7 @@ export default function ParcelCompensationTab() {
           <h4 className="mb-3 text-sm font-semibold text-gray-800">
             {t("settings.parcelCompensation.amountGroup")}
           </h4>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {AMOUNT_GROUP.map(renderField)}
           </div>
         </div>
@@ -328,7 +327,7 @@ export default function ParcelCompensationTab() {
             {t("settings.parcelCompensation.formulaTitle")}
           </h4>
 
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div className="mt-3">
             <div className="rounded-lg bg-white/80 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 {t("settings.parcelCompensation.formulaWithProofTitle")}
@@ -346,19 +345,15 @@ export default function ParcelCompensationTab() {
               </div>
             </div>
 
-            <div className="rounded-lg bg-white/80 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                {t("settings.parcelCompensation.formulaWithoutProofTitle")}
-              </p>
-              <p className="mt-2 text-sm font-medium leading-6 text-gray-900">
-                {t("settings.parcelCompensation.formulaCargoWithoutProof", {
-                  multiplier: draft.noProofFallbackMultiplier || "—",
-                  cap: draft.maxCompensationVnd
-                    ? formatCurrency(draft.maxCompensationVnd)
-                    : "—",
-                })}
-              </p>
-            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              {t("settings.parcelCompensation.formulaWithoutProofTitle")}
+            </p>
+            <p className="mt-2 text-sm font-medium leading-6 text-amber-900">
+              {t("settings.parcelCompensation.formulaCargoWithoutProof")}
+            </p>
           </div>
 
           <div className="mt-3 space-y-1.5 border-t border-vr-100 pt-3 text-sm leading-6 text-gray-700">

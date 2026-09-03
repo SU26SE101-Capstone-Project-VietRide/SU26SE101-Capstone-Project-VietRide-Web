@@ -5,6 +5,7 @@ import {
   type ParcelClaimProofStatus,
 } from "../../../api/vietride";
 import { inputClass, labelClass } from "../../../components/form/formClasses";
+import InlineAlert from "../../../components/InlineAlert";
 import type { ProofAssessmentDraft } from "./claimHelpers";
 
 type ProofAssessmentFieldsProps = {
@@ -91,6 +92,9 @@ export default function ProofAssessmentFields({
 
       {draft.proofStatus === "VERIFIED" ? (
         <>
+          <InlineAlert tone="info">
+            <p>{t("claims.proofReviewGuidance")}</p>
+          </InlineAlert>
           <div>
             <label className={labelClass} htmlFor="proof-loss-vnd">
               {lossLabel}
@@ -157,15 +161,21 @@ export default function ProofAssessmentFields({
                           {item.note}
                         </span>
                       ) : null}
-                      <a
-                        href={item.reference}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(event) => event.stopPropagation()}
-                        className="mt-1 block truncate text-xs font-semibold text-vr-800 underline"
-                      >
-                        {t("claims.openEvidence")}
-                      </a>
+                      {/^https?:\/\//i.test(item.reference) ? (
+                        <a
+                          href={item.reference}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          onClick={(event) => event.stopPropagation()}
+                          className="mt-1 block truncate text-xs font-semibold text-vr-800 underline"
+                        >
+                          {t("claims.openEvidence")}
+                        </a>
+                      ) : (
+                        <span className="mt-1 block break-all text-xs text-gray-600">
+                          {item.reference}
+                        </span>
+                      )}
                     </span>
                   </label>
                 ))}
@@ -173,6 +183,10 @@ export default function ProofAssessmentFields({
             )}
           </fieldset>
         </>
+      ) : draft.proofStatus ? (
+        <InlineAlert tone="warning">
+          <p>{t("claims.noVerifiedProofNotice")}</p>
+        </InlineAlert>
       ) : null}
     </div>
   );

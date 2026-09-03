@@ -34,6 +34,7 @@ import {
 } from "../api/vietride";
 import { getNotificationActionPath } from "../utils/notificationActions";
 import { localizeNotificationText } from "../utils/notificationText";
+import { notifyCanonicalDataRefresh } from "../utils/canonicalDataRefresh";
 import {
   getNotificationVisualGroup,
   notificationGroupClasses,
@@ -194,6 +195,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     const notificationSocket = createNotificationSocket();
+    let hasConnectedOnce = Boolean(notificationSocket?.connected);
 
     const disposeAuthRecovery = notificationSocket
       ? attachSocketAuthRecovery(notificationSocket)
@@ -221,6 +223,15 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
       // REST inbox là nguồn bền vững: gọi lại để chốt danh sách và số chưa đọc
       // (và để phủ cả payload lạ mà parser không nhận).
       refreshSilently();
+      notifyCanonicalDataRefresh();
+    };
+
+    const handleSocketConnect = () => {
+      refreshSilently();
+      // Lần connect đầu không thể đã bỏ lỡ event của phiên socket hiện tại.
+      // Các lần sau là reconnect và phải bù read-model có thể đã thay đổi.
+      if (hasConnectedOnce) notifyCanonicalDataRefresh();
+      hasConnectedOnce = true;
     };
 
     notificationSocket?.on(
@@ -228,7 +239,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
       handleNotificationCreated,
     );
     // Reconnect có thể đã bỏ lỡ event trong lúc mất kết nối — bù bằng REST.
-    notificationSocket?.on("connect", refreshSilently);
+    notificationSocket?.on("connect", handleSocketConnect);
 
     return () => {
       cancelled = true;

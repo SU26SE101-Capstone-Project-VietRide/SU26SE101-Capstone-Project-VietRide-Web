@@ -25,6 +25,10 @@ import { labelClass } from "../../../components/form/formClasses";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
 import { formatCurrency } from "../../../utils/currency";
 import { formatDateTime } from "../../../utils/date";
+import {
+  CANONICAL_DATA_REFRESH_EVENT,
+  notifyCanonicalDataRefresh,
+} from "../../../utils/canonicalDataRefresh";
 import AppealDetailModal from "./AppealDetailModal";
 import {
   appealErrorTranslationKey,
@@ -151,6 +155,32 @@ export default function ClaimAppealsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    function refreshCanonicalData() {
+      setRefreshVersion((current) => current + 1);
+
+      const openAppealId = detailRequestRef.current;
+      if (!openAppealId) return;
+      void getOperatorParcelClaimAppeal(openAppealId)
+        .then((fresh) => {
+          if (detailRequestRef.current === openAppealId) setDetail(fresh);
+        })
+        .catch(() => {
+          // Giữ detail hiện tại nếu lượt làm mới nền tạm lỗi.
+        });
+    }
+
+    window.addEventListener(
+      CANONICAL_DATA_REFRESH_EVENT,
+      refreshCanonicalData,
+    );
+    return () =>
+      window.removeEventListener(
+        CANONICAL_DATA_REFRESH_EVENT,
+        refreshCanonicalData,
+      );
+  }, []);
+
   function closeDetail() {
     detailRequestRef.current = "";
     setDetail(null);
@@ -176,7 +206,7 @@ export default function ClaimAppealsPage() {
           type="button"
           onClick={() => {
             setMessage("");
-            setRefreshVersion((current) => current + 1);
+            notifyCanonicalDataRefresh();
           }}
           disabled={isLoading}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"

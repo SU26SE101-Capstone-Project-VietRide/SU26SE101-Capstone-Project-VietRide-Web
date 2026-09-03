@@ -56,12 +56,6 @@ export default function AwardPreviewPanel({
             value={formatCurrency(preview.declaredLiabilityVnd)}
           />
         ) : null}
-        {preview.fallbackAmountVnd != null ? (
-          <PreviewItem
-            label={t("claims.previewFallback")}
-            value={formatCurrency(preview.fallbackAmountVnd)}
-          />
-        ) : null}
         <PreviewItem
           label={t("claims.snapshotCap")}
           value={formatCurrency(preview.policySnapshot.maxCompensationVnd)}
@@ -75,6 +69,15 @@ export default function AwardPreviewPanel({
           value={formatCurrency(preview.freightRefundVnd)}
         />
       </dl>
+
+      {preview.calculationBasis ===
+      "NO_VERIFIED_PROOF_FREIGHT_ONLY" ? (
+        <div className="mt-3">
+          <InlineAlert tone="warning">
+            <p>{t("claims.noVerifiedProofNotice")}</p>
+          </InlineAlert>
+        </div>
+      ) : null}
 
       <div className="mt-3 rounded-lg bg-white px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">

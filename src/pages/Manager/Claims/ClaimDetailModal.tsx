@@ -14,6 +14,7 @@ import {
   FiUser,
 } from "react-icons/fi";
 import type { ParcelClaimDetail } from "../../../api/vietride";
+import InlineAlert from "../../../components/InlineAlert";
 import Modal from "../../../components/Modal";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -157,6 +158,15 @@ export default function ClaimDetailModal({
                   value={String((claim.acceptedEvidenceIds ?? []).length)}
                 />
               </dl>
+
+              {claim.proofStatus === "UNVERIFIED" ||
+              claim.proofStatus === "NO_PROOF" ? (
+                <div className="mt-3">
+                  <InlineAlert tone="warning">
+                    <p>{t("claims.noVerifiedProofNotice")}</p>
+                  </InlineAlert>
+                </div>
+              ) : null}
             </section>
 
             {/* Mức đền là bản CHỤP lúc tạo đơn, không phải cấu hình hiện hành —
@@ -172,7 +182,7 @@ export default function ClaimDetailModal({
                 <p className="mt-1 text-xs text-gray-600">
                   {t("claims.policySnapshotHint")}
                 </p>
-                <dl className="mt-3 grid gap-3 rounded-lg bg-gray-50 px-4 py-3 text-sm sm:grid-cols-3">
+                <dl className="mt-3 grid gap-3 rounded-lg bg-gray-50 px-4 py-3 text-sm sm:grid-cols-2">
                   <DetailItem
                     label={t("claims.snapshotRate")}
                     value={`${snapshot.compensationRatePercent}%`}
@@ -180,10 +190,6 @@ export default function ClaimDetailModal({
                   <DetailItem
                     label={t("claims.snapshotCap")}
                     value={formatCurrency(snapshot.maxCompensationVnd)}
-                  />
-                  <DetailItem
-                    label={t("claims.snapshotMultiplier")}
-                    value={`× ${snapshot.noProofFallbackMultiplier}`}
                   />
                 </dl>
               </section>
