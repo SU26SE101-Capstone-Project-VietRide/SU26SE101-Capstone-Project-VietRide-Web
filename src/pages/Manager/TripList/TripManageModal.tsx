@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import {
   FiAlertOctagon,
   FiAlertTriangle,
+  FiClock,
   FiEdit3,
   FiGrid,
   FiPackage,
@@ -274,6 +275,9 @@ export default function TripManageModal({
   const capacity = hasCapacityFor ? capacityResult.data : null;
   const isCapacityLoading = Boolean(tripId) && !hasCapacityFor;
   const hasCapacityFailed = hasCapacityFor && capacityResult.data === null;
+  const hasHistoricalCargo =
+    capacity?.historicalLoadedWeightKg != null ||
+    capacity?.historicalLoadedVolumeM3 != null;
   const capacityMetrics = capacity
     ? [
         {
@@ -695,21 +699,47 @@ export default function TripManageModal({
               )}
 
               {capacity && (
-                <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {capacityMetrics.map((metric) => (
-                    <div
-                      key={metric.label}
-                      className="rounded-lg border border-gray-100 bg-gray-50 p-3"
-                    >
-                      <dt className="text-xs font-medium text-gray-500">
-                        {metric.label}
-                      </dt>
-                      <dd className="mt-1 text-base font-bold tabular-nums text-gray-900">
-                        {metric.value}
-                      </dd>
+                <>
+                  <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {capacityMetrics.map((metric) => (
+                      <div
+                        key={metric.label}
+                        className="rounded-lg border border-gray-100 bg-gray-50 p-3"
+                      >
+                        <dt className="text-xs font-medium text-gray-500">
+                          {metric.label}
+                        </dt>
+                        <dd className="mt-1 text-base font-bold tabular-nums text-gray-900">
+                          {metric.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+
+                  {hasHistoricalCargo && (
+                    <div className="mt-3 flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="rounded-lg bg-white p-2 text-sky-700 shadow-sm">
+                          <FiClock aria-hidden="true" size={18} />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-sky-950">
+                            {t("tripList.manage.historicalCargo")}
+                          </p>
+                          <p className="mt-0.5 text-xs leading-5 text-sky-800">
+                            {t("tripList.manage.historicalCargoHint")}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="shrink-0 text-lg font-bold tabular-nums text-sky-950">
+                        {formatCargoPair(
+                          capacity.historicalLoadedWeightKg,
+                          capacity.historicalLoadedVolumeM3,
+                        )}
+                      </p>
                     </div>
-                  ))}
-                </dl>
+                  )}
+                </>
               )}
             </section>
 

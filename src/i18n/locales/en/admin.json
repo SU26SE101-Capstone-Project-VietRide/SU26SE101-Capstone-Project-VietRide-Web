@@ -1046,6 +1046,8 @@
     "filterStatus": "Filter by status",
     "filteredEmpty": "No requests with this status.",
     "loadFailed": "Could not load the requests.",
+    "openingRequest": "Opening the request from the notification...",
+    "openRequestFailed": "Could not open the request from the notification.",
     "operatorColumn": "Operator",
     "sentAtColumn": "Sent at",
     "sentAtInline": "Sent {{value}}",

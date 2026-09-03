@@ -21,9 +21,79 @@ type RagAssistantProps = {
 
 /** Chỉ giữ 30 lượt gần nhất trong khung nhìn cho nhẹ DOM. */
 const VISIBLE_MESSAGE_LIMIT = 30;
+const SESSION_STORAGE_VERSION = 1;
+const SESSION_STORAGE_KEY_PREFIX = "vietride.rag-assistant.session";
+
+type PersistedRagSession = {
+  version: typeof SESSION_STORAGE_VERSION;
+  messages: ChatMessage[];
+  conversationId?: string;
+  operatorId: string;
+};
 
 /** Người dùng đã cuộn lên đọc lại thì không giật màn về đáy khi có token mới. */
 const STICK_TO_BOTTOM_THRESHOLD_PX = 120;
+
+function emptySession(): PersistedRagSession {
+  return {
+    version: SESSION_STORAGE_VERSION,
+    messages: [],
+    operatorId: "",
+  };
+}
+
+function isChatMessage(value: unknown): value is ChatMessage {
+  if (!value || typeof value !== "object") return false;
+  const message = value as Record<string, unknown>;
+  const citedChunkIds = message.citedChunkIds;
+  const rating = message.rating;
+
+  return (
+    typeof message.id === "string" &&
+    (message.role === "user" || message.role === "assistant") &&
+    typeof message.content === "string" &&
+    typeof message.createdAt === "string" &&
+    (message.assistantMessageId === undefined ||
+      typeof message.assistantMessageId === "string") &&
+    (citedChunkIds === undefined ||
+      (Array.isArray(citedChunkIds) &&
+        citedChunkIds.every((chunkId) => typeof chunkId === "string"))) &&
+    (rating === undefined || rating === -1 || rating === 1)
+  );
+}
+
+function loadSession(storageKey: string | undefined): PersistedRagSession {
+  if (!storageKey || typeof window === "undefined") return emptySession();
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return emptySession();
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return emptySession();
+    const session = parsed as Record<string, unknown>;
+
+    if (
+      session.version !== SESSION_STORAGE_VERSION ||
+      !Array.isArray(session.messages) ||
+      !session.messages.every(isChatMessage) ||
+      (session.conversationId !== undefined &&
+        typeof session.conversationId !== "string") ||
+      typeof session.operatorId !== "string"
+    ) {
+      return emptySession();
+    }
+
+    return {
+      version: SESSION_STORAGE_VERSION,
+      messages: session.messages.slice(-VISIBLE_MESSAGE_LIMIT),
+      conversationId: session.conversationId,
+      operatorId: session.operatorId,
+    };
+  } catch {
+    return emptySession();
+  }
+}
 
 function initialsOf(displayName: string | undefined): string {
   const source = (displayName ?? "").trim();
@@ -36,10 +106,18 @@ function initialsOf(displayName: string | undefined): string {
 export default function RagAssistant({ embedded = false }: RagAssistantProps) {
   const { t } = useTranslation("common");
   const user = getAuthUser();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const storageKey = user?.id
+    ? `${SESSION_STORAGE_KEY_PREFIX}.${user.id}`
+    : undefined;
+  const initialSession = useMemo(() => loadSession(storageKey), [storageKey]);
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    initialSession.messages,
+  );
   const [input, setInput] = useState("");
-  const [operatorId, setOperatorId] = useState("");
-  const [conversationId, setConversationId] = useState<string>();
+  const [operatorId, setOperatorId] = useState(initialSession.operatorId);
+  const [conversationId, setConversationId] = useState<string | undefined>(
+    initialSession.conversationId,
+  );
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -54,6 +132,27 @@ export default function RagAssistant({ embedded = false }: RagAssistantProps) {
   const userInitials = useMemo(() => initialsOf(user?.displayName), [user?.displayName]);
   const lastMessageId = latestMessages.at(-1)?.id;
   const streamingContent = latestMessages.at(-1)?.content.length ?? 0;
+
+  useEffect(() => {
+    if (!storageKey || streaming) return;
+
+    try {
+      if (messages.length === 0 && !conversationId && !operatorId.trim()) {
+        window.localStorage.removeItem(storageKey);
+        return;
+      }
+
+      const session: PersistedRagSession = {
+        version: SESSION_STORAGE_VERSION,
+        messages: messages.slice(-VISIBLE_MESSAGE_LIMIT),
+        conversationId,
+        operatorId,
+      };
+      window.localStorage.setItem(storageKey, JSON.stringify(session));
+    } catch {
+      // Storage can be unavailable or full; chat must remain usable in memory.
+    }
+  }, [conversationId, messages, operatorId, storageKey, streaming]);
 
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;

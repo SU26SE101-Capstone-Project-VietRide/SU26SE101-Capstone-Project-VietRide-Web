@@ -1,21 +1,20 @@
 // Hook cục bộ màn Packages: toàn bộ state của luồng nâng cấp hai bước
 // (báo giá → thanh toán) theo FE-RESPONSE 2026-08-21.
-//
-// Vì sao hai bước: `billingPeriod` và `paymentMethod` là THAM SỐ của quote, nên
-// đổi một trong hai làm báo giá cũ vô nghĩa — người dùng phải chọn xong mới báo
-// giá, và đổi lại thì phải quote lần nữa. Hook tự huỷ quote khi lựa chọn đổi.
 import { useCallback, useRef, useState } from "react";
 import { ApiRequestError } from "../../../api/client";
 import {
   confirmSubscriptionUpgradePayment,
   createSubscriptionUpgradeQuote,
-  getOperatorWallet,
   type SubscriptionBillingPeriod,
-  type SubscriptionPaymentMethod,
   type SubscriptionPlan,
   type SubscriptionUpgradeQuote,
 } from "../../../api/vietride";
-import { saveSubscriptionPaymentIntent } from "./subscriptionPaymentIntent";
+import {
+  clearSubscriptionUpgradeQuoteIntent,
+  getSubscriptionUpgradeQuoteIntent,
+  saveSubscriptionPaymentIntent,
+  saveSubscriptionUpgradeQuoteIntent,
+} from "./subscriptionPaymentIntent";
 
 // Chữ ký hàm dịch tối thiểu hook cần — nhận từ useTranslation("manager") ở index
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
@@ -27,7 +26,7 @@ type UseSubscriptionUpgradeParams = {
   // Kỳ của subscription hiện tại — nâng cấp giữa chu kỳ phải giữ nguyên kỳ này
   // (chặn trước 422 SUBSCRIPTION_UPGRADE_BILLING_PERIOD_MISMATCH)
   lockedBillingPeriod: SubscriptionBillingPeriod | null;
-  // Gọi lại sau khi ví trừ xong / khi lỗi cho biết state server đã đổi
+  // Gọi lại khi lỗi cho biết state server đã đổi.
   onSubscriptionChanged: () => Promise<unknown>;
   t: TranslateFn;
 };
@@ -42,7 +41,6 @@ const staleQuoteCodes = new Set([
 
 // Lỗi nói "state server đã đổi, đóng modal và tải lại đi"
 const reloadAndCloseCodes = new Set([
-  "SUBSCRIPTION_UPGRADE_ALREADY_ACTIVE",
   "SUBSCRIPTION_UPGRADE_TARGET_PLAN_INACTIVE",
   "RESOURCE_NOT_FOUND",
 ]);
@@ -60,23 +58,29 @@ export function useSubscriptionUpgrade({
   onSubscriptionChanged,
   t,
 }: UseSubscriptionUpgradeParams) {
+  const [initialQuoteIntent] = useState(() =>
+    getSubscriptionUpgradeQuoteIntent(),
+  );
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState<UpgradeStep>("select");
+  const [step, setStep] = useState<UpgradeStep>(
+    initialQuoteIntent ? "quote" : "select",
+  );
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(
     null,
   );
   const [billingPeriod, setBillingPeriodState] =
-    useState<SubscriptionBillingPeriod>("MONTHLY");
-  const [paymentMethod, setPaymentMethodState] =
-    useState<SubscriptionPaymentMethod>("WALLET");
-  const [quote, setQuote] = useState<SubscriptionUpgradeQuote | null>(null);
+    useState<SubscriptionBillingPeriod>(
+      initialQuoteIntent?.quote.billingPeriod ?? "MONTHLY",
+    );
+  const [quote, setQuote] = useState<SubscriptionUpgradeQuote | null>(
+    initialQuoteIntent?.quote ?? null,
+  );
+  const [quoteTargetPlanName, setQuoteTargetPlanName] = useState(
+    initialQuoteIntent?.targetPlanName ?? "",
+  );
   const [isQuoting, setIsQuoting] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
-  // Ví không đủ tiền (402): số còn thiếu để hiện panel nạp tiền. null = chưa dính.
-  const [walletShortfall, setWalletShortfall] = useState<number | null>(null);
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const inFlightRef = useRef(false);
   // Key của lượt quote hiện tại: giữ ổn định theo bộ chọn để bấm "Xem báo giá"
@@ -85,50 +89,54 @@ export function useSubscriptionUpgrade({
     null,
   );
 
-  const loadWalletBalance = useCallback(async () => {
-    try {
-      const wallet = await getOperatorWallet();
-      setWalletBalance(wallet.balance);
-      return wallet.balance;
-    } catch {
-      // Không đọc được số dư thì chỉ mất phần hiển thị — vẫn cho thanh toán,
-      // BE là nơi chốt đủ hay thiếu tiền.
-      setWalletBalance(null);
-      return null;
-    }
-  }, []);
-
   const open = useCallback(
     (plan: SubscriptionPlan, defaultPeriod: SubscriptionBillingPeriod) => {
+      if (quote) {
+        setStep("quote");
+        setError("");
+        setIsOpen(true);
+        return;
+      }
+
       setSelectedPlan(plan);
       setBillingPeriodState(lockedBillingPeriod ?? defaultPeriod);
-      setPaymentMethodState("WALLET");
       setQuote(null);
       setStep("select");
-      setWalletShortfall(null);
       setError("");
-      setNotice("");
       quoteIntentRef.current = null;
       setIsOpen(true);
-      void loadWalletBalance();
     },
-    [loadWalletBalance, lockedBillingPeriod],
+    [lockedBillingPeriod, quote],
   );
 
   const close = useCallback(() => {
     setIsOpen(false);
-    setQuote(null);
-    setWalletShortfall(null);
-    quoteIntentRef.current = null;
   }, []);
+
+  const reopenQuote = useCallback(() => {
+    if (!quote || !selectedPlan) return;
+    setStep("quote");
+    setError("");
+    setIsOpen(true);
+  }, [quote, selectedPlan]);
+
+  const restoreSavedQuotePlan = useCallback(
+    (plans: SubscriptionPlan[]) => {
+      if (!quote || selectedPlan) return;
+      const plan = plans.find((item) => item.planId === quote.targetPlanId);
+      if (plan) setSelectedPlan(plan);
+    },
+    [quote, selectedPlan],
+  );
 
   // Đổi lựa chọn = báo giá cũ hết nghĩa. Huỷ luôn thay vì để người dùng trả tiền
   // theo một báo giá không khớp với thứ họ vừa chọn.
   const discardQuote = useCallback(() => {
     setQuote(null);
-    setWalletShortfall(null);
+    setQuoteTargetPlanName("");
     setStep("select");
     quoteIntentRef.current = null;
+    clearSubscriptionUpgradeQuoteIntent();
   }, []);
 
   const setBillingPeriod = useCallback(
@@ -139,19 +147,10 @@ export function useSubscriptionUpgrade({
     [discardQuote],
   );
 
-  const setPaymentMethod = useCallback(
-    (method: SubscriptionPaymentMethod) => {
-      setPaymentMethodState(method);
-      discardQuote();
-    },
-    [discardQuote],
-  );
-
-  // Hết hạn `dueAt` khi modal đang mở — khối tiền xám hoá, nút đổi thành "báo
-  // giá lại". KHÔNG tự gọi lại API: tab có thể đã bị bỏ đó cả buổi.
+  // Hết hạn `dueAt` thì bỏ báo giá đã lưu. Không tự gọi lại API: tab có thể đã
+  // bị bỏ đó cả buổi.
   const expireQuote = useCallback(() => {
     setQuote(null);
-    setWalletShortfall(null);
     setStep("select");
     quoteIntentRef.current = null;
     setError(t("packages.quoteExpiredHint"));
@@ -163,7 +162,7 @@ export function useSubscriptionUpgrade({
     const request = {
       planId: selectedPlan.planId,
       billingPeriod,
-      paymentMethod,
+      paymentMethod: "VNPAY" as const,
     };
     const signature = JSON.stringify(request);
     if (quoteIntentRef.current?.signature !== signature) {
@@ -173,7 +172,6 @@ export function useSubscriptionUpgrade({
     inFlightRef.current = true;
     setIsQuoting(true);
     setError("");
-    setNotice("");
 
     try {
       const result = await createSubscriptionUpgradeQuote(
@@ -181,8 +179,12 @@ export function useSubscriptionUpgrade({
         quoteIntentRef.current.key,
       );
       setQuote(result);
+      setQuoteTargetPlanName(selectedPlan.name);
+      saveSubscriptionUpgradeQuoteIntent({
+        quote: result,
+        targetPlanName: selectedPlan.name,
+      });
       setStep("quote");
-      setWalletShortfall(null);
     } catch (err) {
       quoteIntentRef.current = null;
       await handleUpgradeError(err, t("packages.quoteFailed"));
@@ -198,7 +200,6 @@ export function useSubscriptionUpgrade({
     inFlightRef.current = true;
     setIsPaying(true);
     setError("");
-    setNotice("");
 
     try {
       // Key MỚI mỗi lần bấm. Dùng lại key đã nhận 402 sẽ được replay đúng
@@ -208,32 +209,21 @@ export function useSubscriptionUpgrade({
         crypto.randomUUID(),
       );
 
-      // apiRequest không lộ HTTP status: có redirect url = VNPAY (202),
-      // không có = ví đã trừ xong (200).
-      if (result.paymentRedirectUrl) {
-        saveSubscriptionPaymentIntent({
-          paymentId: result.paymentId ?? "",
-          upgradeAttemptId: quote.upgradeAttemptId,
-          targetPlanId: quote.targetPlanId,
-          targetPlanName: selectedPlan?.name ?? "",
-        });
-        window.location.assign(result.paymentRedirectUrl);
+      if (!result.paymentRedirectUrl) {
+        setError(t("packages.missingPaymentRedirect"));
         return;
       }
 
-      await onSubscriptionChanged();
-      close();
-      setNotice(t("packages.walletPaymentSuccess"));
+      saveSubscriptionPaymentIntent({
+        paymentId: result.paymentId ?? "",
+        upgradeAttemptId: quote.upgradeAttemptId,
+        targetPlanId: quote.targetPlanId,
+        targetPlanName: selectedPlan?.name ?? "",
+      });
+      clearSubscriptionUpgradeQuoteIntent();
+      setQuoteTargetPlanName("");
+      window.location.assign(result.paymentRedirectUrl);
     } catch (err) {
-      if (errorCodeOf(err) === "WALLET_INSUFFICIENT_BALANCE") {
-        // Chưa trừ đồng nào, báo giá vẫn còn hiệu lực → giữ nguyên attempt và
-        // đồng hồ, chỉ chuyển sang panel thiếu tiền.
-        const balance = await loadWalletBalance();
-        setWalletShortfall(Math.max(0, quote.amountDue - (balance ?? 0)));
-        setError("");
-        return;
-      }
-
       await handleUpgradeError(err, t("packages.paymentFailed"));
     } finally {
       inFlightRef.current = false;
@@ -243,9 +233,7 @@ export function useSubscriptionUpgrade({
 
   // Ánh xạ mã lỗi → hành vi UI (bảng §7 của FE-RESPONSE). Bốn mã về báo giá
   // quy về cùng một xử lý, chỉ khác câu thông báo.
-  // MỌI nhánh ở đây đều là LỖI nên đi vào `error`, không phải `notice`.
-  // `notice` chỉ dành cho tin tốt (ví trừ xong) — đẩy lỗi vào đó thì trang hiện
-  // toast dấu tích xanh cho một thông báo hỏng việc.
+  // Mọi nhánh ở đây đều là lỗi nên đi vào `error`.
   async function handleUpgradeError(err: unknown, fallback: string) {
     const code = errorCodeOf(err);
     const localized = t(`packages.upgradeError.${code}`, {
@@ -256,6 +244,14 @@ export function useSubscriptionUpgrade({
     // (chỗ người dùng đang nhìn) thay vì một toast dễ trôi qua
     if (staleQuoteCodes.has(code)) {
       discardQuote();
+      await onSubscriptionChanged();
+      setError(localized);
+      return;
+    }
+
+    // BE hiện không trả attempt INITIATED trong GET subscription. Giữ modal
+    // và lỗi tại chỗ để người dùng không chỉ thấy một toast rồi mất ngữ cảnh.
+    if (code === "SUBSCRIPTION_UPGRADE_ALREADY_ACTIVE") {
       await onSubscriptionChanged();
       setError(localized);
       return;
@@ -286,27 +282,24 @@ export function useSubscriptionUpgrade({
     step,
     selectedPlan,
     billingPeriod,
-    paymentMethod,
     quote,
+    quoteTargetPlanName,
     isQuoting,
     isPaying,
-    walletBalance,
-    walletShortfall,
     error,
-    notice,
     // Nâng cấp giữa chu kỳ: kỳ bị khoá theo subscription hiện tại
     isBillingPeriodLocked: lockedBillingPeriod !== null,
     open,
     close,
+    reopenQuote,
+    restoreSavedQuotePlan,
     setBillingPeriod,
-    setPaymentMethod,
     discardQuote,
     expireQuote,
     requestQuote,
     confirmPayment,
     clearFeedback: () => {
       setError("");
-      setNotice("");
     },
   };
 }

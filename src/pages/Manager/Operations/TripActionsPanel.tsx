@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import {
   FiAlertTriangle,
   FiChevronDown,
+  FiClock,
   FiEdit3,
   FiGitBranch,
   FiRefreshCw,
@@ -1074,27 +1075,54 @@ export default function TripActionsPanel({
       </div>
 
       {capacity && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <CapacityMetric
-            label={t("tripOperations.maxWeight")}
-            value={`${capacity.maxCargoWeightKg.toLocaleString("vi-VN")} kg`}
-          />
-          <CapacityMetric
-            label={t("tripOperations.reservedWeight")}
-            value={`${(
-              capacity.reservedCargoWeightKg ??
-              capacity.reservedWeightKg ??
-              0
-            ).toLocaleString("vi-VN")} kg`}
-          />
-          <CapacityMetric
-            label={t("tripOperations.loadedWeight")}
-            value={`${(capacity.loadedWeightKg ?? 0).toLocaleString("vi-VN")} kg`}
-          />
-          <CapacityMetric
-            label={t("tripOperations.percentFull")}
-            value={`${(capacity.percentFull ?? 0).toLocaleString("vi-VN")}%`}
-          />
+        <div className="mt-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CapacityMetric
+              label={t("tripOperations.maxWeight")}
+              value={`${capacity.maxCargoWeightKg.toLocaleString("vi-VN")} kg`}
+            />
+            <CapacityMetric
+              label={t("tripOperations.reservedWeight")}
+              value={`${(
+                capacity.reservedCargoWeightKg ??
+                capacity.reservedWeightKg ??
+                0
+              ).toLocaleString("vi-VN")} kg`}
+            />
+            <CapacityMetric
+              label={t("tripOperations.loadedWeight")}
+              value={`${(capacity.loadedWeightKg ?? 0).toLocaleString("vi-VN")} kg`}
+            />
+            <CapacityMetric
+              label={t("tripOperations.percentFull")}
+              value={`${(capacity.percentFull ?? 0).toLocaleString("vi-VN")}%`}
+            />
+          </div>
+
+          {(capacity.historicalLoadedWeightKg != null ||
+            capacity.historicalLoadedVolumeM3 != null) && (
+            <div className="mt-3 flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="rounded-lg bg-white p-2 text-sky-700 shadow-sm">
+                  <FiClock aria-hidden="true" size={18} />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-sky-950">
+                    {t("tripOperations.historicalLoadedCargo")}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-5 text-sky-800">
+                    {t("tripOperations.historicalLoadedCargoHint")}
+                  </p>
+                </div>
+              </div>
+              <p className="shrink-0 text-lg font-bold tabular-nums text-sky-950">
+                {formatCargoPair(
+                  capacity.historicalLoadedWeightKg,
+                  capacity.historicalLoadedVolumeM3,
+                )}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1764,4 +1792,15 @@ function CapacityMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-lg font-bold text-gray-900">{value}</p>
     </div>
   );
+}
+
+function formatCargoPair(weightKg?: number, volumeM3?: number) {
+  const numberFormatter = new Intl.NumberFormat("vi-VN", {
+    maximumFractionDigits: 2,
+  });
+  const weight =
+    weightKg == null ? "-" : `${numberFormatter.format(weightKg)} kg`;
+  const volume =
+    volumeM3 == null ? "-" : `${numberFormatter.format(volumeM3)} m³`;
+  return `${weight} · ${volume}`;
 }

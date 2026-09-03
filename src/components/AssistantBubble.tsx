@@ -245,13 +245,13 @@ export default function AssistantBubble() {
       className="fixed z-50 h-14 w-14"
       style={{ left: position.x, top: position.y }}
     >
-      {open && (
-        <div
-          role="dialog"
-          aria-label={t("assistant.title")}
-          className="assistant-panel-in fixed w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-gray-900/20"
-          style={getPanelPosition()}
-        >
+      <div
+        role="dialog"
+        aria-label={t("assistant.title")}
+        hidden={!open}
+        className="assistant-panel-in fixed w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-gray-900/20"
+        style={getPanelPosition()}
+      >
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-vr-50 to-white px-4 py-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-vr-100 text-vr-900">
@@ -279,8 +279,7 @@ export default function AssistantBubble() {
               <RagAssistant embedded />
             </div>
           </div>
-        </div>
-      )}
+      </div>
       <button
         type="button"
         onPointerDown={handlePointerDown}

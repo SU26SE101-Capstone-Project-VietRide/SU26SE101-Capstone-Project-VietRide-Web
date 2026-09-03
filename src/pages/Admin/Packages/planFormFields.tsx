@@ -60,11 +60,14 @@ export function CurrencyField({
   return (
     <div>
       <label className={labelClass}>{label}</label>
-      <CurrencyInput
-        className={inputClass}
-        value={value}
-        onChange={(event) => onChange(toNumber(event.target.value))}
-      />
+      <div className="relative">
+        <CurrencyInput
+          className={`${inputClass} pr-10`}
+          value={value}
+          onChange={(event) => onChange(toNumber(event.target.value))}
+        />
+        <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-slate-500">đ</span>
+      </div>
     </div>
   );
 }

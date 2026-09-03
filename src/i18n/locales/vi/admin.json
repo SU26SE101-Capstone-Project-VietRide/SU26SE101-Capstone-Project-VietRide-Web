@@ -1049,6 +1049,8 @@
     "filterStatus": "Lọc theo trạng thái",
     "filteredEmpty": "Không có yêu cầu nào ở trạng thái này.",
     "loadFailed": "Không tải được danh sách yêu cầu.",
+    "openingRequest": "Đang mở chi tiết yêu cầu từ thông báo...",
+    "openRequestFailed": "Không thể mở yêu cầu từ thông báo.",
     "operatorColumn": "Nhà xe",
     "sentAtColumn": "Gửi lúc",
     "sentAtInline": "Gửi {{value}}",

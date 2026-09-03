@@ -15,12 +15,16 @@ import {
 import Modal from "../../../components/Modal";
 import InlineAlert from "../../../components/InlineAlert";
 import { Button } from "../../../components/ui/Button";
-import { inputClass, labelClass } from "../../../components/form/formClasses";
+import {
+  inputClass,
+  labelClass,
+  textareaClass,
+} from "../../../components/form/formClasses";
 import { formatCurrency } from "../../../utils/currency";
 import {
   claimErrorTranslationKey,
   parseClaimDecision,
-  previewClaimCargoAward,
+  previewClaimAward,
   type ClaimDecisionDraft,
 } from "./claimHelpers";
 
@@ -33,6 +37,7 @@ type ClaimDecisionModalProps = {
 
 const emptyDraft: ClaimDecisionDraft = {
   decision: "APPROVE",
+  proofMode: "",
   provenDirectLossVnd: "",
   reason: "",
 };
@@ -64,12 +69,16 @@ export default function ClaimDecisionModal({
 
   const lossText = draft.provenDirectLossVnd.trim();
   const preview =
-    draft.decision === "APPROVE" && /^\d+$/.test(lossText)
-      ? previewClaimCargoAward(
-          Number(lossText),
+    draft.decision === "APPROVE"
+      ? previewClaimAward(
+          draft.proofMode,
+          /^\d+$/.test(lossText) ? Number(lossText) : null,
           claim.declaredValueVnd,
+          claim.freightCollectedVnd,
+          claim.alreadyRefundedVnd,
           claim.compensationRatePercent,
           claim.policyCapVnd,
+          claim.policySnapshot?.noProofFallbackMultiplier,
         )
       : null;
 
@@ -187,34 +196,82 @@ export default function ClaimDecisionModal({
         </fieldset>
 
         {draft.decision === "APPROVE" ? (
-          <div>
-            <label className={labelClass} htmlFor="claim-proven-loss">
-              {t("claims.provenLossLabel")}
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="claim-proven-loss"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                value={draft.provenDirectLossVnd}
-                onChange={(event) => {
-                  setError("");
-                  setDraft((prev) => ({
-                    ...prev,
-                    provenDirectLossVnd: event.target.value,
-                  }));
-                }}
-                className={inputClass}
-              />
-              <span className="shrink-0 text-sm text-gray-500">đ</span>
-            </div>
-            <p className="mt-1 text-xs text-gray-600">
-              {t("claims.provenLossHint", {
-                multiplier: claim.policySnapshot?.noProofFallbackMultiplier ?? "—",
-              })}
-            </p>
+          <div className="space-y-3">
+            <fieldset>
+              <legend className={labelClass}>{t("claims.proofLabel")}</legend>
+              <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                {(["WITH_PROOF", "WITHOUT_PROOF"] as const).map((value) => (
+                  <label
+                    key={value}
+                    className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${
+                      draft.proofMode === value
+                        ? "border-vr-300 bg-vr-50"
+                        : "border-gray-200 bg-white"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="claim-proof-mode"
+                      value={value}
+                      checked={draft.proofMode === value}
+                      onChange={() => {
+                        setError("");
+                        setDraft((prev) => ({
+                          ...prev,
+                          proofMode: value,
+                          provenDirectLossVnd:
+                            value === "WITHOUT_PROOF"
+                              ? ""
+                              : prev.provenDirectLossVnd,
+                        }));
+                      }}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="block font-semibold text-gray-900">
+                        {t(`claims.proof.${value}`)}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-gray-600">
+                        {t(`claims.proofHint.${value}`, {
+                          multiplier:
+                            claim.policySnapshot?.noProofFallbackMultiplier ?? "—",
+                        })}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {draft.proofMode === "WITH_PROOF" ? (
+              <div>
+                <label className={labelClass} htmlFor="claim-proven-loss">
+                  {t("claims.provenLossLabel")}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="claim-proven-loss"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={draft.provenDirectLossVnd}
+                    onChange={(event) => {
+                      setError("");
+                      setDraft((prev) => ({
+                        ...prev,
+                        provenDirectLossVnd: event.target.value,
+                      }));
+                    }}
+                    className={inputClass}
+                  />
+                  <span className="shrink-0 text-sm text-gray-500">đ</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-600">
+                  {t("claims.provenLossHint")}
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -225,12 +282,23 @@ export default function ClaimDecisionModal({
               {t("claims.previewTitle")}
             </p>
             <ul className="mt-2 space-y-1 text-sm leading-6 text-gray-700">
-              <li>
-                {t("claims.previewAssessed", {
-                  amount: formatCurrency(preview.assessedLossVnd),
-                  rate: claim.compensationRatePercent,
-                })}
-              </li>
+              {preview.proofMode === "WITH_PROOF" ? (
+                <li>
+                  {t("claims.previewAssessed", {
+                    amount: formatCurrency(preview.assessedLossVnd),
+                    rate: claim.compensationRatePercent,
+                  })}
+                </li>
+              ) : (
+                <li>
+                  {t("claims.previewNoProofFormula", {
+                    freight: formatCurrency(preview.freightCollectedVnd),
+                    multiplier:
+                      claim.policySnapshot?.noProofFallbackMultiplier ?? "—",
+                    amount: formatCurrency(preview.cargoAwardVnd),
+                  })}
+                </li>
+              )}
               <li className="font-semibold text-gray-900">
                 {t("claims.previewCargoAward", {
                   amount: formatCurrency(preview.cargoAwardVnd),
@@ -243,11 +311,24 @@ export default function ClaimDecisionModal({
                   })}
                 </li>
               ) : null}
+              <li>
+                {t("claims.previewFreightFormula", {
+                  freight: formatCurrency(preview.freightCollectedVnd),
+                  refunded: formatCurrency(preview.alreadyRefundedVnd),
+                  amount: formatCurrency(preview.freightRefundVnd),
+                })}
+              </li>
+              <li className="font-semibold text-vr-900">
+                {t("claims.previewTotal", {
+                  amount: formatCurrency(preview.totalAwardVnd),
+                })}
+              </li>
             </ul>
-            <p className="mt-2 text-xs text-gray-600">
-              {t("claims.previewFreightNote")}
-            </p>
           </div>
+        ) : draft.decision === "APPROVE" && draft.proofMode ? (
+          <InlineAlert tone="warning">
+            <p>{t("claims.previewUnavailable")}</p>
+          </InlineAlert>
         ) : null}
 
         <div>
@@ -264,7 +345,7 @@ export default function ClaimDecisionModal({
               setDraft((prev) => ({ ...prev, reason: event.target.value }));
             }}
             placeholder={t("claims.reasonPlaceholder")}
-            className={inputClass}
+            className={textareaClass}
           />
         </div>
 

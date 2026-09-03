@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   getOperatorFleetLatest,
+  getOperatorIncidents,
   getOperatorRouteChangeProposals,
   getOperatorShuttleContext,
   getOperatorShuttleTrips,
@@ -404,7 +405,11 @@ export default function OperationsPage() {
       // Chuyến DISRUPTED phải tải riêng vì cả hai endpoint chỉ nhận một status:
       // trước đây màn chỉ hỏi IN_PROGRESS nên một chuyến chuyển sang sự cố là
       // lặng lẽ biến mất khỏi bản đồ, đúng lúc điều độ viên cần thấy nó nhất.
-      // Nhánh sự cố không được phép chặn nhánh chính: lỗi thì coi như rỗng.
+      // Tuy nhiên DISRUPTED là trạng thái kết thúc của chuyến và không được
+      // đổi lại khi báo cáo sự cố đã RESOLVED. Trung tâm vận hành chỉ giữ
+      // chuyến DISRUPTED còn sự cố OPEN; lịch sử đã xử lý nằm ở màn Sự cố.
+      // Hai nhánh bổ sung không được phép chặn nhánh chính: lỗi GPS
+      // coi như rỗng; lỗi danh sách sự cố thì fail-open để không che cảnh báo thật.
       // `include=shuttle` chỉ ghép được xe trung chuyển vào nhánh IN_PROGRESS —
       // BE bỏ qua Shuttle khi status khác. Danh sách chuyến trung chuyển tải
       // riêng để lấy biển số/tài xế/chiều chạy: fleet-latest chỉ có GPS + id.
@@ -415,6 +420,7 @@ export default function OperationsPage() {
         disruptedTrips,
         disruptedFleet,
         shuttleTripItems,
+        openIncidents,
       ] = await Promise.all([
         fetchAllPages(({ page, pageSize }) =>
           getOperatorTrips({ status: "IN_PROGRESS", page, pageSize }),
@@ -427,9 +433,29 @@ export default function OperationsPage() {
         fetchAllPages(({ page, pageSize }) =>
           getOperatorShuttleTrips({ page, pageSize }),
         ).catch(() => [] as OperatorShuttleTripListItem[]),
+        fetchAllPages(({ page, pageSize }) =>
+          getOperatorIncidents({ status: "OPEN", page, pageSize }),
+        ).catch(() => null),
       ]);
+      // Lọc phòng thủ theo status thực trong payload: nếu read model BE trễ
+      // hơn query filter thì chuyến COMPLETED/CANCELLED cũng không bị giữ trên map.
+      const activeTrips = tripItems.filter(
+        (trip) => trip.status === "IN_PROGRESS",
+      );
+      const openIncidentTripIds = openIncidents
+        ? new Set(
+            openIncidents
+              .filter((incident) => incident.status === "OPEN")
+              .map((incident) => incident.trip.tripId),
+          )
+        : null;
+      const activeDisruptedTrips = disruptedTrips.filter(
+        (trip) =>
+          trip.status === "DISRUPTED" &&
+          (openIncidentTripIds === null || openIncidentTripIds.has(trip.tripId)),
+      );
       // Sự cố xếp trước để nổi lên đầu danh sách xe
-      const allTrips = mergeTripsById(disruptedTrips, tripItems);
+      const allTrips = mergeTripsById(activeDisruptedTrips, activeTrips);
       // Màn này chỉ theo dõi chuyến chính; xe trung chuyển nằm ở màn Điều phối
       // (và chỉ vào fleet khi opt-in `include=shuttle`).
       const nextVehicles = buildFleetVehicles(

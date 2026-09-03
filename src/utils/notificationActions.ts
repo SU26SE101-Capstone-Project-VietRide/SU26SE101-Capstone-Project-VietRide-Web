@@ -39,6 +39,12 @@ const SUBSTITUTION_NOTIFICATION_TYPES = new Set([
   "BOOKING_TRANSFER_ESCALATED",
 ]);
 
+const CUSTOM_REQUEST_NOTIFICATION_TYPES = new Set([
+  "SUBSCRIPTION_CUSTOM_REQUEST_SUBMITTED",
+  "SUBSCRIPTION_CUSTOM_REQUEST_APPROVED",
+  "SUBSCRIPTION_CUSTOM_REQUEST_REJECTED",
+]);
+
 export function getNotificationActionPath(
   notification: NotificationItem,
   isAdmin: boolean,
@@ -63,6 +69,11 @@ export function getNotificationActionPath(
       return isAdmin ? "/admin/wallet-settlement" : "/manager/wallet";
     case "OPEN_SUBSCRIPTION":
       return isAdmin ? "/admin/packages" : "/manager/packages";
+    case "OPEN_ADMIN_SUBSCRIPTION_CUSTOM_REQUEST":
+      return withQuery("/admin/packages", {
+        tab: "requests",
+        requestId: action.params.requestId,
+      });
     case "OPEN_INVOICE":
       return isAdmin
         ? withQuery("/admin/wallet-settlement", { invoiceId: action.params.invoiceId })
@@ -141,12 +152,19 @@ function redirectIncidentToIncidentsPage(
 function resolveDeclaredAction(
   notification: NotificationItem,
 ): NotificationAction {
-  const directAction = parseNotificationAction(notification.action);
-  if (directAction && directAction.type !== "NONE") return directAction;
+  // Có action khai báo mà FE chưa hiểu (hoặc params không hợp lệ) thì
+  // hiển thị item nhưng KHÔNG suy luận sang màn khác từ type/body.
+  if (notification.action != null) {
+    return parseNotificationAction(notification.action) ?? {
+      type: "NONE",
+      params: {},
+    };
+  }
 
   const data = parseUnknownRecord(notification.data);
-  const nestedAction = parseNotificationAction(data?.action);
-  if (nestedAction && nestedAction.type !== "NONE") return nestedAction;
+  if (data?.action != null) {
+    return parseNotificationAction(data.action) ?? { type: "NONE", params: {} };
+  }
 
   const actionType =
     notification.actionType ?? readString(data, "actionType");
@@ -157,7 +175,20 @@ function resolveDeclaredAction(
     type: actionType,
     params: actionParams ?? {},
   });
-  if (fcmAction && fcmAction.type !== "NONE") return fcmAction;
+  if (actionType) {
+    return fcmAction ?? { type: "NONE", params: {} };
+  }
+
+  // Ba type này được BE cam kết có action Web. Thiếu action là payload
+  // không hợp lệ; không dùng nhánh legacy theo chuỗi "SUBSCRIPTION".
+  const notificationType = (
+    notification.notificationType ??
+    readString(data, "notificationType") ??
+    notification.type
+  ).toUpperCase();
+  if (CUSTOM_REQUEST_NOTIFICATION_TYPES.has(notificationType)) {
+    return { type: "NONE", params: {} };
+  }
 
   return inferLegacyAction(notification, data);
 }
@@ -212,6 +243,10 @@ export function parseNotificationAction(
     case "OPEN_INVOICE": {
       const invoiceId = readString(params, "invoiceId");
       return invoiceId ? { type, params: { invoiceId } } : null;
+    }
+    case "OPEN_ADMIN_SUBSCRIPTION_CUSTOM_REQUEST": {
+      const requestId = readString(params, "requestId");
+      return requestId ? { type, params: { requestId } } : null;
     }
     case "OPEN_INCIDENT": {
       const tripId = readString(params, "tripId");

@@ -197,6 +197,119 @@ describe("Manager parcel incidents", () => {
     expect(screen.getByText("parcelIncidents.trackingGap")).toBeInTheDocument();
   });
 
+  it("đặt cảnh báo khiếu nại ở cột trạng thái mà không đẩy lệch nút chi tiết", async () => {
+    vi.mocked(getOperatorParcelIncidents).mockResolvedValue({
+      items: [
+        {
+          ...incident,
+          claimSummary: {
+            claimId: "claim-1",
+            status: "SUBMITTED",
+            totalAwardVnd: 0,
+          },
+        },
+      ],
+      page: 1,
+      pageSize: 20,
+      totalItems: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    render(<ParcelIncidentsPage />);
+
+    const claimBadge = await screen.findByText("parcelIncidents.hasClaim");
+    const detailsButton = screen.getByRole("button", { name: "details" });
+
+    expect(claimBadge.closest("td")).not.toBe(detailsButton.closest("td"));
+    expect(
+      within(detailsButton.closest("td") as HTMLElement).queryByText(
+        "parcelIncidents.hasClaim",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("không hiện nút xem lịch sử cũ hơn khi API báo đã hết dữ liệu", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getOperatorParcelIncident).mockResolvedValue({
+      ...detail,
+      custodyTimeline: {
+        ...detail.custodyTimeline,
+        nextCursor: null,
+      },
+    });
+
+    render(<ParcelIncidentsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "details" }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "parcelIncidents.loadOlderHistory",
+      }),
+    ).not.toBeInTheDocument();
+    expect(getOperatorParcelIncident).toHaveBeenCalledTimes(1);
+  });
+
+  it("thêm sự kiện cũ vào timeline khi API còn trang tiếp theo", async () => {
+    const user = userEvent.setup();
+    const olderEvent = {
+      eventId: "event-8",
+      eventType: "OLDER_EVENT",
+      actorRole: "ASSISTANT",
+      occurredAt: "2026-08-21T09:30:00+07:00",
+      recordedAt: "2026-08-21T09:30:05+07:00",
+      source: "ASSISTANT_APP",
+      evidenceReferences: [],
+      sequence: 8,
+    };
+    const initialDetail = {
+      ...detail,
+      custodyTimeline: {
+        ...detail.custodyTimeline,
+        nextCursor: 9,
+      },
+    };
+    const olderDetail = {
+      ...detail,
+      custodyTimeline: {
+        items: [olderEvent],
+        nextCursor: null,
+      },
+    };
+    vi.mocked(getOperatorParcelIncident).mockImplementation(
+      async (_incidentId, params) =>
+        params?.beforeSequence ? olderDetail : initialDetail,
+    );
+
+    render(<ParcelIncidentsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "details" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "parcelIncidents.loadOlderHistory",
+      }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        "parcelIncidents.custodyEvents.OLDER_EVENT",
+      ),
+    ).toBeInTheDocument();
+    expect(getOperatorParcelIncident).toHaveBeenLastCalledWith(
+      incident.incidentId,
+      { beforeSequence: 9, limit: 50 },
+    );
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "parcelIncidents.loadOlderHistory",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("chỉ hiện nút theo availableActions của backend", async () => {
     const user = userEvent.setup();
     render(<ParcelIncidentsPage />);

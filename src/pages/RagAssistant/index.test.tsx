@@ -45,6 +45,7 @@ function mockAnswer(answer: string, citedChunkIds: string[] = ["chunk-1"]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   authMock.mockReturnValue({
     id: "user-1",
     email: "staff@vietride.vn",
@@ -157,6 +158,42 @@ describe("RagAssistant", () => {
     expect(
       screen.getByRole("button", { name: "assistant.starterVoucher" }),
     ).toBeTruthy();
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem("vietride.rag-assistant.session.user-1"),
+      ).toBeNull();
+    });
+  });
+
+  it("khôi phục lịch sử và conversationId sau khi component được mở lại", async () => {
+    const user = userEvent.setup();
+    mockAnswer("Câu trả lời đã lưu");
+
+    const firstView = render(<RagAssistant embedded />);
+    await user.type(screen.getByRole("textbox"), "Câu hỏi cần lưu");
+    await user.click(screen.getByRole("button", { name: "send" }));
+
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem("vietride.rag-assistant.session.user-1"),
+      ).toContain("Câu trả lời đã lưu");
+    });
+    firstView.unmount();
+
+    render(<RagAssistant embedded />);
+    expect(screen.getByText("Câu hỏi cần lưu")).toBeTruthy();
+    expect(screen.getByText(/Câu trả lời đã lưu/)).toBeTruthy();
+
+    await user.type(screen.getByRole("textbox"), "Câu hỏi tiếp theo");
+    await user.click(screen.getByRole("button", { name: "send" }));
+
+    await waitFor(() => {
+      expect(streamMock).toHaveBeenCalledTimes(2);
+    });
+    expect(streamMock.mock.calls[1][0]).toMatchObject({
+      message: "Câu hỏi tiếp theo",
+      conversationId: "conversation-1",
+    });
   });
 
   it("bản nhúng trong bong bóng không hiện tiêu đề trang", () => {

@@ -151,6 +151,70 @@ describe("OPEN_SHUTTLE_TRACKING", () => {
   });
 });
 
+describe("custom plan request notifications", () => {
+  it("opens the exact admin request from the declared requestId", () => {
+    const item = notification({
+      type: "SUBSCRIPTION_CUSTOM_REQUEST_SUBMITTED",
+      action: {
+        type: "OPEN_ADMIN_SUBSCRIPTION_CUSTOM_REQUEST",
+        params: { requestId: "request / 1" },
+      },
+    });
+
+    expect(resolveNotificationAction(item)).toEqual({
+      type: "OPEN_ADMIN_SUBSCRIPTION_CUSTOM_REQUEST",
+      params: { requestId: "request / 1" },
+    });
+    expect(getNotificationActionPath(item, true)).toBe(
+      "/admin/packages?tab=requests&requestId=request+%2F+1",
+    );
+  });
+
+  it("reuses the operator subscription screen for approved and rejected", () => {
+    for (const type of [
+      "SUBSCRIPTION_CUSTOM_REQUEST_APPROVED",
+      "SUBSCRIPTION_CUSTOM_REQUEST_REJECTED",
+    ]) {
+      expect(
+        getNotificationActionPath(
+          notification({
+            type,
+            action: { type: "OPEN_SUBSCRIPTION", params: {} },
+          }),
+          false,
+        ),
+      ).toBe("/manager/packages");
+    }
+  });
+
+  it("does not infer a destination when the contract action is missing", () => {
+    expect(
+      resolveNotificationAction(
+        notification({
+          type: "SUBSCRIPTION_CUSTOM_REQUEST_SUBMITTED",
+          action: undefined,
+        }),
+      ),
+    ).toEqual({ type: "NONE", params: {} });
+  });
+
+  it("ignores unsupported declared actions instead of guessing from type", () => {
+    const item = notification({
+      type: "SUBSCRIPTION_CUSTOM_REQUEST_APPROVED",
+      action: {
+        type: "OPEN_SOMETHING_NEW",
+        params: {},
+      } as unknown as NotificationItem["action"],
+    });
+
+    expect(resolveNotificationAction(item)).toEqual({
+      type: "NONE",
+      params: {},
+    });
+    expect(getNotificationActionPath(item, false)).toBeNull();
+  });
+});
+
 /**
  * Hai loại thông báo mới của luồng thay xe (handoff Vehicle Substitution B1-B7
  * mục 4). Cả hai đều phải mở Trung tâm vận hành: đó là nơi duy nhất xử lý được

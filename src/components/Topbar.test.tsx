@@ -286,6 +286,12 @@ describe("Topbar dropdowns", () => {
       await Promise.resolve();
     });
 
+    // Badge tăng ngay từ realtime và replay cùng id không được cộng lần hai,
+    // kể cả REST đang treo.
+    expect(
+      screen.getByRole("button", { name: "notifications" }),
+    ).toHaveTextContent("1");
+
     await user.click(screen.getByRole("button", { name: "notifications" }));
 
     expect(screen.getAllByText("Realtime booking")).toHaveLength(1);

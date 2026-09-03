@@ -23,6 +23,7 @@ import {
   type SubscriptionBillingPeriod,
   type SubscriptionPlan,
 } from "../../../api/vietride";
+import { ApiRequestError } from "../../../api/client";
 import {
   findPlanUsageShortfalls,
   findUsagePressure,
@@ -34,6 +35,7 @@ import {
   formatNumber,
   formatRemainingPaymentTime,
   getRemainingPaymentSeconds,
+  getRemainingSecondsUntil,
   hasUnexpectedSubscriptionPeriod,
   isPayablePlan,
   normalizePendingPaymentDeadline,
@@ -174,6 +176,10 @@ export default function ManagerPackages() {
     onSubscriptionChanged: loadSubscriptionData,
     t,
   });
+  const savedQuoteRemainingSeconds = getRemainingSecondsUntil(
+    upgrade.quote?.dueAt,
+    clockMs,
+  );
   const customRequests = useOperatorCustomPlanRequests(t);
   // Hạn mức của gói ĐANG DÙNG mà nhà xe sắp/đã chạm — báo trước thay vì để họ
   // phát hiện lúc thao tác bị chặn giữa chừng (handoff §1 mục 1)
@@ -188,6 +194,11 @@ export default function ManagerPackages() {
     void loadCustomRequests();
   }, [loadCustomRequests]);
 
+  const { restoreSavedQuotePlan } = upgrade;
+  useEffect(() => {
+    restoreSavedQuotePlan(plans);
+  }, [plans, restoreSavedQuotePlan]);
+
   // Gói riêng vừa được duyệt — tra từ plan list theo approvedPlanId. Không thấy
   // nghĩa là admin đã ngừng bán nó, lúc đó chỉ hiện trạng thái chứ không mời mua.
   const approvedCustomPlan =
@@ -198,6 +209,12 @@ export default function ManagerPackages() {
             plan.isActive,
         ) ?? null)
       : null;
+  const approvedCustomPlanUpgradeDisabled = Boolean(
+    approvedCustomPlan &&
+      lockedBillingPeriod !== null &&
+      currentPlan &&
+      !producesPayableUpgrade(currentPlan, approvedCustomPlan, lockedBillingPeriod),
+  );
 
   useEffect(() => {
     let isCurrent = true;
@@ -275,11 +292,11 @@ export default function ManagerPackages() {
   }, [hasPendingPayment, syncSubscription]);
 
   useEffect(() => {
-    if (!pendingUpgrade) return;
+    if (!pendingUpgrade && !upgrade.quote) return;
 
     const timer = window.setInterval(() => setClockMs(Date.now()), 1_000);
     return () => window.clearInterval(timer);
-  }, [pendingUpgrade]);
+  }, [pendingUpgrade, upgrade.quote]);
 
   useEffect(() => {
     const hasVnPayParams = Array.from(
@@ -300,6 +317,15 @@ export default function ManagerPackages() {
 
     if (!isPayablePlan(plan)) {
       setError(t("packages.planNotPayable"));
+      return;
+    }
+
+    if (
+      lockedBillingPeriod !== null &&
+      currentPlan &&
+      !producesPayableUpgrade(currentPlan, plan, lockedBillingPeriod)
+    ) {
+      setError(t("packages.notAnUpgradeHint"));
       return;
     }
 
@@ -353,6 +379,13 @@ export default function ManagerPackages() {
       const fallbackError =
         err instanceof Error ? err.message : t("packages.retryPaymentFailed");
 
+      // Có response từ server thì request đã kết thúc: lần bấm tiếp theo là
+      // action mới và phải dùng key mới. Chỉ lỗi mạng (không có response) mới
+      // giữ lại key để retry đúng request chưa rõ kết quả.
+      if (err instanceof ApiRequestError) {
+        retryIntentRef.current = null;
+      }
+
       try {
         const refreshedSubscription = await loadSubscriptionData();
         const refreshedAttemptId =
@@ -370,10 +403,10 @@ export default function ManagerPackages() {
     }
   }
 
-  // Thông báo/lỗi của luồng nâng cấp nổi lên cùng kênh toast của trang; riêng
-  // lỗi có ngữ cảnh (402 ví thiếu tiền, lỗi báo giá) modal tự hiện tại chỗ.
+  // Lỗi nâng cấp hiện trong modal khi modal còn mở; nếu modal đã đóng thì nổi
+  // lên cùng kênh toast của trang.
   useToastFeedback({
-    message: upgrade.notice || customRequests.notice || message,
+    message: customRequests.notice || message,
     error: error || customRequests.error || (upgrade.isOpen ? "" : upgrade.error),
   });
   return (
@@ -384,6 +417,46 @@ export default function ManagerPackages() {
         </h1>
         <p className="mt-1 text-gray-600">{t("packages.subtitle")}</p>
       </div>
+
+      {upgrade.quote && !upgrade.isOpen && !pendingUpgrade ? (
+        <div
+          role="alert"
+          data-testid="saved-upgrade-quote"
+          className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 shadow-sm"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-amber-700 ring-1 ring-amber-200">
+                <FiClock />
+              </span>
+              <div className="min-w-0">
+                <p className="font-bold">{t("packages.savedQuoteTitle")}</p>
+                <p className="mt-1 text-sm text-amber-800">
+                  {t("packages.savedQuoteHint", {
+                    name: upgrade.quoteTargetPlanName || "-",
+                  })}
+                </p>
+                <p className="mt-2 text-sm font-semibold tabular-nums">
+                  {formatNumber(upgrade.quote.amountDue)} đ ·{" "}
+                  {t("packages.remainingPaymentTime")}: {" "}
+                  {formatRemainingPaymentTime(savedQuoteRemainingSeconds)}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="resume-saved-upgrade-quote"
+              onClick={upgrade.reopenQuote}
+              disabled={
+                !upgrade.selectedPlan || savedQuoteRemainingSeconds <= 0
+              }
+              className="inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("packages.resumeSavedQuote")}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
 
       {isLoading ? (
@@ -704,7 +777,9 @@ export default function ManagerPackages() {
               plan={plan}
               billingPeriod={billingPeriod}
               purchaseDisabled={
-                !canPurchasePackage || Boolean(subscription?.pendingUpgrade)
+                !canPurchasePackage ||
+                Boolean(subscription?.pendingUpgrade) ||
+                Boolean(upgrade.quote)
               }
               usageShortfalls={
                 subscription
@@ -728,6 +803,7 @@ export default function ManagerPackages() {
         <CustomRequestSection
           queue={customRequests}
           approvedPlan={approvedCustomPlan}
+          upgradeDisabled={approvedCustomPlanUpgradeDisabled}
           // Đang có yêu cầu chờ duyệt thì không cho gửi thêm (BE chỉ nhận một)
           canRequest={canPurchasePackage && !customRequests.pendingRequest}
           onOpenForm={() => setCustomRequestOpen(true)}

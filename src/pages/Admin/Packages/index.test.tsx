@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   approveAdminCustomPlanRequest,
   createAdminSubscriptionPlan,
+  getAdminCustomPlanRequest,
   getAdminCustomPlanRequests,
   getAdminSubscriptionPlans,
   rejectAdminCustomPlanRequest,
@@ -11,6 +12,7 @@ import {
   type AdminCustomPlanRequest,
   type SubscriptionPlan,
 } from "../../../api/vietride";
+import { MemoryRouter } from "react-router-dom";
 import { ApiRequestError } from "../../../api/client";
 import Packages from "./index";
 import { useToastFeedback } from "../../../hooks/useToastFeedback";
@@ -34,6 +36,7 @@ vi.mock("../../../api/vietride", () => ({
   createAdminSubscriptionPlan: vi.fn(),
   getAdminSubscriptionPlans: vi.fn(),
   updateAdminSubscriptionPlan: vi.fn(),
+  getAdminCustomPlanRequest: vi.fn(),
   getAdminCustomPlanRequests: vi.fn(),
   approveAdminCustomPlanRequest: vi.fn(),
   rejectAdminCustomPlanRequest: vi.fn(),
@@ -88,6 +91,9 @@ describe("Admin Service Packages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getAdminCustomPlanRequests).mockResolvedValue([]);
+    vi.mocked(getAdminCustomPlanRequest).mockRejectedValue(
+      new Error("Request not found"),
+    );
     vi.mocked(getAdminSubscriptionPlans).mockResolvedValue([]);
   });
 
@@ -301,6 +307,52 @@ describe("Admin Service Packages", () => {
     );
     // Mã yêu cầu chỉ nằm trong chi tiết, kèm nút copy
     expect(screen.getByTestId("copy-request-id")).toBeInTheDocument();
+  });
+
+  it("opens the exact custom request from a notification deep-link", async () => {
+    vi.mocked(getAdminCustomPlanRequests).mockResolvedValue([pendingRequest]);
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/admin/packages?tab=requests&requestId=request-1",
+        ]}
+      >
+        <Packages />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByTestId("custom-request-row-request-1"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("admin-packages-tab-requests")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(await screen.findByTestId("detail-note")).toHaveTextContent(
+      "Cần gói riêng cho vận hành nhiều tuyến",
+    );
+  });
+
+  it("falls back to the detail endpoint when the request is absent from the queue", async () => {
+    vi.mocked(getAdminCustomPlanRequests).mockResolvedValue([]);
+    vi.mocked(getAdminCustomPlanRequest).mockResolvedValue(pendingRequest);
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/admin/packages?tab=requests&requestId=request-1",
+        ]}
+      >
+        <Packages />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("detail-note")).toHaveTextContent(
+      "Cần gói riêng cho vận hành nhiều tuyến",
+    );
+    expect(getAdminCustomPlanRequest).toHaveBeenCalledWith("request-1");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("hands the request over from detail to the approve form", async () => {

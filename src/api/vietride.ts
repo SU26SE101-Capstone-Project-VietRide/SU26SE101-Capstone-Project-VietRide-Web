@@ -44,6 +44,10 @@ export type NotificationAction =
   | { type: "OPEN_PARCEL_DETAIL"; params: { parcelId: string } }
   | { type: "OPEN_WALLET"; params: Record<string, never> }
   | { type: "OPEN_SUBSCRIPTION"; params: Record<string, never> }
+  | {
+      type: "OPEN_ADMIN_SUBSCRIPTION_CUSTOM_REQUEST";
+      params: { requestId: string };
+    }
   | { type: "OPEN_INVOICE"; params: { invoiceId: string } }
   | { type: "OPEN_OPERATOR_STATUS"; params: Record<string, never> }
   /**
@@ -65,12 +69,25 @@ export type NotificationAction =
   | { type: "OPEN_INCIDENT"; params: { tripId: string; incidentId?: string } }
   | { type: "NONE"; params: Record<string, never> };
 
+/**
+ * Ba type Web mới của vòng đời yêu cầu gói tùy chỉnh.
+ *
+ * Notification service còn nhiều type và có thể bổ sung tiếp, nên giữ
+ * nhánh `string & {}` để inbox vẫn hiển thị an toàn khi gặp type mới mà
+ * FE chưa biết.
+ */
+export type NotificationType =
+  | "SUBSCRIPTION_CUSTOM_REQUEST_SUBMITTED"
+  | "SUBSCRIPTION_CUSTOM_REQUEST_APPROVED"
+  | "SUBSCRIPTION_CUSTOM_REQUEST_REJECTED"
+  | (string & {});
+
 export type NotificationItem = {
   id: string;
   // REST inbox trả `userId`; payload realtime `notification:created` thì không
   // (room đã khoá theo user nên BE bỏ field này).
   userId?: string;
-  type: string;
+  type: NotificationType;
   title: string;
   body: string;
   data: unknown | null;
@@ -295,9 +312,8 @@ export type CreateOperatorUserRequest = {
 
 export type SubscriptionBillingPeriod = "MONTHLY" | "YEARLY";
 
-// WALLET = trừ thẳng ví nhà xe (200 = xong ngay, 402 = thiếu tiền);
-// VNPAY = tạo redirect và chờ IPN.
-export type SubscriptionPaymentMethod = "VNPAY" | "WALLET";
+// Backend chỉ hỗ trợ VNPay cho thanh toán gói của operator.
+export type SubscriptionPaymentMethod = "VNPAY";
 
 // STANDARD = gói bán cho mọi nhà xe. CUSTOM = gói riêng admin dựng theo yêu cầu
 // của MỘT nhà xe; plan list chỉ trả gói riêng thuộc nhà xe đang đăng nhập.
@@ -394,7 +410,7 @@ export type SubscriptionUpgradeRequest = {
 export type SubscriptionUpgradeQuoteRequest = {
   planId: string;
   billingPeriod: SubscriptionBillingPeriod;
-  // Nằm TRONG quote — đổi phương thức thanh toán bắt buộc phải quote lại
+  // Backend yêu cầu phương thức thanh toán nằm trong quote.
   paymentMethod: SubscriptionPaymentMethod;
 };
 
@@ -425,10 +441,8 @@ export type SubscriptionUpgradeQuote = {
   status: string;
 };
 
-// apiRequest chỉ trả phần `data`, không lộ HTTP status — nên FE phân biệt hai
-// nhánh kết quả bằng paymentRedirectUrl: CÓ url = VNPAY (202, phải chuyển
-// hướng); KHÔNG có = ví đã trừ xong (200, chỉ cần refresh subscription).
-// 402 WALLET_INSUFFICIENT_BALANCE ném ApiRequestError, chưa trừ tiền.
+// VNPay phải trả paymentRedirectUrl để FE chuyển người dùng sang cổng thanh
+// toán. Thiếu URL được xem là response không hợp lệ.
 export type SubscriptionUpgradePaymentResult = {
   upgradeAttemptId: string;
   status: string;
@@ -539,10 +553,11 @@ export type SubscriptionUpgradeResult = {
   pendingTargetPlan?: SubscriptionPlanReference;
 };
 
-// Trạng thái đọc-only của VNPay web return. Chỉ IPN mới đổi được trạng thái
-// thanh toán; endpoint này chỉ để FE hiển thị (handoff §2.2).
+// Trạng thái VNPay web return đã được Backend xác minh chữ ký.
+// Cancel code 24 có thể chuyển payment subscription từ PENDING_REDIRECT
+// sang FAILED ngay; kết quả thành công vẫn chỉ do IPN xác nhận.
 export type VnPayReturnStatus = {
-  vnPayTxnRef: string;
+  txnRef: string;
   paymentId: string;
   referenceType: string;
   referenceId: string;
@@ -4176,6 +4191,13 @@ export type CargoCapacity = {
   reservedVolumeM3?: number;
   loadedWeightKg?: number;
   loadedVolumeM3?: number;
+  /**
+   * Tổng lượng hàng đã từng được xếp lên chuyến. Hai field này là lịch sử nên
+   * vẫn giữ nguyên sau khi hàng được chuyển sang xe/chuyến thay thế hoặc dỡ ra.
+   * Không dùng chúng để suy ra available* hay percentFull của snapshot hiện tại.
+   */
+  historicalLoadedWeightKg?: number;
+  historicalLoadedVolumeM3?: number;
   maxCargoWeightKg: number;
   maxCargoVolumeM3?: number;
   availableWeightKg?: number;
@@ -4952,9 +4974,8 @@ export function createSubscriptionUpgradeQuote(
 
 // Bước 2: chốt thanh toán cho attempt đã báo giá. KHÔNG có request body.
 //
-// Mỗi lần bấm phải truyền một Idempotency-Key MỚI. Dùng lại key đã nhận
-// 402 WALLET_INSUFFICIENT_BALANCE sẽ được replay đúng response 402 cũ trong
-// 24 giờ — nạp tiền xong rồi confirm lại bằng key đó vẫn hỏng.
+// Mỗi lần bấm phải truyền một Idempotency-Key mới để không dùng lại một lần
+// xác nhận thanh toán đã thất bại.
 export function confirmSubscriptionUpgradePayment(
   upgradeAttemptId: string,
   idempotencyKey: string = createIdempotencyKey(),
@@ -8193,6 +8214,8 @@ export type ParcelClaim = {
   cargoAwardVnd: number;
   freightRefundVnd: number;
   totalAwardVnd: number;
+  freightCollectedVnd?: number | null;
+  alreadyRefundedVnd?: number | null;
   policyVersion: number;
   beneficiaryUserId: string;
   decisionReason?: string | null;

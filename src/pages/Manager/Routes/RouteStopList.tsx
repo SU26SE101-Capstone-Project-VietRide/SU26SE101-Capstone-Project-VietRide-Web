@@ -47,7 +47,10 @@ export default function RouteStopList({
               onClick={() => onSelectStop?.(item.stopId)}
               className="min-w-0 flex-1 text-left"
             >
-              <p className="truncate font-semibold text-gray-900">
+              <p
+                className="truncate font-semibold text-gray-900"
+                title={"#" + item.orderIndex + " · " + item.stopName}
+              >
                 #{item.orderIndex} · {item.stopName}
               </p>
               <p className="text-xs text-gray-500">

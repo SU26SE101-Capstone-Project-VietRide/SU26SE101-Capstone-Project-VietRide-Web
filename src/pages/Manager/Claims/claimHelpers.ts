@@ -81,13 +81,15 @@ export function claimErrorTranslationKey(
 
 export type ClaimDecisionDraft = {
   decision: "APPROVE" | "REJECT";
-  /** Để trống nghĩa là "không có chứng từ" — BE rơi vào công thức hệ số cước. */
+  proofMode: "" | "WITH_PROOF" | "WITHOUT_PROOF";
   provenDirectLossVnd: string;
   reason: string;
 };
 
 export type ClaimDecisionParseError =
   | "reason-required"
+  | "proof-required"
+  | "loss-required"
   | "invalid-loss"
   | "negative-loss";
 
@@ -121,9 +123,16 @@ export function parseClaimDecision(
     return { ok: true, value: { decision: "REJECT", reason } };
   }
 
+  if (!draft.proofMode) {
+    return { ok: false, error: "proof-required" };
+  }
+  if (draft.proofMode === "WITHOUT_PROOF") {
+    return { ok: true, value: { decision: "APPROVE", reason } };
+  }
+
   const lossText = draft.provenDirectLossVnd.trim();
   if (!lossText) {
-    return { ok: true, value: { decision: "APPROVE", reason } };
+    return { ok: false, error: "loss-required" };
   }
 
   if (!/^-?\d+$/.test(lossText)) {
@@ -146,6 +155,14 @@ export type ClaimCargoAwardPreview = {
   cargoAwardVnd: number;
   /** True khi trần policy đã cắt bớt phần đền — lý do con số nhỏ hơn mong đợi. */
   cappedByPolicy: boolean;
+};
+
+export type ClaimAwardPreview = ClaimCargoAwardPreview & {
+  proofMode: "WITH_PROOF" | "WITHOUT_PROOF";
+  freightCollectedVnd: number;
+  alreadyRefundedVnd: number;
+  freightRefundVnd: number;
+  totalAwardVnd: number;
 };
 
 /**
@@ -182,5 +199,64 @@ export function previewClaimCargoAward(
     assessedLossVnd,
     cargoAwardVnd: Math.min(gross, policyCapVnd),
     cappedByPolicy: gross > policyCapVnd,
+  };
+}
+
+export function previewClaimAward(
+  proofMode: "" | "WITH_PROOF" | "WITHOUT_PROOF",
+  provenDirectLossVnd: number | null,
+  declaredValueVnd: number | null | undefined,
+  freightCollectedVnd: number | null | undefined,
+  alreadyRefundedVnd: number | null | undefined,
+  compensationRatePercent: number,
+  policyCapVnd: number,
+  noProofFallbackMultiplier: number | null | undefined,
+): ClaimAwardPreview | null {
+  if (
+    !proofMode ||
+    freightCollectedVnd == null ||
+    freightCollectedVnd < 0 ||
+    alreadyRefundedVnd == null ||
+    alreadyRefundedVnd < 0
+  ) {
+    return null;
+  }
+
+  const freightRefundVnd = Math.max(
+    0,
+    freightCollectedVnd - alreadyRefundedVnd,
+  );
+  if (proofMode === "WITHOUT_PROOF") {
+    if (noProofFallbackMultiplier == null || noProofFallbackMultiplier <= 0) {
+      return null;
+    }
+    const gross = freightCollectedVnd * noProofFallbackMultiplier;
+    const cargoAwardVnd = Math.min(gross, policyCapVnd);
+    return {
+      proofMode,
+      assessedLossVnd: 0,
+      cargoAwardVnd,
+      cappedByPolicy: gross > policyCapVnd,
+      freightCollectedVnd,
+      alreadyRefundedVnd,
+      freightRefundVnd,
+      totalAwardVnd: cargoAwardVnd + freightRefundVnd,
+    };
+  }
+
+  const cargo = previewClaimCargoAward(
+    provenDirectLossVnd,
+    declaredValueVnd,
+    compensationRatePercent,
+    policyCapVnd,
+  );
+  if (!cargo) return null;
+  return {
+    ...cargo,
+    proofMode,
+    freightCollectedVnd,
+    alreadyRefundedVnd,
+    freightRefundVnd,
+    totalAwardVnd: cargo.cargoAwardVnd + freightRefundVnd,
   };
 }
