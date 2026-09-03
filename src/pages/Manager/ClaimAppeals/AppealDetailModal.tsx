@@ -34,6 +34,7 @@ import {
 import AppealDecisionModal from "./AppealDecisionModal";
 import { appealStatusTone, hasAppealAction } from "./appealHelpers";
 import { CANONICAL_DATA_REFRESH_EVENT } from "../../../utils/canonicalDataRefresh";
+import ClaimEvidenceCard from "../Claims/ClaimEvidenceCard";
 
 type AppealDetailModalProps = {
   open: boolean;
@@ -264,35 +265,27 @@ export default function AppealDetailModal({
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     {t("claims.acceptedEvidenceLabel")}
                   </p>
-                  <ul className="mt-2 space-y-2">
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     {(appeal.acceptedEvidenceIds ?? []).map((evidenceId) => {
                       const evidence = claim?.claim.evidence.find(
                         (item) => item.evidenceId === evidenceId,
                       );
-                      return (
-                        <li key={evidenceId} className="text-sm text-gray-700">
-                          <span className="font-semibold">
-                            {evidence
-                              ? t(
-                                  "claims.evidenceType." +
-                                    evidence.evidenceType,
-                                  {
-                                    defaultValue: t(
-                                      "claims.evidenceType.OTHER",
-                                    ),
-                                  },
-                                )
-                              : evidenceId}
-                          </span>
-                          {evidence?.note?.trim() ? (
-                            <span className="ml-2 text-gray-500">
-                              {evidence.note}
-                            </span>
-                          ) : null}
-                        </li>
+                      return evidence ? (
+                        <ClaimEvidenceCard
+                          key={evidenceId}
+                          evidence={evidence}
+                          accepted
+                        />
+                      ) : (
+                        <p
+                          key={evidenceId}
+                          className="break-all rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700"
+                        >
+                          {evidenceId}
+                        </p>
                       );
                     })}
-                  </ul>
+                  </div>
                 </div>
               ) : null}
             </section>

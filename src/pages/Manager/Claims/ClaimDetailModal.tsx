@@ -29,6 +29,7 @@ import {
   hasClaimAction,
   proofStatusTranslationKey,
 } from "./claimHelpers";
+import ClaimEvidenceCard from "./ClaimEvidenceCard";
 
 type ClaimDetailModalProps = {
   open: boolean;
@@ -290,53 +291,17 @@ export default function ClaimDetailModal({
                   {t("claims.evidenceEmpty")}
                 </p>
               ) : (
-                <ul className="mt-3 space-y-2">
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {claim.evidence.map((item) => (
-                    <li
+                    <ClaimEvidenceCard
                       key={item.evidenceId}
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Badge tone="neutral">
-                          {t(`claims.evidenceType.${item.evidenceType}`, {
-                            defaultValue: t("claims.evidenceType.OTHER"),
-                          })}
-                        </Badge>
-                        {(claim.acceptedEvidenceIds ?? []).includes(
-                          item.evidenceId,
-                        ) ? (
-                          <Badge tone="success">
-                            {t("claims.evidenceAccepted")}
-                          </Badge>
-                        ) : null}
-                        <span className="text-xs text-gray-500">
-                          {formatDateTime(item.createdAt)}
-                        </span>
-                      </div>
-                      {/* Reference do người gửi nhập, không phải lúc nào cũng là
-                          URL — chỉ mở tab mới khi thật sự là http(s). */}
-                      {/^https?:\/\//i.test(item.reference) ? (
-                        <a
-                          href={item.reference}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="mt-1 block break-all text-sm font-medium text-vr-900 underline"
-                        >
-                          {item.reference}
-                        </a>
-                      ) : (
-                        <p className="mt-1 break-all text-sm text-gray-700">
-                          {item.reference}
-                        </p>
+                      evidence={item}
+                      accepted={(claim.acceptedEvidenceIds ?? []).includes(
+                        item.evidenceId,
                       )}
-                      {item.note?.trim() && (
-                        <p className="mt-1 text-xs text-gray-600">
-                          {item.note}
-                        </p>
-                      )}
-                    </li>
+                    />
                   ))}
-                </ul>
+                </div>
               )}
             </section>
 

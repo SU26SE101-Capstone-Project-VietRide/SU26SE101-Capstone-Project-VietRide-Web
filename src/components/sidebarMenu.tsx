@@ -203,6 +203,27 @@ export const operatorAdminMenuConfig: MenuSection[] = [
   },
 ];
 
+/** Operator staff only receives the two read-only compensation queues. */
+export const operatorStaffMenuConfig: MenuSection[] = [
+  {
+    titleKey: "sections.parcel",
+    items: [
+      {
+        labelKey: "manager.claims",
+        path: "/manager/claims",
+        icon: <FiShield />,
+        requiredModule: "enableParcel",
+      },
+      {
+        labelKey: "manager.claimAppeals",
+        path: "/manager/claim-appeals",
+        icon: <FiRotateCcw />,
+        requiredModule: "enableParcel",
+      },
+    ],
+  },
+];
+
 export const adminMenuConfig: MenuSection[] = [
   {
     titleKey: "sections.analytics",
@@ -296,7 +317,11 @@ export const adminMenuConfig: MenuSection[] = [
  */
 export function menuLabelKeyFor(role: AuthRole, pathname: string): string | null {
   const sections =
-    role === "SYSTEM_ADMIN" ? adminMenuConfig : operatorAdminMenuConfig;
+    role === "SYSTEM_ADMIN"
+      ? adminMenuConfig
+      : role === "OPERATOR_STAFF"
+        ? operatorStaffMenuConfig
+        : operatorAdminMenuConfig;
 
   for (const section of sections) {
     for (const item of section.items) {

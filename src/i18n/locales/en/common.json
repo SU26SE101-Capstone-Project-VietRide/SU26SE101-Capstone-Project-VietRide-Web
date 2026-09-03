@@ -275,6 +275,7 @@
     "SYSTEM_ADMIN": "System administrator",
     "OPERATOR_ADMIN": "Operator admin",
     "OPERATOR_STAFF": "Operator staff",
+    "OPERATOR_STAFF": "Operator staff",
     "DRIVER": "Driver",
     "ASSISTANT": "Assistant"
   },

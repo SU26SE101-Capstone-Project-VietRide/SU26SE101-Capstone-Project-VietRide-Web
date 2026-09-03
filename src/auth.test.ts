@@ -251,6 +251,39 @@ describe("auth", () => {
     expect(getAuthUser()?.role).toBe("SYSTEM_ADMIN");
   });
 
+  it("accepts operator staff and sends them to the read-only claim queue", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          statusCode: 200,
+          data: {
+            accessToken: "staff-access-token",
+            refreshToken: "staff-refresh-token",
+            expiresInSeconds: 3600,
+            user: {
+              id: "staff-1",
+              email: "staff@vietride.vn",
+              displayName: "Operator staff",
+              phone: "0901234567",
+              role: "OPERATOR_STAFF",
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const session = await login({
+      email: "staff@vietride.vn",
+      password: "secret123",
+    });
+
+    expect(session.user.role).toBe("OPERATOR_STAFF");
+    expect(getHomePathForRole(session.user.role)).toBe("/manager/claims");
+  });
+
   it("refreshes and stores a new auth session", async () => {
     localStorage.setItem(
       "auth",

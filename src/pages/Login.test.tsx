@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ToastProvider from "../components/toast/ToastProvider";
-import { login, RETIRED_ROLE_ERROR } from "../auth";
+import { login } from "../auth";
 import Login from "./Login";
 
 vi.mock("react-i18next", () => ({
@@ -116,7 +116,4 @@ describe("Login", () => {
     expect(screen.queryByTestId("toast")).not.toBeInTheDocument();
   });
 
-  it("xuất RETIRED_ROLE_ERROR để phân biệt role đã gỡ với sai mật khẩu", () => {
-    expect(RETIRED_ROLE_ERROR).toBe("VIETRIDE_CONSOLE_ROLE_RETIRED");
-  });
 });

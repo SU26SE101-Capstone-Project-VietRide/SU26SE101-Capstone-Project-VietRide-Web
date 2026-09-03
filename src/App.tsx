@@ -137,7 +137,9 @@ export default function App() {
             {/* Manager routes */}
             <Route
               element={
-                <PrivateRoute allowedRoles={["OPERATOR_ADMIN"]} />
+                <PrivateRoute
+                  allowedRoles={["OPERATOR_ADMIN", "OPERATOR_STAFF"]}
+                />
               }
             >
               <Route path="/manager" element={<ManagerLayout />}>

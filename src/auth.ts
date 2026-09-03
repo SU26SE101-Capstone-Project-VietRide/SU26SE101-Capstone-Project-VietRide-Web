@@ -2,33 +2,11 @@ import { createIdempotencyKey } from "./api/idempotency";
 import { translateApiErrorMessage } from "./utils/apiErrorMessage";
 import { isRecord } from "./utils/typeGuards";
 
-/**
- * Vai trò dùng được trên web console. `OPERATOR_STAFF` đã bị gỡ khỏi giao diện
- * — BE vẫn cấp role đó cho tài khoản cũ nên `normalizeRole` phải nhận diện
- * riêng để báo lỗi rõ ràng thay vì trả về `null` chung chung.
- */
-export type AuthRole = "SYSTEM_ADMIN" | "OPERATOR_ADMIN";
-
-/** Role BE còn trả về nhưng web console không phục vụ nữa. */
-export const RETIRED_CONSOLE_ROLES = [
-  "OPERATOR_STAFF",
-  "OPERATION_STAFF",
-  "operator",
-  "operationStaff",
-] as const;
-
-export function isRetiredConsoleRole(value: unknown): boolean {
-  return (
-    typeof value === "string" &&
-    (RETIRED_CONSOLE_ROLES as readonly string[]).includes(value)
-  );
-}
-
-/**
- * Mã lỗi nội bộ, màn Login đối chiếu để hiện `login:errors.roleRetired`.
- * Không phải error.code của BE — BE coi lần đăng nhập này là thành công.
- */
-export const RETIRED_ROLE_ERROR = "VIETRIDE_CONSOLE_ROLE_RETIRED";
+/** Staff is allowed into the claim and appeal read-only console. */
+export type AuthRole =
+  | "SYSTEM_ADMIN"
+  | "OPERATOR_ADMIN"
+  | "OPERATOR_STAFF";
 
 export type AuthUser = {
   id: string;
@@ -79,9 +57,13 @@ function normalizeRole(value: unknown): AuthRole | null {
     SYSTEM_ADMIN: "SYSTEM_ADMIN",
     OPERATOR_ADMIN: "OPERATOR_ADMIN",
     OPERATION_ADMIN: "OPERATOR_ADMIN",
+    OPERATOR_STAFF: "OPERATOR_STAFF",
+    OPERATION_STAFF: "OPERATOR_STAFF",
     admin: "SYSTEM_ADMIN",
     manager: "OPERATOR_ADMIN",
     operationAdmin: "OPERATOR_ADMIN",
+    operator: "OPERATOR_STAFF",
+    operationStaff: "OPERATOR_STAFF",
   };
 
   if (typeof value === "string") {
@@ -116,13 +98,6 @@ function parseUser(value: unknown): AuthUser | null {
 function parseLoginData(value: unknown): LoginData | null {
   if (!isRecord(value)) {
     return null;
-  }
-
-  // BE đăng nhập THÀNH CÔNG cho tài khoản OPERATOR_STAFF, chỉ có console là
-  // không phục vụ role đó nữa. Không chặn ở đây thì người dùng rơi vào nhánh
-  // `!data` và đọc phải message thành công của BE — trông như lỗi vu vơ.
-  if (isRecord(value.user) && isRetiredConsoleRole(value.user.role)) {
-    throw new Error(RETIRED_ROLE_ERROR);
   }
 
   const user = parseUser(value.user);
@@ -218,7 +193,10 @@ export function getAuthUser(): AuthUser | null {
 }
 
 export function getHomePathForRole(role: AuthRole): string {
-  return role === "SYSTEM_ADMIN" ? "/admin/dashboard" : "/manager/dashboard";
+  if (role === "SYSTEM_ADMIN") return "/admin/dashboard";
+  return role === "OPERATOR_STAFF"
+    ? "/manager/claims"
+    : "/manager/dashboard";
 }
 
 export function saveAuthSession(session: LoginData): void {

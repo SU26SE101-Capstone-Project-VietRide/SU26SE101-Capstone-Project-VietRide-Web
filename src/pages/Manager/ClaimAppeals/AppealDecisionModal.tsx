@@ -39,13 +39,20 @@ type AppealDecisionModalProps = {
   onEvidenceStale: (detail: ParcelClaimDetail, message: string) => void;
 };
 
-const emptyDraft: AppealDecisionDraft = {
-  decision: "UPHOLD",
-  proofStatus: "",
-  lossVnd: "",
-  acceptedEvidenceIds: [],
-  reason: "",
-};
+function decisionDraftFromAppeal(
+  appeal: ParcelClaimAppeal | null,
+): AppealDecisionDraft {
+  return {
+    decision: "UPHOLD",
+    proofStatus: appeal?.proofStatus ?? "",
+    lossVnd:
+      appeal?.revisedProvenDirectLossVnd == null
+        ? ""
+        : String(appeal.revisedProvenDirectLossVnd),
+    acceptedEvidenceIds: [...(appeal?.acceptedEvidenceIds ?? [])],
+    reason: "",
+  };
+}
 
 type PreviewState = {
   signature: string;
@@ -64,7 +71,9 @@ export default function AppealDecisionModal({
 }: AppealDecisionModalProps) {
   const { t } = useTranslation("manager");
   const { t: tc } = useTranslation("common");
-  const [draft, setDraft] = useState<AppealDecisionDraft>(emptyDraft);
+  const [draft, setDraft] = useState<AppealDecisionDraft>(() =>
+    decisionDraftFromAppeal(appeal),
+  );
   const [error, setError] = useState("");
   const [proofInvalid, setProofInvalid] = useState(false);
   const [previewState, setPreviewState] = useState<PreviewState | null>(null);
@@ -218,7 +227,7 @@ export default function AppealDecisionModal({
 
   function handleClose() {
     pendingRef.current = null;
-    setDraft(emptyDraft);
+    setDraft(decisionDraftFromAppeal(appeal));
     setError("");
     setProofInvalid(false);
     setPreviewState(null);

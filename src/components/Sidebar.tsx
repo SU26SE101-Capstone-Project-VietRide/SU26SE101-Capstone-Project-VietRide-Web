@@ -8,6 +8,7 @@ import { logout, type AuthRole } from "../auth";
 import {
   adminMenuConfig,
   operatorAdminMenuConfig,
+  operatorStaffMenuConfig,
   type MenuSection,
 } from "./sidebarMenu";
 import { useOperatorSubscription } from "../contexts/operatorSubscriptionContext";
@@ -98,6 +99,7 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   const menuConfigByRole: Record<AuthRole, MenuSection[]> = {
     SYSTEM_ADMIN: adminMenuConfig,
     OPERATOR_ADMIN: operatorAdminMenuConfig,
+    OPERATOR_STAFF: operatorStaffMenuConfig,
   };
   const menus = menuConfigByRole[role]
     .map((section) => ({
